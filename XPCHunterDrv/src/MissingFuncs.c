@@ -2,18 +2,95 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 #include "..\inc\XPCHunterDrv.h"
 
-__int64 AdjustKernelModuleSectionPointers(void) { return 0; }
+// AdjustKernelModuleSectionPointers — 调整内核模块节区指针
+// 对应原始驱动 sub_14006E4A0
+// 根据构建号调整内核模块节区指针偏移量，处理 Win10 RS3 及以上的差异
+__int64 AdjustKernelModuleSectionPointers(void)
+{
+    __int64 v0 = GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField187 | 0x100));
+    __int64 v2 = GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField188 | 0x100));
+    if (v0 && v2)
+    {
+        if (GtRead(GtWindowsBuildNumber) >= 0x23F0)
+        {
+            if (GtRead(GtWindowsBuildNumber) == 9200)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), v0 + 16);
+                GtWrite((GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | 0x100), v2 + 16);
+            }
+        }
+        else
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), v0 + 8);
+            GtWrite((GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | 0x100), v2 + 8);
+        }
+    }
+    return v2;
+}
 __int64 DispatchWin32kPatternMatching(void) { return 0; }
-// AllocExBufferAndQuerySystemInfo
+// AllocExBufferAndQuerySystemInfo — 分配扩展缓冲区并查询系统信息
+// 对应原始驱动 sub_14007A7F8
+// 分配缓冲区后调用 NtQuerySystemInformation，若缓冲区不足则自动扩展（4倍）直至成功
 void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass)
 {
-    return 0;
+    void *Buffer = NULL;
+    __int64 (__fastcall *NtQuerySystemInfoFunc)(unsigned int, PVOID, unsigned int, int);
+    unsigned int ThreadPrevModeOffset;
+    int Status;
+    unsigned int BufferSize = 0x4000;
+    PVOID NewBuffer;
+    PKTHREAD CurrentThread;
+    char SavedPrevMode;
+
+    NtQuerySystemInfoFunc = (__int64 (__fastcall *)(unsigned int, PVOID, unsigned int, int))GtRead(GtNtQuerySystemInformationFunc);
+    ThreadPrevModeOffset = GtRead(GtSdstServiceCount);
+    if (NtQuerySystemInfoFunc && ThreadPrevModeOffset != -1)
+    {
+        Status = -1073741820;  // STATUS_INFO_LENGTH_MISMATCH
+        do
+        {
+            if (Buffer)
+                ExFree(Buffer);
+            NewBuffer = ExAlloc(PagedPool, BufferSize);
+            Buffer = NewBuffer;
+            if (!NewBuffer)
+                break;
+            CurrentThread = KeGetCurrentThread();
+            SavedPrevMode = *((char *)CurrentThread + ThreadPrevModeOffset);
+            *((char *)CurrentThread + ThreadPrevModeOffset) = 0;  // KernelMode
+            Status = NtQuerySystemInfoFunc(SystemInformationClass, NewBuffer, BufferSize, 0);
+            BufferSize *= 4;
+            *((char *)CurrentThread + ThreadPrevModeOffset) = SavedPrevMode;
+        }
+        while (Status == -1073741820);
+        if (Status < 0 && Buffer)
+        {
+            ExFree(Buffer);
+            return NULL;
+        }
+    }
+    return Buffer;
 }
 
-// AllocProcessInfoBuffer
-void AllocProcessInfoBuffer(void)
+// AllocProcessInfoBuffer — 分配进程信息缓冲区
+// 对应原始驱动 sub_1400813F0
+// 从全局表分配结构体，返回指针指向缓冲区中的子结构
+void *AllocProcessInfoBuffer(void)
 {
-    return;
+    __int64 *Buffer = GtAlloc(GtCommandHandlerBase);
+    Buffer[158] = 0;
+    Buffer[159] = 0;
+    memset(Buffer + 198, 0, 0xD8);
+    Buffer[237] = 0;
+    Buffer[238] = 0;
+    Buffer[239] = 0;
+    Buffer[240] = 0;
+    memset(Buffer + 249, 0, 0x70);
+    Buffer[273] = 0;
+    Buffer[274] = 0;
+    Buffer[275] = 0;
+    Buffer[276] = 0;
+    return Buffer + 249;
 }
 
 // BuildCallbackContextHookTargets
@@ -76,21 +153,75 @@ __int64 CheckFilePathFilter(__int64 FilePath, unsigned int FilePathLength)
     return 0;
 }
 
-// CheckProcessJobObject
-__int64 CheckProcessJobObject(__int64 a1)
+// CheckProcessJobObject — 检查进程是否属于作业对象
+// 对应原始驱动 sub_140079D20
+// 查询进程的 ProcessBasicInformation，检查 JobObject 字段是否非空
+__int64 CheckProcessJobObject(__int64 ProcessHandle)
 {
-    return 0;
+    unsigned int PrevModeOffset = GtRead(GtSdstServiceCount);
+    __int64 (__fastcall *NtQueryInfoProcessFunc)(__int64, __int64, _QWORD *, __int64, _QWORD);
+    _QWORD *Buffer;
+    PKTHREAD CurrentThread;
+    char SavedPrevMode;
+    int Status;
+    bool Result = 0;
+
+    NtQueryInfoProcessFunc = (__int64 (__fastcall *)(__int64, __int64, _QWORD *, __int64, _QWORD))GtRead(GtDereferenceObjectFunc);
+    if (PrevModeOffset != -1 && NtQueryInfoProcessFunc)
+    {
+        Buffer = ExAlloc(PagedPool, 0x2000);
+        if (Buffer)
+        {
+            CurrentThread = KeGetCurrentThread();
+            SavedPrevMode = *((char *)CurrentThread + PrevModeOffset);
+            *((char *)CurrentThread + PrevModeOffset) = 0;
+            Status = NtQueryInfoProcessFunc(ProcessHandle, 2, Buffer, 0x2000, 0);
+            *((char *)CurrentThread + PrevModeOffset) = SavedPrevMode;
+            if (Status >= 0)
+                Result = Buffer[1] != 0;  // JobObject field
+            ExFree(Buffer);
+        }
+    }
+    return Result;
 }
 
-// CheckProcessObjectFlag
-__int64 CheckProcessObjectFlag(__int64 a1)
+// CheckProcessObjectFlag — 检查进程对象保护标志
+// 对应原始驱动 sub_140078638
+// 根据 Windows 版本检查进程保护标志（PsProtectedProcess）
+__int64 CheckProcessObjectFlag(__int64 ProcessObject)
 {
-    return 0;
+    unsigned int ProtectedOffset = GtRead(GtCallbackField75);
+    if (!ProtectedOffset)
+        return 0;
+
+    if (GtRead(GtWindowsBuildNumber) < 0x1770)
+        return *((char *)ProcessObject + ProtectedOffset) != 0;
+
+    if (GtRead(GtWindowsBuildNumber) >= 0x2800)
+    {
+        if (GtRead(GtWindowsBuildNumber) >= 0x3FAB)
+            return (*(unsigned int *)((char *)ProcessObject + ProtectedOffset) & 0x20000) != 0;
+        else
+            return (*(unsigned int *)((char *)ProcessObject + ProtectedOffset) & 0x10000) != 0;
+    }
+
+    if (GtRead(GtWindowsBuildNumber) == 9600)
+    {
+        if (GtRead(GtNtCreateThreadHookSuccess) != 0)
+            return (*(unsigned int *)((char *)ProcessObject + ProtectedOffset) & 0x10000) != 0;
+    }
+
+    return (*((char *)ProcessObject + ProtectedOffset) & 1) != 0;
 }
 
-// CheckWin2k3Sp2
+// CheckWin2k3Sp2 — 检查 Win2K3 SP2 版本
+// 对应原始驱动 sub_1400210F4
+// 通过 EPROCESS 偏移 0x98 的 DWORD 最高位判断
 __int64 CheckWin2k3Sp2(void)
 {
+    PEPROCESS CurrentProcess = IoGetCurrentProcess();
+    if (CurrentProcess)
+        return *((unsigned int *)CurrentProcess + 38) > 0x80000000;
     return 0;
 }
 
