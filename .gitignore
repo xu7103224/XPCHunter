@@ -1,0 +1,56 @@
+# =====================================
+# XPCHunter — Git Ignore
+# =====================================
+
+# Build artifacts
+XPCHunterDrv/build/obj/
+XPCHunterDrv/build/bin/
+XPCHunterDrv/build/*.sys
+*.obj
+*.pdb
+*.map
+*.exp
+*.lib
+*.ilk
+
+# IDA Pro database files (regeneratable)
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+
+# VS / MSVC
+.vs/
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.log
+Debug/
+Release/
+x64/
+Win32/
+ipch/
+*.VC.db
+*.VC.opendb
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temp files
+*.tmp
+*.bak
+~$*
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
