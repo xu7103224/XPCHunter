@@ -105,10 +105,57 @@ void BuildContextTableFromNtFile(void)
     return;
 }
 
-// BuildDriverInfoEntries
-__int64 BuildDriverInfoEntries(unsigned int *a1, unsigned int a2)
+// BuildDriverInfoEntries — 构建驱动信息条目
+// 对应原始驱动 sub_140051E90
+// 从 GT 获取驱动上下文表，遍历条目填充驱动信息数组
+__int64 BuildDriverInfoEntries(unsigned int *InfoBuffer, unsigned int BufferSize)
 {
-    return 0;
+    __int64 ContextTable = GtRead(GtFindHookTargetFirstMatchAddr2);
+    if (!ContextTable)
+        return 0;
+
+    __int64 EntryTable = *(_QWORD *)ContextTable;
+    unsigned int CurrentCount = *InfoBuffer;
+    unsigned int NewCount = *(_DWORD *)(ContextTable + 16);
+    unsigned int Index = 0;
+
+    if (NewCount < CurrentCount)
+        NewCount = CurrentCount;
+    InfoBuffer[1] = NewCount;
+
+    if (CurrentCount)
+    {
+        do
+        {
+            __int64 EntryAddr = EntryTable + (*(int *)(EntryTable + 4LL * Index) >> 4);
+            __int64 EntrySlot = 42LL * Index;
+            *(_QWORD *)&InfoBuffer[EntrySlot + 40] = EntryAddr;
+            if (EntryAddr != *(_QWORD *)&InfoBuffer[EntrySlot + 38])
+                *((char *)&InfoBuffer[EntrySlot + 42]) = 1;
+            ++Index;
+        }
+        while (Index < CurrentCount);
+    }
+
+    unsigned int TargetCount = InfoBuffer[1];
+    if (TargetCount > CurrentCount && BufferSize >= 168 * TargetCount + 176)
+    {
+        unsigned int FillIndex = CurrentCount;
+        do
+        {
+            __int64 FillSlot = 42LL * FillIndex;
+            InfoBuffer[FillSlot + 2] = FillIndex;
+            int EntryValue = *(int *)(EntryTable + 4LL * FillIndex);
+            *(short *)&InfoBuffer[FillSlot + 42] = 0;
+            InfoBuffer[FillSlot + 36] = 0;
+            *(_QWORD *)&InfoBuffer[FillSlot + 38] = 0;
+            *(_QWORD *)&InfoBuffer[FillSlot + 40] = EntryTable + (EntryValue >> 4);
+            *(short *)&InfoBuffer[FillSlot + 3] = 0;
+            ++FillIndex;
+        }
+        while (FillIndex < TargetCount);
+    }
+    return 1;
 }
 
 // BuildDriverPathI8042prt

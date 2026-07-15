@@ -1193,9 +1193,13 @@ __int64 UnregisterCommPortCallback(void)
 
 // CheckProtectedEntry — 检查受保护条目
 // 对应原始驱动 sub_14007A2A0
+// 从全局表读取偏移，检查条目是否被标记保护
 __int64 CheckProtectedEntry(__int64 Entry)
 {
-    return 0;
+    unsigned int ProtectedOffset = GtRead(GtEprocessModuleListOffset);
+    if (!ProtectedOffset)
+        return 0;
+    return *(_QWORD *)(ProtectedOffset + Entry) != 0;
 }
 
 // MiniFilterPreRelease — 预释放
