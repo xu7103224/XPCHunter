@@ -430,10 +430,27 @@ __int64 CmdSetModuleInfoInternal(_QWORD a1)
     return 0;
 }
 
-// CopyCallbackContextHookTable
+// CopyCallbackContextHookTable — 复制回调上下文 Hook 表
+// 对应原始驱动 sub_140035FC8
+// 从 GT 16358 的表复制 28 条目标到目标表，每条 48 字节
 __int64 CopyCallbackContextHookTable(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3FE6);
+    char *pSrcEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+    char Result = 0;
+    for (int Count = 28; Count; Count--)
+    {
+        *(unsigned int *)(pSrcEntry + DeltaOffset) = *(unsigned int *)pSrcEntry;
+        if (*(unsigned int *)pSrcEntry && *((unsigned int *)pSrcEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)(pSrcEntry + DeltaOffset + 4) = *(_QWORD *)(pSrcEntry + 4);
+            *(_OWORD *)(pSrcEntry + DeltaOffset + 22) = *(_OWORD *)(pSrcEntry + 12);
+        }
+        pSrcEntry += 48;
+    }
+    return Result;
 }
 
 // CopyCallbackContextTable
@@ -442,10 +459,32 @@ __int64 CopyCallbackContextTable(__int64 pSourceTable, int ContextType)
     return 0;
 }
 
-// CopyCallbackContextV3Table
+// CopyCallbackContextV3Table — 复制回调上下文 V3 表
+// 对应原始驱动 sub_14003E6AC
+// 从 GT 15302 的表复制 28 条目标（源 48 字节，目标 64 字节）
 __int64 CopyCallbackContextV3Table(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3BC6);
+    char Result = 0;
+    if (pDestTable)
+    {
+        char *pDestSlot = (char *)pDestTable + 4;
+        __int64 pDestEntry = pSourceTable + 8;
+        for (int Count = 28; Count; Count--)
+        {
+            *(unsigned int *)(pDestEntry - 4) = *(unsigned int *)pDestSlot;
+            if (*(unsigned int *)pDestSlot && *((unsigned int *)pDestSlot - 1) == 1)
+            {
+                Result = 1;
+                *(_QWORD *)pDestEntry = *(_QWORD *)(pDestSlot + 4);
+                *(_OWORD *)(pDestEntry + 18) = *(_OWORD *)(pDestSlot + 12);
+                *(_OWORD *)(pDestEntry + 34) = *(_OWORD *)(pDestSlot + 28);
+            }
+            pDestSlot += 48;
+            pDestEntry += 64;
+        }
+    }
+    return Result;
 }
 
 // CopyContextTableEntries — 复制上下文表条目
@@ -472,10 +511,35 @@ __int64 CopyContextTableEntries(__int64 pOutputTable)
     return Result;
 }
 
-// CopyFsFilterEntryTable
+// CopyFsFilterEntryTable — 复制文件系统过滤器条目表
+// 对应原始驱动 sub_14000E510
+// 从 GT 分配表复制 64 条过滤器条目到输出缓冲区
 __int64 CopyFsFilterEntryTable(__int64 OutputBuffer, char Is64Bit)
 {
-    return 0;
+    __int64 *RelocTable;
+    if (Is64Bit == 1)
+        RelocTable = GtAlloc((GLOBAL_TABLE_INDEX)0x1BB0);
+    else
+        RelocTable = GtAlloc((GLOBAL_TABLE_INDEX)0x1D3C);
+    char Result = 0;
+    __int64 OutputPtr = OutputBuffer + 16;
+    for (int Count = 64; Count; Count--)
+    {
+        char *InputPtr = (char *)RelocTable + 4 + 48LL * (64 - Count);
+        if (*(unsigned int *)InputPtr && *((unsigned int *)InputPtr - 1) == 1)
+        {
+            *(unsigned int *)(OutputPtr - 8) = *(unsigned int *)InputPtr;
+            Result = 1;
+            *(_QWORD *)OutputPtr = *(_QWORD *)(InputPtr + 4);
+            *(_OWORD *)(OutputPtr + 18) = *(_OWORD *)(InputPtr + 12);
+        }
+        else
+        {
+            *(_QWORD *)OutputPtr = 0;
+        }
+        OutputPtr += 56;
+    }
+    return Result;
 }
 
 // CopyHookEntryArray — 复制钩子条目数组
@@ -503,10 +567,27 @@ __int64 CopyKernelDualArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3
     return 0;
 }
 
-// CopyObjectContextHookTable
+// CopyObjectContextHookTable — 复制对象上下文 Hook 表
+// 对应原始驱动 sub_140037B74
+// 从 GT 15998 的表复制 29 条目标到目标表，每条 48 字节
 __int64 CopyObjectContextHookTable(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3E7E);
+    char *pDestEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+    char Result = 0;
+    for (int Count = 29; Count; Count--)
+    {
+        *(unsigned int *)(pDestEntry + DeltaOffset) = *(unsigned int *)pDestEntry;
+        if (*(unsigned int *)pDestEntry && *((unsigned int *)pDestEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)(pDestEntry + DeltaOffset + 4) = *(_QWORD *)(pDestEntry + 4);
+            *(_OWORD *)(pDestEntry + DeltaOffset + 22) = *(_OWORD *)(pDestEntry + 12);
+        }
+        pDestEntry += 48;
+    }
+    return Result;
 }
 
 // CopyPhysicalMemoryContextTable
@@ -515,10 +596,27 @@ __int64 CopyPhysicalMemoryContextTable(__int64 pSourceTable, int ContextType)
     return 0;
 }
 
-// CopyProcessContextTable1
+// CopyProcessContextTable1 — 复制进程上下文表 1
+// 对应原始驱动 sub_1400320B8
+// 从 GT 15476 的表复制 28 条上下文字段到目标表
 __int64 CopyProcessContextTable1(__int64 pTargetTable)
 {
-    return 0;
+    __int64 *pSourceTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3C74);
+    char *pSourceEntry = (char *)pSourceTable + 4;
+    __int64 DeltaOffset = pTargetTable - (__int64)pSourceTable;
+    char Result = 0;
+    for (int Count = 28; Count; Count--)
+    {
+        *(unsigned int *)(pSourceEntry + DeltaOffset) = *(unsigned int *)pSourceEntry;
+        if (*(unsigned int *)pSourceEntry && *((unsigned int *)pSourceEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)(pSourceEntry + DeltaOffset + 4) = *(_QWORD *)(pSourceEntry + 4);
+            *(_OWORD *)(pSourceEntry + DeltaOffset + 22) = *(_OWORD *)(pSourceEntry + 12);
+        }
+        pSourceEntry += 48;
+    }
+    return Result;
 }
 
 // CopyProcessContextTable2
@@ -527,22 +625,73 @@ __int64 CopyProcessContextTable2(__int64 pTargetTable)
     return 0;
 }
 
-// CopyProcessContextTableWin7
+// CopyProcessContextTableWin7 — 复制进程上下文表（Win7 版）
+// 对应原始驱动 sub_14003A0DC
+// 从 GT 14954 的表复制 28 条目标到目标表
 __int64 CopyProcessContextTableWin7(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3A6A);
+    char *pDestEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+    char Result = 0;
+    for (int Count = 28; Count; Count--)
+    {
+        *(unsigned int *)(pDestEntry + DeltaOffset) = *(unsigned int *)pDestEntry;
+        if (*(unsigned int *)pDestEntry && *((unsigned int *)pDestEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)(pDestEntry + DeltaOffset + 4) = *(_QWORD *)(pDestEntry + 4);
+            *(_OWORD *)(pDestEntry + DeltaOffset + 22) = *(_OWORD *)(pDestEntry + 12);
+        }
+        pDestEntry += 48;
+    }
+    return Result;
 }
 
-// CopyProcessContextV2HookTable
+// CopyProcessContextV2HookTable — 复制进程上下文 V2 Hook 表
+// 对应原始驱动 sub_14003986C
+// 从 GT 8228 的表复制 28 条目标到目标表
 __int64 CopyProcessContextV2HookTable(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)0x2024);
+    char *pDestEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+    char Result = 0;
+    for (int Count = 28; Count; Count--)
+    {
+        *(unsigned int *)(pDestEntry + DeltaOffset) = *(unsigned int *)pDestEntry;
+        if (*(unsigned int *)pDestEntry && *((unsigned int *)pDestEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)(pDestEntry + DeltaOffset + 4) = *(_QWORD *)(pDestEntry + 4);
+            *(_OWORD *)(pDestEntry + DeltaOffset + 22) = *(_OWORD *)(pDestEntry + 12);
+        }
+        pDestEntry += 48;
+    }
+    return Result;
 }
 
-// CopyProcessContextV3HookTable
+// CopyProcessContextV3HookTable — 复制进程上下文 V3 Hook 表
+// 对应原始驱动 sub_1400398D0
+// 从 GT 8402 的表复制 27 条目标到目标表
 __int64 CopyProcessContextV3HookTable(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)0x20D2);
+    char *pDestEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+    char Result = 0;
+    for (int Count = 27; Count; Count--)
+    {
+        *(unsigned int *)(pDestEntry + DeltaOffset) = *(unsigned int *)pDestEntry;
+        if (*(unsigned int *)pDestEntry && *((unsigned int *)pDestEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)(pDestEntry + DeltaOffset + 4) = *(_QWORD *)(pDestEntry + 4);
+            *(_OWORD *)(pDestEntry + DeltaOffset + 22) = *(_OWORD *)(pDestEntry + 12);
+        }
+        pDestEntry += 48;
+    }
+    return Result;
 }
 
 // CopyRegistryContextEntryArray
