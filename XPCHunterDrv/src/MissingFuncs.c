@@ -374,10 +374,28 @@ __int64 CopyCallbackContextV3Table(__int64 pSourceTable)
     return 0;
 }
 
-// CopyContextTableEntries
+// CopyContextTableEntries — 复制上下文表条目
+// 对应原始驱动 sub_140047474
+// 从 GT 16178 的表复制 28 项条目到输出缓冲区，每项 48 字节
 __int64 CopyContextTableEntries(__int64 pOutputTable)
 {
-    return 0;
+    __int64 *pExportTable = GtAlloc((GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtCallbackField81 | 0x3400));
+    char *pSrcSlot = (char *)pExportTable + 4;
+    __int64 DeltaOffset = pOutputTable - (__int64)pExportTable;
+    char Result = 0;
+
+    for (int EntryCount = 28; EntryCount; EntryCount--)
+    {
+        *(unsigned int *)(pSrcSlot + DeltaOffset) = *(unsigned int *)pSrcSlot;
+        if (*(unsigned int *)pSrcSlot && *((unsigned int *)pSrcSlot - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)(pSrcSlot + DeltaOffset + 4) = *(_QWORD *)(pSrcSlot + 4);
+            *(_OWORD *)(pSrcSlot + DeltaOffset + 22) = *(_OWORD *)(pSrcSlot + 12);
+        }
+        pSrcSlot += 48;
+    }
+    return Result;
 }
 
 // CopyFsFilterEntryTable
@@ -386,10 +404,17 @@ __int64 CopyFsFilterEntryTable(__int64 OutputBuffer, char Is64Bit)
     return 0;
 }
 
-// CopyHookEntryArray
+// CopyHookEntryArray — 复制钩子条目数组
+// 对应原始驱动 sub_1400860B4
+// 将源钩子数组条目复制到目标缓冲区（每 40 字节一个条目）
 __int64 CopyHookEntryArray(__int64 DestBuffer, _QWORD *pSourceArray, unsigned int EntryCount)
 {
-    return 0;
+    for (unsigned int Index = 0; Index < EntryCount; Index++)
+    {
+        *(unsigned int *)(DestBuffer + 4 + 40LL * Index) = Index;
+        *(_QWORD *)(DestBuffer + 16 + 40LL * Index) = pSourceArray[Index];
+    }
+    return 1;
 }
 
 // CopyKernelArrayToUserBuffer
