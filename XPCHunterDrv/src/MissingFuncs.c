@@ -194,10 +194,44 @@ __int64 BuildServiceTableFromNtKernel(_QWORD a1, _QWORD a2)
     return 0;
 }
 
-// CheckFilePathFilter
+// CheckFilePathFilter — 检查文件路径是否被过滤屏蔽
+// 对应原始驱动 sub_14002D1E8
+// 比较路径是否匹配 NTFS 元数据文件 ($AttrDef, $MFTMirr, $MFT, $UpCase)
 __int64 CheckFilePathFilter(__int64 FilePath, unsigned int FilePathLength)
 {
-    return 0;
+    if (FilePathLength <= 8)
+        return 0;
+
+    __int64 PathStart = FilePath + 6;
+    int Filter1;
+    __int64 Filter2;
+    __int64 Filter3;
+
+    // "$AttrDef" 编码
+    Filter1 = 4259876;
+    Filter2 = 0x44007200740074LL;
+    Filter3 = 6684773;
+    if (!WStringCompareCaseInsensitive(PathStart, (__int64)&Filter1))
+        return 1;
+
+    // "$MFTMirr" 编码
+    Filter1 = 5046308;
+    Filter2 = 0x69004D00540046LL;
+    Filter3 = 7471218;
+    if (!WStringCompareCaseInsensitive(PathStart, (__int64)&Filter1))
+        return 1;
+
+    // "$MFT" 编码
+    Filter1 = 5046308;
+    Filter2 = 5505094;
+    if (!WStringCompareCaseInsensitive(PathStart, (__int64)&Filter1))
+        return 1;
+
+    // "$UpCase" 编码
+    Filter1 = 5570596;
+    Filter2 = 0x73006100430070LL;
+    Filter3 = 101;
+    return WStringCompareCaseInsensitive(PathStart, (__int64)&Filter1) == 0;
 }
 
 // CheckProcessJobObject — 检查进程是否属于作业对象
@@ -272,10 +306,50 @@ __int64 CheckWin2k3Sp2(void)
     return 0;
 }
 
-// CleanupProcessMemoryEntry
+// CleanupProcessMemoryEntry — 清理进程内存条目
+// 对应原始驱动 sub_140044B00
+// 调用清理回调处理目标条目，然后遍历链表查找匹配条目并调用释放回调
 __int64 CleanupProcessMemoryEntry(_QWORD *pTargetEntry)
 {
-    return 0;
+    int IterCount = 0;
+    char Result = 0;
+    void (__fastcall *pCleanupCallback)(_QWORD *) = (void (__fastcall *)(_QWORD *))GtRead((GLOBAL_TABLE_INDEX)0x43D9);
+
+    if (pCleanupCallback && pTargetEntry && MmIsAddressValid(pTargetEntry) == 1)
+    {
+        pCleanupCallback(pTargetEntry);
+        Result = 1;
+    }
+
+    _QWORD *pExAllocListHead = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField24 | 0x800));
+    void (__fastcall *pFreeCallback)(_QWORD *) = (void (__fastcall *)(_QWORD *))GtRead((GLOBAL_TABLE_INDEX)0x43E8);
+
+    if (pExAllocListHead && pFreeCallback && MmIsAddressValid(pExAllocListHead) == 1)
+    {
+        _QWORD **pListHead = (_QWORD **)*pExAllocListHead;
+        if (pListHead && MmIsAddressValid(pListHead) == 1)
+        {
+            _QWORD **pSentinel = pListHead + 2;
+            if (MmIsAddressValid(pListHead + 2) == 1)
+            {
+                for (_QWORD *pCurrent = *pSentinel; pCurrent != (_QWORD *)pSentinel; pCurrent = (_QWORD *)*pCurrent)
+                {
+                    if (pCurrent <= MmSystemRangeStart)
+                        break;
+                    if (MmIsAddressValid(pCurrent) != 1)
+                        break;
+                    if (++IterCount > 0x1000)
+                        break;
+                    if (pCurrent == pTargetEntry)
+                    {
+                        pFreeCallback(pTargetEntry);
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+    return Result;
 }
 
 // ClearKernelObjectEntry
@@ -591,10 +665,58 @@ __int64 EnumObjectDirectoryEntries(unsigned __int16 *pDirectoryPath, _DWORD *pDi
     return 0;
 }
 
-// EnumObjectTypeCleanupList
+// EnumObjectTypeCleanupList — 枚举对象类型清理链表
+// 对应原始驱动 sub_140042068
+// 遍历两个链表（GT 700 和 GT 2090），查找目标对象并从链表中移除
 __int64 EnumObjectTypeCleanupList(PVOID *pTargetObject)
 {
-    return 0;
+    char Found = 0;
+    for (int i = 0; i < 2; i++)
+    {
+        PVOID **pListHead;
+        if (i)
+        {
+            if (GtRead(GtWindowsBuildNumber) < 0x23F0)
+                pListHead = NULL;
+            else
+                pListHead = (PVOID **)GtRead((GLOBAL_TABLE_INDEX)((10 + 32) | 0x800));
+        }
+        else
+        {
+            pListHead = (PVOID **)GtRead((GLOBAL_TABLE_INDEX)700);
+        }
+
+        if (pListHead && MmIsAddressValid(pListHead) == 1)
+        {
+            PVOID *pCurrent = *pListHead;
+            int IterCount = 0;
+            while (pCurrent != (PVOID *)pListHead)
+            {
+                if (pCurrent <= MmSystemRangeStart)
+                    break;
+                if (MmIsAddressValid(pCurrent) != 1)
+                    break;
+                if (++IterCount > 0x1000)
+                    break;
+                if (pCurrent == pTargetObject)
+                {
+                    if (MmIsAddressValid(*pCurrent) == 1)
+                    {
+                        PVOID *pPrev = (PVOID *)*pCurrent;
+                        PVOID **pNext = (PVOID **)pCurrent[1];
+                        Found = 1;
+                        pPrev[1] = pNext;
+                        *pNext = pPrev;
+                    }
+                    break;
+                }
+                pCurrent = (PVOID *)*pCurrent;
+            }
+        }
+        if (Found)
+            break;
+    }
+    return Found;
 }
 
 // EnumProcessAndInitObjects
