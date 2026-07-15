@@ -2,6 +2,21 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 #include "..\inc\XPCHunterDrv.h"
 
+// CheckMemoryValid — 检查内存地址是否有效
+// 对应原始驱动 sub_140059BC4
+// 被 67 个函数调用，读取全局表多个索引后调用 MmIsAddressValid
+BOOLEAN CheckMemoryValid(void *Address)
+{
+    if (GtRead(GtCallbackField54))
+    {
+        GtRead(GtCallbackField08);
+        GtRead(GtCallbackField120);
+        GtRead(GtCallbackField116);
+        GtRead(GtCallbackField117);
+    }
+    return MmIsAddressValid(Address);
+}
+
 // AdjustKernelModuleSectionPointers — 调整内核模块节区指针
 // 对应原始驱动 sub_14006E4A0
 // 根据构建号调整内核模块节区指针偏移量，处理 Win10 RS3 及以上的差异
@@ -590,10 +605,43 @@ __int64 CopyObjectContextHookTable(__int64 pSourceTable)
     return Result;
 }
 
-// CopyPhysicalMemoryContextTable
+// CopyPhysicalMemoryContextTable — 复制物理内存上下文表
+// 对应原始驱动 sub_1400343A0
+// 根据 ContextType 选择不同 GT 索引分配表，复制 28 条条目
 __int64 CopyPhysicalMemoryContextTable(__int64 pSourceTable, int ContextType)
 {
-    return 0;
+    __int64 *pDestTable;
+    switch (ContextType)
+    {
+        case 0:
+            pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)(GtObjectTypeField31 | GtPathBuffer00 | 0x800));
+            break;
+        case 2:
+            pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs1 | GtCallbackField79));
+            break;
+        case 1:
+            pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)3332);
+            break;
+        default:
+            pDestTable = NULL;
+            break;
+    }
+    if (!pDestTable)
+        return 0;
+
+    char *pSrcEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+    for (int Count = 28; Count; Count--)
+    {
+        *(unsigned int *)(pSrcEntry + DeltaOffset) = *(unsigned int *)pSrcEntry;
+        if (*(unsigned int *)pSrcEntry)
+        {
+            *(_QWORD *)(pSrcEntry + DeltaOffset + 4) = *(_QWORD *)(pSrcEntry + 4);
+            *(_OWORD *)(pSrcEntry + DeltaOffset + 28) = *(_OWORD *)(pSrcEntry + 12);
+        }
+        pSrcEntry += 48;
+    }
+    return 1;
 }
 
 // CopyProcessContextTable1 — 复制进程上下文表 1
