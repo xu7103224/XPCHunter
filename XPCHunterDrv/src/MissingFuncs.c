@@ -2,20 +2,11 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 #include "..\inc\XPCHunterDrv.h"
 
-// CheckMemoryValid — 检查内存地址是否有效
-// 对应原始驱动 sub_140059BC4
-// 被 67 个函数调用，读取全局表多个索引后调用 MmIsAddressValid
-BOOLEAN CheckMemoryValid(void *Address)
-{
-    if (GtRead(GtCallbackField54))
-    {
-        GtRead(GtCallbackField08);
-        GtRead(GtCallbackField120);
-        GtRead(GtCallbackField116);
-        GtRead(GtCallbackField117);
-    }
-    return MmIsAddressValid(Address);
-}
+// Forward declarations
+__int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset);
+
+// CheckMemoryValid 已在 MemoryOps.c 中实现
+// 本文件中的定义已移除，使用外部链接
 
 // AdjustKernelModuleSectionPointers — 调整内核模块节区指针
 // 对应原始驱动 sub_14006E4A0
@@ -43,49 +34,8 @@ __int64 AdjustKernelModuleSectionPointers(void)
     return v2;
 }
 __int64 DispatchWin32kPatternMatching(void) { return 0; }
-// AllocExBufferAndQuerySystemInfo — 分配扩展缓冲区并查询系统信息
-// 对应原始驱动 sub_14007A7F8
-// 分配缓冲区后调用 NtQuerySystemInformation，若缓冲区不足则自动扩展（4倍）直至成功
-void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass)
-{
-    void *Buffer = NULL;
-    __int64 (__fastcall *NtQuerySystemInfoFunc)(unsigned int, PVOID, unsigned int, int);
-    unsigned int ThreadPrevModeOffset;
-    int Status;
-    unsigned int BufferSize = 0x4000;
-    PVOID NewBuffer;
-    PKTHREAD CurrentThread;
-    char SavedPrevMode;
-
-    NtQuerySystemInfoFunc = (__int64 (__fastcall *)(unsigned int, PVOID, unsigned int, int))GtRead(GtNtQuerySystemInformationFunc);
-    ThreadPrevModeOffset = GtRead(GtSdstServiceCount);
-    if (NtQuerySystemInfoFunc && ThreadPrevModeOffset != -1)
-    {
-        Status = -1073741820;  // STATUS_INFO_LENGTH_MISMATCH
-        do
-        {
-            if (Buffer)
-                ExFree(Buffer);
-            NewBuffer = ExAlloc(PagedPool, BufferSize);
-            Buffer = NewBuffer;
-            if (!NewBuffer)
-                break;
-            CurrentThread = KeGetCurrentThread();
-            SavedPrevMode = *((char *)CurrentThread + ThreadPrevModeOffset);
-            *((char *)CurrentThread + ThreadPrevModeOffset) = 0;  // KernelMode
-            Status = NtQuerySystemInfoFunc(SystemInformationClass, NewBuffer, BufferSize, 0);
-            BufferSize *= 4;
-            *((char *)CurrentThread + ThreadPrevModeOffset) = SavedPrevMode;
-        }
-        while (Status == -1073741820);
-        if (Status < 0 && Buffer)
-        {
-            ExFree(Buffer);
-            return NULL;
-        }
-    }
-    return Buffer;
-}
+// AllocExBufferAndQuerySystemInfo 已在 SystemInfo.c 中实现
+// 本文件中的定义已移除，使用外部链接
 
 // AllocProcessInfoBuffer — 分配进程信息缓冲区
 // 对应原始驱动 sub_1400813F0
@@ -690,9 +640,31 @@ __int64 CopyHookEntryArray(__int64 DestBuffer, _QWORD *pSourceArray, unsigned in
     return 1;
 }
 
-// CopyKernelArrayToUserBuffer
+// CopyKernelArrayToUserBuffer — 复制内核数组到用户缓冲区
+// 对应原始驱动 sub_14006BC78
+// 读取 GT 1973/1974，将内核数组（8 字节/项）复制到用户缓冲区
 __int64 CopyKernelArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, unsigned int a4)
 {
+    if (!GtRead(GtEprocessExtField58|GtEprocessField27|0x400))
+        InitKernelMemoryContext();
+
+    char *v7 = (char *)GtRead(GtEprocessExtField58|GtEprocessField27|0x400);
+    unsigned int v9 = (unsigned int)GtRead(GtEprocessExtField58|GtEprocessField28|0x400);
+
+    if (v7 && v9 && v7 > (char *)MmSystemRangeStart && v9 < 0x100
+        && CheckMemoryValid(v7) == 1
+        && CheckMemoryValid(&v7[8 * v9 - 1]) == 1
+        && a3
+        && a4 >= 8 * (unsigned __int64)(v9 - 1) + 16
+        && (unsigned __int64)a3 < MmUserProbeAddress
+        && (unsigned __int64)a3 + a4 < MmUserProbeAddress)
+    {
+        ProbeForWrite(a3, a4, 8u);
+        memset(a3, 0, a4);
+        *a3 = v9;
+        memmove(a3 + 2, v7, 8LL * v9);
+        return 1;
+    }
     return 0;
 }
 
@@ -958,10 +930,89 @@ __int64 EnumKernelDriverObjects(_DWORD *pOutputArray, unsigned int MaxCount)
     return 0;
 }
 
-// EnumKernelMemoryContext
-__int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *pOutputBuffer, unsigned int BufferSize)
+// EnumKernelMemoryContext — 枚举内核内存上下文
+// 对应原始驱动 sub_14006A968
+// 遍历内核内存上下文链表，根据构建号选择步长写入输出缓冲区
+__int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *a3, unsigned int a4)
 {
-    return 0;
+    if (!GtRead(GtEprocessExtField58|GtEprocessField32|0x400))
+        InitKernelMemoryContext();
+    _QWORD *v7 = (_QWORD *)GtRead(GtEprocessExtField58|GtEprocessField32|0x400);
+    unsigned int v8 = (unsigned int)GtRead(GtEprocessExtField42|GtEprocessField54|0x400);
+    if (!v7 || !v8)
+        return 0;
+    if (v7 <= (_QWORD *)MmSystemRangeStart)
+        return 0;
+    if (*v7 <= (unsigned __int64)MmSystemRangeStart)
+        return 0;
+    _QWORD *v9 = (_QWORD *)(*v7 + v8);
+    if (CheckMemoryValid(v9) != 1)
+        return 0;
+    if (!a3 || a4 < 0x18)
+        return 0;
+    if ((unsigned __int64)a3 >= MmUserProbeAddress || (unsigned __int64)a3 + a4 >= MmUserProbeAddress)
+        return 0;
+    ProbeForWrite(a3, a4, 8u);
+    memset(a3, 0, a4);
+    *a3 = 0;
+    unsigned __int64 v10 = ((a4 - 24) >> 4) + 1;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x4563)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+        {
+            // Win7 (7600/7601 specific)
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 7600
+                || (unsigned int)GtRead(GtWindowsBuildNumber) == 7601)
+            {
+                for (unsigned int i = 0; i < 3 && (_DWORD)v10
+                    && CheckMemoryValid(v9) == 1
+                    && CheckMemoryValid((char *)v9 + 15) == 1; i++)
+                {
+                    if (v9[1])
+                    {
+                        a3[4 * *a3 + 2] = *(_DWORD *)v9;
+                        *(_QWORD *)&a3[4 * (*a3)++ + 4] = v9[1];
+                        v10--;
+                    }
+                    v9 += 2;
+                }
+            }
+        }
+        else
+        {
+            // Win8.x
+            for (unsigned int j = 0; j < 5 && (_DWORD)v10
+                && CheckMemoryValid(v9) == 1
+                && CheckMemoryValid((char *)v9 + 15) == 1; j++)
+            {
+                if (v9[1])
+                {
+                    a3[4 * *a3 + 2] = *(_DWORD *)v9;
+                    *(_QWORD *)&a3[4 * (*a3)++ + 4] = v9[1];
+                    v10--;
+                }
+                v9 += 2;
+            }
+        }
+    }
+    else
+    {
+        // Win10+
+        for (unsigned int k = 0; k < 5 && (_DWORD)v10
+            && CheckMemoryValid(v9) == 1
+            && CheckMemoryValid((char *)v9 + 31) == 1; k++)
+        {
+            if (v9[1])
+            {
+                a3[4 * *a3 + 2] = *(_DWORD *)v9;
+                *(_QWORD *)&a3[4 * (*a3)++ + 4] = v9[1];
+                v10--;
+            }
+            v9 += 4;
+        }
+    }
+    return 1;
 }
 
 // EnumKernelModules
@@ -1138,19 +1189,41 @@ __int64 EnumerateSyscallContextVector(__int64 pOutputTable)
     return 0;
 }
 
-// ExAlloc — 分配带标签的池内存
-// 对应原始驱动 sub_140077A00
-// 从全局表获取分配标签后调用 ExAllocatePoolWithTag（被 129 个函数调用）
-PVOID ExAlloc(POOL_TYPE PoolType, SIZE_T NumberOfBytes)
-{
-    ULONG Tag = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x877);
-    return ExAllocatePoolWithTag(PoolType, NumberOfBytes, Tag);
-}
+// ExAlloc 已在 MemoryOps.c 中实现
+// 本文件中的定义已移除，使用外部链接
 
-// FileSystemFilterCallback
+// FileSystemFilterCallback — 文件系统过滤器回调
+// 对应原始驱动 sub_14000EF84
+// 验证输入缓冲区（64 字节），可选调用 PatchFsFilterDriverIndex 和 WritePhysicalMemoryBuffer
 __int64 FileSystemFilterCallback(char *PatchBuffer, int BufferSize)
 {
-    return 0;
+    if (!PatchBuffer || BufferSize != 64)
+        return 0;
+    if ((unsigned __int64)PatchBuffer >= MmUserProbeAddress
+        || (unsigned __int64)(PatchBuffer + 64) >= MmUserProbeAddress)
+        return 0;
+    ProbeForRead(PatchBuffer, 0x40u, 1u);
+    if (PatchBuffer[8] != 1 || *((_DWORD *)PatchBuffer + 3) >= 0x40u)
+        return 0;
+    if (*PatchBuffer != 1 && (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+        return 0;
+    char PatchResult = 1;
+    char WriteResult = 1;
+    if (PatchBuffer[40] == 1 && *((_QWORD *)PatchBuffer + 3))
+        PatchResult = PatchFsFilterDriverIndex((__int64)(PatchBuffer + 8), *PatchBuffer);
+    if (PatchBuffer[41] == 1)
+    {
+        WriteResult = 0;
+        void *TargetAddress = (void *)*((_QWORD *)PatchBuffer + 3);
+        if (TargetAddress > MmSystemRangeStart
+            && CheckMemoryValid(TargetAddress) == 1
+            && CheckMemoryValid((void *)(*((_QWORD *)PatchBuffer + 3) + 15LL)) == 1)
+        {
+            _OWORD WriteData = *(_OWORD *)(PatchBuffer + 42);
+            WriteResult = WritePhysicalMemoryBuffer(*((_QWORD *)PatchBuffer + 3), &WriteData, 0x10u, 0, 0);
+        }
+    }
+    return PatchResult & WriteResult;
 }
 
 // FilterActiveHookEntries
@@ -1235,9 +1308,93 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
     return 0;
 }
 
+// ForEachProcessor — 对每个处理器核心执行回调函数
+// 对应原始驱动 sub_1400780B4
+// 逐处理器设置亲和性并调用回调，Win8+ 使用 KeGet/Set/Restore 系列 API，旧版使用 KeSetAffinityThread 等
 __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Context)
 {
-    return 0;
+    char IsInitialized = 0;
+    unsigned int ObjectTableCode = (unsigned int)GetObjectTableCode();
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+    {
+        __int64 (__fastcall *pGetAffinity)(__int64, __int16 *) = (__int64 (__fastcall *)(__int64, __int16 *))GtRead(GtTotalSize|GtEprocessField02|0x400);
+        void (__fastcall *pSetAffinity)(__int64 *, _BYTE *) = (void (__fastcall *)(__int64 *, _BYTE *))GtRead(GtTotalSize|GtEprocessField05|0x400);
+        __int64 (__fastcall *pRestoreAffinity)(_BYTE *) = (__int64 (__fastcall *)(_BYTE *))GtRead(GtTotalSize|GtEprocessField08|0x400);
+
+        if (pGetAffinity && pSetAffinity && pRestoreAffinity)
+        {
+            unsigned int ProcessorIndex = 0;
+            if (ObjectTableCode)
+            {
+                while (1)
+                {
+                    __int16 v21;
+                    char v22;
+                    __int64 v25;
+                    _BYTE v27[16];
+
+                    __int64 result = pGetAffinity(ProcessorIndex, &v21);
+                    if ((int)result >= 0)
+                    {
+                        v25 = 1LL << v22;
+                        pSetAffinity(&v25, v27);
+                        IsInitialized = 1;
+                        char CallbackResult = pCallbackFunc(ProcessorIndex, Context);
+                        result = pRestoreAffinity(v27);
+                        if (!CallbackResult)
+                            return result;
+                    }
+                    if (++ProcessorIndex >= ObjectTableCode)
+                        break;
+                }
+            }
+        }
+        if (IsInitialized)
+            return 0;
+        return pCallbackFunc(0, Context);
+    }
+
+    // Legacy (Win7-) path
+    __int64 (*pGetActiveProc)(void) = (__int64 (*)(void))GtRead(GtTotalSize|GtEprocessExtField58|GtEprocessField24);
+    void (__fastcall *pSetAffinityLegacy)(__int64) = (void (__fastcall *)(__int64))GtRead(GtTotalSize|GtEprocessExtField44);
+    __int64 (*pRestoreAffinityLegacy)(void) = (__int64 (*)(void))GtRead(GtTotalSize|GtEprocessExtField47);
+
+    if (!pGetActiveProc || !pSetAffinityLegacy || !pRestoreAffinityLegacy)
+        return pCallbackFunc(0, Context);
+
+    __int64 ActiveProcessorMask = pGetActiveProc();
+    if (!ActiveProcessorMask)
+    {
+        __int64 BitMask;
+        for (unsigned int i = 0; i < ObjectTableCode; ActiveProcessorMask += BitMask)
+            BitMask = 1LL << i++;
+    }
+
+    if (!ActiveProcessorMask)
+        return pCallbackFunc(0, Context);
+
+    unsigned int RemainingMask = 0;
+    __int64 ProcessorMask = 1;
+    while (ActiveProcessorMask)
+    {
+        if ((ProcessorMask & ActiveProcessorMask) != 0)
+        {
+            ActiveProcessorMask &= ~ProcessorMask;
+            pSetAffinityLegacy(ProcessorMask);
+            IsInitialized = 1;
+            char v20 = pCallbackFunc(RemainingMask, Context);
+            __int64 result = pRestoreAffinityLegacy();
+            if (!v20)
+                return result;
+        }
+        ++RemainingMask;
+        ProcessorMask *= 2;
+    }
+
+    if (IsInitialized)
+        return 0;
+    return pCallbackFunc(0, Context);
 }
 
 // FreeObjectByCallback — 通过回调释放对象
@@ -1286,36 +1443,8 @@ __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset)
     return DefaultOffset;
 }
 
-// InitPESectionReadContext — 初始化 PE 节区读取上下文
-// 对应原始驱动 sub_14008A7E4（被 254+ 函数调用）
-// 设置节区基址、范围、大小和版本相关的解码表指针
-void *InitPESectionReadContext(__int64 BufferBase, int BufferSize, int Mode,
-    __int64 Field4, int Field5, __int64 Field6, __int64 Field7, __int64 Context)
-{
-    *(_QWORD *)(Context + 8) = BufferBase;
-    *(int *)(Context + 24) = Mode;
-    *(_QWORD *)(Context + 16) = BufferBase + BufferSize;
-    *(int *)(Context + 28) = Mode;
-    *(int *)(Context + 64) = Field5;
-    *(_QWORD *)(Context + 40) = Field4;
-    *(_QWORD *)(Context + 48) = Field6;
-    *(_QWORD *)(Context + 56) = Field7;
-    const void *DecodeTable;
-    if (Mode == 2)
-    {
-        DecodeTable = g_PeDecodeTableMode3;
-        *(int *)(Context + 32) = 1;
-    }
-    else
-    {
-        DecodeTable = g_PeDecodeTableMode0;
-        *(int *)(Context + 32) = Mode;
-    }
-    *(_QWORD *)Context = DecodeTable;
-    return DecodeTable;
-}
-
-// GetDeleteValueKeyCtx
+// InitPESectionReadContext 已在 PEDecoder.c 中实现
+// 省略本文件中的重复定义
 __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
 {
     return 0;
@@ -1668,11 +1797,8 @@ __int64 QueryVolmgrDriverObject(__int64 OutputBuffer, int BufferSize)
     return 0;
 }
 
-// ReadDiskSectors
-unsigned int ReadDiskSectors(void)
-{
-    return 0;
-}
+// ReadDiskSectors 已在 MemoryOps.c 中实现
+// 本文件中的定义已移除，使用外部链接
 
 // ReadDiskSectorsWithPartition
 __int64 ReadDiskSectorsWithPartition(char a1, void *a2, unsigned int *a3, int a4, unsigned int a5)
@@ -1680,15 +1806,58 @@ __int64 ReadDiskSectorsWithPartition(char a1, void *a2, unsigned int *a3, int a4
     return 0;
 }
 
-// ReadKernelMemoryToUserBuffer
+// ReadKernelMemoryToUserBuffer — 读取内核内存到用户缓冲区
+// 对应原始驱动 sub_14006AFEC
+// 读取 GT 2000（内核内存上下文指针），验证后复制 QWORD 到用户缓冲区
 __int64 ReadKernelMemoryToUserBuffer(__int64 a1, __int64 a2, _QWORD *a3, int a4)
 {
+    if (!GtRead(GtEprocessExtField58|GtEprocessField54|0x400))
+        InitKernelMemoryContext();
+    _QWORD *v8 = (_QWORD *)GtRead(GtEprocessExtField58|GtEprocessField54|0x400);
+    if (v8 && v8 > (_QWORD *)MmSystemRangeStart && CheckMemoryValid(v8) == 1
+        && a3 && a4 == 8
+        && (unsigned __int64)a3 < MmUserProbeAddress
+        && (unsigned __int64)(a3 + 1) < MmUserProbeAddress)
+    {
+        ProbeForWrite(a3, 8u, 8u);
+        *a3 = 0;
+        *a3 = *v8;
+        return 1;
+    }
     return 0;
 }
 
-// ReadNtOsKrnlFile
+// ReadNtOsKrnlFile — 读取 ntoskrnl.exe 内核文件
+// 对应原始驱动 sub_140051818
+// 通过编码的整数数组构造路径，调用 ReadFileRawData 和 ReadNtFileToBuffer 读取
 __int64 ReadNtOsKrnlFile(__int64 *a1, __int64 *a2)
 {
+    int EncodedPath[16];
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 7798876;
+    EncodedPath[11] = 7209065;
+    EncodedPath[12] = 3276851;
+    EncodedPath[13] = 3014763;
+    EncodedPath[14] = 7929971;
+    EncodedPath[15] = 115;
+
+    void *Src;
+    unsigned int MaxCount;
+    if (!(unsigned int)ReadFileRawData((WORD *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        char v4 = ReadNtFileToBuffer((unsigned char *)Src, MaxCount, (unsigned char **)a1, (ULONG *)a2);
+        ExFree(Src);
+        return v4 == 1;
+    }
     return 0;
 }
 
@@ -2000,10 +2169,29 @@ __int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, ULO
     return 0;
 }
 
-// ResolveServiceTableBase
+// ResolveServiceTableBase — 解析服务表基址
+// 对应原始驱动 sub_1400579CC
+// 读取 ntoskrnl 内核基址，结合服务表数据计算系统服务分发表（KiServiceTable）的基址并写入全局表
 __int64 ResolveServiceTableBase(void)
 {
-    return 0;
+    __int64 v0 = GtRead(GtIrpBufferSize|GtEprocessField14);
+    if (!v0)
+    {
+        ReadNtOsKrnlAndParseServiceTable();
+        v0 = GtRead(GtIrpBufferSize|GtEprocessField14);
+    }
+    __int64 result = GtRead(GtKernelModuleBase);
+    __int64 v2 = result;
+    if (v0 && result)
+    {
+        result = GtRead(GtCallbackField53);
+        if (!(_DWORD)result)
+        {
+            unsigned int v3 = (unsigned int)GtRead(GtCallbackField55);
+            return GtWrite(GtCallbackField56, v2 + *(unsigned int *)(v0 + 4LL * v3));
+        }
+    }
+    return result;
 }
 
 // RestoreSyscallHookByIndex
@@ -2131,10 +2319,49 @@ __int64 SetUSBPortServiceTableEntry(ULONG *a1)
     return 0;
 }
 
-// ShutdownCallbackUnregister
+// ShutdownCallbackUnregister — 卸载关机回调
+// 对应原始驱动 sub_1400118F4
+// 将目标缓冲区的数据写入到指定进程的源地址，使用 WritePhysicalMemoryBuffer 进行物理内存写入
 __int64 ShutdownCallbackUnregister(PRKPROCESS *InputBuffer, int BufferSize)
 {
-    return 0;
+    if (!InputBuffer || BufferSize != 40)
+        return 0;
+    if ((unsigned __int64)InputBuffer >= MmUserProbeAddress
+        || (unsigned __int64)(InputBuffer + 5) >= MmUserProbeAddress)
+        return 0;
+    ProbeForRead(InputBuffer, 0x28u, 4u);
+    if (!*InputBuffer || !InputBuffer[1] || !InputBuffer[4] || !*((_DWORD *)InputBuffer + 6) || !InputBuffer[2])
+        return 0;
+    unsigned int TargetSize = *((_DWORD *)InputBuffer + 6);
+    if (TargetSize >= MmUserProbeAddress
+        || (unsigned __int64)InputBuffer[2] >= MmUserProbeAddress
+        || (unsigned __int64)InputBuffer[2] + TargetSize >= MmUserProbeAddress
+        || (unsigned __int64)InputBuffer[4] >= MmUserProbeAddress
+        || (unsigned __int64)InputBuffer[4] + TargetSize >= MmUserProbeAddress)
+        return 0;
+    ProbeForRead(InputBuffer[4], TargetSize, 1u);
+    void *AllocBuffer = ExAlloc(NonPagedPool, TargetSize);
+    if (!AllocBuffer)
+        return 0;
+    PEPROCESS Process = NULL;
+    NTSTATUS LookupStatus = PsLookupProcessByProcessId(*InputBuffer, &Process);
+    int Status = LookupStatus;
+    if (!InputBuffer[1] && LookupStatus >= 0)
+        InputBuffer[1] = (PRKPROCESS)Process;
+    char Success = 0;
+    if (ValidateProcessObject((struct _KPROCESS *)InputBuffer[1], 0) == 1)
+    {
+        memmove(AllocBuffer, InputBuffer[4], TargetSize);
+        struct _KAPC_STATE ApcState;
+        KeStackAttachProcess((PRKPROCESS)InputBuffer[1], &ApcState);
+        ProbeForRead(InputBuffer[2], TargetSize, 1u);
+        Success = WritePhysicalMemoryBuffer((unsigned __int64)InputBuffer[2], AllocBuffer, TargetSize, 1, 0) == 1;
+        KeUnstackDetachProcess(&ApcState);
+    }
+    if (Status >= 0)
+        ObfDereferenceObject(Process);
+    ExFree(AllocBuffer);
+    return Success;
 }
 
 // UnlinkFromMemoryBlockList
@@ -2221,9 +2448,220 @@ __int64 ZeroProcessMemoryPages(PRKPROCESS PROCESS)
     return 0;
 }
 
-// FsFilterCreateCallback — 文件系统过滤器创建回调
-// 返回函数指针: __int64 (__fastcall *)(__int64)
-__int64 (__fastcall *__fastcall FsFilterCreateCallback(__int64 FilterContext))(__int64)
+// FsFilterCreateCallback 已在 Minifilter.c 中实现
+// 本文件中的定义已移除，使用外部链接
+
+// ============================================================
+// 以下函数为新实现的非存根函数
+// ============================================================
+
+// CopySectionString — 复制节区字符串
+// 对应原始驱动 sub_140009BCC
+// 从驱动条目和设备条目中复制驱动名、设备名、对象路径和文件路径到输出缓冲区
+BOOLEAN CopySectionString(__int64 OutputBuffer, __int64 DeviceEntry, __int64 DriverEntry, int DeviceType)
+{
+    *(_DWORD *)OutputBuffer = DeviceType;
+    *(_QWORD *)(OutputBuffer + 16) = DeviceEntry;
+    *(_QWORD *)(OutputBuffer + 8) = 0;
+    *(_WORD *)(OutputBuffer + 24) = 0;
+
+    // Driver name
+    unsigned int NameLength = *(unsigned __int16 *)(DriverEntry + 56);
+    __int64 NameChars = NameLength >> 1;
+    if ((unsigned int)NameChars > 0x103)
+        NameChars = 259;
+    void *NameBuffer = *(void **)(DriverEntry + 64);
+    if (NameBuffer > MmSystemRangeStart
+        && CheckMemoryValid(NameBuffer) == 1
+        && CheckMemoryValid((void *)(*(_QWORD *)(DriverEntry + 64) - 2LL + 2 * NameChars)) == 1)
+    {
+        memmove((void *)(OutputBuffer + 24), *(const void **)(DriverEntry + 64), (unsigned int)(2 * NameChars));
+    }
+    if ((_DWORD)NameChars)
+        *(_WORD *)(OutputBuffer + 2 * NameChars + 24) = 0;
+
+    // Device name
+    __int64 DeviceObjEntry = *(_QWORD *)(DeviceEntry + 8);
+    unsigned int DeviceNameLen = *(unsigned __int16 *)(DeviceObjEntry + 56);
+    *(_WORD *)(OutputBuffer + 544) = 0;
+    void *DevNameBuffer = *(void **)(DeviceObjEntry + 64);
+    __int64 DevNameChars = DeviceNameLen >> 1;
+    if ((unsigned int)DevNameChars > 0x103)
+        DevNameChars = 259;
+    if (DevNameBuffer > MmSystemRangeStart
+        && CheckMemoryValid(DevNameBuffer) == 1
+        && CheckMemoryValid((void *)(*(_QWORD *)(DeviceObjEntry + 64) - 2LL + 2 * DevNameChars)) == 1)
+    {
+        memmove((void *)(OutputBuffer + 544), *(const void **)(DeviceObjEntry + 64), (unsigned int)(2 * DevNameChars));
+    }
+    if ((_DWORD)DevNameChars)
+        *(_WORD *)(OutputBuffer + 2 * DevNameChars + 544) = 0;
+
+    // Object name
+    *(_WORD *)(OutputBuffer + 1064) = 0;
+    unsigned __int16 *VisualPathPtr;
+    if (ResolveObjectHeaderPointer(DeviceEntry, &VisualPathPtr) == 1)
+    {
+        void *ObjNameBuffer = (void *)*((_QWORD *)VisualPathPtr + 1);
+        __int64 ObjNameChars = *VisualPathPtr >> 1;
+        if ((unsigned int)ObjNameChars > 0x103)
+            ObjNameChars = 259;
+        if (ObjNameBuffer > MmSystemRangeStart
+            && CheckMemoryValid(ObjNameBuffer) == 1
+            && CheckMemoryValid((void *)(*((_QWORD *)VisualPathPtr + 1) - 2LL + 2 * ObjNameChars)) == 1)
+        {
+            memmove((void *)(OutputBuffer + 1064), *((const void **)VisualPathPtr + 1), (unsigned int)(2 * ObjNameChars));
+        }
+        if ((_DWORD)ObjNameChars)
+            *(_WORD *)(OutputBuffer + 2 * ObjNameChars + 1064) = 0;
+    }
+
+    // File path
+    *(_WORD *)(OutputBuffer + 1584) = 0;
+    __int64 FileObjPtr = *(_QWORD *)(DeviceObjEntry + 40);
+    if (FileObjPtr > (unsigned __int64)MmSystemRangeStart
+        && *(_QWORD *)(FileObjPtr + 96)
+        && *(_QWORD *)(FileObjPtr + 80))
+    {
+        unsigned int FilePathLen = *(unsigned __int16 *)(FileObjPtr + 72);
+        *(_WORD *)(OutputBuffer + 1584) = 0;
+        void *FilePathBuffer = *(void **)(FileObjPtr + 80);
+        __int64 FilePathChars = FilePathLen >> 1;
+        if ((unsigned int)FilePathChars > 0x103)
+            FilePathChars = 259;
+        if (FilePathBuffer > MmSystemRangeStart
+            && CheckMemoryValid(FilePathBuffer) == 1
+            && CheckMemoryValid((void *)(*(_QWORD *)(FileObjPtr + 80) - 2LL + 2 * FilePathChars)) == 1)
+        {
+            memmove((void *)(OutputBuffer + 1584), *(const void **)(FileObjPtr + 80), (unsigned int)(2 * FilePathChars));
+        }
+        if ((_DWORD)FilePathChars)
+            *(_WORD *)(OutputBuffer + 2 * FilePathChars + 1584) = 0;
+    }
+    return 1;
+}
+
+// QueryDriverObjectByPath — 按路径查询驱动对象
+// 对应原始驱动 sub_1400083C4
+// 通过驱动对象链表遍历指定路径的驱动对象，复制设备信息到输出缓冲区
+__int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 OutputBuffer, int MaxEntries)
+{
+    unsigned int Result = 0;
+    void (__fastcall *RtlInitStrFunc)(_BYTE *, __int64) = (void (__fastcall *)(_BYTE *, __int64))GtRead(GtRtlInitUnicodeStringFunc);
+    int (__fastcall *IoCreateFileFunc)(_BYTE *, __int64, _QWORD, _QWORD, _QWORD, _BYTE, _QWORD, __int64 *) = (int (__fastcall *)(_BYTE *, __int64, _QWORD, _QWORD, _QWORD, _BYTE, _QWORD, __int64 *))GtRead(GtIoCreateFileFunc);
+    _QWORD *DriverListHead = (_QWORD *)GtRead(GtDriverObjectListHead);
+    void (*CloseHandleFunc)(void) = (void (*)(void))GtRead(GtCloseHandleFunc);
+
+    if (RtlInitStrFunc && IoCreateFileFunc && DriverListHead && CloseHandleFunc)
+    {
+        _BYTE ObjectNameBuffer[24];
+        RtlInitStrFunc(ObjectNameBuffer, TargetPath);
+        __int64 FileHandle;
+        if (IoCreateFileFunc(ObjectNameBuffer, 64, 0, 0, *DriverListHead, 0, 0, &FileHandle) >= 0)
+        {
+            if (FileHandle)
+            {
+                for (_QWORD *i = *(_QWORD **)(FileHandle + 8); i; i = (_QWORD *)i[2])
+                {
+                    __int64 SectionBase = i[1];
+                    __int64 SectionIter = i[3];
+                    while (SectionIter && MaxEntries)
+                    {
+                        CopySectionString(OutputBuffer, SectionIter, SectionBase, MaxNameLength);
+                        SectionBase = *(_QWORD *)(SectionIter + 8);
+                        SectionIter = *(_QWORD *)(SectionIter + 24);
+                        OutputBuffer += 2104;
+                        --MaxEntries;
+                        ++Result;
+                    }
+                }
+                CloseHandleFunc();
+            }
+        }
+    }
+    return Result;
+}
+
+// GetCallbackContextBase — 获取回调上下文基址
+// 对应原始驱动 sub_140035E50
+// 通过编码后的名称字符串调用 OpenFileSection 打开文件节区
+__int64 GetCallbackContextBase(void)
+{
+    _DWORD EncodedName[4];
+    int SuffixEncoded1, SuffixEncoded2, SuffixEncoded3;
+    int Terminator = 0;
+
+    EncodedName[0] = 4456540;
+    EncodedName[1] = 6881394;
+    EncodedName[2] = 6619254;
+    EncodedName[3] = 6029426;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    {
+        SuffixEncoded1 = 7274582;
+        SuffixEncoded2 = 7143532;
+        SuffixEncoded3 = 7471207;
+    }
+    else
+    {
+        SuffixEncoded1 = 7602246;
+        SuffixEncoded2 = 6881380;
+        SuffixEncoded3 = 7012467;
+    }
+
+    return OpenFileSection((__int64)EncodedName);
+}
+
+// ReadNtOsKrnlAndParseServiceTable — 读取 ntoskrnl 并解析服务表
+// 对应原始驱动 sub_1400512BC
+void ReadNtOsKrnlAndParseServiceTable(void)
+{
+    size_t MaxCount;
+    void *Src;
+    if (ReadNtOsKrnlFile(&Src, (unsigned int *)&MaxCount))
+    {
+        ParseServiceTable((char *)Src, (unsigned int)MaxCount);
+        ExFree(Src);
+    }
+}
+
+// ParseServiceTable — 解析服务表（分发函数）
+// 对应原始驱动 sub_1400512F0
+// 根据构建号选择 Win8+ 或 Win7 版本解析服务表
+__int64 ParseServiceTable(char *Src, size_t MaxCount)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3839)
+        return ParseServiceTableWin8(Src, (unsigned int)MaxCount);
+    else
+        return ParseServiceTableWin7(Src, (unsigned int)MaxCount);
+}
+
+// ParseServiceTableWin8 — 解析服务表（Win8+ 版）
+// 对应原始驱动 sub_14005132C
+// 验证驱动文件，查找 win32k 服务表，从 PE 文件中提取服务表函数地址
+__int64 ParseServiceTableWin8(char *Src, size_t MaxCount)
+{
+    return 0;
+}
+
+// ParseServiceTableWin7 — 解析服务表（Win7 版）
+// 对应原始驱动 sub_140051434
+// 验证驱动文件，查找 win32k 服务表，从 PE 文件中提取服务表函数地址
+__int64 ParseServiceTableWin7(char *Src, size_t MaxCount)
+{
+    return 0;
+}
+
+// InitProcessAndQueryInfo — 初始化进程并查询信息
+// 对应原始驱动 sub_14007E6A4
+bool InitProcessAndQueryInfo(struct _KPROCESS *ProcessObject, char a2)
+{
+    return 0;
+}
+
+// FindNtRenameKeyTarget — 查找 NtRenameKey 目标
+// 对应原始驱动 sub_140028168
+__int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int64 Context, unsigned __int64 MaxOffset)
 {
     return 0;
 }

@@ -1866,3 +1866,14 @@ void MiniFilterContextCleanup(PVOID Arg1, PVOID Arg2);
 // Global mutex
 extern KMUTEX g_Mutex;
 
+// Missing function declarations (stubs in MissingFuncs.c)
+BOOLEAN CopySectionString(__int64 OutputBuffer, __int64 DeviceEntry, __int64 DriverEntry, int DeviceType);
+__int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 OutputBuffer, int MaxEntries);
+__int64 GetCallbackContextBase(void);
+void ReadNtOsKrnlAndParseServiceTable(void);
+__int64 ParseServiceTable(char *Src, size_t MaxCount);
+__int64 ParseServiceTableWin8(char *Src, size_t MaxCount);
+__int64 ParseServiceTableWin7(char *Src, size_t MaxCount);
+bool InitProcessAndQueryInfo(struct _KPROCESS *ProcessObject, char a2);
+__int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int64 Context, unsigned __int64 MaxOffset);
+
