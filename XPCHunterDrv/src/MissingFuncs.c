@@ -1663,9 +1663,17 @@ __int64 FreeProcessMemoryAllocationEx(_QWORD *pTargetEntry)
     return Result;
 }
 
-// FreeProcessMemoryBuffer
+// FreeProcessMemoryBuffer — 释放进程内存缓冲区
+// 对应原始驱动 sub_14004510C
+// 通过 GT 17381 的回调函数释放目标进程内存缓冲区
 __int64 FreeProcessMemoryBuffer(PVOID VirtualAddress)
 {
+    void (__fastcall *pFreeFunc)(PVOID) = (void (__fastcall *)(PVOID))GtRead(GtTotalSize|GtEprocessExtField47|GtEprocessField86);
+    if (pFreeFunc && VirtualAddress && MmIsAddressValid(VirtualAddress) == 1)
+    {
+        pFreeFunc(VirtualAddress);
+        return 1;
+    }
     return 0;
 }
 
@@ -2547,10 +2555,49 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase,
     return 0;
 }
 
-// ResolveDriverEntryAddresses
+// ResolveDriverEntryAddresses — 解析驱动程序入口地址
+// 对应原始驱动 sub_140050FE0
 __int64 ResolveDriverEntryAddresses(__int64 a1)
 {
-    return 0;
+    if (!GtRead(GtKernelModuleBase))
+        return 0;
+    unsigned int v3 = *(unsigned int *)(a1 + 4);
+    if (v3)
+    {
+        for (__int64 v4 = a1 + 16; v3; v3--)
+        {
+            if (*(_QWORD *)(v4 + 8) != *(_QWORD *)v4)
+                *(_BYTE *)(v4 + 16) = 1;
+            v4 += 48;
+        }
+        v3 = *(unsigned int *)(a1 + 4);
+    }
+    for (unsigned int v6 = 0; v6 < v3; v6++)
+    {
+        __int64 v7 = a1 + 16 + 48LL * v6;
+        unsigned int v8 = 16;
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800 && *(unsigned short *)(v7 + 18) == 9727)
+            v8 = 6;
+        if (MmIsAddressValid((PVOID)(*(_QWORD *)v7 + 15LL)) == 1)
+        {
+            if ((unsigned int)MemoryCompare(*(_QWORD *)v7, (char *)(48LL * v6 + a1 + 34), v8))
+            {
+                *(_BYTE *)(v7 + 17) = 1;
+                if (!*(_BYTE *)(v7 + 16))
+                {
+                    unsigned int i;
+                    for (i = 0; i < v8; i++)
+                    {
+                        if (!MmIsAddressValid((PVOID)(*(_QWORD *)v7 + i)))
+                            break;
+                    }
+                    if (i && ReturnFalseStub() == 1)
+                        *(_QWORD *)(v7 + 8) = *(unsigned int *)(48LL * v6 + a1 + 12);
+                }
+            }
+        }
+    }
+    return 1;
 }
 
 // ResolveDriverModuleNames
