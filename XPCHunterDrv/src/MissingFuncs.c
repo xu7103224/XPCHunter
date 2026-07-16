@@ -1150,15 +1150,53 @@ __int64 EnumProcessAndInitObjects(__int64 a1, char a2)
     return 0;
 }
 
-// EnumProcessContextSsdtTable
+// EnumProcessContextSsdtTable — 枚举进程上下文 SSDT 表
+// 对应原始驱动 sub_140031EE8
 __int64 EnumProcessContextSsdtTable(__int64 pOutputTable)
 {
+    __int64 ContextBase = DecryptProcessContextStr();
+    if (ContextBase)
+    {
+        _QWORD *pFuncEntry = (_QWORD *)(ContextBase + 112);
+        unsigned int Index = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = Index++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncEntry;
+            pOutputTable += 48;
+            ++pFuncEntry;
+        }
+        while (Index <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
-// EnumProcessContextTable
+// EnumProcessContextTable — 枚举进程上下文表
+// 对应原始驱动 sub_140031E64
 __int64 EnumProcessContextTable(__int64 pOutputTable)
 {
+    __int64 ContextBase = DecryptProcessContextStr();
+    if (ContextBase)
+    {
+        unsigned __int64 FuncTableAddr = *(_QWORD *)(ContextBase + 80);
+        if (FuncTableAddr && FuncTableAddr > (unsigned __int64)MmSystemRangeStart
+            && MmIsAddressValid((PVOID)FuncTableAddr) == 1
+            && MmIsAddressValid((PVOID)(FuncTableAddr + 223)) == 1)
+        {
+            _QWORD *pFuncEntry = (_QWORD *)(FuncTableAddr + 8);
+            unsigned int Index = 0;
+            do
+            {
+                *(_DWORD *)pOutputTable = Index++;
+                *(_QWORD *)(pOutputTable + 16) = *pFuncEntry;
+                pOutputTable += 48;
+                ++pFuncEntry;
+            }
+            while (Index < 0x1B);
+            return 1;
+        }
+    }
     return 0;
 }
 
@@ -1174,9 +1212,25 @@ __int64 EnumProcessContextV3Table(__int64 pOutputTable)
     return 0;
 }
 
-// EnumProcessContextV3TableWin7
+// EnumProcessContextV3TableWin7 — 枚举进程上下文 V3 表（Win7）
+// 对应原始驱动 sub_140039F48
 __int64 EnumProcessContextV3TableWin7(__int64 pOutputTable)
 {
+    __int64 ContextBase = OpenIpsecDriverSection();
+    if (ContextBase)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(ContextBase + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = EntryIndex++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+            pOutputTable += 48;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
@@ -2736,10 +2790,45 @@ __int64 ValidateCallbackContextTable(__int64 pContextTable)
     return 0;
 }
 
-// ValidateFsFilterEntries
+// ValidateFsFilterEntries — 验证文件系统过滤器条目
+// 对应原始驱动 sub_14000DADC
 __int64 ValidateFsFilterEntries(__int64 FilterContext)
 {
-    return 0;
+    // Phase 1: Mark modified entries
+    for (int EntryCount = 64; EntryCount; EntryCount--)
+    {
+        __int64 CurrentEntry = FilterContext + 16 + 56LL * (64 - EntryCount);
+        if (*(_QWORD *)CurrentEntry && *(_QWORD *)CurrentEntry != *(_QWORD *)(CurrentEntry + 8))
+            *(_BYTE *)(CurrentEntry + 16) = 1;
+    }
+    // Phase 2: Verify bytes at each entry
+    for (unsigned int EntryIndex = 0; EntryIndex < 0x40; EntryIndex++)
+    {
+        __int64 EntryPtr = FilterContext + 16 + 56LL * EntryIndex;
+        if (*(_QWORD *)EntryPtr)
+        {
+            if (MmIsAddressValid((PVOID)(*(_QWORD *)EntryPtr + 15LL)) == 1)
+            {
+                if ((unsigned int)MemoryCompare(*(_QWORD *)EntryPtr, (char *)(56LL * EntryIndex + FilterContext + 34), 0x10u))
+                {
+                    char IsEntryEmpty = *(_BYTE *)(EntryPtr + 16) == 0;
+                    *(_BYTE *)(EntryPtr + 17) = 1;
+                    if (IsEntryEmpty)
+                    {
+                        unsigned int ByteIndex;
+                        for (ByteIndex = 0; ByteIndex < 0x10; ByteIndex++)
+                        {
+                            if (!MmIsAddressValid((PVOID)(*(_QWORD *)EntryPtr + ByteIndex)))
+                                break;
+                        }
+                        if (ByteIndex && ReturnFalseStub() == 1)
+                            *(_QWORD *)(EntryPtr + 8) = *(unsigned int *)(56LL * EntryIndex + FilterContext + 8);
+                    }
+                }
+            }
+        }
+    }
+    return 1;
 }
 
 // ValidateHookEntries
@@ -2748,10 +2837,36 @@ __int64 ValidateHookEntries(__int64 a1, ULONG a2)
     return 0;
 }
 
-// ValidateSingleHookEntry
+// ValidateSingleHookEntry — 验证单个钩子条目
+// 对应原始驱动 sub_140085ADC
 __int64 ValidateSingleHookEntry(__int64 a1)
 {
-    return 0;
+    __int64 v2 = *(_QWORD *)(a1 + 8);
+    if (v2)
+    {
+        if (v2 != *(_QWORD *)(a1 + 16))
+            *(_BYTE *)a1 = 1;
+        if (CheckMemoryValid((void *)(v2 + 15)) == 1)
+        {
+            if ((unsigned int)MemoryCompare(*(_QWORD *)(a1 + 8), (char *)(a1 + 24), 0x10u))
+            {
+                char IsOriginal = *(_BYTE *)a1 == 0;
+                *(_BYTE *)(a1 + 1) = 1;
+                if (IsOriginal)
+                {
+                    unsigned int i;
+                    for (i = 0; i < 0x10; i++)
+                    {
+                        if (!CheckMemoryValid((void *)(*(_QWORD *)(a1 + 8) + i)))
+                            break;
+                    }
+                    if (i && ReturnFalseStub() == 1)
+                        *(_QWORD *)(a1 + 16) = *(unsigned int *)(a1 + 12);
+                }
+            }
+        }
+    }
+    return 1;
 }
 
 // WalkKernelModuleList
@@ -2766,15 +2881,90 @@ __int64 WriteDiskSectorsWithPartitionCheck(char a1, const void *a2, ULONG a3)
     return 0;
 }
 
-// WriteProcessContextEntry
+// DecryptProcessContextStr — 解密进程上下文字符串
+// 对应原始驱动 sub_140031F2C
+__int64 DecryptProcessContextStr(void)
+{
+    _DWORD EncodedPath[6];
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 4587585;
+    EncodedPath[5] = 68;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// WriteProcessContextEntry — 写入进程上下文条目
+// 对应原始驱动 sub_1400323F0
 __int64 WriteProcessContextEntry(__int64 pInputEntry)
 {
+    __int64 ContextBase = DecryptProcessContextStr();
+    if (!ContextBase)
+        return 0;
+    __int64 FuncTableAddr;
+    __int64 ValueToWrite;
+    if (*(_BYTE *)pInputEntry)
+    {
+        FuncTableAddr = *(_QWORD *)(ContextBase + 80);
+        if (!FuncTableAddr)
+            return 0;
+        if (MmIsAddressValid(*(PVOID *)(ContextBase + 80)) != 1
+            || MmIsAddressValid((PVOID)(FuncTableAddr + 223)) != 1)
+            return 0;
+        unsigned int EntryIndex = *(unsigned int *)(pInputEntry + 8);
+        if (EntryIndex < 0x1B)
+        {
+            ValueToWrite = *(_QWORD *)(pInputEntry + 16);
+            WritePhysicalMemoryQword(FuncTableAddr + 8 * (EntryIndex + 1), ValueToWrite);
+            return 1;
+        }
+    }
+    else
+    {
+        ValueToWrite = *(_QWORD *)(pInputEntry + 16);
+        if (ValueToWrite)
+        {
+            unsigned int Index = *(unsigned int *)(pInputEntry + 8);
+            if (Index <= 0x1B)
+            {
+                WritePhysicalMemoryQword(ContextBase + 8 * (Index + 14), ValueToWrite);
+                return 1;
+            }
+        }
+    }
     return 0;
 }
 
-// WriteProcessContextEntryWin7
+// OpenIpsecDriverSection — 打开 ipsec 驱动节区
+// 对应原始驱动 sub_140039F8C
+__int64 OpenIpsecDriverSection(void)
+{
+    _DWORD EncodedName[8];
+    EncodedName[0] = 4456540;
+    EncodedName[1] = 6881394;
+    EncodedName[2] = 6619254;
+    EncodedName[3] = 6029426;
+    EncodedName[4] = 7340105;
+    EncodedName[5] = 6619251;
+    EncodedName[6] = 99;
+    return OpenFileSection((__int64)EncodedName);
+}
+
+// WriteProcessContextEntryWin7 — 写入进程上下文条目（Win7）
+// 对应原始驱动 sub_14003A368
 __int64 WriteProcessContextEntryWin7(ULONG *pInputEntry)
 {
+    __int64 ContextBase = OpenIpsecDriverSection();
+    if (ContextBase)
+    {
+        unsigned int EntryIndex = *pInputEntry;
+        if (EntryIndex <= 0x1B)
+        {
+            WritePhysicalMemoryQword(ContextBase + 8 * EntryIndex + 112, *((__int64 *)pInputEntry + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
