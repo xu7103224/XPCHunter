@@ -24,6 +24,7 @@ char RemoveObjectFromLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle
 char RemoveObjectSingleLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle);
 char InitObjectOperationEntry(void);
 void ClearProcessPageTableFlags(struct _KPROCESS *ProcessObject);
+__int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult);
 
 // CheckMemoryValid 已在 MemoryOps.c 中实现
 // 本文件中的定义已移除，使用外部链接
@@ -1119,10 +1120,37 @@ __int64 CopyUSBPortServiceTable(__int64 pOutputBuffer)
     return 0;
 }
 
-// DisableObjectCallback
-__int64 DisableObjectCallback(int flags, ULONG64 a2)
+// DisableObjectCallback — 禁用对象回调
+// 对应原始驱动 sub_14000FC44
+// 打开指定设备路径，发送IOCTL获取文件对象，验证设备对象指针是否匹配全局表中保存的设备对象
+__int64 DisableObjectCallback(__int16 *DevicePath, _QWORD *pResult)
 {
-    return 0;
+    char Success = 0;
+    _QWORD *IoctlCode = (_QWORD *)GtRead(GtZwCreateFileFunc);
+    int (__fastcall *DeviceIoControlFunc)(HANDLE, __int64, _QWORD, _QWORD, __int64 *, _QWORD) = (int (__fastcall *)(HANDLE, __int64, _QWORD, _QWORD, __int64 *, _QWORD))GtRead(GtNtFsControlFileFunc);
+    __int64 CloseHandleFunc = GtRead(GtCloseHandleFunc);
+    void (__fastcall *CloseHandleFuncTyped)(__int64) = (void (__fastcall *)(__int64))CloseHandleFunc;
+    if (IoctlCode && DeviceIoControlFunc && CloseHandleFunc)
+    {
+        HANDLE Handle;
+        if (!(unsigned int)CreateFileWithPath(DevicePath, 0, &Handle, 0x80u, 0x80u, 1u, 1u, 0x20u))
+        {
+            __int64 IoStatusBlock;
+            if (DeviceIoControlFunc(Handle, 0x80000000LL, *IoctlCode, 0, &IoStatusBlock, 0) >= 0)
+            {
+                __int64 FileObject;
+                if (GetDeviceObjectFromFileObject(IoStatusBlock, &FileObject, 0))
+                {
+                    __int64 DeviceObjectPtr = GtRead(GtSavedDeviceObject);
+                    if (DeviceObjectPtr && *(_QWORD *)(FileObject + 8) == DeviceObjectPtr)
+                        Success = (unsigned int)CmdQueryFileEndOfFile(Handle, pResult) == 0;
+                }
+                CloseHandleFuncTyped(IoStatusBlock);
+            }
+            ZwClose(Handle);
+        }
+    }
+    return Success;
 }
 
 // DiskOperationDispatcher
@@ -1197,10 +1225,71 @@ __int64 DuplicateUSBPortSyscallOutput(__int64 pSourceTable)
     return v2;
 }
 
-// EnableProcessProtect
+// EnableProcessProtect — 启用进程保护
+// 对应原始驱动 sub_140006BD0
+// 验证 EPROCESS 对象，初始化 win32k 服务表，构建导出服务表，标记受保护进程。
 __int64 EnableProcessProtect(PVOID Address, int InputSize, _DWORD *OutputBuffer, int OutputBufferSize)
 {
-    return 0;
+    __int64 Result = 0;
+    int Status = -1073741823;
+    PEPROCESS Process = NULL;
+    __int64 ProcessIdPair[2];
+    if (Address
+        && InputSize == 16
+        && (unsigned __int64)Address < MmUserProbeAddress
+        && (unsigned __int64)((char *)Address + 16) < MmUserProbeAddress
+        && OutputBuffer
+        && OutputBufferSize == 21712
+        && (unsigned __int64)OutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)(OutputBuffer + 5428) < MmUserProbeAddress)
+    {
+        ProbeForRead(Address, 0x10u, 4u);
+        ProbeForWrite(OutputBuffer, 0x54D0u, 1u);
+        ProcessIdPair[0] = *(__int64 *)Address;
+        ProcessIdPair[1] = *((__int64 *)Address + 1);
+        void *ProcessId = (void *)ProcessIdPair[1];
+        NTSTATUS LookupStatus = PsLookupProcessByProcessId(ProcessId, &Process);
+        Status = LookupStatus;
+        struct _KPROCESS *ProcessObject = (struct _KPROCESS *)ProcessIdPair[0];
+        if (!ProcessIdPair[0])
+        {
+            if (LookupStatus >= 0)
+                ProcessObject = (struct _KPROCESS *)Process;
+            ProcessIdPair[0] = (__int64)ProcessObject;
+        }
+        if (ValidateProcessObject(ProcessObject, 0) == 1)
+        {
+            char IsProtected = CheckProtectedEntry((__int64)ProcessObject);
+            enum _GLOBAL_TABLE_INDEX TableIndex = GtWin32kServiceTable32Flag;
+            if (IsProtected)
+                TableIndex = GtWin32kServiceTable64Flag;
+            if (!(unsigned int)GtRead(TableIndex))
+            {
+                ResolveWin32kServiceTable(IsProtected);
+                enum _GLOBAL_TABLE_INDEX Win32kFlagIndex = GtWin32kServiceTable32Flag;
+                if (IsProtected)
+                    Win32kFlagIndex = GtWin32kServiceTable64Flag;
+                if (!(unsigned int)GtRead(Win32kFlagIndex))
+                    goto LABEL_DONE;
+            }
+            memset(OutputBuffer, 0, 0x54D0u);
+            *OutputBuffer = GtRead(GtWindowsBuildNumber);
+            unsigned int ServiceCount = GtRead(GtWin32kServiceCount);
+            OutputBuffer[8] = ServiceCount;
+            if (ServiceCount <= 0x12D
+                && BuildExportServiceTable((__int64)ProcessId, ProcessObject, IsProtected, OutputBuffer) == 1
+                && CopyValidServiceEntries((__int64)(OutputBuffer + 10), IsProtected) == 1
+                && ParseNtImageSectionHeaders(ProcessObject, (__int64)(OutputBuffer + 10)) == 1)
+            {
+                *((_BYTE *)OutputBuffer + 4) = 1;
+                Result = 1;
+            }
+        }
+    }
+LABEL_DONE:
+    if (Status >= 0)
+        ObfDereferenceObject(Process);
+    return Result;
 }
 
 // EnumCallbackContextTable — 枚举回调上下文表
@@ -4812,4 +4901,10 @@ char InitObjectOperationEntry(void)
 void ClearProcessPageTableFlags(struct _KPROCESS *ProcessObject)
 {
     return;
+}
+
+// CmdQueryFileEndOfFile — 查询文件结束位置
+__int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult)
+{
+    return 0;
 }

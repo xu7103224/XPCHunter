@@ -1247,7 +1247,7 @@ __int64 DecryptInputBuffer(PUCHAR Buffer);
 void DereferenceObjectSafe(__int64 Object);
 void DisableCr0WriteProtect(void);
 __int64 DisableHookProtection(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
-__int64 DisableObjectCallback(int flags, ULONG64 a2);
+__int64 DisableObjectCallback(__int16 *DevicePath, _QWORD *pResult);
 char DisableObjectProtect(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned int BufferSize);
 char DisableObjectProtectEx(_DWORD *OutputBuffer, unsigned int BufferSize);
 __int64 DisableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
