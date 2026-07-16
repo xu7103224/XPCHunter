@@ -1871,6 +1871,7 @@ BOOLEAN CopySectionString(__int64 OutputBuffer, __int64 DeviceEntry, __int64 Dri
 __int64 OpenUSBPortSection(void);
 __int64 DecryptProcessContextStr(void);
 __int64 OpenIpsecDriverSection(void);
+char FreeProcessMemoryEntry(__int64 VirtualAddress);
 __int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 OutputBuffer, int MaxEntries);
 __int64 GetCallbackContextBase(void);
 void ReadNtOsKrnlAndParseServiceTable(void);
