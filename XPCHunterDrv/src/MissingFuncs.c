@@ -4,6 +4,9 @@
 
 // Forward declarations
 __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset);
+__int64 ParseNtExportFunctionsV2(void);
+__int64 ParseNtExportFunctions(void);
+char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, unsigned int Image2Size);
 
 // CheckMemoryValid 已在 MemoryOps.c 中实现
 // 本文件中的定义已移除，使用外部链接
@@ -668,12 +671,7 @@ __int64 CopyKernelArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, un
     return 0;
 }
 
-// CopyKernelDualArrayToUserBuffer
-__int64 CopyKernelDualArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, unsigned int a4)
-{
-    return 0;
-}
-
+// CopyKernelDualArrayToUserBuffer 已在下方实现
 // CopyObjectContextHookTable — 复制对象上下文 Hook 表
 // 对应原始驱动 sub_140037B74
 // 从 GT 15998 的表复制 29 条目标到目标表，每条 48 字节
@@ -876,12 +874,7 @@ __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress)
     return 0;
 }
 
-// DispatchParseNtExportFunctions
-__int64 DispatchParseNtExportFunctions(void)
-{
-    return 0;
-}
-
+// DispatchParseNtExportFunctions 已在下方实现
 // DuplicateUSBPortSyscallOutput
 __int64 DuplicateUSBPortSyscallOutput(__int64 pSourceTable)
 {
@@ -2803,6 +2796,87 @@ bool InitProcessAndQueryInfo(struct _KPROCESS *ProcessObject, char a2)
 // FindNtRenameKeyTarget — 查找 NtRenameKey 目标
 // 对应原始驱动 sub_140028168
 __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int64 Context, unsigned __int64 MaxOffset)
+{
+    return 0;
+}
+
+// VerifyServiceTableDriverFile — 验证服务表驱动文件
+// 对应原始驱动 sub_140051E18
+// 比较内存中的驱动镜像与磁盘文件 PE 头是否一致，通过 ComparePeHeaders 比较
+__int64 VerifyServiceTableDriverFile(__int64 a1, unsigned int a2)
+{
+    __int64 v4 = GtRead(GtKernelModuleBase);
+    unsigned int v5 = (unsigned int)GtRead(GtEprocessField71);
+    if (v4 && v5 && a1 && a2 && v5 > 0x1000)
+    {
+        if (ComparePeHeaders(v4, v5, a1, a2) == 1)
+            GtWrite(GtCallbackField53, 1);
+    }
+    return v5;
+}
+
+// DispatchParseNtExportFunctions — 根据版本号分发 NT 导出函数解析
+// 对应原始驱动 sub_14002A61C
+__int64 DispatchParseNtExportFunctions(void)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4563)
+        return ParseNtExportFunctionsV2();
+    else
+        return ParseNtExportFunctions();
+}
+
+// CopyKernelDualArrayToUserBuffer — 复制内核双数组到用户缓冲区
+// 对应原始驱动 sub_14006BDA4
+// 将内核内存的双数组（两个并排数组，8 字节/项）复制到用户缓冲区
+__int64 CopyKernelDualArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, unsigned int a4)
+{
+    if (!GtRead(GtEprocessExtField48|GtEprocessField54|0x400))
+        InitKernelMemoryContext();
+    char *v7 = (char *)GtRead(GtEprocessExtField48|GtEprocessField54|0x400);
+    unsigned int v9 = (unsigned int)GtRead(GtEprocessExtField47|GtEprocessField54|0x400);
+    if (!v7 || !v9)
+        return 0;
+    if (v7 <= (char *)MmSystemRangeStart || v9 >= 0x100)
+        return 0;
+    if (CheckMemoryValid(v7) != 1)
+        return 0;
+    __int64 MaxCount = 8LL * v9;
+    char *v10 = &v7[MaxCount];
+    if (CheckMemoryValid(&v7[MaxCount - 1]) != 1)
+        return 0;
+    if (!a3)
+        return 0;
+    unsigned int v11 = v9 - 1;
+    if (a4 < 8 * (unsigned __int64)(v9 - 1) + 16)
+        return 0;
+    if ((unsigned __int64)a3 >= MmUserProbeAddress || (unsigned __int64)a3 + a4 >= MmUserProbeAddress)
+        return 0;
+    ProbeForWrite(a3, a4, 8u);
+    memset(a3, 0, a4);
+    *a3 = v9;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+    {
+        memmove(a3 + 2, v7, MaxCount);
+    }
+    else
+    {
+        memmove(a3 + 2, v7, 8LL * v11);
+        if (CheckMemoryValid(v10) == 1)
+            *(_QWORD *)&a3[2 * v11 + 2] = *(_QWORD *)v10;
+    }
+    return 1;
+}
+
+// ParseNtExportFunctions — 解析 NT 导出函数（旧版）
+// 对应原始驱动 sub_14002A64C
+__int64 ParseNtExportFunctions(void)
+{
+    return 0;
+}
+
+// ParseNtExportFunctionsV2 — 解析 NT 导出函数（Win10+ 版）
+// 对应原始驱动 sub_14002AD0C
+__int64 ParseNtExportFunctionsV2(void)
 {
     return 0;
 }
