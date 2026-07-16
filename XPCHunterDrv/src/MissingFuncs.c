@@ -1259,10 +1259,24 @@ void InitUSBPortSyscallTable(void)
     return;
 }
 
-// InitUnicodeStringBuffer
+// InitUnicodeStringBuffer — 初始化 Unicode 字符串缓冲区
+// 对应原始驱动 sub_1400726A0
+// 设置 UNICODE_STRING 结构的 Length、MaximumLength、Buffer 字段
 __int64 InitUnicodeStringBuffer(__int64 Buffer, __int64 StringPtr, unsigned int MaxLength)
 {
-    return 0;
+    if (MaxLength < 2)
+    {
+        *(_QWORD *)(Buffer + 8) = 0;
+        *(unsigned int *)Buffer = 0;
+        return 0;
+    }
+    else
+    {
+        *(unsigned short *)(Buffer + 2) = MaxLength;
+        *(_QWORD *)(Buffer + 8) = StringPtr;
+        *(unsigned short *)Buffer = MaxLength - 2;
+        return 2;
+    }
 }
 
 // InitWin32kTableByVersion
