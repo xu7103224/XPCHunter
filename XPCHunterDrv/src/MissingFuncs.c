@@ -1712,10 +1712,20 @@ __int64 ResolveDriverRelativeAddresses(__int64 a1, __int64 a2, int **a3)
     return 0;
 }
 
-// ResolveKernelModuleBasePair
+// ResolveKernelModuleBasePair — 解析内核模块基址对
+// 对应原始驱动 sub_14002A5C8
+// 读取 MSR 寄存器对比现有值，更新 MSR 基址对
 __int64 ResolveKernelModuleBasePair(__int64 CpuNumber, ULONG_PTR *pMsrPair)
 {
-    return 0;
+    ULONG64 MsrBaseLstar = ReadMsr(0xC0000083);
+    if (MsrBaseLstar && *pMsrPair && MsrBaseLstar != *pMsrPair)
+        pMsrPair[2] = MsrBaseLstar;
+
+    ULONG64 Msr = ReadMsr(0xC0000082);
+    if (Msr && pMsrPair[1] && Msr != pMsrPair[1])
+        pMsrPair[3] = Msr;
+
+    return 1;
 }
 
 // ResolveKernelModuleIndex
