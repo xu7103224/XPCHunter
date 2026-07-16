@@ -14,6 +14,9 @@ __int64 ParseMsrTableFromSections(void);
 char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable);
 char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize);
 char ReadNtFileForProcessContext(char **FileBuffer, unsigned int *FileSize);
+void BuildNtExportIndexTable(void);
+char CheckTmDllSection(unsigned __int8 *NameToMatch);
+_BYTE *StringCopy(_BYTE *Dest, __int64 Src, unsigned int MaxLen);
 __int64 ResolveSyscallAddressesWithAttach(void);
 void ReadSystemDllAndInitSession(void);
 void EnumObjectLinkedListSingle(_QWORD *pObjectTable, __int64 OutputBuffer, _DWORD *pCount, int MaxEntries);
@@ -2633,10 +2636,75 @@ __int64 KernelNotifyRoutineEx(void *NotificationBuffer, size_t BufferSize)
     return MiniFilterTeardownRoutine(NotificationBuffer, BufferSize, 0);
 }
 
-// LookupDriverHashTable
-__int64 LookupDriverHashTable(__int64 DriverName, _DWORD *pResultIndex)
+// LookupDriverHashTable — 在驱动哈希表中查找
+// 对应原始驱动 sub_140082AF0
+// 通过 SHA1 哈希值在 Nt 导出索引表中查找匹配的导出函数
+__int64 LookupDriverHashTable(__int64 a1, _DWORD *a2)
 {
-    return 0;
+    __int64 v3 = 0;
+    void (__fastcall *v5)(char *, __int64);
+    unsigned int (__fastcall *v6)(unsigned __int16 *, char *, __int64);
+    __int64 v7;
+    void (__fastcall *v8)(unsigned __int16 *);
+    unsigned __int16 v18;
+    char v20[16];
+    __int64 v19;
+    char v21[80];
+    __int64 v10;
+    unsigned int v11;
+    unsigned int v12;
+    int v13;
+    unsigned int v14;
+    int v15;
+    __int64 v16;
+
+    *a2 = 0;
+    v5 = (void (__fastcall *)(char *, __int64))GtRead(GtRtlInitUnicodeStringFunc);
+    v6 = (unsigned int (__fastcall *)(unsigned __int16 *, char *, __int64))GtRead(GtTotalSize|GtEprocessField104|0x400);
+    v7 = GtRead(GtNtCreateThreadPeSectionOffset|GtEprocessField42);
+    v8 = (void (__fastcall *)(unsigned __int16 *))v7;
+    if (v5 && v6 && v7)
+    {
+        v5(v20, a1);
+        if (!v6(&v18, v20, 1))
+        {
+            if (v18 <= 0x40u)
+            {
+                StringCopy(v21, v19, v18);
+                v21[v18] = 0;
+                v10 = GtRead(GtDisableHookProtectionAddr2|GtDriverObject|0x100);
+                if (!v10)
+                {
+                    BuildNtExportIndexTable();
+                    v10 = GtRead(GtDisableHookProtectionAddr2|GtDriverObject|0x100);
+                }
+                v11 = GtRead(GtDisableHookProtectionAddr2|GtNtoskrnlImageSize|0x100);
+                v12 = v11;
+                if (v10 && v11)
+                {
+                    v13 = Sha1HashToDword(v21);
+                    v14 = 0;
+                    v15 = v13;
+                    v16 = v10;
+                    while (*(_BYTE *)v16 != 1 || v15 != *(_DWORD *)(v16 + 4))
+                    {
+                        ++v14;
+                        v16 += 12;
+                        if (v14 >= v12)
+                            goto LABEL_15;
+                    }
+                    *a2 = *(_DWORD *)(v10 + 12LL * v14 + 8);
+                    goto LABEL_19;
+                }
+LABEL_15:
+                if (CheckTmDllSection((unsigned __int8 *)v21) == 1)
+LABEL_19:
+                    v3 = 1;
+            }
+            v8(&v18);
+        }
+    }
+    return v3;
 }
 
 // LookupMsrTableEntry
@@ -4905,6 +4973,18 @@ void ClearProcessPageTableFlags(struct _KPROCESS *ProcessObject)
 
 // CmdQueryFileEndOfFile — 查询文件结束位置
 __int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult)
+{
+    return 0;
+}
+
+// BuildNtExportIndexTable — 构建 NT 导出索引表
+void BuildNtExportIndexTable(void)
+{
+    return;
+}
+
+// CheckTmDllSection — 检查 TM DLL 节区
+char CheckTmDllSection(unsigned __int8 *NameToMatch)
 {
     return 0;
 }
