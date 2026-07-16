@@ -1834,10 +1834,54 @@ __int64 RemoveKernelObjectEntry(__int64 TargetAddress)
     return Result;
 }
 
-// RemoveObjectFromTypeList
+// RemoveObjectFromTypeList — 从类型列表中移除对象
+// 对应原始驱动 sub_140042A48
+// 调用释放回调，遍历两个链表头搜索并摘除目标对象
 __int64 RemoveObjectFromTypeList(PVOID pTargetObject)
 {
-    return 0;
+    char Result = 0;
+    void (__fastcall *pFreeCallback)(PVOID) = (void (__fastcall *)(PVOID))GtRead((GLOBAL_TABLE_INDEX)0x41A0);
+    if (pFreeCallback)
+    {
+        pFreeCallback(pTargetObject);
+        Result = 1;
+    }
+    PVOID **pListHeads[2];
+    pListHeads[0] = (PVOID **)GtRead(GtEprocessField85);
+    pListHeads[1] = (PVOID **)GtRead(GtCallbackField04);
+    for (int i = 0; i < 2; i++)
+    {
+        PVOID **pListHead = pListHeads[i];
+        if (pListHead)
+        {
+            PVOID *pCurrent = *pListHead;
+            int IterCount = 0;
+            while (pCurrent != (PVOID *)pListHead)
+            {
+                if (pCurrent <= MmSystemRangeStart) break;
+                if (MmIsAddressValid(pCurrent) != 1) break;
+                if (++IterCount > 0x10000) break;
+                PVOID pObjEntry = pCurrent[2];
+                if (pTargetObject == pObjEntry)
+                {
+                    if (MmIsAddressValid(*pCurrent) == 1)
+                    {
+                        PVOID *pPrev = (PVOID *)*pCurrent;
+                        PVOID **pNext = (PVOID **)pCurrent[1];
+                        pPrev[1] = pNext;
+                        *pNext = pPrev;
+                        if (!GtRead(GtEprocessField28))
+                            ObfDereferenceObject(pObjEntry);
+                        ExFreePoolWithTag(pCurrent, 0);
+                        Result = 1;
+                    }
+                    break;
+                }
+                pCurrent = (PVOID *)*pCurrent;
+            }
+        }
+    }
+    return Result;
 }
 
 // RemoveServiceEntryFromList
