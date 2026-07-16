@@ -1286,6 +1286,35 @@ __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset)
     return DefaultOffset;
 }
 
+// InitPESectionReadContext — 初始化 PE 节区读取上下文
+// 对应原始驱动 sub_14008A7E4（被 254+ 函数调用）
+// 设置节区基址、范围、大小和版本相关的解码表指针
+void *InitPESectionReadContext(__int64 BufferBase, int BufferSize, int Mode,
+    __int64 Field4, int Field5, __int64 Field6, __int64 Field7, __int64 Context)
+{
+    *(_QWORD *)(Context + 8) = BufferBase;
+    *(int *)(Context + 24) = Mode;
+    *(_QWORD *)(Context + 16) = BufferBase + BufferSize;
+    *(int *)(Context + 28) = Mode;
+    *(int *)(Context + 64) = Field5;
+    *(_QWORD *)(Context + 40) = Field4;
+    *(_QWORD *)(Context + 48) = Field6;
+    *(_QWORD *)(Context + 56) = Field7;
+    const void *DecodeTable;
+    if (Mode == 2)
+    {
+        DecodeTable = g_PeDecodeTableMode3;
+        *(int *)(Context + 32) = 1;
+    }
+    else
+    {
+        DecodeTable = g_PeDecodeTableMode0;
+        *(int *)(Context + 32) = Mode;
+    }
+    *(_QWORD *)Context = DecodeTable;
+    return DecodeTable;
+}
+
 // GetDeleteValueKeyCtx
 __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
 {
