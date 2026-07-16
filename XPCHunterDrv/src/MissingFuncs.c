@@ -794,10 +794,26 @@ __int64 CopyProcessContextTable1(__int64 pTargetTable)
     return Result;
 }
 
-// CopyProcessContextTable2
+// CopyProcessContextTable2 — 复制进程上下文表 2
+// 对应原始驱动 sub_14003211C
 __int64 CopyProcessContextTable2(__int64 pTargetTable)
 {
-    return 0;
+    __int64 *pSourceTable = GtAlloc((GLOBAL_TABLE_INDEX)15650);
+    char *pSourceEntry = (char *)pSourceTable + 4;
+    __int64 DeltaOffset = pTargetTable - (__int64)pSourceTable;
+    char Result = 0;
+    for (int EntryCount = 27; EntryCount; EntryCount--)
+    {
+        *(_DWORD *)&pSourceEntry[DeltaOffset] = *(_DWORD *)pSourceEntry;
+        if (*(_DWORD *)pSourceEntry && *((_DWORD *)pSourceEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)&pSourceEntry[DeltaOffset + 4] = *(_QWORD *)(pSourceEntry + 4);
+            *(_OWORD *)&pSourceEntry[DeltaOffset + 22] = *(_OWORD *)(pSourceEntry + 12);
+        }
+        pSourceEntry += 48;
+    }
+    return Result;
 }
 
 // CopyProcessContextTableWin7 — 复制进程上下文表（Win7 版）
@@ -869,16 +885,52 @@ __int64 CopyProcessContextV3HookTable(__int64 pSourceTable)
     return Result;
 }
 
-// CopyRegistryContextEntryArray
+// CopyRegistryContextEntryArray — 复制注册表上下文条目数组
+// 对应原始驱动 sub_140046048
 __int64 CopyRegistryContextEntryArray(__int64 pOutputTable)
 {
-    return 0;
+    __int64 *pExportTable = GtAlloc(GtDisableHookProtectionAddr2|GtCallbackField50|0x3000);
+    if (!pExportTable)
+        return 0;
+    __int64 pDestSlot = pOutputTable + 8;
+    char *pSrcSlot = (char *)pExportTable + 4;
+    char Result = 0;
+    for (int EntryCount = 28; EntryCount; EntryCount--)
+    {
+        *(_DWORD *)(pDestSlot - 4) = *(_DWORD *)pSrcSlot;
+        if (*(_DWORD *)pSrcSlot && *((_DWORD *)pSrcSlot - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)pDestSlot = *(_QWORD *)(pSrcSlot + 4);
+            *(_OWORD *)(pDestSlot + 18) = *(_OWORD *)(pSrcSlot + 12);
+            *(_OWORD *)(pDestSlot + 34) = *(_OWORD *)(pSrcSlot + 28);
+        }
+        pSrcSlot += 48;
+        pDestSlot += 64;
+    }
+    return Result;
 }
 
-// CopyThreadContextTable
+// CopyThreadContextTable — 复制线程上下文表
+// 对应原始驱动 sub_1400571B0
 __int64 CopyThreadContextTable(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *v3 = GtAlloc(GtTotalSize|GtEprocessField144);
+    char *v5 = (char *)v3 + 4;
+    __int64 v6 = pSourceTable - (__int64)v3;
+    char v2 = 0;
+    for (int v4 = 28; v4; v4--)
+    {
+        *(_DWORD *)&v5[v6] = *(_DWORD *)v5;
+        if (*(_DWORD *)v5 && *((_DWORD *)v5 - 1) == 1)
+        {
+            v2 = 1;
+            *(_QWORD *)&v5[v6 + 4] = *(_QWORD *)(v5 + 4);
+            *(_OWORD *)&v5[v6 + 22] = *(_OWORD *)(v5 + 12);
+        }
+        v5 += 48;
+    }
+    return v2;
 }
 
 // CopyUSBPortServiceTable — 复制 USB 端口服务表
