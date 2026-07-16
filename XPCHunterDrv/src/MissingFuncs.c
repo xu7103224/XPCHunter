@@ -2760,9 +2760,34 @@ __int64 ShutdownCallbackUnregister(PRKPROCESS *InputBuffer, int BufferSize)
     return Success;
 }
 
-// UnlinkFromMemoryBlockList
+// UnlinkFromMemoryBlockList — 从内存块链表中摘除指定指针
+// 对应原始驱动 sub_140045370
 __int64 UnlinkFromMemoryBlockList(PVOID *pTargetPointer)
 {
+    PVOID **pListHead = (PVOID **)GtRead(GtEprocessField28|0x800);
+    if (!pListHead || MmIsAddressValid(pListHead) != 1)
+        return 0;
+    PVOID *pCurrentNode = *pListHead;
+    int IterationCount = 0;
+    while (pCurrentNode != (PVOID *)pListHead)
+    {
+        if (pCurrentNode <= MmSystemRangeStart) break;
+        if (MmIsAddressValid(pCurrentNode) != 1) break;
+        if ((unsigned int)++IterationCount > 0x1000) break;
+        if (pCurrentNode == pTargetPointer)
+        {
+            if (MmIsAddressValid(*pCurrentNode) == 1)
+            {
+                PVOID *pPrevEntry = (PVOID *)*pCurrentNode;
+                PVOID **pNextEntry = (PVOID **)pCurrentNode[1];
+                pPrevEntry[1] = pNextEntry;
+                *pNextEntry = pPrevEntry;
+                return 1;
+            }
+            return 0;
+        }
+        pCurrentNode = (PVOID *)*pCurrentNode;
+    }
     return 0;
 }
 
@@ -2772,10 +2797,45 @@ __int64 UnlinkFromProcessMemoryList(PVOID *pTargetPointer)
     return 0;
 }
 
-// UnlinkProcessMemoryBlock
+// UnlinkProcessMemoryBlock — 解除进程内存块链接
+// 对应原始驱动 sub_140045260
 __int64 UnlinkProcessMemoryBlock(ULONG_PTR *pTargetEntry)
 {
-    return 0;
+    char Result = 0;
+    void (__fastcall *pCleanupCallback)(_QWORD) = (void (__fastcall *)(_QWORD))GtRead(GtTotalSize|GtEprocessExtField58|GtEprocessField66);
+    if (pCleanupCallback && pTargetEntry && MmIsAddressValid(pTargetEntry) == 1)
+    {
+        pCleanupCallback(pTargetEntry[4]);
+        Result = 1;
+    }
+    _QWORD *pType2ListHead = (_QWORD *)GtRead(GtEprocessField23|0x800);
+    void (__fastcall *pFreeCallback)(_QWORD) = (void (__fastcall *)(_QWORD))GtRead(GtObjectProtectCallback);
+    int IterationCount = 0;
+    if (pType2ListHead && pFreeCallback && MmIsAddressValid(pType2ListHead) == 1)
+    {
+        for (_QWORD *pCurrentNode = (_QWORD *)*pType2ListHead; pCurrentNode != pType2ListHead; pCurrentNode = (_QWORD *)*pCurrentNode)
+        {
+            if (pCurrentNode <= MmSystemRangeStart) break;
+            if (MmIsAddressValid(pCurrentNode) != 1) break;
+            if ((unsigned int)++IterationCount > 0x1000) break;
+            if (pCurrentNode == (_QWORD *)pTargetEntry)
+            {
+                if (MmIsAddressValid((PVOID)*pCurrentNode) == 1)
+                {
+                    ObfDereferenceObject((PVOID)pTargetEntry[2]);
+                    pFreeCallback(pTargetEntry[4]);
+                    _QWORD *pPrevEntry = (_QWORD *)*pCurrentNode;
+                    _QWORD *pNextEntry = (_QWORD *)pCurrentNode[1];
+                    pPrevEntry[1] = pNextEntry;
+                    *pNextEntry = pPrevEntry;
+                    ExFreePoolWithTag(pTargetEntry, 0);
+                    return 1;
+                }
+                return Result;
+            }
+        }
+    }
+    return Result;
 }
 
 // ValidateAndClearProcessContext
