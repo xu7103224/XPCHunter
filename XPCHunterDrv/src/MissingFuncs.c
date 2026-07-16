@@ -1018,10 +1018,13 @@ __int64 EnumerateSyscallContextVector(__int64 pOutputTable)
     return 0;
 }
 
-// ExAlloc
+// ExAlloc — 分配带标签的池内存
+// 对应原始驱动 sub_140077A00
+// 从全局表获取分配标签后调用 ExAllocatePoolWithTag（被 129 个函数调用）
 PVOID ExAlloc(POOL_TYPE PoolType, SIZE_T NumberOfBytes)
 {
-    return 0;
+    ULONG Tag = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x877);
+    return ExAllocatePoolWithTag(PoolType, NumberOfBytes, Tag);
 }
 
 // FileSystemFilterCallback
@@ -1118,9 +1121,17 @@ __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Con
     return 0;
 }
 
-// FreeObjectByCallback
+// FreeObjectByCallback — 通过回调释放对象
+// 对应原始驱动 sub_1400429EC
+// 从 GT 17153 获取释放回调，验证地址后调用回调释放对象
 __int64 FreeObjectByCallback(_QWORD *pObjectEntry)
 {
+    void (__fastcall *pFreeCallback)(_QWORD) = (void (__fastcall *)(_QWORD))GtRead((GLOBAL_TABLE_INDEX)0x4301);
+    if (pFreeCallback && MmIsAddressValid(pObjectEntry) == 1 && MmIsAddressValid((char *)pObjectEntry + 15) == 1)
+    {
+        pFreeCallback(pObjectEntry[1]);
+        return 1;
+    }
     return 0;
 }
 
@@ -1148,10 +1159,32 @@ __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
     return 0;
 }
 
-// GetKernelObjectTypeInfo
+// GetKernelObjectTypeInfo — 获取内核对象类型信息
+// 对应原始驱动 sub_1400298C0
+// 根据版本号读取对象头中的类型字节，返回对应全局表值
 __int64 GetKernelObjectTypeInfo(__int64 ObjectHeader)
 {
-    return 0;
+    if (GtRead(GtWindowsBuildNumber) >= 0x2800)
+    {
+        char TypeByte = *((char *)(unsigned int)GtRead(GtCallbackField92) + ObjectHeader);
+        return GtRead((TypeByte & 1) ? GtCallbackField98 : GtCallbackField100);
+    }
+    else
+    {
+        GtRead(GtCallbackField96);
+        if (GtRead(GtWindowsBuildNumber) >= 0xA28 && GtRead(GtWindowsBuildNumber) < 0x23F0)
+        {
+            if (*(_QWORD *)(ObjectHeader + 16))
+                return GtRead(GtCallbackField94);
+        }
+        char TypeByte = *((char *)(unsigned int)GtRead(GtCallbackField92) + ObjectHeader);
+        int IsBitZero;
+        if (GtRead(GtWindowsBuildNumber) > 0x23F0)
+            IsBitZero = (TypeByte & 1) == 0;
+        else
+            IsBitZero = TypeByte == 0;
+        return GtRead(IsBitZero ? GtCallbackField100 : GtCallbackField98);
+    }
 }
 
 // GetSetValueKeyCtx
