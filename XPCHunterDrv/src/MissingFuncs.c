@@ -126,22 +126,55 @@ __int64 BuildDriverInfoEntries(unsigned int *InfoBuffer, unsigned int BufferSize
     return 1;
 }
 
-// BuildDriverPathI8042prt
+// BuildDriverPathI8042prt — 构建 i8042prt 驱动路径
+// 对应原始驱动 sub_140008914
 __int64 BuildDriverPathI8042prt(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[10];
+    EncodedPath[8] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 3670121;
+    EncodedPath[5] = 3407920;
+    EncodedPath[6] = 7340082;
+    EncodedPath[7] = 7602290;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 10, OutputBuffer, BufferSize);
 }
 
-// BuildDriverPathKbdClass
+// BuildDriverPathKbdClass — 构建 kbdclass 驱动路径
+// 对应原始驱动 sub_140008994
 __int64 BuildDriverPathKbdClass(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[10];
+    EncodedPath[8] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6422603;
+    EncodedPath[5] = 4391012;
+    EncodedPath[6] = 6357100;
+    EncodedPath[7] = 7536755;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 8, OutputBuffer, BufferSize);
 }
 
-// BuildDriverPathMouClass
+// BuildDriverPathMouClass — 构建 mouclass 驱动路径
+// 对应原始驱动 sub_140008A14
 __int64 BuildDriverPathMouClass(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[10];
+    EncodedPath[8] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7274573;
+    EncodedPath[5] = 6488181;
+    EncodedPath[6] = 6357100;
+    EncodedPath[7] = 7536755;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 9, OutputBuffer, BufferSize);
 }
 
 // BuildExportServiceTable
@@ -1238,10 +1271,31 @@ __int64 FindHookTargetDataSection(__int64 TargetBase, unsigned int TargetSize, _
     return 0;
 }
 
-// FindKernelPESectionByType
+// FindKernelPESectionByType — 按类型查找内核 PE 节区
+// 对应原始驱动 sub_14007A6B8
+// 在 ntoskrnl 中按类型查找 PE 节区，匹配特征 0x800000
 __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
 {
-    return 0;
+    __int64 v3 = GtRead(GtEprocessField22);
+    unsigned int v4 = (unsigned int)GtRead(GtEprocessField23);
+    unsigned int v5 = (unsigned int)GtRead(TypeIndex);
+    if (v3 && v4 && v5 && v5 < v4 && (unsigned __int64)v5 + 5 <= v4)
+    {
+        __int64 v8;
+        __int64 v9;
+        _DWORD v10[70];
+        __int64 v11;
+        InitPESectionReadContext(v5 + v3, v4 - v5, 2, 0, -1, 0, 0, (__int64)&v8);
+        for (int v6 = 0; v6 < 0x10; v6++)
+        {
+            if ((unsigned int)ReadPESectionEntry(&v8, v10))
+                break;
+            v9 += v10[60];
+            if (*(_WORD *)(v11 + 6) == 1340 && (*(_QWORD *)&v10[34] & 0x800000LL) != 0 && !v10[29])
+                return v10[28];
+        }
+    }
+    return 0x1000000;
 }
 
 // FindNtoskrnlExportsInThreadEnv
@@ -2297,10 +2351,106 @@ __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
     return 0;
 }
 
-// ResolvePhysicalMemoryContext
+// ResolvePhysicalMemoryContext — 解析物理内存上下文
+// 对应原始驱动 sub_140033D08
+// 根据 ContextType 选择偏移基址，遍历上下文表，检查地址范围，验证字节完整性，标记 Hook
 __int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, ULONG EntryCount)
 {
-    return 0;
+    unsigned __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    unsigned int OffsetValue2 = (unsigned int)GtRead(GtKernelDataField21);
+    __int64 OffsetBase = 0;
+
+    switch (ContextType)
+    {
+        case 0:
+            OffsetBase = GtRead(GtEprocessField72);
+            GtRead(GtEprocessField73);
+            break;
+        case 2:
+            OffsetBase = GtRead(GtEprocessField74);
+            GtRead(GtEprocessField75);
+            break;
+        case 1:
+            OffsetBase = GtRead(GtKernelDataField15);
+            GtRead(GtKernelDataField16);
+            break;
+    }
+
+    if (!OffsetBase || !EntryCount)
+        return 0;
+
+    // Phase 1: Mark modified entries
+    __int64 pCurrentEntry = pContextTable + 16;
+    ULONG Remaining = EntryCount;
+    while (Remaining)
+    {
+        __int64 CurrentValue = *(_QWORD *)(pCurrentEntry - 8);
+        if (CurrentValue && CurrentValue != *(_QWORD *)pCurrentEntry)
+        {
+            *(_BYTE *)(pCurrentEntry + 8) = 1;
+        }
+        else if (!CurrentValue && NtoskrnlBase && NtoskrnlSize)
+        {
+            __int64 AddressValue = *(_QWORD *)pCurrentEntry;
+            if (AddressValue && (AddressValue < NtoskrnlBase + NtoskrnlSize && AddressValue >= NtoskrnlBase))
+            {
+                // Inside ntoskrnl range, skip
+            }
+            else if (AddressValue)
+            {
+                *(_BYTE *)(pCurrentEntry + 8) = 1;
+            }
+        }
+        *(_DWORD *)(pCurrentEntry + 12) = ContextType;
+        pCurrentEntry += 48;
+        if (!--Remaining)
+            break;
+    }
+
+    // Phase 2: Verify bytes at each entry
+    for (ULONG EntryIndex = 0; EntryIndex < EntryCount; EntryIndex++)
+    {
+        __int64 pEntry = pContextTable + 8 + 48LL * EntryIndex;
+        if (*(_QWORD *)pEntry)
+        {
+            if (MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + 15LL)) == 1)
+            {
+                if ((unsigned int)MemoryCompare(*(_QWORD *)pEntry, (char *)(48LL * EntryIndex + pContextTable + 32), 0x10u))
+                {
+                    *(_BYTE *)(pEntry + 17) = 1;
+                    if (!*(_BYTE *)(pEntry + 16))
+                    {
+                        unsigned int ByteIndex;
+                        for (ByteIndex = 0; ByteIndex < 0x10; ByteIndex++)
+                        {
+                            if (!MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + ByteIndex)))
+                                break;
+                        }
+                        if (ByteIndex && ReturnFalseStub() == 1)
+                            *(_QWORD *)(pEntry + 8) = *(unsigned int *)(pContextTable + 48LL * EntryIndex + 8);
+                    }
+                }
+            }
+        }
+    }
+
+    // Phase 3: Fix special entry
+    if (EntryCount == 28 && OffsetValue2 && NtoskrnlSize && NtoskrnlBase)
+    {
+        _WORD *pFlagEntry = (_WORD *)(pContextTable + 24);
+        unsigned __int64 EndAddress = NtoskrnlBase + OffsetValue2;
+        for (int LoopCount = 28; LoopCount; LoopCount--)
+        {
+            if (*((_QWORD *)pFlagEntry - 1) == EndAddress)
+            {
+                *pFlagEntry = 0;
+                *((_QWORD *)pFlagEntry - 2) = EndAddress;
+            }
+            pFlagEntry += 24;
+        }
+    }
+    return 1;
 }
 
 // ResolveServiceTableBase — 解析服务表基址
