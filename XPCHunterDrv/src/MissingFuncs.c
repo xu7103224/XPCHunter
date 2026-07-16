@@ -1784,10 +1784,54 @@ __int64 RemoveFromObjectTypeListEx(PVOID *pTargetPointer)
     return 0;
 }
 
-// RemoveKernelObjectEntry
+// RemoveKernelObjectEntry — 移除内核对象条目
+// 对应原始驱动 sub_140042578
+// 遍历 SSDT2 表查找匹配地址并清零，释放内存
 __int64 RemoveKernelObjectEntry(__int64 TargetAddress)
 {
-    return 0;
+    char Result = 0;
+    int IsWin7 = GtRead(GtEprocessField28);
+    _QWORD *pSsdtTable = (_QWORD *)GtRead(GtEprocessField78);
+    _DWORD *pCounter = (_DWORD *)GtRead(GtEprocessField79);
+    if (pSsdtTable && pCounter)
+    {
+        _QWORD *pEndPtr = (_QWORD *)pCounter;
+        if (GtRead(GtWindowsBuildNumber) >= 0x23F0)
+            pEndPtr = pSsdtTable + 64;
+        while (pSsdtTable < pEndPtr && MmIsAddressValid(pSsdtTable))
+        {
+            if (TargetAddress == *pSsdtTable)
+            {
+                *pSsdtTable = 0;
+                if (!IsWin7)
+                {
+                    if (*pCounter)
+                        --*pCounter;
+                    ExFreePoolWithTag((PVOID)(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64), 0);
+                }
+                Result = 1;
+                break;
+            }
+            ++pSsdtTable;
+        }
+    }
+    void (__fastcall *pFreeFunc)(__int64) = (void (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x41BA);
+    if (pFreeFunc)
+    {
+        if (IsWin7)
+            pFreeFunc(TargetAddress);
+        else
+        {
+            unsigned __int64 FreeAddr = TargetAddress & 0xFFFFFFFFFFFFFFF0ui64;
+            if (MmIsAddressValid((PVOID)(FreeAddr + 8)) == 1)
+            {
+                __int64 FreeParam = *(_QWORD *)(FreeAddr + 8);
+                pFreeFunc(FreeParam);
+                return 1;
+            }
+        }
+    }
+    return Result;
 }
 
 // RemoveObjectFromTypeList
