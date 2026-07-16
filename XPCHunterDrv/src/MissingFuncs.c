@@ -7,6 +7,10 @@ __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset);
 __int64 ParseNtExportFunctionsV2(void);
 __int64 ParseNtExportFunctions(void);
 char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, unsigned int Image2Size);
+__int64 CallKernelFreeEntryV1(_QWORD *VirtualAddress);
+__int64 CallKernelFreeEntryV2(__int64 VirtualAddress);
+__int64 ParseMsrRelatedSections(void);
+__int64 ParseMsrTableFromSections(void);
 
 // CheckMemoryValid 已在 MemoryOps.c 中实现
 // 本文件中的定义已移除，使用外部链接
@@ -928,9 +932,28 @@ __int64 DispatchFreeProcessMemory(char *VirtualAddress)
     return 0;
 }
 
-// DispatchKernelMemoryCleanup
+// CallKernelFreeEntryV1 — 调用内核释放条目 V1（被 DispatchKernelMemoryCleanup 调用）
+// 对应原始驱动 sub_1400421AC
+__int64 CallKernelFreeEntryV1(_QWORD *VirtualAddress)
+{
+    return 0;
+}
+
+// CallKernelFreeEntryV2 — 调用内核释放条目 V2（被 DispatchKernelMemoryCleanup 调用）
+// 对应原始驱动 sub_1400421FC
+__int64 CallKernelFreeEntryV2(__int64 VirtualAddress)
+{
+    return 0;
+}
+
+// DispatchKernelMemoryCleanup — 内核内存清理分发函数
+// 对应原始驱动 sub_140042150
 __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress)
 {
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) == 2600 || (unsigned int)GtRead(GtWindowsBuildNumber) == 3790)
+        return CallKernelFreeEntryV2((__int64)VirtualAddress);
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+        return CallKernelFreeEntryV1(VirtualAddress);
     return 0;
 }
 
@@ -1719,10 +1742,29 @@ __int64 InitFileSystemFilterCallbacks(__int64 FilterExtensionObject, _QWORD *Fas
     return 0;
 }
 
-// InitMsrTable
-__int64 InitMsrTable(void)
+// ParseMsrRelatedSections — 解析 MSR 相关节区（被 InitMsrTable 调用）
+// 对应原始驱动 sub_140030500
+__int64 ParseMsrRelatedSections(void)
 {
     return 0;
+}
+
+// ParseMsrTableFromSections — 从节区解析 MSR 表（被 InitMsrTable 调用）
+// 对应原始驱动 sub_1400302E8
+__int64 ParseMsrTableFromSections(void)
+{
+    return 0;
+}
+
+// InitMsrTable — 初始化 MSR 表
+// 对应原始驱动 sub_14003069C
+__int64 InitMsrTable(void)
+{
+    ParseMsrRelatedSections();
+    __int64 result = GtRead(GtEprocessModuleListOffset|GtEprocessField86);
+    if (!result)
+        return ParseMsrTableFromSections();
+    return result;
 }
 
 // InitObjectAndQueryName
