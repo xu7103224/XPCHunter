@@ -2547,10 +2547,64 @@ __int64 ResolveKernelModuleIndex(GLOBAL_TABLE_INDEX a1,
     return 0;
 }
 
-// ResolveKernelObjectAddresses
+// ResolveKernelObjectAddresses — 解析内核对象地址
+// 对应原始驱动 sub_140029720
 __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
 {
-    return 0;
+    // Phase 1: Mark entries where original != current
+    for (unsigned int TableIndex = 0; TableIndex < *(unsigned int *)(pObjectTable + 4); TableIndex++)
+    {
+        _BYTE *pEntry = (_BYTE *)(200LL * TableIndex + pObjectTable + 32);
+        for (int EntryFieldCount = 8; EntryFieldCount; EntryFieldCount--)
+        {
+            __int64 FieldValue = *((_QWORD *)pEntry - 2);
+            if (FieldValue && *((_QWORD *)pEntry - 1) != FieldValue)
+                *pEntry = 1;
+            pEntry += 24;
+        }
+    }
+    // Phase 2: Verify addresses against HAL exports
+    __int64 HalExportTable = GtRead(GtEprocessField66);
+    unsigned int HalExportCount = (unsigned int)GtRead(GtEprocessField23);
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    if (HalExportTable && HalExportCount && NtoskrnlBase)
+    {
+        for (unsigned int EntryIndex = 0; EntryIndex < *(unsigned int *)(pObjectTable + 4); EntryIndex++)
+        {
+            _BYTE *pTypeEntry = (_BYTE *)(200LL * EntryIndex + pObjectTable + 32);
+            for (int RemainingFields = 8; RemainingFields; RemainingFields--)
+            {
+                unsigned __int64 ObjectAddress = *((_QWORD *)pTypeEntry - 2);
+                if (ObjectAddress && ObjectAddress > (unsigned __int64)NtoskrnlBase)
+                {
+                    unsigned int AddressOffset = (unsigned int)(ObjectAddress - (unsigned __int64)NtoskrnlBase);
+                    if (AddressOffset < HalExportCount && AddressOffset + 16 <= HalExportCount)
+                    {
+                        if (MmIsAddressValid((PVOID)ObjectAddress) == 1
+                            && MmIsAddressValid((PVOID)(ObjectAddress + 15)) == 1
+                            && (unsigned int)MemoryCompare(ObjectAddress, (char *)(HalExportTable + AddressOffset), 0x10u))
+                        {
+                            char WasOriginal = *pTypeEntry == 0;
+                            pTypeEntry[1] = 1;
+                            if (WasOriginal)
+                            {
+                                unsigned int i;
+                                for (i = 0; i < 0x10; i++)
+                                {
+                                    if (!MmIsAddressValid((PVOID)(ObjectAddress + i)))
+                                        break;
+                                }
+                                if (i && ReturnFalseStub() == 1)
+                                    *((_QWORD *)pTypeEntry - 1) = *(unsigned int *)((char *)pTypeEntry - (24 - 16));
+                            }
+                        }
+                    }
+                }
+                pTypeEntry += 24;
+            }
+        }
+    }
+    return 1;
 }
 
 // ResolvePhysicalMemoryContext — 解析物理内存上下文
@@ -2961,10 +3015,48 @@ __int64 ValidateAndClearProcessContext(int CurrentProcessor, __int64 pContext)
     return 0;
 }
 
-// ValidateCallbackContextTable
+// ValidateCallbackContextTable — 验证回调上下文表
+// 对应原始驱动 sub_14003E0BC
 __int64 ValidateCallbackContextTable(__int64 pContextTable)
 {
-    return 0;
+    _BYTE *pEntry = (_BYTE *)(pContextTable + 8);
+    for (int EntryCount = 28; EntryCount; EntryCount--)
+    {
+        if (*(_QWORD *)pEntry && *(_QWORD *)pEntry != *(_QWORD *)(pEntry + 8))
+            *(pEntry + 16) = 1;
+        pEntry += 64;
+    }
+    for (unsigned int EntryIndex = 0; EntryIndex <= 0x1B; EntryIndex++)
+    {
+        _BYTE *pCurEntry = (_BYTE *)(pContextTable + 8 + 64LL * EntryIndex);
+        if (!*(_QWORD *)pCurEntry)
+            continue;
+        if (MmIsAddressValid((PVOID)(*(_QWORD *)pCurEntry + 15LL)) != 1)
+            continue;
+        unsigned __int64 EntryOffset = (unsigned __int64)EntryIndex << 6;
+        if ((unsigned int)MemoryCompare(*(_QWORD *)pCurEntry, (char *)(EntryOffset + pContextTable + 26), 0x10u))
+        {
+            pCurEntry[17] = 1;
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4563
+                && MmIsAddressValid((PVOID)(*(_QWORD *)pCurEntry + 31LL)) == 1
+                && ScanPESectionPatterns((_BYTE *)(EntryOffset + pContextTable + 26), *(char **)pCurEntry, 32, 1))
+            {
+                pCurEntry[17] = 0;
+            }
+            if (pCurEntry[17] == 1 && !pCurEntry[16])
+            {
+                unsigned int i;
+                for (i = 0; i < 0x10; i++)
+                {
+                    if (!MmIsAddressValid((PVOID)(*(_QWORD *)pCurEntry + i)))
+                        break;
+                }
+                if (i && ReturnFalseStub() == 1)
+                    *((_QWORD *)pCurEntry + 1) = *(unsigned int *)(64LL * EntryIndex + pContextTable + 8);
+            }
+        }
+    }
+    return 1;
 }
 
 // ValidateFsFilterEntries — 验证文件系统过滤器条目
