@@ -877,9 +877,24 @@ __int64 CopyThreadContextTable(__int64 pSourceTable)
     return 0;
 }
 
-// CopyUSBPortServiceTable
+// CopyUSBPortServiceTable — 复制 USB 端口服务表
+// 对应原始驱动 sub_140055860
+// 打开 usbport.sys 驱动节区，遍历 28 项服务表填充索引和函数地址
 __int64 CopyUSBPortServiceTable(__int64 pOutputBuffer)
 {
+    __int64 v3 = OpenUSBPortSection();
+    if (v3)
+    {
+        _QWORD *v4 = (_QWORD *)(v3 + 112);
+        for (unsigned int v2 = 0; v2 <= 0x1B; v2++)
+        {
+            *(_DWORD *)pOutputBuffer = v2;
+            *(_QWORD *)(pOutputBuffer + 16) = *v4;
+            pOutputBuffer += 48;
+            ++v4;
+        }
+        return 1;
+    }
     return 0;
 }
 
@@ -908,10 +923,26 @@ __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress)
 }
 
 // DispatchParseNtExportFunctions 已在下方实现
-// DuplicateUSBPortSyscallOutput
+// DuplicateUSBPortSyscallOutput — 复制 USB 端口系统调用输出
+// 对应原始驱动 sub_1400559FC
 __int64 DuplicateUSBPortSyscallOutput(__int64 pSourceTable)
 {
-    return 0;
+    __int64 *v3 = GtAlloc((GLOBAL_TABLE_INDEX)15824);
+    char *v5 = (char *)v3 + 4;
+    __int64 v6 = pSourceTable - (__int64)v3;
+    char v2 = 0;
+    for (int v4 = 28; v4; v4--)
+    {
+        *(_DWORD *)&v5[v6] = *(_DWORD *)v5;
+        if (*(_DWORD *)v5 && *((_DWORD *)v5 - 1) == 1)
+        {
+            v2 = 1;
+            *(_QWORD *)&v5[v6 + 4] = *(_QWORD *)(v5 + 4);
+            *(_OWORD *)&v5[v6 + 22] = *(_OWORD *)(v5 + 12);
+        }
+        v5 += 48;
+    }
+    return v2;
 }
 
 // EnableProcessProtect
@@ -2597,9 +2628,36 @@ __int64 SetSyscallContextByIndex(ULONG *pInputEntry)
     return 0;
 }
 
-// SetUSBPortServiceTableEntry
+// OpenUSBPortSection — 打开 USB 端口驱动节区
+// 对应原始驱动 sub_1400558A4
+__int64 OpenUSBPortSection(void)
+{
+    _DWORD EncodedPath[8];
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7536757;
+    EncodedPath[5] = 6619234;
+    EncodedPath[6] = 6488168;
+    EncodedPath[7] = 105;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// SetUSBPortServiceTableEntry — 设置 USB 端口服务表条目
+// 对应原始驱动 sub_140055C78
 __int64 SetUSBPortServiceTableEntry(ULONG *a1)
 {
+    __int64 v3 = OpenUSBPortSection();
+    if (v3)
+    {
+        unsigned int v4 = *a1;
+        if (v4 <= 0x1B)
+        {
+            WritePhysicalMemoryQword(v3 + 8 * v4 + 112, *((__int64 *)a1 + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
