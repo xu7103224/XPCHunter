@@ -1416,15 +1416,47 @@ __int64 EnumerateProcessObjectTable(__int64 ProcessObject, __int64 OutputFlags)
     return 0;
 }
 
-// EnumerateRegistryContextTable
+// EnumerateRegistryContextTable — 枚举注册表上下文表
+// 对应原始驱动 sub_140045EA0
 __int64 EnumerateRegistryContextTable(__int64 pOutputTable)
 {
+    __int64 pDriverSection = BuildRegistryDriverPath();
+    if (pDriverSection)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(pDriverSection + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = EntryIndex++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+            pOutputTable += 48;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
-// EnumerateSyscallContextVector
+// EnumerateSyscallContextVector — 枚举系统调用上下文向量
+// 对应原始驱动 sub_1400472EC
 __int64 EnumerateSyscallContextVector(__int64 pOutputTable)
 {
+    __int64 SyscallContextBase = GetSyscallContextBase();
+    if (SyscallContextBase)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(SyscallContextBase + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = EntryIndex++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+            pOutputTable += 48;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
@@ -1959,9 +1991,20 @@ void InitWin32kTableByVersion(void)
     return;
 }
 
-// InstallCallbackContextHookEntry
+// InstallCallbackContextHookEntry — 安装回调上下文 Hook 条目
+// 对应原始驱动 sub_140036284
 __int64 InstallCallbackContextHookEntry(unsigned int *pInputEntry)
 {
+    __int64 pContextBase = GetCallbackContextBase();
+    if (pContextBase)
+    {
+        unsigned int EntryIndex = *pInputEntry;
+        if (EntryIndex <= 0x1B)
+        {
+            WritePhysicalMemoryQword(pContextBase + 8 * EntryIndex + 112, *((__int64 *)pInputEntry + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
