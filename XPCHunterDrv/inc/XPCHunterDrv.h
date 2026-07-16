@@ -1880,6 +1880,8 @@ char ModifyObjectHeaderFlagsByVersion(__int64 ObjectHeader, char SetFlag);
 __int64 ResolveKernelModuleFunctionAddrs(void);
 __int64 GetProcessContextBase(void);
 __int64 OpenVolumeDriverSection(void);
+bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize);
+bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize);
 __int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 OutputBuffer, int MaxEntries);
 __int64 GetCallbackContextBase(void);
 void ReadNtOsKrnlAndParseServiceTable(void);

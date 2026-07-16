@@ -11,6 +11,7 @@ __int64 CallKernelFreeEntryV1(_QWORD *VirtualAddress);
 __int64 CallKernelFreeEntryV2(__int64 VirtualAddress);
 __int64 ParseMsrRelatedSections(void);
 __int64 ParseMsrTableFromSections(void);
+char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable);
 
 // CheckMemoryValid 已在 MemoryOps.c 中实现
 // 本文件中的定义已移除，使用外部链接
@@ -2054,9 +2055,61 @@ void InitCallbackContextHookTable(void)
     return;
 }
 
-// InitFileSystemExportTable
+// InitFileSystemExportTable — 初始化文件系统导出表
+// 对应原始驱动 sub_14000E24C
 __int64 InitFileSystemExportTable(char Is64Bit)
 {
+    if (Is64Bit == 1)
+    {
+        __int64 ExportTableAddr = GtRead(GtFileSystemExportTable);
+        if (ExportTableAddr)
+        {
+            __int64 *RelocTable = GtAlloc(GtFltPeSectionOfs5|GtCallbackField79|0x1000);
+            unsigned int FileSize;
+            char *FileBuffer;
+            if (ReadDisksSysFile(&FileBuffer, &FileSize))
+            {
+                if (ParseNtRelocSection((__int64)FileBuffer, FileSize, (__int64)RelocTable) == 1
+                    && ParseNtExportDir((__int64)FileBuffer, FileSize, ExportTableAddr, 0) == 1)
+                {
+                    unsigned int *EntryPtr = (unsigned int *)RelocTable + 1;
+                    for (int EntryCount = 49; EntryCount; EntryCount--)
+                    {
+                        __int64 EntryOffset = *EntryPtr;
+                        *(EntryPtr - 1) = 0;
+                        if ((_DWORD)EntryOffset && (int)EntryOffset + 16 <= FileSize)
+                        {
+                            *(EntryPtr - 1) = 1;
+                            *(_OWORD *)(EntryPtr + 3) = *(_OWORD *)&FileBuffer[EntryOffset];
+                        }
+                        EntryPtr += 12;
+                    }
+                    GtWrite(GtFileSystemReady10, 1);
+                }
+                ExFree(FileBuffer);
+            }
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+            {
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+                    *((_DWORD *)RelocTable + 120) = 0;
+            }
+            else
+            {
+                *((_DWORD *)RelocTable + 372) = 0;
+            }
+        }
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0)
+    {
+        if (GtRead(GtFileSystemExportTable32))
+        {
+            GtAlloc(GtDisableHookProtectionAddr2|GtEprocessField26|0x1500);
+            unsigned int FileSize;
+            char *FileBuffer;
+            if (ReadCdromSysFile(&FileBuffer, &FileSize))
+                ExFree(FileBuffer);
+        }
+    }
     return 0;
 }
 
@@ -4320,4 +4373,80 @@ char InitKernelObjectHeader(char *VirtualAddress)
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
         *(_DWORD *)&VirtualAddress[v4] = 0;
     return 1;
+}
+
+// ReadDisksSysFile — 读取 disksys 文件
+// 对应原始驱动 sub_14000EDD8
+bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
+{
+    int EncodedPath[20];
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6553692;
+    EncodedPath[15] = 7536745;
+    EncodedPath[16] = 3014763;
+    EncodedPath[17] = 7929971;
+    EncodedPath[18] = 115;
+    void *Src;
+    size_t MaxCount;
+    if (!(unsigned int)ReadFileRawData((WORD *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        bool Result = ReadNtFileToBuffer((unsigned char *)Src, (unsigned int)MaxCount, (unsigned char **)FileBuffer, FileSize) == 1;
+        ExFree(Src);
+        return Result;
+    }
+    return 0;
+}
+
+// ReadCdromSysFile — 读取 cdrom.sys 文件
+// 对应原始驱动 sub_14000ECB8
+bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
+{
+    int EncodedPath[18];
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6488156;
+    EncodedPath[15] = 7471204;
+    EncodedPath[16] = 7143535;
+    EncodedPath[17] = 7536686;
+    void *Src;
+    size_t MaxCount;
+    if (!(unsigned int)ReadFileRawData((WORD *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        bool Result = ReadNtFileToBuffer((unsigned char *)Src, (unsigned int)MaxCount, (unsigned char **)FileBuffer, FileSize) == 1;
+        ExFree(Src);
+        return Result;
+    }
+    return 0;
+}
+
+// ParseNtRelocSection — 解析 NT 重定位节区（存根，待实现）
+// 对应原始驱动 sub_14000E634
+char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
+{
+    return 0;
 }
