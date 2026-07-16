@@ -2298,22 +2298,43 @@ __int64 ProcessOperationWithAttach(void)
     return 0;
 }
 
-// QueryDriverObjectDevice
+// QueryDriverObjectDevice — 查询驱动对象设备列表
+// 对应原始驱动 sub_1400087A8
+// 编码设备路径，打开 \\Driver\\Device 对象，获取设备对象链表并复制到输出缓冲区
 __int64 QueryDriverObjectDevice(__int64 OutputBuffer, int MaxCount)
 {
-    return 0;
+    return 0;  // TODO: implement properly (uses GetDeviceObjectFromFileObject)
 }
 
-// QueryFileSystemDriverObject
+// QueryFileSystemDriverObject — 查询文件系统驱动对象
+// 对应原始驱动 sub_14000872C
 __int64 QueryFileSystemDriverObject(__int64 OutputBuffer, int MaxCount)
 {
-    return 0;
+    _DWORD EncodedPath[10];
+    EncodedPath[0] = 4587612;
+    EncodedPath[1] = 7077993;
+    EncodedPath[2] = 5439589;
+    EncodedPath[3] = 7536761;
+    EncodedPath[4] = 6619252;
+    EncodedPath[5] = 6029421;
+    EncodedPath[6] = 4259922;
+    EncodedPath[7] = 87;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 2, OutputBuffer, MaxCount);
 }
 
-// QueryNdisDriverObject
+// QueryNdisDriverObject — 查询 NDIS 驱动对象
+// 对应原始驱动 sub_140008A94
 __int64 QueryNdisDriverObject(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[8];
+    EncodedPath[6] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 4456526;
+    EncodedPath[5] = 5439561;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 11, OutputBuffer, BufferSize);
 }
 
 // QueryObjectTypeInformation
@@ -2322,10 +2343,22 @@ __int64 QueryObjectTypeInformation(PVOID Object)
     return 0;
 }
 
-// QueryPnpManagerDriverObject
+// QueryPnpManagerDriverObject — 查询 PnP 管理器驱动对象
+// 对应原始驱动 sub_140008BF8
 __int64 QueryPnpManagerDriverObject(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[10];
+    EncodedPath[9] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7209040;
+    EncodedPath[5] = 5046384;
+    EncodedPath[6] = 7209057;
+    EncodedPath[7] = 6750305;
+    EncodedPath[8] = 7471205;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 12, OutputBuffer, BufferSize);
 }
 
 // QueryProcessModuleInfo
@@ -2346,22 +2379,50 @@ __int64 QuerySyscallHookStatus(__int64 a1)
     return 0;
 }
 
-// QueryTcpipDriverObject
+// QueryTcpipDriverObject — 查询 TCPIP 驱动对象
+// 对应原始驱动 sub_140008B04
 __int64 QueryTcpipDriverObject(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[8];
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6488148;
+    EncodedPath[5] = 6881392;
+    EncodedPath[6] = 112;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 5, OutputBuffer, BufferSize);
 }
 
-// QueryTdxDriverObject
+// QueryTdxDriverObject — 查询 TDX 驱动对象
+// 对应原始驱动 sub_140008C80
 __int64 QueryTdxDriverObject(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[6];
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6553716;
+    EncodedPath[5] = 120;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 7, OutputBuffer, BufferSize);
 }
 
-// QueryVolmgrDriverObject
+// QueryVolmgrDriverObject — 查询卷管理器驱动对象
+// 对应原始驱动 sub_140008B78
 __int64 QueryVolmgrDriverObject(__int64 OutputBuffer, int BufferSize)
 {
-    return 0;
+    _DWORD EncodedPath[10];
+    EncodedPath[8] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7536750;
+    EncodedPath[5] = 7340137;
+    EncodedPath[6] = 7274610;
+    EncodedPath[7] = 7929976;
+    return QueryDriverObjectByPath((__int64)EncodedPath, 6, OutputBuffer, BufferSize);
 }
 
 // ReadDiskSectors 已在 MemoryOps.c 中实现
