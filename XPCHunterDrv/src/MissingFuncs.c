@@ -1701,16 +1701,157 @@ __int64 PatchFsFilterDriverIndex(__int64 PatchEntry, char Is64Bit)
     return 0;
 }
 
-// PowerCallbackRoutine
+// PowerCallbackRoutine — 电源回调处理例程
+// 对应原始驱动 sub_140011240
+// 从内核地址读取数据到用户缓冲区，按页映射内存，通过 ReadObjectNameFromCallback 读取对象名称
 __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
 {
-    return 0;
+    if (!InputBuffer || BufferSize != 24)
+        return 0;
+    if ((unsigned __int64)InputBuffer >= MmUserProbeAddress
+        || (unsigned __int64)(InputBuffer + 3) >= MmUserProbeAddress)
+        return 0;
+
+    __int64 (__fastcall *MapMemoryFunc)(unsigned __int64, __int64, _QWORD, _QWORD, _QWORD) = (__int64 (__fastcall *)(unsigned __int64, __int64, _QWORD, _QWORD, _QWORD))GtRead(GtAllocPhysPagesFunc);
+    void (__fastcall *MapFunc)(__int64) = (void (__fastcall *)(__int64))GtRead(GtMapPhysPagesFunc);
+    void (__fastcall *ZeroFunc)(__int64, _QWORD, _QWORD) = (void (__fastcall *)(__int64, _QWORD, _QWORD))GtRead(GtZeroPagesFunc);
+    __int64 (__fastcall *ReadNameFunc)(__int64, _QWORD, __int64) = (__int64 (__fastcall *)(__int64, _QWORD, __int64))GtRead(GtMapMemoryFunc);
+    void (__fastcall *UnmapFunc)(__int64, __int64) = (void (__fastcall *)(__int64, __int64))GtRead(GtUnmapMemoryFunc);
+    void (__fastcall *FreeFunc)(__int64) = (void (__fastcall *)(__int64))GtRead(GtFreeMemoryFunc);
+    void (__fastcall *FreePagesFunc)(__int64) = (void (__fastcall *)(__int64))GtRead(GtFreePagesFunc);
+
+    if (!MapMemoryFunc || !MapFunc || !ZeroFunc || !ReadNameFunc || !UnmapFunc || !FreeFunc || !FreePagesFunc)
+        return 0;
+
+    ProbeForRead(InputBuffer, 0x18u, 4u);
+    if (!InputBuffer[2] || !*((_DWORD *)InputBuffer + 2))
+        return 0;
+
+    unsigned int ReadSize = *((_DWORD *)InputBuffer + 2);
+    if (ReadSize >= (unsigned __int64)MmSystemRangeStart
+        || (unsigned __int64)*InputBuffer < (unsigned __int64)MmSystemRangeStart
+        || (char *)*InputBuffer + ReadSize < (unsigned __int64)MmSystemRangeStart
+        || (unsigned __int64)InputBuffer[2] >= MmUserProbeAddress
+        || (unsigned __int64)InputBuffer[2] + ReadSize >= MmUserProbeAddress)
+        return 0;
+
+    ProbeForWrite(InputBuffer[2], ReadSize, 1u);
+    unsigned __int64 CurrentAddress = (unsigned __int64)*InputBuffer;
+    unsigned int RemainingSize = ReadSize;
+    char *OutputPtr = (char *)InputBuffer[2];
+    char Success = 0;
+
+    if ((unsigned __int64)*InputBuffer < (unsigned __int64)MmSystemRangeStart
+        || RemainingSize >= (unsigned __int64)MmSystemRangeStart
+        || CurrentAddress + ReadSize <= (unsigned __int64)MmSystemRangeStart)
+        return 0;
+
+    unsigned int PageRemainder = 4096 - (CurrentAddress & 0xFFF);
+    unsigned int BytesCopied = 0;
+
+    while (BytesCopied < RemainingSize)
+    {
+        if (RemainingSize - BytesCopied < PageRemainder)
+            PageRemainder = RemainingSize - BytesCopied;
+
+        char CopySuccess = 0;
+        if (CheckMemoryValid((void *)CurrentAddress) == 1)
+        {
+            __int64 MappedMemory = MapMemoryFunc(CurrentAddress & 0xFFFFFFFFFFFFF000ULL, 4096, 0, 0, 0);
+            if (MappedMemory)
+            {
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+                {
+                    ZeroFunc(MappedMemory, 0, 0);
+                    __int64 NameResult = ReadObjectNameFromCallback(MappedMemory, 16, (__int64 (__fastcall *)(__int64, ULONG64, __int64))ReadNameFunc);
+                    if (NameResult)
+                    {
+                        memmove(OutputPtr, (const void *)(NameResult + (CurrentAddress & 0xFFF)), PageRemainder);
+                        Success = 1;
+                        CopySuccess = 1;
+                    }
+                    FreeFunc(MappedMemory);
+                }
+                else
+                {
+                    MapFunc(MappedMemory);
+                    __int64 MappedBuffer = ReadNameFunc(MappedMemory, 0, 1);
+                    if (MappedBuffer)
+                    {
+                        memmove(OutputPtr, (const void *)(MappedBuffer + (CurrentAddress & 0xFFF)), PageRemainder);
+                        Success = 1;
+                        CopySuccess = 1;
+                        UnmapFunc(MappedBuffer, MappedMemory);
+                    }
+                }
+                FreePagesFunc(MappedMemory);
+            }
+        }
+        if (!CopySuccess)
+            memset(OutputPtr, 0, PageRemainder);
+
+        if (BytesCopied)
+            PageRemainder = 4096;
+        BytesCopied += 4096;
+        CurrentAddress += PageRemainder;
+        OutputPtr += PageRemainder;
+    }
+    return Success;
 }
 
-// PowerCallbackUnregister
+// PowerCallbackUnregister — 卸载电源回调
+// 对应原始驱动 sub_140011630
+// 将指定进程的源缓冲区数据拷贝到目标缓冲区
 __int64 PowerCallbackUnregister(HANDLE *InputBuffer, int BufferSize)
 {
-    return 0;
+    if (!InputBuffer || BufferSize != 40)
+        return 0;
+    if ((unsigned __int64)InputBuffer >= MmUserProbeAddress
+        || (unsigned __int64)(InputBuffer + 5) >= MmUserProbeAddress)
+        return 0;
+
+    ProbeForRead(InputBuffer, 0x28u, 4u);
+    if (!*InputBuffer || !InputBuffer[1] || !InputBuffer[4] || !*((_DWORD *)InputBuffer + 6) || !InputBuffer[2])
+        return 0;
+
+    unsigned int TargetSize = *((_DWORD *)InputBuffer + 6);
+    HANDLE TargetBufferVal = InputBuffer[2];
+    HANDLE ProcessHandle = InputBuffer[4];
+
+    if (TargetSize >= MmUserProbeAddress
+        || (unsigned __int64)TargetBufferVal >= MmUserProbeAddress
+        || (unsigned __int64)TargetBufferVal + TargetSize >= MmUserProbeAddress
+        || (unsigned __int64)ProcessHandle >= MmUserProbeAddress
+        || (unsigned __int64)ProcessHandle + TargetSize >= MmUserProbeAddress)
+        return 0;
+
+    ProbeForWrite(ProcessHandle, TargetSize, 1u);
+    void *SourceBuffer = ExAlloc(NonPagedPool, TargetSize);
+    if (!SourceBuffer)
+        return 0;
+
+    PEPROCESS Process = NULL;
+    NTSTATUS LookupStatus = PsLookupProcessByProcessId(*InputBuffer, &Process);
+    int Status = LookupStatus;
+    if (!InputBuffer[1] && LookupStatus >= 0)
+        InputBuffer[1] = (HANDLE)Process;
+
+    char Success = 0;
+    if (ValidateProcessObject((struct _KPROCESS *)InputBuffer[1], 0) == 1)
+    {
+        struct _KAPC_STATE ApcState;
+        KeStackAttachProcess((PRKPROCESS)InputBuffer[1], &ApcState);
+        memset(SourceBuffer, 0, TargetSize);
+        memmove(SourceBuffer, (const void *)InputBuffer[2], TargetSize);
+        Success = 1;
+        KeUnstackDetachProcess(&ApcState);
+        memmove((void *)InputBuffer[4], SourceBuffer, TargetSize);
+    }
+
+    if (Status >= 0)
+        ObfDereferenceObject(Process);
+    ExFree(SourceBuffer);
+    return Success;
 }
 
 // PrepareFileForPageTableScan
