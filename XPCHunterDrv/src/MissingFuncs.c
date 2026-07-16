@@ -1318,16 +1318,18 @@ char KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
     return 0;
 }
 
-// KernelNotifyRoutine
+// KernelNotifyRoutine — 内核通知例程
+// 对应原始驱动 sub_140019CFC
 __int64 KernelNotifyRoutine(void *NotificationBuffer, size_t BufferSize)
 {
-    return 0;
+    return MiniFilterTeardownRoutine(NotificationBuffer, BufferSize, 1);
 }
 
-// KernelNotifyRoutineEx
+// KernelNotifyRoutineEx — 内核通知例程扩展
+// 对应原始驱动 sub_140019D04
 __int64 KernelNotifyRoutineEx(void *NotificationBuffer, size_t BufferSize)
 {
-    return 0;
+    return MiniFilterTeardownRoutine(NotificationBuffer, BufferSize, 0);
 }
 
 // LookupDriverHashTable
