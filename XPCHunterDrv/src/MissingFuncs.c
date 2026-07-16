@@ -1570,15 +1570,82 @@ __int64 RemoveFromModuleLinkedList(PVOID *pTargetEntry, char ListType)
     return 0;
 }
 
-// RemoveFromObjectTypeList
+// RemoveFromObjectTypeList — 从对象类型链表中移除条目
+// 对应原始驱动 sub_140041FB4
+// 遍历 GT 699 链表，查找匹配目标并从双向链表中摘除
 __int64 RemoveFromObjectTypeList(PVOID *pTargetObject)
 {
+    PVOID **pListHead = (PVOID **)GtRead((GLOBAL_TABLE_INDEX)699);
+    if (!pListHead || MmIsAddressValid(pListHead) != 1)
+        return 0;
+
+    PVOID *pCurrent = *pListHead;
+    int IterCount = 0;
+    while (pCurrent != (PVOID *)pListHead)
+    {
+        if (pCurrent <= MmSystemRangeStart)
+            break;
+        if (MmIsAddressValid(pCurrent) != 1)
+            break;
+        if (++IterCount > 0x1000)
+            break;
+        if (pCurrent == pTargetObject)
+        {
+            if (MmIsAddressValid(*pCurrent) == 1)
+            {
+                PVOID *pPrev = (PVOID *)*pCurrent;
+                PVOID **pNext = (PVOID **)pCurrent[1];
+                pPrev[1] = pNext;
+                *pNext = pPrev;
+                return 1;
+            }
+            return 0;
+        }
+        pCurrent = (PVOID *)*pCurrent;
+    }
     return 0;
 }
 
-// RemoveFromObjectTypeListEx
+// RemoveFromObjectTypeListEx — 从对象类型链表中移除条目（扩展版）
+// 对应原始驱动 sub_140042914
+// 从 GT 824 获取 13 个链表头数组，在每个链表中搜索并摘除目标
 __int64 RemoveFromObjectTypeListEx(PVOID *pTargetPointer)
 {
+    PVOID **pListArray = (PVOID **)GtRead((GLOBAL_TABLE_INDEX)824);
+    if (!pListArray || MmIsAddressValid(pListArray) != 1)
+        return 0;
+
+    for (unsigned int ListIdx = 0; ListIdx < 13; ListIdx++)
+    {
+        PVOID **pListHead = pListArray + 2 * ListIdx;
+        if (MmIsAddressValid(pListHead) != 1)
+            continue;
+
+        PVOID *pCurrent = *pListHead;
+        int IterCount = 0;
+        while (pCurrent != (PVOID *)pListHead)
+        {
+            if (pCurrent <= MmSystemRangeStart)
+                break;
+            if (MmIsAddressValid(pCurrent) != 1)
+                break;
+            if (++IterCount > 0x10000)
+                break;
+            if (pTargetPointer == pCurrent)
+            {
+                if (MmIsAddressValid(*pCurrent) == 1)
+                {
+                    PVOID *pPrev = (PVOID *)*pCurrent;
+                    PVOID **pNext = (PVOID **)pCurrent[1];
+                    pPrev[1] = pNext;
+                    *pNext = pPrev;
+                    return 1;
+                }
+                break;
+            }
+            pCurrent = (PVOID *)*pCurrent;
+        }
+    }
     return 0;
 }
 
