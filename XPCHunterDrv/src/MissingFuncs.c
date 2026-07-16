@@ -367,16 +367,136 @@ __int64 CleanupProcessMemoryEntry(_QWORD *pTargetEntry)
     return Result;
 }
 
-// ClearKernelObjectEntry
+// ClearKernelObjectEntry — 清除内核对象条目
+// 对应原始驱动 sub_140042374
+// 释放目标地址，遍历 SSDT 表清理匹配条目，支持 Win7/Win10
 __int64 ClearKernelObjectEntry(__int64 TargetAddress)
 {
-    return 0;
+    char Result = 0;
+    int IsWin7 = GtRead(GtEprocessField28);
+    void (__fastcall *pFreeFunc)(__int64, __int64) = (void (__fastcall *)(__int64, __int64))GtRead((GLOBAL_TABLE_INDEX)0x41A8);
+    if (pFreeFunc)
+    {
+        __int64 FreeParam;
+        if (IsWin7)
+            FreeParam = TargetAddress;
+        else
+        {
+            if (MmIsAddressValid((PVOID)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 8)) != 1)
+                goto SKIP_FREE;
+            FreeParam = *(_QWORD *)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 8);
+        }
+        pFreeFunc(FreeParam, 1);
+        Result = 1;
+    }
+SKIP_FREE:
+    _QWORD *pSsdtTable = (_QWORD *)GtRead(GtEprocessField80);
+    _DWORD *pCounterEnd = (_DWORD *)GtRead(GtEprocessField81);
+    if (TargetAddress && pSsdtTable && pCounterEnd)
+    {
+        _DWORD *pCounter = NULL;
+        _DWORD *pTempCounter;
+        if (GtRead(GtWindowsBuildNumber) > 0x1770)
+        {
+            if (GtRead(GtWindowsBuildNumber) > 0x1DB1)
+            {
+                pTempCounter = pSsdtTable + 512;
+                if (GtRead(GtWindowsBuildNumber) == 9200)
+                    pCounter = pSsdtTable + 512;
+                else
+                {
+                    if (GtRead(GtWindowsBuildNumber) < 0x3839 || GtRead(GtWindowsBuildNumber) == 14393)
+                        pCounter = pCounterEnd - 1;
+                    else if (GtRead(GtWindowsBuildNumber) == 15063)
+                        pCounter = pCounterEnd + 2;
+                    else if (GtRead(GtWindowsBuildNumber) == 16299)
+                        pCounter = pCounterEnd + 1;
+                    else if (GtRead(GtWindowsBuildNumber) == 17134 || GtRead(GtWindowsBuildNumber) == 17763)
+                        pCounter = pCounterEnd - 1;
+                    else
+                    {
+                        pCounter = pCounterEnd + 4;
+                        if (GtRead(GtWindowsBuildNumber) != 18362)
+                            pCounter = pCounterEnd - 2;
+                    }
+                }
+            }
+            else
+            {
+                pCounter = pCounterEnd - 1;
+                pTempCounter = pCounterEnd - 1;
+            }
+        }
+        else
+            pTempCounter = pCounterEnd;
+
+        while (pSsdtTable < (_QWORD *)pTempCounter && MmIsAddressValid(pSsdtTable))
+        {
+            if (TargetAddress == *pSsdtTable && MmIsAddressValid((PVOID)(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64)) == 1)
+            {
+                if (GtRead(GtWindowsBuildNumber) >= 0x1771 && *(_BYTE *)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 0x10))
+                {
+                    if (*pCounter)
+                        --*pCounter;
+                }
+                else if (!IsWin7 && *pCounterEnd)
+                    --*pCounterEnd;
+                *pSsdtTable = 0;
+                if (!IsWin7)
+                    ExFreePoolWithTag((PVOID)(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64), 0);
+                return 1;
+            }
+            ++pSsdtTable;
+        }
+    }
+    return Result;
 }
 
-// ClearSsdtRelatedEntry
+// ClearSsdtRelatedEntry — 清除 SSDT 相关条目
+// 对应原始驱动 sub_140042718
+// 释放目标地址，遍历 SSDT3 表清理匹配项
 __int64 ClearSsdtRelatedEntry(__int64 TargetAddress)
 {
-    return 0;
+    char Result = 0;
+    int IsWin7 = GtRead(GtEprocessField28);
+    void (__fastcall *pFreeFunc)(__int64) = (void (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x41B7);
+    if (pFreeFunc)
+    {
+        if (IsWin7)
+            pFreeFunc(TargetAddress);
+        else
+        {
+            if (MmIsAddressValid((PVOID)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 8)) == 1)
+            {
+                __int64 FreeParam = *(_QWORD *)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 8);
+                pFreeFunc(FreeParam);
+            }
+        }
+        Result = 1;
+    }
+    _QWORD *pSsdtTable = (_QWORD *)GtRead(GtEprocessField82);
+    __int64 SsdtTableEnd = GtRead(GtEprocessField83);
+    _DWORD *pCounter = (_DWORD *)SsdtTableEnd;
+    if (pSsdtTable && SsdtTableEnd)
+    {
+        unsigned __int64 SsdtOffset = (unsigned __int64)GetSsdtTableOffset((__int64)pSsdtTable, SsdtTableEnd);
+        while ((unsigned __int64)pSsdtTable < SsdtOffset && MmIsAddressValid(pSsdtTable))
+        {
+            if (TargetAddress == *pSsdtTable)
+            {
+                *pSsdtTable = 0;
+                if (!IsWin7)
+                {
+                    if (*pCounter)
+                        --*pCounter;
+                    ExFreePoolWithTag((PVOID)(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64), 0);
+                }
+                return 1;
+            }
+            ++pSsdtTable;
+        }
+    }
+    return Result;
 }
 
 // CmdEnumObjectsEx
@@ -1115,7 +1235,6 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
     return 0;
 }
 
-// ForEachProcessor
 __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Context)
 {
     return 0;
@@ -1151,6 +1270,20 @@ __int64 FreeProcessMemoryAllocationEx(_QWORD *pTargetEntry)
 __int64 FreeProcessMemoryBuffer(PVOID VirtualAddress)
 {
     return 0;
+}
+
+// GetSsdtTableOffset — 获取 SSDT 表偏移量
+// 对应原始驱动 sub_140040FB8
+// 根据 OS 版本选择 SSDT 表与偏移之间的间距
+__int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset)
+{
+    if (GtRead(GtWindowsBuildNumber) >= 0x2800)
+        return SsdtTable + 512;
+    if (GtRead(GtWindowsBuildNumber) == 2600
+        || GtRead(GtWindowsBuildNumber) == 3790
+        || GtRead(GtWindowsBuildNumber) >= 0x23F0)
+        return SsdtTable + 64;
+    return DefaultOffset;
 }
 
 // GetDeleteValueKeyCtx
