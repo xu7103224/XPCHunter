@@ -12,6 +12,18 @@ __int64 CallKernelFreeEntryV2(__int64 VirtualAddress);
 __int64 ParseMsrRelatedSections(void);
 __int64 ParseMsrTableFromSections(void);
 char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable);
+char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize);
+char ReadNtFileForProcessContext(char **FileBuffer, unsigned int *FileSize);
+__int64 ResolveSyscallAddressesWithAttach(void);
+void ReadSystemDllAndInitSession(void);
+void EnumObjectLinkedListSingle(_QWORD *pObjectTable, __int64 OutputBuffer, _DWORD *pCount, int MaxEntries);
+void EnumObjectLinkedListWin7(_QWORD *pObjectTable, _DWORD *OutputBuffer, _DWORD *pCount, int MaxEntries);
+void EnumObjectLinkedListWin8(_QWORD *pObjectTable, _DWORD *OutputBuffer, _DWORD *pCount, int MaxEntries);
+char RemoveObjectFromLinkedList(_QWORD *pObjectTable, __int64 TargetHandle);
+char RemoveObjectFromLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle);
+char RemoveObjectSingleLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle);
+char InitObjectOperationEntry(void);
+void ClearProcessPageTableFlags(struct _KPROCESS *ProcessObject);
 
 // CheckMemoryValid 已在 MemoryOps.c 中实现
 // 本文件中的定义已移除，使用外部链接
@@ -188,10 +200,51 @@ char BuildExportServiceTable(PUCHAR ImageBase, ULONG ImageSize, PUCHAR ServiceTa
     return 0;
 }
 
-// BuildProcessContextExportTable
-__int64 BuildProcessContextExportTable(void)
+// BuildProcessContextExportTable — 构建进程上下文导出表
+// 对应原始驱动 sub_140031F8C
+// 读取 ntoskrnl 文件，解析 NT 镜像节区 2 和导出目录，备份原始函数字节到 GT 0x8D8/0x8D9
+void BuildProcessContextExportTable(void)
 {
-    return 0;
+    __int64 NtoskrnlBase = GtRead(GtFltPeSectionOfs8|GtEprocessField54);
+    if (NtoskrnlBase)
+    {
+        unsigned int FileSize;
+        char *pFileBuffer;
+        if (ReadNtFileForProcessContext(&pFileBuffer, &FileSize))
+        {
+            if (ParseNtImageSections2((__int64)pFileBuffer, FileSize) == 1
+                && ParseNtExportDir((__int64)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
+            {
+                unsigned int *pContextEntry = (unsigned int *)GtAlloc(GtEprocessModuleListOffset|GtPspExitThreadAddr|0x3400) + 1;
+                for (int LoopCount = 28; LoopCount; LoopCount--)
+                {
+                    int FuncRva = *pContextEntry;
+                    *(pContextEntry - 1) = 0;
+                    if (FuncRva && (unsigned int)FuncRva + 16 <= FileSize)
+                    {
+                        GtWrite(GtDisableHookProtectionAddr2|GtEprocessField182, 1);
+                        *(pContextEntry - 1) = 1;
+                        *(_OWORD *)(pContextEntry + 3) = *(_OWORD *)&pFileBuffer[FuncRva];
+                    }
+                    pContextEntry += 12;
+                }
+                unsigned int *pTargetEntry = (unsigned int *)GtAlloc((enum _GLOBAL_TABLE_INDEX)15650) + 1;
+                for (int LoopCount2 = 27; LoopCount2; LoopCount2--)
+                {
+                    int TargetRva = *pTargetEntry;
+                    *(pTargetEntry - 1) = 0;
+                    if (TargetRva && (unsigned int)TargetRva + 16 <= FileSize)
+                    {
+                        GtWrite(GtDisableHookProtectionAddr2|GtEprocessField183, 1);
+                        *(pTargetEntry - 1) = 1;
+                        *(_OWORD *)(pTargetEntry + 3) = *(_OWORD *)&pFileBuffer[TargetRva];
+                    }
+                    pTargetEntry += 12;
+                }
+            }
+            ExFree(pFileBuffer);
+        }
+    }
 }
 
 // BuildServiceTableFromNtKernel
@@ -490,28 +543,113 @@ __int64 ClearSsdtRelatedEntry(__int64 TargetAddress)
     return Result;
 }
 
-// CmdEnumObjectsEx
-__int64 CmdEnumObjectsEx(__int64 a1, unsigned int a2, _DWORD *a3, unsigned int a4)
+// CmdEnumObjectsEx — 枚举对象扩展命令处理
+// 对应原始驱动 sub_140036D54
+// 验证输出缓冲区（最少 64 字节），若 GT 740 未初始化则调用 InitObjectOperationEntry。
+// 根据 GT 2324 版本选择不同的链表枚举函数（Win7/Win8/Win10+），输出条目格式为 0x38 字节。
+__int64 CmdEnumObjectsEx(__int64 UnusedParam1, unsigned int UnusedParam2, _DWORD *pOutputBuffer, unsigned int OutputSize)
 {
+    SIZE_T BufferSize = OutputSize;
+    __int64 Success = 0;
+    _QWORD *pObjectTable = (_QWORD *)GtRead(GtCallbackField22);
+    if (!pObjectTable)
+    {
+        InitObjectOperationEntry();
+        pObjectTable = (_QWORD *)GtRead(GtCallbackField22);
+    }
+    if (pObjectTable
+        && pOutputBuffer
+        && (unsigned int)BufferSize >= 0x40
+        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)pOutputBuffer + BufferSize < MmUserProbeAddress)
+    {
+        ProbeForWrite(pOutputBuffer, BufferSize, 1u);
+        *(_DWORD *)pOutputBuffer = 0;
+        int MaxEntries = (int)((BufferSize - 64) / 0x38 + 1);
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0xECE)
+        {
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 3790)
+                EnumObjectLinkedListWin7(pObjectTable, pOutputBuffer + 1, pOutputBuffer, MaxEntries);
+            else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x585D)
+                EnumObjectLinkedListWin8(pObjectTable, pOutputBuffer + 1, pOutputBuffer, MaxEntries);
+        }
+        else
+        {
+            EnumObjectLinkedListSingle(pObjectTable, (__int64)(pOutputBuffer + 1), pOutputBuffer, MaxEntries);
+        }
+        return *(_DWORD *)pOutputBuffer != 0;
+    }
+    return Success;
+}
+
+// CmdEnumObjectsLegacy — 枚举对象旧版命令处理
+// 对应原始驱动 sub_140036EB0
+// 从 GT 2334/2333/2335/2336 读取节区基址、会话基址、函数基址和标志，若未初始化则调用 ReadSystemDllAndInitSession。
+__int64 CmdEnumObjectsLegacy(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutputBuffer, unsigned int OutputSize)
+{
+    SIZE_T BufferSize = OutputSize;
+    __int64 SectionBase = GtRead(GtDisableHookProtectionAddr2|GtPathBuffer02|0x100);
+    __int64 SessionBase = GtRead(GtDisableHookProtectionAddr2|GtPathBuffer01|0x100);
+    __int64 FuncBase = GtRead(GtDisableHookProtectionAddr2|GtPathBuffer03|0x100);
+    if (!SectionBase || !SessionBase || !FuncBase)
+    {
+        ReadSystemDllAndInitSession();
+        SectionBase = GtRead(GtDisableHookProtectionAddr2|GtPathBuffer02|0x100);
+        SessionBase = GtRead(GtDisableHookProtectionAddr2|GtPathBuffer01|0x100);
+        FuncBase = GtRead(GtDisableHookProtectionAddr2|GtPathBuffer03|0x100);
+    }
+    if (SectionBase
+        && SessionBase
+        && FuncBase
+        && (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)2336)
+        && pOutputBuffer
+        && (unsigned int)BufferSize >= 0x40
+        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)pOutputBuffer + BufferSize < MmUserProbeAddress)
+    {
+        ProbeForWrite(pOutputBuffer, BufferSize, 1u);
+        *pOutputBuffer = 0;
+    }
     return 0;
 }
 
-// CmdEnumObjectsLegacy
-__int64 CmdEnumObjectsLegacy(__int64 a1, unsigned int a2, _DWORD *a3, unsigned int a4)
-{
-    return 0;
-}
-
-// ============================================================
 // CmdObjectOperationByHandle — 通过句柄执行对象操作命令
+// 对应原始驱动 sub_140036460
 // 验证输入缓冲区（8 字节），若 GT 740 未初始化则调用 InitObjectOperationEntry。
 // 根据 GT 2324 构建号选择不同的链表删除函数（Win7/Win8/Win10+）。
-// ============================================================
-
-// CmdObjectOperationByHandle
-__int64 CmdObjectOperationByHandle(__int64 *a1, int a2)
+char __fastcall CmdObjectOperationByHandle(__int64 *pInputBuffer, int InputSize)
 {
-    return 0;
+    char Probed = 0;
+    __int64 TargetHandle = 0;
+
+    if (pInputBuffer
+        && InputSize == 8
+        && (unsigned __int64)pInputBuffer < MmUserProbeAddress
+        && (unsigned __int64)(pInputBuffer + 1) < MmUserProbeAddress)
+    {
+        ProbeForRead(pInputBuffer, 8u, 8u);
+        TargetHandle = *pInputBuffer;
+        Probed = 1;
+    }
+    if (Probed == 1)
+    {
+        Probed = 0;
+        _QWORD *pObjectTable = (_QWORD *)GtRead(GtCallbackField22);
+        if (!pObjectTable)
+        {
+            InitObjectOperationEntry();
+            pObjectTable = (_QWORD *)GtRead(GtCallbackField22);
+        }
+        if (TargetHandle && pObjectTable)
+        {
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0xECE)
+                return RemoveObjectSingleLinkedListLegacy(pObjectTable, TargetHandle);
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 3790)
+                return RemoveObjectFromLinkedListLegacy(pObjectTable, TargetHandle);
+            return RemoveObjectFromLinkedList(pObjectTable, TargetHandle);
+        }
+    }
+    return Probed;
 }
 
 // CmdQueryDiskInfo
@@ -1172,10 +1310,57 @@ __int64 EnumFileSystemDeviceObjects(__int64 OutputBuffer, int MaxCount)
     return 0;
 }
 
-// EnumKernelDriverObjects
-__int64 EnumKernelDriverObjects(_DWORD *pOutputArray, unsigned int MaxCount)
+// EnumKernelDriverObjects — 枚举内核驱动对象
+// 对应原始驱动 sub_1400521B0
+// 从 GT 16970/16973/16976 获取回调函数，遍历 GT 572 的 Win32k 服务表条目，填充驱动信息到输出缓冲区(每项 42 个 DWORD)。
+__int64 EnumKernelDriverObjects(_DWORD *a1, unsigned int a2)
 {
-    return 0;
+    char v3 = 0;
+    void (__fastcall *StringAllocFunc)(_BYTE *, __int64) = (void (__fastcall *)(_BYTE *, __int64))GtRead(GtStringAllocFunc);
+    unsigned int (__fastcall *AnsiToUnicodeFunc)(unsigned __int16 *, _BYTE *, __int64) = (unsigned int (__fastcall *)(unsigned __int16 *, _BYTE *, __int64))GtRead(GtAnsiToUnicodeFunc);
+    __int64 v6 = GtRead(GtFreeStringFunc);
+    void (__fastcall *FreeStringFunc)(unsigned __int16 *) = (void (__fastcall *)(unsigned __int16 *))v6;
+    if (!StringAllocFunc || !AnsiToUnicodeFunc || !FreeStringFunc)
+        return v3;
+    __int64 v8 = GtRead(GtWin32kServiceTable);
+    if (!v8)
+    {
+        InitWin32kServiceTableEntries();
+        v8 = GtRead(GtWin32kServiceTable);
+    }
+    if (!v8)
+        return v3;
+    v3 = 1;
+    if (!a2)
+        return v3;
+    {
+        unsigned int v9 = 0;
+        __int64 v10 = 0;
+        _QWORD *i = (_QWORD *)(v8 + 80);
+        while (1)
+        {
+            unsigned __int16 v14;
+            void *Src;
+            _BYTE v16[72];
+            ++*a1;
+            a1[v10 + 2] = *((_DWORD *)i - 20);
+            StringAllocFunc(v16, v8 + 88LL * v9 + 4);
+            if (AnsiToUnicodeFunc(&v14, v16, 1))
+                break;
+            memmove(&a1[42 * v9 + 3], Src, v14);
+            FreeStringFunc(&v14);
+            ++v9;
+            a1[v10 + 36] = *((_DWORD *)i - 2);
+            v10 += 42;
+            *(_QWORD *)&a1[v10 - 4] = *i;
+            if (v9 >= a2)
+                return v3;
+            i += 11;
+        }
+        v3 = 0;
+        *(WORD *)&a1[42 * v9 + 3] = 0;
+    }
+    return v3;
 }
 
 // EnumKernelMemoryContext — 枚举内核内存上下文
@@ -1511,10 +1696,63 @@ __int64 EnumProcessModules(ULONG64 ProcessId, int Flags, volatile void *OutputBu
     return 0;
 }
 
-// EnumServiceTableWin10
-__int64 EnumServiceTableWin10(__int64 *pServiceList, __int64 OutputBuffer, _DWORD *pCount, int MaxCount)
+// EnumServiceTableWin10 — 枚举服务表(Win10 版)
+// 对应原始驱动 sub_1400563B0
+// 遍历 GT 734 服务表链表，对每个有效节点提取服务名、服务地址、PID、进程名等字段，填充 48 字节每项的服务条目到输出缓冲区。
+__int64 __fastcall EnumServiceTableWin10(__int64 *a1, __int64 a2, _DWORD *a3, int a4)
 {
-    return 0;
+    __int64 (__fastcall *v7)(__int64 *) = (__int64 (__fastcall *)(__int64 *))GtRead(GtObjectTypeCheckFlag);
+    unsigned int v8 = GtRead(GtProcessEprocess);
+    unsigned int v9 = GtRead(GtProcessCreateTime);
+    __int64 result = GtRead(GtProcessOffset);
+    unsigned int v18 = result;
+    if (v7 && v8 != -1 && v9 && (_DWORD)result != -1 && a1)
+    {
+        result = v7(a1);
+        if ((_BYTE)result)
+        {
+            __int64 v11 = *a1;
+            unsigned int v12 = 0;
+            if (v11)
+            {
+                __int64 v13 = a2 + 8;
+                do
+                {
+                    result = v7((__int64 *)v11);
+                    if (!(_BYTE)result || !a4 || v12 > 0x10000)
+                        break;
+                    __int64 v14 = *(_QWORD *)(v11 + 40);
+                    __int64 **v15 = v14 ? *(__int64 ***)(v14 + 16) : *(__int64 ***)(v11 + 48);
+                    if (v15)
+                    {
+                        __int64 *v16 = *v15;
+                        if (v16)
+                        {
+                            result = v7(v16);
+                            if ((_BYTE)result)
+                            {
+                                --a4;
+                                *(_QWORD *)(v13 + 8) = *(_QWORD *)(v11 + 80);
+                                int v17 = *(_DWORD *)(v11 + 68);
+                                *(_QWORD *)(v13 - 8) = v11;
+                                *(_DWORD *)v13 = v17;
+                                v13 += 48;
+                                *(_QWORD *)(v13 - 16) = *(unsigned int *)((char *)v16 + v9);
+                                result = v18;
+                                *(_QWORD *)(v13 - 32) = *(unsigned int *)((char *)v16 + v8);
+                                *(_QWORD *)(v13 - 24) = *(__int64 *)((char *)v16 + v18);
+                                ++*a3;
+                            }
+                        }
+                    }
+                    v11 = *(_QWORD *)(v11 + 24);
+                    ++v12;
+                }
+                while (v11);
+            }
+        }
+    }
+    return result;
 }
 
 // EnumServiceTableWin1020H1
@@ -2549,10 +2787,61 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
     return 0;
 }
 
-// ProcessOperationWithAttach
-__int64 ProcessOperationWithAttach(void)
+// ProcessOperationWithAttach — 挂载到目标进程上下文中执行操作
+// 对应原始驱动 sub_140080428
+// 附加到进程，清除进程保护标志和页表标志，执行回调后分离
+__int64 ProcessOperationWithAttach(struct _KPROCESS *a1)
 {
-    return 0;
+    __int64 v2 = 0;
+    unsigned int v3 = GtRead(GtSdstServiceCount);
+    int (__fastcall *v4)(struct _KPROCESS *, __int64, _QWORD, __int64, _QWORD, _BYTE, __int64 *) = (int (__fastcall *)(struct _KPROCESS *, __int64, _QWORD, __int64, _QWORD, _BYTE, __int64 *))GtRead(GtNtDuplicateObjectPeSectionOffset|GtEprocessField54);
+    int (__fastcall *v5)(__int64, _QWORD) = (int (__fastcall *)(__int64, _QWORD))GtRead(GtEprocessField124|0x100);
+    if (!v5)
+        v5 = (int (__fastcall *)(__int64, _QWORD))ResolveSyscallAddressesWithAttach();
+    _QWORD *v6 = (_QWORD *)GtRead(GtTotalSize|GtExFreeCallBackAddr|0x100);
+    __int64 v7 = GtRead(GtRegisterObjectCallbacksFunc);
+    void (__fastcall *v8)(__int64) = (void (__fastcall *)(__int64))v7;
+    __int64 v15;
+    if (v3 != -1 && v4 && v5 && v6 && v7)
+    {
+        struct _KTHREAD *CurrentThread = KeGetCurrentThread();
+        if (v4(a1, 512, 0, 0x10000000, *v6, 0, &v15) >= 0)
+        {
+            if (!GtRead(GtPspExitThreadAddr))
+            {
+                ScanProcessPESectionsV2();
+                GtRead(GtPspExitThreadAddr);
+            }
+            if (!GtRead(GtKiInsertQueueApcFunc))
+            {
+                InitHookFunctionTable();
+                GtRead(GtKiInsertQueueApcFunc);
+            }
+            if (ValidateProcessObject(a1, 0) == 1)
+            {
+                unsigned __int8 v10 = ReferenceObjectSafe((__int64)a1);
+                unsigned int v11 = GtRead(GtCallbackField124);
+                if (v11)
+                {
+                    __int64 v12 = v11;
+                    *(_DWORD *)((char *)a1 + v11) &= ~0x2000u;
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x1770)
+                        *(_DWORD *)((char *)a1 + v12) &= ~8u;
+                    else
+                        *(_DWORD *)((char *)a1 + v12) &= 0xBFFFFFF7;
+                }
+                if (v10 == 1)
+                    DereferenceObjectSafe((__int64)a1);
+            }
+            ClearProcessPageTableFlags(a1);
+            char v13 = *((_BYTE *)CurrentThread + v3);
+            *((_BYTE *)CurrentThread + v3) = 0;
+            v2 = v5(v15, 0) >= 0;
+            v8(v15);
+            *((_BYTE *)CurrentThread + v3) = v13;
+        }
+    }
+    return v2;
 }
 
 // QueryDriverObjectDevice — 查询驱动对象设备列表
@@ -4449,4 +4738,78 @@ bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
 char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
 {
     return 0;
+}
+
+// ========== Sub-function stubs for newly implemented main functions ==========
+
+// ParseNtImageSections2 — 解析 NT 镜像节区 2
+char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
+{
+    return 0;
+}
+
+// ReadNtFileForProcessContext — 读取 NT 文件用于进程上下文
+char ReadNtFileForProcessContext(char **FileBuffer, unsigned int *FileSize)
+{
+    return 0;
+}
+
+// ResolveSyscallAddressesWithAttach — 附加后解析系统调用地址
+__int64 ResolveSyscallAddressesWithAttach(void)
+{
+    return 0;
+}
+
+// ReadSystemDllAndInitSession — 读取系统 DLL 并初始化会话
+void ReadSystemDllAndInitSession(void)
+{
+    return;
+}
+
+// EnumObjectLinkedListSingle — 枚举对象链表（单链表旧版）
+void EnumObjectLinkedListSingle(_QWORD *pObjectTable, __int64 OutputBuffer, _DWORD *pCount, int MaxEntries)
+{
+    return;
+}
+
+// EnumObjectLinkedListWin7 — 枚举对象链表（Win7 版）
+void EnumObjectLinkedListWin7(_QWORD *pObjectTable, _DWORD *OutputBuffer, _DWORD *pCount, int MaxEntries)
+{
+    return;
+}
+
+// EnumObjectLinkedListWin8 — 枚举对象链表（Win8+ 版）
+void EnumObjectLinkedListWin8(_QWORD *pObjectTable, _DWORD *OutputBuffer, _DWORD *pCount, int MaxEntries)
+{
+    return;
+}
+
+// RemoveObjectFromLinkedList — 从链表中移除对象（Win10+）
+char RemoveObjectFromLinkedList(_QWORD *pObjectTable, __int64 TargetHandle)
+{
+    return 0;
+}
+
+// RemoveObjectFromLinkedListLegacy — 从链表中移除对象（旧版）
+char RemoveObjectFromLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle)
+{
+    return 0;
+}
+
+// RemoveObjectSingleLinkedListLegacy — 从单链表中移除对象（最旧版）
+char RemoveObjectSingleLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle)
+{
+    return 0;
+}
+
+// InitObjectOperationEntry — 初始化对象操作条目
+char InitObjectOperationEntry(void)
+{
+    return 0;
+}
+
+// ClearProcessPageTableFlags — 清除进程页表标志
+void ClearProcessPageTableFlags(struct _KPROCESS *ProcessObject)
+{
+    return;
 }
