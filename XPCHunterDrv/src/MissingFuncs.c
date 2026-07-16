@@ -986,21 +986,98 @@ __int64 EnableProcessProtect(PVOID Address, int InputSize, _DWORD *OutputBuffer,
     return 0;
 }
 
-// EnumCallbackContextTable
+// EnumCallbackContextTable — 枚举回调上下文表
+// 对应原始驱动 sub_140035E0C
 __int64 EnumCallbackContextTable(__int64 pOutputTable)
 {
+    __int64 pContextBase = GetCallbackContextBase();
+    if (pContextBase)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(pContextBase + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = EntryIndex++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+            pOutputTable += 48;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
-// EnumCallbackContextV3Table
+// GetCallbackContextBase2 — 获取回调上下文基址 V2
+// 对应原始驱动 sub_14003E548
+__int64 GetCallbackContextBase2(void)
+{
+    _DWORD EncodedPath[10];
+    EncodedPath[8] = 0;
+    EncodedPath[0] = 4587612;
+    EncodedPath[1] = 7077993;
+    EncodedPath[2] = 5439589;
+    EncodedPath[3] = 7536761;
+    EncodedPath[4] = 6619252;
+    EncodedPath[5] = 6029421;
+    EncodedPath[6] = 7536717;
+    EncodedPath[7] = 7536742;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// EnumCallbackContextV3Table — 枚举回调上下文 V3 表
+// 对应原始驱动 sub_14003E504
 __int64 EnumCallbackContextV3Table(__int64 pOutputTable)
 {
+    __int64 CallbackContextBase2 = GetCallbackContextBase2();
+    if (CallbackContextBase2)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(CallbackContextBase2 + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = EntryIndex++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+            pOutputTable += 64;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
-// EnumDeviceObjectTypeList
+// EnumDeviceObjectTypeList — 枚举设备对象类型列表
+// 对应原始驱动 sub_140033F3C
 __int64 EnumDeviceObjectTypeList(int DeviceIndex, __int64 pOutputTable)
 {
+    enum _GLOBAL_TABLE_INDEX GtIndex;
+    switch (DeviceIndex)
+    {
+        case 2:  GtIndex = GtSavedDeviceObject; break;
+        case 0:  GtIndex = GtSavedDeviceObject2; break;
+        case 1:  GtIndex = GtSavedDeviceObject3; break;
+        default: GtIndex = (GLOBAL_TABLE_INDEX)0; break;
+    }
+    __int64 pFunctionBase;
+    if (DeviceIndex >= 0 && DeviceIndex <= 2)
+        pFunctionBase = GtRead(GtIndex);
+    else
+        pFunctionBase = 0;
+    if (pFunctionBase)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(pFunctionBase + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = EntryIndex++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+            pOutputTable += 48;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
