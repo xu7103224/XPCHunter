@@ -1406,15 +1406,73 @@ __int64 EnumProcessContextTable(__int64 pOutputTable)
     return 0;
 }
 
-// EnumProcessContextV2Table
+// GetProcessContextBase — 获取进程上下文基址
+// 对应原始驱动 sub_1400396A8
+__int64 GetProcessContextBase(void)
+{
+    _DWORD EncodedName[12];
+    EncodedName[11] = 0;
+    EncodedName[0] = 4456540;
+    EncodedName[1] = 6881394;
+    EncodedName[2] = 6619254;
+    EncodedName[3] = 6029426;
+    EncodedName[4] = 7340105;
+    EncodedName[5] = 6881350;
+    EncodedName[6] = 7602284;
+    EncodedName[7] = 7471205;
+    EncodedName[8] = 7471172;
+    EncodedName[9] = 7733353;
+    EncodedName[10] = 7471205;
+    return OpenFileSection((__int64)EncodedName);
+}
+
+// EnumProcessContextV2Table — 枚举进程上下文 V2 表（Win8+）
+// 对应原始驱动 sub_1400395E0
 __int64 EnumProcessContextV2Table(__int64 pOutputTable)
 {
+    __int64 ContextBase = GetProcessContextBase();
+    if (ContextBase)
+    {
+        unsigned __int64 pFunctionTable = *(_QWORD *)(ContextBase + 80);
+        if (pFunctionTable && pFunctionTable > (unsigned __int64)MmSystemRangeStart
+            && MmIsAddressValid((PVOID)pFunctionTable) == 1
+            && MmIsAddressValid((PVOID)(pFunctionTable + 223)) == 1)
+        {
+            _QWORD *pFuncPtr = (_QWORD *)(pFunctionTable + 8);
+            unsigned int EntryIndex = 0;
+            do
+            {
+                *(_DWORD *)pOutputTable = EntryIndex++;
+                *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+                pOutputTable += 48;
+                ++pFuncPtr;
+            }
+            while (EntryIndex < 0x1B);
+            return 1;
+        }
+    }
     return 0;
 }
 
-// EnumProcessContextV3Table
+// EnumProcessContextV3Table — 枚举进程上下文 V3 表（Win10+）
+// 对应原始驱动 sub_140039664
 __int64 EnumProcessContextV3Table(__int64 pOutputTable)
 {
+    __int64 ContextBase = GetProcessContextBase();
+    if (ContextBase)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(ContextBase + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputTable = EntryIndex++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncPtr;
+            pOutputTable += 48;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
@@ -1482,9 +1540,41 @@ __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
     return 0;
 }
 
-// EnumThreadContextTable
+// OpenVolumeDriverSection — 打开卷驱动节区
+// 对应原始驱动 sub_140057058
+__int64 OpenVolumeDriverSection(void)
+{
+    _DWORD EncodedPath[8];
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7274582;
+    EncodedPath[5] = 7536748;
+    EncodedPath[6] = 6357102;
+    EncodedPath[7] = 112;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// EnumThreadContextTable — 枚举线程上下文表
+// 对应原始驱动 sub_140057014
 __int64 EnumThreadContextTable(__int64 OutputBuffer)
 {
+    __int64 v3 = OpenVolumeDriverSection();
+    if (v3)
+    {
+        _QWORD *v4 = (_QWORD *)(v3 + 112);
+        unsigned int v2 = 0;
+        do
+        {
+            *(_DWORD *)OutputBuffer = v2++;
+            *(_QWORD *)(OutputBuffer + 16) = *v4;
+            OutputBuffer += 48;
+            ++v4;
+        }
+        while (v2 <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
@@ -3792,9 +3882,22 @@ __int64 WriteProcessContextEntryWin7(ULONG *pInputEntry)
     return 0;
 }
 
-// WriteThreadContextEntryWin10
+// OpenVolumeDriverSection 已在上面实现
+
+// WriteThreadContextEntryWin10 — 写入线程上下文条目（Win10）
+// 对应原始驱动 sub_14005742C
 __int64 WriteThreadContextEntryWin10(ULONG *a1)
 {
+    __int64 v3 = OpenVolumeDriverSection();
+    if (v3)
+    {
+        unsigned int v4 = *a1;
+        if (v4 <= 0x1B)
+        {
+            WritePhysicalMemoryQword(v3 + 8 * v4 + 112, *((__int64 *)a1 + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
