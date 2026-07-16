@@ -1190,9 +1190,25 @@ __int64 EnumKernelModules(__int64 a1, __int64 a2, __int64 a3, __int64 a4)
     return 0;
 }
 
-// EnumObjectContextTable
+// EnumObjectContextTable — 枚举对象上下文表
+// 对应原始驱动 sub_1400379BC
 __int64 EnumObjectContextTable(__int64 pOutputBuffer)
 {
+    __int64 ContextBase = GetObjectContextBase();
+    if (ContextBase)
+    {
+        _QWORD *pFuncPtr = (_QWORD *)(ContextBase + 112);
+        unsigned int EntryIndex = 0;
+        do
+        {
+            *(_DWORD *)pOutputBuffer = EntryIndex++;
+            *(_QWORD *)(pOutputBuffer + 16) = *pFuncPtr;
+            pOutputBuffer += 48;
+            ++pFuncPtr;
+        }
+        while (EntryIndex <= 0x1B);
+        return 1;
+    }
     return 0;
 }
 
@@ -1449,10 +1465,33 @@ __int64 FileSystemFilterCallback(char *PatchBuffer, int BufferSize)
     return PatchResult & WriteResult;
 }
 
-// FilterActiveHookEntries
+// FilterActiveHookEntries — 过滤活跃钩子条目
+// 对应原始驱动 sub_1400860E0
 __int64 FilterActiveHookEntries(__int64 OutputBuffer, unsigned int EntryCount, enum _GLOBAL_TABLE_INDEX TableIndex)
 {
-    return 0;
+    __int64 *v6 = GtAlloc(TableIndex);
+    char v5 = 0;
+    if (EntryCount)
+    {
+        __int64 v7 = OutputBuffer + 8;
+        __int64 *v8 = v6 + 1;
+        for (__int64 v9 = EntryCount; v9; v9--)
+        {
+            if (*((_DWORD *)v8 - 1) && *((_DWORD *)v8 - 2) == 1)
+            {
+                v5 = 1;
+                *(_QWORD *)v7 = *v8;
+                *(_OWORD *)(v7 + 16) = *(_OWORD *)(v8 + 1);
+            }
+            else
+            {
+                *(_QWORD *)v7 = 0;
+            }
+            v8 += 6;
+            v7 += 40;
+        }
+    }
+    return v5;
 }
 
 // FindDeleteValueKeyTarget
@@ -2989,33 +3028,165 @@ __int64 SendIoControlWithUnicodeString(void)
     return 0;
 }
 
-// SetCallbackContextEntry
+// GetObjectContextBase — 获取对象上下文基址
+// 对应原始驱动 sub_140037A18
+__int64 GetObjectContextBase(void)
+{
+    _DWORD EncodedPath[10];
+    EncodedPath[8] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 3670121;
+    EncodedPath[5] = 3407920;
+    EncodedPath[6] = 7340082;
+    EncodedPath[7] = 7602290;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// BuildRegistryDriverPath — 构建注册表驱动路径
+// 对应原始驱动 sub_140045EE4
+__int64 BuildRegistryDriverPath(void)
+{
+    _DWORD EncodedBuffer[10];
+    EncodedBuffer[8] = 0;
+    EncodedBuffer[0] = 4587612;
+    EncodedBuffer[1] = 7077993;
+    EncodedBuffer[2] = 5439589;
+    EncodedBuffer[3] = 7536761;
+    EncodedBuffer[4] = 6619252;
+    EncodedBuffer[5] = 6029421;
+    EncodedBuffer[6] = 7340110;
+    EncodedBuffer[7] = 7536742;
+    return OpenFileSection((__int64)EncodedBuffer);
+}
+
+// GetSyscallContextBase — 获取系统调用上下文基址
+// 对应原始驱动 sub_140047330
+__int64 GetSyscallContextBase(void)
+{
+    _DWORD EncodedBuffer[8];
+    EncodedBuffer[0] = 4456540;
+    EncodedBuffer[1] = 6881394;
+    EncodedBuffer[2] = 6619254;
+    EncodedBuffer[3] = 6029426;
+    EncodedBuffer[4] = 6357104;
+    EncodedBuffer[5] = 7602290;
+    EncodedBuffer[6] = 6750317;
+    EncodedBuffer[7] = 114;
+    return OpenFileSection((__int64)EncodedBuffer);
+}
+
+// SetCallbackContextEntry — 设置回调上下文条目
+// 对应原始驱动 sub_14003E92C
 __int64 SetCallbackContextEntry(ULONG *pInputEntry)
 {
+    __int64 CallbackContextBase2 = GetCallbackContextBase2();
+    if (CallbackContextBase2)
+    {
+        unsigned int SlotIndex = *pInputEntry;
+        if (SlotIndex <= 0x1B)
+        {
+            WritePhysicalMemoryQword(CallbackContextBase2 + 8 * SlotIndex + 112, *((__int64 *)pInputEntry + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
-// SetObjectContextEntry
+// SetObjectContextEntry — 设置对象上下文条目
+// 对应原始驱动 sub_140037E04
 __int64 SetObjectContextEntry(ULONG *pInputEntry)
 {
+    __int64 ContextBase = GetObjectContextBase();
+    if (ContextBase)
+    {
+        unsigned int EntryIndex = *pInputEntry;
+        if (EntryIndex <= 0x1B)
+        {
+            WritePhysicalMemoryQword(ContextBase + 8 * EntryIndex + 112, *((__int64 *)pInputEntry + 1));
+            return 1;
+        }
+        if (EntryIndex == 28)
+        {
+            WritePhysicalMemoryQword(ContextBase + 96, *((__int64 *)pInputEntry + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
-// SetProcessContextEntry
+// SetProcessContextEntry — 设置进程上下文条目
+// 对应原始驱动 sub_140039BB8
 __int64 SetProcessContextEntry(__int64 pInputEntry)
 {
+    __int64 ContextBase = DecryptProcessContextStr();
+    if (!ContextBase)
+        return 0;
+    __int64 FuncTableAddr;
+    if (*(_BYTE *)pInputEntry)
+    {
+        FuncTableAddr = *(_QWORD *)(ContextBase + 80);
+        if (!FuncTableAddr)
+            return 0;
+        if (MmIsAddressValid(*(PVOID *)(ContextBase + 80)) != 1
+            || MmIsAddressValid((PVOID)(FuncTableAddr + 223)) != 1)
+            return 0;
+        unsigned int EntryIndex = *(unsigned int *)(pInputEntry + 8);
+        if (EntryIndex < 0x1B)
+        {
+            WritePhysicalMemoryQword(FuncTableAddr + 8 * (EntryIndex + 1), *(_QWORD *)(pInputEntry + 16));
+            return 1;
+        }
+    }
+    else
+    {
+        __int64 ValueToWrite = *(_QWORD *)(pInputEntry + 16);
+        if (ValueToWrite)
+        {
+            unsigned int Index = *(unsigned int *)(pInputEntry + 8);
+            if (Index <= 0x1B)
+            {
+                WritePhysicalMemoryQword(ContextBase + 8 * (Index + 14), ValueToWrite);
+                return 1;
+            }
+        }
+    }
     return 0;
 }
 
-// SetRegistryContextEntry
+// SetRegistryContextEntry — 设置注册表上下文条目
+// 对应原始驱动 sub_1400462C8
 __int64 SetRegistryContextEntry(ULONG *pInputEntry)
 {
+    __int64 pDriverSection = BuildRegistryDriverPath();
+    if (pDriverSection)
+    {
+        unsigned int SlotIndex = *pInputEntry;
+        if (SlotIndex <= 0x1B)
+        {
+            WritePhysicalMemoryQword(pDriverSection + 8 * SlotIndex + 112, *((__int64 *)pInputEntry + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
-// SetSyscallContextByIndex
+// SetSyscallContextByIndex — 按索引设置系统调用上下文
+// 对应原始驱动 sub_1400476F0
 __int64 SetSyscallContextByIndex(ULONG *pInputEntry)
 {
+    __int64 SyscallContextBase = GetSyscallContextBase();
+    if (SyscallContextBase)
+    {
+        unsigned int SlotIndex = *pInputEntry;
+        if (SlotIndex <= 0x1B)
+        {
+            WritePhysicalMemoryQword(SyscallContextBase + 8 * SlotIndex + 112, *((__int64 *)pInputEntry + 1));
+            return 1;
+        }
+    }
     return 0;
 }
 
