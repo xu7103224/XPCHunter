@@ -4040,3 +4040,119 @@ __int64 ParseNtExportFunctionsV2(void)
 {
     return 0;
 }
+
+// ModifyObjectHeaderFlagsByVersion — 按版本修改对象头标志
+// 对应原始驱动 sub_14007A8D4
+char ModifyObjectHeaderFlagsByVersion(__int64 ObjectHeader, char SetFlag)
+{
+    unsigned int Offset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)2312);
+    if (!Offset)
+        return 0;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770)
+    {
+        *(_BYTE *)(Offset + ObjectHeader) = SetFlag;
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0)
+    {
+        if (SetFlag == 1)
+            *(_DWORD *)(Offset + ObjectHeader) |= 0x40u;
+        else
+            *(_DWORD *)(Offset + ObjectHeader) &= ~0x40u;
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+    {
+        if (SetFlag == 1)
+            *(_DWORD *)(Offset + ObjectHeader) |= 0x20u;
+        else
+            *(_DWORD *)(Offset + ObjectHeader) &= ~0x20u;
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200)
+    {
+        if (SetFlag == 1)
+            *(_DWORD *)(Offset + ObjectHeader) |= 0x10000u;
+        else
+            *(_DWORD *)(Offset + ObjectHeader) &= ~0x10000u;
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9600)
+    {
+        if (SetFlag == 1)
+            *(_DWORD *)(Offset + ObjectHeader) |= 0x8000u;
+        else
+            *(_DWORD *)(Offset + ObjectHeader) &= ~0x8000u;
+    }
+    else
+    {
+        if (SetFlag == 1)
+            *(_DWORD *)(Offset + ObjectHeader) |= 0x4000u;
+        else
+            *(_DWORD *)(Offset + ObjectHeader) &= ~0x4000u;
+    }
+    return 1;
+}
+
+// ResolveKernelModuleFunctionAddrs — 解析内核模块函数地址
+// 对应原始驱动 sub_14007DDEC
+__int64 ResolveKernelModuleFunctionAddrs(void)
+{
+    __int64 v0 = GtRead(GtEprocessField22);
+    unsigned int v1 = (unsigned int)GtRead(GtEprocessField23);
+    __int64 v2 = GtRead(GtNtoskrnlModuleBase);
+    unsigned int v4 = (unsigned int)GtRead(GtWin32kServiceEntryCount);
+    if (!v0 || !v1 || !v2 || !v4)
+        return 0;
+
+    unsigned int v5 = (unsigned int)GtRead(GtEprocessField189|GtEprocessField06|0x100);
+    if (v5 && v5 < v4)
+    {
+        unsigned int v6 = (unsigned int)ResolveSyscallToAddress(v5);
+        if (v6 && v6 < v1)
+            GtWrite(GtNtQuerySystemInformationFunc|GtEprocessField55, v2 + v6);
+    }
+
+    unsigned int v7 = (unsigned int)GtRead(GtSubsystemConfigBase|GtEprocessField06|0x100);
+    if (v7 && v7 < v4)
+    {
+        unsigned int v8 = (unsigned int)ResolveSyscallToAddress(v7);
+        if (v8 && v8 < v1)
+            GtWrite(GtSubsystemConfigBase|GtEprocessField10|0x100, v2 + v8);
+    }
+
+    unsigned int v9 = (unsigned int)GtRead(GtSubsystemConfigBase|GtEprocessField07|0x100);
+    if (v9 && v9 < v4)
+    {
+        unsigned int v10 = (unsigned int)ResolveSyscallToAddress(v9);
+        if (v10 && v10 < v1)
+            GtWrite(GtKiFastCallEntryAddr|GtEprocessField06, v2 + v10);
+    }
+
+    unsigned int result = (unsigned int)GtRead(GtNtQuerySystemInformationFunc|GtEprocessField54);
+    if (result && result < v4)
+    {
+        result = (unsigned int)ResolveSyscallToAddress(result);
+        if (result && result < v1)
+            return GtWrite(GtNtQuerySystemInformationFunc|GtEprocessField58, v2 + result);
+    }
+    return result;
+}
+
+// InitKernelObjectHeader — 初始化内核对象头
+// 对应原始驱动 sub_14007E034
+char InitKernelObjectHeader(char *VirtualAddress)
+{
+    int v2 = (int)GtRead(GtEprocessField53);
+    int v3 = (int)GtRead(GtEprocessField94);
+    int v4 = (int)GtRead(GtEprocessField95);
+    unsigned int v6 = (unsigned int)GtRead(GtObjectTypeCount);
+    if (!v2 || v3 == -1 || !v4 || !v6)
+        return 0;
+    if (MmIsAddressValid(VirtualAddress) != 1)
+        return 0;
+    if (MmIsAddressValid(&VirtualAddress[v6 - 1]) != 1)
+        return 0;
+    *(_DWORD *)&VirtualAddress[v3] &= ~1u;
+    ModifyObjectHeaderFlagsByVersion((__int64)VirtualAddress, 1);
+    VirtualAddress[v2] = 5;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+        *(_DWORD *)&VirtualAddress[v4] = 0;
+    return 1;
+}
