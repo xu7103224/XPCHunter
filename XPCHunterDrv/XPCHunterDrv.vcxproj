@@ -164,6 +164,9 @@
     <ClCompile Include="src\DecodeTables.c" />
     <ClCompile Include="src\Utility.c" />
 	    <ClCompile Include="src\Utf8Decoder.c" />
+		    <ClCompile Include="src\ContextMgmt.c" />
+		    <ClCompile Include="src\QueryDriver.c" />
+		    <ClCompile Include="src\MemoryCleanup.c" />
 		    <ClCompile Include="src\MissingFuncs.c" />
   </ItemGroup>
   <ItemGroup>
