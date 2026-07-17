@@ -714,10 +714,16 @@ __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
     return v4;
 }
 
-// CmdQueryFileAllocationSize
+// CmdQueryFileAllocationSize — 查询文件分配大小
+// 对应原始驱动 sub_14002EE6C
+// 通过 IrpReadFile 查询文件分配大小信息
 __int64 CmdQueryFileAllocationSize(void *FileHandle, _QWORD *pAllocationSize)
 {
-    return 0;
+    __int64 AllocationSize;
+    __int64 result = IrpReadFile(FileHandle, (struct _IRP *)&AllocationSize, 8u, 0xEu);
+    if (!(_DWORD)result)
+        *pAllocationSize = AllocationSize;
+    return result;
 }
 
 // CmdQuerySystemInfoExV2
@@ -726,22 +732,51 @@ __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
     return 0;
 }
 
-// CmdReadFileInfo
+// CmdReadFileInfo — 读取文件信息命令处理
+// 对应原始驱动 sub_14002EE20
+// 通过 IrpReadFile 查询文件标准信息（0x28 字节缓冲区，类型 4）
 __int64 CmdReadFileInfo(void *FileHandle, _DWORD *pFileInfo)
 {
-    return 0;
+    char IrpBuffer[40];
+    int FileInfo;
+    __int64 result = IrpReadFile(FileHandle, (struct _IRP *)IrpBuffer, 0x28u, 4u);
+    if (!(_DWORD)result)
+        *pFileInfo = FileInfo;
+    return result;
 }
 
-// CmdSendRenameFileIrp
+// CmdSendRenameFileIrp — 发送重命名文件 IRP
+// 对应原始驱动 sub_14002F15C
+// 分配缓冲区构造重命名信息结构，通过 IrpFileSystemControl 发送 FSCTL 重命名请求
 __int64 CmdSendRenameFileIrp(void *FileHandle, const void *RenameBuffer, unsigned int BufferSize)
 {
-    return 0;
+    unsigned int Status;
+    struct _IRP *IrpBuffer;
+    if (BufferSize <= 2 || (BufferSize & 1) != 0)
+        return (unsigned int)-1073741811;
+    IrpBuffer = (struct _IRP *)ExAlloc(NonPagedPool, BufferSize + 24LL);
+    if (IrpBuffer)
+    {
+        IrpBuffer->MdlAddress = 0;
+        IrpBuffer->Flags = BufferSize - 2;
+        *(unsigned char *)&IrpBuffer->Type = 1;
+        memmove((char *)&IrpBuffer->Flags + 1, RenameBuffer, BufferSize - 2);
+        Status = IrpFileSystemControl(FileHandle, IrpBuffer, BufferSize + 24, 0xAu);
+        ExFree(IrpBuffer);
+    }
+    else
+    {
+        return (unsigned int)-1073741670;
+    }
+    return Status;
 }
 
-// CmdSetFileBasicInfo
+// CmdSetFileBasicInfo — 设置文件基本信息
+// 对应原始驱动 sub_14002F404
+// 通过 IrpFileSystemControl 发送 IRP_MJ_SET_INFORMATION 设置文件基本属性
 __int64 CmdSetFileBasicInfo(void *FileHandle, struct _IRP *FileBasicInfo)
 {
-    return 0;
+    return IrpFileSystemControl(FileHandle, FileBasicInfo, 0x28u, 4u);
 }
 
 // CmdSetModuleInfoInternal
@@ -2125,10 +2160,52 @@ __int64 FilterActiveHookEntries(__int64 OutputBuffer, unsigned int EntryCount, e
     return v5;
 }
 
-// FindDeleteValueKeyTarget
+// FindDeleteValueKeyTarget — 查找 NtDeleteValueKey 的 Hook 目标
+// 对应原始驱动 sub_14001DA40
+// 读取全局表索引 16795 获取偏移，在最多 4096 字节范围内扫描 UTF-8 编码数据，
+// 匹配 0xCD048D 模式（7 字节指令），计算目标偏移写入输出参数
 __int64 __fastcall FindDeleteValueKeyTarget(__int64 Buffer, unsigned int BufferSize, __int64 Context, __int64 BaseOffset, unsigned int MaxDelta, __int64 *pResult)
 {
-    return 0;
+    __int64 Result;
+    __int64 result;
+    unsigned __int64 ScanPos;
+    unsigned __int64 EndAddress;
+    unsigned __int64 ScanEnd;
+
+    *pResult = 0;
+    Result = BufferSize;
+    result = GtRead(GtNtWriteFilePeSectionOffset|GtEprocessField08);
+    if ((_DWORD)result && (unsigned int)result < (unsigned int)Result && (int)result + 4106 < (unsigned int)Result)
+    {
+        ScanPos = Buffer + (unsigned int)result;
+        EndAddress = Buffer + Result;
+        ScanEnd = ScanPos + 4096;
+        while (ScanPos < ScanEnd)
+        {
+            result = DecodeUtf8Buffer((unsigned __int8 *)ScanPos, EndAddress);
+            if (!(_DWORD)result)
+                break;
+            if ((_DWORD)result == 7 && (*(_DWORD *)ScanPos & 0xFFFFFF) == 0xCD048D && *(_BYTE *)(ScanPos + 7) == 57)
+            {
+                unsigned __int64 Delta;
+                unsigned int ResultOffset;
+                Delta = *(unsigned int *)(ScanPos + 3);
+                if (Delta > *(_QWORD *)(Context + 48))
+                {
+                    ResultOffset = (unsigned int)(Delta - *(_DWORD *)(Context + 48));
+                    if (ResultOffset < MaxDelta)
+                    {
+                        result = BaseOffset + ResultOffset;
+                        *pResult = result;
+                    }
+                }
+                return result;
+            }
+            result = (unsigned int)result;
+            ScanPos += (unsigned int)result;
+        }
+    }
+    return result;
 }
 
 // ============================================================================
