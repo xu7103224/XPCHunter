@@ -2269,7 +2269,10 @@ __int64 FindRenameKeyTargetEx(__int64 TargetBase,
     return 0;
 }
 
-// FindSetValueKeyTarget
+// FindSetValueKeyTarget — 查找 NtSetValueKey 的 Hook 目标
+// 对应原始驱动 sub_14001DEF4
+// 读取全局表索引 16798 获取偏移，在最多 4096 字节范围内扫描 UTF-8 数据，
+// 匹配 6 字节模式（967/17289 字标记），计算目标地址写入输出参数
 __int64 FindSetValueKeyTarget(__int64 Buffer,
     unsigned int BufferSize,
     __int64 Context,
@@ -2278,7 +2281,47 @@ __int64 FindSetValueKeyTarget(__int64 Buffer,
     __int64 *pResultOffset,
     _QWORD *pResultOffset2)
 {
-    return 0;
+    __int64 BufferSizeCopy;
+    __int64 DecodedSize;
+    unsigned __int64 ScanPos;
+    unsigned __int64 BufferEnd;
+    unsigned __int64 ScanEnd;
+
+    *pResultOffset = 0;
+    *pResultOffset2 = 0;
+    BufferSizeCopy = BufferSize;
+    DecodedSize = GtRead(GtTotalSize|GtNtQuerySystemInformationFunc|GtPathBuffer00);
+    if ((_DWORD)DecodedSize
+        && (unsigned int)DecodedSize < (unsigned int)BufferSizeCopy
+        && (int)DecodedSize + 4106 < (unsigned int)BufferSizeCopy)
+    {
+        ScanPos = Buffer + (unsigned int)DecodedSize;
+        BufferEnd = Buffer + BufferSizeCopy;
+        ScanEnd = ScanPos + 4096;
+        while (ScanPos < ScanEnd)
+        {
+            DecodedSize = DecodeUtf8Buffer((unsigned __int8 *)ScanPos, BufferEnd);
+            if (!(_DWORD)DecodedSize)
+                break;
+            if ((_DWORD)DecodedSize == 6 && *(_WORD *)ScanPos == 967 && *(_WORD *)(ScanPos + 6) == 17289)
+            {
+                unsigned __int64 FoundValue = *(unsigned int *)(ScanPos + 2);
+                if (FoundValue > *(_QWORD *)(Context + 48))
+                {
+                    unsigned int ValueDelta = (unsigned int)(FoundValue - *(_DWORD *)(Context + 48));
+                    if (ValueDelta < MaxDelta)
+                    {
+                        DecodedSize = BaseOffset + ValueDelta;
+                        *pResultOffset = DecodedSize;
+                    }
+                }
+                return DecodedSize;
+            }
+            DecodedSize = (unsigned int)DecodedSize;
+            ScanPos += (unsigned int)DecodedSize;
+        }
+    }
+    return DecodedSize;
 }
 
 // FindSetValueKeyTargets
