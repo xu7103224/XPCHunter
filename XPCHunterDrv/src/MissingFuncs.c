@@ -1566,10 +1566,12 @@ __int64 IoPortOperationDispatch(void *InputBuffer, int BufferSize)
     return 0;
 }
 
-// IrpFsctlGetVolumeData
+// IrpFsctlGetVolumeData — 获取卷数据（FSCTL）
+// 对应原始驱动 sub_14002F414
 __int64 IrpFsctlGetVolumeData(void *FileHandle, __int64 *pVolumeData)
 {
-    return 0;
+    __int64 VolumeData = *pVolumeData;
+    return IrpFileSystemControl(FileHandle, (struct _IRP *)&VolumeData, 8u, 0xEu);
 }
 
 // IrpReadFileEx
@@ -1696,10 +1698,54 @@ __int64 ObjectOperationDispatcher(void *InputBuffer, int BufferSize)
     return 0;
 }
 
-// OpenSectionWithIoControl
+// OpenSectionWithIoControl — 通过 IO 控制打开节区
+// 对应原始驱动 sub_140072858
+// 发送创建 Section 的 IOCTL 并执行 Hook 交换操作
 __int64 OpenSectionWithIoControl(__int64 a1)
 {
-    return 0;
+    char v2 = 0;
+    unsigned int v3 = GtRead(GtSdstServiceCount);
+    unsigned int (__fastcall *v4)(__int64, __int64, _QWORD, _QWORD, _DWORD **, _QWORD);
+    void (__fastcall *v5)(_DWORD *);
+    __int64 (__fastcall *v6)(_DWORD *);
+    __int64 v7;
+    _QWORD *v8;
+    _DWORD *v16;
+    int v9;
+    struct _KTHREAD *CurrentThread;
+    __int64 v11;
+    char v12;
+    __int64 v17;
+    _QWORD *v13;
+    int v14;
+
+    v4 = (unsigned int (__fastcall *)(__int64, __int64, _QWORD, _QWORD, _DWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
+    v5 = (void (__fastcall *)(_DWORD *))GtRead(GtCloseHandleFunc);
+    v6 = (__int64 (__fastcall *)(_DWORD *))GtRead(GtEprocessField117|0x100);
+    v7 = GtRead(GtEprocessField111|0x100);
+    v8 = (_QWORD *)v7;
+    if (v3 != -1 && v4 && v5 && v6 && v7)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+            v9 = SendDeviceIoControlWithRetry(a1, 0x10000u, 0, &v16, 0);
+        else
+            v9 = v4(a1, 0x10000, *v8, 0, &v16, 0);
+        if (v9 >= 0)
+        {
+            CurrentThread = KeGetCurrentThread();
+            v11 = v3;
+            v12 = *((_BYTE *)CurrentThread + v3);
+            *((_BYTE *)CurrentThread + v11) = 0;
+            v13 = (_QWORD *)DispatchHookSwapByVersion((__int64)v16, &v17);
+            v14 = v6(v16);
+            if (v13)
+                *v13 = v17;
+            *((_BYTE *)CurrentThread + v11) = v12;
+            v5(v16);
+            return v14 >= 0;
+        }
+    }
+    return v2;
 }
 
 // ParseExportDirForDriver
