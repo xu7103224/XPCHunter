@@ -1066,16 +1066,150 @@ __int64 FindNtoskrnlExportsInThreadEnv(void)
     return Result;
 }
 
-// FindOpenProcessTokenOffset
+// FindOpenProcessTokenOffset — 查找 NtOpenProcessToken 偏移（旧版）
+// 对应原始驱动 sub_140020864
 __int64 FindOpenProcessTokenOffset(__int64 TargetBase, unsigned int TargetSize)
 {
-    return 0;
+    unsigned int ResultOffset = -1;
+    unsigned int SectionOffset = GtRead(GtUninstallHookSyscallPeOffset|GtEprocessField58|0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        char ReadContext[8];
+        __int64 CumulativeSize = 0;
+        char SectionEntry[80];
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)ReadContext);
+        while (!(unsigned int)ReadPESectionEntry((__int64 *)ReadContext, SectionEntry))
+        {
+            unsigned int EntryCumulSize = *(unsigned int *)((char *)SectionEntry + 0x80);
+            CumulativeSize += EntryCumulSize;
+            __int64 EntryDataPtr = *(__int64 *)((char *)SectionEntry + 0xA8);
+            __int16 SectionType = *(__int16 *)(EntryDataPtr + 6);
+            if (SectionType == 1349)
+                break;
+            if (EntryCumulSize == 7)
+            {
+                char SectionFlags = *(char *)((char *)SectionEntry + 0x50);
+                int EntryFlags = *(int *)((char *)SectionEntry + 0x58);
+                __int64 SectionType2 = *(__int64 *)((char *)SectionEntry + 0x18);
+                if (SectionType == 1049 && (SectionFlags & 0x40) != 0 && EntryFlags == 1)
+                {
+                    if ((SectionType2 & 0x2000000) != 0)
+                    {
+                        unsigned int EntrySize1 = *(unsigned int *)((char *)SectionEntry + 0x60);
+                        int EntryField1 = *(int *)((char *)SectionEntry + 0x64);
+                        if (EntrySize1 && !EntryField1)
+                        {
+                            ResultOffset = EntrySize1;
+                            return GtWrite(GtCallbackField109, ResultOffset);
+                        }
+                    }
+                }
+                else if (SectionType == 1298 && (SectionFlags & 0x40) != 0 && (SectionType2 & 0x10000) != 0)
+                {
+                    int EntrySize2 = *(int *)((char *)SectionEntry + 0x68);
+                    if (EntrySize2 > 0)
+                    {
+                        ResultOffset = EntrySize2;
+                        return GtWrite(GtCallbackField109, ResultOffset);
+                    }
+                }
+            }
+        }
+    }
+    return GtWrite(GtCallbackField109, ResultOffset);
 }
 
-// FindOpenProcessTokenTarget
+// FindOpenProcessTokenTarget — 查找 NtOpenProcessToken 目标（新版）
+// 对应原始驱动 sub_1400209A8
 __int64 FindOpenProcessTokenTarget(__int64 TargetBase, unsigned int TargetSize)
 {
-    return 0;
+    unsigned int ResultOffset = -1;
+    char FoundMarker = 0;
+    unsigned int SectionOffset = GtRead(GtUninstallHookSyscallPeOffset|GtEprocessField58|0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        __int64 ReadContext;
+        __int64 CumulativeSize = 0;
+        _DWORD SectionEntry[20];
+        unsigned int LoopIndex;
+        unsigned int Phase2Offset = 0;
+        unsigned int Phase2Index;
+        unsigned int EntryCumulSize;
+        __int64 EntryDataPtr;
+        __int64 SectionType2;
+        __int16 SectionType;
+        int CurrentOffset;
+        int EntryMagic;
+        __int16 Phase2SectionType;
+        char SectionFlags;
+        int MatchValue;
+
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        LoopIndex = 0;
+        if (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            while (1)
+            {
+                if (LoopIndex >= 0x64)
+                    return GtWrite(GtCallbackField109, ResultOffset);
+                EntryCumulSize = *(unsigned int *)((char *)SectionEntry + 0x80);
+                CurrentOffset = EntryCumulSize + (int)CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                EntryDataPtr = *(__int64 *)((char *)SectionEntry + 0xA8);
+                SectionType = *(__int16 *)(EntryDataPtr + 6);
+                SectionType2 = *(__int64 *)((char *)SectionEntry + 0x18);
+                if (SectionType == 1342 && SectionType2 == 0x800000)
+                {
+                    EntryMagic = *(int *)((char *)SectionEntry + 0x60);
+                    if (EntryMagic == 1953261124)
+                        FoundMarker = 1;
+                }
+                if (FoundMarker == 1 && SectionType == 1368)
+                {
+                    Phase2Offset = CurrentOffset + SectionEntry[14] - (int)TargetBase;
+                    if (Phase2Offset && Phase2Offset < TargetSize)
+                        break;
+                }
+                ++LoopIndex;
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    return GtWrite(GtCallbackField109, ResultOffset);
+            }
+            InitPESectionReadContext(TargetBase + Phase2Offset, TargetSize - Phase2Offset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            for (Phase2Index = 0; ; ++Phase2Index)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    return GtWrite(GtCallbackField109, ResultOffset);
+                if (Phase2Index >= 0x64)
+                    return GtWrite(GtCallbackField109, ResultOffset);
+                CumulativeSize += EntryCumulSize;
+                Phase2SectionType = *(__int16 *)(EntryDataPtr + 6);
+                if (Phase2SectionType == 1349)
+                    return GtWrite(GtCallbackField109, ResultOffset);
+                SectionFlags = *(char *)((char *)SectionEntry + 0x50);
+                if (EntryCumulSize == 7)
+                {
+                    if (Phase2SectionType == 1298 && (SectionFlags & 0x40) != 0)
+                    {
+                        if ((SectionType2 & 0x10000) == 0)
+                            continue;
+                        MatchValue = *(int *)((char *)SectionEntry + 0x68);
+                    }
+                    else
+                    {
+                        if (Phase2SectionType != 229 || SectionFlags != 0x41)
+                            continue;
+                        MatchValue = SectionEntry[16];
+                    }
+                    if (MatchValue > 0)
+                    {
+                        ResultOffset = MatchValue;
+                        return GtWrite(GtCallbackField109, ResultOffset);
+                    }
+                }
+            }
+        }
+    }
+    return GtWrite(GtCallbackField109, ResultOffset);
 }
 
 // FindRenameKeyTargetEx
