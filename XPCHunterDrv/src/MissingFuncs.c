@@ -17,6 +17,9 @@ char ReadNtFileForProcessContext(char **FileBuffer, unsigned int *FileSize);
 void BuildNtExportIndexTable(void);
 char CheckTmDllSection(unsigned __int8 *NameToMatch);
 _BYTE *StringCopy(_BYTE *Dest, __int64 Src, unsigned int MaxLen);
+char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char BuildDevicePath(char *Buffer, unsigned int BufferSize);
 __int64 ResolveSyscallAddressesWithAttach(void);
 void ReadSystemDllAndInitSession(void);
 void EnumObjectLinkedListSingle(_QWORD *pObjectTable, __int64 OutputBuffer, _DWORD *pCount, int MaxEntries);
@@ -656,10 +659,59 @@ char __fastcall CmdObjectOperationByHandle(__int64 *pInputBuffer, int InputSize)
     return Probed;
 }
 
-// CmdQueryDiskInfo
+// CmdQueryDiskInfo — 查询磁盘信息命令处理
+// 对应原始驱动 sub_140049860
+// 懒加载 InitDiskQueryExportTable，顺序调用 QueryDiskInfoAta / SendAtaScsiCommand / BuildDevicePath 三部分
 __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
 {
-    return 0;
+    unsigned int v2 = (unsigned int)Length;
+    char v4 = 0;
+    if (!(unsigned int)GtRead(GtEprocessField135|0x100))
+        InitDiskQueryExportTable();
+    if ((unsigned int)v2 >= 0x38
+        && (unsigned __int64)Dst < MmUserProbeAddress
+        && (unsigned __int64)(Dst + v2) < MmUserProbeAddress)
+    {
+        ProbeForWrite(Dst, v2, 1u);
+        unsigned int v10;
+        if (!QueryDiskInfoAta(Dst, v2, &v10))
+        {
+            memset(Dst, 0, 0x38u);
+            v10 = 56;
+        }
+        if ((unsigned int)v2 >= v10)
+        {
+            char *v5 = &Dst[v10];
+            unsigned int v6 = v2 - v10;
+            if (v6 >= 0x1C)
+            {
+                unsigned int v11;
+                if (!SendAtaScsiCommand(v5, v6, &v11))
+                {
+                    *(_QWORD *)v5 = 0;
+                    *((_QWORD *)v5 + 1) = 0;
+                    *((_QWORD *)v5 + 2) = 0;
+                    *((_DWORD *)v5 + 6) = 0;
+                    v11 = 28;
+                }
+                if (v6 >= v11)
+                {
+                    char *v7 = &v5[v11];
+                    unsigned int v8 = v6 - v11;
+                    if (v8 >= 0xC)
+                    {
+                        if (!(unsigned __int8)BuildDevicePath(v7, v8))
+                        {
+                            *(_QWORD *)v7 = 0;
+                            *((_DWORD *)v7 + 2) = 0;
+                        }
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+    return v4;
 }
 
 // CmdQueryFileAllocationSize
@@ -1396,10 +1448,58 @@ __int64 EnumDeviceObjects(_QWORD a1, _QWORD a2)
     return 0;
 }
 
-// EnumFileSystemDeviceObjects
+// EnumFileSystemDeviceObjects — 枚举文件系统设备对象
+// 对应原始驱动 sub_140008CEC
+// 通过 \FileSystem\ 设备路径枚举所有文件系统设备
 __int64 EnumFileSystemDeviceObjects(__int64 OutputBuffer, int MaxCount)
 {
-    return 0;
+    unsigned int EntryCount = 0;
+    void (__fastcall *DecodeStringFunc)(_BYTE *, _DWORD *) = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    unsigned int (__fastcall *CreateFileFunc)(_BYTE *, __int64, __int64 *, __int64 *) = (unsigned int (__fastcall *)(_BYTE *, __int64, __int64 *, __int64 *))GtRead(GtCreateFileFunc2);
+    __int64 CloseHandleFuncPtr = GtRead(GtCloseHandleFunc);
+    void (__fastcall *CloseHandleFunc)(__int64) = (void (__fastcall *)(__int64))CloseHandleFuncPtr;
+    _DWORD EncodedPath[12];
+    __int64 FileHandle;
+    __int64 DeviceEntry;
+    _BYTE DevicePath[16];
+    if (DecodeStringFunc && CreateFileFunc && CloseHandleFuncPtr)
+    {
+        EncodedPath[0] = 4456540;
+        EncodedPath[1] = 7733349;
+        EncodedPath[2] = 6488169;
+        EncodedPath[3] = 6029413;
+        EncodedPath[4] = 6357064;
+        EncodedPath[5] = 6553714;
+        EncodedPath[6] = 6881380;
+        EncodedPath[7] = 7012467;
+        EncodedPath[8] = 7274582;
+        EncodedPath[9] = 7667820;
+        EncodedPath[10] = 6619245;
+        EncodedPath[11] = 49;
+        DecodeStringFunc(DevicePath, EncodedPath);
+        if (!CreateFileFunc(DevicePath, 128, &FileHandle, &DeviceEntry))
+        {
+            if (GetDeviceObjectFromFileObject(FileHandle, &DeviceEntry, 0))
+            {
+                __int64 DriverFlink = *(_QWORD *)(DeviceEntry + 8);
+                __int64 DeviceListIter = *(_QWORD *)(DeviceEntry + 24);
+                while (1)
+                {
+                    DeviceEntry = DeviceListIter;
+                    if (!DeviceListIter || !MaxCount)
+                        break;
+                    CopySectionString(OutputBuffer, DeviceListIter, DriverFlink, 3);
+                    OutputBuffer += 2104;
+                    DriverFlink = *(_QWORD *)(DeviceEntry + 8);
+                    DeviceListIter = *(_QWORD *)(DeviceEntry + 24);
+                    --MaxCount;
+                    ++EntryCount;
+                }
+            }
+            CloseHandleFunc(FileHandle);
+        }
+    }
+    return EntryCount;
 }
 
 // EnumKernelDriverObjects — 枚举内核驱动对象
@@ -2225,11 +2325,52 @@ __int64 FreeObjectByCallback(_QWORD *pObjectEntry)
     return 0;
 }
 
-// FreeProcessMemoryEntry — 释放进程内存条目（被 DispatchFreeProcessMemory 调用）
+// FreeProcessMemoryEntry — 释放进程内存条目
 // 对应原始驱动 sub_140044C7C
-char FreeProcessMemoryEntry(__int64 VirtualAddress)
+// 先通过释放回调释放目标地址，然后遍历 Win8+ 链表头数组查找匹配条目并 ExFreePoolWithTag
+char FreeProcessMemoryEntry(__int64 TargetAddress)
 {
-    return 0;
+    char Result = 0;
+    if (TargetAddress)
+    {
+        void (__fastcall *pFreeCallback)(unsigned __int64) = (void (__fastcall *)(unsigned __int64))GtRead(GtTotalSize|GtEprocessExtField44|GtEprocessField86);
+        if (pFreeCallback
+            && (TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) != 0
+            && MmIsAddressValid((PVOID)(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64)) == 1
+            && MmIsAddressValid((PVOID)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 47)) == 1)
+        {
+            pFreeCallback(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64);
+            Result = 1;
+        }
+        _QWORD *pWin8ListHead = (_QWORD *)GtRead(GtEprocessField26|0x800);
+        _DWORD *pCounter = (_DWORD *)GtRead(GtEprocessField27|0x800);
+        if (pWin8ListHead && pCounter)
+        {
+            unsigned int BuildNumber = GtRead(GtWindowsBuildNumber);
+            unsigned int EntryIndex = 0;
+            unsigned int EntryCount = BuildNumber < 0x3FAB ? 8 : 32;
+            while (MmIsAddressValid(pWin8ListHead))
+            {
+                if (TargetAddress == *pWin8ListHead)
+                {
+                    void *pAlignedAddr = (void *)(*pWin8ListHead & 0xFFFFFFFFFFFFFFF0ui64);
+                    if (pAlignedAddr && MmIsAddressValid(pAlignedAddr) == 1)
+                    {
+                        if (*pCounter)
+                            --*pCounter;
+                        *pWin8ListHead = 0;
+                        ExFreePoolWithTag(pAlignedAddr, 0);
+                        return 1;
+                    }
+                }
+                ++EntryIndex;
+                ++pWin8ListHead;
+                if (EntryIndex >= EntryCount)
+                    return Result;
+            }
+        }
+    }
+    return Result;
 }
 
 // FreeProcessMemoryAllocation — 释放进程内存分配
@@ -4985,6 +5126,24 @@ void BuildNtExportIndexTable(void)
 
 // CheckTmDllSection — 检查 TM DLL 节区
 char CheckTmDllSection(unsigned __int8 *NameToMatch)
+{
+    return 0;
+}
+
+// QueryDiskInfoAta — 查询 ATA 磁盘信息
+char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSize)
+{
+    return 0;
+}
+
+// SendAtaScsiCommand — 发送 ATA SCSI 命令
+char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *OutSize)
+{
+    return 0;
+}
+
+// BuildDevicePath — 构建设备路径
+char BuildDevicePath(char *Buffer, unsigned int BufferSize)
 {
     return 0;
 }
