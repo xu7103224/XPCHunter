@@ -1045,7 +1045,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
     return 0x1000000;
 }
 
-// FindNtoskrnlExportsInThreadEnv
+// FindNtoskrnlExportsInThreadEnv — stub（暂未实现，需要 ReadNtoskrnlToBuffer 等子函数）
 __int64 FindNtoskrnlExportsInThreadEnv(void)
 {
     return 0;
@@ -1983,10 +1983,29 @@ __int64 RemoveFromModuleLinkedList(PVOID *pTargetEntry, char ListType)
     return 0;
 }
 
-// RemoveServiceEntryFromList
+// RemoveServiceEntryFromList — 从服务表链表中移除条目
+// 对应原始驱动 sub_14005631C
+// 遍历单向链表，查找与目标地址匹配的节点并将其从链表中摘除
 __int64 RemoveServiceEntryFromList(ULONG_PTR *a1, __int64 a2)
 {
-    return 0;
+    char v4 = 0;
+    unsigned __int8 (__fastcall *v6)(_QWORD) = (unsigned __int8 (__fastcall *)(_QWORD))GtRead(GtObjectTypeCheckFlag);
+    if (v6 && a1 && v6((_QWORD)a1))
+    {
+        unsigned int i;
+        for (i = 0; *a1 && v6((_QWORD)*a1) && i <= 0x10000; ++i)
+        {
+            ULONG_PTR v8 = *a1;
+            if (a2 == (__int64)*a1)
+            {
+                v4 = 1;
+                *a1 = *(_QWORD *)(v8 + 24);
+                return v4;
+            }
+            a1 = (ULONG_PTR *)(v8 + 24);
+        }
+    }
+    return v4;
 }
 
 // RemoveServiceEntryFromListEx
