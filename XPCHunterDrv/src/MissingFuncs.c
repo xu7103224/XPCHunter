@@ -2666,10 +2666,42 @@ __int64 ShutdownCallbackUnregister(PRKPROCESS *InputBuffer, int BufferSize)
     return Success;
 }
 
-// UnlinkFromProcessMemoryList
+// UnlinkFromProcessMemoryList — 从进程内存链表解除链接
+// 对应原始驱动 sub_140044DA4
 __int64 UnlinkFromProcessMemoryList(PVOID *pTargetPointer)
 {
-    return 0;
+    char Result = 0;
+    PVOID **pListHead = (PVOID **)GtRead(GtEprocessField31|0x800);
+    PVOID *pCurrentNode;
+    int IterationCount;
+    PVOID *pPrevEntry;
+    PVOID **pNextEntry;
+
+    if (pListHead && MmIsAddressValid(pListHead) == 1)
+    {
+        pCurrentNode = *pListHead;
+        IterationCount = 0;
+        while (pCurrentNode != (PVOID *)pListHead)
+        {
+            if (pCurrentNode <= MmSystemRangeStart) break;
+            if (MmIsAddressValid(pCurrentNode) != 1) break;
+            if ((unsigned int)++IterationCount > 0x1000) break;
+            if (pCurrentNode - 1 == pTargetPointer)
+            {
+                if (MmIsAddressValid(*pCurrentNode) == 1)
+                {
+                    pPrevEntry = (PVOID *)*pCurrentNode;
+                    pNextEntry = (PVOID **)pCurrentNode[1];
+                    Result = 1;
+                    pPrevEntry[1] = pNextEntry;
+                    *pNextEntry = pPrevEntry;
+                }
+                return Result;
+            }
+            pCurrentNode = (PVOID *)*pCurrentNode;
+        }
+    }
+    return Result;
 }
 
 // ValidateAndClearProcessContext — 验证并清除进程上下文
@@ -2748,10 +2780,27 @@ __int64 ValidateHookEntries(__int64 a1, ULONG a2)
     return 1;
 }
 
-// WalkKernelModuleList
+// WalkKernelModuleList — 遍历内核模块链表
+// 对应原始驱动 sub_14002C1D8
 __int64 WalkKernelModuleList(ULONG64 *pModuleList, ULONG *pOutputBuffer, ULONG *pMaxEntries)
 {
-    return 0;
+    unsigned int EntryCount = 0;
+    unsigned int IterCount = 0;
+    ULONG64 pListEntry = *pModuleList;
+    while (pListEntry > (ULONG64)MmSystemRangeStart
+        && (ULONG64 *)pListEntry != pModuleList
+        && IterCount < 0x1000
+        && *pMaxEntries
+        && CheckMemoryValid((void *)pListEntry) == 1
+        && CheckMemoryValid((void *)(pListEntry + 31)) == 1)
+    {
+        pOutputBuffer[4 * *pOutputBuffer + 4] = *(_DWORD *)(pListEntry + 24);
+        *(_QWORD *)&pOutputBuffer[4 * (*pOutputBuffer)++ + 2] = *(_QWORD *)(pListEntry + 16);
+        ++EntryCount;
+        ++IterCount;
+        pListEntry = *(_QWORD *)pListEntry;
+    }
+    return EntryCount;
 }
 
 // WriteDiskSectorsWithPartitionCheck
