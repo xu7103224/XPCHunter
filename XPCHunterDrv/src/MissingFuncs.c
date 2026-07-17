@@ -20,6 +20,8 @@ _BYTE *StringCopy(_BYTE *Dest, __int64 Src, unsigned int MaxLen);
 char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
 char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
 char BuildDevicePath(char *Buffer, unsigned int BufferSize);
+void ResolveSyscallAddressesInProcess(void);
+void ScanProcessPESections(void);
 __int64 ResolveSyscallAddressesWithAttach(void);
 void ReadSystemDllAndInitSession(void);
 void EnumObjectLinkedListSingle(_QWORD *pObjectTable, __int64 OutputBuffer, _DWORD *pCount, int MaxEntries);
@@ -3459,10 +3461,73 @@ __int64 ReadProcessMemoryString(void *Process, void *Address, char *Buffer, unsi
     return 0;
 }
 
-// ReadProcessMemoryWithAttach
-__int64 ReadProcessMemoryWithAttach(void)
+// ReadProcessMemoryWithAttach — 附加并读取进程内存
+// 对应原始驱动 sub_14007F69C
+// 附加到目标进程后使用系统调用查询进程内存信息，扫描 PE 节区
+__int64 ReadProcessMemoryWithAttach(__int64 a1)
 {
-    return 0;
+    char v1 = 0;
+    unsigned int (__fastcall *v2)(__int64, struct _KTHREAD **);
+    __int64 (__fastcall *v3)(struct _KTHREAD *, __int64, _QWORD, __int64, _QWORD, char, __int64 *);
+    _QWORD *v4;
+    __int64 v23;
+    void (__fastcall *v5)(__int64);
+    void (__fastcall *v6)(struct _KTHREAD *);
+    void (__fastcall *v7)(__int64, _QWORD);
+    unsigned int v8, v9;
+    struct _KTHREAD *CurrentThread;
+    __int64 v22;
+    char v19;
+    int v10;
+    int v11;
+    __int64 v12, v13, v14, v15, v16, v17;
+
+    v2 = (unsigned int (__fastcall *)(__int64, struct _KTHREAD **))GtRead(GtTotalSize|GtEprocessField182|0x100);
+    v3 = (__int64 (__fastcall *)(struct _KTHREAD *, __int64, _QWORD, __int64, _QWORD, char, __int64 *))GtRead(GtNtDuplicateObjectPeSectionOffset|GtEprocessField54);
+    v4 = (_QWORD *)GtRead(GtTotalSize|GtEprocessField95|0x100);
+    v23 = GtRead(GtTotalSize|GtSubsystemConfigBase|GtPathBuffer00|0x100);
+    v5 = (void (__fastcall *)(__int64))GtRead(GtRegisterObjectCallbacksFunc);
+    v6 = (void (__fastcall *)(struct _KTHREAD *))GtRead(GtCloseHandleFunc);
+    v7 = (void (__fastcall *)(__int64, _QWORD))GtRead(GtObjectTypeField21);
+    if (!v7)
+    {
+        ResolveSyscallAddressesInProcess();
+        v7 = (void (__fastcall *)(__int64, _QWORD))GtRead(GtObjectTypeField21);
+    }
+    v8 = GtRead(GtSdstServiceCount);
+    v9 = v8;
+    if (v2 && v3 && v4 && v23 && v7 && v8 != -1 && v5 && v6)
+    {
+        if (!v2(a1, &CurrentThread))
+        {
+            v19 = 0;
+            v10 = v3(CurrentThread, 512, 0, 0x10000000, *v4, v19, &v22);
+            v6(CurrentThread);
+            if (!v10)
+            {
+                CurrentThread = KeGetCurrentThread();
+                v11 = *((unsigned __int8 *)CurrentThread + v9);
+                *((_BYTE *)CurrentThread + v9) = 0;
+                v7(v22, 0);
+                v5(v22);
+                *((_BYTE *)CurrentThread + v9) = v11;
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x2580)
+                {
+                    v12 = GtRead(GtPspExitNormalApcAddr);
+                    v13 = GtRead(GtExFreeCallBackAddr);
+                    v14 = GtRead(GtPsExitSpecialApcAddr);
+                    if ((!v12 || !v13 || !v14) && (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+                        ScanProcessPESections();
+                    v15 = GtRead(GtPspExitNormalApcAddr);
+                    v16 = GtRead(GtExFreeCallBackAddr);
+                    v17 = GtRead(GtPsExitSpecialApcAddr);
+                    if (v15 && v16)
+                        return v17 != 0;
+                }
+            }
+        }
+    }
+    return v1;
 }
 
 // ReadServiceTableEntries
@@ -5266,4 +5331,16 @@ char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *Out
 char BuildDevicePath(char *Buffer, unsigned int BufferSize)
 {
     return 0;
+}
+
+// ResolveSyscallAddressesInProcess — 在进程中解析系统调用地址
+void ResolveSyscallAddressesInProcess(void)
+{
+    return;
+}
+
+// ScanProcessPESections — 扫描进程 PE 节区
+void ScanProcessPESections(void)
+{
+    return;
 }
