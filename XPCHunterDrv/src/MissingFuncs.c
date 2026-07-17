@@ -2210,16 +2210,74 @@ __int64 RemoveServiceEntryFromListEx(__int64 ****a1, __int64 ***a2)
     return 0;
 }
 
-// RemoveServiceTableNodeWin10
+// RemoveServiceTableNodeWin10 — 移除服务表节点(Win10 20H1+)
+// 对应原始驱动 sub_140056938
+// 遍历双向链表，找到匹配的服务条目节点，更新 Flink/Blink 指针完成移除
 __int64 RemoveServiceTableNodeWin10(__int64 ***a1, __int64 **a2)
 {
-    return 0;
+    char v4 = 0;
+    unsigned __int8 (__fastcall *v6)(__int64 ***) = (unsigned __int8 (__fastcall *)(__int64 ***))GtRead(GtObjectTypeCheckFlag);
+    if (v6 && a1 && v6(a1))
+    {
+        __int64 **v7;
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+        {
+            a1 = (__int64 ***)*a1;
+            if (!a1 || !v6(a1))
+            {
+                a1 = 0;
+                v7 = 0;
+            }
+            else
+                v7 = *a1;
+        }
+        else
+            v7 = *a1;
+
+        unsigned int i;
+        for (i = 0; v7 && v6((__int64 ***)v7) && v7 != (__int64 **)a1 && i <= 0x10000; ++i)
+        {
+            if (a2 == v7 - 9)
+            {
+                if (v6((__int64 ***)*v7))
+                {
+                    __int64 *v9 = *v7;
+                    __int64 *v10 = v7[1];
+                    v4 = 1;
+                    v9[1] = (__int64)v10;
+                    *v10 = (__int64)v9;
+                }
+                return v4;
+            }
+            v7 = (__int64 **)*v7;
+        }
+    }
+    return v4;
 }
 
-// RemoveServiceTableNodeWin7
+// RemoveServiceTableNodeWin7 — 移除服务表节点(Win7 版)
+// 对应原始驱动 sub_140056740
+// 遍历单向链表(偏移 8 为 next)，查找匹配节点并移除
 __int64 RemoveServiceTableNodeWin7(ULONG_PTR *a1, __int64 a2)
 {
-    return 0;
+    char v4 = 0;
+    unsigned __int8 (__fastcall *v6)(_QWORD) = (unsigned __int8 (__fastcall *)(_QWORD))GtRead(GtObjectTypeCheckFlag);
+    if (v6 && a1 && v6((_QWORD)a1))
+    {
+        unsigned int i;
+        for (i = 0; *a1 && v6((_QWORD)*a1) && i <= 0x10000; ++i)
+        {
+            ULONG_PTR v8 = *a1;
+            if (a2 == (__int64)*a1)
+            {
+                v4 = 1;
+                *a1 = *(_QWORD *)(v8 + 8);
+                return v4;
+            }
+            a1 = (ULONG_PTR *)(v8 + 8);
+        }
+    }
+    return v4;
 }
 
 // ResolveCreateFileRelocs
