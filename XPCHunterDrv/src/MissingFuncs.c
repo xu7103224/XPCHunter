@@ -22,6 +22,9 @@ char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *Out
 char BuildDevicePath(char *Buffer, unsigned int BufferSize);
 void ResolveSyscallAddressesInProcess(void);
 void ScanProcessPESections(void);
+char QuerySystemInfoPart1(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char QuerySystemInfoPart2(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char InitNsiEnumerateObjects(void);
 __int64 ResolveSyscallAddressesWithAttach(void);
 void ReadSystemDllAndInitSession(void);
 void EnumObjectLinkedListSingle(_QWORD *pObjectTable, __int64 OutputBuffer, _DWORD *pCount, int MaxEntries);
@@ -728,10 +731,60 @@ __int64 CmdQueryFileAllocationSize(void *FileHandle, _QWORD *pAllocationSize)
     return result;
 }
 
-// CmdQuerySystemInfoExV2
+// CmdQuerySystemInfoExV2 — 查询系统信息（扩展版 V2）
+// 对应原始驱动 sub_140049730
+// 懒加载初始化 NsiEnumerateObjects，顺序调用 QuerySystemInfoPart1/Part2/BuildDevicePath
 __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
 {
-    return 0;
+    unsigned int v2 = (unsigned int)Length;
+    char v4 = 0;
+    if (GtRead(GtNtQuerySystemInformationFunc) || (InitNsiEnumerateObjects(), GtRead(GtNtQuerySystemInformationFunc)))
+    {
+        if ((unsigned int)v2 >= 0x38
+            && (unsigned __int64)Dst < MmUserProbeAddress
+            && (unsigned __int64)&Dst[v2] < MmUserProbeAddress)
+        {
+            ProbeForWrite(Dst, v2, 1u);
+            unsigned int v10;
+            if (!QuerySystemInfoPart1(Dst, v2, &v10))
+            {
+                memset(Dst, 0, 0x38u);
+                v10 = 56;
+            }
+            if ((unsigned int)v2 >= v10)
+            {
+                char *v5 = &Dst[v10];
+                unsigned int v6 = v2 - v10;
+                if (v6 >= 0x1C)
+                {
+                    unsigned int v11;
+                    if (!QuerySystemInfoPart2(v5, v6, &v11))
+                    {
+                        *(_QWORD *)v5 = 0;
+                        *((_QWORD *)v5 + 1) = 0;
+                        *((_QWORD *)v5 + 2) = 0;
+                        *((_DWORD *)v5 + 6) = 0;
+                        v11 = 28;
+                    }
+                    if (v6 >= v11)
+                    {
+                        char *v7 = &v5[v11];
+                        unsigned int v8 = v6 - v11;
+                        if (v8 >= 0xC)
+                        {
+                            if (!(unsigned __int8)BuildDevicePath(v7, v8))
+                            {
+                                *(_QWORD *)v7 = 0;
+                                *((_DWORD *)v7 + 2) = 0;
+                            }
+                            return 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return v4;
 }
 
 // CmdReadFileInfo — 读取文件信息命令处理
@@ -5343,4 +5396,22 @@ void ResolveSyscallAddressesInProcess(void)
 void ScanProcessPESections(void)
 {
     return;
+}
+
+// QuerySystemInfoPart1 — 查询系统信息第 1 部分
+char QuerySystemInfoPart1(char *Buffer, unsigned int BufferSize, unsigned int *OutSize)
+{
+    return 0;
+}
+
+// QuerySystemInfoPart2 — 查询系统信息第 2 部分
+char QuerySystemInfoPart2(char *Buffer, unsigned int BufferSize, unsigned int *OutSize)
+{
+    return 0;
+}
+
+// InitNsiEnumerateObjects — 初始化 NsiEnumerateObjects
+char InitNsiEnumerateObjects(void)
+{
+    return 0;
 }
