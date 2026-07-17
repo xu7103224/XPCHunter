@@ -1402,7 +1402,12 @@ __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset)
 // 省略本文件中的重复定义
 __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
 {
-    return 0;
+    char *FiberBase = (char *)j_GetCurrentFiber();
+    *pContext = 0;
+    __int64 result = GtRead(GtEprocessField130|0x100);
+    if ((_DWORD)result && FiberBase)
+        *pContext = &FiberBase[(unsigned int)result];
+    return result;
 }
 
 // GetKernelObjectTypeInfo — 获取内核对象类型信息
@@ -1433,10 +1438,17 @@ __int64 GetKernelObjectTypeInfo(__int64 ObjectHeader)
     }
 }
 
-// GetSetValueKeyCtx
+// GetSetValueKeyCtx — 获取 SetValueKey 上下文
+// 对应原始驱动 sub_14001DEA4
 __int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult)
 {
-    return 0;
+    char *FiberBase = (char *)j_GetCurrentFiber();
+    *pContext = 0;
+    *pResult = 0;
+    __int64 ContextOffset = GtRead(GtEprocessField129|0x100);
+    if ((_DWORD)ContextOffset && FiberBase)
+        *pContext = &FiberBase[(unsigned int)ContextOffset];
+    return ContextOffset;
 }
 
 // InitFileSystemExportTable — 初始化文件系统导出表
@@ -2557,10 +2569,58 @@ __int64 ResolveServiceTableBase(void)
     return result;
 }
 
-// RestoreSyscallHookByIndex
+// RestoreSyscallHookByIndex — 按索引恢复系统调用钩子
+// 对应原始驱动 sub_1400872C4
 __int64 RestoreSyscallHookByIndex(char a1, ULONG a2)
 {
-    return 0;
+    char v2 = 0;
+    unsigned int v4;
+    __int64 v7;
+    __int64 *v9;
+    __int64 v10;
+    ULONG v3;
+
+    v3 = a2;
+    if (a1 == 1)
+    {
+        if (!(unsigned int)GtRead(GtDisableHookProtectionAddr1|GtEprocessField150))
+            ParseSyscallTableExportDir();
+        v4 = GtRead(GtDisableHookProtectionAddr1|GtEprocessField150);
+        v7 = GtRead(GtDisableHookProtectionAddr2|GtEprocessField151);
+        v9 = GtAlloc((enum _GLOBAL_TABLE_INDEX)0x21A4);
+    }
+    else
+    {
+        if (!(unsigned int)GtRead(GtDisableHookProtectionAddr2|GtEprocessField152))
+            ParseSyscallTableExportDir();
+        v4 = GtRead(GtDisableHookProtectionAddr2|GtEprocessField152);
+        v7 = GtRead(GtDisableHookProtectionAddr2|GtEprocessField154);
+        v9 = GtAlloc((enum _GLOBAL_TABLE_INDEX)0x2DB0);
+    }
+    if (v4 && v7 && v3 < v4)
+    {
+        v10 = 6 * v3;
+        if (v9[6 * v3 + 1])
+        {
+            if (LODWORD(v9[6 * v3]) == 1)
+            {
+                _QWORD *v12;
+                _OWORD v16;
+                v12 = (_QWORD *)(v7 + 8 * v3);
+                if (*v12 != v9[6 * v3 + 1])
+                {
+                    v2 = 1;
+                    WritePhysicalMemoryQword((unsigned __int64)v12, v9[6 * v3 + 1]);
+                }
+                if ((unsigned int)MemoryCompare(v9[6 * v3 + 1], (char *)&v9[6 * v3] + 16, 0x10u))
+                {
+                    v16 = *((_OWORD *)&v9[6 * v3] + 1);
+                    return WritePhysicalMemoryBuffer(v9[v10 + 1], &v16, 0x10u, 0, 0) | v2;
+                }
+            }
+        }
+    }
+    return v2;
 }
 
 // ScanKernelMemForFsChanges
