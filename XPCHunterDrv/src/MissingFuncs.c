@@ -27,6 +27,8 @@ char QuerySystemInfoPart2(char *Buffer, unsigned int BufferSize, unsigned int *O
 char InitNsiEnumerateObjects(void);
 __int64 ResolveSyscallAddressesWithAttach(void);
 void ReadSystemDllAndInitSession(void);
+char ReadNtoskrnlToBuffer(void **FileBuffer, unsigned int *FileSize);
+__int64 ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize);
 void EnumObjectLinkedListSingle(_QWORD *pObjectTable, __int64 OutputBuffer, _DWORD *pCount, int MaxEntries);
 void EnumObjectLinkedListWin7(_QWORD *pObjectTable, _DWORD *OutputBuffer, _DWORD *pCount, int MaxEntries);
 void EnumObjectLinkedListWin8(_QWORD *pObjectTable, _DWORD *OutputBuffer, _DWORD *pCount, int MaxEntries);
@@ -1045,10 +1047,23 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
     return 0x1000000;
 }
 
-// FindNtoskrnlExportsInThreadEnv — stub（暂未实现，需要 ReadNtoskrnlToBuffer 等子函数）
+// FindNtoskrnlExportsInThreadEnv — 在线程环境中查找 ntoskrnl 导出
+// 对应原始驱动 sub_14002BBB4
 __int64 FindNtoskrnlExportsInThreadEnv(void)
 {
-    return 0;
+    char Result = 0;
+    if (GtRead(GtFltDataSectionOffset|GtEprocessField54)
+        || (InitThreadNotify(), GtRead(GtFltDataSectionOffset|GtEprocessField54)))
+    {
+        unsigned int FileSize;
+        void *FileBuffer;
+        if (ReadNtoskrnlToBuffer(&FileBuffer, &FileSize))
+        {
+            Result = ParseNtoskrnlSectionsForKernelBase((__int64)FileBuffer, FileSize) == 1;
+            ExFree(FileBuffer);
+        }
+    }
+    return Result;
 }
 
 // FindOpenProcessTokenOffset
@@ -2953,6 +2968,18 @@ char QuerySystemInfoPart2(char *Buffer, unsigned int BufferSize, unsigned int *O
 
 // InitNsiEnumerateObjects — 初始化 NsiEnumerateObjects
 char InitNsiEnumerateObjects(void)
+{
+    return 0;
+}
+
+// ReadNtoskrnlToBuffer — 读取 ntoskrnl 到缓冲区
+char ReadNtoskrnlToBuffer(void **FileBuffer, unsigned int *FileSize)
+{
+    return 0;
+}
+
+// ParseNtoskrnlSectionsForKernelBase — 解析 ntoskrnl 节区获取内核基址
+__int64 ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize)
 {
     return 0;
 }
