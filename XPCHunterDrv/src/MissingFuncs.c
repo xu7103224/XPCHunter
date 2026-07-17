@@ -20,6 +20,7 @@ _BYTE *StringCopy(_BYTE *Dest, __int64 Src, unsigned int MaxLen);
 char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
 char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
 char BuildDevicePath(char *Buffer, unsigned int BufferSize);
+void *j_GetCurrentFiber(void);
 void ResolveSyscallAddressesInProcess(void);
 void ScanProcessPESections(void);
 char QuerySystemInfoPart1(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
@@ -2625,10 +2626,26 @@ __int64 UnlinkFromProcessMemoryList(PVOID *pTargetPointer)
     return 0;
 }
 
-// ValidateAndClearProcessContext
+// ValidateAndClearProcessContext — 验证并清除进程上下文
+// 对应原始驱动 sub_140030398
+// 检查处理器匹配，清除调试寄存器，清除纤程上下文
 __int64 ValidateAndClearProcessContext(int CurrentProcessor, __int64 pContext)
 {
-    return 0;
+    char Result = 1;
+    char *CurrentFiber;
+    int FiberOffset;
+    int IsSameProcessor;
+
+    if (!(*(_DWORD *)pContext == -1 || *(_DWORD *)pContext == CurrentProcessor))
+        return Result;
+    ClearDebugRegisters();
+    CurrentFiber = (char *)j_GetCurrentFiber();
+    FiberOffset = GtRead(GtEprocessModuleListOffset|GtEprocessField88);
+    if (CurrentFiber && FiberOffset)
+        memset(&CurrentFiber[FiberOffset], 0, 0x30u);
+    IsSameProcessor = *(_DWORD *)pContext == CurrentProcessor;
+    *(_BYTE *)(pContext + 4) = 1;
+    return !IsSameProcessor;
 }
 
 // ValidateHookEntries — 验证钩子条目
@@ -3114,6 +3131,12 @@ char ReadNtoskrnlToBuffer(void **FileBuffer, unsigned int *FileSize)
 
 // ParseNtoskrnlSectionsForKernelBase — 解析 ntoskrnl 节区获取内核基址
 __int64 ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize)
+{
+    return 0;
+}
+
+// j_GetCurrentFiber — 获取当前纤程（stub）
+void *j_GetCurrentFiber(void)
 {
     return 0;
 }
