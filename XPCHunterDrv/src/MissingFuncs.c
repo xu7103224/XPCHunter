@@ -21,6 +21,8 @@ char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSi
 char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
 char BuildDevicePath(char *Buffer, unsigned int BufferSize);
 void *j_GetCurrentFiber(void);
+char ReadNtFileDiskInfo(void **FileBuffer, unsigned int *FileSize);
+__int64 FindHalInitPatternOffsets(__int64 PeBase, unsigned int PeSize);
 void ResolveSyscallAddressesInProcess(void);
 void ScanProcessPESections(void);
 char QuerySystemInfoPart1(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
@@ -894,10 +896,62 @@ __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
     return 0;
 }
 
-// EnumerateProcessObjectTable
-__int64 EnumerateProcessObjectTable(__int64 ProcessObject, __int64 OutputFlags)
+// EnumerateProcessObjectTable — 枚举进程对象表
+// 对应原始驱动 sub_14007E0FC
+__int64 EnumerateProcessObjectTable(__int64 a1, __int64 a2)
 {
-    return 0;
+    char v3 = 0;
+    unsigned int v5;
+    unsigned int v6;
+    unsigned int v7;
+    char v15[8];
+    __int64 v16;
+    __int64 v17;
+    __int64 v8;
+    _DWORD *v9;
+    _DWORD *v10;
+    unsigned int v11;
+    _QWORD *v12;
+    __int64 v13;
+
+    v5 = GtRead(GtEprocessField30);
+    v6 = GtRead(GtKiFastCallEntryAddr|GtEprocessField08);
+    v7 = v6;
+    if (v5 != -1 && v6)
+    {
+        v17 = a1;
+        v8 = *(_QWORD *)(v5 + a1);
+        v15[0] = 1;
+        v16 = v8;
+        v9 = ExAlloc(PagedPool, 0x44610u);
+        v10 = v9;
+        if (v9)
+        {
+            if (EnumProcessInformationWorker(v15, (__int64)v9, 0x44610u))
+            {
+                v11 = v10[4];
+                *(_WORD *)a2 = 0;
+                if (v11)
+                {
+                    v12 = v10 + 8;
+                    v13 = v11;
+                    do
+                    {
+                        if (*(_BYTE *)(v7 + *v12))
+                            *(_BYTE *)(a2 + 1) = 1;
+                        else
+                            *(_BYTE *)a2 = 1;
+                        v12 += 7;
+                        --v13;
+                    }
+                    while (v13);
+                }
+                v3 = 1;
+            }
+            ExFree(v10);
+        }
+    }
+    return v3;
 }
 
 // ExAlloc 已在 MemoryOps.c 中实现
@@ -1760,10 +1814,33 @@ __int64 OpenSectionWithIoControl(__int64 a1)
     return v2;
 }
 
-// ParseExportDirForDriver
+// ParseExportDirForDriver — 解析驱动导出目录
+// 对应原始驱动 sub_140051184
 __int64 ParseExportDirForDriver(__int64 DriverInfo, __int64 Context, __int64 PeBuffer, unsigned int PeSize)
 {
-    return 0;
+    char v5 = 0;
+    __int64 v8 = GtRead(GtKernelModuleBase);
+    if (v8 && ParseNtExportDir(PeBuffer, PeSize, v8, 0) == 1)
+    {
+        unsigned int v9 = *(_DWORD *)(DriverInfo + 4);
+        unsigned int v10 = 0;
+        if (!v9)
+            return 1;
+        unsigned int *v11 = (unsigned int *)(DriverInfo + 12);
+        do
+        {
+            __int64 v12 = *v11;
+            if ((int)v12 + 16 > PeSize)
+                break;
+            ++v10;
+            v11 += 12;
+            *(_OWORD *)((char *)v11 - 26) = *(_OWORD *)(v12 + PeBuffer);
+        }
+        while (v10 < v9);
+        if (v10 >= v9)
+            return 1;
+    }
+    return v5;
 }
 
 // ParseFsFilterDriverExport
@@ -1772,10 +1849,22 @@ __int64 ParseFsFilterDriverExport(char Is64Bit)
     return 0;
 }
 
-// ParseKernelModuleDiskInfo
+// ParseKernelModuleDiskInfo — 解析内核模块磁盘信息
+// 对应原始驱动 sub_14002C29C
 __int64 ParseKernelModuleDiskInfo(void)
 {
-    return 0;
+    char Result = 0;
+    if (GtRead(GtEprocessField136|0x100))
+    {
+        unsigned int FileSize;
+        void *FileBuffer;
+        if (ReadNtFileDiskInfo(&FileBuffer, &FileSize))
+        {
+            Result = FindHalInitPatternOffsets((__int64)FileBuffer, FileSize) == 1;
+            ExFree(FileBuffer);
+        }
+    }
+    return Result;
 }
 
 // ParseNtImageSectionHeaders — 解析 NT 镜像节头
@@ -3400,6 +3489,18 @@ __int64 ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize)
 
 // j_GetCurrentFiber — 获取当前纤程（stub）
 void *j_GetCurrentFiber(void)
+{
+    return 0;
+}
+
+// ReadNtFileDiskInfo — 读取 NT 文件磁盘信息（stub）
+char ReadNtFileDiskInfo(void **FileBuffer, unsigned int *FileSize)
+{
+    return 0;
+}
+
+// FindHalInitPatternOffsets — 查找 HAL 初始化模式偏移（stub）
+__int64 FindHalInitPatternOffsets(__int64 PeBase, unsigned int PeSize)
 {
     return 0;
 }
