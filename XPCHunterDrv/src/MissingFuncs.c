@@ -2216,10 +2216,35 @@ __int64 RemoveServiceEntryFromList(ULONG_PTR *a1, __int64 a2)
     return v4;
 }
 
-// RemoveServiceEntryFromListEx
+// RemoveServiceEntryFromListEx — 从服务表链表中移除条目(Win8 版)
+// 对应原始驱动 sub_140056514
+// 遍历双向链表，找到匹配节点后更新 Flink/Blink 指针完成移除
 __int64 RemoveServiceEntryFromListEx(__int64 ****a1, __int64 ***a2)
 {
-    return 0;
+    char v4 = 0;
+    unsigned __int8 (__fastcall *v6)(__int64 **) = (unsigned __int8 (__fastcall *)(__int64 **))GtRead(GtObjectTypeCheckFlag);
+    if (v6 && a1 && v6((__int64 **)a1))
+    {
+        __int64 ***v7 = *a1;
+        unsigned int i;
+        for (i = 0; v7 && v6((__int64 **)v7) && v7 != (__int64 ***)a1 && i <= 0x10000; ++i)
+        {
+            if (a2 == v7 - 3)
+            {
+                if (v6(*v7))
+                {
+                    __int64 **v9 = *v7;
+                    __int64 **v10 = v7[1];
+                    v4 = 1;
+                    v9[1] = (__int64 *)v10;
+                    *v10 = (__int64 *)v9;
+                }
+                return v4;
+            }
+            v7 = (__int64 ***)*v7;
+        }
+    }
+    return v4;
 }
 
 // RemoveServiceTableNodeWin10 — 移除服务表节点(Win10 20H1+)
@@ -2352,10 +2377,35 @@ __int64 ResolveDriverModuleNames(ULONG *a1)
     return 0;
 }
 
-// ResolveDriverRelativeAddresses
+// ResolveDriverRelativeAddresses — 解析驱动相对地址
+// 对应原始驱动 sub_14005110C
+// 将驱动信息条目中的相对地址加上 GT 80 基址转为绝对地址
 __int64 ResolveDriverRelativeAddresses(__int64 a1, __int64 a2, int **a3)
 {
-    return 0;
+    char v4 = 0;
+    __int64 v6 = GtRead(GtKernelModuleBase);
+    if (v6)
+    {
+        unsigned int v7 = *(_DWORD *)(a1 + 4);
+        if (v7)
+        {
+            int *v8 = *a3;
+            int *v9 = *a3;
+            _QWORD *v10 = (_QWORD *)(a1 + 16);
+            __int64 v11 = v7;
+            do
+            {
+                *v10 = v6 + *((unsigned int *)v10 - 1);
+                v10 += 6;
+                int v12 = *v9++ >> 4;
+                *(v10 - 5) = (char *)v8 + v12;
+                --v11;
+            }
+            while (v11);
+        }
+        return 1;
+    }
+    return v4;
 }
 
 // ResolveKernelModuleBasePair — 解析内核模块基址对
