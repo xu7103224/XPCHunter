@@ -1763,3 +1763,122 @@ char FindSyscallNumbers(void)
 
     return Result;
 }
+
+
+// ===== Functions moved from MissingFuncs.c =====
+
+// ClearPageTableEntryFlags — 清除页表条目标志
+void ClearPageTableEntryFlags(char *VirtualAddress)
+{
+    int Offset1, Offset2, Mask;
+    int FlagOffset, FieldOffset, TypeOffset, ObjTypeCount;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB1)
+    {
+        Mask = 16;
+        Offset1 = GtRead(GtEprocessField94);
+    }
+    else
+    {
+        Offset1 = GtRead((GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr1 | GtEprocessField86));
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) == 7601) Mask = 0x2000;
+        else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200) Mask = 4096;
+        else
+        {
+            Mask = 1024;
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9600) Mask = 2048;
+        }
+    }
+    Offset2 = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0 ? 64 : 32;
+    FlagOffset = GtRead(GtEprocessField53);
+    FieldOffset = GtRead(GtEprocessField94);
+    TypeOffset = GtRead(GtEprocessField95);
+    ObjTypeCount = GtRead(GtObjectTypeCount);
+    if (Offset1 != -1 && FlagOffset && FieldOffset != -1 && TypeOffset && ObjTypeCount)
+    {
+        if (MmIsAddressValid(VirtualAddress) && MmIsAddressValid(&VirtualAddress[ObjTypeCount - 1]))
+        {
+            *(_DWORD *)&VirtualAddress[Offset1] &= ~Mask;
+            *(_DWORD *)&VirtualAddress[FieldOffset] &= ~Offset2 & 0xFFFFFFFE;
+            if (VirtualAddress[FlagOffset] == 4) VirtualAddress[FlagOffset] = 0;
+            *(_DWORD *)&VirtualAddress[TypeOffset] = 0;
+        }
+    }
+    }
+
+// ===== Functions moved from MissingFuncs.c =====
+
+// ClearProcessPageTableFlags — 清除进程页表标志：遍历进程页目录，清除 PTE 中的保护标志
+void ClearProcessPageTableFlags(struct _KPROCESS *Process)
+{
+    int FlagMask;
+    unsigned int PteOffset;
+    int PdeOffset;
+    unsigned int PteOffset2;
+    unsigned int PdeOffset2;
+    int TableOffset;
+    int TableOffset2;
+    int PageSize;
+    PVOID *pTableEntry;
+    unsigned __int8 RefCount;
+    _QWORD *pCurrentEntry;
+    unsigned int EntryCount;
+    unsigned __int64 ObjectAddr;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB1)
+    {
+        FlagMask = 16;
+        PteOffset = GtRead(GtEprocessField94);
+    }
+    else
+    {
+        PteOffset = GtRead((GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr1 | GtEprocessField86));
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) == 7601) FlagMask = 0x2000;
+        else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200) FlagMask = 4096;
+        else
+        {
+            FlagMask = 1024;
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9600) FlagMask = 2048;
+        }
+    }
+    PageSize = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0 ? 64 : 32;
+    PdeOffset = GtRead(GtEprocessField41);
+    PteOffset2 = GtRead(GtEprocessField48);
+    PdeOffset2 = GtRead(GtEprocessField94);
+    TableOffset = GtRead(GtEprocessField53);
+    TableOffset2 = GtRead(GtEprocessField95);
+    if (PdeOffset && PteOffset2 && PteOffset != -1 && PdeOffset2 != -1 && TableOffset && TableOffset2)
+    {
+        if (ValidateProcessObject(Process, 0) == 1)
+        {
+            pTableEntry = (PVOID *)((char *)Process + PdeOffset);
+            RefCount = ReferenceObjectSafe((__int64)Process);
+            if (MmIsAddressValid(pTableEntry) == 1)
+            {
+                pCurrentEntry = *pTableEntry;
+                EntryCount = 0;
+                if (*pTableEntry > MmSystemRangeStart)
+                {
+                    do
+                    {
+                        if (pCurrentEntry == pTableEntry)
+                            break;
+                        if (EntryCount > 0x10000)
+                            break;
+                        if (MmIsAddressValid(pCurrentEntry) != 1)
+                            break;
+                        ObjectAddr = (unsigned __int64)pCurrentEntry - PteOffset2;
+                        if (ValidateKernelObject(ObjectAddr, 0, 0, 0) != 1)
+                            break;
+                        ++EntryCount;
+                        *(_DWORD *)(PteOffset + ObjectAddr) &= ~FlagMask;
+                        *(_DWORD *)(PdeOffset2 + ObjectAddr) &= ~PageSize & 0xFFFFFFFE;
+                        pCurrentEntry = (_QWORD *)*pCurrentEntry;
+                    }
+                    while (pCurrentEntry > MmSystemRangeStart);
+                }
+            }
+            if (RefCount == 1)
+                DereferenceObjectSafe((__int64)Process);
+        }
+    }
+}

@@ -1873,3 +1873,26 @@ __int64 MatchSystemProcessName(_QWORD *Process)
 
     return Result;
 }
+
+// CopyThreadContextTable — 复制线程上下文表
+// 对应原始驱动 sub_1400571B0
+// Moved from MemoryCleanup.c
+__int64 CopyThreadContextTable(__int64 pSourceTable)
+{
+    __int64 *v3 = GtAlloc(GtTotalSize|GtEprocessField144);
+    char *v5 = (char *)v3 + 4;
+    __int64 v6 = pSourceTable - (__int64)v3;
+    char v2 = 0;
+    for (int v4 = 28; v4; v4--)
+    {
+        *(_DWORD *)&v5[v6] = *(_DWORD *)v5;
+        if (*(_DWORD *)v5 && *((_DWORD *)v5 - 1) == 1)
+        {
+            v2 = 1;
+            *(_QWORD *)&v5[v6 + 4] = *(_QWORD *)(v5 + 4);
+            *(_OWORD *)&v5[v6 + 22] = *(_OWORD *)(v5 + 12);
+        }
+        v5 += 48;
+    }
+    return v2;
+}

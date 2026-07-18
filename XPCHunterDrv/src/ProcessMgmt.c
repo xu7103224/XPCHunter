@@ -2331,3 +2331,539 @@ __int64 ScanWin32kSectionForServiceTable(void)
     // 当前为占位符，返回 0
     return 0;
 }
+
+
+// ===== Functions moved from MissingFuncs.c =====
+
+// CheckProcessObjectFlag — 检查进程对象标志位，根据Windows版本检查进程保护标志（如PsProtectedProcess）
+__int64 CheckProcessObjectFlag(__int64 ProcessObject)
+{
+    unsigned int FlagOffset;
+    FlagOffset = GtRead(GtCallbackField75);
+    if (!FlagOffset) return 0;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770)
+    {
+        if (*(_BYTE *)(FlagOffset + ProcessObject) != 0) return 1;
+        return 0;
+    }
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3FAB)
+        {
+            if ((*(_DWORD *)(FlagOffset + ProcessObject) & 0x20000) != 0) return 1;
+        }
+        else
+        {
+            if ((*(_DWORD *)(FlagOffset + ProcessObject) & 0x10000) != 0) return 1;
+        }
+        return 0;
+    }
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9600)
+    {
+        if (GtRead(GtNtCreateThreadHookSuccess) != 0)
+            return (*(_DWORD *)(FlagOffset + ProcessObject) & 0x10000) != 0;
+    }
+    else
+    {
+        if ((*(_BYTE *)(FlagOffset + ProcessObject) & 1) != 0) return 1;
+    }
+    return 0;
+}
+
+// CheckProcessJobObject — 检查进程作业对象，查询进程是否属于某个作业对象
+__int64 CheckProcessJobObject(__int64 ProcessHandle)
+{
+    unsigned int ServiceCount;
+    __int64 QueryFuncPtr;
+    __int64 (*QueryObjectFunc)(__int64, __int64, _QWORD *, __int64, _QWORD);
+    _QWORD *Buffer, *BufferPtr;
+    struct _KTHREAD *CurrentThread;
+    __int64 ServiceCountCopy;
+    char SavedServiceFlag;
+    int QueryResult;
+    ServiceCount = GtRead(GtSdstServiceCount);
+    QueryFuncPtr = GtRead(GtDereferenceObjectFunc);
+    QueryObjectFunc = (__int64 (*)(__int64, __int64, _QWORD *, __int64, _QWORD))QueryFuncPtr;
+    if (ServiceCount == -1 || !QueryFuncPtr) return 0;
+    Buffer = ExAlloc(PagedPool, 0x2000u);
+    BufferPtr = Buffer;
+    if (!Buffer) return 0;
+    CurrentThread = KeGetCurrentThread();
+    ServiceCountCopy = ServiceCount;
+    SavedServiceFlag = *((_BYTE *)CurrentThread + ServiceCount);
+    *((_BYTE *)CurrentThread + ServiceCountCopy) = 0;
+    QueryResult = QueryObjectFunc(ProcessHandle, 2, BufferPtr, 0x2000, 0);
+    *((_BYTE *)CurrentThread + ServiceCountCopy) = SavedServiceFlag;
+    ExFree(Buffer);
+    if (QueryResult >= 0 && BufferPtr[1] != 0)
+        return 1;
+    return 0;
+}
+
+// ReadProcessMemoryWithAttach — 附加并读取进程内存：附加到目标进程后使用系统调用查询进程内存信息，扫描PE节区
+__int64 ReadProcessMemoryWithAttach(__int64 ProcessHandle)
+{
+    char Result;
+    unsigned int (__fastcall *AttachToProcessFunc)(__int64, struct _KTHREAD **);
+    __int64 (__fastcall *KeAttachProcessFunc)(struct _KTHREAD *, __int64, _QWORD, __int64, _QWORD, char, __int64 *);
+    _QWORD *pContextFlags;
+    __int64 ContextFlags;
+    void (__fastcall *DeregisterFunc)(__int64);
+    void (__fastcall *CloseHandleFunc)(struct _KTHREAD *);
+    void (__fastcall *DetachProcessFunc)(__int64, _QWORD);
+    unsigned int ServiceCount;
+    unsigned int ServiceCountCopy;
+    int AttachResult;
+    int SavedServiceFlag;
+    __int64 PspExitNormalApcAddr;
+    __int64 ExFreeCallBackAddr;
+    __int64 PsExitSpecialApcAddr;
+    __int64 PspExitNormalApcAddr2;
+    __int64 ExFreeCallBackAddr2;
+    __int64 PsExitSpecialApcAddr2;
+    char AttachFlags;
+    struct _KTHREAD *CurrentThread;
+    __int64 AttachContext;
+
+    Result = 0;
+    AttachToProcessFunc = (unsigned int (__fastcall *)(__int64, struct _KTHREAD **))GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField182 | 0x100));
+    KeAttachProcessFunc = (__int64 (__fastcall *)(struct _KTHREAD *, __int64, _QWORD, __int64, _QWORD, char, __int64 *))GtRead((GLOBAL_TABLE_INDEX)(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54));
+    pContextFlags = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField95 | 0x100));
+    ContextFlags = GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtSubsystemConfigBase | GtPathBuffer00 | 0x100));
+    DeregisterFunc = (void (__fastcall *)(__int64))GtRead(GtRegisterObjectCallbacksFunc);
+    CloseHandleFunc = (void (__fastcall *)(struct _KTHREAD *))GtRead(GtCloseHandleFunc);
+    DetachProcessFunc = (void (__fastcall *)(__int64, _QWORD))GtRead(GtObjectTypeField21);
+    if (!DetachProcessFunc)
+    {
+        ResolveSyscallAddressesInProcess();
+        DetachProcessFunc = (void (__fastcall *)(__int64, _QWORD))GtRead(GtObjectTypeField21);
+    }
+    ServiceCount = GtRead(GtSdstServiceCount);
+    ServiceCountCopy = ServiceCount;
+    if (AttachToProcessFunc && KeAttachProcessFunc && pContextFlags && ContextFlags && DetachProcessFunc && ServiceCount != -1 && DeregisterFunc && CloseHandleFunc)
+    {
+        if (!AttachToProcessFunc(ProcessHandle, &CurrentThread))
+        {
+            AttachFlags = 0;
+            AttachResult = KeAttachProcessFunc(CurrentThread, 512, 0, 0x10000000, *pContextFlags, AttachFlags, &AttachContext);
+            CloseHandleFunc(CurrentThread);
+            if (!AttachResult)
+            {
+                CurrentThread = KeGetCurrentThread();
+                SavedServiceFlag = *((unsigned __int8 *)CurrentThread + ServiceCountCopy);
+                *((_BYTE *)CurrentThread + ServiceCountCopy) = 0;
+                DetachProcessFunc(AttachContext, 0);
+                DeregisterFunc(AttachContext);
+                *((_BYTE *)CurrentThread + ServiceCountCopy) = SavedServiceFlag;
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x2580)
+                {
+                    PspExitNormalApcAddr = GtRead(GtPspExitNormalApcAddr);
+                    ExFreeCallBackAddr = GtRead(GtExFreeCallBackAddr);
+                    PsExitSpecialApcAddr = GtRead(GtPsExitSpecialApcAddr);
+                    if ((!PspExitNormalApcAddr || !ExFreeCallBackAddr || !PsExitSpecialApcAddr) && (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+                        ScanProcessPESections();
+                    PspExitNormalApcAddr2 = GtRead(GtPspExitNormalApcAddr);
+                    ExFreeCallBackAddr2 = GtRead(GtExFreeCallBackAddr);
+                    PsExitSpecialApcAddr2 = GtRead(GtPsExitSpecialApcAddr);
+                    if (PspExitNormalApcAddr2 && ExFreeCallBackAddr2)
+                        return PsExitSpecialApcAddr2 != 0;
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// ExecuteWithThreadContext — 在线程上下文中执行
+char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress)
+{
+    unsigned int v4 = GtRead(GtSdstServiceCount);
+    __int64 (__fastcall *TargetFunc)(__int64) = (__int64 (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessExtField58 | GtDriverObject));
+    unsigned int FlagOffset;
+    unsigned int ThreadFlagOffset;
+    __int64 SavedFlags1;
+    char SavedFlags2;
+    struct _KTHREAD *CurrentThread;
+    char SavedThreadFlag;
+    unsigned int Result;
+
+    if (v4 == -1 || !TargetFunc)
+        return -1073741823;
+    FlagOffset = GtRead(GtCallbackField122);
+    ThreadFlagOffset = GtRead(GtCallbackField121);
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+            *(_BYTE *)(ThreadFlagOffset + VirtualAddress) |= 0x10u;
+        else
+            *(_BYTE *)(ThreadFlagOffset + VirtualAddress) |= 0x20u;
+    }
+    else
+        *(_BYTE *)(ThreadFlagOffset + VirtualAddress) = 1;
+    SavedFlags1 = *(_BYTE *)(FlagOffset + VirtualAddress);
+    SavedFlags2 = *(_BYTE *)(FlagOffset + VirtualAddress + 1);
+    *(_WORD *)(FlagOffset + VirtualAddress) = 0;
+    CurrentThread = KeGetCurrentThread();
+    SavedThreadFlag = *((_BYTE *)CurrentThread + v4);
+    *((_BYTE *)CurrentThread + v4) = 0;
+    Result = TargetFunc(Handle);
+    *((_BYTE *)CurrentThread + v4) = SavedThreadFlag;
+    *(_BYTE *)(FlagOffset + VirtualAddress) = (char)SavedFlags1;
+    *(_BYTE *)(FlagOffset + VirtualAddress + 1) = SavedFlags2;
+    return Result;
+}
+
+// ExecuteWithThreadFlagCleared — 清除线程标志后执行
+__int64 ExecuteWithThreadFlagCleared(__int64 Address)
+{
+    unsigned int v2 = GtRead(GtSdstServiceCount);
+    __int64 (__fastcall *SyscallFunc)(__int64, _QWORD) = (__int64 (__fastcall *)(__int64, _QWORD))ResolveSyscallAddressesInProcess();
+    __int64 (__fastcall *AttachSyscall)(__int64, __int64, _QWORD, __int64, _QWORD, char, __int64 *) = (__int64 (__fastcall *)(__int64, __int64, _QWORD, __int64, _QWORD, char, __int64 *))GtRead((GLOBAL_TABLE_INDEX)(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54));
+    _QWORD *pFlags = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField95 | 0x100));
+    void (__fastcall *CleanupFunc)(__int64) = (void (__fastcall *)(__int64))GtRead(GtRegisterObjectCallbacksFunc);
+    __int64 Handle;
+    unsigned int Result;
+    struct _KTHREAD *CurrentThread;
+    char SavedFlag;
+
+    if (v2 == -1 || !SyscallFunc || !AttachSyscall || !pFlags || !CleanupFunc)
+        return -1073741823;
+    Result = AttachSyscall(Address, 512, 0, 0x10000000, *pFlags, 0, &Handle);
+    if (!Result)
+    {
+        CurrentThread = KeGetCurrentThread();
+        SavedFlag = *((_BYTE *)CurrentThread + v2);
+        *((_BYTE *)CurrentThread + v2) = 0;
+        Result = SyscallFunc(Handle, 0);
+        CleanupFunc(Handle);
+        *((_BYTE *)CurrentThread + v2) = SavedFlag;
+    }
+    return Result;
+}
+
+// EnableProcessProtect — 启用进程保护
+__int64 EnableProcessProtect(PVOID *Address, int InputSize, _DWORD *OutputBuffer, int OutputBufferSize)
+{
+    PEPROCESS Process = 0;
+    NTSTATUS Status = -1073741823;
+    _OWORD ProcessIdPair;
+    void *ProcessId;
+    struct _KPROCESS *ProcessObject;
+    char IsProtected;
+    GLOBAL_TABLE_INDEX TableIndex;
+    unsigned int ServiceCount;
+
+    if (!Address || InputSize != 16
+        || (unsigned __int64)Address >= MmUserProbeAddress
+        || (unsigned __int64)(Address + 1) >= MmUserProbeAddress
+        || !OutputBuffer || OutputBufferSize != 21712
+        || (unsigned __int64)OutputBuffer >= MmUserProbeAddress
+        || (unsigned __int64)(OutputBuffer + 5428) >= MmUserProbeAddress)
+        goto Cleanup;
+    ProbeForRead(Address, 0x10u, 4u);
+    ProbeForWrite(OutputBuffer, 0x54D0u, 1u);
+    ProcessIdPair = *(_OWORD *)Address;
+    ProcessId = (void *)ProcessIdPair.qword[1];
+    Status = PsLookupProcessByProcessId(ProcessId, &Process);
+    ProcessObject = (struct _KPROCESS *)ProcessIdPair.qword[0];
+    if (!ProcessIdPair.qword[0] && Status >= 0)
+        ProcessObject = (struct _KPROCESS *)Process;
+    if (ValidateProcessObject(ProcessObject, 0) != 1)
+        goto Cleanup;
+    IsProtected = CheckProtectedEntry((__int64)ProcessObject);
+    TableIndex = IsProtected ? GtWin32kServiceTable64Flag : GtWin32kServiceTable32Flag;
+    if (!(unsigned int)GtRead(TableIndex))
+    {
+        ResolveWin32kServiceTable(IsProtected);
+        TableIndex = IsProtected ? GtWin32kServiceTable64Flag : GtWin32kServiceTable32Flag;
+        if (!(unsigned int)GtRead(TableIndex))
+            goto Cleanup;
+    }
+    memset(OutputBuffer, 0, 0x54D0u);
+    *OutputBuffer = GtRead(GtWindowsBuildNumber);
+    ServiceCount = GtRead(GtWin32kServiceCount);
+    OutputBuffer[8] = ServiceCount;
+    if (ServiceCount <= 0x12D
+        && BuildExportServiceTable((__int64)ProcessId, ProcessObject, IsProtected, OutputBuffer) == 1
+        && CopyValidServiceEntries((__int64)(OutputBuffer + 10), IsProtected) == 1
+        && ParseNtImageSectionHeaders(ProcessObject, (__int64)(OutputBuffer + 10)) == 1)
+    {
+        *((_BYTE *)OutputBuffer + 4) = 1;
+        if (Status >= 0)
+            ObfDereferenceObject(Process);
+        return 1;
+    }
+Cleanup:
+    if (Status >= 0)
+        ObfDereferenceObject(Process);
+    return 0;
+}
+
+// ResolvePhysicalMemoryContext — 解析物理内存上下文
+__int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, unsigned int EntryCount)
+{
+    char Result;
+    __int64 Count;
+    unsigned __int64 NtoskrnlBase;
+    unsigned int NtoskrnlSize;
+    __int64 OffsetValue1;
+    enum _GLOBAL_TABLE_INDEX OffsetIndex;
+    __int64 OffsetBase;
+    __int64 pCurrentEntry;
+    __int64 Remaining;
+    __int64 CurrentValue;
+    unsigned __int64 AddressValue;
+    unsigned int EntryIndex;
+    __int64 pEntry;
+    unsigned int ByteIndex;
+    __int64 LoopCount;
+    _WORD *pFlagEntry;
+    unsigned __int64 EndAddress;
+    unsigned int OffsetValue2;
+    __int64 SavedOriginalAddr;
+
+    Result = 0;
+    Count = EntryCount;
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    NtoskrnlSize = GtRead(GtNtoskrnlImageSize);
+    OffsetValue2 = GtRead(GtKernelDataField21);
+    switch (ContextType)
+    {
+        case 0:
+            OffsetValue1 = GtRead(GtEprocessField72);
+            OffsetIndex = GtEprocessField73;
+            goto LABEL_SET;
+        case 2:
+            OffsetValue1 = GtRead(GtEprocessField74);
+            OffsetIndex = GtEprocessField75;
+            goto LABEL_SET;
+        case 1:
+            OffsetValue1 = GtRead(GtKernelDataField15);
+            OffsetIndex = GtKernelDataField16;
+LABEL_SET:
+            OffsetBase = OffsetValue1;
+            GtRead(OffsetIndex);
+            break;
+        default:
+            OffsetBase = 0;
+            break;
+    }
+    if (OffsetBase)
+    {
+        if ((_DWORD)Count)
+        {
+            pCurrentEntry = pContextTable + 16;
+            Remaining = Count;
+            while (1)
+            {
+                CurrentValue = *(_QWORD *)(pCurrentEntry - 8);
+                if (!CurrentValue)
+                {
+                    if (!NtoskrnlBase)
+                        goto LABEL_NEXT;
+                    if (!NtoskrnlSize)
+                        goto LABEL_NEXT;
+                    AddressValue = *(_QWORD *)pCurrentEntry;
+                    if (!*(_QWORD *)pCurrentEntry || (AddressValue < NtoskrnlBase + NtoskrnlSize && AddressValue >= NtoskrnlBase))
+                        goto LABEL_NEXT;
+                }
+                if (CurrentValue != *(_QWORD *)pCurrentEntry)
+                {
+LABEL_MARK:
+                    *(_BYTE *)(pCurrentEntry + 8) = 1;
+                }
+LABEL_NEXT:
+                *(_DWORD *)(pCurrentEntry + 12) = ContextType;
+                pCurrentEntry += 48;
+                if (!--Remaining)
+                    goto LABEL_SCAN;
+            }
+        }
+LABEL_SCAN:
+        EntryIndex = 0;
+        if ((_DWORD)Count)
+        {
+            pEntry = pContextTable + 8;
+            do
+            {
+                if (*(_QWORD *)pEntry)
+                {
+                    if (MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + 15LL)) == 1)
+                    {
+                        if ((unsigned int)MemoryCompare(*(_QWORD *)pEntry, (char *)(48LL * EntryIndex + pContextTable + 32), 0x10u))
+                        {
+                            *(_BYTE *)(pEntry + 17) = 1;
+                            if (!*(_BYTE *)(pEntry + 16))
+                            {
+                                for (ByteIndex = 0; ByteIndex < 0x10; ++ByteIndex)
+                                {
+                                    if (!MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + ByteIndex)))
+                                        break;
+                                }
+                                if (ByteIndex && ReturnFalseStub() == 1)
+                                    *(_QWORD *)(pEntry + 8) = SavedOriginalAddr;
+                            }
+                        }
+                    }
+                }
+                ++EntryIndex;
+                pEntry += 48;
+            }
+            while (EntryIndex < (unsigned int)Count);
+        }
+        LoopCount = 28;
+        if ((_DWORD)Count == 28 && OffsetValue2 && NtoskrnlSize && NtoskrnlBase)
+        {
+            pFlagEntry = (_WORD *)(pContextTable + 24);
+            EndAddress = NtoskrnlBase + OffsetValue2;
+            do
+            {
+                if (*((_QWORD *)pFlagEntry - 1) == EndAddress)
+                {
+                    *pFlagEntry = 0;
+                    *((_QWORD *)pFlagEntry - 2) = EndAddress;
+                }
+                pFlagEntry += 24;
+                --LoopCount;
+            }
+            while (LoopCount);
+        }
+        return 1;
+    }
+    return Result;
+}
+
+// ProcessOperationWithAttach — 挂载到目标进程上下文中执行操作：附加到进程，清除进程保护标志和页表标志，执行回调后分离
+__int64 ProcessOperationWithAttach(struct _KPROCESS *TargetProcess)
+{
+    bool Result;
+    unsigned int ServiceCount;
+    int (__fastcall *KeAttachProcessFunc)(struct _KPROCESS *, __int64, _QWORD, __int64, _QWORD, _BYTE, __int64 *);
+    int (__fastcall *KeDetachProcessFunc)(__int64, _QWORD);
+    _QWORD *pContextFlags;
+    __int64 RegisterFuncPtr;
+    void (__fastcall *DeregisterFunc)(__int64);
+    struct _KTHREAD *CurrentThread;
+    unsigned __int8 RefCount;
+    unsigned int ProcessFlagsOffset;
+    __int64 FlagsOffset;
+    char SavedServiceFlag;
+    __int64 AttachContext;
+
+    Result = 0;
+    ServiceCount = GtRead(GtSdstServiceCount);
+    KeAttachProcessFunc = (int (__fastcall *)(struct _KPROCESS *, __int64, _QWORD, __int64, _QWORD, _BYTE, __int64 *))GtRead((enum _GLOBAL_TABLE_INDEX)(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54));
+    KeDetachProcessFunc = (int (__fastcall *)(__int64, _QWORD))GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField124 | 0x100));
+    if (!KeDetachProcessFunc)
+        KeDetachProcessFunc = (int (__fastcall *)(__int64, _QWORD))ResolveSyscallAddressesWithAttach();
+    pContextFlags = (_QWORD *)GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtExFreeCallBackAddr | 0x100));
+    RegisterFuncPtr = GtRead(GtRegisterObjectCallbacksFunc);
+    DeregisterFunc = (void (__fastcall *)(__int64))RegisterFuncPtr;
+    if (ServiceCount != -1 && KeAttachProcessFunc && KeDetachProcessFunc && pContextFlags && RegisterFuncPtr)
+    {
+        CurrentThread = KeGetCurrentThread();
+        if (KeAttachProcessFunc(TargetProcess, 512, 0, 0x10000000, *pContextFlags, 0, &AttachContext) >= 0)
+        {
+            if (!GtRead(GtPspExitThreadAddr))
+            {
+                ScanProcessPESectionsV2();
+                GtRead(GtPspExitThreadAddr);
+            }
+            if (!GtRead(GtKiInsertQueueApcFunc))
+            {
+                InitHookFunctionTable();
+                GtRead(GtKiInsertQueueApcFunc);
+            }
+            if (ValidateProcessObject(TargetProcess, 0) == 1)
+            {
+                RefCount = ReferenceObjectSafe((__int64)TargetProcess);
+                ProcessFlagsOffset = GtRead(GtCallbackField124);
+                if (ProcessFlagsOffset)
+                {
+                    FlagsOffset = ProcessFlagsOffset;
+                    *(_DWORD *)((char *)TargetProcess + ProcessFlagsOffset) &= ~0x2000u;
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x1770)
+                        *(_DWORD *)((char *)TargetProcess + FlagsOffset) &= ~8u;
+                    else
+                        *(_DWORD *)((char *)TargetProcess + FlagsOffset) &= 0xBFFFFFF7;
+                }
+                if (RefCount == 1)
+                    DereferenceObjectSafe((__int64)TargetProcess);
+            }
+            ClearProcessPageTableFlags(TargetProcess);
+            SavedServiceFlag = *((_BYTE *)CurrentThread + ServiceCount);
+            *((_BYTE *)CurrentThread + ServiceCount) = 0;
+            Result = KeDetachProcessFunc(AttachContext, 0) >= 0;
+            DeregisterFunc(AttachContext);
+            *((_BYTE *)CurrentThread + ServiceCount) = SavedServiceFlag;
+        }
+    }
+    return Result;
+}
+
+// UnlinkFromProcessMemoryList — 从进程内存链表解除链接
+__int64 UnlinkFromProcessMemoryList(PVOID *pTargetPointer)
+{
+    char Result;
+    PVOID **pListHead;
+    PVOID **pSentinel;
+    PVOID *pCurrentNode;
+    int IterationCount;
+    PVOID *pPrevEntry;
+    PVOID **pNextEntry;
+
+    Result = 0;
+    pListHead = (PVOID **)GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField31 | 0x800));
+    pSentinel = pListHead;
+    if (pListHead && MmIsAddressValid(pListHead) == 1)
+    {
+        pCurrentNode = *pSentinel;
+        IterationCount = 0;
+        while (pCurrentNode != (PVOID *)pSentinel)
+        {
+            if (pCurrentNode <= MmSystemRangeStart)
+                break;
+            if (MmIsAddressValid(pCurrentNode) != 1)
+                break;
+            if ((unsigned int)++IterationCount > 0x1000)
+                break;
+            if (pCurrentNode - 1 == pTargetPointer)
+            {
+                if (MmIsAddressValid(*pCurrentNode) == 1)
+                {
+                    pPrevEntry = (PVOID *)*pCurrentNode;
+                    pNextEntry = (PVOID **)pCurrentNode[1];
+                    Result = 1;
+                    pPrevEntry[1] = pNextEntry;
+                    *pNextEntry = pPrevEntry;
+                }
+                return Result;
+            }
+            pCurrentNode = (PVOID *)*pCurrentNode;
+        }
+    }
+    return Result;
+}
+
+// ValidateAndClearProcessContext — 验证并清除进程上下文
+__int64 ValidateAndClearProcessContext(int CurrentProcessor, __int64 pContext)
+{
+    char Result;
+    char *CurrentFiber;
+    int FiberOffset;
+    bool IsSameProcessor;
+
+    Result = 1;
+    if (*(_DWORD *)pContext == -1 || *(_DWORD *)pContext == CurrentProcessor)
+    {
+        ClearDebugRegisters();
+        CurrentFiber = (char *)j_GetCurrentFiber();
+        FiberOffset = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField88));
+        if (CurrentFiber && FiberOffset)
+            memset(&CurrentFiber[FiberOffset], 0, 0x30u);
+        IsSameProcessor = *(_DWORD *)pContext == CurrentProcessor;
+        *(_BYTE *)(pContext + 4) = 1;
+        return !IsSameProcessor;
+    }
+    return Result;
+}

@@ -321,3 +321,476 @@ char CmdEnumDriverObjects(unsigned int *pOutputBuffer, unsigned int OutputSize, 
     }
     return Success;
 }
+
+// ===== 注册表操作函数（从 MissingFuncs.c 移入） =====
+
+// GetDeleteValueKeyCtx — 获取 DeleteValueKey 上下文
+// 对应原始驱动 sub_1400784DC
+__int64 GetDeleteValueKeyCtx(_QWORD *pContext)
+{
+    char *CurrentFiber;
+    __int64 Offset;
+    CurrentFiber = (char *)j_GetCurrentFiber();
+    *pContext = 0;
+    Offset = GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField130 | 0x100));
+    if ((_DWORD)Offset && CurrentFiber) *pContext = &CurrentFiber[(unsigned int)Offset];
+    return Offset;
+}
+
+// GetSetValueKeyCtx — 获取 SetValueKey 上下文
+// 对应原始驱动 sub_1400784DC
+__int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult)
+{
+    char *FiberBase;
+    char *FiberBaseCopy;
+    __int64 ContextOffset;
+
+    FiberBase = (char *)j_GetCurrentFiber();
+    *pContext = 0;
+    *pResult = 0;
+    FiberBaseCopy = FiberBase;
+    ContextOffset = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField129 | 0x100));
+    if ((_DWORD)ContextOffset && FiberBaseCopy)
+        *pContext = &FiberBaseCopy[(unsigned int)ContextOffset];
+    return ContextOffset;
+}
+
+// FindDeleteValueKeyTarget — 查找 NtDeleteValueKey 的 Hook 目标
+__int64 FindDeleteValueKeyTarget(__int64 Buffer, unsigned int BufferSize, __int64 Context, __int64 TargetBase, unsigned int TargetSize, __int64 *pResult)
+{
+    *pResult = 0;
+    __int64 Offset = GtRead((GLOBAL_TABLE_INDEX)(GtNtWriteFilePeSectionOffset | GtEprocessField08));
+    if ((_DWORD)Offset && (unsigned int)Offset < BufferSize && (int)Offset + 4106 < BufferSize)
+    {
+        unsigned __int64 ScanPos = Buffer + (unsigned int)Offset;
+        unsigned __int64 EndAddress = Buffer + BufferSize;
+        unsigned __int64 ScanEnd = ScanPos + 4096;
+        while (ScanPos < ScanEnd)
+        {
+            unsigned int Decoded = DecodeUtf8Buffer((unsigned __int8 *)ScanPos, EndAddress);
+            if (!Decoded)
+                break;
+            if (Decoded == 7 && (*(_DWORD *)ScanPos & 0xFFFFFF) == 0xCD048D && *(_BYTE *)(ScanPos + 7) == 57)
+            {
+                unsigned __int64 Delta = *(unsigned int *)(ScanPos + 3);
+                if (Delta > *(_QWORD *)(Context + 48))
+                {
+                    unsigned int ResultOffset = (unsigned int)(Delta - *(_DWORD *)(Context + 48));
+                    if (ResultOffset < TargetSize)
+                        *pResult = TargetBase + ResultOffset;
+                }
+                return Decoded;
+            }
+            ScanPos += Decoded;
+        }
+    }
+    return 0;
+}
+
+// FindSetValueKeyTargets — 查找 NtSetValueKey 的 Hook 目标（主方案）
+__int64 FindSetValueKeyTargets(
+    __int64 Buffer,
+    unsigned int BufferSize,
+    __int64 Context,
+    __int64 BaseOffset,
+    unsigned int MaxDelta,
+    _QWORD *pResult1,
+    __int64 *pResult2)
+{
+    __int64 ImageSize;
+    __int64 result;
+    unsigned __int64 ScanPos;
+    unsigned __int64 EndAddress;
+    unsigned __int64 ScanEnd;
+    unsigned __int64 Delta1;
+    unsigned __int64 BaseValue;
+    unsigned __int64 Delta2;
+    unsigned int ResultOffset1;
+    unsigned int ResultOffset2;
+
+    *pResult1 = 0;
+    *pResult2 = 0;
+    ImageSize = BufferSize;
+    result = GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField142 | 0x100));
+    if ((_DWORD)result && (unsigned int)result < (unsigned int)ImageSize && (int)result + 4126 < (unsigned int)ImageSize)
+    {
+        ScanPos = Buffer + (unsigned int)result;
+        EndAddress = Buffer + ImageSize;
+        ScanEnd = ScanPos + 4096;
+        while (ScanPos < ScanEnd)
+        {
+            result = DecodeUtf8Buffer((unsigned __int8 *)ScanPos, EndAddress);
+            if (!(_DWORD)result)
+                break;
+            if ((_DWORD)result == 5
+                && *(_BYTE *)ScanPos == 0xB9
+                && *(_BYTE *)(ScanPos + 5) == 0x84
+                && *(_BYTE *)(ScanPos + 24) == 0xB9)
+            {
+                Delta1 = *(unsigned int *)(ScanPos + 1);
+                BaseValue = *(_QWORD *)(Context + 48);
+                Delta2 = *(unsigned int *)(ScanPos + 25);
+                if (Delta1 > BaseValue && Delta2 > BaseValue)
+                {
+                    ResultOffset1 = (unsigned int)(Delta1 - BaseValue);
+                    ResultOffset2 = (unsigned int)(Delta2 - BaseValue);
+                    if (ResultOffset1 < MaxDelta && ResultOffset2 < MaxDelta)
+                    {
+                        *pResult1 = BaseOffset + ResultOffset1;
+                        result = BaseOffset + ResultOffset2;
+                        *pResult2 = result;
+                    }
+                }
+                return result;
+            }
+            result = (unsigned int)result;
+            ScanPos += (unsigned int)result;
+        }
+    }
+    return result;
+}
+
+// FindSetValueKeyTarget — 查找 NtSetValueKey 的 Hook 目标（备选方案）
+__int64 FindSetValueKeyTarget(
+    __int64 Buffer,
+    unsigned int BufferSize,
+    __int64 Context,
+    __int64 BaseOffset,
+    unsigned int MaxDelta,
+    __int64 *pResultOffset,
+    _QWORD *pResultOffset2)
+{
+    __int64 BufferSizeCopy;
+    __int64 DecodedSize;
+    unsigned __int64 ScanPos;
+    unsigned __int64 BufferEnd;
+    unsigned __int64 ScanEnd;
+    unsigned __int64 FoundValue;
+    unsigned int ValueDelta;
+
+    *pResultOffset = 0;
+    *pResultOffset2 = 0;
+    BufferSizeCopy = BufferSize;
+    DecodedSize = GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtNtQuerySystemInformationFunc | GtPathBuffer00));
+    if ((_DWORD)DecodedSize
+        && (unsigned int)DecodedSize < (unsigned int)BufferSizeCopy
+        && (int)DecodedSize + 4106 < (unsigned int)BufferSizeCopy)
+    {
+        ScanPos = Buffer + (unsigned int)DecodedSize;
+        BufferEnd = Buffer + BufferSizeCopy;
+        ScanEnd = ScanPos + 4096;
+        while (ScanPos < ScanEnd)
+        {
+            DecodedSize = DecodeUtf8Buffer((unsigned __int8 *)ScanPos, BufferEnd);
+            if (!(_DWORD)DecodedSize)
+                break;
+            if ((_DWORD)DecodedSize == 6 && *(_WORD *)ScanPos == 967 && *(_WORD *)(ScanPos + 6) == 17289)
+            {
+                FoundValue = *(unsigned int *)(ScanPos + 2);
+                if (FoundValue > *(_QWORD *)(Context + 48))
+                {
+                    ValueDelta = (unsigned int)(FoundValue - *(_DWORD *)(Context + 48));
+                    if (ValueDelta < MaxDelta)
+                    {
+                        DecodedSize = BaseOffset + ValueDelta;
+                        *pResultOffset = DecodedSize;
+                    }
+                }
+                return DecodedSize;
+            }
+            DecodedSize = (unsigned int)DecodedSize;
+            ScanPos += (unsigned int)DecodedSize;
+        }
+    }
+    return DecodedSize;
+}
+
+// FindNtRenameKeyTarget — 查找 NtRenameKey 目标
+__int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int64 Context, unsigned __int64 MaxOffset)
+{
+    char FoundMarker;
+    char FoundMatch;
+    unsigned int SectionOffset;
+    unsigned int i;
+    int CurrentOffset;
+    __int16 SectionType;
+    unsigned int MatchOffset;
+    int FinalOffset;
+    __int64 ReadContext;
+    __int64 CumulativeSize;
+    _DWORD SectionEntry[16];
+    int EntryField;
+    __int64 SectionFlags;
+    __int64 Value;
+    int v23;
+    unsigned int EntrySize;
+    __int64 SectionType2;
+    unsigned int EntryCumulSize;
+    __int64 EntryDataPtr;
+
+    FoundMarker = 0;
+    FoundMatch = 0;
+    SectionOffset = GtRead(GtNtCreateProcessPeSectionOffset);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (i = 0; i < 0x3E8; ++i)
+        {
+            SectionOffset = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if (SectionOffset)
+                return (__int16)SectionOffset;
+            CurrentOffset = EntryCumulSize + CumulativeSize;
+            CumulativeSize += EntryCumulSize;
+            SectionType = *(_WORD *)(EntryDataPtr + 6);
+            if ((unsigned __int16)(SectionType - 1340) <= 7u)
+            {
+                if (SectionFlags == 0x2000000 && Value > MaxOffset)
+                {
+                    GtWrite((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtDriverObject), Value);
+                    FoundMarker = 1;
+                    if (FoundMatch == 1)
+                        return (__int16)SectionOffset;
+                }
+            }
+            else if (SectionType == 1245 && SectionFlags == 0x40000)
+            {
+                if (EntryField)
+                {
+                    MatchOffset = CurrentOffset + EntryField - TargetBase;
+                    if (MatchOffset < TargetSize)
+                    {
+                        SectionOffset = ReadPESectionEntry(&ReadContext, SectionEntry);
+                        if (!SectionOffset)
+                        {
+                            CumulativeSize += EntryCumulSize;
+                            if (*(_WORD *)(EntryDataPtr + 6) == 321)
+                            {
+                                if (SectionEntry[14])
+                                {
+                                    SectionOffset = ReadPESectionEntry(&ReadContext, SectionEntry);
+                                    if (!SectionOffset)
+                                    {
+                                        FinalOffset = EntryCumulSize + CumulativeSize;
+                                        CumulativeSize += EntryCumulSize;
+                                        if (*(_WORD *)(EntryDataPtr + 6) == 1072)
+                                        {
+                                            if (EntryField && SectionFlags == 0x40000 && !Value)
+                                            {
+                                                SectionOffset = FinalOffset + EntryField - TargetBase;
+                                                if (SectionOffset && SectionOffset < TargetSize)
+                                                {
+                                                    GtWrite((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtNtoskrnlImageSize), MaxOffset + SectionOffset);
+                                                    GtWrite(GtCallbackField119, MaxOffset + MatchOffset);
+                                                    FoundMatch = 1;
+                                                    if (FoundMarker == 1)
+                                                        return (__int16)SectionOffset;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (__int16)SectionOffset;
+}
+
+// FindRenameKeyTargetEx — 查找 NtRenameKey 目标（旧版扩展）
+__int64 FindRenameKeyTargetEx(
+    __int64 TargetBase,
+    unsigned int TargetSize,
+    __int64 Context,
+    __int64 RelocBase)
+{
+    char FoundFlag;
+    unsigned int PhaseIndex;
+    enum _GLOBAL_TABLE_INDEX GtIndex;
+    __int64 Result;
+    unsigned int i;
+    int CurrentOffset;
+    unsigned int MatchOffset;
+    int FinalOffset;
+    __int64 ReadContext;
+    __int64 CumulativeSize;
+    _DWORD SectionEntry[30];
+    unsigned int EntrySize;
+    __int64 SectionFlags;
+    unsigned int EntryCumulSize;
+    __int64 EntryDataPtr;
+
+    FoundFlag = 0;
+    for (PhaseIndex = 0; PhaseIndex < 2; ++PhaseIndex)
+    {
+        GtIndex = (enum _GLOBAL_TABLE_INDEX)(GtNtDuplicateObjectPeSectionOffset | GtObjectTypeField02 | GtPathBuffer00);
+        if (PhaseIndex)
+            GtIndex = GtNtCreateProcessPeSectionOffset;
+        Result = GtRead(GtIndex);
+        if ((_DWORD)Result && (unsigned int)Result < TargetSize)
+        {
+            InitPESectionReadContext(TargetBase + (unsigned int)Result, TargetSize - Result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            for (i = 0; i < 0x3E8; ++i)
+            {
+                Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                if ((_DWORD)Result)
+                    break;
+                CurrentOffset = EntryCumulSize + CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                if (*(_WORD *)(EntryDataPtr + 6) == 1245 && SectionFlags == 0x40000)
+                {
+                    if (EntrySize)
+                    {
+                        MatchOffset = CurrentOffset + EntrySize - TargetBase;
+                        if (MatchOffset < TargetSize)
+                        {
+                            Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                            if (!(_DWORD)Result)
+                            {
+                                CumulativeSize += EntryCumulSize;
+                                if (*(_WORD *)(EntryDataPtr + 6) == 321)
+                                {
+                                    if (SectionEntry[14])
+                                    {
+                                        Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                                        if (!(_DWORD)Result)
+                                        {
+                                            FinalOffset = EntryCumulSize + CumulativeSize;
+                                            CumulativeSize += EntryCumulSize;
+                                            if (*(_WORD *)(EntryDataPtr + 6) == 1296)
+                                            {
+                                                if (EntrySize && SectionFlags == 0x40000)
+                                                {
+                                                    Result = FinalOffset + EntrySize - (unsigned int)TargetBase;
+                                                    if ((unsigned int)Result > 8 && (unsigned int)Result < TargetSize)
+                                                    {
+                                                        FoundFlag = 1;
+                                                        GtWrite(GtCallbackField118, Result + RelocBase - 8);
+                                                        Result = GtWrite(GtCallbackField119, RelocBase + MatchOffset);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (FoundFlag == 1)
+            break;
+    }
+    return Result;
+}
+
+// ScanRegValueBodyForRef — 扫描注册表值体查找引用
+__int64 ScanRegValueBodyForRef(
+    unsigned __int64 a1,
+    unsigned int a2,
+    __int64 a3,
+    __int64 a4,
+    int a5,
+    __int64 *a6)
+{
+    __int64 ImageSize;
+    __int64 Result;
+    unsigned __int8 *TargetPtr;
+    unsigned __int8 *BodyStart;
+    unsigned int ResultOffset;
+    _WORD UnicodeBuf[6];
+    int OffsetValue;
+    int EntryFlags;
+    unsigned int CharLen;
+    _DWORD *TokenPtr;
+
+    *a6 = 0;
+    ImageSize = a2;
+    Result = GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField151 | 0x100));
+    if ((_DWORD)Result && (unsigned int)Result < (unsigned int)ImageSize)
+    {
+        TargetPtr = 0;
+        BodyStart = (unsigned __int8 *)(a1 + (unsigned int)Result);
+        while (1)
+        {
+            Result = DecodeUnicodeChar(BodyStart, a1 + ImageSize, UnicodeBuf);
+            if ((_BYTE)Result != 1)
+                break;
+            if (*TokenPtr == 4276)
+                break;
+            BodyStart += CharLen;
+            if (*TokenPtr == 4279
+                && EntryFlags == 1
+                && DecodeUnicodeChar(BodyStart, a1 + ImageSize, UnicodeBuf) == 1
+                && *TokenPtr == 4301
+                && OffsetValue < 0)
+            {
+                Result = (__int64)&BodyStart[OffsetValue];
+                TargetPtr = (unsigned __int8 *)(Result + CharLen);
+                break;
+            }
+        }
+        if ((unsigned __int64)TargetPtr >= a1 && (unsigned __int64)TargetPtr < a1 + ImageSize)
+        {
+            while (1)
+            {
+                Result = DecodeUnicodeChar(TargetPtr, a1 + ImageSize, UnicodeBuf);
+                if ((_BYTE)Result != 1)
+                    break;
+                if (*TokenPtr == 4276)
+                    break;
+                TargetPtr += CharLen;
+                if (*TokenPtr == 4737 && EntryFlags == 96 && DecodeUnicodeChar(TargetPtr, a1 + ImageSize, UnicodeBuf) == 1)
+                {
+                    TargetPtr += CharLen;
+                    if (DecodeUnicodeChar(TargetPtr, a1 + ImageSize, UnicodeBuf) == 1)
+                    {
+                        if (*TokenPtr == 4224
+                            && OffsetValue > 0
+                            && (unsigned __int64)(unsigned int)OffsetValue > *(_QWORD *)(a3 + 48))
+                        {
+                            ResultOffset = (unsigned int)(OffsetValue - *(_DWORD *)(a3 + 48));
+                            if (ResultOffset < (unsigned int)ImageSize)
+                            {
+                                Result = a4 + ResultOffset;
+                                *a6 = Result;
+                            }
+                            return (char)Result;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (char)Result;
+}
+
+// CopyRegistryContextEntryArray — 复制注册表上下文条目数组
+// 对应原始驱动 sub_140046048
+__int64 CopyRegistryContextEntryArray(__int64 pOutputTable)
+{
+    __int64 *pExportTable = GtAlloc(GtDisableHookProtectionAddr2|GtCallbackField50|0x3000);
+    if (!pExportTable)
+        return 0;
+    __int64 pDestSlot = pOutputTable + 8;
+    char *pSrcSlot = (char *)pExportTable + 4;
+    char Result = 0;
+    for (int EntryCount = 28; EntryCount; EntryCount--)
+    {
+        *(_DWORD *)(pDestSlot - 4) = *(_DWORD *)pSrcSlot;
+        if (*(_DWORD *)pSrcSlot && *((_DWORD *)pSrcSlot - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)pDestSlot = *(_QWORD *)(pSrcSlot + 4);
+            *(_OWORD *)(pDestSlot + 18) = *(_OWORD *)(pSrcSlot + 12);
+            *(_OWORD *)(pDestSlot + 34) = *(_OWORD *)(pSrcSlot + 28);
+        }
+        pSrcSlot += 48;
+        pDestSlot += 64;
+    }
+    return Result;
+}

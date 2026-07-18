@@ -3584,3 +3584,852 @@ char __fastcall ValidateEnumerationResult(__int64 pCheckFlagFunc, __int64 Curren
 
     return 0;
 }
+
+
+// ===== Functions moved from MissingFuncs.c =====
+
+// ResolveDriverRelativeAddresses — 解析驱动程序相对地址：将驱动信息条目中的相对地址转换为绝对地址，同时将 RVA 偏移转换为指针
+__int64 ResolveDriverRelativeAddresses(__int64 DriverInfo, __int64 Flags, int **pRelocTable)
+{
+    char Result;
+    __int64 KernelBase;
+    unsigned int EntryCount;
+    int *RelocBase;
+    int *pRelocEntry;
+    _QWORD *pCurrentEntry;
+    __int64 LoopCount;
+    int RelocShift;
+
+    Result = 0;
+    KernelBase = GtRead(GtKernelModuleBase);
+    if (KernelBase)
+    {
+        EntryCount = *(_DWORD *)(DriverInfo + 4);
+        RelocBase = *pRelocTable;
+        if (EntryCount)
+        {
+            pRelocEntry = *pRelocTable;
+            pCurrentEntry = (_QWORD *)(DriverInfo + 16);
+            LoopCount = EntryCount;
+            do
+            {
+                *pCurrentEntry = KernelBase + *((unsigned int *)pCurrentEntry - 1);
+                pCurrentEntry += 6;
+                RelocShift = *pRelocEntry++ >> 4;
+                *(pCurrentEntry - 5) = (char *)RelocBase + RelocShift;
+                --LoopCount;
+            }
+            while (LoopCount);
+        }
+        return 1;
+    }
+    return Result;
+}
+
+// ResolveDriverEntryAddresses — 解析驱动程序入口地址：遍历驱动信息条目，比较内存中的服务名与条目中的名称，匹配则标记有效
+__int64 ResolveDriverEntryAddresses(__int64 DriverInfo)
+{
+    char Result;
+    unsigned int EntryCount;
+    __int64 pEntry;
+    __int64 LoopCount;
+    unsigned int EntryIndex;
+    __int64 pCurrentEntry;
+    unsigned int CompareSize;
+    unsigned int ByteIndex;
+    __int64 ResolvedAddress;
+
+    Result = 0;
+    if (GtRead(GtKernelModuleBase))
+    {
+        EntryCount = *(_DWORD *)(DriverInfo + 4);
+        if (EntryCount)
+        {
+            pEntry = DriverInfo + 16;
+            LoopCount = EntryCount;
+            do
+            {
+                if (*(_QWORD *)(pEntry + 8) != *(_QWORD *)pEntry)
+                    *(_BYTE *)(pEntry + 16) = 1;
+                pEntry += 48;
+                --LoopCount;
+            }
+            while (LoopCount);
+        }
+        EntryIndex = 0;
+        if (EntryCount)
+        {
+            pCurrentEntry = DriverInfo + 16;
+            do
+            {
+                CompareSize = 16;
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800 && *(_WORD *)(pCurrentEntry + 18) == 9727)
+                    CompareSize = 6;
+                if (MmIsAddressValid((PVOID)(*(_QWORD *)pCurrentEntry + 15LL)) == 1)
+                {
+                    if ((unsigned int)MemoryCompare(*(_QWORD *)pCurrentEntry, (char *)(48LL * EntryIndex + DriverInfo + 34), CompareSize))
+                    {
+                        *(_BYTE *)(pCurrentEntry + 17) = 1;
+                        if (!*(_BYTE *)(pCurrentEntry + 16))
+                        {
+                            for (ByteIndex = 0; ByteIndex < CompareSize; ++ByteIndex)
+                            {
+                                if (!MmIsAddressValid((PVOID)(*(_QWORD *)pCurrentEntry + ByteIndex)))
+                                    break;
+                            }
+                            if (ByteIndex && ReturnFalseStub() == 1)
+                                *(_QWORD *)(pCurrentEntry + 8) = ResolvedAddress;
+                        }
+                    }
+                }
+                ++EntryIndex;
+                pCurrentEntry += 48;
+            }
+            while (EntryIndex < EntryCount);
+        }
+        return 1;
+    }
+    return Result;
+}
+
+// ResolveKernelModuleBasePair — 解析内核模块基址对
+__int64 ResolveKernelModuleBasePair(__int64 CpuNumber, ULONG_PTR *pMsrPair)
+{
+    unsigned __int64 MsrBaseLstar;
+    unsigned __int64 Msr;
+
+    MsrBaseLstar = ReadMsr(0xC0000083);
+    if (MsrBaseLstar && *pMsrPair && MsrBaseLstar != *pMsrPair)
+        pMsrPair[2] = MsrBaseLstar;
+    Msr = ReadMsr(0xC0000082);
+    if (Msr)
+    {
+        if (pMsrPair[1])
+        {
+            if (Msr != pMsrPair[1])
+                pMsrPair[3] = Msr;
+        }
+    }
+    return 1;
+}
+
+// ResolveKernelModuleBasePair2 — 解析内核模块基址对
+__int64 ResolveKernelModuleBasePair2(__int64 CpuNumber, ULONG_PTR *pMsrPair)
+{
+    unsigned __int64 MsrBaseLstar;
+    unsigned __int64 Msr;
+
+    MsrBaseLstar = ReadMsr(0xC0000083);
+    if (MsrBaseLstar && *pMsrPair && MsrBaseLstar != *pMsrPair)
+        pMsrPair[2] = MsrBaseLstar;
+    Msr = ReadMsr(0xC0000082);
+    if (Msr)
+    {
+        if (pMsrPair[1])
+        {
+            if (Msr != pMsrPair[1])
+                pMsrPair[3] = Msr;
+        }
+    }
+    return 1;
+}
+
+// AdjustKernelModuleSectionPointers — 调整内核模块节区指针
+__int64 AdjustKernelModuleSectionPointers(void)
+{
+    __int64 v0;
+    __int64 result;
+    __int64 v2;
+    __int64 v3;
+
+    v0 = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField187 | 0x100));
+    result = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField188 | 0x100));
+    v2 = result;
+    if (v0 && result)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+        {
+            result = GtRead(GtWindowsBuildNumber);
+            if ((_DWORD)result != 9200)
+                return result;
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), v0 + 16);
+            v3 = v2 + 16;
+        }
+        else
+        {
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), v0 + 8);
+            v3 = v2 + 8;
+        }
+        return GtWrite((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | 0x100), v3);
+    }
+    return result;
+}
+
+// ResolveKernelModuleIndex — 解析内核模块索引
+__int64 __fastcall ResolveKernelModuleIndex(
+    enum _GLOBAL_TABLE_INDEX a1,
+    enum _GLOBAL_TABLE_INDEX a2,
+    enum _GLOBAL_TABLE_INDEX a3)
+{
+    __int64 v6;
+    struct _KPROCESS *v7;
+    __int64 v8;
+    unsigned int v9;
+    __int64 v10;
+    unsigned int KernelPESectionByType;
+    unsigned int v12;
+    unsigned int v13;
+    __int64 v14;
+    struct _KAPC_STATE ApcState;
+
+    v6 = GtRead(a3);
+    if (!v6)
+    {
+        v7 = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+        if (IoGetCurrentProcess() == v7)
+            v7 = 0;
+        if (v7)
+            KeStackAttachProcess(v7, &ApcState);
+        v8 = GtRead(GtEprocessField22);
+        v9 = GtRead(GtEprocessField23);
+        v10 = GtRead(GtNtoskrnlModuleBase);
+        KernelPESectionByType = FindKernelPESectionByType(a1);
+        v12 = GtRead(GtWin32kServiceEntryCount);
+        if (v8 && v9 && v10 && KernelPESectionByType && KernelPESectionByType < v12)
+        {
+            v13 = ResolveSyscallToAddress(KernelPESectionByType);
+            if (v13 && v13 < v9)
+            {
+                v14 = v13;
+                GtWrite(a2, v13);
+                v6 = v10 + v14;
+                GtWrite(a3, v6);
+            }
+        }
+        if (v7)
+            KeUnstackDetachProcess(&ApcState);
+    }
+    return v6;
+}
+
+// WalkKernelModuleList — 遍历内核模块链表
+__int64 __fastcall WalkKernelModuleList(unsigned __int64 *pModuleList, _DWORD *pOutputBuffer, _DWORD *pMaxEntries)
+{
+    unsigned int EntryCount;
+    unsigned int IterCount;
+    unsigned __int64 pListEntry;
+
+    EntryCount = 0;
+    IterCount = 0;
+    for (pListEntry = *pModuleList;
+         pListEntry > (unsigned __int64)MmSystemRangeStart
+         && (unsigned __int64 *)pListEntry != pModuleList
+         && IterCount < 0x1000
+         && *pMaxEntries
+         && CheckMemoryValid((void *)pListEntry) == 1
+         && CheckMemoryValid((void *)(pListEntry + 31)) == 1;
+         pListEntry = *(_QWORD *)pListEntry)
+    {
+        pOutputBuffer[4 * *pOutputBuffer + 4] = *(_DWORD *)(pListEntry + 24);
+        *(_QWORD *)&pOutputBuffer[4 * (*pOutputBuffer)++ + 2] = *(_QWORD *)(pListEntry + 16);
+        ++EntryCount;
+        ++IterCount;
+    }
+    return EntryCount;
+}
+
+// BuildDriverInfoEntries — 构建驱动信息条目
+// 从 GT 读取驱动上下文表，遍历已有条目填充驱动对象地址，再扩展填充新条目
+__int64 BuildDriverInfoEntries(unsigned int *EntryArray, unsigned int BufferSize)
+{
+    char Result;
+    __int64 ContextTablePtr;
+    __int64 DriverContextTable;
+    unsigned int ExistingCount;
+    unsigned int TotalCount;
+    unsigned int LoopIndex;
+    __int64 DriverBaseAddr;
+    __int64 EntryOffset;
+    unsigned int NewTotalCount;
+    unsigned int FillIndex;
+    __int64 EntryOffset2;
+    int RawEntryData;
+
+    Result = 0;
+    ContextTablePtr = GtRead(GtFindHookTargetFirstMatchAddr2);
+    if (ContextTablePtr)
+    {
+        DriverContextTable = *(_QWORD *)ContextTablePtr;
+        ExistingCount = *EntryArray;
+        TotalCount = *(_DWORD *)(ContextTablePtr + 16);
+        LoopIndex = 0;
+        if (TotalCount < *EntryArray)
+            TotalCount = *EntryArray;
+        EntryArray[1] = TotalCount;
+        if (ExistingCount)
+        {
+            do
+            {
+                DriverBaseAddr = DriverContextTable + (*(int *)(DriverContextTable + 4LL * LoopIndex) >> 4);
+                EntryOffset = 42LL * LoopIndex;
+                *(_QWORD *)&EntryArray[EntryOffset + 40] = DriverBaseAddr;
+                if (DriverBaseAddr != *(_QWORD *)&EntryArray[EntryOffset + 38])
+                    *(unsigned char *)&EntryArray[EntryOffset + 42] = 1;
+                ++LoopIndex;
+            }
+            while (LoopIndex < *EntryArray);
+        }
+        NewTotalCount = EntryArray[1];
+        FillIndex = *EntryArray;
+        if (NewTotalCount > *EntryArray && BufferSize >= 168 * NewTotalCount + 176 && FillIndex < NewTotalCount)
+        {
+            do
+            {
+                EntryOffset2 = 42LL * FillIndex;
+                EntryArray[EntryOffset2 + 2] = FillIndex;
+                RawEntryData = *(_DWORD *)(DriverContextTable + 4LL * FillIndex);
+                *(unsigned short *)&EntryArray[EntryOffset2 + 42] = 0;
+                EntryArray[EntryOffset2 + 36] = 0;
+                *(_QWORD *)&EntryArray[EntryOffset2 + 38] = 0;
+                ++FillIndex;
+                *(_QWORD *)&EntryArray[EntryOffset2 + 40] = DriverContextTable + (RawEntryData >> 4);
+                *(unsigned short *)&EntryArray[EntryOffset2 + 3] = 0;
+            }
+            while (FillIndex < EntryArray[1]);
+        }
+        return 1;
+    }
+    return Result;
+}
+
+// ParseKernelModuleDiskInfo — 解析内核模块磁盘信息
+__int64 ParseKernelModuleDiskInfo(void)
+{
+    bool Result;
+    unsigned int FileSize;
+    void *FileBuffer;
+
+    Result = 0;
+    if (GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField136 | 0x100)) && ReadNtFileDiskInfo(&FileBuffer, &FileSize))
+    {
+        Result = FindHalInitPatternOffsets((__int64)FileBuffer, FileSize) == 1;
+        ExFree(FileBuffer);
+    }
+    return Result;
+}
+
+// ParseRegistryDriverExportDir — 解析注册表驱动导出目录
+void ParseRegistryDriverExportDir(void)
+{
+    char Result;
+    __int64 *pExportTable;
+    __int64 NtoskrnlBase;
+    unsigned int *pIndexPtr;
+    __int64 EntryCount;
+    __int64 TargetRva;
+    char *pFileBuffer;
+    unsigned int FileSize;
+    char *pRawData;
+
+    Result = 0;
+    pExportTable = GtAlloc((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtCallbackField50 | 0x3000));
+    NtoskrnlBase = GtRead((enum _GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs5 | GtEprocessField54));
+    if (NtoskrnlBase && ReadRegistryDriverFile(&pRawData, &FileSize))
+    {
+        if (ParseKernelModuleSectionTable((__int64)pRawData, FileSize, (__int64)pExportTable) == 1
+            && ParseNtExportDir((__int64)pRawData, FileSize, NtoskrnlBase, 0) == 1)
+        {
+            pIndexPtr = (unsigned int *)pExportTable + 1;
+            EntryCount = 28;
+            do
+            {
+                TargetRva = *pIndexPtr;
+                *(pIndexPtr - 1) = 0;
+                if ((_DWORD)TargetRva && (int)TargetRva + 32 <= FileSize)
+                {
+                    *(pIndexPtr - 1) = 1;
+                    pFileBuffer = pRawData;
+                    *(_OWORD *)(pIndexPtr + 3) = *(_OWORD *)&pRawData[TargetRva];
+                    *(_OWORD *)(pIndexPtr + 7) = *(_OWORD *)&pFileBuffer[TargetRva + 16];
+                }
+                pIndexPtr += 12;
+                --EntryCount;
+            }
+            while (EntryCount);
+            Result = 1;
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs6 | GtEprocessField54), 1);
+        }
+        ExFree(pRawData);
+        if (Result == 1)
+            FillExportEntrySlot((__int64)pExportTable);
+    }
+}
+
+// ParseExportDirForDriver — 解析驱动程序导出目录
+__int64 ParseExportDirForDriver(__int64 DriverInfo, __int64 Context, __int64 PeBuffer, unsigned int PeSize)
+{
+    char Result;
+    __int64 v8;
+    unsigned int v9;
+    unsigned int v10;
+    unsigned int *v11;
+    __int64 v12;
+
+    Result = 0;
+    v8 = GtRead(GtKernelModuleBase);
+    if (v8 && ParseNtExportDir(PeBuffer, PeSize, v8, 0) == 1)
+    {
+        v9 = *(_DWORD *)(DriverInfo + 4);
+        v10 = 0;
+        if (!v9)
+            return 1;
+        v11 = (unsigned int *)(DriverInfo + 12);
+        do
+        {
+            v12 = *v11;
+            if ((int)v12 + 16 > PeSize)
+                break;
+            ++v10;
+            v11 += 12;
+            *(_OWORD *)((char *)v11 - 26) = *(_OWORD *)(v12 + PeBuffer);
+        }
+        while (v10 < v9);
+        if (v10 >= v9)
+            return 1;
+    }
+    return Result;
+}
+
+// BuildProcessContextExportTable — 构建进程上下文导出表
+void BuildProcessContextExportTable(void)
+{
+    __int64 NtoskrnlBase;
+    __int64 LoopCount;
+    unsigned int *pContextEntry;
+    int FuncRva;
+    __int64 FuncRvaCopy;
+    __int64 LoopCount2;
+    unsigned int *pTargetEntry;
+    int TargetRva;
+    __int64 TargetRvaCopy;
+    unsigned int FileSize;
+    char *pFileBuffer;
+
+    NtoskrnlBase = GtRead((enum _GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs8 | GtEprocessField54));
+    if (NtoskrnlBase && ReadNtFileForProcessContext(&pFileBuffer, &FileSize))
+    {
+        if (ParseNtImageSections2((__int64)pFileBuffer, FileSize) == 1
+            && ParseNtExportDir((__int64)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
+        {
+            LoopCount = 28;
+            pContextEntry = (unsigned int *)GtAlloc((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtPspExitThreadAddr | 0x3400)) + 1;
+            do
+            {
+                FuncRva = *pContextEntry;
+                *(pContextEntry - 1) = 0;
+                if (FuncRva && FuncRva + 16 <= FileSize)
+                {
+                    GtWrite((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField182), 1);
+                    FuncRvaCopy = *pContextEntry;
+                    *(pContextEntry - 1) = 1;
+                    *(_OWORD *)(pContextEntry + 3) = *(_OWORD *)&pFileBuffer[FuncRvaCopy];
+                }
+                pContextEntry += 12;
+                --LoopCount;
+            }
+            while (LoopCount);
+            LoopCount2 = 27;
+            pTargetEntry = (unsigned int *)GtAlloc((enum _GLOBAL_TABLE_INDEX)15650) + 1;
+            do
+            {
+                TargetRva = *pTargetEntry;
+                *(pTargetEntry - 1) = 0;
+                if (TargetRva && TargetRva + 16 <= FileSize)
+                {
+                    GtWrite((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField183), 1);
+                    TargetRvaCopy = *pTargetEntry;
+                    *(pTargetEntry - 1) = 1;
+                    *(_OWORD *)(pTargetEntry + 3) = *(_OWORD *)&pFileBuffer[TargetRvaCopy];
+                }
+                pTargetEntry += 12;
+                --LoopCount2;
+            }
+            while (LoopCount2);
+        }
+        ExFree(pFileBuffer);
+    }
+}
+
+// ReadRegistryDriverFile — 读取注册表驱动文件：通过编码路径解码注册表驱动文件路径，调用 ReadFileRawData 读取后用 ReadNtFileToBuffer 解析 PE 格式
+char ReadRegistryDriverFile(char **pFileBuffer, unsigned int *pFileSize)
+{
+    char Result;
+    size_t FileSize;
+    void *pRawData;
+    int EncodedBuffer[20];
+
+    Result = 0;
+    EncodedBuffer[0] = 5439580;
+    EncodedBuffer[1] = 7536761;
+    EncodedBuffer[2] = 6619252;
+    EncodedBuffer[3] = 5374061;
+    EncodedBuffer[4] = 7274607;
+    EncodedBuffer[5] = 6029428;
+    EncodedBuffer[6] = 7929971;
+    EncodedBuffer[7] = 7602291;
+    EncodedBuffer[8] = 7143525;
+    EncodedBuffer[9] = 3276851;
+    EncodedBuffer[10] = 6553692;
+    EncodedBuffer[11] = 6881394;
+    EncodedBuffer[12] = 6619254;
+    EncodedBuffer[13] = 7536754;
+    EncodedBuffer[14] = 7209052;
+    EncodedBuffer[15] = 6684784;
+    EncodedBuffer[16] = 3014771;
+    EncodedBuffer[17] = 7929971;
+    EncodedBuffer[18] = 115;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedBuffer, &pRawData, (ULONG *)&FileSize, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)pRawData, (unsigned int)FileSize, pFileBuffer, pFileSize) == 1;
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// ParseKernelModuleSectionTable — 解析内核模块节区表：遍历 PE 节区条目，查找特定类型和标志的节区偏移，将匹配的偏移和地址写入输出表
+char ParseKernelModuleSectionTable(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
+{
+    __int64 PeOffset;
+    char Result;
+    __int64 NtoskrnlBase;
+    __int64 SectionDirRva;
+    char IsTargetSection;
+    int SectionIndex;
+    int ComputedOffset;
+    __int16 SectionType;
+    unsigned int SectionRva;
+    unsigned int EntryIndex;
+    int ComputedOffset2;
+    __int16 SectionType2;
+    int SectionFlags;
+    unsigned int SectionRva2;
+    __int64 SlotIndex;
+    unsigned int SectionOffset;
+    __int64 SectionContext;
+    __int64 AccumulatedOffset;
+    _DWORD SectionEntry[14];
+    int SectionDataSize;
+    int FieldFlags;
+    __int64 SectionCharacteristics;
+    int SlotIndex2;
+    int FieldMisc;
+    __int64 SectionAlignment;
+    int FieldIndex;
+    int FieldOffset;
+    unsigned int SectionFileOffset;
+    __int64 pSectionEntryBase;
+    _DWORD SectionOffsetTable[16];
+
+    PeOffset = *(int *)(FileBuffer + 60);
+    Result = 0;
+    NtoskrnlBase = GtRead((GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs5 | GtEprocessField54));
+    if (NtoskrnlBase)
+    {
+        SectionDirRva = *(unsigned int *)(PeOffset + FileBuffer + 40);
+        if ((unsigned int)SectionDirRva < FileSize && (int)SectionDirRva + 4096 < FileSize)
+        {
+            IsTargetSection = 0;
+            InitPESectionReadContext(FileBuffer + SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+            SectionIndex = 0;
+            while (!(unsigned int)ReadPESectionEntry(&SectionContext, SectionEntry))
+            {
+                ComputedOffset = SectionFileOffset + AccumulatedOffset;
+                AccumulatedOffset += SectionFileOffset;
+                SectionType = *(_WORD *)(pSectionEntryBase + 6);
+                if (SectionType == 1369)
+                {
+                    SectionRva = ComputedOffset + SectionDataSize - FileBuffer;
+                    if (SectionRva && SectionRva < FileSize)
+                        goto LABEL_FOUND_SECTION;
+                }
+                else if (SectionType == 1296 && SectionCharacteristics == 64 && SlotIndex2 == 1)
+                {
+                    IsTargetSection = 1;
+                }
+                else if (SectionType == 1368)
+                {
+                    if (IsTargetSection == 1)
+                    {
+                        SectionRva = ComputedOffset + SectionDataSize - FileBuffer;
+                        if (SectionRva && SectionRva < FileSize)
+                        {
+LABEL_FOUND_SECTION:
+                            SectionDirRva = SectionRva;
+                            break;
+                        }
+                    }
+                    IsTargetSection = 0;
+                }
+                if ((unsigned int)++SectionIndex >= 0x14)
+                    break;
+            }
+        }
+        if ((unsigned int)SectionDirRva < FileSize && (int)SectionDirRva + 4096 < FileSize)
+        {
+            InitPESectionReadContext(FileBuffer + (unsigned int)SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+            memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
+            for (EntryIndex = 0; EntryIndex < 0x3E8; ++EntryIndex)
+            {
+                if ((unsigned int)ReadPESectionEntry(&SectionContext, SectionEntry))
+                    break;
+                ComputedOffset2 = SectionFileOffset + AccumulatedOffset;
+                AccumulatedOffset += SectionFileOffset;
+                SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+                if (SectionType2 == 1349)
+                    break;
+                SectionFlags = SectionCharacteristics;
+                if (SectionType2 == 1298 && SectionAlignment == 0x40000)
+                {
+                    if (FieldMisc && SectionCharacteristics == 64)
+                    {
+                        SectionRva2 = ComputedOffset2 + FieldMisc - FileBuffer;
+                        if (SectionRva2 && SectionRva2 < FileSize)
+                            SectionOffsetTable[SlotIndex2] = SectionRva2;
+                    }
+                }
+                if (SectionType2 == 1139)
+                    memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
+                if (SectionType2 == 1294
+                    && (*(_QWORD *)&SectionFlags & 0x14000LL) != 0
+                    && (SectionFlags & 0x40) != 0
+                    && (FieldOffset & 0xF) != 4
+                    && SectionAlignment == 64
+                    && (unsigned int)(FieldFlags - 112) <= 0xD8
+                    && (FieldFlags & 7) == 0)
+                {
+                    SlotIndex = (unsigned int)(FieldFlags - 112) >> 3;
+                    if ((unsigned int)SlotIndex <= 0x1B)
+                    {
+                        SectionOffset = SectionOffsetTable[FieldIndex];
+                        if (SectionOffset && !*(_DWORD *)(OutputTable + 48 * SlotIndex + 4))
+                        {
+                            Result = 1;
+                            *(_DWORD *)(OutputTable + 48 * SlotIndex + 4) = SectionOffset;
+                            *(_QWORD *)(OutputTable + 48 * SlotIndex + 8) = NtoskrnlBase + SectionOffset;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// ScanProcessPESections — 扫描进程 PE 节区：附加到目标进程，遍历 PE 节区条目，查找匹配的节区偏移并写入全局表
+void ScanProcessPESections(void)
+{
+    struct _KPROCESS *TargetProcess;
+    __int64 SectionBase;
+    __int64 FileSize;
+    __int64 BaseAddr;
+    __int64 ImageBase;
+    __int64 SectionSize;
+    __int64 SignatureOffset;
+    __int64 SectionContext;
+    __int64 AccumulatedOffset;
+    char SectionEntry[256];
+    unsigned int SectionFileOffset;
+    __int64 pSectionEntryBase;
+    unsigned int LoopCount;
+    struct _KAPC_STATE ApcState;
+    int FoundOffset;
+    int FoundOffset2;
+    int FoundOffset3;
+
+    TargetProcess = (struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x61);
+    if (IoGetCurrentProcess() == TargetProcess)
+        TargetProcess = 0;
+    if (TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+    SectionBase = GtRead((GLOBAL_TABLE_INDEX)0x63);
+    FileSize = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    BaseAddr = GtRead((GLOBAL_TABLE_INDEX)0x21);
+    ImageBase = GtRead((GLOBAL_TABLE_INDEX)3);
+    SectionSize = GtRead((GLOBAL_TABLE_INDEX)2);
+    SignatureOffset = GtRead((GLOBAL_TABLE_INDEX)0x41C8);
+    if (SectionBase && FileSize && BaseAddr && ImageBase && SectionSize && SignatureOffset)
+    {
+        AccumulatedOffset = 0;
+        FoundOffset = 0;
+        FoundOffset2 = 0;
+        FoundOffset3 = 0;
+        InitPESectionReadContext(SectionBase + BaseAddr, FileSize, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+        LoopCount = 0;
+        while (!(unsigned int)ReadPESectionEntry(&SectionContext, SectionEntry))
+        {
+            if (*(_WORD *)(pSectionEntryBase + 6) == 0x512)
+            {
+                if ((AccumulatedOffset & 0x40000) != 0)
+                {
+                    FoundOffset = SectionFileOffset + AccumulatedOffset;
+                    FoundOffset2 = *(unsigned int *)(pSectionEntryBase - 0x60);
+                    if (FoundOffset2)
+                    {
+                        FoundOffset2 = FoundOffset2 - BaseAddr + AccumulatedOffset;
+                        if (FoundOffset2)
+                        {
+                            if (FoundOffset2 < FileSize)
+                                FoundOffset3 = FoundOffset2;
+                        }
+                    }
+                }
+            }
+            else if (*(_WORD *)(pSectionEntryBase + 6) == 0x558)
+            {
+                if ((SectionFileOffset & 0x4000000) != 0)
+                {
+                    FoundOffset2 = *(unsigned int *)(pSectionEntryBase - 0x28);
+                    if (FoundOffset2)
+                    {
+                        FoundOffset2 = FoundOffset2 - BaseAddr + AccumulatedOffset;
+                        if (SignatureOffset == FoundOffset2)
+                            break;
+                    }
+                }
+            }
+            ++LoopCount;
+            if (LoopCount >= 0xC8)
+                break;
+        }
+        if (FoundOffset && FoundOffset2 && FoundOffset3)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)0x67, ImageBase + FoundOffset);
+            GtWrite((GLOBAL_TABLE_INDEX)0x66, ImageBase + FoundOffset2);
+            GtWrite((GLOBAL_TABLE_INDEX)0x65, ImageBase + FoundOffset3);
+        }
+    }
+    if (TargetProcess)
+        KeUnstackDetachProcess(&ApcState);
+}
+
+// ReadNtoskrnlForObjectContext — 为对象上下文读取 ntoskrnl：构造编码路径名，通过 ReadFileRawData 读取原始文件，再通过 ReadNtFileToBuffer 解析到缓冲区
+char ReadNtoskrnlForObjectContext(char **pFileBuffer, unsigned int *pFileSize)
+{
+    char Success;
+    size_t RawDataSize;
+    void *pRawData;
+    int EncodedPath[24];
+
+    Success = 0;
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6881372;
+    EncodedPath[15] = 3145784;
+    EncodedPath[16] = 3276852;
+    EncodedPath[17] = 7471216;
+    EncodedPath[18] = 3014772;
+    EncodedPath[19] = 7929971;
+    EncodedPath[20] = 115;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
+    {
+        Success = ReadNtFileToBuffer((int *)pRawData, (unsigned int)RawDataSize, pFileBuffer, pFileSize) == 1;
+        ExFree(pRawData);
+    }
+    return Success;
+}
+
+// ===== Functions moved from MissingFuncs.c =====
+
+// ParseNtImageSectionHeaders — 解析 NT 镜像节头：附加到目标进程，逐节比较内存内容，标记修改过的节
+__int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray)
+{
+    unsigned int SectionCount;
+    unsigned int SectionCountCopy;
+    __int64 CurrentSection;
+    __int64 LoopCount;
+    __int64 SectionIndex;
+    char FuncResult;
+    __int64 SavedValue;
+    __int64 SectionOffset;
+    unsigned __int8 ProcessAttached;
+    __int64 SectionEntry;
+    _OWORD SectionHeader1;
+    _OWORD SectionHeader2;
+    _OWORD SectionHeader3;
+    _OWORD SectionHeader4;
+    __int64 SectionHeader5;
+    struct _KAPC_STATE ApcState;
+    _OWORD v21;
+    __int64 SectionAddr;
+    __int64 SectionAddrEnd;
+
+    SectionCount = GtRead(GtWin32kServiceCount);
+    SectionCountCopy = SectionCount;
+    if (SectionCount)
+    {
+        CurrentSection = SectionInfoArray + 32;
+        LoopCount = SectionCount;
+        do
+        {
+            if (*(_QWORD *)CurrentSection && *(_QWORD *)CurrentSection != *(_QWORD *)(CurrentSection + 8))
+                *(_BYTE *)(CurrentSection + 16) = 1;
+            CurrentSection += 72;
+            --LoopCount;
+        }
+        while (LoopCount);
+    }
+    ProcessAttached = ReferenceObjectSafe((__int64)PROCESS);
+    for (SectionIndex = 0; (unsigned int)SectionIndex < SectionCountCopy; SectionIndex = (unsigned int)(SectionIndex + 1))
+    {
+        if (*(_QWORD *)(SectionInfoArray + 72 * SectionIndex + 32))
+        {
+            SectionHeader1 = *(_OWORD *)(SectionInfoArray + 72 * SectionIndex);
+            SectionHeader2 = *(_OWORD *)(SectionInfoArray + 72 * SectionIndex + 16);
+            SectionHeader3 = *(_OWORD *)(SectionInfoArray + 72 * SectionIndex + 32);
+            SectionHeader4 = *(_OWORD *)(SectionInfoArray + 72 * SectionIndex + 48);
+            SectionHeader5 = *(_QWORD *)(SectionInfoArray + 72 * SectionIndex + 64);
+            KeStackAttachProcess(PROCESS, &ApcState);
+            SectionAddr = *(__int64 *)&SectionHeader3;
+            SectionAddrEnd = SectionAddr + 15;
+            if ((unsigned __int64)SectionAddr < MmUserProbeAddress && SectionAddrEnd < MmUserProbeAddress)
+            {
+                if ((unsigned int)MemoryCompare(*(__int64 *)&SectionHeader3, (char *)&SectionHeader4 + 2, 0x10u))
+                {
+                    *((_BYTE *)&SectionHeader4 + 1) = 1;
+                    if (!(*(_BYTE *)&SectionHeader4))
+                    {
+                        memset(&v21, 0, sizeof(v21));
+                        v21 = *(_OWORD *)(*(__int64 *)&SectionHeader3);
+                        FuncResult = ReturnFalseStub();
+                        SavedValue = *((__int64 *)&SectionHeader3 + 1);
+                        if (FuncResult == 1)
+                            SavedValue = SectionEntry;
+                        *((__int64 *)&SectionHeader3 + 1) = SavedValue;
+                    }
+                }
+            }
+            KeUnstackDetachProcess(&ApcState);
+            SectionOffset = 9LL * (unsigned int)SectionIndex;
+            *(_OWORD *)(SectionInfoArray + 8 * SectionOffset) = SectionHeader1;
+            *(_OWORD *)(SectionInfoArray + 8 * SectionOffset + 16) = SectionHeader2;
+            *(_OWORD *)(SectionInfoArray + 8 * SectionOffset + 32) = SectionHeader3;
+            *(_OWORD *)(SectionInfoArray + 8 * SectionOffset + 48) = SectionHeader4;
+            *(_QWORD *)(SectionInfoArray + 8 * SectionOffset + 64) = SectionHeader5;
+        }
+    }
+    if (ProcessAttached == 1)
+        DereferenceObjectSafe((__int64)PROCESS);
+    return 1;
+}

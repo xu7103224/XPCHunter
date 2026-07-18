@@ -168,6 +168,10 @@
 		    <ClCompile Include="src\QueryDriver.c" />
 		    <ClCompile Include="src\MemoryCleanup.c" />
 		    <ClCompile Include="src\MissingFuncs.c" />
+		    <ClCompile Include="src\Batch1.c" />
+		    <ClCompile Include="src\Batch2.c" />
+		    <ClCompile Include="src\Batch3.c" />
+		    <ClCompile Include="src\Batch4.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\XPCHunterDrv.h" />

@@ -29,7 +29,7 @@ extern unsigned int QueryPnpManagerDriverObject(__int64 OutputBuffer, unsigned i
 extern void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
 extern char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
 extern __int64 ResolveKernelModuleBasePair(__int64 a1, __int64 a2, _QWORD *a3, __int64 a4);
-extern __int64 ReadThreadContext(__int64 a1, __int64 a2, __int64 a3, __int64 a4);
+extern char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
 extern __int64 ValidateAndClearProcessContext(__int64 a1, __int64 a2, __int64 a3, __int64 a4);
 
 // 前向声明：Cmd* 命令处理函数包装器
@@ -5866,14 +5866,18 @@ __int64 EnumServicesOperation(char *pInputBuffer, int InputSize, _DWORD *pOutput
 // EnumServiceTableOperation — 枚举服务表操作
 // 对应原始驱动 sub_140055DEC (CmdEnumServiceTable)
 // 根据构建号选择不同版本的移除函数操作服务表
+#pragma warning(push)
+#pragma warning(disable: 4700)
 __int64 EnumServiceTableOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
     char Result;
     __int64 *pEntry;
-    __int64 v5 = 0;
-    __int64 v6 = 0;
+    __int64 v5;
+    __int64 v6;
     __int64 **pServiceTable;
 
+    v5 = 0;
+    v6 = 0;
     Result = 0;
     pEntry = 0;
     if (pInputBuffer && InputSize == 8 &&
@@ -5906,6 +5910,7 @@ __int64 EnumServiceTableOperation(char *pInputBuffer, int InputSize, unsigned in
     }
     return Result;
 }
+#pragma warning(pop)
 
 // RestoreDriverDispatchOperation — 恢复驱动分发函数操作
 // 对应原始驱动 sub_140081280 (CmdRestoreDriverDispatch)

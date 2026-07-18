@@ -396,3 +396,119 @@ void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass)
     return Buffer;
 }
 
+// CmdQueryDiskInfo — 查询磁盘信息命令处理
+__int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
+{
+    unsigned int v10, v11;
+
+    if (!(unsigned int)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField135 | 0x100)))
+        InitDiskQueryExportTable();
+    if ((unsigned int)Length >= 0x38
+        && (unsigned __int64)Dst < MmUserProbeAddress
+        && (unsigned __int64)(Dst + Length) < MmUserProbeAddress)
+    {
+        ProbeForWrite(Dst, (unsigned int)Length, 1u);
+        if (!QueryDiskInfoAta(Dst, (unsigned int)Length, &v10))
+        {
+            memset(Dst, 0, 0x38u);
+            v10 = 56;
+        }
+        if ((unsigned int)Length >= v10)
+        {
+            if ((unsigned int)Length - v10 >= 0x1C)
+            {
+                if (!SendAtaScsiCommand(&Dst[v10], (unsigned int)Length - v10, &v11))
+                {
+                    *(_QWORD *)&Dst[v10] = 0;
+                    *((_QWORD *)&Dst[v10] + 1) = 0;
+                    *((_QWORD *)&Dst[v10] + 2) = 0;
+                    *((_DWORD *)&Dst[v10] + 6) = 0;
+                    v11 = 28;
+                }
+                if ((unsigned int)Length - v10 >= v11 && (unsigned int)Length - v10 - v11 >= 0xC)
+                {
+                    if (!(unsigned __int8)BuildDevicePath(&Dst[v10 + v11], (unsigned int)Length - v10 - v11))
+                    {
+                        *(_QWORD *)&Dst[v10 + v11] = 0;
+                        *((_DWORD *)&Dst[v10 + v11] + 2) = 0;
+                    }
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// CmdQuerySystemInfoExV2 — 查询系统信息（扩展版 V2）
+__int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
+{
+    unsigned int v10, v11;
+
+    if (!GtRead(GtNtQuerySystemInformationFunc))
+    {
+        InitNsiEnumerateObjects();
+        if (!GtRead(GtNtQuerySystemInformationFunc))
+            return 0;
+    }
+    if ((unsigned int)Length >= 0x38
+        && (unsigned __int64)Dst < MmUserProbeAddress
+        && (unsigned __int64)(Dst + Length) < MmUserProbeAddress)
+    {
+        ProbeForWrite(Dst, (unsigned int)Length, 1u);
+        if (!QuerySystemInfoPart1(Dst, (unsigned int)Length, &v10))
+        {
+            memset(Dst, 0, 0x38u);
+            v10 = 56;
+        }
+        if ((unsigned int)Length >= v10)
+        {
+            if ((unsigned int)Length - v10 >= 0x1C)
+            {
+                if (!QuerySystemInfoPart2(&Dst[v10], (unsigned int)Length - v10, &v11))
+                {
+                    *(_QWORD *)&Dst[v10] = 0;
+                    *((_QWORD *)&Dst[v10] + 1) = 0;
+                    *((_QWORD *)&Dst[v10] + 2) = 0;
+                    *((_DWORD *)&Dst[v10] + 6) = 0;
+                    v11 = 28;
+                }
+                if ((unsigned int)Length - v10 >= v11 && (unsigned int)Length - v10 - v11 >= 0xC)
+                {
+                    if (!(unsigned __int8)BuildDevicePath(&Dst[v10 + v11], (unsigned int)Length - v10 - v11))
+                    {
+                        *(_QWORD *)&Dst[v10 + v11] = 0;
+                        *((_DWORD *)&Dst[v10 + v11] + 2) = 0;
+                    }
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+
+
+// ===== Functions moved from MissingFuncs.c =====
+
+// ForEachProcessor — 对每个处理器核心执行回调函数（简化实现）
+__int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 CallbackContext)
+{
+    return pCallbackFunc(0, CallbackContext);
+}
+
+// InitUnicodeStringBuffer — 初始化 Unicode 字符串缓冲区
+__int64 InitUnicodeStringBuffer(__int64 Buffer, __int64 StringPtr, unsigned int MaxLength)
+{
+    if (MaxLength < 2)
+    {
+        *(_QWORD *)(Buffer + 8) = 0;
+        *(_DWORD *)Buffer = 0;
+        return 0;
+    }
+    *(_WORD *)(Buffer + 2) = MaxLength;
+    *(_QWORD *)(Buffer + 8) = StringPtr;
+    *(_WORD *)Buffer = MaxLength - 2;
+    return 2;
+}

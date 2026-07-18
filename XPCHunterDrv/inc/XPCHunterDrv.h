@@ -226,32 +226,32 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtWin32kServiceTableVersion = 108, // Win32k 服务表版本标志(==2 表示可用, ParseNtKernelFile)
     GtEprocessField99 = 109,
     GtEprocessField100 = 110,
-    GtEprocessField101 = 111,
-    GtEprocessField102 = 112,
-    GtEprocessField103 = 113,
-    GtEprocessField104 = 114,
-    GtEprocessField105 = 115,
+    GtPeDataSectionVa = 111,        // PE 数据节 VA(FindKernelInitSection/MiniFilterPostWrite/PreCleanup)
+    GtPeDataSectionVa2 = 112,       // PE 数据节 VA 2(MiniFilterPreCleanup)
+    GtPeDataSectionVa3 = 113,       // PE 数据节 VA 3(FindKernelDataSectionByData)
+    GtPeDataSectionVa4 = 114,       // PE 数据节 VA 4(MiniFilterPostCreate/MiniFilterPreRead)
+    GtPeDataSectionVa5 = 115,       // PE 数据节 VA 5(MiniFilterPostRead/MiniFilterPreWrite)
     GtEprocessField106 = 116,
     GtEprocessField107 = 117,
     GtEprocessField108 = 118,
-    GtEprocessField109 = 119,
+    GtPeCodeDataSectionVa = 119,    // PE CODE 节数据 VA(FindKernelDataSectionByCode)
     GtEprocessField110 = 120,
-    GtEprocessField111 = 121,
+    GtPeSectionEndVa = 121,         // PE 节结束 VA(MiniFilterPostWrite/MiniFilterPreCleanup)
     GtEprocessField112 = 122,
     GtEprocessField113 = 123,
-    GtEprocessField114 = 124,
-    GtEprocessField115 = 125,
+    GtPeSectionEndVa2 = 124,        // PE 节结束 VA 2(MiniFilterPostCreate/MiniFilterPreRead)
+    GtPeSectionEndVa3 = 125,        // PE 节结束 VA 3(MiniFilterPostRead/MiniFilterPreWrite)
     GtEprocessField116 = 126,
     GtEprocessField117 = 127,
     GtEprocessField118 = 128,
-    GtEprocessField119 = 129,
+    GtPeCodeSectionEndVa = 129,     // PE CODE 节结束 VA(FindKernelDataSectionByCode)
     GtEprocessField120 = 130,
-    GtEprocessField121 = 131,
+    GtPeInitSectionEndVa = 131,    // PE INIT 节结束 VA(FindKernelInitSection)
     GtEprocessField122 = 132,
     GtEprocessField123 = 133,
     GtEprocessField124 = 134,
-    GtEprocessField125 = 135,
-    GtEprocessField126 = 136,
+    GtObCallbackEntry1 = 135,       // ObRegisterCallbacks 回调入口 1(InstallObjectPreCallbackHooks)
+    GtObCallbackEntry2 = 136,       // ObRegisterCallbacks 回调入口 2(InstallObjectPreCallbackHooks)
     GtEprocessField127 = 137,
     GtEprocessField128 = 138,
     GtEprocessField129 = 139,
@@ -646,6 +646,10 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtEprocessModuleEntryCount = 0x80F,     // 2063: EPROCESS 模块链表条目计数
     GtEprocessModuleListOffset = 0x810,     // 2064: EPROCESS 模块链表偏移(Win32k/非Win32k)
 
+    // ---- Fwps 调度表 (2048-2049) ----
+    GtFwpsDispatchTableBase = 0x800,    // 2048: Fwps Win8 调度表基址(FindFwpsDispatchTableWin8)
+    GtFwpsDispatchTableCount = 0x801,   // 2049: Fwps Win8 调度表条目数(FindFwpsDispatchTableWin8)
+
     // ---- 命令处理函数表 (2337) ----
     GtCommandHandlerBase = 0x921,   // 2337: 命令处理函数表基址
     GtCommandHandlerEnd = 0xA3B,    // 2619: 命令处理函数表结束 (282个处理函数)
@@ -713,6 +717,10 @@ typedef enum _GLOBAL_TABLE_INDEX {
     // ---- 内核模块基址 (2292, 2294) ----
     GtHalModuleBase = 0x8F4,             // 2292: hal.dll 模块基址(ReadFileIntoBuffer)
     GtNtoskrnlFileBase = 0x8F6,           // 2294: ntoskrnl.exe 文件基址(ReadFileIntoBuffer)
+
+    // ---- NtOpenProcess Hook 目标 (2313-2314) ----
+    GtNtOpenProcessHookOffset = 0x909,   // 2313: NtOpenProcess Hook 目标偏移(HookSyscallNtOpenProcess)
+    GtNtOpenProcessHookAddress = 0x90A,  // 2314: NtOpenProcess Hook 目标地址(HookSyscallNtOpenProcess)
     GtFileSystemExportTable = 0x8A8,         // 2216: 文件系统导出表地址(InitFileSystemExportTable)
     GtFileSystemExportTable32 = 0x8AA,        // 2218: 32位文件系统导出表地址(InitFileSystemExportTable)
     GtFileSystemReady10 = 0x8B0,              // 2224: Win10 文件系统过滤器就绪标志(InitFileSystemExportTable)
@@ -805,6 +813,35 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtKernelDataSectionScanTarget3 = 0x4444,     // 17476: 内核数据节区扫描目标偏移 3 (Win10 1607+)
 
 } GLOBAL_TABLE_INDEX;
+
+// EPROCESS 字段别名（源码使用原始索引编号，枚举使用偏移量）
+#define GtEprocessField101  GtPsExitSpecialApcAddr   // index 101
+#define GtEprocessField104  GtEprocessField94         // index 104
+#define GtEprocessField106  GtEprocessField96         // index 106
+#define GtEprocessField107  GtModuleBuffer            // index 107
+#define GtEprocessField108  GtWin32kServiceTableVersion // index 108
+#define GtEprocessField109  GtEprocessField99         // index 109
+#define GtEprocessField111  GtPeDataSectionVa         // index 111
+#define GtEprocessField112  GtPeDataSectionVa2        // index 112
+#define GtEprocessField114  GtPeDataSectionVa4        // index 114
+#define GtEprocessField115  GtPeDataSectionVa5        // index 115
+#define GtEprocessField117  GtEprocessField107        // index 117
+#define GtEprocessField118  GtEprocessField108        // index 118
+#define GtEprocessField120  GtEprocessField110        // index 120
+#define GtEprocessField121  GtPeSectionEndVa          // index 121
+#define GtEprocessField122  GtEprocessField112        // index 122
+#define GtEprocessField123  GtEprocessField113        // index 123
+#define GtEprocessField124  GtPeSectionEndVa2         // index 124
+#define GtEprocessField129  GtPeCodeSectionEndVa      // index 129
+#define GtEprocessField130  GtEprocessField120        // index 130
+#define GtEprocessField131  GtPeInitSectionEndVa      // index 131
+#define GtEprocessField132  GtEprocessField122        // index 132
+#define GtEprocessField133  GtEprocessField123        // index 133
+#define GtEprocessField134  GtEprocessField124        // index 134
+#define GtEprocessField135  GtObCallbackEntry1        // index 135
+#define GtEprocessField136  GtObCallbackEntry2        // index 136
+#define GtEprocessField138  GtEprocessField128        // index 138
+#define GtEprocessField139  GtEprocessField129        // index 139
 
 // 兼容旧名称宏定义（平滑过渡）
 #define GT_NT_BUILD_NUMBER         ((int)GtNtBuildNumber)
@@ -1266,7 +1303,7 @@ __int64 __fastcall DispatchIoControlByBuildNumber( __int64 (__fastcall *HandlerF
     unsigned int Arg5);
 __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress);
 __int64 DispatchParseNtExportFunctions(void);
-__int64 DispatchWin32kPatternMatching(void);
+__int64 DispatchWin32kPatternMatching(__int64 Buffer, unsigned int BufferSize);
 __int64 DuplicateUSBPortSyscallOutput(__int64 pSourceTable);
 char EnableDeviceObjectProtection(void);
 __int64 EnableHookProtection(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
@@ -1521,8 +1558,8 @@ char MatchObjectTypeEntry(__int64 Target, __int64 TableBase);
 __int64 MatchObjectTypeFilterCallback(_QWORD *a1, _QWORD *a2, __int64 a3);
 __int64 MatchObjectTypeFilterCallbackV2(_QWORD *a1, _QWORD *a2, __int64 a3);
 __int64 MatchSystemProcessName(_QWORD *Process);
-void Md5Final(PMD5_CONTEXT Context, ULONG Digest[2]);
-void Md5Final2(PMD5_CONTEXT Context, ULONG Digest[2]);
+void Md5Final(PMD5_CONTEXT Context, PUCHAR Digest);
+void Md5Final2(PMD5_CONTEXT Context, PUCHAR Digest);
 void Md5Transform(ULONG State[4], PUCHAR Block);
 void Md5Transform2(ULONG State[4], PUCHAR Block);
 void Md5Update(PMD5_CONTEXT Context, PUCHAR Input, ULONG Length);
@@ -1593,7 +1630,7 @@ __int64 OpenKbdClassDriverSection(void);
 __int64 OpenMountMgrDriverSection(void);
 char OpenMountPointManagerDevice(_QWORD ObjectBody);
 __int64 OpenPhysicalDiskDevice(__int16 *a1, void *a2, void **a3);
-__int64 OpenSectionWithIoControl(__int64 a1);
+__int64 OpenSectionWithIoControl(__int64 DeviceHandle);
 __int64 OpenTcpIpDriverSection(void);
 __int64 OpenWdfDriverSection(void);
 __int64 OpenWin32kSection(void);
@@ -1613,10 +1650,10 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
 void ParseObjectContextExportDir(void);
 char ParsePESectionHeaders(__int64 PeBase, unsigned int PeSize, __int64 SectionName, unsigned __int8 *NameToMatch, unsigned int *OutOffset);
 void ParseRegistryDriverExportDir(void);
-__int64 PatchFsFilterDriverIndex(__int64 PatchEntry, char Is64Bit);
+char PatchFsFilterDriverIndex(__int64 PatchEntry, char Is64Bit);
 __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize);
 __int64 PowerCallbackUnregister(HANDLE *InputBuffer, int BufferSize);
-__int64 PrepareFileForPageTableScan(void);
+char PrepareFileForPageTableScan(char *VirtualAddress, char a2);
 char ProcessCallbackRoutine(__int64 Reserved, __int64 Reserved2, _DWORD *OutputBuffer, unsigned int BufferSize);
 __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize);
 __int64 ProcessOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
@@ -1676,7 +1713,7 @@ __int64 ReadProcessMemoryString(void *Process, void *Address, char *Buffer, unsi
 __int64 ReadProcessMemoryWithAttach(void);
 __int64 ReadServiceTableEntries(__int64 OutputBuffer, __int64 a2, char *PeFileData, unsigned int PeFileSize);
 char ReadSystemDriverFile(_QWORD *OutBuffer, unsigned int *OutSize);
-__int64 ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
+char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
 NTSTATUS RegNotifyCallback(PVOID CallbackContext, PVOID Argument1, PVOID Argument2);
 void RegisterMiniFilterRegistry(void);
 __int64 RegistryOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
@@ -1685,7 +1722,7 @@ __int64 ReleaseDiskBuffer(__int64 a1);
 char ReleaseIrpMonitorContext(char IsAcquired, __int64 DeviceObject, unsigned int IrpMajorFunc, _OWORD *pContextBuffer);
 __int64 ReleaseProcessMemoryBlock(_QWORD *pTargetEntry);
 char __fastcall RelocateExportAddresses(void *Src, size_t MaxCount, int BaseDelta);
-__int64 RemoveFromModuleLinkedList(PVOID *pTargetEntry, char ListType);
+char RemoveFromModuleLinkedList(PVOID *pTargetEntry, char ListType);
 __int64 RemoveFromObjectTypeList(PVOID *pTargetObject);
 __int64 RemoveFromObjectTypeListEx(PVOID *pTargetPointer);
 char RemoveI8042prtDriverObject(ULONG64 DriverObject);
@@ -1749,7 +1786,7 @@ __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, 
 __int64 __fastcall SendDeviceIoControlWithRetry(__int64 Handle, unsigned int IoControlCode, char Flags, _DWORD **OutputHandle, __int64 IoStatusBlock);
 __int64 SendFsctlWithHookSwap(__int64 a1, ULONG a2, __int64 a3, ULONG a4, __int64 a5, int a6, __int64 a7);
 
-__int64 SendIoControlWithUnicodeString(void);
+_DWORD *SendIoControlWithUnicodeString(__int64 a1);
 __int64 SerializeDataToBuffer(PUCHAR Context);
 __int64 SetCallbackContextEntry(ULONG *pInputEntry);
 __int64 SetDecoderStateFlags(PUCHAR Context);
@@ -1805,6 +1842,14 @@ __int64 WStringCompareCaseInsensitive(__int64 Str1, __int64 Str2);
 __int64 WalkKernelModuleList(ULONG64 *pModuleList, ULONG *pOutputBuffer, ULONG *pMaxEntries);
 char WalkObjectTypeList(_QWORD **NodeStack, int MaxDepth, _DWORD *OutputBuffer, unsigned int MaxBufferSize);
 __int64 WriteDiskSectorsWithPartitionCheck(char a1, const void *a2, ULONG a3);
+char SendDiskDeviceInternalIrp(__int64 DeviceObject, struct _IRP *Irp);
+char DispatchDiskIrpWithHookInit(void *DeviceObject, int Direction, void *Buffer, int SectorOffset, unsigned int SectorIndex, unsigned int SectorSize);
+char CheckMbrBootablePartition(void *Buffer);
+char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress);
+__int64 CheckObjectTypePointerMatch(__int64 VirtualAddress);
+void ClearPageTableEntryFlags(char *VirtualAddress);
+char SendCdbCommandToDevice(__int64 VirtualAddress);
+__int64 ExecuteWithThreadFlagCleared(__int64 VirtualAddress);
 char WritePhysicalMemory(unsigned __int64 TargetAddress, __int64 pWriteContext);
 char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
 void WritePhysicalMemoryDword(ULONG64 TargetAddress, ULONG Value);
@@ -1882,6 +1927,16 @@ __int64 GetProcessContextBase(void);
 __int64 OpenVolumeDriverSection(void);
 bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize);
 bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize);
+char ReadWin32kFullDriverFile(__int64 *a1, unsigned int *a2);
+char VerifyServiceTableDriverFile(__int64 a1, unsigned int a2);
+void BuildProcessContextExportTable(void);
+__int64 QueryObjectOperationByVersion(__int64 ImageBase, int ImageSize, int SectionBase);
+__int64 FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSize, int SectionBase);
+__int64 FindObjectOperationDataSection(__int64 ImageBase, int ImageSize, int SectionBase);
+char CmdObjectOperationByHandle(__int64 *pInputBuffer, int InputSize);
+char CompareKernelPageAttached(void *PageAddress, _DWORD *OutputBuffer, struct _KPROCESS *TargetProcess, __int64 (*ReadMemoryCallback)(void *));
+char DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLength, _QWORD *pSyscallCount);
+char DispatchObjectOperationInit(__int64 ImageBase, unsigned int ImageSize);
 __int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 OutputBuffer, int MaxEntries);
 __int64 GetCallbackContextBase(void);
 void ReadNtOsKrnlAndParseServiceTable(void);
@@ -1890,4 +1945,52 @@ __int64 ParseServiceTableWin8(char *Src, size_t MaxCount);
 __int64 ParseServiceTableWin7(char *Src, size_t MaxCount);
 bool InitProcessAndQueryInfo(struct _KPROCESS *ProcessObject, char a2);
 __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int64 Context, unsigned __int64 MaxOffset);
+
+// MissingFuncs.c 子函数声明
+__int64 ScanWin32kPatternLegacy(__int64 OutputBuffer, unsigned int EntryCount);
+__int64 ScanWin32kPatternWin10Plus(__int64 OutputBuffer, unsigned int EntryCount);
+void Md5Init(char *Context);
+__int64 AesInitKeySchedule(void);
+__int64 AesKeyExpansion(int *KeySchedule, int *Key, int KeySize);
+__int64 AesDecryptBlocks(unsigned int *KeySchedule, unsigned char *Output, unsigned char *Input, unsigned int Length);
+__int64 AesDecryptRounds(unsigned int *KeySchedule, unsigned int *Output, unsigned int *Input);
+void BuildNtExportIndexTable(void);
+__int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, void *Buffer, int SectorCount, int BlockSize, int BlockCount);
+__int64 CdbCommandCompletionCallback(void *Irp);
+__int64 __fastcall RxTdiRequestCompletion(void *DeviceObject, void *Irp, void *Context);
+__int64 FindObjectOperationExportWin10(__int64 ImageBase, int ImageSize);
+__int64 ReadSystemDllAndInitSession(void);
+void InitIrpBufferWithCdb(__int64 Buffer, __int64 Address, unsigned int Flags, __int64 CompletionRoutine, unsigned int BlockSize, unsigned int BlockCount, unsigned int CdbFlags, unsigned int CdbParam);
+__int64 EnumObjectLinkedListSingle(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *pCount, int MaxEntries);
+__int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionBase);
+char ReadRegistryDriverFile(char **pFileBuffer, unsigned int *pFileSize);
+char ParseKernelModuleSectionTable(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable);
+__int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int SectionBase);
+void ScanProcessPESections(void);
+char ReadNtoskrnlForObjectContext(char **pFileBuffer, unsigned int *pFileSize);
+__int64 EnumObjectLinkedListWin8(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *pCount, int MaxEntries);
+__int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *pCount, int MaxEntries);
+char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTable);
+__int64 InitObjectOperationLegacy(void);
+__int64 ResolveSyscallAddressesInProcess(void);
+void ClearProcessPageTableFlags(struct _KPROCESS *Process);
+__int64 ValidateWin32kFullDriverImage(__int64 DiskBuffer, unsigned int DiskSize);
+unsigned char CheckStringPrefixNt(__int64 NamePtr);
+
+// Batch1.c 函数声明
+__int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult);
+char CheckTmDllSection(unsigned __int8 *NameToMatch);
+char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char BuildDevicePath(char *Buffer, unsigned int BufferSize);
+char QuerySystemInfoPart1(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char QuerySystemInfoPart2(char *Buffer, unsigned int BufferSize, unsigned int *OutSize);
+char InitNsiEnumerateObjects(void);
+char ReadNtoskrnlToBuffer(void **FileBuffer, unsigned int *FileSize);
+__int64 ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize);
+void *j_GetCurrentFiber(void);
+char ReadNtFileDiskInfo(void **FileBuffer, unsigned int *FileSize);
+__int64 FindHalInitPatternOffsets(__int64 PeBase, unsigned int PeSize);
+char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, unsigned int Image2Size);
+char InitSessionStateTable(__int64 PeBase, unsigned int PeSize);
 

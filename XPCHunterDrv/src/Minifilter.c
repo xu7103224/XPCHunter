@@ -1946,3 +1946,127 @@ __int64 (__fastcall *__fastcall FsFilterCreateCallback(__int64 FilterContext))(_
         return CreateFileFunc(0);
     return result;
 }
+
+
+// BuildFsFilterDriverPath1 — 构建文件系统过滤器驱动路径1
+__int64 BuildFsFilterDriverPath1()
+{
+    _DWORD EncodedPath[8];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394; EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426; EncodedPath[4] = 6553699; EncodedPath[5] = 7274610;
+    EncodedPath[6] = 109; EncodedPath[7] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// BuildFsFilterDriverPath2 — 构建文件系统过滤器驱动路径2
+__int64 BuildFsFilterDriverPath2()
+{
+    _DWORD EncodedPath[8];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394; EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426; EncodedPath[4] = 6881348; EncodedPath[5] = 7012467;
+    EncodedPath[6] = 0; EncodedPath[7] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// BuildRegistryDriverPath — 构建注册表驱动路径
+__int64 BuildRegistryDriverPath()
+{
+    _DWORD EncodedBuffer[10];
+    EncodedBuffer[0] = 4587612; EncodedBuffer[1] = 7077993; EncodedBuffer[2] = 5439589;
+    EncodedBuffer[3] = 7536761; EncodedBuffer[4] = 6619252; EncodedBuffer[5] = 6029421;
+    EncodedBuffer[6] = 7340110; EncodedBuffer[7] = 7536742; EncodedBuffer[8] = 0; EncodedBuffer[9] = 0;
+    return OpenFileSection((__int64)EncodedBuffer);
+}
+
+// CheckFilePathFilter — 检查文件路径是否被过滤屏蔽
+__int64 CheckFilePathFilter(__int64 FilePath, unsigned int FilePathLength)
+{
+    int Filter1;
+    __int64 Filter2;
+    int Filter3;
+    if (FilePathLength <= 8)
+        return 0;
+    Filter1 = 4259876;
+    Filter2 = 0x44007200740074LL;
+    Filter3 = 6684773;
+    if ((unsigned int)WStringCompareCaseInsensitive(FilePath + 6, (__int64)&Filter1)
+        && (Filter1 = 5046308, Filter2 = 0x69004D00540046LL, Filter3 = 7471218,
+            (unsigned int)WStringCompareCaseInsensitive(FilePath + 6, (__int64)&Filter1))
+        && (Filter1 = 5046308, Filter2 = 5505094,
+            (unsigned int)WStringCompareCaseInsensitive(FilePath + 6, (__int64)&Filter1)))
+    {
+        Filter1 = 5570596;
+        Filter2 = 0x73006100430070LL;
+        Filter3 = 101;
+        return (unsigned int)WStringCompareCaseInsensitive(FilePath + 6, (__int64)&Filter1) == 0;
+    }
+    return 1;
+}
+
+// InitFileSystemExportTable — 初始化文件系统导出表
+__int64 InitFileSystemExportTable(char Is64Bit)
+{
+    __int64 ExportTableAddr;
+    unsigned int FileSize;
+    char *FileBuffer;
+    FileBuffer = 0;
+    FileSize = 0;
+    if (Is64Bit == 1)
+    {
+        ExportTableAddr = GtRead(GtFileSystemExportTable);
+        if (ExportTableAddr)
+        {
+            GtAlloc((GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs5 | GtCallbackField79 | 0x1000));
+            if (ReadDisksSysFile(&FileBuffer, &FileSize))
+            {
+                if (ParseNtRelocSection((__int64)FileBuffer, FileSize, 0) == 1
+                    && ParseNtExportDir((__int64)FileBuffer, FileSize, ExportTableAddr, 0) == 1)
+                {
+                    GtWrite(GtFileSystemReady10, 1);
+                }
+                ExFree(FileBuffer);
+            }
+        }
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0)
+    {
+        if (GtRead(GtFileSystemExportTable32))
+        {
+            GtAlloc((GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField26 | 0x1500));
+            if (ReadCdromSysFile(&FileBuffer, &FileSize))
+                ExFree(FileBuffer);
+        }
+    }
+    return 0;
+}
+
+// CopyFsFilterEntryTable — 复制文件系统过滤器条目表
+// 对应原始驱动 sub_14000E510
+// 从 GT 分配表复制 64 条过滤器条目到输出缓冲区
+__int64 CopyFsFilterEntryTable(__int64 OutputBuffer, char Is64Bit)
+{
+    __int64 *RelocTable;
+    if (Is64Bit == 1)
+        RelocTable = GtAlloc((GLOBAL_TABLE_INDEX)0x1BB0);
+    else
+        RelocTable = GtAlloc((GLOBAL_TABLE_INDEX)0x1D3C);
+    char Result = 0;
+    __int64 OutputPtr = OutputBuffer + 16;
+    for (int Count = 64; Count; Count--)
+    {
+        char *InputPtr = (char *)RelocTable + 4 + 48LL * (64 - Count);
+        if (*(unsigned int *)InputPtr && *((unsigned int *)InputPtr - 1) == 1)
+        {
+            *(unsigned int *)(OutputPtr - 8) = *(unsigned int *)InputPtr;
+            Result = 1;
+            *(_QWORD *)OutputPtr = *(_QWORD *)(InputPtr + 4);
+            *(_OWORD *)(OutputPtr + 18) = *(_OWORD *)(InputPtr + 12);
+        }
+        else
+        {
+            *(_QWORD *)OutputPtr = 0;
+        }
+        OutputPtr += 56;
+    }
+    return Result;
+}
