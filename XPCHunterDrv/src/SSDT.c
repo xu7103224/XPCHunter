@@ -10,7 +10,7 @@
 
 // 外部函数声明（在其他 .c 文件中定义）
 char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, unsigned int Image2Size);
-__int64 MemoryCompare(__int64 Buf1, char *Buf2, unsigned int Size);
+unsigned int MemoryCompare(__int64 Buf1, char *Buf2, unsigned int Size);
 _BYTE *StringCopy(_BYTE *Dest, __int64 Src, unsigned int MaxLen);
 __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char RequirePeHeader);
 char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
@@ -18,6 +18,7 @@ __int64 OpenFileSection(__int64 EncodedPath);
 __int64 QueryObjectTypeDirectoryPath(void);
 char ReturnFalseStub(void);
 char WriteTcpIpSyscallEntry(unsigned int *pInputEntry);
+__int64 FindSsdtOffsetInNtFile(unsigned __int8 *pScanBuffer, unsigned __int64 BufferEnd, unsigned __int64 FuncAddress, unsigned int NtImageSize, __int64 NtoskrnlImageBase, unsigned int SkipCount);
 char WriteShadowSyscallEntry(unsigned int *pInputEntry);
 char SetSyscallHookEntry2(unsigned int *pInputEntry);
 char InstallSsdtHookEntry3(unsigned int *pInputEntry);
@@ -9604,4 +9605,973 @@ __int64 ValidateWin32kFullDriverImage(__int64 DiskBuffer, unsigned int DiskSize)
         }
     }
     return Result;
+}
+char FindSsdtServiceTableV1(void)
+{
+    char Result;
+    struct _KPROCESS *TargetProcess;
+    struct _KPROCESS *pTargetProcess;
+    unsigned int ExportDirRva;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    unsigned __int64 SectionEnd;
+    unsigned __int8 *pScanPos;
+    __int64 SsdtOffset;
+    __int64 SsdtOffsetOut;
+    __int64 Value;
+    struct _KAPC_STATE ApcState;
+
+    Result = 0;
+    TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    pTargetProcess = TargetProcess;
+    if (TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+    ExportDirRva = (unsigned int)GtRead(GtNtDuplicateObjectPeSectionOffset | GtEprocessField26);
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    if (ExportDirRva && ExportDirRva < NtImageSize && NtImageBase && NtImageSize)
+    {
+        Value = 0;
+        SsdtOffsetOut = 0;
+        SectionEnd = NtImageBase + NtImageSize;
+        pScanPos = (unsigned __int8 *)(NtImageBase + ExportDirRva);
+        if ((unsigned int)GtRead(GtEprocessField28) == 1)
+            FindSsdtSignatureInNtFile(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1771)
+        {
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 6000)
+                FindSsdtServiceTableEntry(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+            else
+                ResolveSsdtNtOffset(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        }
+        else
+            FindSsdtTableAddresses((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        if (Value)
+        {
+            SsdtOffset = SsdtOffsetOut;
+            if (SsdtOffsetOut)
+            {
+                GtWrite(GtEprocessField80, Value);
+                GtWrite(GtEprocessField81, SsdtOffset);
+                Result = 1;
+            }
+        }
+    }
+    if (pTargetProcess)
+        KeUnstackDetachProcess(&ApcState);
+    return Result;
+}
+
+
+char FindSsdtServiceTableV2(void)
+{
+    char Result;
+    struct _KPROCESS *TargetProcess;
+    struct _KPROCESS *pTargetProcess;
+    unsigned int ExportDirRva;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    unsigned __int64 SectionEnd;
+    unsigned __int8 *pScanPos;
+    __int64 SsdtOffset;
+    __int64 SsdtOffsetOut;
+    __int64 Value;
+    struct _KAPC_STATE ApcState;
+
+    Result = 0;
+    TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    pTargetProcess = TargetProcess;
+    if (TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+    ExportDirRva = (unsigned int)GtRead(GtTotalSize | GtEprocessField154 | 0x100);
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    if (ExportDirRva && ExportDirRva < NtImageSize && NtImageBase && NtImageSize)
+    {
+        Value = 0;
+        SsdtOffsetOut = 0;
+        SectionEnd = NtImageBase + NtImageSize;
+        pScanPos = (unsigned __int8 *)(NtImageBase + ExportDirRva);
+        if ((unsigned int)GtRead(GtEprocessField28) == 1)
+            FindSsdtSignatureInNtFile(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        else if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+            ResolveSsdtTablePointerEx((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        else
+            ResolveSsdtTablePointer((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        if (Value)
+        {
+            SsdtOffset = SsdtOffsetOut;
+            if (SsdtOffsetOut)
+            {
+                GtWrite(GtEprocessField78, Value);
+                GtWrite(GtEprocessField79, SsdtOffset);
+                Result = 1;
+            }
+        }
+    }
+    if (pTargetProcess)
+        KeUnstackDetachProcess(&ApcState);
+    return Result;
+}
+
+
+char FindSsdtServiceTableV3(void)
+{
+    char Result;
+    struct _KPROCESS *TargetProcess;
+    struct _KPROCESS *pTargetProcess;
+    unsigned int ExportDirRva;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    unsigned __int64 SectionEnd;
+    int ExportDirType;
+    unsigned __int8 *pScanPos;
+    __int64 SsdtOffset;
+    __int64 SsdtOffsetOut;
+    __int64 Value;
+    struct _KAPC_STATE ApcState;
+
+    Result = 0;
+    TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    pTargetProcess = TargetProcess;
+    if (TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3FAB)
+        ExportDirRva = (unsigned int)GtRead(GtTotalSize | GtEprocessField88 | 0x400);
+    else
+        ExportDirRva = (unsigned int)GtRead(GtTotalSize | GtEprocessField160 | 0x100);
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    if (ExportDirRva && ExportDirRva < NtImageSize && NtImageBase && NtImageSize)
+    {
+        Value = 0;
+        SsdtOffsetOut = 0;
+        SectionEnd = NtImageBase + NtImageSize;
+        ExportDirType = (int)GtRead(GtEprocessField28);
+        pScanPos = (unsigned __int8 *)(NtImageBase + ExportDirRva);
+        if (ExportDirType == 1)
+            FindSsdtSignatureInNtFile(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        else
+            ResolveSsdtTablePointer((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+        if (Value)
+        {
+            SsdtOffset = SsdtOffsetOut;
+            if (SsdtOffsetOut)
+            {
+                GtWrite(GtEprocessField82, Value);
+                GtWrite(GtEprocessField83, SsdtOffset);
+                Result = 1;
+            }
+        }
+    }
+    if (pTargetProcess)
+        KeUnstackDetachProcess(&ApcState);
+    return Result;
+}
+
+
+bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int TargetSize, _OWORD *pRelocOffsets)
+{
+    _OWORD RelocOut;
+    _OWORD RelocOut2;
+    _OWORD RelocOut3;
+    _OWORD RelocOut4;
+    int MatchCount;
+    unsigned int LoopIndex;
+    int CurrentOffset;
+    __int64 ReadContext;
+    __int64 CumulSize;
+    _DWORD SectionEntry[20];
+    __int64 EntryFlags;
+    unsigned int EntrySize;
+    int EntryCumulSize;
+    __int64 SectionType;
+    unsigned int EntryDataPtr;
+    __int64 FieldPtr;
+
+    RelocOut = pRelocOffsets[0];
+    RelocOut2 = pRelocOffsets[1];
+    RelocOut3 = pRelocOffsets[2];
+    RelocOut4 = pRelocOffsets[3];
+    MatchCount = 0;
+    InitPESectionReadContext(SectionBase, TargetSize + SectionOffset - SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    for (LoopIndex = 0; LoopIndex < 5; ++LoopIndex)
+    {
+        if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+            break;
+        CurrentOffset = EntryDataPtr + CumulSize;
+        CumulSize += EntryDataPtr;
+        if (*(_WORD *)(FieldPtr + 6) == 1298 && SectionType == 0x40000 && EntryCumulSize && EntryFlags == 64)
+        {
+            ++MatchCount;
+            *((_DWORD *)&RelocOut + EntrySize) = CurrentOffset + EntryCumulSize - SectionOffset;
+        }
+    }
+    if (MatchCount == 2)
+    {
+        pRelocOffsets[0] = RelocOut;
+        pRelocOffsets[1] = RelocOut2;
+        pRelocOffsets[2] = RelocOut3;
+        pRelocOffsets[3] = RelocOut4;
+    }
+    return MatchCount == 2;
+}
+
+
+__int64 ParseNtSectionsForShadowSsdt(void)
+{
+    __int64 Result;
+    __int64 Process;
+    unsigned int BaseOffset;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    __int64 NtoskrnlModuleBase;
+    int NtoskrnlImageSize;
+    unsigned int SectionIndex;
+    int CumulativeOffset;
+    unsigned short SectionType;
+    unsigned int ValueField;
+    __int64 SectionContext;
+    char EntryBuffer[0x120];
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 pSectionEntryBase;
+    __int64 FieldValueSize;
+    __int64 FieldFlags;
+    int FieldCount;
+    int SectionDataSize;
+    struct _KAPC_STATE ApcState;
+
+    Result = 0;
+    Process = GtRead(GtCurrentEprocess);
+
+    if (Process)
+        KeStackAttachProcess((struct _KPROCESS *)Process, &ApcState);
+
+    BaseOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x41AD);
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    NtoskrnlModuleBase = GtRead(GtNtoskrnlModuleBase);
+    NtoskrnlImageSize = (int)GtRead(GtNtoskrnlImageSize);
+
+    if (BaseOffset &&
+        BaseOffset < NtImageSize &&
+        NtImageBase &&
+        NtImageSize &&
+        NtoskrnlModuleBase &&
+        NtoskrnlImageSize)
+    {
+        SectionContext = 0;
+        InitPESectionReadContext(
+            (PUCHAR)(NtImageBase + BaseOffset),
+            NtImageSize - BaseOffset,
+            2,
+            0,
+            -1,
+            0,
+            0,
+            (PUCHAR)&SectionContext);
+
+        SectionIndex = 0;
+        while (SectionIndex < 0xA)
+        {
+            RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
+
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+                break;
+
+            SectionSize = *(unsigned int *)&EntryBuffer[0x38];
+            CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
+            CumulativeSize += SectionSize;
+            pSectionEntryBase = *(__int64 *)&EntryBuffer[0x48];
+            *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
+            CumulativeOffset = (int)CumulativeSize;
+
+            FieldValueSize = *(__int64 *)&EntryBuffer[0x20];
+            FieldFlags = *(__int64 *)&EntryBuffer[0x28];
+            FieldCount = *(int *)&EntryBuffer[0x30];
+            SectionDataSize = *(int *)&EntryBuffer[0x38];
+
+            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+
+            if (SectionType == 0x50E &&
+                FieldFlags == 0x40000 &&
+                FieldCount == 1 &&
+                SectionDataSize &&
+                FieldValueSize == 0x40)
+            {
+                ValueField = CumulativeOffset + SectionDataSize - (unsigned int)NtImageBase;
+                if (ValueField && ValueField < NtImageSize)
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x5E, NtoskrnlModuleBase + ValueField);
+                    Result = 1;
+                    break;
+                }
+            }
+
+            ++SectionIndex;
+        }
+    }
+
+    if (Process)
+        KeUnstackDetachProcess(&ApcState);
+
+    return Result;
+}
+
+
+char FindSsdtSignatureInNtFile(
+    unsigned __int8 *pScanBuffer,
+    unsigned __int64 BufferEnd,
+    _QWORD *pSsdtTable,
+    _QWORD *pSsdtOffset)
+{
+    char Result;
+    unsigned int NtImageSize;
+    __int64 NtoskrnlBase;
+    __int64 NtoskrnlImageBase;
+    int ModuleInfo;
+    unsigned __int64 FuncAddress;
+    unsigned int EntryIndex;
+    unsigned __int64 CharOffset;
+    _DWORD *pTokenType;
+    __int64 TargetRva;
+    _WORD UnicodeChar[8];
+    int OffsetValue;
+    unsigned int CharSize;
+    _DWORD *pTokenTypePtr;
+
+    Result = 0;
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    NtoskrnlBase = GtRead(GtEprocessField24);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+
+    if (NtoskrnlBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
+    {
+        *pSsdtTable = 0;
+        *pSsdtOffset = 0;
+
+        FuncAddress = *(_QWORD *)(NtoskrnlBase + 48);
+
+        for (EntryIndex = 0; EntryIndex < 0x14; EntryIndex++)
+        {
+            if (!DecodeUnicodeChar(pScanBuffer, BufferEnd, UnicodeChar))
+                break;
+
+            CharOffset = (ULONG64)OffsetValue;
+            pTokenType = pTokenTypePtr;
+            pScanBuffer += CharSize;
+
+            // TokenType 4269 (0x10AD) — SSDT表基址
+            if (!*pSsdtTable && *pTokenTypePtr == 4269 && OffsetValue > 0 && (ULONG64)OffsetValue > FuncAddress)
+            {
+                TargetRva = (unsigned int)(OffsetValue - (int)FuncAddress);
+                if ((unsigned int)TargetRva < NtImageSize)
+                    *pSsdtTable = NtoskrnlImageBase + TargetRva;
+            }
+
+            // TokenType 4715 (0x126B) — SSDT偏移
+            if (!*pSsdtOffset
+                && *pTokenType == 4715
+                && (int)CharOffset > 0
+                && CharOffset > FuncAddress
+                && (int)((int)CharOffset - (int)FuncAddress) < (int)NtImageSize)
+            {
+                *pSsdtOffset = NtoskrnlImageBase + CharOffset - FuncAddress;
+            }
+        }
+
+        if (*pSsdtTable)
+            return *pSsdtOffset != 0;
+    }
+    return Result;
+}
+
+
+char FindSsdtServiceTableEntry(
+    unsigned __int8 *pScanBuffer,
+    unsigned __int64 BufferEnd,
+    _QWORD *pSsdtTable,
+    __int64 *pSsdtOffset)
+{
+    char Result;
+    unsigned __int64 NtImageBase;
+    unsigned int NtImageSize;
+    unsigned int ImageSize;
+    unsigned __int8 *TargetAddress;
+    _WORD UnicodeChar[6];
+    int CharOffset;
+    unsigned int CharSize;
+    _DWORD *pTokenType;
+
+    Result = 0;
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    ImageSize = NtImageSize;
+
+    if (NtImageBase && NtImageSize)
+    {
+        while (DecodeUnicodeChar(pScanBuffer, BufferEnd, UnicodeChar) == 1)
+        {
+            if (*pTokenType == 4302)
+            {
+                TargetAddress = &pScanBuffer[CharOffset + CharSize];
+                if ((unsigned __int64)TargetAddress > NtImageBase
+                    && (unsigned __int64)TargetAddress < NtImageBase + (ULONG64)ImageSize)
+                {
+                    return (char)ResolveSsdtNtOffset(TargetAddress, BufferEnd, pSsdtTable, pSsdtOffset);
+                }
+                return Result;
+            }
+            pScanBuffer += CharSize;
+        }
+    }
+    return Result;
+}
+
+char __fastcall ResolveSsdtNtOffset(
+    unsigned __int8 *pScanBuffer,
+    unsigned __int64 BufferEnd,
+    _QWORD *pSsdtTable,
+    __int64 *pSsdtOffset)
+{
+    char Result;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    __int64 NtoskrnlBase;
+    __int64 NtoskrnlImageBase;
+    int ModuleInfo;
+    unsigned __int64 FuncAddress;
+    _WORD UnicodeChar[8];
+    int CharOffset;
+    unsigned int CharSize;
+    _DWORD *pTokenType;
+
+    Result = 0;
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    NtoskrnlBase = GtRead(GtEprocessField24);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+
+    if (NtImageBase && NtoskrnlBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
+    {
+        FuncAddress = *(_QWORD *)(NtoskrnlBase + 48);
+
+        while (DecodeUnicodeChar(pScanBuffer, BufferEnd, UnicodeChar) == 1)
+        {
+            if (*pTokenType == 4275)
+            {
+                *pSsdtOffset = FindSsdtOffsetInNtFile(
+                    &pScanBuffer[CharSize],
+                    BufferEnd,
+                    FuncAddress,
+                    NtImageSize,
+                    NtoskrnlImageBase,
+                    2u);
+                return 1;
+            }
+
+            pScanBuffer += CharSize;
+
+            if (!*pSsdtTable
+                && *pTokenType == 4274
+                && CharOffset > 0
+                && CharOffset > (int)FuncAddress
+                && CharOffset - (int)FuncAddress < NtImageSize)
+            {
+                *pSsdtTable = NtoskrnlImageBase + (unsigned int)(CharOffset - (int)FuncAddress);
+            }
+        }
+    }
+
+    return Result;
+}
+
+
+bool __fastcall FindSsdtTableAddresses(
+    __int64 pSectionData,
+    int SectionEnd,
+    _QWORD *pSsdtTable,
+    __int64 *pSsdtOffset)
+{
+    char Result;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    __int64 NtoskrnlImageBase;
+    int ModuleInfo;
+    int SectionIndex;
+    int ComputedOffset;
+    unsigned int SubSectionRva;
+    int FieldIndex;
+    __int64 FieldAddress;
+    int FieldCount;
+    int ComputedOffset2;
+    __int16 SectionType2;
+    __int64 TableRva;
+    unsigned int OffsetRva;
+    char v25[8];
+    __int64 v26;
+    _DWORD v27[8];
+    int v28;
+    int v29;
+    int v30;
+    __int64 v31;
+    int v32;
+    int v33;
+    __int64 v34;
+    unsigned int v35;
+    __int64 v36;
+
+    Result = 0;
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+    *pSsdtTable = 0;
+    *pSsdtOffset = 0;
+
+    if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
+    {
+        InitPESectionReadContext(
+            (PUCHAR)pSectionData,
+            SectionEnd - (int)pSectionData,
+            2,
+            0,
+            -1,
+            0,
+            0,
+            (PUCHAR)v25);
+
+        SectionIndex = 0;
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)v25, v27))
+        {
+            ComputedOffset = v35 + (int)v26;
+            v26 += v35;
+
+            if ((unsigned __int16)(*(_WORD *)(v36 + 6) - 1368) <= 2u)
+            {
+                if (v29)
+                {
+                    SubSectionRva = (unsigned int)(ComputedOffset + v29 - (int)NtImageBase);
+                    if (SubSectionRva && SubSectionRva < NtImageSize)
+                    {
+                        FieldIndex = 0;
+                        FieldAddress = 0;
+                        InitPESectionReadContext(
+                            (PUCHAR)(NtImageBase + (unsigned int)(ComputedOffset + v29 - (int)NtImageBase)),
+                            SectionEnd - (ComputedOffset + v29),
+                            2,
+                            0,
+                            -1,
+                            0,
+                            0,
+                            (PUCHAR)v25);
+
+                        FieldCount = 0;
+                        while (!(unsigned int)ReadPESectionEntry((PUCHAR)v25, v27))
+                        {
+                            ComputedOffset2 = v35 + (int)v26;
+                            v26 += v35;
+                            SectionType2 = *(_WORD *)(v36 + 6);
+
+                            if (SectionType2 == 1298 && v34 == 0x40000 && v33 && v31 == 64)
+                            {
+                                TableRva = (unsigned int)(ComputedOffset2 + v33 - (int)NtImageBase);
+                                if ((_DWORD)TableRva && (unsigned int)TableRva < NtImageSize && !*pSsdtTable)
+                                    *pSsdtTable = NtoskrnlImageBase + TableRva;
+                            }
+                            else if ((SectionType2 == 1065 && v31 == 0x40000 && (v28 & 4) != 0 && v34 == 0x400000000LL && v32 == -1)
+                                  || (SectionType2 == 1201 && v31 == 0x40000 && (v28 & 4) != 0 && v34 == 32)
+                                  || (SectionType2 == 1137 && v31 == 0x40000 && (v28 & 4) != 0))
+                            {
+                                OffsetRva = (unsigned int)(ComputedOffset2 + v30 - (int)NtImageBase);
+                                if (OffsetRva && OffsetRva < NtImageSize)
+                                {
+                                    FieldIndex = FieldCount;
+                                    FieldAddress = NtoskrnlImageBase + OffsetRva;
+                                }
+                            }
+                            else if (SectionType2 == 1324
+                                  && v32 == 2
+                                  && (unsigned int)(FieldCount - FieldIndex) <= 5
+                                  && FieldAddress)
+                            {
+                                *pSsdtOffset = FieldAddress;
+                                return *pSsdtTable != 0;
+                            }
+
+                            if ((unsigned int)++FieldCount >= 0xC8)
+                                return Result;
+                        }
+                        return Result;
+                    }
+                }
+            }
+
+            if ((unsigned int)++SectionIndex >= 0x1E)
+                return Result;
+        }
+    }
+
+    return Result;
+}
+
+
+char __fastcall ResolveSsdtTablePointer(
+    __int64 pSectionData,
+    int SectionEnd,
+    _QWORD *pSsdtTable,
+    _QWORD *pSsdtOffset)
+{
+    char Result;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    __int64 NtoskrnlImageBase;
+    int ModuleInfo;
+    int SectionIndex;
+    __int64 pSectionEntryBase;
+    __int64 SectionFileOffset;
+    int ComputedOffset;
+    __int64 TableRva;
+    __int16 SectionType2;
+    __int64 OffsetRva;
+    __int64 SectionReadContext;
+    __int64 RootTableOffsetAccum;
+    _DWORD SectionEntry[8];
+    char FieldFlagsByte;
+    int FieldValue;
+    __int64 FieldFileOffset;
+    int FieldCount;
+    int FieldFlags;
+    __int64 TableFieldFlags;
+    unsigned int SectionEntrySize;
+    __int64 v31;
+
+    Result = 0;
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+    *pSsdtTable = 0;
+    *pSsdtOffset = 0;
+
+    if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
+    {
+        InitPESectionReadContext(
+            (PUCHAR)pSectionData,
+            SectionEnd - (int)pSectionData,
+            2,
+            0,
+            -1,
+            0,
+            0,
+            (PUCHAR)&SectionReadContext);
+
+        SectionIndex = 0;
+        while (!(unsigned int)ReadPESectionEntry(&SectionReadContext, SectionEntry))
+        {
+            pSectionEntryBase = v31;
+            SectionFileOffset = FieldFileOffset;
+            ComputedOffset = SectionEntrySize + (int)RootTableOffsetAccum;
+            RootTableOffsetAccum += SectionEntrySize;
+
+            if (*(_WORD *)(v31 + 6) == 1298 && TableFieldFlags == 0x40000)
+            {
+                if (FieldFlags)
+                {
+                    if (FieldFileOffset == 64)
+                    {
+                        TableRva = (unsigned int)(ComputedOffset + FieldFlags - (int)NtImageBase);
+                        if ((_DWORD)TableRva)
+                        {
+                            if ((unsigned int)TableRva < NtImageSize && !*pSsdtTable)
+                                *pSsdtTable = NtoskrnlImageBase + TableRva;
+                        }
+                    }
+                }
+            }
+
+            SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+            if ((SectionType2 == 1065
+                && SectionFileOffset == 0x40000
+                && (FieldFlagsByte & 4) != 0
+                && TableFieldFlags == 0x400000000LL
+                && FieldCount == 1)
+                || (SectionType2 == 1137 && SectionFileOffset == 0x40000 && (FieldFlagsByte & 4) != 0))
+            {
+                OffsetRva = (unsigned int)(ComputedOffset + FieldValue - (int)NtImageBase);
+                if (ComputedOffset + FieldValue - (int)NtImageBase)
+                {
+                    if ((unsigned int)OffsetRva < NtImageSize)
+                    {
+                        *pSsdtOffset = NtoskrnlImageBase + OffsetRva;
+                        return *pSsdtTable != 0;
+                    }
+                }
+            }
+
+            if ((unsigned int)++SectionIndex >= 0x64)
+                return Result;
+        }
+    }
+
+    return Result;
+}
+
+
+char __fastcall ResolveSsdtTablePointerEx(
+    __int64 pSectionData,
+    int SectionEnd,
+    _QWORD *pSsdtTable,
+    _QWORD *pSsdtOffset)
+{
+    char Result;
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    __int64 NtoskrnlImageBase;
+    int ModuleInfo;
+    int SectionIndex;
+    int ComputedOffset;
+    unsigned int SubSectionRva;
+    int FieldIndex;
+    __int64 pSectionEntryBase;
+    __int64 SectionFileOffset;
+    int ComputedOffset2;
+    __int64 TableRva;
+    __int16 SectionType2;
+    __int64 OffsetRva;
+    __int64 SectionReadContext;
+    __int64 RootOffsetAccum;
+    _DWORD SectionEntry[8];
+    char FieldFlagsByte;
+    int SubSectionFieldCount;
+    int OffsetFieldValue;
+    __int64 FieldFileOffset;
+    int OffsetFieldCount;
+    int FieldFlags;
+    __int64 TableFieldFlags;
+    unsigned int SectionEntrySize;
+    __int64 v35;
+
+    Result = 0;
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+    *pSsdtTable = 0;
+    *pSsdtOffset = 0;
+
+    if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
+    {
+        InitPESectionReadContext(
+            (PUCHAR)pSectionData,
+            SectionEnd - (int)pSectionData,
+            2,
+            0,
+            -1,
+            0,
+            0,
+            (PUCHAR)&SectionReadContext);
+
+        SectionIndex = 0;
+        while (!(unsigned int)ReadPESectionEntry(&SectionReadContext, SectionEntry))
+        {
+            ComputedOffset = SectionEntrySize + (int)RootOffsetAccum;
+            RootOffsetAccum += SectionEntrySize;
+
+            if ((unsigned __int16)(*(_WORD *)(v35 + 6) - 1368) <= 2u)
+            {
+                if (SubSectionFieldCount)
+                {
+                    SubSectionRva = (unsigned int)(ComputedOffset + SubSectionFieldCount - (int)NtImageBase);
+                    if (SubSectionRva && SubSectionRva < NtImageSize)
+                    {
+                        InitPESectionReadContext(
+                            (PUCHAR)(NtImageBase + (unsigned int)(ComputedOffset + SubSectionFieldCount - (int)NtImageBase)),
+                            SectionEnd - (ComputedOffset + SubSectionFieldCount),
+                            2,
+                            0,
+                            -1,
+                            0,
+                            0,
+                            (PUCHAR)&SectionReadContext);
+
+                        FieldIndex = 0;
+                        while (!(unsigned int)ReadPESectionEntry(&SectionReadContext, SectionEntry))
+                        {
+                            pSectionEntryBase = v35;
+                            SectionFileOffset = FieldFileOffset;
+                            ComputedOffset2 = SectionEntrySize + (int)RootOffsetAccum;
+                            RootOffsetAccum += SectionEntrySize;
+
+                            if (*(_WORD *)(v35 + 6) == 1298 && TableFieldFlags == 0x40000)
+                            {
+                                if (FieldFlags)
+                                {
+                                    if (FieldFileOffset == 64)
+                                    {
+                                        TableRva = (unsigned int)(ComputedOffset2 + FieldFlags - (int)NtImageBase);
+                                        if ((_DWORD)TableRva)
+                                        {
+                                            if ((unsigned int)TableRva < NtImageSize && !*pSsdtTable)
+                                                *pSsdtTable = NtoskrnlImageBase + TableRva;
+                                        }
+                                    }
+                                }
+                            }
+
+                            SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+                            if ((SectionType2 == 1065
+                                && SectionFileOffset == 0x40000
+                                && (FieldFlagsByte & 4) != 0
+                                && TableFieldFlags == 0x400000000LL
+                                && OffsetFieldCount == 1)
+                                || (SectionType2 == 1137 && SectionFileOffset == 0x40000 && (FieldFlagsByte & 4) != 0))
+                            {
+                                OffsetRva = (unsigned int)(ComputedOffset2 + OffsetFieldValue - (int)NtImageBase);
+                                if (ComputedOffset2 + OffsetFieldValue - (int)NtImageBase)
+                                {
+                                    if ((unsigned int)OffsetRva < NtImageSize)
+                                    {
+                                        *pSsdtOffset = NtoskrnlImageBase + OffsetRva;
+                                        return *pSsdtTable != 0;
+                                    }
+                                }
+                            }
+
+                            if ((unsigned int)++FieldIndex >= 0x64)
+                                return Result;
+                        }
+                        return Result;
+                    }
+                }
+            }
+
+            if ((unsigned int)++SectionIndex >= 0x1E)
+                return Result;
+        }
+    }
+
+    return Result;
+}
+
+
+
+// FindWin32kServiceTable -- 查找 Win32k 服务表。
+// 在 PE 文件中查找导出符号 W32pServiceTable 的地址，用于 Win32k 系统调用表定位。
+// 对应原始驱动 sub_140050F70
+__int64 FindWin32kServiceTable(__int64 PeBase, unsigned int PeSize)
+{
+    unsigned int Result = 0;
+    unsigned int ExportOffset = 0;
+    _WORD FuncNameBuffer[12];
+    strcpy((char *)FuncNameBuffer, "W32pServiceTable");
+    HIBYTE_LV(FuncNameBuffer[8]) = 0;
+    FuncNameBuffer[9] = 0;
+    if (LookupExportByName(PeBase, PeSize, (__int64)FuncNameBuffer, &ExportOffset) == 1 && ExportOffset)
+        return ExportOffset;
+    return Result;
+}
+
+// FindSsdtOffsetInNtFile -- 在 NT 内核 Unicode 扫描缓冲区中查找 SSDT 偏移值。
+// 先跳过指定数量的字符条目，然后解码下一个字符的偏移值，验证范围后返回 ntoskrnl 基址加上 RVA 偏移的结果。
+// 对应原始驱动 sub_140040F18
+__int64 FindSsdtOffsetInNtFile(
+    unsigned __int8 *pScanBuffer,
+    unsigned __int64 BufferEnd,
+    unsigned __int64 FuncAddress,
+    unsigned int NtImageSize,
+    __int64 NtoskrnlImageBase,
+    unsigned int SkipCount)
+{
+    __int64 Result = 0;
+    unsigned int CharIndex = 0;
+    _WORD UnicodeChar[8];
+    int CharOffset = 0;
+    unsigned int CharSize = 0;
+    if (!SkipCount)
+        goto LABEL_SCAN;
+    do
+    {
+        if (DecodeUnicodeChar(pScanBuffer, BufferEnd, UnicodeChar) != 1)
+            break;
+        ++CharIndex;
+        pScanBuffer += CharSize;
+    }
+    while (CharIndex < SkipCount);
+    if (CharIndex >= SkipCount)
+    {
+LABEL_SCAN:
+        if (CharOffset > 0 && CharOffset > (int)FuncAddress && CharOffset - (int)FuncAddress < (int)NtImageSize)
+            return NtoskrnlImageBase + (unsigned int)(CharOffset - (int)FuncAddress);
+    }
+    return Result;
+}
+
+// ParseServiceTableExportEntry -- 解析服务表导出条目。
+// 分配 PE 文件缓冲区，复制文件内容，解析导出目录定位指定索引的导出条目，复制到 GT 519 分配的缓冲区。
+// 对应原始驱动 sub_1400515C4
+char ParseServiceTableExportEntry(void *Src, size_t MaxCount, __int64 ServiceIndex)
+{
+    char Result = 0;
+    __int64 FileSize = (unsigned int)MaxCount;
+    __int64 KernelBase = GtRead(GtKernelModuleBase);
+    if (KernelBase)
+    {
+        char *pBuffer = (char *)ExAlloc(PagedPool, (unsigned int)(FileSize + 256));
+        if (pBuffer)
+        {
+            memmove(pBuffer, Src, (unsigned int)FileSize);
+            memset(&pBuffer[FileSize], 0, 0x100u);
+            if (ParseNtExportDir((__int64)pBuffer, FileSize, KernelBase, 0) == 1)
+            {
+                unsigned int ExportIndex = GtRead(201 | GtEprocessField22);
+                __int64 *pDest = GtAlloc(GtObjectTypeField04);
+                __int64 SrcOffset = *(unsigned int *)(ServiceIndex + 4LL * ExportIndex);
+                *(_OWORD *)pDest = *(_OWORD *)&pBuffer[SrcOffset];
+                *((_OWORD *)pDest + 1) = *(_OWORD *)&pBuffer[SrcOffset + 16];
+                GtRead(GtIrpBufferSize);
+                GtRead(GtCallbackField55);
+                Result = 1;
+            }
+            ExFree(pBuffer);
+        }
+    }
+    return Result;
+}
+
+
+// ParseNtoskrnlSectionsForKernelBase -- 解析 ntoskrnl 节区获取内核基址
+// 对应原始驱动 sub_14002BC2C
+char ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize)
+{
+    return 0;
+}
+
+// FindOpenProcessTokenOffset -- 查找 OpenProcess Token 偏移
+// 在 ntoskrnl 中查找 NtOpenProcess 相关的 Token 处理偏移
+__int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSize)
+{
+    __int64 NtoskrnlBase;
+
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    if (!NtoskrnlBase || !TargetAddress || !TargetSize)
+        return 0;
+
+    return 0;
+}
+
+// FindOpenProcessTokenTarget -- 查找 OpenProcess Token 目标地址
+// 解析 NtOpenProcess 中的 Token 访问检查逻辑
+__int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSize)
+{
+    __int64 NtoskrnlBase;
+
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    if (!NtoskrnlBase || !TargetAddress || !TargetSize)
+        return 0;
+
+    return 0;
 }

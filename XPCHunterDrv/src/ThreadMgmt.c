@@ -27,7 +27,7 @@ void PatchThreadImagePathWithWow64(__int64 Path);
 __int64 StringCompareCaseInsensitiveV2(const char *Str1, const char *Str2);
 __int64 WStringCompare(__int64 Str1, const unsigned __int16 *Str2, unsigned int Length);
 __int64 StringCompare3Way(__int64 Str1, const unsigned __int16 *Str2, unsigned int Length);
-void WStringCopy(__int16 *Dst, const __int16 *Src);
+__int16 *WStringCopy(__int16 *Dst, __int16 *Src);
 
 // EnableThreadProtect — 启用线程保护
 // 对应原始驱动 sub_140007AB4
@@ -496,6 +496,7 @@ char EnumerateThreadsInProcess(ULONG64 BaseAddr, struct _KPROCESS *Process, char
 // 对应原始驱动 sub_14004B764
 __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, int OutputSize)
 {
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     char Result = 0;
     char *ProcessId;
     char Success;
@@ -523,7 +524,7 @@ __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, 
     }
 
     Success = 0;
-    if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x3839)
+    if (BuildNumber >= 0x3839)
     {
         GetProcessNameFunc = (__int64 (*)(PEPROCESS))GtRead(16777);
         if (GetProcessNameFunc)
@@ -534,7 +535,7 @@ __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, 
                 v10 = GetProcessNameFunc(Process);
                 if (StringCompareCaseInsensitiveV2(v10, (__int64)v16))
                 {
-                    if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+                    if (BuildNumber >= 0x42EE)
                     {
                         strcpy((char *)v16, "Registry");
                         if (StringCompareCaseInsensitiveV2(v10, (__int64)v16))

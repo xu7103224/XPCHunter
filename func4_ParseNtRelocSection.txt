@@ -1,0 +1,223 @@
+// ParseNtRelocSection — 解析 NT 重定位节区
+// 扫描 PE 节区匹配 EntryType 1369/1351+0x188 查找重定位节区，然后遍历节区条目
+// 匹配 0x547/0x512/1294 等类型，提取重定位偏移写入输出表
+// 对应原始驱动 sub_14000E634
+char ParseNtRelocSection(__int64 PeBase, unsigned int PeSize, __int64 OutputTable)
+{
+    char Result;
+    __int64 SectionOffset;
+    int SectionIndex;
+    int SectionEnd;
+    unsigned int RawOffset;
+    int RelocSectionIndex;
+    int FirstRelocRva;
+    int FirstRelocType;
+    char FoundWin10Reloc;
+    int RelocEntryIndex;
+    unsigned int NtBuildNumber;
+    __int16 SectionFlags;
+    unsigned int RelocFileOffset;
+    int CurrentRelocRva;
+    unsigned int RelocDelta;
+    __int64 TableIndex;
+    unsigned int EntryFileOffset;
+    __int64 TableEntryPtr;
+    int BaseRelocRva;
+    unsigned int RelocDeltaBytes;
+    __int64 EntryIndex;
+    __int64 OutputTableEntry;
+    __int16 FlagsCheck;
+    char Result2;
+    int BaseRelocRvaSaved;
+    __int64 ExportTableBase;
+    char ReadContext[8];
+    __int64 CumulativeOffset;
+    _DWORD SectionEntry[14];
+    int VirtualAddress;
+    int VirtualSize;
+    __int64 Characteristics;
+    int SectionIndex2;
+    __int64 SectionName;
+    int RawDataSize;
+    __int64 SectionAlignment;
+    int RelocEntryIndex2;
+    int MiscInfo;
+    unsigned int SizeOfRawData;
+    __int64 SectionNamePtr;
+    _DWORD DirectoryTable[16];
+
+    Result = 0;
+    ExportTableBase = GtRead(GtFileSystemExportTable);
+    if (ExportTableBase)
+    {
+        SectionOffset = *(unsigned int *)(*(int *)(PeBase + 60) + PeBase + 40);
+        if ((unsigned int)SectionOffset < PeSize && (int)SectionOffset + 4096 < PeSize)
+        {
+            InitPESectionReadContext(PeBase + SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+            SectionIndex = 0;
+            while (!(unsigned int)ReadPESectionEntry((__int64 *)ReadContext, SectionEntry))
+            {
+                SectionEnd = SizeOfRawData + CumulativeOffset;
+                CumulativeOffset += SizeOfRawData;
+                if (*(_WORD *)(SectionNamePtr + 6) == 1369)
+                {
+                    if (VirtualAddress)
+                    {
+                        RawOffset = SectionEnd + VirtualAddress - PeBase;
+                        if (RawOffset && RawOffset < PeSize)
+                        {
+                            LODWORD(SectionOffset) = SectionEnd + VirtualAddress - PeBase;
+                            break;
+                        }
+                    }
+                }
+                if ((unsigned int)++SectionIndex >= 0x1E)
+                    break;
+            }
+        }
+        if ((_DWORD)SectionOffset && (unsigned int)SectionOffset < PeSize && (int)SectionOffset + 4096 < PeSize)
+        {
+            BaseRelocRvaSaved = 0;
+            InitPESectionReadContext(PeBase + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+            RelocSectionIndex = 0;
+            while (1)
+            {
+                if ((unsigned int)ReadPESectionEntry((__int64 *)ReadContext, SectionEntry))
+                    return Result;
+                CumulativeOffset += SizeOfRawData;
+                if (*(_WORD *)(SectionNamePtr + 6) == 1351 && SectionName == 0x188)
+                    break;
+                if ((unsigned int)++RelocSectionIndex >= 0x1F4)
+                    return Result;
+            }
+            FirstRelocRva = VirtualSize;
+            FirstRelocType = MiscInfo & 0xF;
+            if (VirtualSize)
+            {
+                memset(DirectoryTable, 0, sizeof(DirectoryTable));
+                FoundWin10Reloc = 0;
+                InitPESectionReadContext(PeBase + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+                RelocEntryIndex = 0;
+                while (1)
+                {
+                    if ((unsigned int)ReadPESectionEntry((__int64 *)ReadContext, SectionEntry))
+                        return Result;
+                    CumulativeOffset += SizeOfRawData;
+                    NtBuildNumber = GtRead(GtWindowsBuildNumber);
+                    SectionFlags = *(_WORD *)(SectionNamePtr + 6);
+                    if (NtBuildNumber >= 0x23F0)
+                    {
+                        if (SectionFlags == 0x547 && SectionName == 0xC0916A2)
+                            FoundWin10Reloc = 1;
+                    }
+                    else if (SectionFlags == 0x547 && SectionName == 0x188)
+                    {
+                        FoundWin10Reloc = 1;
+                    }
+                    if (SectionFlags == 0x512 && SectionAlignment == 0x40000)
+                    {
+                        if (RawDataSize && Characteristics == 64)
+                        {
+                            RelocFileOffset = CumulativeOffset + RawDataSize - PeBase;
+                            if (RelocFileOffset && RelocFileOffset < PeSize)
+                                DirectoryTable[SectionIndex2] = RelocFileOffset;
+                        }
+                    }
+                    if (SectionFlags != 1294
+                        || (*(_QWORD *)&Characteristics & 0x14000LL) == 0
+                        || (Characteristics & 0x40) == 0
+                        || SectionAlignment != 64)
+                    {
+                        goto SKIP_ENTRY;
+                    }
+                    CurrentRelocRva = VirtualSize;
+                    if (FirstRelocType == (MiscInfo & 0xF))
+                        break;
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+                        goto SKIP_ENTRY;
+                    EntryOffset = (unsigned int)DirectoryTable[RelocEntryIndex2];
+                    if (!(_DWORD)EntryOffset || FoundWin10Reloc != 1)
+                        goto SKIP_ENTRY2;
+                    BaseRelocRva = BaseRelocRvaSaved;
+                    if (!BaseRelocRvaSaved)
+                    {
+                        BaseRelocRva = VirtualSize - 64;
+                        BaseRelocRvaSaved = VirtualSize - 64;
+                    }
+                    RelocDeltaBytes = CurrentRelocRva - BaseRelocRva;
+                    if (RelocDeltaBytes - 1 <= 0x186 && (RelocDeltaBytes & 7) == 0)
+                    {
+                        EntryIndex = RelocDeltaBytes >> 3;
+                        if ((unsigned int)EntryIndex < 0x40)
+                        {
+                            OutputTableEntry = 6 * EntryIndex;
+                            *(_QWORD *)(OutputTable + 8 * OutputTableEntry + 8) = ExportTableBase + (unsigned int)EntryOffset;
+                            *(_DWORD *)(OutputTable + 8 * OutputTableEntry + 4) = EntryOffset;
+                            Result = 1;
+                            goto SKIP_ENTRY;
+                        }
+                    }
+                    goto CHECK_END;
+SKIP_ENTRY2:
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+                    {
+                        if ((unsigned __int16)(*(_WORD *)(SectionNamePtr + 6) - 1139) <= 1u)
+                            return Result;
+                    }
+                    else
+                    {
+                        FlagsCheck = *(_WORD *)(SectionNamePtr + 6);
+                        if (FlagsCheck == 1368)
+                            return Result;
+                        if ((unsigned __int16)(FlagsCheck - 1139) <= 1u)
+                            return Result;
+                    }
+                    if ((unsigned int)++RelocEntryIndex >= 0x1F4)
+                        return Result;
+                    continue;
+CHECK_END:
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+                    {
+                        if ((unsigned __int16)(*(_WORD *)(SectionNamePtr + 6) - 1139) <= 1u)
+                            return Result;
+                    }
+                    else
+                    {
+                        FlagsCheck = *(_WORD *)(SectionNamePtr + 6);
+                        if (FlagsCheck == 1368)
+                            return Result;
+                        if ((unsigned __int16)(FlagsCheck - 1139) <= 1u)
+                            return Result;
+                    }
+                    if ((unsigned int)++RelocEntryIndex >= 0x1F4)
+                        return Result;
+                    continue;
+SKIP_ENTRY:
+                    if (FoundWin10Reloc != 1)
+                        goto SKIP_ENTRY2;
+                    goto CHECK_END;
+                }
+                if (FirstRelocRva > 0 && VirtualSize > 0 && VirtualSize > FirstRelocRva)
+                {
+                    RelocDelta = VirtualSize - FirstRelocRva;
+                    if ((unsigned int)(VirtualSize - FirstRelocRva - 1) <= 0x186 && (RelocDelta & 7) == 0)
+                    {
+                        TableIndex = RelocDelta >> 3;
+                        if ((unsigned int)TableIndex < 0x40)
+                        {
+                            EntryFileOffset = DirectoryTable[RelocEntryIndex2];
+                            if (EntryFileOffset)
+                            {
+                                TableEntryPtr = 6 * TableIndex;
+                                Result = 1;
+                                *(_QWORD *)(OutputTable + 8 * TableEntryPtr + 8) = ExportTableBase + EntryFileOffset;
+                                *(_DWORD *)(OutputTable + 8 * TableEntryPtr + 4) = EntryFileOffset;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Result;
+}

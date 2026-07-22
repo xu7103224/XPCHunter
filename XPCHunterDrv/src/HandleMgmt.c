@@ -415,9 +415,15 @@ __int64 CmdEnumObjectHandles(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsig
 
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
         EnumObjectHandlesWin8Plus(OutputBuffer, v7);
-    else if (GtRead(GtKernelDataField08) || (EnumProcessHandleTable(), GtRead(GtKernelDataField08)))
+    else
     {
-        if ((UCHAR)GtRead(GtKernelDataField10))
+        ULONG KernelDataField08 = (ULONG)GtRead(GtKernelDataField08);
+        if (!KernelDataField08)
+        {
+            EnumProcessHandleTable();
+            KernelDataField08 = (ULONG)GtRead(GtKernelDataField08);
+        }
+        if (KernelDataField08 && (UCHAR)GtRead(GtKernelDataField10))
             EnumerateObjectHandles(OutputBuffer, v7);
         else
             EnumObjectHandleTable(OutputBuffer, v7);
@@ -474,6 +480,7 @@ char DispatchProcessHandleTableEnum(
 // 对应原始驱动 sub_140049B94
 char GetProcessVirtualizationContext(_DWORD *OutputBuffer, unsigned int BufferSize)
 {
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     __int64 v4;
     UCHAR (*v5)(__int64);
     ULONG v6, v7;
@@ -481,8 +488,7 @@ char GetProcessVirtualizationContext(_DWORD *OutputBuffer, unsigned int BufferSi
     ULONG v12;
     char v14 = 0;
 
-    if ((ULONG)GtRead(GtWindowsBuildNumber) < 0x1771 ||
-        (ULONG)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+    if (BuildNumber < 0x1771 || BuildNumber >= 0x1DB0)
         return GetProcessVirtualizationContextFallback(OutputBuffer, BufferSize);
 
     v4 = GtRead(GtObjectTypeInfoPtr);
@@ -525,10 +531,15 @@ char EnumerateSessionProcesses(unsigned int *OutputBuffer, unsigned int BufferSi
     short v6;
     struct _KPROCESS **SystemInfo, **v8, **v9;
     __int64 v10;
+    ULONG EprocessField61;
 
-    if (!GtRead(GtEprocessField61))
+    EprocessField61 = (ULONG)GtRead(GtEprocessField61);
+    if (!EprocessField61)
+    {
         QueryProcessVirtualization();
-    if (!GtRead(GtEprocessField61))
+        EprocessField61 = (ULONG)GtRead(GtEprocessField61);
+    }
+    if (!EprocessField61)
         return 0;
 
     UCHAR v4 = (UCHAR)GtRead(GtEprocessField62);
@@ -990,6 +1001,7 @@ __int64 EnumObjectHandlesWin8Plus(unsigned int *OutputBuffer, unsigned int MaxEn
 // 通过句柄值查询对象名称和类型信息，跨进程附加执行 IOCTL 查询
 char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsigned int BufferSize)
 {
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     char Result = 0;
     unsigned __int8 (__fastcall *CheckFunc)(_QWORD *);
     int (__fastcall *ValidateTypeFunc)(_QWORD, struct _KPROCESS **);
@@ -1028,7 +1040,7 @@ char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsi
     if (CheckFunc && ValidateTypeFunc && CloseHandleFunc && AttachProcessFunc && DetachProcessFunc)
     {
         HandleValue = *((_QWORD *)HandleEntry + 1);
-        if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1770)
+        if (BuildNumber >= 0x1770)
             HandleValue &= 0xFFFFFFFFFFFFFFF0ULL;
         if (HandleValue > (unsigned __int64)MmSystemRangeStart && MmIsAddressValid((PVOID)HandleValue) == 1)
         {
@@ -1038,7 +1050,7 @@ char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsi
                 if (CheckFunc(ObjectHeader) == 1 && *ObjectHeader && ValidateTypeFunc(*HandleEntry, &TargetProcess) >= 0)
                 {
                     HandleValue2 = HandleEntry[3];
-                    if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1DB0 && ObjectTypeInfo && *ObjectTypeInfo == TargetProcess)
+                    if (BuildNumber >= 0x1DB0 && ObjectTypeInfo && *ObjectTypeInfo == TargetProcess)
                         HandleValue2 |= 0xFFFFFFFF80000000ULL;
                     CurrentProcess = IoGetCurrentProcess();
                     IsDifferentProcess = CurrentProcess != TargetProcess;
@@ -1564,6 +1576,7 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
     v2Func = (__int64 (__fastcall *)(__int64))GtRead(2);
     v4A = (ULONG)GtRead(0x4A);
     v4166 = GtRead(0x4166);
+    ULONG Gt914 = (ULONG)GtRead(0x914);
 
     if (!v2Func || !v4A || !v4166 || !CheckTypeFunc || !NtQuerySysInfoFunc || !GetOffsetFunc || !ValidateFunc || ServiceCount == -1)
     {
@@ -1586,7 +1599,7 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
     var_64 = *(int *)&NtBuf[0x1C];
     var_5C = *(int *)&NtBuf[0x24];
 
-    if ((ULONG)GtRead(0x914) >= 0x4F7C)
+    if (Gt914 >= 0x4F7C)
         var_64 = var_5C;
     else if (var_64 > var_5C)
         var_64 = var_5C;
@@ -1656,7 +1669,7 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
                     char *EntryBuf = Buffer + esi;
                     char IsMatch = 0;
 
-                    if ((ULONG)GtRead(0x914) >= 0x1DB0)
+                    if (Gt914 >= 0x1DB0)
                     {
                         char TypeFlag = CheckObjectTypeFlag((__int64)(EntryBuf + 0x30));
                         if ((UCHAR)GtRead(0x81B) == TypeFlag)

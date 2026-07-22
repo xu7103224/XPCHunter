@@ -17,7 +17,7 @@ void EnumerateVadIterativeV2(_QWORD *VirtualAddress, __int64 Buffer, int BufferE
 __int32 AtomicWrite32NoWriteProtect(volatile __int32 *Target, __int32 Value);
 __int64 AtomicWrite64NoWriteProtect(volatile __int64 *Target, __int64 Value);
 ULONG64 CopyMemoryNoWriteProtect(void *Destination, const void *Source, ULONG Size);
-__int64 MemoryCompare(__int64 Buf1, char *Buf2, unsigned int Size);
+unsigned int MemoryCompare(__int64 Buf1, char *Buf2, unsigned int Size);
 char ResolveSyscallNumbers(void);
 
 // WritePhysicalMemoryDword — 写物理内存 DWORD（直接 MmMapIoSpace 方式）
@@ -1881,4 +1881,298 @@ void ClearProcessPageTableFlags(struct _KPROCESS *Process)
                 DereferenceObjectSafe((__int64)Process);
         }
     }
+}
+__int64 ReadWriteKernelMemory(void)
+{
+    // PE 节区读取上下文（约 0x170 字节）
+    UCHAR SectionContext[0x170];
+    // 节区条目信息缓冲区（0x120 字节，由 ReadPESectionEntry 填充）
+    UCHAR SectionEntry[0x120];
+
+    // 局部变量
+    __int64 TargetProcess;           // Gt[0x61]: 目标进程 EPROCESS
+    ULONG PeFileOffset;              // Gt[0x42E2]: ntoskrnl PE 文件偏移
+    ULONG64 PeFileBase;              // Gt[0x20]: ntoskrnl PE 文件映射基址
+    ULONG PeFileSize;                // Gt[0x21]: ntoskrnl PE 文件映射大小
+    ULONG64 NtoskrnlBase;            // Gt[3]: ntoskrnl 模块基址
+    ULONG NtoskrnlSize;              // Gt[2]: ntoskrnl 模块大小
+    ULONG SectionIndex;              // 节区遍历索引
+    ULONG BuildNumber;               // Gt[0x914]: Windows 构建号
+    BOOLEAN Attached;                // 是否已附加到进程
+    BOOLEAN Found;                   // 是否找到匹配
+    struct _KAPC_STATE ApcState;            // APC 状态
+    ULONG64 TargetAddress;           // 计算得到的目标地址
+    ULONG PeSectionOffset;           // 从 SectionEntry 读取的偏移值
+    ULONG64 AccumulatedOffset;       // 累积偏移（跨迭代保持）
+    ULONG64 Type430Matched;          // Type 430/418 匹配标志（跨迭代保持）
+
+    // 清零初始化
+    Attached = FALSE;
+    Found = FALSE;
+    SectionIndex = 0;
+    AccumulatedOffset = 0;
+    Type430Matched = 0;
+
+    // 读取目标进程指针，如果非空则附加到该进程
+    TargetProcess = GtRead((GLOBAL_TABLE_INDEX)0x61);
+    if (TargetProcess)
+    {
+        KeStackAttachProcess((PRKPROCESS)TargetProcess, &ApcState);
+        Attached = TRUE;
+    }
+
+    // 读取 PE 相关数据
+    PeFileOffset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x42E2);
+    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
+    PeFileSize = (ULONG)GtRead(GtNtoskrnlPeFileSize);
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    NtoskrnlSize = (ULONG)GtRead(GtNtoskrnlImageSize);
+
+    // 验证所有值有效
+    if (!PeFileOffset ||
+        PeFileOffset >= PeFileSize ||
+        !PeFileBase ||
+        !PeFileSize ||
+        !NtoskrnlBase ||
+        !NtoskrnlSize)
+    {
+        goto Cleanup;
+    }
+
+    // 初始化 PE 节区读取上下文
+    RtlZeroMemory(SectionContext, sizeof(SectionContext));
+    RtlZeroMemory(SectionEntry, sizeof(SectionEntry));
+
+    InitPESectionReadContext(
+        (PUCHAR)(PeFileBase + (ULONG_PTR)PeFileOffset),
+        PeFileSize - PeFileOffset,
+        2,              // Mode: 64-bit PE
+        0,              // a4
+        -1,             // a5
+        0,              // a6
+        0,              // a7
+        SectionContext);
+
+    // 遍历 PE 节区，最多 0xC8 个
+    for (SectionIndex = 0; SectionIndex < 0xC8; SectionIndex++)
+    {
+        ULONG64 TypePtr;
+        USHORT EntryType;
+
+        // 读取下一个节区条目，如果失败则退出循环
+        if ((ULONG)ReadPESectionEntry(SectionContext, (PULONG)SectionEntry))
+        {
+            break;
+        }
+
+        // SectionEntry + 0xF0: 偏移值，累加到累积偏移中
+        PeSectionOffset = *(ULONG *)(SectionEntry + 0xF0);
+        AccumulatedOffset += PeSectionOffset;
+
+        // SectionEntry + 0x118: 指向类型结构体的指针
+        // 该指针指向的偏移 +6 处为 WORD 类型值
+        TypePtr = *(ULONG64 *)(SectionEntry + 0x118);
+        EntryType = *(USHORT *)(TypePtr + 6);
+
+        // 如果类型为 0x545，退出循环
+        if (EntryType == 0x545)
+        {
+            break;
+        }
+
+        // 读取构建号，根据版本选择匹配模式
+        BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+
+        // ============================================================
+        // 根据构建号选择匹配模式
+        // ============================================================
+
+        if (BuildNumber < 0x23F0)
+        {
+            // ---- Win7/2008R2 及更早：使用 Type 0x50E ----
+            if (EntryType != 0x50E)
+            {
+                continue;
+            }
+
+            // SectionEntry + 0x50: 必须为 0x40000
+            if (*(ULONG64 *)(SectionEntry + 0x50) != 0x40000)
+            {
+                continue;
+            }
+
+            // SectionEntry + 0x88: 必须为 0x40
+            if (*(ULONG64 *)(SectionEntry + 0x88) != 0x40)
+            {
+                continue;
+            }
+
+            // SectionEntry + 0x40: DWORD 偏移值
+            // 计算：值 - PeFileOffset + AccumulatedOffset
+            PeSectionOffset = *(ULONG *)(SectionEntry + 0x40);
+            PeSectionOffset -= PeFileOffset;
+            PeSectionOffset += (ULONG)AccumulatedOffset;
+
+            if (!PeSectionOffset || PeSectionOffset >= PeFileSize)
+            {
+                continue;
+            }
+
+            // 直接写入 Gt[0x2BC]
+            TargetAddress = (ULONG64)PeSectionOffset + NtoskrnlBase;
+            GtWrite((GLOBAL_TABLE_INDEX)0x2BC, TargetAddress);
+            Found = TRUE;
+            break;
+        }
+        else if (BuildNumber < 0x2800)
+        {
+            // ---- Win8/8.1：使用 Type 0x512 ----
+            if (EntryType != 0x512)
+            {
+                continue;
+            }
+
+            // SectionEntry + 0x88: 必须为 0x40000
+            if (*(ULONG64 *)(SectionEntry + 0x88) != 0x40000)
+            {
+                continue;
+            }
+
+            // SectionEntry + 0x50: 必须为 0x40
+            if (*(ULONG64 *)(SectionEntry + 0x50) != 0x40)
+            {
+                continue;
+            }
+
+            // SectionEntry + 0x78: DWORD 偏移值
+            // 计算：值 - PeFileOffset + AccumulatedOffset
+            PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
+            PeSectionOffset -= PeFileOffset;
+            PeSectionOffset += (ULONG)AccumulatedOffset;
+
+            if (!PeSectionOffset || PeSectionOffset >= PeFileSize)
+            {
+                continue;
+            }
+
+            // 检查 Gt[0x82A] 是否已设置
+            TargetAddress = (ULONG64)PeSectionOffset + NtoskrnlBase;
+            if (GtRead((GLOBAL_TABLE_INDEX)0x82A))
+            {
+                // 已设置，写入 Gt[0x2BC] 并结束
+                GtWrite((GLOBAL_TABLE_INDEX)0x2BC, TargetAddress);
+                Found = TRUE;
+                break;
+            }
+            else
+            {
+                // 未设置，写入 Gt[0x82A] 并继续循环
+                GtWrite((GLOBAL_TABLE_INDEX)0x82A, TargetAddress);
+                // 继续循环
+            }
+        }
+        else if (BuildNumber < 0x585D)
+        {
+            // ---- Win10 早期版本（1507-1607）：Type 0x430 设置标志 + Type 0x512 完成匹配 ----
+            // 先检查 Type 0x430，满足条件则设置 Type430Matched 标志
+            // 后续迭代中遇到 Type 0x512 且标志已设置时完成匹配
+
+            if (EntryType == 0x430)
+            {
+                // SectionEntry + 0x88: 必须为 0x400000000
+                // SectionEntry + 0x70: 必须为 4
+                // SectionEntry + 0x50: 必须为 0x20
+                if (*(ULONG64 *)(SectionEntry + 0x88) == 0x400000000LL &&
+                    *(ULONG64 *)(SectionEntry + 0x70) == 4 &&
+                    *(ULONG64 *)(SectionEntry + 0x50) == 0x20)
+                {
+                    // 设置标志（一旦设置，跨迭代保持）
+                    // 原始代码使用 cmovz 保持已有值，等效于：
+                    // if (条件满足) Type430Matched = 1; else Type430Matched = Type430Matched;
+                    // 但由于 Type430Matched 初始为 0，这里直接设置
+                    Type430Matched = 1;
+                }
+            }
+
+            // 检查 Type 0x512
+            if (EntryType == 0x512)
+            {
+                // SectionEntry + 0x88: 必须为 0x40000
+                // SectionEntry + 0x50: 必须为 0x40
+                // Type430Matched 标志必须已设置
+                if (*(ULONG64 *)(SectionEntry + 0x88) == 0x40000 &&
+                    *(ULONG64 *)(SectionEntry + 0x50) == 0x40 &&
+                    Type430Matched)
+                {
+                    // SectionEntry + 0x78: DWORD 偏移值
+                    PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
+                    PeSectionOffset -= PeFileOffset;
+                    PeSectionOffset += (ULONG)AccumulatedOffset;
+
+                    if (PeSectionOffset && PeSectionOffset < PeFileSize)
+                    {
+                        TargetAddress = (ULONG64)PeSectionOffset + NtoskrnlBase;
+                        GtWrite((GLOBAL_TABLE_INDEX)0x2BC, TargetAddress);
+                        Found = TRUE;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            // ---- Win10 1607+：Type 0x418 设置标志 + Type 0x512 完成匹配 ----
+            // 先检查 Type 0x418，满足条件则设置 Type430Matched 标志
+            // 后续迭代中遇到 Type 0x512 且标志已设置时完成匹配
+
+            if (EntryType == 0x418)
+            {
+                // SectionEntry + 0x88: 必须为 0x80000
+                // SectionEntry + 0x70: 必须为 0
+                // SectionEntry + 0x50: 必须为 0x4041
+                // SectionEntry + 0x40: 必须为 0x2C
+                if (*(ULONG64 *)(SectionEntry + 0x88) == 0x80000 &&
+                    *(ULONG64 *)(SectionEntry + 0x70) == 0 &&
+                    *(ULONG64 *)(SectionEntry + 0x50) == 0x4041 &&
+                    *(ULONG *)(SectionEntry + 0x40) == 0x2C)
+                {
+                    Type430Matched = 1;
+                }
+            }
+
+            // 检查 Type 0x512
+            if (EntryType == 0x512)
+            {
+                // SectionEntry + 0x88: 必须为 0x40000
+                // SectionEntry + 0x50: 必须为 0x40
+                // Type430Matched 标志必须已设置
+                if (*(ULONG64 *)(SectionEntry + 0x88) == 0x40000 &&
+                    *(ULONG64 *)(SectionEntry + 0x50) == 0x40 &&
+                    Type430Matched)
+                {
+                    // SectionEntry + 0x78: DWORD 偏移值
+                    PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
+                    PeSectionOffset -= PeFileOffset;
+                    PeSectionOffset += (ULONG)AccumulatedOffset;
+
+                    if (PeSectionOffset && PeSectionOffset < PeFileSize)
+                    {
+                        TargetAddress = (ULONG64)PeSectionOffset + NtoskrnlBase;
+                        GtWrite((GLOBAL_TABLE_INDEX)0x2BC, TargetAddress);
+                        Found = TRUE;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+Cleanup:
+    // 如果之前附加到进程，则分离
+    if (Attached)
+    {
+        KeUnstackDetachProcess(&ApcState);
+    }
+
+    return Found ? 1 : 0;
 }

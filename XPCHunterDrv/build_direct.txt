@@ -1,0 +1,7 @@
+用于 .NET Framework 的 Microsoft (R) 生成引擎版本 16.11.2+f32259642
+版权所有(C) Microsoft Corporation。保留所有权利。
+
+MSBUILD : error MSB1008: 只能指定一个项目。
+开关:p:Configuration=Release
+
+若要显示开关的语法，请键入“MSBuild -help”

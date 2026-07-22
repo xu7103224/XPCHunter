@@ -2070,3 +2070,276 @@ __int64 CopyFsFilterEntryTable(__int64 OutputBuffer, char Is64Bit)
     }
     return Result;
 }
+
+char EnumerateProcessCallbackContext(void)
+{
+    char Result;
+    struct _KPROCESS *TargetProcess;
+    struct _KPROCESS *pTargetProcess;
+    unsigned int CurrentOffset;
+    __int64 SectionBase;
+    unsigned int SectionSize;
+    __int64 NtoskrnlBase;
+    __int64 NtoskrnlImageBase;
+    int ModuleInfo;
+    unsigned __int64 FuncAddress;
+    unsigned __int8 *pScanPos;
+    unsigned __int64 SectionEnd;
+    int TokenType;
+    unsigned int RetryCount;
+    _WORD UnicodeChar[8];
+    int CharOffset;
+    unsigned int CharSize;
+    int *pTokenType;
+    struct _KAPC_STATE ApcState;
+
+    Result = 0;
+    TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    pTargetProcess = TargetProcess;
+    if (TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+
+    CurrentOffset = (unsigned int)GtRead(0x42D0);
+    SectionBase = GtRead(0x43A8);
+    SectionSize = (unsigned int)GtRead(GtEprocessField22);
+    NtoskrnlBase = GtRead(GtEprocessField23);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+
+    if (CurrentOffset
+        && CurrentOffset < SectionSize
+        && SectionBase
+        && SectionBase < SectionSize
+        && NtoskrnlBase
+        && SectionSize
+        && NtoskrnlImageBase
+        && ModuleInfo)
+    {
+        FuncAddress = *(_QWORD *)(NtoskrnlBase + 48);
+        pScanPos = (unsigned __int8 *)(SectionBase + CurrentOffset);
+        SectionEnd = SectionBase + SectionSize;
+
+        if (DecodeUnicodeChar(pScanPos, SectionEnd, UnicodeChar) == 1)
+        {
+            do
+            {
+                TokenType = *pTokenType;
+                if (*pTokenType == 4275)
+                    break;
+
+                pScanPos += CharSize;
+
+                if (((unsigned int)(TokenType - 4267) <= 7 || TokenType == 4280)
+                    && CharOffset > 0
+                    && CharOffset > (int)FuncAddress
+                    && CharOffset - (int)FuncAddress < SectionSize)
+                {
+                    GtWrite(GtKernelDataField38, NtoskrnlImageBase + (unsigned int)(CharOffset - (int)FuncAddress));
+                    Result = 1;
+                }
+            }
+            while (DecodeUnicodeChar(pScanPos, SectionBase + SectionSize, UnicodeChar) == 1);
+
+            if (Result == 1)
+            {
+                Result = 0;
+                RetryCount = 0;
+                while (DecodeUnicodeChar(pScanPos, SectionEnd, UnicodeChar))
+                {
+                    if (((unsigned int)(*pTokenType - 4267) <= 7 || *pTokenType == 4280)
+                        && CharOffset > 0
+                        && CharOffset > (int)FuncAddress
+                        && CharOffset - (int)FuncAddress < SectionSize)
+                    {
+                        GtWrite(GtKernelDataField40, NtoskrnlImageBase + (unsigned int)(CharOffset - (int)FuncAddress));
+                        Result = 1;
+                        break;
+                    }
+                    ++RetryCount;
+                    pScanPos += CharSize;
+                    if (RetryCount >= 0xA)
+                        break;
+                }
+            }
+        }
+    }
+
+    if (pTargetProcess)
+        KeUnstackDetachProcess(&ApcState);
+
+    return Result;
+}
+
+
+__int64 EnumFileSystemCallbackEntries(void)
+{
+    __int64 Result;
+    struct _KPROCESS *TargetProcess;
+    struct _KPROCESS *pTargetProcess;
+    unsigned int CurrentOffset;
+    __int64 SectionBase;
+    unsigned int SectionSize;
+    __int64 NtoskrnlBase;
+    __int64 NtoskrnlImageBase;
+    int ModuleInfo;
+    int SectionIndex;
+    int FieldIndex;
+    int ComputedRva;
+    unsigned int SectionEntrySize;
+    __int64 RootOffsetAccum;
+    __int64 v26;
+    __int64 v31;
+    int v32;
+    int v33;
+    __int64 v34;
+    __int64 v36;
+    int v35;
+    int v28;
+    int v29;
+    int v30;
+    __int64 v27[8];
+    char ReadContext[8];
+    struct _KAPC_STATE ApcState;
+    __int64 StackCookie;
+
+    Result = 0;
+    TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    pTargetProcess = TargetProcess;
+    if (TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+
+    CurrentOffset = (unsigned int)GtRead(0x42D0);
+    SectionBase = GtRead(0x43A8);
+    SectionSize = (unsigned int)GtRead(0x20);
+    NtoskrnlBase = GtRead(0x21);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+
+    if (CurrentOffset
+        && CurrentOffset < (unsigned int)NtoskrnlBase
+        && SectionBase
+        && (unsigned int)SectionBase < (unsigned int)NtoskrnlBase
+        && SectionSize
+        && NtoskrnlBase
+        && NtoskrnlImageBase
+        && ModuleInfo)
+    {
+        InitPESectionReadContext(
+            (PUCHAR)(SectionBase + CurrentOffset),
+            (unsigned int)NtoskrnlBase - CurrentOffset,
+            2,
+            0,
+            -1,
+            0,
+            0,
+            (PUCHAR)ReadContext);
+
+        SectionIndex = 0;
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+        {
+            v35 = (int)v27[6];
+            RootOffsetAccum += v35;
+            v36 = v31;
+
+            // 检查是否到达终止类型 (0x545 = 1349)
+            if (*(_WORD *)(v31 + 6) == 0x545)
+                break;
+
+            // 检查是否为 SSDT 表类型 (0x512 = 1298)
+            if (*(_WORD *)(v31 + 6) == 0x512)
+            {
+                // 检查字段条件: FieldValueSize == 64, FieldCount == 2, FieldFlags == 4
+                if (v34 == 64 && v32 == 2 && v33 == 4)
+                {
+                    // 读取下一个条目
+                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+                    {
+                        v35 = (int)v27[6];
+                        RootOffsetAccum += v35;
+                        v36 = v31;
+
+                        // 再次检查 Type 0x512
+                        if (*(_WORD *)(v31 + 6) == 0x512)
+                        {
+                            // 检查字段条件: FieldValueSize == 64, FieldCount == 1, FieldFileOffset == 0x40000
+                            if (v34 == 64 && v32 == 1 && v33 == 0x40000)
+                            {
+                                ComputedRva = v29 - (int)SectionSize + (int)RootOffsetAccum;
+
+                                // 读取下一个条目确认 Type 0x558
+                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+                                {
+                                    v35 = (int)v27[6];
+                                    RootOffsetAccum += v35;
+                                    v36 = v31;
+
+                                    if (*(_WORD *)(v31 + 6) == 0x558 && ComputedRva)
+                                    {
+                                        if ((unsigned int)ComputedRva < (unsigned int)NtoskrnlBase)
+                                        {
+                                            GtWrite(GtKernelDataField38, NtoskrnlImageBase + ComputedRva);
+                                            Result = 0;
+
+                                            // 第二遍扫描：查找偏移地址
+                                            FieldIndex = 0;
+                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+                                            {
+                                                v35 = (int)v27[6];
+                                                RootOffsetAccum += v35;
+                                                v36 = v31;
+
+                                                // 检查是否达到构建号边界
+                                                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x55F0)
+                                                {
+                                                    if (*(_WORD *)(v31 + 6) == 0x545)
+                                                        break;
+                                                }
+
+                                                // 检查类型匹配: 0x4B1(1201), 0x175(373), 0x472(1138)
+                                                if (*(_WORD *)(v31 + 6) == 0x4B1
+                                                    || *(_WORD *)(v31 + 6) == 0x175
+                                                    || *(_WORD *)(v31 + 6) == 0x472)
+                                                {
+                                                    if ((v28 & 4) != 0 && v34 == 0x40000)
+                                                    {
+                                                        ComputedRva = v30 - (int)SectionSize + (int)RootOffsetAccum;
+                                                        if (ComputedRva && (unsigned int)ComputedRva < (unsigned int)NtoskrnlBase)
+                                                        {
+                                                            GtWrite(GtKernelDataField40, NtoskrnlImageBase + ComputedRva);
+                                                            Result = 1;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+
+                                                if ((unsigned int)++FieldIndex >= 0x12C)
+                                                    break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ((unsigned int)++SectionIndex >= 0xC8)
+                break;
+        }
+    }
+
+    if (pTargetProcess)
+        KeUnstackDetachProcess(&ApcState);
+
+    return Result;
+}
+
+
+
+// ParseNtRelocSection -- 解析 NT 重定位节区
+// 对应原始驱动 sub_14000E634
+char ParseNtRelocSection(__int64 PeBase, unsigned int PeSize, __int64 Context)
+{
+    return 0;
+}

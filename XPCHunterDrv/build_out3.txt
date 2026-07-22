@@ -1,0 +1,90 @@
+============================================
+XPCHunterDrv Build
+Configuration: Release
+Architecture:  x64
+============================================
+'vswhere.exe' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+**********************************************************************
+** Visual Studio 2019 Developer Command Prompt v16.0
+** Copyright (c) 2021 Microsoft Corporation
+**********************************************************************
+[vcvarsall.bat] Environment initialized for: 'x64'
+Step 1: Compiling with msbuild...
+用于 .NET Framework 的 Microsoft (R) 生成引擎版本 16.11.2+f32259642
+版权所有(C) Microsoft Corporation。保留所有权利。
+
+
+Step 2: Linking...
+ContextMgmt.obj : 找到 MSIL .netmodule 或使用 /GL 编译的模块；正在使用 /LTCG 重新启动链接；将 /LTCG 添加到链接命令行以改进链接器性能
+ContextMgmt.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+Crypto.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+DecodeTables.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+DriverEntry.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+GlobalTable.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+HandleMgmt.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+IoctlDispatch.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+MemoryCleanup.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+MemoryOps.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+Minifilter.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+ModuleMgmt.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+ObjectMgmt.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+PEDecoder.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+ProcessMgmt.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+Protocol.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+QueryDriver.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+Registry.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+SSDT.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+SystemInfo.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+ThreadMgmt.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+Utf8Decoder.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+Utility.obj : warning LNK4257: 未对内核模式编译对象文件；映像可能不会运行
+ContextMgmt.obj : error LNK2001: 无法解析的外部符号 ScanKernelDiscardableSection
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 SendIoControlWithUnicodeString
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 KernelMemoryOperationDispatch
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 ProcessMemoryOperationDispatch
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 ModuleOperationDispatch
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 CmdSetModuleInfoInternal
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 IrpReadFileEx
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 DiskOperationDispatcher
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 ObjectOperationDispatcher
+IoctlDispatch.obj : error LNK2001: 无法解析的外部符号 IoPortOperationDispatch
+Minifilter.obj : error LNK2001: 无法解析的外部符号 MiniFilterStreamHandleCleanup
+ModuleMgmt.obj : error LNK2001: 无法解析的外部符号 ParseNtImageSections2
+ModuleMgmt.obj : error LNK2001: 无法解析的外部符号 FindExportInFileByName
+ModuleMgmt.obj : error LNK2001: 无法解析的外部符号 FindPESectionByOffset
+ModuleMgmt.obj : error LNK2001: 无法解析的外部符号 ComparePeModuleSignature
+ModuleMgmt.obj : error LNK2001: 无法解析的外部符号 ParseDriverInitSection
+ModuleMgmt.obj : error LNK2001: 无法解析的外部符号 FindHalInitPatternOffsets
+ObjectMgmt.obj : error LNK2001: 无法解析的外部符号 RemoveObjectFromLinkedListLegacy
+ObjectMgmt.obj : error LNK2001: 无法解析的外部符号 RemoveObjectFromLinkedList
+ObjectMgmt.obj : error LNK2001: 无法解析的外部符号 RemoveObjectSingleLinkedListLegacy
+ObjectMgmt.obj : error LNK2001: 无法解析的外部符号 j_GetCurrentFiber
+ProcessMgmt.obj : error LNK2001: 无法解析的外部符号 TraverseEprocessListAndInit
+SSDT.obj : error LNK2001: 无法解析的外部符号 FindSsdtSignatureInNtFile
+SSDT.obj : error LNK2001: 无法解析的外部符号 ParseServiceTableWin8
+SSDT.obj : error LNK2001: 无法解析的外部符号 ResolveSsdtNtOffset
+SSDT.obj : error LNK2001: 无法解析的外部符号 FindKernelDataSectionOffsetWin7
+SSDT.obj : error LNK2001: 无法解析的外部符号 ResolveSsdtTablePointer
+SSDT.obj : error LNK2001: 无法解析的外部符号 FindSsdtServiceTableEntry
+SSDT.obj : error LNK2001: 无法解析的外部符号 ParseNtExportFunctions
+SSDT.obj : error LNK2001: 无法解析的外部符号 ParseNtExportFunctionsV2
+SSDT.obj : error LNK2001: 无法解析的外部符号 FindKernelDataSectionOffsetWin10
+SSDT.obj : error LNK2001: 无法解析的外部符号 ParseServiceTableWin7
+SSDT.obj : error LNK2001: 无法解析的外部符号 ResolveSsdtTablePointerEx
+SSDT.obj : error LNK2001: 无法解析的外部符号 FindKernelDataSectionPair
+SSDT.obj : error LNK2001: 无法解析的外部符号 FindSsdtTableAddresses
+SSDT.obj : error LNK2001: 无法解析的外部符号 FixCreateFileRelocs
+SSDT.obj : error LNK2001: 无法解析的外部符号 FindHookTargetDataSection
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 ParseIoPortDescriptorTable
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 SendAtaScsiCommand
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 ResolveIoPortContext
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 ReadIoPortDescriptorTable
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 QueryDiskInfoAta
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 QuerySystemInfoPart2
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 BuildDevicePath
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 QuerySystemInfoPart1
+SystemInfo.obj : error LNK2001: 无法解析的外部符号 TranslateIoPortAddresses
+Utility.obj : error LNK2001: 无法解析的外部符号 ProcessDiskSectorData
+E:\Work\Dev\Windows\wmprotected\APK\XPCHunter\XPCHunterDrv\build\..\build\bin\Release\x64\XPCHunterDrv.sys : fatal error LNK1120: 47 个无法解析的外部命令
+ERROR: Link failed

@@ -2066,12 +2066,13 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     USHORT ShareAccess, int Disposition, int CreateOptions,
     struct _DEVICE_OBJECT *DeviceObject, __int64 DeviceObjectBase, _QWORD *pFileObject)
 {
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     unsigned int v12 = 216;
     _OWORD v40;
     memset(&v40, 0, sizeof(v40));
     int v30 = FileAttributes;
 
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    if (BuildNumber >= 0x1770)
         v12 = 256;
 
     __int64 v37 = 0;
@@ -2093,7 +2094,7 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     *((_WORD *)Object + 45) = *(_WORD *)(UnicodeString + 2);
     *((_QWORD *)Object + 12) = ExAllocatePool(NonPagedPool, *(unsigned __int16 *)(UnicodeString + 2));
 
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    if (BuildNumber >= 0x1770)
     {
         *((_QWORD *)Object + 24) = (char *)Object + 192;
         *((_QWORD *)Object + 25) = (char *)Object + 192;
@@ -2545,9 +2546,10 @@ __int64 __fastcall AllocBufferAndQuerySystemInfo(
 // =========================================================================
 bool __fastcall SendCreateFileIoControl(__int64 Handle, __int16 *FilePath)
 {
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     bool Result = 0;
 
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+    if (BuildNumber >= 0x42EE)
         return 0;
 
     unsigned int ServiceCount = GtRead(GtSdstServiceCount);
@@ -2561,13 +2563,13 @@ bool __fastcall SendCreateFileIoControl(__int64 Handle, __int16 *FilePath)
     if (ServiceCount != -1 && NtFsControlFunc && CloseHandleFunc && CallbackFunc && HandleValue)
     {
         unsigned int *pResultSize = &ServiceCount;
-        if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770)
+        if (BuildNumber < 0x1770)
             pResultSize = 0;
 
         _DWORD *OutputHandle = 0;
         int Status;
 
-        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+        if (BuildNumber >= 0x1DB0)
             Status = (int)SendDeviceIoControlWithRetry(Handle, 2, 0, &OutputHandle, (__int64)pResultSize);
         else
             Status = (int)NtFsControlFunc(Handle, 2, *HandleValue, 0, &OutputHandle, pResultSize);
@@ -2594,7 +2596,7 @@ bool __fastcall SendCreateFileIoControl(__int64 Handle, __int16 *FilePath)
                 if (pResultSize)
                 {
                     unsigned int RetSize = *pResultSize;
-                    GtRead(GtWindowsBuildNumber);
+                    BuildNumber;
                     CallResult = (int)Callback(OutputHandle, CharBuffer, Handle, (RetSize >> 2) & 1);
                 }
                 else
@@ -2620,6 +2622,7 @@ bool __fastcall SendCreateFileIoControl(__int64 Handle, __int16 *FilePath)
 // =========================================================================
 bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize)
 {
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     bool Result = 0;
 
     if (CommandType > 5)
@@ -2651,7 +2654,7 @@ bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int Comman
         goto ProcessStatus;
     }
 
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+    if (BuildNumber >= 0x1DB0)
         Status = (int)SendDeviceIoControlWithRetry(Handle, 1, 0, (_DWORD **)OutputHandle, 0);
     else
         Status = (int)NtFsControlFunc(Handle, 1, *HandleValue, 0, OutputHandle, 0);
@@ -2671,7 +2674,7 @@ ProcessStatus:
         _QWORD *StoragePtr = (_QWORD *)DispatchHookSwapByVersion(*(__int64 *)OutputHandle, &SwapStorage);
 
         int CallResult = -1073741823;
-        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+        if (BuildNumber >= 0x1770)
         {
             __int64 (__fastcall *QueryHandler)(__int64, __int64) =
                 (__int64 (__fastcall *)(__int64, __int64))GtRead(GtEprocessField141 | 0x100);
@@ -2722,6 +2725,16 @@ ProcessStatus:
     }
 
     return Result;
+}
+
+// =========================================================================
+// SendIoControlWithStringParam — 发送带字符串参数的IO控制命令
+// 对应原始驱动 sub_140073BE4
+// TODO: 从 IDA 逆向实现完整逻辑
+// =========================================================================
+bool __fastcall SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING UnicodeString, unsigned int CommandType, unsigned int SomeValue, __int64 OutputBuffer, unsigned int OutputSize)
+{
+    return 0;
 }
 
 // EnumerateDriverList — 枚举驱动列表
@@ -3059,12 +3072,14 @@ __int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, vo
 // CdbCommandCompletionCallback — CDB 命令完成回调：释放 IRP 缓冲区，恢复当前线程标志位，调用完成通知回调
 __int64 CdbCommandCompletionCallback(void *Irp)
 {
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     __int64 (__fastcall *pNotifyFunc)(_QWORD);
     __int64 Result;
     unsigned int ThreadFlagOffset;
     int FlagValue;
     struct _KTHREAD *CurrentThread;
     unsigned int ThreadFlagOffset2;
+    unsigned int EprocessField94 = (unsigned int)GtRead(GtEprocessField94);
     bool v7;
     struct _KTHREAD *v8;
     struct _KTHREAD *v9;
@@ -3074,30 +3089,30 @@ __int64 CdbCommandCompletionCallback(void *Irp)
     pNotifyFunc = (__int64 (__fastcall *)(_QWORD))Result;
     if (Result)
     {
-        if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB1)
+        if (BuildNumber < 0x1DB1)
         {
-            Result = GtRead(GtEprocessField94);
+            Result = EprocessField94;
             FlagValue = 16;
             ThreadFlagOffset = (unsigned int)Result;
         }
         else
         {
             ThreadFlagOffset = GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
-            Result = GtRead(GtWindowsBuildNumber);
+            Result = BuildNumber;
             if ((_DWORD)Result == 7601)
             {
                 FlagValue = 0x2000;
             }
             else
             {
-                Result = GtRead(GtWindowsBuildNumber);
+                Result = BuildNumber;
                 if ((_DWORD)Result == 9200)
                 {
                     FlagValue = 4096;
                 }
                 else
                 {
-                    Result = GtRead(GtWindowsBuildNumber);
+                    Result = BuildNumber;
                     FlagValue = 1024;
                     if ((_DWORD)Result == 9600)
                         FlagValue = 2048;
@@ -3108,10 +3123,10 @@ __int64 CdbCommandCompletionCallback(void *Irp)
         {
             CurrentThread = KeGetCurrentThread();
             *(_DWORD *)((char *)CurrentThread + ThreadFlagOffset) |= FlagValue;
-            ThreadFlagOffset2 = GtRead(GtEprocessField94);
+            ThreadFlagOffset2 = EprocessField94;
             if (ThreadFlagOffset2 != -1)
             {
-                v7 = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0;
+                v7 = BuildNumber < 0x23F0;
                 v8 = KeGetCurrentThread();
                 *(_DWORD *)((char *)v8 + ThreadFlagOffset2) &= ~(v7 ? 64 : 32);
                 v9 = KeGetCurrentThread();

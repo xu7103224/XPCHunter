@@ -139,10 +139,138 @@ BOOLEAN CopySectionString(__int64 OutputBuffer, __int64 DeviceEntry, __int64 Dri
     return 1;
 }
 
-// EnumDeviceObjects
-__int64 EnumDeviceObjects(_QWORD a1, _QWORD a2)
+// EnumDeviceObjects — 枚举设备对象
+// 对应原始驱动 sub_140008504
+// 打开系统卷设备，通过 NtFsControlFile 获取设备句柄，遍历设备对象链
+__int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
 {
-    return 0;
+    unsigned int EntryCount = 0;
+    void (__fastcall *RtlInitUnicodeStringFunc)(_BYTE *, _DWORD *);
+    __int64 (__fastcall *CreateFileFunc1)(__int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64);
+    __int64 (__fastcall *NtFsControlFileFunc)(__int64, __int64, __int64, __int64, __int64, __int64);
+    __int64 *pFsControlCode;
+    void (__fastcall *CloseHandleFunc)(__int64);
+    void (__fastcall *ExFreePoolFunc)(__int64);
+
+    __int64 FileHandle;
+    __int64 IoStatusBlock;
+    __int64 DeviceObjectPtr;
+    __int64 ResultInfo;
+    __int64 FsControlCode;
+    ULONG OaLength;
+    ULONG64 OaRootDir;
+    ULONG64 OaObjectName;
+    ULONG OaAttributes;
+    _OWORD IoStatusBlockBuf;
+    ULONG PathBuffer[4];
+    ULONG InitResult;
+
+    // 读取函数指针
+    RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    CreateFileFunc1 = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64, __int64))GtRead(GtCreateFileFunc1);
+    NtFsControlFileFunc = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64))GtRead(GtNtFsControlFileFunc);
+    pFsControlCode = (__int64 *)GtRead(GtZwCreateFileFunc);
+    CloseHandleFunc = (void (__fastcall *)(__int64))GtRead(GtCloseHandleFunc);
+    ExFreePoolFunc = (void (__fastcall *)(__int64))GtRead(GtExFreePoolFunc);
+
+    // 检查所有函数指针非空
+    if (!RtlInitUnicodeStringFunc || !CreateFileFunc1 || !NtFsControlFileFunc ||
+        !pFsControlCode || !CloseHandleFunc || !ExFreePoolFunc)
+    {
+        return 0;
+    }
+
+    // 构造设备路径缓冲区：L"\\??\\X:\\"
+    // 初始化为 L"\\??\\C:\\"，稍后通过 InitSystemPath 获取的驱动器号替换 'C'
+    PathBuffer[0] = 0x3F005C;   // L"\\?"
+    PathBuffer[1] = 0x5C003F;   // L"?\\"
+    PathBuffer[2] = 0x3A0043;   // L"C:"
+    PathBuffer[3] = 0x5C;       // L"\\"
+
+    // 获取系统根路径，提取驱动器号
+    InitResult = (ULONG)InitSystemPath();
+    if (!InitResult)
+    {
+        return 0;
+    }
+
+    // 替换路径中的驱动器号
+    ((WORD *)PathBuffer)[4] = *(WORD *)InitResult;
+    ExFree((void *)InitResult);
+
+    // 初始化 Unicode 字符串
+    RtlInitUnicodeStringFunc((_BYTE *)&ResultInfo, (_DWORD *)PathBuffer);
+
+    // 设置 OBJECT_ATTRIBUTES
+    OaLength = 0x30;                       // sizeof(OBJECT_ATTRIBUTES)
+    OaRootDir = 0;                         // 根目录为空
+    OaAttributes = 0x240;                  // OBJ_CASE_INSENSITIVE
+    OaObjectName = (ULONG64)&ResultInfo;   // 指向 Unicode 字符串
+
+    // 清零 IO_STATUS_BLOCK
+    ((ULONG64 *)&IoStatusBlockBuf)[0] = 0;
+    ((ULONG64 *)&IoStatusBlockBuf)[1] = 0;
+
+    // 调用 CreateFile 打开设备
+    if ((ULONG)CreateFileFunc1(
+        (__int64)&FileHandle,
+        0x100000,                     // DesiredAccess: SYNCHRONIZE
+        (__int64)&OaLength,           // ObjectAttributes
+        (__int64)&IoStatusBlockBuf,   // IoStatusBlock
+        0,                            // AllocationSize
+        0,                            // FileAttributes
+        3,                            // ShareAccess: FILE_SHARE_READ|FILE_SHARE_WRITE
+        1,                            // CreateDisposition: FILE_OPEN
+        0x21,                         // CreateOptions: FILE_SYNCHRONOUS_IO_NONALERT
+        0) != 0)                      // EaLength
+    {
+        return 0;
+    }
+
+    // 读取 FSCTL 码
+    FsControlCode = *pFsControlCode;
+
+    // 调用 NtFsControlFile 获取设备句柄
+    // 从文件对象获取设备对象
+    if ((ULONG)NtFsControlFileFunc(
+        FileHandle,
+        1,                            // Event
+        FsControlCode,                // 第 3 参数（实际为 FSCTL 码）
+        0,                            // 第 4 参数
+        (__int64)&IoStatusBlock,      // IoStatusBlock 输出
+        0) != 0)                      // 第 6 参数
+    {
+        ExFreePoolFunc(FileHandle);
+        return 0;
+    }
+
+    // 从文件对象获取设备对象
+    if (!GetDeviceObjectFromFileObject(IoStatusBlock, (ULONG64 *)&DeviceObjectPtr, NULL))
+    {
+        CloseHandleFunc(IoStatusBlock);
+        ExFreePoolFunc(FileHandle);
+        return 0;
+    }
+
+    // 遍历设备对象链
+    // 从 DeviceObjectPtr 的 NextDevice 开始遍历
+    while (DeviceObjectPtr)
+    {
+        __int64 NextDevice = *(__int64 *)(DeviceObjectPtr + 0x18);
+        __int64 DriverObject = *(__int64 *)(DeviceObjectPtr + 0x08);
+        DeviceObjectPtr = NextDevice;
+        if (!DeviceObjectPtr || !MaxCount)
+            break;
+        CopySectionString(OutputBuffer, DeviceObjectPtr, DriverObject, 4);
+        OutputBuffer += 0x838;
+        --MaxCount;
+        ++EntryCount;
+    }
+
+    // 清理
+    CloseHandleFunc(IoStatusBlock);
+    ExFreePoolFunc(FileHandle);
+    return EntryCount;
 }
 
 // EnumFileSystemDeviceObjects — 枚举文件系统设备对象
@@ -241,11 +369,64 @@ __int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 O
 }
 
 // QueryDriverObjectDevice — 查询驱动对象设备列表
+// 通过编码设备路径打开 \\Driver\\Device 对象，获取设备对象链表并复制到输出缓冲区
 // 对应原始驱动 sub_1400087A8
-// 编码设备路径，打开 \\Driver\\Device 对象，获取设备对象链表并复制到输出缓冲区
 __int64 QueryDriverObjectDevice(__int64 OutputBuffer, int MaxCount)
 {
-    return 0;  // TODO: implement properly (uses GetDeviceObjectFromFileObject)
+    unsigned int EntryCount;
+    void (__fastcall *DecodeStringFunc)(_BYTE *, _DWORD *);
+    unsigned int (__fastcall *CreateFileFunc)(_BYTE *, __int64, __int64 *, __int64 *);
+    __int64 CloseHandleFuncPtr;
+    void (__fastcall *CloseHandleFunc)(__int64);
+    __int64 DriverFlink;
+    __int64 DeviceListIter;
+    __int64 DeviceEntry;
+    __int64 FileHandle;
+    _BYTE DevicePath[16];
+    _DWORD EncodedPath[12];
+
+    EntryCount = 0;
+    DecodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    CreateFileFunc = (unsigned int (__fastcall *)(_BYTE *, __int64, __int64 *, __int64 *))GtRead(GtCreateFileFunc2);
+    CloseHandleFuncPtr = GtRead(GtCloseHandleFunc);
+    CloseHandleFunc = (void (__fastcall *)(__int64))CloseHandleFuncPtr;
+    if (DecodeStringFunc && CreateFileFunc && CloseHandleFuncPtr)
+    {
+        EncodedPath[0] = 4456540;
+        EncodedPath[1] = 7733349;
+        EncodedPath[2] = 6488169;
+        EncodedPath[3] = 6029413;
+        EncodedPath[4] = 6357064;
+        EncodedPath[5] = 6553714;
+        EncodedPath[6] = 6881380;
+        EncodedPath[7] = 7012467;
+        EncodedPath[8] = 6029360;
+        EncodedPath[9] = 5374020;
+        EncodedPath[10] = 48;
+        DecodeStringFunc(DevicePath, EncodedPath);
+        if (!CreateFileFunc(DevicePath, 128, &FileHandle, &DeviceEntry))
+        {
+            if (GetDeviceObjectFromFileObject(FileHandle, &DeviceEntry, 0))
+            {
+                DriverFlink = *(_QWORD *)(DeviceEntry + 8);
+                DeviceListIter = *(_QWORD *)(DeviceEntry + 24);
+                while (1)
+                {
+                    DeviceEntry = DeviceListIter;
+                    if (!DeviceListIter || !MaxCount)
+                        break;
+                    CopySectionString(OutputBuffer, DeviceListIter, DriverFlink, 1);
+                    OutputBuffer += 2104;
+                    DriverFlink = *(_QWORD *)(DeviceEntry + 8);
+                    DeviceListIter = *(_QWORD *)(DeviceEntry + 24);
+                    --MaxCount;
+                    ++EntryCount;
+                }
+            }
+            CloseHandleFunc(FileHandle);
+        }
+    }
+    return EntryCount;
 }
 
 // QueryFileSystemDriverObject — 查询文件系统驱动对象

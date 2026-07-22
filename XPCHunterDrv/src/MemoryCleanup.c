@@ -24,17 +24,89 @@ void *AllocProcessInfoBuffer(void)
 }
 
 // CallKernelFreeEntryV1 — 调用内核释放条目 V1（被 DispatchKernelMemoryCleanup 调用）
-// 对应原始驱动 sub_1400421AC
+// 对应原始驱动 sub_1400421B4
+// 从 GT 17105 获取释放函数指针，验证虚拟地址有效性后，调用该函数释放地址结构中的第 3 个字段指向的内存
 __int64 CallKernelFreeEntryV1(_QWORD *VirtualAddress)
 {
-    return 0;
+    char Result;
+    void (*pFreeFunc)(_QWORD);
+
+    Result = 0;
+    pFreeFunc = (void (*)(_QWORD))GtRead(GtTotalSize | GtCallbackField06);
+
+    if (pFreeFunc && MmIsAddressValid(VirtualAddress) == 1 && MmIsAddressValid((char *)VirtualAddress + 79) == 1)
+    {
+        pFreeFunc(VirtualAddress[3]);
+        return 1;
+    }
+    return Result;
 }
 
 // CallKernelFreeEntryV2 — 调用内核释放条目 V2（被 DispatchKernelMemoryCleanup 调用）
-// 对应原始驱动 sub_1400421FC
-__int64 CallKernelFreeEntryV2(__int64 VirtualAddress)
+// 对应原始驱动 sub_140042210
+// 除了释放内存对象外，还会遍历回调链表清理匹配的回调条目
+__int64 CallKernelFreeEntryV2(__int64 TargetAddress)
 {
-    return 0;
+    char Result;
+    void (*pFreeFunc)(_QWORD);
+    _QWORD *pEntryPtr;
+    char *pCallbackList;
+    __int64 CallbackListSize;
+    _DWORD *pCounter;
+    char *pListEnd;
+    _QWORD *pEntryObj;
+    __int64 pDataPtr;
+
+    Result = 0;
+    pFreeFunc = (void (*)(_QWORD))GtRead(GtTotalSize | GtCallbackField06);
+
+    if (pFreeFunc)
+    {
+        if ((TargetAddress & 0xFFFFFFF8) != 0
+            && MmIsAddressValid((PVOID)((unsigned int)TargetAddress & 0xFFFFFFF8)) == 1
+            && MmIsAddressValid((PVOID)(((unsigned int)TargetAddress & 0xFFFFFFF8) + 15)) == 1)
+        {
+            pEntryPtr = *(_QWORD **)(((unsigned int)TargetAddress & 0xFFFFFFF8) + 8);
+            if (pEntryPtr)
+            {
+                if (MmIsAddressValid(pEntryPtr) == 1 && MmIsAddressValid((char *)pEntryPtr + 39) == 1)
+                {
+                    pFreeFunc(*pEntryPtr);
+                    Result = 1;
+                }
+            }
+        }
+    }
+
+    pCallbackList = (char *)GtRead(GtKernelDataField38);
+    CallbackListSize = GtRead(GtKernelDataField40);
+    pCounter = (_DWORD *)CallbackListSize;
+
+    if (pCallbackList && CallbackListSize)
+    {
+        pListEnd = &pCallbackList[(unsigned int)GtRead(GtKernelDataField39)];
+        while (pCallbackList < pListEnd && MmIsAddressValid(pCallbackList))
+        {
+            if (TargetAddress == *(_QWORD *)pCallbackList)
+            {
+                *(_QWORD *)pCallbackList = 0;
+                if (*pCounter)
+                    --*pCounter;
+
+                pEntryObj = (_QWORD *)((unsigned int)TargetAddress & 0xFFFFFFF8);
+                if (MmIsAddressValid(pEntryObj) == 1 && MmIsAddressValid((char *)pEntryObj + 15) == 1)
+                {
+                    pDataPtr = pEntryObj[1];
+                    if (MmIsAddressValid((PVOID)pDataPtr) == 1 && MmIsAddressValid((PVOID)(pDataPtr + 39)) == 1)
+                        ExFreePoolWithTag((PVOID)pDataPtr, 0);
+                    ExFreePoolWithTag(pEntryObj, 0);
+                }
+                return 1;
+            }
+            pCallbackList += 8;
+        }
+    }
+    return Result;
 }
 
 // CleanupProcessMemoryEntry — 清理进程内存条目
@@ -90,6 +162,7 @@ __int64 ClearKernelObjectEntry(__int64 TargetAddress)
 {
     char Result = 0;
     int IsWin7 = GtRead(GtEprocessField28);
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     void (__fastcall *pFreeFunc)(__int64, __int64) = (void (__fastcall *)(__int64, __int64))GtRead((GLOBAL_TABLE_INDEX)0x41A8);
     if (pFreeFunc)
     {
@@ -112,27 +185,27 @@ SKIP_FREE:
     {
         _DWORD *pCounter = NULL;
         _DWORD *pTempCounter;
-        if (GtRead(GtWindowsBuildNumber) > 0x1770)
+        if (BuildNumber > 0x1770)
         {
-            if (GtRead(GtWindowsBuildNumber) > 0x1DB1)
+            if (BuildNumber > 0x1DB1)
             {
                 pTempCounter = pSsdtTable + 512;
-                if (GtRead(GtWindowsBuildNumber) == 9200)
+                if (BuildNumber == 9200)
                     pCounter = pSsdtTable + 512;
                 else
                 {
-                    if (GtRead(GtWindowsBuildNumber) < 0x3839 || GtRead(GtWindowsBuildNumber) == 14393)
+                    if (BuildNumber < 0x3839 || BuildNumber == 14393)
                         pCounter = pCounterEnd - 1;
-                    else if (GtRead(GtWindowsBuildNumber) == 15063)
+                    else if (BuildNumber == 15063)
                         pCounter = pCounterEnd + 2;
-                    else if (GtRead(GtWindowsBuildNumber) == 16299)
+                    else if (BuildNumber == 16299)
                         pCounter = pCounterEnd + 1;
-                    else if (GtRead(GtWindowsBuildNumber) == 17134 || GtRead(GtWindowsBuildNumber) == 17763)
+                    else if (BuildNumber == 17134 || BuildNumber == 17763)
                         pCounter = pCounterEnd - 1;
                     else
                     {
                         pCounter = pCounterEnd + 4;
-                        if (GtRead(GtWindowsBuildNumber) != 18362)
+                        if (BuildNumber != 18362)
                             pCounter = pCounterEnd - 2;
                     }
                 }
@@ -150,7 +223,7 @@ SKIP_FREE:
         {
             if (TargetAddress == *pSsdtTable && MmIsAddressValid((PVOID)(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64)) == 1)
             {
-                if (GtRead(GtWindowsBuildNumber) >= 0x1771 && *(_BYTE *)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 0x10))
+                if (BuildNumber >= 0x1771 && *(_BYTE *)((TargetAddress & 0xFFFFFFFFFFFFFFF0ui64) + 0x10))
                 {
                     if (*pCounter)
                         --*pCounter;
@@ -242,9 +315,10 @@ __int64 DispatchFreeProcessMemory(char *VirtualAddress)
 // 对应原始驱动 sub_140042150
 __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress)
 {
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) == 2600 || (unsigned int)GtRead(GtWindowsBuildNumber) == 3790)
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+    if (BuildNumber == 2600 || BuildNumber == 3790)
         return CallKernelFreeEntryV2((__int64)VirtualAddress);
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    if (BuildNumber >= 0x1770)
         return CallKernelFreeEntryV1(VirtualAddress);
     return 0;
 }
@@ -254,9 +328,13 @@ __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress)
 // 遍历内核内存上下文链表，根据构建号选择步长写入输出缓冲区
 __int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *a3, unsigned int a4)
 {
-    if (!GtRead(GtEprocessExtField58|GtEprocessField32|0x400))
+    __int64 EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField32|0x400);
+    if (!EprocessExtField58)
+    {
         InitKernelMemoryContext();
-    _QWORD *v7 = (_QWORD *)GtRead(GtEprocessExtField58|GtEprocessField32|0x400);
+        EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField32|0x400);
+    }
+    _QWORD *v7 = (_QWORD *)EprocessExtField58;
     unsigned int v8 = (unsigned int)GtRead(GtEprocessExtField42|GtEprocessField54|0x400);
     if (!v7 || !v8)
         return 0;
@@ -275,14 +353,15 @@ __int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *a3, unsigned int
     memset(a3, 0, a4);
     *a3 = 0;
     unsigned __int64 v10 = ((a4 - 24) >> 4) + 1;
+    unsigned int BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
 
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x4563)
+    if (BuildNumber < 0x4563)
     {
-        if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+        if (BuildNumber < 0x23F0)
         {
             // Win7 (7600/7601 specific)
-            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 7600
-                || (unsigned int)GtRead(GtWindowsBuildNumber) == 7601)
+            if (BuildNumber == 7600
+                || BuildNumber == 7601)
             {
                 for (unsigned int i = 0; i < 3 && (_DWORD)v10
                     && CheckMemoryValid(v9) == 1
@@ -515,9 +594,13 @@ char InitKernelObjectHeader(char *VirtualAddress)
 // 读取 GT 2000（内核内存上下文指针），验证后复制 QWORD 到用户缓冲区
 __int64 ReadKernelMemoryToUserBuffer(__int64 a1, __int64 a2, _QWORD *a3, int a4)
 {
-    if (!GtRead(GtEprocessExtField58|GtEprocessField54|0x400))
+    __int64 EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField54|0x400);
+    if (!EprocessExtField58)
+    {
         InitKernelMemoryContext();
-    _QWORD *v8 = (_QWORD *)GtRead(GtEprocessExtField58|GtEprocessField54|0x400);
+        EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField54|0x400);
+    }
+    _QWORD *v8 = (_QWORD *)EprocessExtField58;
     if (v8 && v8 > (_QWORD *)MmSystemRangeStart && CheckMemoryValid(v8) == 1
         && a3 && a4 == 8
         && (unsigned __int64)a3 < MmUserProbeAddress
@@ -529,223 +612,6 @@ __int64 ReadKernelMemoryToUserBuffer(__int64 a1, __int64 a2, _QWORD *a3, int a4)
         return 1;
     }
     return 0;
-}
-
-// ReleaseProcessMemoryBlock — 释放进程内存块
-// 对应原始驱动 sub_14004501C
-__int64 ReleaseProcessMemoryBlock(_QWORD *pTargetEntry)
-{
-    char Result = 0;
-    void (__fastcall *pFreeCallback)(_QWORD *) = (void (__fastcall *)(_QWORD *))GtRead(GtNtDeleteKeyPeSectionOffset|GtEprocessField66);
-    if (pFreeCallback && pTargetEntry && MmIsAddressValid(pTargetEntry) == 1)
-    {
-        pFreeCallback(pTargetEntry);
-        Result = 1;
-    }
-    _QWORD **pProcessMemListHead = (_QWORD **)GtRead(GtEprocessField25|0x800);
-    if (pProcessMemListHead && MmIsAddressValid(pProcessMemListHead) == 1)
-    {
-        int IterationCount = 0;
-        for (_QWORD *pCurrentNode = *pProcessMemListHead; pCurrentNode != pProcessMemListHead; pCurrentNode = (_QWORD *)*pCurrentNode)
-        {
-            if (pCurrentNode <= MmSystemRangeStart) break;
-            if (MmIsAddressValid(pCurrentNode) != 1) break;
-            if ((unsigned int)++IterationCount > 0x1000) break;
-            if (pCurrentNode == (_QWORD *)pTargetEntry)
-            {
-                if (MmIsAddressValid((PVOID)*pCurrentNode) == 1)
-                {
-                    _QWORD *pPrevEntry = (_QWORD *)*pCurrentNode;
-                    _QWORD *pNextEntry = (_QWORD *)pCurrentNode[1];
-                    pPrevEntry[1] = pNextEntry;
-                    *pNextEntry = pPrevEntry;
-                    ExFreePoolWithTag(pTargetEntry, 0x72546F49u);
-                    return 1;
-                }
-                return Result;
-            }
-        }
-    }
-    return Result;
-}
-
-// RemoveFromObjectTypeList — 从对象类型链表中移除条目
-// 对应原始驱动 sub_140041FB4
-// 遍历 GT 699 链表，查找匹配目标并从双向链表中摘除
-__int64 RemoveFromObjectTypeList(PVOID *pTargetObject)
-{
-    PVOID **pListHead = (PVOID **)GtRead((GLOBAL_TABLE_INDEX)699);
-    if (!pListHead || MmIsAddressValid(pListHead) != 1)
-        return 0;
-
-    PVOID *pCurrent = *pListHead;
-    int IterCount = 0;
-    while (pCurrent != (PVOID *)pListHead)
-    {
-        if (pCurrent <= MmSystemRangeStart)
-            break;
-        if (MmIsAddressValid(pCurrent) != 1)
-            break;
-        if (++IterCount > 0x1000)
-            break;
-        if (pCurrent == pTargetObject)
-        {
-            if (MmIsAddressValid(*pCurrent) == 1)
-            {
-                PVOID *pPrev = (PVOID *)*pCurrent;
-                PVOID **pNext = (PVOID **)pCurrent[1];
-                pPrev[1] = pNext;
-                *pNext = pPrev;
-                return 1;
-            }
-            return 0;
-        }
-        pCurrent = (PVOID *)*pCurrent;
-    }
-    return 0;
-}
-
-// RemoveFromObjectTypeListEx — 从对象类型链表中移除条目（扩展版）
-// 对应原始驱动 sub_140042914
-// 从 GT 824 获取 13 个链表头数组，在每个链表中搜索并摘除目标
-__int64 RemoveFromObjectTypeListEx(PVOID *pTargetPointer)
-{
-    PVOID **pListArray = (PVOID **)GtRead((GLOBAL_TABLE_INDEX)824);
-    if (!pListArray || MmIsAddressValid(pListArray) != 1)
-        return 0;
-
-    for (unsigned int ListIdx = 0; ListIdx < 13; ListIdx++)
-    {
-        PVOID **pListHead = pListArray + 2 * ListIdx;
-        if (MmIsAddressValid(pListHead) != 1)
-            continue;
-
-        PVOID *pCurrent = *pListHead;
-        int IterCount = 0;
-        while (pCurrent != (PVOID *)pListHead)
-        {
-            if (pCurrent <= MmSystemRangeStart)
-                break;
-            if (MmIsAddressValid(pCurrent) != 1)
-                break;
-            if (++IterCount > 0x10000)
-                break;
-            if (pTargetPointer == pCurrent)
-            {
-                if (MmIsAddressValid(*pCurrent) == 1)
-                {
-                    PVOID *pPrev = (PVOID *)*pCurrent;
-                    PVOID **pNext = (PVOID **)pCurrent[1];
-                    pPrev[1] = pNext;
-                    *pNext = pPrev;
-                    return 1;
-                }
-                break;
-            }
-            pCurrent = (PVOID *)*pCurrent;
-        }
-    }
-    return 0;
-}
-
-// RemoveKernelObjectEntry — 移除内核对象条目
-// 对应原始驱动 sub_140042578
-// 遍历 SSDT2 表查找匹配地址并清零，释放内存
-__int64 RemoveKernelObjectEntry(__int64 TargetAddress)
-{
-    char Result = 0;
-    int IsWin7 = GtRead(GtEprocessField28);
-    _QWORD *pSsdtTable = (_QWORD *)GtRead(GtEprocessField78);
-    _DWORD *pCounter = (_DWORD *)GtRead(GtEprocessField79);
-    if (pSsdtTable && pCounter)
-    {
-        _QWORD *pEndPtr = (_QWORD *)pCounter;
-        if (GtRead(GtWindowsBuildNumber) >= 0x23F0)
-            pEndPtr = pSsdtTable + 64;
-        while (pSsdtTable < pEndPtr && MmIsAddressValid(pSsdtTable))
-        {
-            if (TargetAddress == *pSsdtTable)
-            {
-                *pSsdtTable = 0;
-                if (!IsWin7)
-                {
-                    if (*pCounter)
-                        --*pCounter;
-                    ExFreePoolWithTag((PVOID)(TargetAddress & 0xFFFFFFFFFFFFFFF0ui64), 0);
-                }
-                Result = 1;
-                break;
-            }
-            ++pSsdtTable;
-        }
-    }
-    void (__fastcall *pFreeFunc)(__int64) = (void (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x41BA);
-    if (pFreeFunc)
-    {
-        if (IsWin7)
-            pFreeFunc(TargetAddress);
-        else
-        {
-            unsigned __int64 FreeAddr = TargetAddress & 0xFFFFFFFFFFFFFFF0ui64;
-            if (MmIsAddressValid((PVOID)(FreeAddr + 8)) == 1)
-            {
-                __int64 FreeParam = *(_QWORD *)(FreeAddr + 8);
-                pFreeFunc(FreeParam);
-                return 1;
-            }
-        }
-    }
-    return Result;
-}
-
-// RemoveObjectFromTypeList — 从类型列表中移除对象
-// 对应原始驱动 sub_140042A48
-// 调用释放回调，遍历两个链表头搜索并摘除目标对象
-__int64 RemoveObjectFromTypeList(PVOID pTargetObject)
-{
-    char Result = 0;
-    void (__fastcall *pFreeCallback)(PVOID) = (void (__fastcall *)(PVOID))GtRead((GLOBAL_TABLE_INDEX)0x41A0);
-    if (pFreeCallback)
-    {
-        pFreeCallback(pTargetObject);
-        Result = 1;
-    }
-    PVOID **pListHeads[2];
-    pListHeads[0] = (PVOID **)GtRead(GtEprocessField85);
-    pListHeads[1] = (PVOID **)GtRead(GtCallbackField04);
-    for (int i = 0; i < 2; i++)
-    {
-        PVOID **pListHead = pListHeads[i];
-        if (pListHead)
-        {
-            PVOID *pCurrent = *pListHead;
-            int IterCount = 0;
-            while (pCurrent != (PVOID *)pListHead)
-            {
-                if (pCurrent <= MmSystemRangeStart) break;
-                if (MmIsAddressValid(pCurrent) != 1) break;
-                if (++IterCount > 0x10000) break;
-                PVOID pObjEntry = pCurrent[2];
-                if (pTargetObject == pObjEntry)
-                {
-                    if (MmIsAddressValid(*pCurrent) == 1)
-                    {
-                        PVOID *pPrev = (PVOID *)*pCurrent;
-                        PVOID **pNext = (PVOID **)pCurrent[1];
-                        pPrev[1] = pNext;
-                        *pNext = pPrev;
-                        if (!GtRead(GtEprocessField28))
-                            ObfDereferenceObject(pObjEntry);
-                        ExFreePoolWithTag(pCurrent, 0);
-                        Result = 1;
-                    }
-                    break;
-                }
-                pCurrent = (PVOID *)*pCurrent;
-            }
-        }
-    }
-    return Result;
 }
 
 // UnlinkFromMemoryBlockList — 从内存块链表中摘除指定指针

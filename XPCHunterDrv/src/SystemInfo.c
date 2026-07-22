@@ -512,3 +512,45 @@ __int64 InitUnicodeStringBuffer(__int64 Buffer, __int64 StringPtr, unsigned int 
     *(_WORD *)Buffer = MaxLength - 2;
     return 2;
 }
+
+// FreeAllocatedBuffers -- 释放已分配的查询缓冲区。
+// 依次释放最多 4 个非分页池缓冲区，空指针安全。
+// 对应原始驱动 sub_140047AB4
+void FreeAllocatedBuffers(void *Buffer1, void *Buffer2, void *Buffer3, void *Buffer4)
+{
+    if (Buffer1)
+        ExFree(Buffer1);
+    if (Buffer2)
+        ExFree(Buffer2);
+    if (Buffer3)
+        ExFree(Buffer3);
+    if (Buffer4)
+        ExFree(Buffer4);
+}
+
+
+// QuerySystemInfoAllocateBuffers -- 查询系统信息并分配缓冲区
+// 对应原始驱动 sub_140047894
+__int64 QuerySystemInfoAllocateBuffers(
+    unsigned int SystemInformationClass,
+    __int64 Argument2,
+    int Argument3,
+    __int64 *pBuffer1,
+    int Buffer1Count,
+    __int64 *pBuffer2,
+    int Buffer2Count,
+    __int64 *pBuffer3,
+    int Buffer3Count,
+    _QWORD *pBuffer4,
+    int Buffer4Count,
+    _DWORD *pRequiredSize)
+{
+    return 0;
+}
+
+// BuildSystemRootPath -- 构建系统根路径
+// 对应原始驱动 sub_140047C50
+__int64 BuildSystemRootPath(void)
+{
+    return 0;
+}

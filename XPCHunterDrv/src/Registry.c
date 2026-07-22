@@ -794,3 +794,49 @@ __int64 CopyRegistryContextEntryArray(__int64 pOutputTable)
     }
     return Result;
 }
+
+
+// RegistryOperationDispatch — 注册表操作分发
+// 处理注册表操作请求：通过进程ID查找进程，初始化进程并查询注册表操作信息
+// 对应原始驱动 sub_14007EA14 (CmdRegistryOperation)
+__int64 RegistryOperationDispatch(void *InputBuffer, int BufferSize)
+{
+    char Result;
+    NTSTATUS Status;
+    int StatusCopy;
+    struct _KPROCESS *TargetProcess;
+    char Inited;
+    PEPROCESS Process;
+    __int64 InputCopy[2];
+
+    Result = 0;
+    if (BufferSize == 16
+        && (unsigned __int64)InputBuffer < MmUserProbeAddress
+        && (unsigned __int64)((char *)InputBuffer + 16) < MmUserProbeAddress)
+    {
+        ProbeForRead(InputBuffer, 0x10u, 8u);
+        InputCopy[0] = *(__int64 *)InputBuffer;
+        InputCopy[1] = *((__int64 *)InputBuffer + 1);
+        Status = PsLookupProcessByProcessId((HANDLE)InputCopy[0], &Process);
+        StatusCopy = Status;
+        TargetProcess = (struct _KPROCESS *)InputCopy[1];
+        if (!TargetProcess)
+        {
+            if (Status >= 0)
+                TargetProcess = (struct _KPROCESS *)Process;
+            InputCopy[1] = (__int64)TargetProcess;
+        }
+        if ((struct _KPROCESS *)GtRead(GtEprocessField123 | 0x100) != TargetProcess
+            && ValidateProcessObject(TargetProcess, 0) == 1)
+        {
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0xA28)
+                Inited = EnumProcessAndInitObjects((__int64)TargetProcess, 1);
+            else
+                Inited = InitProcessAndQueryInfo(TargetProcess, 1);
+            Result = Inited;
+        }
+        if (StatusCopy >= 0)
+            ObfDereferenceObject(Process);
+    }
+    return Result;
+}
