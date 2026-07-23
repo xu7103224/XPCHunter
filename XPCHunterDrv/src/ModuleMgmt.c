@@ -6521,3 +6521,257 @@ __int64 FindKernelDataSectionOffsetWin8(void)
 
     return Result;
 }
+
+// BtreeInsertExportEntry — B树插入导出条目 (0x14000CCCC)
+// 在 B 树中插入新的导出函数条目，包含名称和序号映射
+__int64 __fastcall BtreeInsertExportEntry(unsigned __int8 *Name, int Ordinal, unsigned int Key)
+{
+    __int64 CurrentNode;
+    __int64 *RootPtr;
+    __int64 *CurrentPtr;
+    unsigned int NodeKey;
+    char *NamePtr;
+    char CurrentChar;
+    __int64 result;
+    __int64 *TreeRoot;
+    __int64 NewNode;
+
+    CurrentNode = 0;
+    RootPtr = GtAlloc((enum _GLOBAL_TABLE_INDEX)(*Name + 109));
+    CurrentPtr = RootPtr;
+    while (*CurrentPtr)
+    {
+        CurrentNode = *CurrentPtr;
+        NodeKey = *(unsigned int *)(CurrentNode + 32);
+        if (NodeKey == Key)
+        {
+            NamePtr = (char *)(CurrentNode + 36);
+            while (1)
+            {
+                CurrentChar = *NamePtr;
+                if (*NamePtr != Name[(_QWORD)NamePtr])
+                    break;
+                ++NamePtr;
+                if (!CurrentChar)
+                {
+                    result = 0;
+                    goto LABEL_10;
+                }
+            }
+            result = (unsigned __int8)*NamePtr < Name[(_QWORD)NamePtr] ? -1 : 1;
+        }
+        else
+        {
+            if (NodeKey > Key)
+                goto LABEL_13;
+            result = -1LL;
+        }
+    LABEL_10:
+        if ((int)result <= 0)
+        {
+            if ((int)result >= 0)
+                return result;
+            CurrentPtr = (__int64 *)(CurrentNode + 24);
+            continue;
+        }
+    LABEL_13:
+        CurrentPtr = (__int64 *)(CurrentNode + 16);
+    }
+    TreeRoot = GtAlloc(GtEprocessField99 | 0x100);
+    result = (__int64)BtreeBufferAllocator(TreeRoot, 0x68, 0x80000);
+    NewNode = result;
+    if (result)
+    {
+        *(unsigned int *)(result + 100) = Ordinal;
+        *(unsigned int *)(result + 32) = Key;
+        StringCopy((_BYTE *)(result + 36), (__int64)Name, 0x40);
+        *(_BYTE *)(NewNode + 99) = 0;
+        *(_DWORD *)NewNode = 0;
+        *(_QWORD *)(NewNode + 16) = 0;
+        *(_QWORD *)(NewNode + 24) = 0;
+        *(_QWORD *)(NewNode + 8) = CurrentNode;
+        *CurrentPtr = NewNode;
+        return (__int64)RBTreeInsertFixup(NewNode, RootPtr);
+    }
+    return result;
+}
+
+// BtreeBufferAllocator — B树缓冲区分配器 (0x1400575C4)
+// 从链表头部分配指定大小的内存块，不足时分配新的大块加入链表
+_DWORD *__fastcall BtreeBufferAllocator(__int64 *pAllocator, unsigned int RequestSize, unsigned int BlockSize)
+{
+    __int64 Size;
+    __int64 AllocSize;
+    _DWORD *result;
+    unsigned int RemainingSize;
+    __int64 pBlock;
+    __int64 pCurrentPos;
+    int AdjustedSize;
+
+    Size = RequestSize;
+    if (!*pAllocator || *(_DWORD *)(*pAllocator + 28) < RequestSize)
+    {
+        AllocSize = BlockSize;
+        result = ExAlloc(PagedPool, BlockSize);
+        if (!result)
+            return result;
+        result[6] = BlockSize;
+        RemainingSize = BlockSize - 40;
+        *(_QWORD *)result = result + 10;
+        *((_QWORD *)result + 2) = result + 10;
+        result[7] = RemainingSize;
+        *((_QWORD *)result + 1) = (char *)result + AllocSize;
+        if ((((char *)result + 40) & 3) != 0)
+        {
+            result[7] = (((char *)result + 40) & 3) + RemainingSize - 4;
+            *((_QWORD *)result + 2) = (char *)result - (((char *)result + 40) & 3) + 44;
+        }
+        *((_QWORD *)result + 4) = *pAllocator;
+        *pAllocator = (__int64)result;
+    }
+    pBlock = *pAllocator;
+    pCurrentPos = *(_QWORD *)(*pAllocator + 16);
+    *(_DWORD *)(pBlock + 28) -= Size;
+    AdjustedSize = *(_DWORD *)(pBlock + 28);
+    *(_QWORD *)(pBlock + 16) = pCurrentPos + Size;
+    if (((_BYTE)pCurrentPos + (_BYTE)Size & 3) != 0)
+    {
+        *(_DWORD *)(pBlock + 28) = ((char *)pCurrentPos + Size & 3) + AdjustedSize - 4;
+        *(_QWORD *)(pBlock + 16) = pCurrentPos + Size - ((char *)pCurrentPos + Size & 3) + 4;
+    }
+    return (_DWORD *)pCurrentPos;
+}
+
+// RBTreeRotateLeft — 红黑树左旋 (0x140071CEC)
+__int64 __fastcall RBTreeRotateLeft(__int64 Node, _QWORD *Root)
+{
+    __int64 v2;
+    __int64 v3;
+    __int64 result;
+
+    v2 = *(_QWORD *)(Node + 24);
+    v3 = *(_QWORD *)(v2 + 16);
+    *(_QWORD *)(Node + 24) = v3;
+    if (v3)
+        *(_QWORD *)(*(_QWORD *)(v2 + 16) + 8) = Node;
+    *(_QWORD *)(v2 + 16) = Node;
+    result = *(_QWORD *)(Node + 8);
+    *(_QWORD *)(v2 + 8) = result;
+    if (result)
+    {
+        result = *(_QWORD *)(Node + 8);
+        if (Node == *(_QWORD *)(result + 16))
+            *(_QWORD *)(result + 16) = v2;
+        else
+            *(_QWORD *)(result + 24) = v2;
+    }
+    else
+    {
+        *Root = v2;
+    }
+    *(_QWORD *)(Node + 8) = v2;
+    return result;
+}
+
+// RBTreeRotateRight — 红黑树右旋 (0x140071D34)
+__int64 __fastcall RBTreeRotateRight(__int64 Node, _QWORD *Root)
+{
+    __int64 v2;
+    __int64 v3;
+    __int64 result;
+
+    v2 = *(_QWORD *)(Node + 16);
+    v3 = *(_QWORD *)(v2 + 24);
+    *(_QWORD *)(Node + 16) = v3;
+    if (v3)
+        *(_QWORD *)(*(_QWORD *)(v2 + 24) + 8) = Node;
+    *(_QWORD *)(v2 + 24) = Node;
+    result = *(_QWORD *)(Node + 8);
+    *(_QWORD *)(v2 + 8) = result;
+    if (result)
+    {
+        result = *(_QWORD *)(Node + 8);
+        if (Node == *(_QWORD *)(result + 24))
+            *(_QWORD *)(result + 24) = v2;
+        else
+            *(_QWORD *)(result + 16) = v2;
+    }
+    else
+    {
+        *Root = v2;
+    }
+    *(_QWORD *)(Node + 8) = v2;
+    return result;
+}
+
+// RBTreeInsertFixup — 红黑树插入修复 (0x140071D7C)
+_DWORD *__fastcall RBTreeInsertFixup(__int64 NewNode, _QWORD *Root)
+{
+    __int64 v2;
+    __int64 v4;
+    __int64 v5;
+    _DWORD *v6;
+    __int64 v7;
+    __int64 v8;
+    _DWORD *result;
+
+    v2 = *(_QWORD *)(NewNode + 8);
+    v4 = NewNode;
+    while (v2 && !*(_DWORD *)v2)
+    {
+        v5 = *(_QWORD *)(v2 + 8);
+        v6 = *(_DWORD **)(v5 + 16);
+        if ((_DWORD *)v2 == v6)
+        {
+            v6 = *(_DWORD **)(v5 + 24);
+            if (v6 && !*v6)
+                goto LABEL_6;
+            if (*(_QWORD *)(v2 + 24) == v4)
+            {
+                RBTreeRotateLeft(v2, Root);
+                v7 = v2;
+                v2 = v4;
+                v4 = v7;
+            }
+            *(_DWORD *)v2 = 1;
+            *(_DWORD *)v5 = 0;
+            RBTreeRotateRight(v5, Root);
+        }
+        else
+        {
+            if (v6 && !*v6)
+            {
+    LABEL_6:
+                *v6 = 1;
+                *(_DWORD *)v2 = 1;
+                *(_DWORD *)v5 = 0;
+                v4 = v5;
+                goto LABEL_15;
+            }
+            if (*(_QWORD *)(v2 + 16) == v4)
+            {
+                RBTreeRotateRight(v2, Root);
+                v8 = v2;
+                v2 = v4;
+                v4 = v8;
+            }
+            *(_DWORD *)v2 = 1;
+            *(_DWORD *)v5 = 0;
+            RBTreeRotateLeft(v5, Root);
+        }
+    LABEL_15:
+        v2 = *(_QWORD *)(v4 + 8);
+    }
+    result = (_DWORD *)*Root;
+    *(_DWORD *)*Root = 1;
+    return result;
+}
+
+// CheckExportNamePrefixWin10 — Win10 导出名称前缀检查 (0x14000CEB0)
+char __fastcall CheckExportNamePrefixWin10(_BYTE *pBuffer1, char *pBuffer2, unsigned int CompareSize)
+{
+    char Result = 0;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4563 && CompareSize >= 0xC)
+        Result = ScanPESectionPatterns(pBuffer1, pBuffer2, 12, 1) == 1;
+    return Result;
+}

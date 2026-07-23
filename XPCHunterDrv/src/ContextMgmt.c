@@ -2873,3 +2873,56 @@ win10_next_phase1:
     Result = Phase1Offset;
     return Result;
 }
+
+// SkipContextEntries — 跳过上下文条目 (0x14001239C)
+// 根据条目计数偏移遍历上下文表，计算跳过后的下一个条目指针
+_DWORD *__fastcall SkipContextEntries(_DWORD *ContextEntry)
+{
+    _DWORD *result;
+    __int64 EntryCount;
+    unsigned int CurrentEntry;
+
+    result = ContextEntry + 2;
+    if (*ContextEntry)
+    {
+        EntryCount = (unsigned int)*ContextEntry;
+        do
+        {
+            CurrentEntry = result[19];
+            result += 26;
+            if (CurrentEntry > 1)
+                result += 6 * CurrentEntry - 6;
+            --EntryCount;
+        } while (EntryCount);
+    }
+    return result;
+}
+
+// FindContextEntry — 查找上下文条目 (0x1400123C8)
+// 在上下文表中搜索匹配的目标对象，找到返回 1，否则返回 0
+char __fastcall FindContextEntry(__int64 TargetObject, _DWORD *ContextTable)
+{
+    char Result;
+    _DWORD *CurrentEntry;
+    int EntryIndex;
+    unsigned int MaxCount;
+
+    Result = 0;
+    CurrentEntry = ContextTable + 2;
+    EntryIndex = 0;
+    if (*ContextTable)
+    {
+        while (*(_QWORD *)CurrentEntry)
+        {
+            if (TargetObject == *(_QWORD *)CurrentEntry)
+                return 1;
+            CurrentEntry += 26;
+            MaxCount = CurrentEntry[19];
+            if (MaxCount > 1)
+                CurrentEntry += 6 * MaxCount - 6;
+            if ((unsigned int)++EntryIndex >= *ContextTable)
+                return Result;
+        }
+    }
+    return Result;
+}

