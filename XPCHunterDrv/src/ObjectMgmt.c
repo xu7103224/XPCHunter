@@ -486,10 +486,20 @@ Cleanup:
 }
 
 // EnableDeviceObjectProtection — 启用设备对象保护
+// 设置设备对象 DO_DEVICE_INITIALIZING 标志防止过早销毁
 // 对应原始驱动 sub_140010460
 char EnableDeviceObjectProtection(void)
 {
-    return 0;
+    char Result = 0;
+    __int64 DeviceObject = GtRead(GtDriverObject);
+    if (!DeviceObject || DeviceObject < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)DeviceObject) != 1)
+        return Result;
+    // 设置 DO_DEVICE_INITIALIZING 标志
+    *(_DWORD *)DeviceObject |= 0x2;
+    Result = 1;
+    return Result;
 }
 
 // CheckObjectTypeFlag — 检查对象类型标志位

@@ -6162,62 +6162,362 @@ char __fastcall ValidateWin32kBaseDriverImage(__int64 DiskBuffer, unsigned int D
 
 
 // FindKernelDataSectionOffsetWin7 -- 查找内核数据节区偏移（Win7 版）
-// 对应原始驱动 sub_140042DA0
+// 读取 GT 32/33/3/17320/17356，遍历最多 0x64 个节区
+// 先找 Type 0x558 且 SectionFlags 含 0x4000000 的标记节区，再在下个节区找 Characteristics==0x40000 的偏移
 __int64 FindKernelDataSectionOffsetWin7(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 PeFileBase;
+    unsigned int PeFileSize;
+    __int64 NtoskrnlBase;
+    __int64 PeScanBase2;
+    __int64 PeScanBase3;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    unsigned int EntryCount;
+    char Phase1Found;
+    ULONG EntryBuffer[0x80];
+
+    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
+    PeFileSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    PeScanBase2 = GtRead(GtNtoskrnlPeScanBase2);
+    PeScanBase3 = GtRead(GtNtoskrnlPeScanBase3);
+    if (!PeFileBase || !NtoskrnlBase || !PeScanBase2 || !PeScanBase3 || !PeFileSize)
+        return 0;
+
+    unsigned int ExportDirSize = *(unsigned int *)(PeFileBase + 0x3C);
+    ExportDirSize = *(unsigned int *)(ExportDirSize + PeFileBase);
+    if (!ExportDirSize || ExportDirSize >= PeFileSize)
+        return 0;
+
+    InitPESectionReadContext((PUCHAR)PeFileBase + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    EntryCount = 0;
+    Phase1Found = 0;
+    while (EntryCount < 0x64)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x58 >> 2];
+        CumulativeSize = EntryBuffer[0x190 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x30 >> 2];
+        EntryBuffer[0x190 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+
+        if (SectionType == 0x558)
+        {
+            __int64 F8 = EntryBuffer[0xF8 >> 2];
+            if ((F8 & 0x4000000) && EntryBuffer[0x110 >> 2])
+            {
+                int Offset = (int)EntryBuffer[0x110 >> 2] - (int)PeFileBase + (int)CumulativeSize;
+                if ((unsigned int)Offset == PeScanBase3)
+                {
+                    Phase1Found = 1;
+                }
+            }
+        }
+        else if (Phase1Found)
+        {
+            __int64 C0 = EntryBuffer[0xC0 >> 2];
+            unsigned int D0 = EntryBuffer[0xD0 >> 2];
+            if (C0 == 0x40000 && D0)
+            {
+                int Offset = (int)D0 - (int)PeFileBase + (int)CumulativeSize;
+                if (Offset && (unsigned int)Offset < PeFileSize)
+                {
+                    Result = Offset + PeScanBase2;
+                    GtWrite(GtKernelDataSectionOffset, Result);
+                    break;
+                }
+            }
+        }
+        ++EntryCount;
+    }
+
+    return Result;
 }
 
 // FindKernelDataSectionOffsetWin10 -- 查找内核数据节区偏移（Win10 版）
-// 对应原始驱动 sub_140042C3C
+// 读取 GT 32/33/3/17347，遍历最多 0x64 个节区
+// 先找 Type 0x512 且 Characteristics==0x40000、Flags==64 的偏移，再找 Type 0x471 且 Flags==0x40000 的偏移
 __int64 FindKernelDataSectionOffsetWin10(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 PeFileBase;
+    unsigned int PeFileSize;
+    __int64 NtoskrnlBase;
+    __int64 PeScanBase3;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    unsigned int EntryCount;
+    int Offset1;
+    int Offset2;
+    ULONG EntryBuffer[0x80];
+
+    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
+    PeFileSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    PeScanBase3 = GtRead(GtNtoskrnlPeScanBase3);
+    if (!PeFileBase || !NtoskrnlBase || !PeScanBase3 || !PeFileSize)
+        return 0;
+
+    InitPESectionReadContext((PUCHAR)PeFileBase, PeFileSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    EntryCount = 0;
+    Offset1 = 0;
+    Offset2 = 0;
+    while (EntryCount < 0x64)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x58 >> 2];
+        CumulativeSize = EntryBuffer[0x190 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x30 >> 2];
+        EntryBuffer[0x190 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+
+        if (SectionType == 0x512)
+        {
+            __int64 C0 = EntryBuffer[0xC0 >> 2];
+            unsigned int D0 = EntryBuffer[0xD0 >> 2];
+            __int64 F8 = EntryBuffer[0xF8 >> 2];
+            if (C0 == 0x40000 && D0 && F8 == 0x40)
+            {
+                int Offset = (int)D0 - (int)PeFileBase + (int)CumulativeSize;
+                if (Offset && (unsigned int)Offset < PeFileSize)
+                    Offset1 = Offset;
+            }
+        }
+        else if (SectionType == 0x471)
+        {
+            __int64 F8 = EntryBuffer[0xF8 >> 2];
+            unsigned int D0 = EntryBuffer[0xD0 >> 2];
+            if (F8 == 0x40000 && D0)
+            {
+                int Offset = (int)D0 - (int)PeFileBase + (int)CumulativeSize;
+                if (Offset && (unsigned int)Offset < PeFileSize)
+                    Offset2 = Offset;
+            }
+        }
+        ++EntryCount;
+    }
+
+    if (Offset1 && Offset1 < (int)PeFileSize)
+        GtWrite(GtKernelDataSectionOffset2, Offset1 + PeScanBase3);
+    if (Offset2 && Offset2 < (int)PeFileSize)
+        GtWrite(GtKernelDataSectionOffset3, Offset2 + PeScanBase3);
+
+    Result = Offset1;
+    return Result;
 }
 
 // FindKernelDataSectionPair -- 查找内核数据节区对
-// 对应原始驱动 sub_1400430A0
+// 先清零 GT 0x824/0x825，读取 GT 32/33/3/17347，遍历最多 0x64 个节区
+// 找 Type 0x510（Flags==64、Characteristics==0x40000）和 Type 0x512 的偏移对，相差 8 字节则写入 GT 0x824
 __int64 FindKernelDataSectionPair(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 PeFileBase;
+    unsigned int PeFileSize;
+    __int64 NtoskrnlBase;
+    __int64 PeScanBase3;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    unsigned int EntryCount;
+    int Offset1;
+    int Offset2;
+    ULONG EntryBuffer[0x80];
+
+    GtWrite(GtKernelDataSectionOffset2, 0);
+    GtWrite(GtKernelDataSectionOffset3, 0);
+
+    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
+    PeFileSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    PeScanBase3 = GtRead(GtNtoskrnlPeScanBase3);
+    if (!PeFileBase || !NtoskrnlBase || !PeScanBase3 || !PeFileSize)
+        return 0;
+
+    InitPESectionReadContext((PUCHAR)PeFileBase, PeFileSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    EntryCount = 0;
+    Offset1 = 0;
+    Offset2 = 0;
+    while (EntryCount < 0x64)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x58 >> 2];
+        CumulativeSize = EntryBuffer[0x190 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x30 >> 2];
+        EntryBuffer[0x190 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+
+        if (SectionType == 0x510)
+        {
+            __int64 F8 = EntryBuffer[0xF8 >> 2];
+            __int64 C0 = EntryBuffer[0xC0 >> 2];
+            unsigned int D0 = EntryBuffer[0xD0 >> 2];
+            if (F8 == 0x40 && C0 == 0x40000 && D0)
+            {
+                int Offset = (int)D0 - (int)PeFileBase + (int)CumulativeSize;
+                if (Offset)
+                    Offset1 = Offset;
+            }
+        }
+        else if (SectionType == 0x512)
+        {
+            __int64 C0 = EntryBuffer[0xC0 >> 2];
+            __int64 F8 = EntryBuffer[0xF8 >> 2];
+            unsigned int D0 = EntryBuffer[0xD0 >> 2];
+            if (C0 == 0x40000 && F8 == 0x40 && D0)
+            {
+                int Offset = (int)D0 - (int)PeFileBase + (int)CumulativeSize;
+                if (Offset)
+                    Offset2 = Offset;
+            }
+        }
+
+        // 检查偏移对是否相差 8 字节
+        if (Offset1 && Offset2)
+        {
+            int Diff = Offset1 - Offset2;
+            if (Diff < 0)
+                Diff = Offset2 - Offset1;
+            if (Diff == 8)
+            {
+                int Smaller = (Offset1 < Offset2) ? Offset1 : Offset2;
+                if (Smaller && (unsigned int)Smaller < PeFileSize)
+                {
+                    GtWrite(GtKernelDataSectionOffset2, Smaller + PeScanBase3);
+                    Result = Smaller;
+                }
+                break;
+            }
+        }
+        ++EntryCount;
+    }
+
+    return Result;
 }
 
-// FindPESectionByIndex -- 按索引查找 PE 节区
+// FindPESectionByIndex — 按索引查找 PE 节区
+// 从 GT 获取 PE 文件数据，使用 InitPESectionReadContext 扫描节区，按索引返回节区基址
 // 对应原始驱动 sub_140043380
 __int64 FindPESectionByIndex(unsigned int SectionIndex)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 PeBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int PeSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!PeBase || !PeSize)
+        return Result;
+    if (MmIsAddressValid((void *)PeBase) != 1)
+        return Result;
+    if (SectionIndex >= 0x10)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// FindHalInitPatternOffsets -- 查找 HAL 初始化模式偏移
+// FindHalInitPatternOffsets — 查找 HAL 初始化模式偏移
+// 在 hal.dll PE 文件中搜索特定字节模式，定位初始化数据偏移并写入 GT
 // 对应原始驱动 sub_1400080A0
 char FindHalInitPatternOffsets(__int64 FileBuffer, unsigned int FileSize)
 {
-    return 0;
+    char Result = 0;
+    if (!FileBuffer || !FileSize || FileBuffer < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)FileBuffer) != 1)
+        return Result;
+    if (FileSize < 0x1000)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
 // FindKernelDataSectionOffsetWin8 -- 查找内核数据节区偏移（Win8 版）
-// 在 NT 内核节区中查找特定的数据节区布局（Win8 特定偏移模式）
-__int64 FindKernelDataSectionOffsetWin8(__int64 PeBase, unsigned int PeSize)
+// 读取 GT 32/33/3/17356，初始化 PE 节区读取上下文，遍历最多 0x64 个节区
+// 先记录 Type 0x510 且 SectionCharacteristics==0x40000 的偏移，再查找 Type 0x512 且偏移匹配的节区
+__int64 FindKernelDataSectionOffsetWin8(void)
 {
+    __int64 Result = 0;
+    __int64 NtoskrnlBase;
+    __int64 PeFileBase;
+    unsigned int PeFileSize;
+    unsigned int PeScanBase;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
     unsigned int EntryCount;
-    __int64 SectionHeader;
-    __int64 DataSectionOffset = 0;
+    unsigned int Phase1Offset = 0;
+    ULONG EntryBuffer[32];
 
-    if (!PeBase || !PeSize)
+    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
+    PeFileSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    PeScanBase = (unsigned int)GtRead(GtNtoskrnlPeScanBase);
+    if (!PeFileBase || !NtoskrnlBase || !PeScanBase || !PeFileSize)
         return 0;
 
-    EntryCount = *(unsigned int*)(PeBase + 0x3C) + PeBase + 0x28;
-    if (!EntryCount)
+    unsigned int ExportDirSize = *(unsigned int *)(PeFileBase + 0x3C);
+    ExportDirSize = *(unsigned int *)(ExportDirSize + PeFileBase);
+    if (!ExportDirSize || ExportDirSize >= PeFileSize)
         return 0;
 
+    // 初始化 PE 节区读取上下文
+    InitPESectionReadContext((PUCHAR)PeFileBase + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
     EntryCount = 0;
-    while (EntryCount < 0x10)
+    while (EntryCount < 0x64)
     {
-        SectionHeader = PeBase + *(unsigned int*)(PeBase + 0x3C) + 0x28 + EntryCount * 0x28;
-        // 查找数据节区特征
-        EntryCount++;
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x48 >> 2];
+        CumulativeSize = EntryBuffer[0x40 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x20 >> 2];
+        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+
+        if (SectionType == 0x510)
+        {
+            __int64 B0 = EntryBuffer[0x118 >> 2];
+            unsigned int C0 = EntryBuffer[0x108 >> 2];
+            if (B0 == 0x40000 && C0)
+            {
+                int Offset = (int)C0 - (int)PeFileBase + (int)CumulativeSize;
+                if (Offset)
+                    Phase1Offset = (unsigned int)Offset;
+            }
+        }
+        else if (SectionType == 0x512)
+        {
+            __int64 B0 = EntryBuffer[0x118 >> 2];
+            unsigned int C0 = EntryBuffer[0x108 >> 2];
+            if (B0 == 0x40000 && C0)
+            {
+                int Offset = (int)C0 - (int)PeFileBase + (int)CumulativeSize;
+                if (Offset && (unsigned int)Offset < PeFileSize && Phase1Offset == (unsigned int)Offset)
+                {
+                    Result = Offset + PeScanBase;
+                    GtWrite(GtKernelDataSectionOffset, Result);
+                    break;
+                }
+            }
+        }
+        ++EntryCount;
     }
 
-    return DataSectionOffset;
+    return Result;
 }

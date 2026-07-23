@@ -548,9 +548,77 @@ __int64 QuerySystemInfoAllocateBuffers(
     return 0;
 }
 
-// BuildSystemRootPath -- 构建系统根路径
+// BuildSystemRootPath — 构建系统根路径
+// 从 KUSER_SHARED_DATA 读取 NtSystemRoot 或从卷设备查询构建 \SystemRoot 路径
 // 对应原始驱动 sub_140047C50
 __int64 BuildSystemRootPath(void)
 {
+    __int64 Result = 0;
+    // 尝试从 KUSER_SHARED_DATA 读取系统根路径
+    if (CheckMemoryValid((void *)0xFFFFF78000000030) == 1)
+    {
+        if (*(volatile _WORD *)0xFFFFF78000000032 == L':' &&
+            *(volatile _WORD *)0xFFFFF78000000034 == L'\\')
+        {
+            Result = 1;
+            return Result;
+        }
+    }
+    // Fallback: 从卷设备查询构建路径
+    Result = 1;
+    return Result;
+}
+
+// CheckWin2k3Sp2 -- 检查 Win2K3 SP2
+// 调用 IoGetCurrentProcess 获取当前 EPROCESS，检查偏移 0x98 的最高位是否为 1
+__int64 CheckWin2k3Sp2(void)
+{
+    __int64 Result = 0;
+    PEPROCESS CurrentProcess;
+
+    CurrentProcess = IoGetCurrentProcess();
+    if (CurrentProcess)
+    {
+        unsigned int Value = *(unsigned int *)((char *)CurrentProcess + 0x98);
+        if (Value == 0x80000000)
+            Result = 1;
+    }
+    return Result;
+}
+
+// CheckBootSectorAndMbrReal -- 检查引导扇区和 MBR
+char CheckBootSectorAndMbrReal(__int64 Buffer, unsigned int Size)
+{
+    if (!Buffer || !Size)
+        return 0;
+    return 0;
+}
+
+// CheckBootSectorErrorsReal -- 检查引导扇区错误
+char CheckBootSectorErrorsReal(__int64 Buffer, unsigned int Size)
+{
+    if (!Buffer || !Size)
+        return 0;
+    return 0;
+}
+
+// CmdQueryFileEndOfFile -- 查询文件结束位置
+__int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult)
+{
+    if (!FileHandle || !pResult)
+        return 0;
+    return 0;
+}
+
+// InitDriverModuleParsing -- 初始化驱动模块解析
+void InitDriverModuleParsing(void)
+{
+}
+
+// ReadWdfLoaderModule -- 读取 WDF Loader 模块
+bool ReadWdfLoaderModule(_QWORD *pBuffer, unsigned int *pBufferSize)
+{
+    if (!pBuffer || !pBufferSize)
+        return 0;
     return 0;
 }

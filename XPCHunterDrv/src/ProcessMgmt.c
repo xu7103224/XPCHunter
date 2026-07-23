@@ -7,6 +7,7 @@
 bool IsProcessObjectTerminated(char *VirtualAddress);
 bool ReadUser32DllFile(_QWORD *FileBuffer, unsigned int *FileSize, char Is64Bit);
 __int64 ParseNtRelocationTable(PUCHAR ImageBase);
+ULONG64 ParseNtRelocationTableEx(PRKPROCESS Process, char IsWin32kFlag, _QWORD *OutImageBase, _QWORD *OutImageSize, void **OutDataBuffer);
 WORD *InitSystemPath(void);
 __int16 *WStringCopy(__int16 *Dest, __int16 *Src);
 __int64 BuildDevicePathFromObjects(unsigned __int16 *Dst, unsigned int *p33, int *p23);
@@ -3100,11 +3101,98 @@ __int64 ResolveSyscallAddressesWithAttach(void)
 }
 
 // BuildExportServiceTable -- 构建导出服务表
-// 解析 ntoskrnl 导出表，构建服务号映射表
+// 读取 GT 服务表配置，调用 ParseNtRelocationTableEx 获取映像基址
+// 读取 user32.dll 文件，解析导出目录，构建服务条目表
 char BuildExportServiceTable(PUCHAR ImageBase, ULONG ImageSize, PUCHAR ServiceTable, ULONG TableSize)
 {
+    char Result = 0;
+    unsigned int ServiceCount;
+    unsigned int ServiceTableSize;
+    __int64 ServiceBuffer;
+    _QWORD RelocatedBase;
+    _QWORD RelocatedSizeVal;
+    void **DataBuffer;
+    __int64 FileBuffer;
+    unsigned int FileSize;
+    unsigned int EntryIndex;
+    char Is64Bit;
+    _QWORD ServiceTablePtr;
+
     if (!ImageBase || !ImageSize || !ServiceTable || !TableSize)
         return 0;
 
-    return 1;
+    // 读取 GT 服务表配置
+    ServiceCount = (unsigned int)GtRead(GtWin32kServiceCount);
+    if ((unsigned int)GtRead(GtWin32kServiceTable32Flag))
+    {
+        ServiceTableSize = (unsigned int)GtRead(GtWin32kServiceTableSize32);
+        ServiceBuffer = (__int64)GtAlloc(GtWin32kServiceBuffer32);
+        Is64Bit = 0;
+    }
+    else
+    {
+        ServiceTableSize = (unsigned int)GtRead(GtWin32kServiceTableSize64);
+        ServiceBuffer = (__int64)GtAlloc(GtWin32kServiceBuffer64);
+        Is64Bit = 1;
+    }
+    ServiceTablePtr = *(_QWORD *)ServiceTable;
+
+    // 解析重定位表获取 relocated 基址
+    RelocatedBase = ParseNtRelocationTableEx((PRKPROCESS)ImageBase, Is64Bit, &RelocatedSizeVal, &DataBuffer, &DataBuffer);
+    if (!RelocatedBase)
+        goto cleanup;
+    if (!ServiceCount || !ServiceTableSize || !ServiceBuffer || !RelocatedSizeVal)
+        goto cleanup;
+
+    // 读取 user32.dll 文件
+    if (!ReadUser32DllFile(&FileBuffer, &FileSize, Is64Bit))
+        goto cleanup;
+
+    // 解析导出目录
+    if (ParseNtExportDir((PUCHAR)FileBuffer, FileSize, RelocatedBase, Is64Bit) != 1)
+    {
+        if (FileBuffer)
+            ExFree((void *)FileBuffer);
+        goto cleanup;
+    }
+    if (FileBuffer)
+        ExFree((void *)FileBuffer);
+
+    // 构建服务条目
+    if (ServiceCount && ServiceTableSize && ServiceBuffer)
+    {
+        ServiceTableSize = *(unsigned int *)(ServiceBuffer + 4);
+        if (ServiceTableSize <= TableSize)
+        {
+            for (EntryIndex = 0; EntryIndex < ServiceCount; ++EntryIndex)
+            {
+                __int64 EntryAddr = ServiceBuffer + 0x40 + EntryIndex * 0x30;
+                *(unsigned int *)EntryAddr = EntryIndex;
+                if (ServiceTablePtr)
+                {
+                    if (Is64Bit)
+                    {
+                        *(unsigned int *)(EntryAddr + 0x50) = *(unsigned int *)(RelocatedSizeVal + EntryIndex * 8);
+                        *(__int64 *)(EntryAddr + 0x38) = RelocatedBase + EntryIndex * 8;
+                    }
+                    else
+                    {
+                        *(unsigned int *)(EntryAddr + 0x50) = *(unsigned int *)(RelocatedSizeVal + EntryIndex * 4);
+                        *(__int64 *)(EntryAddr + 0x38) = RelocatedBase + EntryIndex * 4;
+                    }
+                }
+                *(__int64 *)(EntryAddr + 0x28) = (__int64)ImageBase;
+                *(__int64 *)(EntryAddr + 0x30) = (__int64)ServiceTable;
+                __int64 Offset = ServiceBuffer + 4 + (EntryIndex + EntryIndex * 2) << 4;
+                *(unsigned int *)(EntryAddr + 0x48) = *(unsigned int *)(Offset + 4);
+                *(unsigned int *)(EntryAddr + 0x40) = EntryIndex;
+            }
+        }
+        Result = 1;
+    }
+
+cleanup:
+    if (DataBuffer)
+        ExFree(*DataBuffer);
+    return Result;
 }

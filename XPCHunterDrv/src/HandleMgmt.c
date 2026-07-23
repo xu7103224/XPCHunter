@@ -388,10 +388,30 @@ __int64 CmdCloseProcessHandle(__int64 a1, __int64 a2, _DWORD *pOutputBuffer, int
 }
 
 // CmdCloseProcessHandleEx — 关闭进程句柄（扩展）
+// 从 InputBuffer 读取进程 ID 和句柄值，通过 ZwClose 关闭指定句柄
 // 对应原始驱动 sub_140084B5C
 char CmdCloseProcessHandleEx(__int64 InputBuffer)
 {
-    return 0;
+    char Result = 0;
+    if (!InputBuffer || InputBuffer < (unsigned __int64)MmUserProbeAddress)
+        return Result;
+    if (MmIsAddressValid((void *)InputBuffer) != 1)
+        return Result;
+    _DWORD *pInput = (_DWORD *)InputBuffer;
+    unsigned int ProcessId = pInput[0];
+    HANDLE Handle = (HANDLE)pInput[1];
+    if (!ProcessId || !Handle)
+        return Result;
+    PEPROCESS Process = NULL;
+    NTSTATUS Status = PsLookupProcessByProcessId((HANDLE)ProcessId, &Process);
+    if (NT_SUCCESS(Status) && Process)
+    {
+        Status = ZwClose(Handle);
+        if (NT_SUCCESS(Status))
+            Result = 1;
+        ObfDereferenceObject(Process);
+    }
+    return Result;
 }
 
 // CmdEnumObjectHandles — 枚举对象句柄

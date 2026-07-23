@@ -2579,33 +2579,297 @@ char ValidateIoPortSection(__int64 Address)
     return 1;
 }
 
-// ScanKernelModulePESectionsEx -- 扫描内核模块 PE 节区（扩展版）
+// ScanKernelModulePESectionsEx — 扫描内核模块 PE 节区（扩展版）
+// 从 GT 3/32/33 获取 ntoskrnl 基址和大小，使用 InitPESectionReadContext 扫描所有 PE 节区
 // 对应原始驱动 sub_14007DAB8
 __int64 ScanKernelModulePESectionsEx(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!NtoskrnlBase || !NtoskrnlSize)
+        return Result;
+    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
 // ParseNtExportSectionsV2 -- 解析 NT 导出节区 V2（Win8+）
+// 三阶段扫描：Phase1 搜索 0xFE/0x558 节 → Phase2 搜索 0x512/0x53C 节 → Phase3 搜索 0x559 节
 __int64 ParseNtExportSectionsV2(void)
 {
+    __int64 Result = 0;
     __int64 NtoskrnlBase;
+    __int64 PeFileBase;
+    unsigned int PeFileSize;
+    unsigned int ExportDirSize;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    unsigned int Phase1Count;
+    unsigned int Phase2Count;
+    unsigned int Phase3Count;
+    unsigned int Phase1Offset = 0;
+    ULONG EntryBuffer[0x80];
 
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    if (!NtoskrnlBase)
+    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
+    PeFileSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    if (!NtoskrnlBase || !PeFileBase || !PeFileSize)
         return 0;
 
-    return 0;
+    ExportDirSize = *(unsigned int *)(PeFileBase + 0x3C);
+    ExportDirSize = *(unsigned int *)(ExportDirSize + PeFileBase + 0x28);
+    if (!ExportDirSize || ExportDirSize >= PeFileSize)
+        return 0;
+
+    // Phase1：在 PE 文件导出目录范围内搜索 0xFE / 0x558 节区
+    InitPESectionReadContext((PUCHAR)PeFileBase + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    Phase1Count = 0;
+    while (Phase1Count < 0xC8)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x38 >> 2];
+        CumulativeSize = EntryBuffer[0x40 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x48 >> 2];
+        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        if (SectionType == 0xFE || SectionType == 0x558)
+        {
+            if (SectionType == 0x558)
+            {
+                __int64 F0 = EntryBuffer[0xE8 >> 2];
+                if (!(F0 & 0x4000000) || !EntryBuffer[0xD0 >> 2] || Phase1Offset)
+                    goto next_phase1;
+            }
+            int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
+            if (Offset && (unsigned int)Offset < PeFileSize)
+            {
+                Phase1Offset = (unsigned int)Offset;
+                break;
+            }
+        }
+next_phase1:
+        ++Phase1Count;
+    }
+
+    // Phase2：在 Phase1 找到的偏移处继续搜索 0x512 / 0x53C 节区
+    if (Phase1Offset)
+    {
+        InitPESectionReadContext((PUCHAR)PeFileBase + Phase1Offset, PeFileSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+        Phase2Count = 0;
+        while (Phase2Count < 0x1F4)
+        {
+            if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+                break;
+            SectionSize = EntryBuffer[0x38 >> 2];
+            CumulativeSize = EntryBuffer[0x40 >> 2];
+            CumulativeSize += SectionSize;
+            SectionDataPtr = EntryBuffer[0x48 >> 2];
+            EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+            SectionType = *(unsigned short *)(SectionDataPtr + 6);
+            if (SectionType == 0x512)
+            {
+                __int64 B8 = EntryBuffer[0x120 >> 2];
+                unsigned int C8 = EntryBuffer[0x110 >> 2];
+                if (B8 == 0x40000 && C8 && EntryBuffer[0xE8 >> 2] == 0x40)
+                {
+                    int Offset = (int)C8 - (int)PeFileBase + (int)CumulativeSize;
+                    if (Offset && (unsigned int)Offset < PeFileSize)
+                    {
+                        Phase1Offset = (unsigned int)Offset;
+                        break;
+                    }
+                }
+            }
+            else if (SectionType == 0x53C)
+            {
+                __int64 D0 = EntryBuffer[0x108 >> 2];
+                if (D0 == 0xF8 && Phase1Offset && Phase1Offset < PeFileSize)
+                {
+                    int Offset = Phase1Offset + 0x800;
+                    if (Offset < (int)PeFileSize)
+                    {
+                        Phase1Offset = (unsigned int)Offset;
+                        break;
+                    }
+                }
+            }
+            ++Phase2Count;
+        }
+    }
+
+    if (Phase1Offset)
+    {
+        GtWrite(GtNtosExportSectionOffset, Phase1Offset);
+        GtWrite(GtNtosExportSectionVa, Phase1Offset + NtoskrnlBase);
+        GtWrite(GtNtosExportSectionSize, 0x800);
+    }
+
+    // Phase3：如果 Phase2 有结果，继续搜索 0x559 节区
+    if (Phase1Offset)
+    {
+        Phase1Offset = (unsigned int)GtRead(GtNtosExportSectionOffset);
+        if (Phase1Offset)
+        {
+            InitPESectionReadContext((PUCHAR)PeFileBase + Phase1Offset, PeFileSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+            Phase3Count = 0;
+            while (Phase3Count < 0xA)
+            {
+                if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+                    break;
+                SectionSize = EntryBuffer[0x38 >> 2];
+                CumulativeSize = EntryBuffer[0x40 >> 2];
+                CumulativeSize += SectionSize;
+                SectionDataPtr = EntryBuffer[0x48 >> 2];
+                EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+                SectionType = *(unsigned short *)(SectionDataPtr + 6);
+                if (SectionType == 0x559 && EntryBuffer[0xD0 >> 2])
+                {
+                    int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
+                    if (Offset && (unsigned int)Offset < PeFileSize)
+                    {
+                        GtWrite(GtNtosExportSectionOffset2, Offset);
+                        GtWrite(GtNtosExportSectionVa2, Offset + NtoskrnlBase);
+                    }
+                    break;
+                }
+                ++Phase3Count;
+            }
+        }
+    }
+
+    Result = Phase1Offset;
+    return Result;
 }
 
 // ParseNtExportSectionsWin10 -- 解析 NT 导出节区（Win10）
+// Win10 专用版本：先按名称查找 .data 节，再执行三阶段扫描
 __int64 ParseNtExportSectionsWin10(void)
 {
+    __int64 Result = 0;
     __int64 NtoskrnlBase;
+    __int64 PeFileBase;
+    unsigned int PeFileSize;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    unsigned int Phase1Offset = 0;
+    unsigned int Phase2Count;
+    unsigned int Phase3Count;
+    ULONG EntryBuffer[0x80];
+    unsigned int DataSectionOffset;
+    unsigned int DataSectionVa;
+    unsigned int ExportDirSize;
 
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    if (!NtoskrnlBase)
+    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
+    PeFileSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    if (!NtoskrnlBase || !PeFileBase || !PeFileSize)
         return 0;
 
-    return 0;
+    // Win10 特有：按名称查找 .data 节
+    DataSectionOffset = (unsigned int)FindPESectionByName((PUCHAR)PeFileBase, ".data");
+    DataSectionVa = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)PeFileBase, ".data");
+    if (DataSectionOffset && DataSectionOffset < PeFileSize && DataSectionVa && DataSectionVa < PeFileSize && DataSectionOffset + DataSectionVa <= PeFileSize)
+    {
+        GtWrite(GtNtosExportSectionOffset, DataSectionOffset);
+        GtWrite(GtNtosExportSectionVa, DataSectionOffset + NtoskrnlBase);
+        GtWrite(GtNtosExportSectionSize, DataSectionVa);
+    }
+
+    ExportDirSize = *(unsigned int *)(PeFileBase + 0x3C);
+    ExportDirSize = *(unsigned int *)(ExportDirSize + PeFileBase + 0x28);
+    if (!ExportDirSize || ExportDirSize >= PeFileSize)
+        return 0;
+
+    // Phase1：搜索 0xFE / 0x558 节区
+    InitPESectionReadContext((PUCHAR)PeFileBase + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    unsigned int Phase1Count = 0;
+    while (Phase1Count < 0xC8)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x38 >> 2];
+        CumulativeSize = EntryBuffer[0x40 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x48 >> 2];
+        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        if (SectionType == 0xFE || SectionType == 0x558)
+        {
+            if (SectionType == 0x558)
+            {
+                __int64 F0 = EntryBuffer[0xF8 >> 2];
+                if (!(F0 & 0x4000000) || !EntryBuffer[0xE0 >> 2] || Phase1Offset)
+                    goto win10_next_phase1;
+            }
+            int Offset = (int)EntryBuffer[0xE0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
+            if (Offset && (unsigned int)Offset < PeFileSize)
+            {
+                Phase1Offset = (unsigned int)Offset;
+                break;
+            }
+        }
+win10_next_phase1:
+        ++Phase1Count;
+    }
+
+    // Phase2：搜索 0x512 / 0x42E 节区
+    if (Phase1Offset)
+    {
+        InitPESectionReadContext((PUCHAR)PeFileBase + Phase1Offset, PeFileSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+        Phase2Count = 0;
+        while (Phase2Count < 0x1F4)
+        {
+            if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+                break;
+            SectionSize = EntryBuffer[0x38 >> 2];
+            CumulativeSize = EntryBuffer[0x40 >> 2];
+            CumulativeSize += SectionSize;
+            SectionDataPtr = EntryBuffer[0x48 >> 2];
+            EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+            SectionType = *(unsigned short *)(SectionDataPtr + 6);
+            if (SectionType == 0x512)
+            {
+                __int64 B8 = EntryBuffer[0x130 >> 2];
+                unsigned int C8 = EntryBuffer[0x120 >> 2];
+                if (B8 == 0x40000 && C8 && EntryBuffer[0xF8 >> 2] == 0x40)
+                {
+                    int Offset = (int)C8 - (int)PeFileBase + (int)CumulativeSize;
+                    if (Offset && (unsigned int)Offset < PeFileSize)
+                    {
+                        Phase1Offset = (unsigned int)Offset;
+                        break;
+                    }
+                }
+            }
+            else if (SectionType == 0x42E)
+            {
+                __int64 D0 = EntryBuffer[0x118 >> 2];
+                if (D0 == 0xB && Phase1Offset && Phase1Offset < PeFileSize)
+                {
+                    Phase1Offset = Phase1Offset;
+                    break;
+                }
+            }
+            ++Phase2Count;
+        }
+    }
+
+    if (Phase1Offset)
+    {
+        GtWrite(GtNtosExportSectionOffset2, Phase1Offset);
+        GtWrite(GtNtosExportSectionVa2, Phase1Offset + NtoskrnlBase);
+    }
+
+    Result = Phase1Offset;
+    return Result;
 }

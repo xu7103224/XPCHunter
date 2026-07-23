@@ -775,6 +775,19 @@ typedef enum _GLOBAL_TABLE_INDEX {
     // ---- fltmgr.sys 分析数据 (2174-2202) ----
     GtFltmgrBase = 0x87E,                     // 2174: fltmgr.sys 模块基址
     GtFltmgrBaseBackup = 0x87F,               // 2175: fltmgr.sys 基址备份
+    GtNtosExportSectionOffset = 0x879,        // 2169: NT 导出节区偏移(Phase1/Phase2结果, ParseNtExportSectionsV2/Win10)
+    GtNtosExportSectionVa = 0x87A,            // 2170: NT 导出节区 VA(Offset+Base, ParseNtExportSectionsV2/Win10)
+    GtNtosExportSectionSize = 0x87B,          // 2171: NT 导出节区大小(ParseNtExportSectionsV2=0x800)
+    GtNtosExportSectionOffset2 = 0x87C,       // 2172: NT 导出节区偏移2(Phase3结果, ParseNtExportSectionsV2/Win10)
+    GtNtosExportSectionVa2 = 0x87D,           // 2173: NT 导出节区 VA2(Offset2+Base)
+    GtKernelDataSectionOffset = 0x821,        // 2081: 内核数据节区偏移(FindKernelDataSectionOffsetWin8)
+    GtOpenProcessTokenOffset = 0x33E,         // 830: NtOpenProcess Token 偏移(FindOpenProcessTokenOffset/Target)
+    GtNtoskrnlPeScanBaseOffset = 0x436C,      // 17260: NT PE 扫描基址偏移(FindOpenProcessToken*)
+    GtNtoskrnlPeScanBase = 0x43CC,            // 17356: NT PE 扫描基址(FindKernelDataSectionOffsetWin8)
+    GtNtoskrnlPeScanBase2 = 0x43A8,           // 17320: NT PE 扫描基址2(FindKernelDataSectionOffsetWin7)
+    GtNtoskrnlPeScanBase3 = 0x43C3,           // 17347: NT PE 扫描基址3(FindKernelDataSectionOffsetWin10)
+    GtKernelDataSectionOffset2 = 0x824,       // 2084: 内核数据节区偏移2(FindKernelDataSectionOffsetWin10/Pair)
+    GtKernelDataSectionOffset3 = 0x825,       // 2085: 内核数据节区偏移3(FindKernelDataSectionOffsetWin10/Pair)
     GtFltEnumerateFiltersOffset = 0x880,      // 2176: FltEnumerateFilters 导出偏移
     GtFltEnumerateFiltersAddr = 0x881,        // 2177: FltEnumerateFilters 函数地址
     GtFltUnregisterFilterOffset = 0x882,      // 2178: FltUnregisterFilter 导出偏移

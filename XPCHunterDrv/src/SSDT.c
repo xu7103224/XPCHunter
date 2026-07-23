@@ -10543,35 +10543,188 @@ char ParseServiceTableExportEntry(void *Src, size_t MaxCount, __int64 ServiceInd
 }
 
 
-// ParseNtoskrnlSectionsForKernelBase -- 解析 ntoskrnl 节区获取内核基址
+// ParseNtoskrnlSectionsForKernelBase — 解析 ntoskrnl 节区获取内核基址
+// 从 PE 文件数据中扫描节区，匹配特定类型（0x558/0x512 等）定位内核基址偏移
 // 对应原始驱动 sub_14002BC2C
 char ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize)
 {
-    return 0;
+    char Result = 0;
+    if (!PeBase || !PeSize || PeBase < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)PeBase) != 1)
+        return Result;
+    if (PeSize < 0x200)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// FindOpenProcessTokenOffset -- 查找 OpenProcess Token 偏移
-// 在 ntoskrnl 中查找 NtOpenProcess 相关的 Token 处理偏移
+// FindOpenProcessTokenOffset -- 查找 NtOpenProcess Token 偏移（旧版）
+// 读取 GT 17260 获取扫描基址偏移，遍历 PE 节区搜索子类型 0x419（标志 0x40，入口标志 1）
+// 或子类型 0x512（标志 0x40，类型 0x10000），匹配值写入全局表 0x33E
 __int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSize)
 {
-    __int64 NtoskrnlBase;
+    __int64 Result = 0;
+    __int64 PeScanBaseOffset;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    ULONG EntryBuffer[0x80];
 
-    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    if (!NtoskrnlBase || !TargetAddress || !TargetSize)
-        return 0;
+    PeScanBaseOffset = GtRead(GtNtoskrnlPeScanBaseOffset);
+    if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
+        goto done;
 
-    return 0;
+    InitPESectionReadContext((PUCHAR)TargetAddress + PeScanBaseOffset, TargetSize - PeScanBaseOffset, 3, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    while (1)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x50 >> 2];
+        CumulativeSize = EntryBuffer[0x48 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x20 >> 2];
+        EntryBuffer[0x48 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+
+        if (SectionType == 0x545)
+            continue;
+
+        if (EntryBuffer[0x50 >> 2] != 7)
+        {
+            // 子类型 0x419（标志 0x40，入口标志 1）
+            if (SectionType == 0x419)
+            {
+                __int64 F0 = EntryBuffer[0xE0 >> 2];
+                unsigned int E8 = EntryBuffer[0xE8 >> 2];
+                __int64 B8 = EntryBuffer[0x118 >> 2];
+                unsigned int D0 = EntryBuffer[0x100 >> 2];
+                unsigned int CC = EntryBuffer[0x104 >> 2];
+                if (F0 & 0x40 && E8 == 1 && (B8 & 0x2000000) && D0)
+                {
+                    if (CC == 0)
+                        Result = D0;
+                    continue;
+                }
+            }
+            // 子类型 0x512（标志 0x40，类型 0x10000）
+            else if (SectionType == 0x512)
+            {
+                __int64 F0 = EntryBuffer[0xE0 >> 2];
+                __int64 B8 = EntryBuffer[0x118 >> 2];
+                unsigned int C8 = EntryBuffer[0x108 >> 2];
+                if ((F0 & 0x40) && (B8 & 0x10000) && C8 > 0)
+                {
+                    Result = C8;
+                    break;
+                }
+            }
+        }
+    }
+
+done:
+    GtWrite(GtOpenProcessTokenOffset, Result);
+    return Result;
 }
 
-// FindOpenProcessTokenTarget -- 查找 OpenProcess Token 目标地址
-// 解析 NtOpenProcess 中的 Token 访问检查逻辑
+// FindOpenProcessTokenTarget -- 查找 NtOpenProcess Token 目标（新版）
+// 两阶段扫描：先搜索子类型 0x53E 的 Magic 值标记位置，再搜索子类型 0x558 定位第二阶段基址
+// 然后搜索子类型 0x512（标志 0x40，类型 0x10000）或 0xE5（标志 0x10001）
 __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSize)
 {
-    __int64 NtoskrnlBase;
+    __int64 Result = 0;
+    __int64 PeScanBaseOffset;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    unsigned int PhaseCount;
+    ULONG EntryBuffer[0x80];
+    unsigned char PhaseMarker;
 
-    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    if (!NtoskrnlBase || !TargetAddress || !TargetSize)
-        return 0;
+    PeScanBaseOffset = GtRead(GtNtoskrnlPeScanBaseOffset);
+    if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
+        goto done2;
 
-    return 0;
+    InitPESectionReadContext((PUCHAR)TargetAddress + PeScanBaseOffset, TargetSize - PeScanBaseOffset, 3, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    PhaseCount = 0;
+    PhaseMarker = 0;
+
+    while (PhaseCount < 0x64)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x50 >> 2];
+        CumulativeSize = EntryBuffer[0x48 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x20 >> 2];
+        EntryBuffer[0x48 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+
+        if (SectionType == 0x53E)
+        {
+            // Magic 值检查：C8 == 0x800000, E0 == 0x446C6644
+            __int64 C8 = EntryBuffer[0x118 >> 2];
+            unsigned int E0 = EntryBuffer[0x100 >> 2];
+            if (C8 == 0x800000 && E0 == 0x446C6644)
+                PhaseMarker = PhaseCount + 2;
+        }
+
+        if (PhaseMarker && PhaseCount == PhaseMarker - 2)
+        {
+            // 子类型 0x558 定位第二阶段基址
+            if (SectionType == 0x558)
+            {
+                int C8_val = EntryBuffer[0xC8 >> 2];
+                int Offset = C8_val - (int)TargetAddress + (int)CumulativeSize;
+                if (Offset && (unsigned int)Offset < TargetSize)
+                {
+                    // 切换到第二阶段：重新初始化上下文
+                    InitPESectionReadContext((PUCHAR)TargetAddress + Offset, TargetSize - Offset, 3, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+                    PhaseCount = 0;
+                    PhaseMarker = 0;
+                    continue;
+                }
+            }
+        }
+
+        if (PhaseMarker && PhaseCount != PhaseMarker - 2)
+        {
+            // 第二阶段：搜索 0x512（标志 0x40，类型 0x10000）
+            if (SectionType == 0x512)
+            {
+                __int64 F0 = EntryBuffer[0xE0 >> 2];
+                __int64 B8 = EntryBuffer[0x118 >> 2];
+                unsigned int C8 = EntryBuffer[0x108 >> 2];
+                if ((F0 & 0x40) && (B8 & 0x10000) && C8 > 0)
+                {
+                    Result = C8;
+                    break;
+                }
+            }
+            // 或子类型 0xE5（标志 0x10001）
+            else if (SectionType == 0xE5)
+            {
+                __int64 F0 = EntryBuffer[0xE0 >> 2];
+                if (F0 == 0x10001)
+                {
+                    unsigned int C8 = EntryBuffer[0x108 >> 2];
+                    if (C8 > 0)
+                    {
+                        Result = C8;
+                        break;
+                    }
+                }
+            }
+        }
+
+        ++PhaseCount;
+    }
+
+done2:
+    GtWrite(GtOpenProcessTokenOffset, Result);
+    return Result;
 }

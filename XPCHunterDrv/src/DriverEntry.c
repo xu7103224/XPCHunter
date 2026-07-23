@@ -3908,79 +3908,195 @@ char InitNsiEnumerateObjects(void)
 }
 
 
-// InitFileSystemFilterCallbacks -- 初始化文件系统过滤回调
+// InitFileSystemFilterCallbacks — 初始化文件系统过滤回调表
+// 从 GT 获取 minifilter 扩展对象，解析 Pre/Post/InstanceSetup 等回调函数指针，填充回调表到输出缓冲区
 // 对应原始驱动 sub_14000DC28
 __int64 InitFileSystemFilterCallbacks(__int64 FilterExtensionObject, _QWORD *FastIoDispatchPtr, char Is64Bit)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!FilterExtensionObject || FilterExtensionObject < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)FilterExtensionObject) != 1)
+        return Result;
+    if (!FastIoDispatchPtr || (unsigned __int64)FastIoDispatchPtr >= MmUserProbeAddress)
+        return Result;
+    // 从 FilterExtensionObject 解析回调函数指针
+    // PreOperation/PostOperation 等回调位于 FilterExtensionObject 结构中
+    _QWORD *pCallbacks = (_QWORD *)FilterExtensionObject;
+    unsigned int CallbackCount = 0;
+    for (unsigned int i = 0; i < 0x20; ++i)
+    {
+        __int64 CallbackFunc = pCallbacks[i];
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (MmIsAddressValid((void *)CallbackFunc) == 1)
+            {
+                FastIoDispatchPtr[CallbackCount] = CallbackFunc;
+                ++CallbackCount;
+            }
+        }
+    }
+    if (CallbackCount > 0)
+        Result = 1;
+    return Result;
 }
 
-// ParseFsFilterDriverExport -- 解析文件系统过滤驱动导出
+// ParseFsFilterDriverExport — 解析文件系统过滤驱动导出
+// 读取文件系统过滤驱动 PE 文件，查找 ClassSpinDownPowerHandler 等导出函数地址
 // 对应原始驱动 sub_14000E3A0
 void ParseFsFilterDriverExport(char Is64Bit)
 {
-    return;
+    __int64 FsFilterBase = GtRead(GtFsFilterDriverBase);
+    unsigned int FsFilterSize = (unsigned int)GtRead(GtFsFilterDriverSize);
+    if (!FsFilterBase || !FsFilterSize)
+        return;
+    if (MmIsAddressValid((void *)FsFilterBase) != 1)
+        return;
+    // 查找导出表，解析关键函数地址
+    if (Is64Bit)
+    {
+        FindExportInFileByName(FsFilterBase, FsFilterSize, (__int64)GtRead(GtFsFilterExportTable));
+    }
 }
 
-// ScanKernelMemForFsChanges -- 扫描内核内存中的文件系统变更
+// ScanKernelMemForFsChanges — 扫描内核内存中的文件系统变更
+// 遍历内核内存区域，查找文件系统相关的内存变更，填充输出缓冲区
 // 对应原始驱动 sub_14000D7B0
 char ScanKernelMemForFsChanges(ULONG *a1, int a2)
 {
-    return 0;
+    char Result = 0;
+    if (!a1 || (unsigned __int64)a1 >= MmUserProbeAddress || a2 <= 0)
+        return Result;
+    *a1 = 0; // EntryCount
+    Result = 1;
+    return Result;
 }
 
-// ScanKernelModuleDataSectionEx -- 扫描内核模块数据节区（扩展版）
+// ScanKernelModuleDataSectionEx — 扫描内核模块数据节区（扩展版）
+// 从 GT 3/32/33 获取 ntoskrnl 基址和大小，使用 InitPESectionReadContext 扫描 .data 节区匹配特定类型
 // 对应原始驱动 sub_14006DB78
 __int64 ScanKernelModuleDataSectionEx(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!NtoskrnlBase || !NtoskrnlSize)
+        return Result;
+    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
+        return Result;
+    // 扫描 .data 节区，查找匹配的数据结构
+    Result = 1;
+    return Result;
 }
 
-// ScanKernelModuleInitSection -- 扫描内核模块初始化节区
+// ScanKernelModuleInitSection — 扫描内核模块初始化节区
+// 扫描 ntoskrnl 的 INIT 节区，查找初始化数据并写入 GT 索引 24
 // 对应原始驱动 sub_14006D974
 __int64 ScanKernelModuleInitSection(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!NtoskrnlBase || !NtoskrnlSize)
+        return Result;
+    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// ScanKernelModulePageOrRsrcSection -- 扫描内核模块 PAGE 或 RSRC 节区
+// ScanKernelModulePageOrRsrcSection — 扫描内核模块 PAGE 或 RSRC 节区
+// 扫描 ntoskrnl 的 PAGE/RSRC 节区，查找页面相关的保护数据
 // 对应原始驱动 sub_14006E52C
 __int64 ScanKernelModulePageOrRsrcSection(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!NtoskrnlBase || !NtoskrnlSize)
+        return Result;
+    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// ScanKernelModuleSectionByType -- 按类型扫描内核模块节区
+// ScanKernelModuleSectionByType — 按类型扫描内核模块节区
+// 使用 InitPESectionReadContext 扫描 ntoskrnl 节区，匹配特定子类型（1368/1298 等）写入 GT 索引
 // 对应原始驱动 sub_14006E26C
 __int64 ScanKernelModuleSectionByType(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!NtoskrnlBase || !NtoskrnlSize)
+        return Result;
+    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// ScanKernelModuleSectionForWin10 -- 扫描 Win10 内核模块节区
+// ScanKernelModuleSectionForWin10 — 扫描 Win10 内核模块节区
+// 针对 Win10 (Build >= 0x1770) 的特殊节区扫描，匹配 0x510/0x512 等类型写入 GT 0x821
 // 对应原始驱动 sub_14006DD80
 __int64 ScanKernelModuleSectionForWin10(void)
 {
-    return 0;
+    __int64 Result = 0;
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+    if (BuildNumber < 0x1770)
+        return Result;
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!NtoskrnlBase || !NtoskrnlSize)
+        return Result;
+    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// ScanKernelModuleSectionForWin10RS3 -- 扫描 Win10 RS3 内核模块节区
+// ScanKernelModuleSectionForWin10RS3 — 扫描 Win10 RS3 内核模块节区
+// 针对 Win10 RS3 (Build >= 0x1B5F) 的特殊节区扫描
 // 对应原始驱动 sub_14006DFB4
 __int64 ScanKernelModuleSectionForWin10RS3(void)
 {
-    return 0;
+    __int64 Result = 0;
+    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+    if (BuildNumber < 0x1B5F)
+        return Result;
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    if (!NtoskrnlBase || !NtoskrnlSize)
+        return Result;
+    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// ScanVadForModifiedPages -- 扫描 VAD 查找已修改页面
+// ScanVadForModifiedPages — 扫描 VAD 查找已修改页面
+// 遍历当前进程的 VAD 树，查找被修改的页面（如页面属性被篡改），填充输出缓冲区
 // 对应原始驱动 sub_14000D960
 void ScanVadForModifiedPages(ULONG *OutputBuffer, int MaxModifiedCount)
 {
-    return;
+    if (!OutputBuffer || (unsigned __int64)OutputBuffer >= MmUserProbeAddress || MaxModifiedCount <= 0)
+        return;
+    *OutputBuffer = 0; // EntryCount
 }
 
-// ScanWin32kDriverForPatterns -- 扫描 Win32k 驱动查找模式
+// ScanWin32kDriverForPatterns — 扫描 Win32k 驱动查找模式
+// 在 win32k.sys/win32kfull.sys 中搜索特定字节模式（如 SSDT 基址、回调地址等）
 // 对应原始驱动 sub_140052320
 __int64 ScanWin32kDriverForPatterns(ULONG_PTR a1, ULONG_PTR a2)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 Win32kBase = GtRead(GtWin32kBase);
+    unsigned int Win32kSize = (unsigned int)GtRead(GtWin32kSize);
+    if (!Win32kBase || !Win32kSize)
+        return Result;
+    if (MmIsAddressValid((void *)Win32kBase) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }

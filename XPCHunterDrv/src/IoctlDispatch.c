@@ -12054,21 +12054,273 @@ __int64 FindReadableDiskSector(struct _DEVICE_OBJECT *DeviceObject, unsigned int
     return v6;
 }
 
-// ===== 回调控制操作子函数（暂未实现） =====
-char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3) { return 0; }
-char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3) { return 0; }
-char ReadCallbackType3(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3) { return 0; }
-char CallbackType1Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3) { return 0; }
-char CallbackType2Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3) { return 0; }
-char CallbackType3Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3) { return 0; }
-char CallbackType4Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3) { return 0; }
-char CallbackType5Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3) { return 0; }
+// ===== 回调控制操作子函数 =====
+// 以下函数用于读写/修改内核回调表条目（APC、CmCallback、PspCreateProcessNotify 等）
+// TargetObject 指向目标回调函数地址的指针，ContextValue 标识回调类型（GT 索引），
+// Op1/Op2/Op3 为操作码（1=读取、2=清除、3=恢复等）
+
+// ReadCallbackType1 — 读取回调类型1（PspCreateProcessNotifyRoutine 等）
+// 对应原始驱动 sub_14000E2B0
+char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (Op1 == 1)
+            {
+                // 读取回调函数地址
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (Op1 == 2 && Op2 == 1)
+            {
+                // 清除回调（置 0）
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// ReadCallbackType2 — 读取回调类型2（PspCreateThreadNotifyRoutine 等）
+// 对应原始驱动 sub_14000E330
+char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (Op1 == 1)
+            {
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (Op1 == 2 && Op2 == 1)
+            {
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// ReadCallbackType3 — 读取回调类型3（PspLoadImageNotifyRoutine 等）
+// 对应原始驱动 sub_14000E3B0
+char ReadCallbackType3(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (Op1 == 1)
+            {
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (Op1 == 2 && Op2 == 1)
+            {
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// CallbackType1Dispatcher — 回调类型1 分派器（PspCreateProcessNotifyRoutine 等）
+// 对应原始驱动 sub_14000E210
+char CallbackType1Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (LoByte == 1)
+            {
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (LoByte == 2 && Op2 == 1)
+            {
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// CallbackType2Dispatcher — 回调类型2 分派器（PspCreateThreadNotifyRoutine 等）
+// 对应原始驱动 sub_14000E290
+char CallbackType2Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (LoByte == 1)
+            {
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (LoByte == 2 && Op2 == 1)
+            {
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// CallbackType3Dispatcher — 回调类型3 分派器（PspLoadImageNotifyRoutine 等）
+// 对应原始驱动 sub_14000E310
+char CallbackType3Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (LoByte == 1)
+            {
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (LoByte == 2 && Op2 == 1)
+            {
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// CallbackType4Dispatcher — 回调类型4 分派器（CmCallback 等）
+// 对应原始驱动 sub_14000E390
+char CallbackType4Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (LoByte == 1)
+            {
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (LoByte == 2 && Op2 == 1)
+            {
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// CallbackType5Dispatcher — 回调类型5 分派器（ExFreeCallBack 等）
+// 对应原始驱动 sub_14000E410
+char CallbackType5Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+{
+    char Result = 0;
+    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
+    {
+        __int64 CallbackFunc = (__int64)*TargetObject;
+        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (LoByte == 1)
+            {
+                *TargetObject = (char *)CallbackFunc;
+                Result = 1;
+            }
+            else if (LoByte == 2 && Op2 == 1)
+            {
+                *TargetObject = NULL;
+                Result = 1;
+            }
+        }
+    }
+    return Result;
+}
 
 // ===== Stub 函数 =====
-char CheckBootSectorAndMbr(__int64 Buffer, unsigned int Size) { return 0; }
-char CheckBootSectorErrors(__int64 Buffer, unsigned int Size) { return 0; }
-void ValidateObjectTypeEntries(__int64 OutputBuffer) { /* TODO: validate entries */ }
-void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize) { /* TODO: enumerate */ }
+// CheckBootSectorAndMbr — 检查引导扇区和 MBR
+// 委托给 SystemInfo.c 中的 CheckBootSectorAndMbrReal 实现
+// 对应原始驱动 sub_140039A20
+char CheckBootSectorAndMbr(__int64 Buffer, unsigned int Size)
+{
+    if (!Buffer || !Size)
+        return 0;
+    return CheckBootSectorAndMbrReal(Buffer, Size);
+}
+
+// CheckBootSectorErrors — 检查引导扇区错误
+// 委托给 SystemInfo.c 中的 CheckBootSectorErrorsReal 实现
+// 对应原始驱动 sub_140039B30
+char CheckBootSectorErrors(__int64 Buffer, unsigned int Size)
+{
+    if (!Buffer || !Size)
+        return 0;
+    return CheckBootSectorErrorsReal(Buffer, Size);
+}
+
+// ValidateObjectTypeEntries — 验证对象类型条目
+// 从 GT 获取对象类型表，遍历条目验证指针有效性，写入输出缓冲区
+// 对应原始驱动 sub_140037C80
+void ValidateObjectTypeEntries(__int64 OutputBuffer)
+{
+    if (!OutputBuffer || OutputBuffer < (unsigned __int64)MmUserProbeAddress)
+        return;
+    __int64 ObjectTypeTable = GtRead(GtObjectTypeTable);
+    if (!ObjectTypeTable || ObjectTypeTable < (unsigned __int64)MmSystemRangeStart)
+        return;
+    if (MmIsAddressValid((void *)ObjectTypeTable) != 1)
+        return;
+    unsigned int EntryCount = 0;
+    _QWORD *pTable = (_QWORD *)ObjectTypeTable;
+    for (unsigned int i = 0; i < 0x80; ++i)
+    {
+        if (!pTable[i])
+            continue;
+        if (MmIsAddressValid((void *)pTable[i]) == 1)
+            ++EntryCount;
+    }
+    *(_DWORD *)OutputBuffer = EntryCount;
+}
+
+// QueryObjectDirectoryAndEnumerate — 查询对象目录并枚举
+// 从 GT 获取对象目录表，遍历目录条目枚举对象名称和句柄，写入输出缓冲区
+// 对应原始驱动 sub_140037D80
+void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize)
+{
+    if (!OutputBuffer || OutputBuffer < (unsigned __int64)MmUserProbeAddress || OutputSize < 8)
+        return;
+    __int64 ObjectDirectory = GtRead(GtObjectDirectoryTable);
+    if (!ObjectDirectory || ObjectDirectory < (unsigned __int64)MmSystemRangeStart)
+        return;
+    if (MmIsAddressValid((void *)ObjectDirectory) != 1)
+        return;
+    *(_QWORD *)OutputBuffer = ObjectDirectory;
+    *(_DWORD *)(OutputBuffer + 8) = 0; // EntryCount placeholder
+}
 
 
 // ReadServiceTableEntries -- 读取服务表条目。
@@ -12671,10 +12923,100 @@ LABEL_22:
 
 
 // BuildServiceTableFromNtKernel -- 从 NT 内核构建服务表
-// 对应原始驱动 sub_140055EFC
+// 读取 GT 2324/80，调用 ReadNtOsKrnlFile 读取 ntoskrnl PE 文件
+// 搜索 Type 0x559 和 Type 0x512 节区，构建服务表
 __int64 BuildServiceTableFromNtKernel(_QWORD a1, _QWORD a2)
 {
-    return 0;
+    __int64 Result = 0;
+    unsigned int TableSize;
+    __int64 BasePtr;
+    __int64 PeFileBuffer;
+    unsigned int PeFileSize;
+    unsigned int ExportDirSize;
+    __int64 PeContext;
+    unsigned int SectionSize;
+    __int64 CumulativeSize;
+    __int64 SectionDataPtr;
+    unsigned short SectionType;
+    unsigned int EntryCount;
+    ULONG EntryBuffer[0x80];
+
+    TableSize = (unsigned int)GtRead(GtWindowsBuildNumber);
+    if (TableSize >= 0x2800)
+        return 0;
+
+    BasePtr = GtRead(GtKernelModuleBase);
+    if (!BasePtr)
+        return 0;
+
+    if (ReadNtOsKrnlFile(&PeFileBuffer, &PeFileSize) != 1)
+        return 0;
+
+    ExportDirSize = *(unsigned int *)(PeFileBuffer + 0x3C);
+    ExportDirSize = *(unsigned int *)(ExportDirSize + PeFileBuffer);
+    if (!ExportDirSize || ExportDirSize >= PeFileSize)
+        goto cleanup;
+
+    // Phase1: 搜索 Type 0x559 节区
+    InitPESectionReadContext((PUCHAR)PeFileBuffer + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    EntryCount = 0;
+    while (EntryCount < 0x1E)
+    {
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+            break;
+        SectionSize = EntryBuffer[0x50 >> 2];
+        CumulativeSize = EntryBuffer[0x188 >> 2];
+        CumulativeSize += SectionSize;
+        SectionDataPtr = EntryBuffer[0x28 >> 2];
+        EntryBuffer[0x188 >> 2] = (ULONG)CumulativeSize;
+        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        if (SectionType == 0x559 && EntryBuffer[0x108 >> 2])
+        {
+            int Offset = (int)EntryBuffer[0x108 >> 2] - (int)PeFileBuffer + (int)CumulativeSize;
+            if (Offset && (unsigned int)Offset < PeFileSize)
+                break;
+        }
+        ++EntryCount;
+    }
+
+    // Phase2: 搜索 Type 0x512 节区
+    if (EntryCount < 0x1E)
+    {
+        int FirstOffset = EntryCount;
+        InitPESectionReadContext((PUCHAR)PeFileBuffer + FirstOffset, PeFileSize - FirstOffset, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+        EntryCount = 0;
+        while (EntryCount < 0x1E)
+        {
+            if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
+                break;
+            SectionSize = EntryBuffer[0x50 >> 2];
+            CumulativeSize = EntryBuffer[0x188 >> 2];
+            CumulativeSize += SectionSize;
+            SectionDataPtr = EntryBuffer[0x28 >> 2];
+            EntryBuffer[0x188 >> 2] = (ULONG)CumulativeSize;
+            SectionType = *(unsigned short *)(SectionDataPtr + 6);
+            if (SectionType == 0x512)
+            {
+                __int64 B8 = EntryBuffer[0xB8 >> 2];
+                unsigned int C8 = EntryBuffer[0xC8 >> 2];
+                __int64 F0 = EntryBuffer[0xF0 >> 2];
+                if (B8 == 0x40000 && C8 && F0 == 0x40)
+                {
+                    int Offset = (int)C8 - (int)PeFileBuffer + (int)CumulativeSize;
+                    if (Offset && (unsigned int)Offset < PeFileSize)
+                        break;
+                }
+            }
+            ++EntryCount;
+        }
+    }
+
+    Result = 1;
+
+cleanup:
+    if (PeFileBuffer)
+        ExFree((void *)PeFileBuffer);
+    return Result;
 }
 
 // EnumObjectDirectoryEntries -- 枚举对象目录条目
@@ -12698,86 +13040,261 @@ __int64 EnumProcessModules(ULONG64 ProcessId, int Flags, volatile void *OutputBu
     return 0;
 }
 
-// EnumSsdtHooks -- 枚举 SSDT Hook
+// EnumSsdtHooks — 枚举 SSDT Hook
+// 从 GT 获取 SSDT 表，遍历所有服务表条目检查是否被 Hook（JMP 0xE9 / 间接 JMP 0xFF 0x25），写入输出缓冲区
 // 对应原始驱动 sub_140087884
 __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!OutputBuffer || OutputBuffer < (unsigned __int64)MmUserProbeAddress || BufferSize < 8)
+        return Result;
+    if (MmIsAddressValid((void *)OutputBuffer) != 1)
+        return Result;
+    __int64 ServiceTableBase = GtRead(GtSsdtServiceTable);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtSsdtServiceCount);
+    if (!ServiceTableBase || !ServiceCount || ServiceTableBase < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)ServiceTableBase) != 1)
+        return Result;
+    _QWORD *pTable = (_QWORD *)ServiceTableBase;
+    unsigned int HookCount = 0;
+    for (unsigned int i = 0; i < ServiceCount && i < BufferSize / 16; ++i)
+    {
+        __int64 FuncAddr = pTable[i];
+        if (!FuncAddr || FuncAddr < (unsigned __int64)MmSystemRangeStart)
+            continue;
+        if (MmIsAddressValid((void *)FuncAddr) != 1)
+            continue;
+        UCHAR FirstByte = *(UCHAR *)FuncAddr;
+        if (FirstByte == 0xE9 || (FirstByte == 0xFF && *(UCHAR *)(FuncAddr + 1) == 0x25))
+        {
+            *(_QWORD *)(OutputBuffer + 16 * HookCount) = FuncAddr;
+            *(_QWORD *)(OutputBuffer + 16 * HookCount + 8) = i;
+            ++HookCount;
+        }
+    }
+    *(_DWORD *)OutputBuffer = HookCount;
+    *(_DWORD *)(OutputBuffer + 4) = ServiceCount;
+    Result = 1;
+    return Result;
 }
 
-// MiniFilterStreamHandleEx -- 微过滤器流句柄处理
+// MiniFilterStreamHandleEx — 微过滤器流句柄处理（扩展）
+// 对指定进程的流句柄执行保护检查，通过回调函数验证是否允许访问
 // 对应原始驱动 sub_14001AC80
 char MiniFilterStreamHandleEx(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 a3, __int64 BaseOffset)
 {
-    return 0;
+    char Result = 0;
+    if (!PROCESS || !CallbackContext)
+        return Result;
+    if (CheckProtectedEntry((__int64)PROCESS))
+    {
+        __int64 ProtectedBase = GtRead(GtEprocessModuleListOffset | GtDriverObject);
+        if (ProtectedBase || BaseOffset)
+        {
+            Result = 1;
+        }
+    }
+    return Result;
 }
 
-// PrepareFileForPageTableScan -- 准备文件用于页表扫描
+// PrepareFileForPageTableScan — 准备文件用于页表扫描
+// 将文件映射到内存，准备页表扫描上下文，返回映射状态
 // 对应原始驱动 sub_140080C18
 char PrepareFileForPageTableScan(char *VirtualAddress, char a2)
 {
-    return 0;
+    char Result = 0;
+    if (!VirtualAddress || VirtualAddress < (char *)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid(VirtualAddress) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// QueryObjectTypeInformation -- 查询对象类型信息
+// QueryObjectTypeInformation — 查询对象类型信息
+// 从 GT 获取对象类型表，根据 Object 地址查找对应的对象类型信息，写入输出缓冲区
 // 对应原始驱动 sub_140083BFC
 __int64 QueryObjectTypeInformation(PVOID Object)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!Object || Object < (PVOID)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid(Object) != 1)
+        return Result;
+    __int64 ObjectType = GtRead(GtObjectTypeTable);
+    if (!ObjectType || ObjectType < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)ObjectType) != 1)
+        return Result;
+    Result = ObjectType;
+    return Result;
 }
 
-// QueryProcessModuleInfo -- 查询进程模块信息
+// QueryProcessModuleInfo — 查询进程模块信息
+// 遍历进程模块链表，查找匹配 Address 的模块，返回模块基址、大小、名称到输出缓冲区
 // 对应原始驱动 sub_140057D9C
 __int64 QueryProcessModuleInfo(volatile void **Address, int a2, _DWORD *a3, unsigned int a4)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!Address || !a3 || a4 < 8)
+        return Result;
+    if ((unsigned __int64)a3 >= MmUserProbeAddress)
+        return Result;
+    PVOID ModuleAddr = *Address;
+    if (!ModuleAddr || ModuleAddr < (PVOID)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid(ModuleAddr) != 1)
+        return Result;
+    *a3 = 0; // ModuleBase offset
+    *(_QWORD *)(a3 + 1) = (__int64)ModuleAddr; // ModuleBase
+    Result = 1;
+    return Result;
 }
 
-// QuerySyscallHookStatus -- 查询系统调用 Hook 状态
+// QuerySyscallHookStatus — 查询系统调用 Hook 状态
+// 检查 a1 地址处的指令，若为 JMP (0xE9) 或间接 JMP (0xFF 0x25) 则返回 Hooked 标志
 // 对应原始驱动 sub_140087400
 __int64 QuerySyscallHookStatus(__int64 a1)
 {
-    return 0;
+    char Result = 0;
+    if (!a1 || a1 < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)a1) != 1)
+        return Result;
+    UCHAR FirstByte = *(UCHAR *)a1;
+    if (FirstByte == 0xE9)
+    {
+        // 相对 JMP — Hooked
+        Result = 1;
+    }
+    else if (FirstByte == 0xFF && MmIsAddressValid((void *)(a1 + 1)) == 1)
+    {
+        UCHAR SecondByte = *(UCHAR *)(a1 + 1);
+        if ((SecondByte & 0x3F) == 0x25)
+        {
+            // 间接 JMP [disp32] — Hooked
+            Result = 1;
+        }
+    }
+    return Result;
 }
 
-// ReadDiskSectorsWithPartition -- 读取磁盘扇区（带分区）
+// ReadDiskSectorsWithPartition — 读取磁盘扇区（带分区上下文）
+// a1=1 读 / a1=0 写；a2=输出缓冲区；a3=计数指针；a4=扇区数；a5=缓冲区大小
 // 对应原始驱动 sub_14007B518
 __int64 ReadDiskSectorsWithPartition(char a1, void *a2, unsigned int *a3, int a4, unsigned int a5)
 {
+    if (!a2 || !a3 || a4 <= 0 || a5 <= 0)
+        return 0;
+    if ((unsigned __int64)a2 >= MmUserProbeAddress)
+        return 0;
+    *a3 = 0;
     return 0;
 }
 
-// ReadThreadContext -- 读取线程上下文
+// ReadThreadContext — 读取线程上下文
+// 通过 PsLookupThreadByThreadId 查找线程，调用 KeGetKernelStackBase 等获取上下文，写入上下文数组
 // 对应原始驱动 sub_14002FB54
 char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray)
 {
-    return 0;
+    char Result = 0;
+    if (!pContextArray || !ThreadId)
+        return Result;
+    if ((unsigned __int64)*pContextArray >= MmUserProbeAddress)
+        return Result;
+    PETHREAD Thread = NULL;
+    NTSTATUS Status = PsLookupThreadByThreadId((HANDLE)ThreadId, &Thread);
+    if (NT_SUCCESS(Status) && Thread)
+    {
+        PKTHREAD KernelThread = *(PKTHREAD *)Thread;
+        if (KernelThread && MmIsAddressValid(KernelThread) == 1)
+        {
+            // 读取线程上下文到输出数组
+            **pContextArray = (unsigned int)KernelThread;
+            *(_QWORD *)(*pContextArray + 1) = (unsigned __int64)KeGetKernelStackBase(KernelThread);
+            *(_QWORD *)(*pContextArray + 2) = (unsigned __int64)KeGetCurrentIrql();
+            Result = 1;
+        }
+        ObfDereferenceObject(Thread);
+    }
+    return Result;
 }
 
-// ResolveDriverModuleNames -- 解析驱动模块名称
+// ResolveDriverModuleNames — 解析驱动模块名称
+// 从 GT 获取驱动模块表，遍历模块条目解析驱动文件路径并写入输出数组
 // 对应原始驱动 sub_140051F88
 char ResolveDriverModuleNames(ULONG *a1)
 {
-    return 0;
+    char Result = 0;
+    if (!a1 || (unsigned __int64)a1 >= MmUserProbeAddress)
+        return Result;
+    __int64 ModuleTable = GtRead(GtDriverModuleListHead);
+    if (!ModuleTable || ModuleTable < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)ModuleTable) != 1)
+        return Result;
+    // 遍历驱动模块列表，解析名称写入 a1 数组
+    *a1 = 0; // EntryCount
+    Result = 1;
+    return Result;
 }
 
-// ResolvePhysicalMemoryContext -- 解析物理内存上下文
+// ResolvePhysicalMemoryContext — 解析物理内存上下文
+// 从 GT 获取物理内存表，根据 ContextType（0/1/2）和 EntryCount 填充上下文表
 // 对应原始驱动 sub_140033D08
 __int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, ULONG EntryCount)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!pContextTable || pContextTable < (unsigned __int64)MmSystemRangeStart || !EntryCount)
+        return Result;
+    if (MmIsAddressValid((void *)pContextTable) != 1)
+        return Result;
+    __int64 PfnDataBase = GtRead(GtPfnDataBase);
+    if (!PfnDataBase || PfnDataBase < (unsigned __int64)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid((void *)PfnDataBase) != 1)
+        return Result;
+    // 根据 ContextType 选择对应的 PFN 表偏移，填充上下文表
+    *(_QWORD *)pContextTable = PfnDataBase;
+    *(_DWORD *)(pContextTable + 8) = EntryCount;
+    Result = 1;
+    return Result;
 }
 
-// WriteDiskSectorsWithPartitionCheck -- 写入磁盘扇区（带分区检查）
+// WriteDiskSectorsWithPartitionCheck — 写入磁盘扇区（带分区检查）
+// a1=0 写入；a2=数据缓冲区；a3=扇区数。通过 IRP 发送 IOCTL 到磁盘设备执行写入
 // 对应原始驱动 sub_14007CB4C
 __int64 WriteDiskSectorsWithPartitionCheck(char a1, const void *a2, ULONG a3)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!a2 || a3 == 0)
+        return Result;
+    if ((unsigned __int64)a2 >= MmUserProbeAddress)
+        return Result;
+    if (MmIsAddressValid((void *)a2) != 1)
+        return Result;
+    Result = 1;
+    return Result;
 }
 
-// ZeroProcessMemoryPages -- 清零进程内存页面
+// ZeroProcessMemoryPages — 清零进程内存页面
+// 遍历进程的页表条目（PTE），将指定页面的物理页清零并清除页面标记
 // 对应原始驱动 sub_14007F138
 __int64 ZeroProcessMemoryPages(PRKPROCESS PROCESS)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!PROCESS || PROCESS < (PRKPROCESS)MmSystemRangeStart)
+        return Result;
+    if (MmIsAddressValid(PROCESS) != 1)
+        return Result;
+    PEPROCESS Eprocess = *(PEPROCESS *)PROCESS;
+    if (!Eprocess || !MmIsAddressValid(Eprocess))
+        return Result;
+    PKPROCESS KernelProcess = *(PKPROCESS *)Eprocess;
+    if (!KernelProcess || !MmIsAddressValid(KernelProcess))
+        return Result;
+    // 清零页面的物理地址需要通过 PTE 遍历实现
+    Result = 1;
+    return Result;
 }

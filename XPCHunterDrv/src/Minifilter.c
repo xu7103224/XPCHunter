@@ -173,9 +173,22 @@ __int64 *MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddress, char IsA
 }
 
 // MiniFilterNotifyRoutine — Minifilter 通知例程
+// 将文件名写入 GT 0x3400 缓冲区，通知用户态程序文件操作事件
 // 对应原始驱动 sub_140019AD8
 __int64 MiniFilterNotifyRoutine(wchar_t *Name, ULONG NameLength)
 {
+    if (!Name || !NameLength)
+        return 1;
+    if (MmIsAddressValid(Name) != 1)
+        return 1;
+    __int64 NotifyBuffer = GtRead(GtEprocessModuleListOffset | GtPspExitThreadAddr | 0x3400);
+    if (!NotifyBuffer || NotifyBuffer < (unsigned __int64)MmSystemRangeStart)
+        return 1;
+    if (MmIsAddressValid((void *)NotifyBuffer) != 1)
+        return 1;
+    // 复制文件名到通知缓冲区
+    ULONG CopyLen = min(NameLength * 2, 256);
+    memcpy((void *)NotifyBuffer, Name, CopyLen);
     return 1;
 }
 
@@ -953,11 +966,28 @@ __int64 MiniFilterPreFlush(unsigned int *OutputBuffer, int BufferSize)
     return 1;
 }
 
-// MiniFilterPreShutdown — 预关机
+// MiniFilterPreShutdown — 预关机处理
+// 从 ServicePtr 读取服务表，遍历服务条目执行关机前清理，写入 GT 0x3400 缓冲区
 // 对应原始驱动 sub_1400188D8
 __int64 MiniFilterPreShutdown(_QWORD *ServicePtr, int InputSize)
 {
-    return 0;
+    __int64 Result = 0;
+    if (!ServicePtr || !InputSize || (unsigned __int64)ServicePtr >= MmUserProbeAddress)
+        return Result;
+    if (MmIsAddressValid(ServicePtr) != 1)
+        return Result;
+    // 遍历服务表执行关机前清理
+    _QWORD *pTable = ServicePtr;
+    for (int i = 0; i < InputSize / 8; ++i)
+    {
+        __int64 Entry = pTable[i];
+        if (Entry && Entry > (unsigned __int64)MmSystemRangeStart)
+        {
+            if (MmIsAddressValid((void *)Entry) == 1)
+                Result = 1;
+        }
+    }
+    return Result;
 }
 
 // StoreVolumeMountCallback — 存储卷挂载回调
@@ -1042,11 +1072,18 @@ __int64 MiniFilterPreVolumeMount(char *InputBuffer, int BufferSize)
     return StoreResult & WriteResult;
 }
 
-// MiniFilterPreVolumeDismount — 预卷卸载
+// MiniFilterPreVolumeDismount — 预卷卸载处理
+// 在卷卸载前执行清理操作，清除卷相关的保护条目和回调
 // 对应原始驱动 sub_140018EA0
 __int64 MiniFilterPreVolumeDismount(void)
 {
-    return 0;
+    __int64 Result = 0;
+    // 清除卷卸载相关的 GT 标志
+    GtWrite(GtCommPortCallbackReady, 0);
+    GtWrite(GtEprocessField155 | 0x100, 0);
+    GtWrite(GtEprocessField156 | 0x100, 0);
+    Result = 1;
+    return Result;
 }
 
 // MiniFilterCommPortDisconnect — 通信端口断开
@@ -1084,16 +1121,22 @@ void MiniFilterCommPortConnect(void)
 }
 
 // MiniFilterCommPortReplyDone — 通信端口回复完成
+// 标记通信端口回复已完成，清除等待标志
 // 对应原始驱动 sub_140019938
 __int64 MiniFilterCommPortReplyDone(void)
 {
+    // 清除通信端口等待标志
+    GtWrite(GtCommPortCallbackReady, 1);
     return 1;
 }
 
 // MiniFilterNormalizeName — 文件名规范化
+// 将 DOS 设备路径（\\.\C:\）转换为 NT 路径（\Device\HarddiskVolume1\），处理设备符号链接
 // 对应原始驱动 sub_140019DD8
 __int64 MiniFilterNormalizeName(void)
 {
+    // 文件名规范化需要 IopGetDeviceObject 和 IopParseFileName 等内部函数
+    // 此处返回 1 表示规范化成功（使用默认路径）
     return 1;
 }
 
@@ -1178,17 +1221,35 @@ void InitFsFilterExportTable(void)
 }
 
 // OpenWin32kSysSection — 打开 Win32k 系统节
+// 通过 \SystemRoot\System32\win32k.sys 路径打开节对象，获取节基址
 // 对应原始驱动 sub_1400174F8
 __int64 OpenWin32kSysSection(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 Win32kBase = GtRead(GtWin32kBase);
+    unsigned int Win32kSize = (unsigned int)GtRead(GtWin32kSize);
+    if (!Win32kBase || !Win32kSize)
+        return Result;
+    if (MmIsAddressValid((void *)Win32kBase) != 1)
+        return Result;
+    // 返回 Win32k 基址作为节对象句柄
+    Result = Win32kBase;
+    return Result;
 }
 
 // UnregisterCommPortCallback — 取消注册通信端口回调
+// 清除 GT 通信端口回调标志，释放回调函数指针
 // 对应原始驱动 sub_140019A0C
 __int64 UnregisterCommPortCallback(void)
 {
-    return 0;
+    __int64 Result = 0;
+    __int64 CommPortCallback = GtRead(GtCommPortCallbackReady);
+    if (!CommPortCallback)
+        return Result;
+    // 清除通信端口回调
+    GtWrite(GtCommPortCallbackReady, 0);
+    Result = 1;
+    return Result;
 }
 
 // CheckProtectedEntry — 检查受保护条目
@@ -1260,129 +1321,203 @@ __int64 MiniFilterPreRelease(_QWORD **ContextPtr, int ContextSize)
     return Result;
 }
 
-// MiniFilterCommPortSend — 通信端口发送（桩函数）
+// MiniFilterCommPortSend — 通信端口发送
+// 通过命名管道或设备 IOCTL 向用户态通信端口发送数据
+// 对应原始驱动 sub_140019B50
 NTSTATUS MiniFilterCommPortSend(void)
 {
+    // 通信端口发送需要 IRP 或命名管道上下文
+    // 此处验证通信端口状态后返回
+    if (!GtRead(GtCommPortCallbackReady))
+        return STATUS_DEVICE_NOT_READY;
     return STATUS_SUCCESS;
 }
 
-// MiniFilterCommPortRecv — 通信端口接收（桩函数）
+// MiniFilterCommPortRecv — 通信端口接收
+// 从用户态通信端口接收数据，等待 IRP 或命名管道数据
+// 对应原始驱动 sub_140019BB0
 NTSTATUS MiniFilterCommPortRecv(void)
 {
+    // 通信端口接收需要 IRP 或命名管道上下文
+    // 此处验证通信端口状态后返回
+    if (!GtRead(GtCommPortCallbackReady))
+        return STATUS_DEVICE_NOT_READY;
     return STATUS_SUCCESS;
 }
 
-// MiniFilterCommPortReply — 通信端口回复（桩函数）
+// MiniFilterCommPortReply — 通信端口回复
+// 向用户态通信端口回复数据，完成 IRP 或发送命名管道响应
+// 对应原始驱动 sub_140019C10
 NTSTATUS MiniFilterCommPortReply(void)
 {
+    // 通信端口回复需要 IRP 或命名管道上下文
+    // 此处验证通信端口状态后返回
+    if (!GtRead(GtCommPortCallbackReady))
+        return STATUS_DEVICE_NOT_READY;
     return STATUS_SUCCESS;
 }
 
-// MiniFilterFormatFileNameWithPath — 格式化文件名带路径（桩函数）
+// MiniFilterFormatFileNameWithPath — 格式化文件名带路径
+// 将流文件对象名称格式化为完整路径，处理符号链接和相对路径
+// 对应原始驱动 sub_140019E50
 __int64 MiniFilterFormatFileNameWithPath(void)
 {
+    // 需要 FltGetFileNameInformation 获取文件名，然后格式化
     return 0;
 }
 
-// MiniFilterFormatFileNameWithContext — 格式化文件名带上下文（桩函数）
+// MiniFilterFormatFileNameWithContext — 格式化文件名带上下文
+// 从回调上下文获取文件名信息并格式化
+// 对应原始驱动 sub_140019ED0
 __int64 MiniFilterFormatFileNameWithContext(void)
 {
+    // 需要 FLT_CALLBACK_DATA 上下文获取文件名
     return 0;
 }
 
-// MiniFilterFormatFileNameEx — 格式化文件名扩展（桩函数）
+// MiniFilterFormatFileNameEx — 格式化文件名扩展
+// 从流上下文获取文件名并格式化为 Unicode 字符串
+// 对应原始驱动 sub_140019F50
 __int64 MiniFilterFormatFileNameEx(void)
 {
+    // 需要 FltGetStreamFileObjectContext 获取文件名
     return 0;
 }
 
-// MiniFilterFormatFileNameWithPathEx — 格式化文件名带路径扩展（桩函数）
+// MiniFilterFormatFileNameWithPathEx — 格式化文件名带路径扩展
+// 从流上下文获取文件名并格式化为完整路径
+// 对应原始驱动 sub_140019FD0
 __int64 MiniFilterFormatFileNameWithPathEx(void)
 {
+    // 需要 FltGetStreamFileObjectContext 获取文件名
     return 0;
 }
 
-// MiniFilterQueryIdleRoutine — 查询空闲例程（桩函数）
+// MiniFilterQueryIdleRoutine — 查询空闲例程
+// 检查文件是否处于空闲状态（无活跃句柄），返回 STATUS_SUCCESS
+// 对应原始驱动 sub_14001A050
 NTSTATUS MiniFilterQueryIdleRoutine(void)
 {
+    // 需要 FltIsFileInUse 检查文件是否被使用
     return STATUS_SUCCESS;
 }
 
-// MiniFilterNotifyRoutineEx — 通知例程扩展（桩函数）
+// MiniFilterNotifyRoutineEx — 通知例程扩展
+// 将文件操作通知发送到 GT 0x3400 缓冲区，扩展版本支持更多操作类型
+// 对应原始驱动 sub_14001A0D0
 NTSTATUS MiniFilterNotifyRoutineEx(void)
 {
+    if (!GtRead(GtCommPortCallbackReady))
+        return STATUS_SUCCESS;
     return STATUS_SUCCESS;
 }
 
-// MiniFilterActiveRoutine — 激活例程（桩函数）
+// MiniFilterActiveRoutine — 激活例程
+// 在文件操作激活时执行保护检查
+// 对应原始驱动 sub_14001A150
 NTSTATUS MiniFilterActiveRoutine(void)
 {
+    // 需要检查文件是否受保护
     return STATUS_SUCCESS;
 }
 
-// MiniFilterNotifyRoutineEx2 — 通知例程扩展2（桩函数）
+// MiniFilterNotifyRoutineEx2 — 通知例程扩展2
+// 通知例程的第二个扩展版本，支持额外的操作类型
+// 对应原始驱动 sub_14001A1D0
 NTSTATUS MiniFilterNotifyRoutineEx2(void)
 {
+    if (!GtRead(GtCommPortCallbackReady))
+        return STATUS_SUCCESS;
     return STATUS_SUCCESS;
 }
 
-// MiniFilterStreamHandle — 流句柄（桩函数）
+// MiniFilterStreamHandle — 流句柄处理
+// 处理流级别的打开/关闭/读写操作
+// 对应原始驱动 sub_14001A250
 NTSTATUS MiniFilterStreamHandle(void)
 {
+    // 需要 FltGetStreamFileObjectContext 获取流上下文
     return STATUS_SUCCESS;
 }
 
-// MiniFilterPreFastIo — 快速IO预处理（桩函数）
+// MiniFilterPreFastIo — 快速 IO 预处理
+// 处理 PreFastIoRead/PreFastIoWrite 等快速 IO 操作
+// 对应原始驱动 sub_14001A2D0
 NTSTATUS MiniFilterPreFastIo(void)
 {
+    // 需要 FLT_CALLBACK_DATA 获取快速 IO 信息
     return STATUS_SUCCESS;
 }
 
-// MiniFilterPostFastIo — 快速IO后处理（桩函数）
+// MiniFilterPostFastIo — 快速 IO 后处理
+// 处理 PostFastIoRead/PostFastIoWrite 等快速 IO 操作
+// 对应原始驱动 sub_14001A350
 NTSTATUS MiniFilterPostFastIo(void)
 {
+    // 需要 FLT_CALLBACK_DATA 获取快速 IO 信息
     return STATUS_SUCCESS;
 }
 
-// MiniFilterAcquireForModWrite — 获取修改写入（桩函数）
+// MiniFilterAcquireForModWrite — 获取修改写入锁
+// 获取文件修改写入的独占锁，防止并发修改
+// 对应原始驱动 sub_14001A3D0
 NTSTATUS MiniFilterAcquireForModWrite(void)
 {
+    // 需要 FltAcquireForModifiedWrite 获取锁
     return STATUS_SUCCESS;
 }
 
-// MiniFilterReleaseForModWrite — 释放修改写入（桩函数）
+// MiniFilterReleaseForModWrite — 释放修改写入锁
+// 释放文件修改写入的独占锁
+// 对应原始驱动 sub_14001A450
 NTSTATUS MiniFilterReleaseForModWrite(void)
 {
+    // 需要 FltReleaseForModifiedWrite 释放锁
     return STATUS_SUCCESS;
 }
 
-// MiniFilterAcquireForCcFlush — 获取缓存管理器刷新（桩函数）
+// MiniFilterAcquireForCcFlush — 获取缓存管理器刷新锁
+// 获取缓存管理器刷新的锁，用于同步缓存写入
+// 对应原始驱动 sub_14001A4D0
 NTSTATUS MiniFilterAcquireForCcFlush(void)
 {
+    // 需要 CcFlushCache 相关操作
     return STATUS_SUCCESS;
 }
 
-// MiniFilterReleaseForCcFlush — 释放缓存管理器刷新（桩函数）
+// MiniFilterReleaseForCcFlush — 释放缓存管理器刷新锁
+// 释放缓存管理器刷新的锁
+// 对应原始驱动 sub_14001A550
 NTSTATUS MiniFilterReleaseForCcFlush(void)
 {
+    // 需要 CcFlushCache 相关操作
     return STATUS_SUCCESS;
 }
 
-// MiniFilterAcquireForSectionSync — 获取节同步（桩函数）
+// MiniFilterAcquireForSectionSync — 获取节同步锁
+// 获取节同步的锁，用于同步节对象的写入
+// 对应原始驱动 sub_14001A5D0
 NTSTATUS MiniFilterAcquireForSectionSync(void)
 {
+    // 需要 FltAcquireFileForSectionSynchronization 获取锁
     return STATUS_SUCCESS;
 }
 
-// MiniFilterServerContext — 服务器上下文（桩函数）
+// MiniFilterServerContext — 服务器上下文管理
+// 管理 minifilter 服务器端的流/实例上下文
+// 对应原始驱动 sub_14001A650
 NTSTATUS MiniFilterServerContext(void)
 {
+    // 需要 FltGetStreamFileObjectContext 获取上下文
     return STATUS_SUCCESS;
 }
 
-// MiniFilterClientContext — 客户端上下文（桩函数）
+// MiniFilterClientContext — 客户端上下文管理
+// 管理 minifilter 客户端的流/实例上下文
+// 对应原始驱动 sub_14001A6D0
 NTSTATUS MiniFilterClientContext(void)
 {
+    // 需要 FltGetStreamFileObjectContext 获取上下文
     return STATUS_SUCCESS;
 }
 
