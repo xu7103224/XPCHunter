@@ -90,11 +90,172 @@ char DisableObjectProtectEx(_DWORD *OutputBuffer, unsigned int BufferSize)
     return 0;
 }
 
-// WalkObjectTypeList — 遍历对象类型列表
-// 对应原始驱动 sub_140007F44
-char WalkObjectTypeList(_QWORD **NodeStack, int MaxDepth, _DWORD *OutputBuffer, unsigned int MaxBufferSize)
+// WalkObjectTypeList — 遍历对象类型列表 (0x140007F44)
+// 深度优先遍历内核对象类型节点，收集每个类型的处理函数入口和名称信息
+char __fastcall WalkObjectTypeList(_QWORD **NodeStack, int MaxDepth, _DWORD *OutputBuffer, unsigned int MaxBufferSize)
 {
-    return 0;
+    unsigned int BufferSize;
+    __int64 TypeFlag;
+    _QWORD *CurrentNode;
+    int StackDepth;
+    unsigned int LoopCounter;
+    __int64 StackIndex;
+    unsigned int EntryOffset;
+    unsigned int TypeIndex;
+    _QWORD *EntryPtr;
+    _QWORD *ObjectHeader;
+    unsigned int ObjIndex;
+    _QWORD *HandlerEntry;
+    unsigned __int64 NameLength;
+    char *NameBuffer;
+    int ObjLoopCount;
+    unsigned int TypeLoopCount;
+    int HandlerCount;
+    int TotalCount;
+    _QWORD *CurrentNodeCopy;
+    __int64 StackIndexCopy;
+    int StackDepthCopy;
+    __int64 TypeFlagCopy;
+    char *Src;
+    _QWORD *EntryPtrCopy;
+    unsigned __int16 *NameInfo;
+
+    BufferSize = MaxBufferSize;
+    TypeFlag = GtRead(GtObjectTypeCheckFlag);
+    if (TypeFlag)
+    {
+        if (MaxDepth > 1)
+        {
+            CurrentNode = *NodeStack;
+            StackDepth = -1;
+            CurrentNodeCopy = *NodeStack;
+            StackDepthCopy = -1;
+            LoopCounter = 0;
+            TotalCount = 0;
+            if (*NodeStack)
+            {
+                StackIndex = -1;
+                StackIndexCopy = -1;
+                do
+                {
+                    TypeFlag = CheckMemoryValid(CurrentNode);
+                    if ((char)TypeFlag != 1 || LoopCounter >= 0x100000)
+                        break;
+                    EntryOffset = 120 * *OutputBuffer + 128;
+                    TypeFlag = (unsigned int)GtRead(GtWindowsBuildNumber) > 0x1772
+                        ? (unsigned __int8)CheckObjectTypeFlagWrapper((__int64)(CurrentNode - 6))
+                        : *(CurrentNode - 4);
+                    TypeIndex = 0;
+                    TypeFlagCopy = TypeFlag;
+                    TypeLoopCount = 0;
+                    do
+                    {
+                        if (EntryOffset >= BufferSize)
+                            break;
+                        EntryPtr = (_QWORD *)*CurrentNode;
+                        TypeFlag = 0;
+                        EntryPtrCopy = (_QWORD *)*CurrentNode;
+                        ObjLoopCount = 0;
+                        if (*CurrentNode)
+                        {
+                            do
+                            {
+                                if (EntryOffset >= BufferSize || (unsigned int)TypeFlag >= 0x10000)
+                                    break;
+                                ObjectHeader = (_QWORD *)EntryPtr[1];
+                                if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x1772
+                                    ? TypeFlagCopy == (unsigned __int8)CheckObjectTypeFlagWrapper((__int64)(ObjectHeader - 6))
+                                    : TypeFlagCopy == *(ObjectHeader - 4))
+                                {
+                                    if (StackDepth < MaxDepth - 1)
+                                    {
+                                        ++StackDepth;
+                                        NodeStack[++StackIndex] = ObjectHeader;
+                                        StackDepthCopy = StackDepth;
+                                        StackIndexCopy = StackIndex;
+                                    }
+                                }
+                                else
+                                {
+                                    ObjIndex = 0;
+                                    HandlerEntry = (_QWORD *)ObjectHeader[2];
+                                    HandlerCount = 0;
+                                    if (HandlerEntry != ObjectHeader + 2)
+                                    {
+                                        do
+                                        {
+                                            if (HandlerEntry <= MmSystemRangeStart
+                                                || ObjIndex >= 0x1000
+                                                || EntryOffset >= MaxBufferSize
+                                                || CheckMemoryValid(HandlerEntry) != 1
+                                                || CheckMemoryValid((char *)HandlerEntry + 47) != 1)
+                                            {
+                                                break;
+                                            }
+                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 6] = ObjectHeader;
+                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 4] = HandlerEntry;
+                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 2] = HandlerEntry[3];
+                                            LOWORD(OutputBuffer[30 * *OutputBuffer + 8]) = 0;
+                                            if (ResolveObjectHeaderPointer((__int64)ObjectHeader, &NameInfo) == 1)
+                                            {
+                                                NameLength = *NameInfo;
+                                                NameBuffer = (char *)*((_QWORD *)NameInfo + 1);
+                                                Src = NameBuffer;
+                                                if ((NameLength & 1) != 0)
+                                                    NameLength = (unsigned int)(NameLength - 1);
+                                                if ((unsigned int)NameLength > 2
+                                                    && MmIsAddressValid(NameBuffer) == 1
+                                                    && MmIsAddressValid(&Src[(unsigned int)NameLength - 1]) == 1)
+                                                {
+                                                    if ((unsigned int)NameLength > 0x5E)
+                                                        NameLength = 94;
+                                                    memmove(&OutputBuffer[30 * *OutputBuffer + 8], Src, (unsigned int)NameLength);
+                                                    *((_WORD *)&OutputBuffer[30 * *OutputBuffer + 8] + (NameLength >> 1)) = 0;
+                                                }
+                                            }
+                                            ++*OutputBuffer;
+                                            HandlerEntry = (_QWORD *)*HandlerEntry;
+                                            ObjIndex = HandlerCount + 1;
+                                            EntryOffset = 120 * *OutputBuffer + 128;
+                                            ++HandlerCount;
+                                        } while (HandlerEntry != ObjectHeader + 2);
+                                        StackIndex = StackIndexCopy;
+                                        StackDepth = StackDepthCopy;
+                                        EntryPtr = EntryPtrCopy;
+                                    }
+                                }
+                                EntryPtr = (_QWORD *)*EntryPtr;
+                                BufferSize = MaxBufferSize;
+                                TypeFlag = ObjLoopCount + 1;
+                                EntryOffset = 120 * *OutputBuffer + 128;
+                                EntryPtrCopy = EntryPtr;
+                                ++ObjLoopCount;
+                            } while (EntryPtr);
+                            CurrentNode = CurrentNodeCopy;
+                            TypeIndex = TypeLoopCount;
+                        }
+                        ++TypeIndex;
+                        ++CurrentNode;
+                        TypeLoopCount = TypeIndex;
+                        CurrentNodeCopy = CurrentNode;
+                        EntryOffset = 120 * *OutputBuffer + 128;
+                    } while (TypeIndex < 0x25);
+                    if (StackIndex < 0)
+                        break;
+                    TypeFlag = (_BYTE)NodeStack;
+                    --StackDepth;
+                    CurrentNode = NodeStack[StackIndex--];
+                    StackDepthCopy = StackDepth;
+                    StackIndexCopy = StackIndex;
+                    CurrentNodeCopy = CurrentNode;
+                    if (EntryOffset >= BufferSize)
+                        break;
+                    LoopCounter = ++TotalCount;
+                } while (CurrentNode);
+            }
+        }
+    }
+    return (char)TypeFlag;
 }
 
 // InitObjectCallback — 初始化对象回调
@@ -3990,5 +4151,234 @@ char RestoreObjectPreCallbackHooks(void)
         WritePhysicalMemoryQword(ObCallbackAddr3, SavedCallback3);
     }
     return ObCallbackAddr3Tmp;
+}
+
+// InitObjectCallbackEntries — 初始化对象回调条目
+// 读取大量全局表数据（函数指针、类型偏移等），通过 AllocExBufferAndQuerySystemInfo 查询
+// 系统对象类型信息，遍历所有对象类型条目并验证（比较类型编号、内核对象有效性），
+// 为符合条件的对象类型注册回调函数。包括对象引用计数管理、PreviousMode 临时切换等操作。
+// 对应原始驱动 sub_1400100A4
+char __fastcall InitObjectCallbackEntries(__int64 a1)
+{
+    char Result;
+    unsigned int EntryCount;
+    unsigned int RemainingCount;
+    __int64 pInfoBuffer;
+    __int64 SavedMatchIndex;
+    __int64 ObjectTypeInfoPtr;
+    __int64 ObjectTypeRefFunc;
+    __int64 ZwCreateFileFunc;
+    __int64 NtFsControlFileFunc;
+    __int64 CloseHandleFunc;
+    __int64 ObjectTypeCheckFlag;
+    __int64 ValidateObjectTypeFunc;
+    __int64 CreateObjectTypeFunc;
+    __int64 CloseObjectTypeFunc;
+    __int64 DereferenceObjectFunc;
+    __int64 RegisterCallbacksFunc;
+    __int64 AltRegisterCallbackFunc;
+    __int64 SystemRootType;
+    __int64 PrevModeOffset;
+    __int64 ObjectInfo;
+    __int64 RefObjHeader;
+    char *pEntry;
+    __int64 ObjHeaderOutput;
+    char CallbackParam[8];
+    _OWORD ObjectInfoStorage;
+
+    Result = 0;
+
+    // 读取系统根类型
+    SystemRootType = GtRead(0x60);
+    if (!(_DWORD)SystemRootType)
+    {
+        BuildSystemRootPath();
+        SystemRootType = GtRead(0x60);
+        if (!(_DWORD)SystemRootType)
+            return Result;
+    }
+
+    // 读取所有函数指针和数据偏移
+    ObjectTypeInfoPtr = GtRead(GtObjectTypeInfoPtr);
+    PrevModeOffset = GtRead(0x27);
+    ObjectTypeRefFunc = GtRead(GtObjectTypeRefFunc);
+    ZwCreateFileFunc = GtRead(GtZwCreateFileFunc);
+    NtFsControlFileFunc = GtRead(GtNtFsControlFileFunc);
+    CloseHandleFunc = GtRead(GtCloseHandleFunc);
+    ObjectTypeCheckFlag = GtRead(GtObjectTypeCheckFlag);
+    ValidateObjectTypeFunc = GtRead(GtValidateObjectTypeFunc);
+    CreateObjectTypeFunc = GtRead(GtCreateObjectTypeFunc);
+    CloseObjectTypeFunc = GtRead(GtCloseObjectTypeFunc);
+    DereferenceObjectFunc = GtRead(GtDereferenceObjectFunc);
+    RegisterCallbacksFunc = GtRead(GtRegisterObjectCallbacksFunc);
+    AltRegisterCallbackFunc = GtRead(GtAltRegisterCallbackFunc);
+
+    // 验证所有指针和数据偏移
+    if (!ObjectTypeRefFunc
+        || !ZwCreateFileFunc
+        || !NtFsControlFileFunc
+        || !CloseHandleFunc
+        || !ObjectTypeCheckFlag
+        || !ValidateObjectTypeFunc
+        || !CreateObjectTypeFunc
+        || !CloseObjectTypeFunc
+        || !DereferenceObjectFunc
+        || !RegisterCallbacksFunc
+        || (ULONG)PrevModeOffset == 0xFFFFFFFF)
+        return Result;
+
+    // 调用 ObReferenceObjectByHandle 获取对象引用
+    // 实际函数指针来自 GtRead(0x41C6)（GT 表中存储的 ObReferenceObjectByHandle 或类似函数）
+    {
+        int Status = ((int (__fastcall *)(__int64, ULONG, __int64, int, _OWORD *, int, int))NtFsControlFileFunc)(
+            a1, 0x80000000, *(__int64 *)ZwCreateFileFunc, 0, &ObjectInfoStorage, 0, 0);
+        if (Status < 0)
+            return Result;
+    }
+
+    // 查询系统对象类型信息
+    pInfoBuffer = (__int64)AllocExBufferAndQuerySystemInfo(0x10);
+    if (!pInfoBuffer)
+    {
+        ((void(__fastcall *)(__int64))DereferenceObjectFunc)(ObjectInfoStorage.qword[0]);
+        return Result;
+    }
+
+    EntryCount = *(unsigned int *)pInfoBuffer;
+    SavedMatchIndex = GtRead(GtObjectTypeMatchIndex);
+    RefObjHeader = ObjectInfoStorage.qword[0];
+
+    if (EntryCount)
+    {
+        pEntry = (char *)(pInfoBuffer + 0xE);
+        RemainingCount = EntryCount;
+
+        do
+        {
+            __int64 ObjectTypeRef;
+            __int64 ObjectType;
+            __int64 ObjectBody;
+            __int64 RefBody;
+
+            // 检查类型匹配索引
+            if (CompareInt16Equal(*(unsigned short *)(pEntry - 6), (unsigned int)SavedMatchIndex))
+            {
+                if (((*(unsigned short *)pEntry | 0x80000000u)) == (unsigned int)a1)
+                    goto NEXT_ENTRY;
+            }
+
+            // 检查类型索引
+            if (*(unsigned char *)(pEntry - 2) != (unsigned char)(unsigned int)SystemRootType)
+                goto NEXT_ENTRY;
+
+            // 获取对象指针
+            ObjectTypeRef = *(__int64 *)(pEntry + 2);
+            if (!ObjectTypeRef)
+                goto NEXT_ENTRY;
+
+            // 验证对象引用
+            if (((UCHAR(__fastcall *)(__int64))ValidateObjectTypeFunc)(ObjectTypeRef) != 1)
+                goto NEXT_ENTRY;
+
+            // 验证对象偏移 0xB7
+            if (((UCHAR(__fastcall *)(__int64))ValidateObjectTypeFunc)(ObjectTypeRef + 0xB7) != 1)
+                goto NEXT_ENTRY;
+
+            // 比较对象头
+            if (*(__int64 *)(RefObjHeader + 0x18) != *(__int64 *)(ObjectTypeRef + 0x18))
+                goto NEXT_ENTRY;
+
+            // 比较对象体
+            ObjectBody = *(__int64 *)(ObjectTypeRef + 0x28);
+            RefBody = *(__int64 *)(RefObjHeader + 0x28);
+            if (ObjectBody)
+            {
+                if (((UCHAR(__fastcall *)(__int64))ValidateObjectTypeFunc)(ObjectBody) == 1)
+                {
+                    if (*(__int64 *)(ObjectBody + 8) != *(__int64 *)(RefBody + 8))
+                        goto NEXT_ENTRY;
+                }
+            }
+
+            // 创建对象类型
+            {
+                int Status = ((int(__fastcall *)(WORD, __int64 *))CreateObjectTypeFunc)(
+                    *(unsigned short *)(pEntry - 6), &ObjectType);
+                if (Status >= 0)
+                {
+                    unsigned int TypeIdx = *(unsigned short *)pEntry;
+
+                    // Win8+ 检查：构建号 >= 7600 且 ObjectTypeInfoPtr 有效
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+                    {
+                        if (ObjectTypeInfoPtr && *(__int64 *)ObjectTypeInfoPtr != ObjectType)
+                            goto SKIP_CALLBACK;
+                        TypeIdx |= 0x80000000;
+                    }
+
+                    // 引用对象
+                    {
+                        UCHAR RefCount = ReferenceObjectSafe(ObjectType);
+
+                        // 关闭对象类型引用
+                        ((int(__fastcall *)(__int64, __int64 *))CloseObjectTypeFunc)(ObjectType, &ObjHeaderOutput);
+
+                        // 准备回调参数
+                        CallbackParam[0] = 0;
+                        CallbackParam[1] = 0;
+                        CallbackParam[4] = RefCount;
+
+                        // 注册回调
+                        Status = ((int(__fastcall *)(unsigned int, int, char *, ULONG, int))DereferenceObjectFunc)(
+                            TypeIdx, 4, CallbackParam, 2, 0);
+
+                        if (Status >= 0 && CallbackParam[1] == 1)
+                        {
+                            // 尝试备用注册
+                            if (AltRegisterCallbackFunc)
+                            {
+                                CallbackParam[1] = 0;
+                                Status = ((int(__fastcall *)(unsigned int, int, char *, ULONG))AltRegisterCallbackFunc)(
+                                    TypeIdx, 4, CallbackParam, 2);
+                                if (Status < 0)
+                                {
+                                    if (RefCount == 1)
+                                        DereferenceObjectSafe(ObjectType);
+                                    ((void(__fastcall *)(__int64))ObjectTypeRefFunc)(ObjectType);
+                                    goto NEXT_ENTRY;
+                                }
+                            }
+                        }
+
+                        // 临时切换 PreviousMode = 0
+                        {
+                            PKTHREAD CurrentThread = (PKTHREAD)__readgsqword(0x188);
+                            char SavedPrevMode = *(char *)((char *)CurrentThread + (int)PrevModeOffset);
+                            *(char *)((char *)CurrentThread + (int)PrevModeOffset) = 0;
+                            ((void(__fastcall *)(__int64))RegisterCallbacksFunc)(TypeIdx);
+                            *(char *)((char *)CurrentThread + (int)PrevModeOffset) = SavedPrevMode;
+                        }
+
+SKIP_CALLBACK:
+                        // 需要时解除引用
+                        if (RefCount == 1)
+                            DereferenceObjectSafe(ObjectType);
+
+                        // 释放对象类型引用
+                        ((void(__fastcall *)(__int64))ObjectTypeRefFunc)(ObjectType);
+                    }
+                }
+            }
+
+NEXT_ENTRY:
+            pEntry += 0x18;
+            --RemainingCount;
+        } while (RemainingCount);
+    }
+
+    // 清理
+    ExFree((void *)pInfoBuffer);
+    ((void(__fastcall *)(__int64))ObjectTypeCheckFlag)(RefObjHeader);
+    return 1;
 }
 

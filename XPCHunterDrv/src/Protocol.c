@@ -2728,13 +2728,94 @@ ProcessStatus:
 }
 
 // =========================================================================
-// SendIoControlWithStringParam — 发送带字符串参数的IO控制命令
-// 对应原始驱动 sub_140073BE4
-// TODO: 从 IDA 逆向实现完整逻辑
+// SendIoControlWithStringParam — 发送带字符串参数的IO控制命令 (0x140073BE4)
+// 处理Unicode字符串参数并发送设备控制请求
 // =========================================================================
 bool __fastcall SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING UnicodeString, unsigned int CommandType, unsigned int SomeValue, __int64 OutputBuffer, unsigned int OutputSize)
 {
-    return 0;
+    bool Result;
+    unsigned int v10;
+    int (*v11)(__int64, __int64, __int64);
+    void (*v12)(_QWORD);
+    __int64 v13;
+    __int64 v14;
+    __int64 *v15;
+    unsigned int v16;
+    __int64 v17;
+    int *v18;
+    unsigned __int16 v19;
+    unsigned int i;
+    struct _KTHREAD *CurrentThread;
+    __int64 v22;
+    char v23;
+    _QWORD *v24;
+    int v25;
+    char v26;
+    __int64 *v27;
+    __int64 v28;
+    int *v29;
+    int v30;
+    __int64 (*v31)(__int64, unsigned __int16 *, _QWORD, __int64, __int64 *, __int64, bool);
+    __int64 v32;
+    void (*v33)(_QWORD);
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+        return Result;
+    v10 = GtRead(GtPrevModeOffset);
+    v11 = (int (*)(__int64, __int64, __int64))GtRead(GtNtFsControlFileFunc);
+    v12 = (void (*)(_QWORD))GtRead(GtCloseHandleFunc);
+    v33 = v12;
+    v13 = GtRead(GtEprocessField116 | 0x100);
+    v31 = (__int64 (*)(__int64, unsigned __int16 *, _QWORD, __int64, __int64 *, __int64, bool))v13;
+    v14 = GtRead(GtEprocessField111 | 0x100);
+    v15 = (__int64 *)v14;
+    if (v10 != -1 && v11 && v12 && v13 && v14)
+    {
+        v16 = GtRead(GtWindowsBuildNumber);
+        v17 = *v15;
+        v18 = &v30;
+        if (v16 < 0x1770)
+            v18 = 0;
+        v29 = v18;
+        v27 = &v28;
+        if (v11(Handle, 2, v17) >= 0)
+        {
+            v19 = *UnicodeString;
+            if (*UnicodeString < 0x7FFF && (v19 & 1) == 0 && OutputSize <= 0x80000000)
+            {
+                for (i = v19; i; i -= 2)
+                {
+                    if (*(_WORD *)(*(_QWORD *)UnicodeString + 2 * ((i >> 1) - 1)))
+                        break;
+                }
+                *UnicodeString = i;
+                CurrentThread = KeGetCurrentThread();
+                v22 = v10;
+                v23 = *((_BYTE *)CurrentThread + v10);
+                *((_BYTE *)CurrentThread + v22) = 0;
+                v24 = (_QWORD *)DispatchHookSwapByVersion(v28, &v32);
+                if (v29)
+                {
+                    v26 = v30;
+                    GtRead(GtWindowsBuildNumber);
+                    v27 = (__int64 *)OutputSize;
+                    v25 = v31(v28, UnicodeString, CommandType, OutputBuffer, v27, Handle, (v26 & 4) != 0);
+                }
+                else
+                {
+                    v25 = -1073741823;
+                }
+                if (v24)
+                    *v24 = v32;
+                *((_BYTE *)CurrentThread + v22) = v23;
+                v12 = v33;
+                Result = v25 >= 0;
+            }
+            v12(v28);
+        }
+    }
+    return Result;
 }
 
 // EnumerateDriverList — 枚举驱动列表

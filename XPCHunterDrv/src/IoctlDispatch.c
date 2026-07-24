@@ -12283,27 +12283,112 @@ char CheckBootSectorErrors(__int64 Buffer, unsigned int Size)
 }
 
 // ValidateObjectTypeEntries — 验证对象类型条目
-// 从 GT 获取对象类型表，遍历条目验证指针有效性，写入输出缓冲区
-// 对应原始驱动 sub_140037C80
-void ValidateObjectTypeEntries(__int64 OutputBuffer)
+// 遍历 17 组 x 8 条对象类型条目(每组 208 字节，每条 24 字节)，验证指针在 ntoskrnl 范围内或非空。
+// 对每条目比较内存内容(16 字节)，标记修改项。通过 GT 3(ntoskrnl 基址)/GT 2(镜像大小)/GT 76(原始数据缓冲区)进行地址验证。
+// 对应原始驱动 sub_14006D7D0
+void ValidateObjectTypeEntries(__int64 pContextTable)
 {
-    if (!OutputBuffer || OutputBuffer < (unsigned __int64)MmUserProbeAddress)
-        return;
-    __int64 ObjectTypeTable = GtRead(GtObjectTypeTable);
-    if (!ObjectTypeTable || ObjectTypeTable < (unsigned __int64)MmSystemRangeStart)
-        return;
-    if (MmIsAddressValid((void *)ObjectTypeTable) != 1)
-        return;
-    unsigned int EntryCount = 0;
-    _QWORD *pTable = (_QWORD *)ObjectTypeTable;
-    for (unsigned int i = 0; i < 0x80; ++i)
+    unsigned __int64 NtoskrnlBase;
+    unsigned int NtoskrnlSize;
+    __int64 GroupIndex;
+    __int64 EntryIndex;
+    __int64 pEntry;
+    __int64 CurrentValue;
+    __int64 SavedValue;
+    __int64 GroupBase;
+    __int64 pDataBuffer;
+    unsigned int BufferSize;
+    __int64 v20;
+    __int64 v21;
+
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    NtoskrnlSize = GtRead(GtNtoskrnlImageSize);
+    GroupBase = pContextTable + 32;
+    v20 = 17;
+    GroupIndex = 17;
+    do
     {
-        if (!pTable[i])
-            continue;
-        if (MmIsAddressValid((void *)pTable[i]) == 1)
-            ++EntryCount;
+        pEntry = GroupBase;
+        EntryIndex = 8;
+        do
+        {
+            SavedValue = *(_QWORD *)(pEntry - 8);
+            if (SavedValue)
+            {
+                if (*(_QWORD *)pEntry == SavedValue)
+                    goto LABEL_CONTINUE;
+                goto LABEL_MARK_MODIFIED;
+            }
+            if (NtoskrnlBase && NtoskrnlSize && (*(_QWORD *)pEntry < NtoskrnlBase || *(_QWORD *)pEntry >= NtoskrnlBase + NtoskrnlSize))
+            {
+LABEL_MARK_MODIFIED:
+                *(_BYTE *)(pEntry + 8) = 1;
+            }
+LABEL_CONTINUE:
+            pEntry += 24;
+            --EntryIndex;
+        } while (EntryIndex);
+        GroupBase += 208;
+        --GroupIndex;
+    } while (GroupIndex);
+
+    pDataBuffer = GtRead(GtEprocessField66);
+    BufferSize = GtRead(GtEprocessField23);
+    if (pDataBuffer && BufferSize && NtoskrnlBase)
+    {
+        _BYTE *pFlagEntry = (_BYTE *)(pContextTable + 40);
+        do
+        {
+            _BYTE *pInnerEntry = pFlagEntry;
+            __int64 InnerCount = 8;
+            do
+            {
+                unsigned __int64 Address = *((_QWORD *)pInnerEntry - 2);
+                if (Address)
+                {
+                    if (Address > NtoskrnlBase)
+                    {
+                        unsigned int Offset = (unsigned int)(Address - NtoskrnlBase);
+                        if (Offset < BufferSize)
+                        {
+                            __int64 AddrCheck = (unsigned int)Offset + NtoskrnlBase;
+                            if (Address == AddrCheck)
+                            {
+                                if (MmIsAddressValid((PVOID)Address) == 1)
+                                {
+                                    if (MmIsAddressValid((PVOID)(Address + 15)) == 1)
+                                    {
+                                        if ((unsigned int)MemoryCompare(Address, (char *)(Offset + pDataBuffer), 0x10u))
+                                        {
+                                            pInnerEntry[1] = 1;
+                                            if (!pInnerEntry[0])
+                                            {
+                                                unsigned int ByteIndex;
+                                                for (ByteIndex = 0; ByteIndex < 0x10; ++ByteIndex)
+                                                {
+                                                    if (!MmIsAddressValid((PVOID)(Address + ByteIndex)))
+                                                        break;
+                                                }
+                                                if (ByteIndex)
+                                                {
+                                                    if (ReturnFalseStub() == 1)
+                                                        *((_QWORD *)pInnerEntry - 1) = v21;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                pInnerEntry += 24;
+                --InnerCount;
+            } while (InnerCount);
+            pFlagEntry += 208;
+            --v20;
+        } while (v20);
     }
-    *(_DWORD *)OutputBuffer = EntryCount;
 }
 
 // QueryObjectDirectoryAndEnumerate — 查询对象目录并枚举
@@ -13019,11 +13104,94 @@ cleanup:
     return Result;
 }
 
-// EnumObjectDirectoryEntries -- 枚举对象目录条目
-// 对应原始驱动 sub_140083F34
-__int64 EnumObjectDirectoryEntries(unsigned __int16 *pDirectoryPath, _DWORD *pDirectoryInfo, __int64 OutputBuffer, int MaxCount)
+// EnumObjectDirectoryEntries -- 枚举对象目录条目 (0x140083F34)
+// 遍历对象目录，获取每个对象的名称、句柄和进程映像路径
+__int64 __fastcall EnumObjectDirectoryEntries(unsigned __int16 *DirectoryPath, _DWORD *SystemInfo, __int64 OutputBuffer, int MaxCount)
 {
-    return 0;
+    unsigned int EntryCount;
+    int RootPathType;
+    unsigned int StringLength;
+    unsigned __int16 *CurrentEntry;
+    unsigned int LoopIndex;
+    __int64 OutputPos;
+    unsigned __int64 ObjectAddress;
+    void *v15;
+    void *v16;
+    int v18;
+    unsigned int PathLength;
+    unsigned int TotalEntries;
+    int v21;
+    int v22;
+    __int64 v23;
+    void *v24;
+
+    EntryCount = 0;
+    RootPathType = GtRead(GtEprocessField86);
+    if (!RootPathType)
+    {
+        BuildSystemRootPath();
+        RootPathType = GtRead(GtEprocessField86);
+    }
+    if (RootPathType)
+    {
+        StringLength = GetStringLength(DirectoryPath);
+        CurrentEntry = (unsigned __int16 *)(SystemInfo + 2);
+        LoopIndex = 0;
+        PathLength = StringLength;
+        TotalEntries = *SystemInfo;
+        if (*SystemInfo)
+        {
+            OutputPos = OutputBuffer + 1040;
+            do
+            {
+                if (!MaxCount)
+                    break;
+                if (RootPathType == *((unsigned __int8 *)CurrentEntry + 4))
+                {
+                    memset((void *)(OutputPos - 1040), 0, 0x420);
+                    *(_QWORD *)(OutputPos + 8) = CurrentEntry[3];
+                    *(_QWORD *)OutputPos = *CurrentEntry;
+                    ObjectAddress = *((_QWORD *)CurrentEntry + 1);
+                    if (ObjectAddress > (unsigned __int64)MmSystemRangeStart
+                        && MmIsAddressValid(*((PVOID *)CurrentEntry + 1)) == 1
+                        && MmIsAddressValid((PVOID)(ObjectAddress + 183)) == 1)
+                    {
+                        v15 = *(void **)(ObjectAddress + 96);
+                        if (v15)
+                        {
+                            if (MmIsAddressValid(v15) == 1
+                                && QueryObjectNameInfo(ObjectAddress, DirectoryPath, PathLength, &v24, &v21) == 1)
+                            {
+                                WStringCopyN((_WORD *)(OutputPos - 520), (__int64)v24, 0x104);
+                                *(_WORD *)(OutputPos - 520 + 518) = 0;
+                                v18 = 0;
+                                if (GetProcessImagePath(0, *(HANDLE *)OutputPos, (void **)&v23, &v22, v18) == 1)
+                                {
+                                    WStringCopyN((_WORD *)(OutputPos - 1040), v23, 0x104);
+                                    v16 = (void *)v23;
+                                    *(_WORD *)(OutputPos - 522) = 0;
+                                    ExFree(v16);
+                                }
+                                else if ((unsigned __int64)(*(_QWORD *)OutputPos - 1LL) <= 7)
+                                {
+                                    *(_DWORD *)(OutputPos - 1040) = 7929939;
+                                    *(_DWORD *)(OutputPos - 1036) = 7602291;
+                                    *(_QWORD *)(OutputPos - 1032) = 7143525;
+                                }
+                                OutputPos += 1056;
+                                --MaxCount;
+                                ++EntryCount;
+                                ExFree(v24);
+                            }
+                        }
+                    }
+                }
+                ++LoopIndex;
+                CurrentEntry += 12;
+            } while (LoopIndex < TotalEntries);
+        }
+    }
+    return EntryCount;
 }
 
 // EnumProcessHandleInfo -- 枚举进程句柄信息
@@ -13033,11 +13201,257 @@ __int64 EnumProcessHandleInfo(_QWORD *pHandleTable, unsigned int *pInfoList, _OW
     return 0;
 }
 
-// EnumProcessModules -- 枚举进程模块
-// 对应原始驱动 sub_14005831C
-__int64 EnumProcessModules(ULONG64 ProcessId, int Flags, volatile void *OutputBuffer, unsigned int BufferSize)
+// EnumProcessModules -- 枚举进程模块 (0x14005831C)
+// 遍历指定进程的所有已加载模块，提取模块信息写入输出缓冲区。每项1096字节
+char __fastcall EnumProcessModules(ULONG64 a1, int a2, volatile void *a3, unsigned int a4)
 {
-    return 0;
+    char v5;
+    unsigned int v6;
+    unsigned int v7;
+    unsigned int v8;
+    unsigned int v9;
+    unsigned int v10;
+    __int64 v11;
+    int v12;
+    unsigned int *v13;
+    _QWORD *v14;
+    void **v15;
+    unsigned int v16;
+    char *v17;
+    unsigned int v18;
+    __int64 v19;
+    int v20;
+    __int64 v21;
+    _DWORD *v22;
+    _DWORD *v23;
+    _BYTE *v24;
+    __int64 *v25;
+    char *v26;
+    void *v27;
+    char **v28;
+    char *v29;
+    char *v30;
+    __int64 v31;
+    __int64 v32;
+    char *v33;
+    int v35;
+    unsigned int v36;
+    char *v37;
+    void *v38;
+    int v39;
+    int v40;
+    void *v41;
+    __int64 *v42;
+    char *v43;
+    volatile void *Address;
+    __int64 v45;
+    __int64 v46;
+    __int64 v47;
+    int v48;
+    HANDLE ProcessId;
+    __int64 v50;
+    __int64 v51;
+    __int64 v52;
+    _DWORD *v53;
+
+    v5 = 0;
+    if (!(unsigned int)GtRead(GtSsdtTableOffset | GtDriverObject)
+        && !(unsigned int)GtRead(Gt87B | GtEprocessField118)
+        && ReadWin32kFullDriverFile((__int64 *)&v38, &v36) == 1)
+    {
+        v6 = GtRead(GtSsdtTableOffset);
+        if (!v6)
+        {
+            FindPatchThreadWindowsExport((__int64)v38, v36);
+            v6 = GtRead(GtSsdtTableOffset);
+        }
+        if (v6 && v6 < v36)
+            FindPeSectionByType0x510((__int64)v38 + v6, (_DWORD)v38 + v36, (int)v38, v36);
+        ExFree(v38);
+    }
+    v7 = GtRead(GtSsdtTableOffset | GtDriverObject);
+    v8 = GtRead(GtFwpsDispatchTableBase | GtEprocessField06 | 0x100);
+    v9 = GtRead(GtPteBase);
+    v10 = v9;
+    if (v7)
+    {
+        if (v8)
+        {
+            if (v9)
+            {
+                v11 = GtRead(GtNtoskrnlFileBase);
+                v12 = GtRead(Gt821 | GtEprocessField188 | GtEprocessField06);
+                if (v11)
+                {
+                    if (v12)
+                    {
+                        v13 = *(unsigned int **)(v7 + v11);
+                        v14 = *(_QWORD **)(v8 + v11);
+                        v15 = *(void ***)(v10 + v11);
+                        v16 = 0;
+                        if (v13)
+                        {
+                            if (v14)
+                            {
+                                if (v15)
+                                {
+                                    if (MmIsAddressValid(v13) == 1 && MmIsAddressValid(v14) == 1 && MmIsAddressValid(v15) == 1)
+                                    {
+                                        v17 = (char *)*v15;
+                                        v43 = v17;
+                                        if (v17)
+                                        {
+                                            if (MmIsAddressValid(v17) == 1)
+                                            {
+                                                v50 = v14[1];
+                                                if (v50)
+                                                {
+                                                    v18 = *v13;
+                                                    v38 = (void *)v18;
+                                                    v19 = GtRead(GtProcessEprocess);
+                                                    v20 = v19;
+                                                    v45 = v19;
+                                                    v21 = GtRead(GtProcessCreateTime);
+                                                    v52 = v21;
+                                                    if (v20 != -1)
+                                                    {
+                                                        if ((_DWORD)v21)
+                                                        {
+                                                            if (a2 == 8
+                                                                && a1 < MmUserProbeAddress
+                                                                && a1 + 8 < MmUserProbeAddress
+                                                                && (unsigned int)a4 >= 0x450)
+                                                            {
+                                                                Address = a3;
+                                                                if ((unsigned __int64)Address < MmUserProbeAddress
+                                                                    && (unsigned __int64)Address + a4 < MmUserProbeAddress)
+                                                                {
+                                                                    ProbeForWrite(Address, a4, 1);
+                                                                    v22 = (_DWORD *)Address;
+                                                                    *v22 = 0;
+                                                                    v23 = v22 + 2;
+                                                                    v53 = v22 + 2;
+                                                                    v40 = 0;
+                                                                    while (1)
+                                                                    {
+                                                                        if (v16 >= v18)
+                                                                            return v5;
+                                                                        v24 = (_BYTE *)(v50 + 32 * v16);
+                                                                        if (MmIsAddressValid(v24) != 1 || MmIsAddressValid(v24 + 31) != 1)
+                                                                            return v5;
+                                                                        if (v24[24] == 5)
+                                                                            break;
+                                                                    LABEL_63:
+                                                                        v40 = ++v16;
+                                                                        v18 = (unsigned int)v38;
+                                                                    }
+                                                                    v25 = 0;
+                                                                    v42 = 0;
+                                                                    if ((unsigned int)GtRead(GtWindowsBuildNumber) == 15063)
+                                                                    {
+                                                                        v26 = &v43[16 * v16];
+                                                                        if (MmIsAddressValid(v26) != 1)
+                                                                            goto LABEL_43;
+                                                                        v27 = v26 + 15;
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        v26 = &v43[24 * v16];
+                                                                        if (MmIsAddressValid(v26) != 1)
+                                                                            goto LABEL_43;
+                                                                        v27 = v26 + 23;
+                                                                    }
+                                                                    if (MmIsAddressValid(v27) == 1)
+                                                                    {
+                                                                        v25 = *(__int64 **)v26;
+                                                                        v42 = *(__int64 **)v26;
+                                                                    }
+                                                                LABEL_43:
+                                                                    if (v25)
+                                                                    {
+                                                                        if (MmIsAddressValid(v25) == 1 && MmIsAddressValid((char *)v25 + 87) == 1)
+                                                                        {
+                                                                            v28 = (char **)v25[2];
+                                                                            if (MmIsAddressValid(v28) == 1)
+                                                                            {
+                                                                                v37 = *v28;
+                                                                                if (MmIsAddressValid(v37) == 1)
+                                                                                {
+                                                                                    v47 = *v25;
+                                                                                    if (v47)
+                                                                                    {
+                                                                                        ProcessId = *(HANDLE *)&v37[(unsigned int)v45];
+                                                                                        v51 = *(_QWORD *)&v37[(unsigned int)v52];
+                                                                                        v39 = *((_DWORD *)v25 + 12);
+                                                                                        v29 = (char *)v25[7];
+                                                                                        v37 = v29;
+                                                                                        v36 = (*((unsigned int **)v25 + 17));
+                                                                                        v30 = v28[47];
+                                                                                        v31 = 0;
+                                                                                        v46 = 0;
+                                                                                        if (v36 < 0x20 && v30)
+                                                                                        {
+                                                                                            if (MmIsAddressValid(v30) == 1 && MmIsAddressValid(v30 + 719) == 1)
+                                                                                            {
+                                                                                                v31 = *(_QWORD *)&v30[8 * v36 + 376];
+                                                                                                v46 = v31;
+                                                                                            }
+                                                                                            v29 = v37;
+                                                                                        }
+                                                                                        v32 = (__int64)&v29[v31];
+                                                                                        *(_QWORD *)v23 = v47;
+                                                                                        v23[2] = v39;
+                                                                                        v33 = (char *)ProcessId;
+                                                                                        *((_QWORD *)v23 + 3) = ProcessId;
+                                                                                        *((_QWORD *)v23 + 4) = v51;
+                                                                                        *((_QWORD *)v23 + 5) = v32;
+                                                                                        v23[12] = v36;
+                                                                                        *((_BYTE *)v23 + 52) = v25[8] & 1;
+                                                                                        *((_WORD *)v23 + 287) = 0;
+                                                                                        QueryProcessModuleFilePath((__int64)v33, v32, (_WORD *)v23 + 287, 260);
+                                                                                        *((_WORD *)v23 + 27) = 0;
+                                                                                        v35 = 0;
+                                                                                        if (GetProcessImagePath(0, v33, &v41, &v48, v35) == 1)
+                                                                                        {
+                                                                                            WStringCopyN((_WORD *)v23 + 27, (__int64)v41, 0x104);
+                                                                                            *((_WORD *)v23 + 286) = 0;
+                                                                                            ExFree(v41);
+                                                                                        }
+                                                                                        else if ((unsigned __int64)(v33 - 1) <= 7)
+                                                                                        {
+                                                                                            *(_DWORD *)((char *)v23 + 54) = 7929939;
+                                                                                            *(_DWORD *)((char *)v23 + 58) = 7602291;
+                                                                                            *(_QWORD *)((char *)v23 + 62) = 7143525;
+                                                                                        }
+                                                                                        a4 = (*(_DWORD *)Address)++ ? a4 - 1096 : (unsigned int)a4 - 1104;
+                                                                                        v23 += 274;
+                                                                                        v53 = v23;
+                                                                                        v5 = 1;
+                                                                                        if ((unsigned int)a4 <= 0x448)
+                                                                                            return v5;
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    goto LABEL_63;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return v5;
 }
 
 // EnumSsdtHooks — 枚举 SSDT Hook
@@ -13113,21 +13527,41 @@ char PrepareFileForPageTableScan(char *VirtualAddress, char a2)
 }
 
 // QueryObjectTypeInformation — 查询对象类型信息
-// 从 GT 获取对象类型表，根据 Object 地址查找对应的对象类型信息，写入输出缓冲区
+// 通过对象类型检查函数遍历对象类型条目，查询对象类型信息
 // 对应原始驱动 sub_140083BFC
 __int64 QueryObjectTypeInformation(PVOID Object)
 {
     __int64 Result = 0;
+
     if (!Object || Object < (PVOID)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid(Object) != 1)
         return Result;
-    __int64 ObjectType = GtRead(GtObjectTypeTable);
-    if (!ObjectType || ObjectType < (unsigned __int64)MmSystemRangeStart)
+
+    // 获取对象类型检查函数指针
+    __int64 CheckFunc = GtRead(GtObjectTypeCheckFlag);
+    if (!CheckFunc)
         return Result;
-    if (MmIsAddressValid((void *)ObjectType) != 1)
+
+    // 验证对象类型
+    if (((unsigned __int8 (__fastcall *)(PVOID))CheckFunc)(Object) != 1)
         return Result;
-    Result = ObjectType;
+    if (((unsigned __int8 (__fastcall *)(PVOID))CheckFunc)((char *)Object + 0x14F) != 1)
+        return Result;
+
+    // 遍历对象类型条目
+    ULONG64 *pEntry = *(ULONG64 **)((char *)Object + 8);
+    Result = 1;
+    unsigned int LoopCount = 0;
+    while (pEntry)
+    {
+        if (!MmIsAddressValid(pEntry))
+            break;
+        if (++LoopCount > 0x10000)
+            break;
+        pEntry = (ULONG64 *)*(ULONG64 *)((char *)pEntry + 0x10);
+    }
+
     return Result;
 }
 
@@ -13222,43 +13656,170 @@ char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray)
 }
 
 // ResolveDriverModuleNames — 解析驱动模块名称
-// 从 GT 获取驱动模块表，遍历模块条目解析驱动文件路径并写入输出数组
+// 从 GT 76(GtEprocessField66) 获取模块名缓冲区，GT 33(GtEprocessField23) 获取模块名大小，
+// 遍历驱动信息条目(每条 168 字节)，比较模块名哈希与已知模块列表，匹配则标记为已识别。
+// Win10+ 额外调用 LookupDriverHashTable 验证签名。
 // 对应原始驱动 sub_140051F88
 char ResolveDriverModuleNames(ULONG *a1)
 {
     char Result = 0;
-    if (!a1 || (unsigned __int64)a1 >= MmUserProbeAddress)
-        return Result;
-    __int64 ModuleTable = GtRead(GtDriverModuleListHead);
-    if (!ModuleTable || ModuleTable < (unsigned __int64)MmSystemRangeStart)
-        return Result;
-    if (MmIsAddressValid((void *)ModuleTable) != 1)
-        return Result;
-    // 遍历驱动模块列表，解析名称写入 a1 数组
-    *a1 = 0; // EntryCount
-    Result = 1;
+    __int64 ModuleNameBuffer = GtRead(GtEprocessField66);
+    unsigned int ModuleNameSize = GtRead(GtEprocessField23);
+    if (ModuleNameSize && ModuleNameBuffer)
+    {
+        for (unsigned int i = 0; i < *a1; ++i)
+        {
+            char *pEntry = (char *)a1 + 168LL * i;
+            __int64 NameOffset = *(ULONG *)(pEntry + 0x90);
+            if ((int)NameOffset + 16 <= ModuleNameSize)
+            {
+                if ((unsigned int)MemoryCompare(*(__int64 *)(pEntry + 0x98), (char *)(ModuleNameBuffer + NameOffset), 0x10u))
+                {
+                    pEntry[0xA9] = 1;
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+                    {
+                        int v10;
+                        _BYTE v12[16];
+                        if (LookupDriverHashTable((__int64)(pEntry + 0x0C), &v10) == 1
+                            && BuildJmpPatchStub(*(__int64 *)(pEntry + 0x98), ModuleNameBuffer + *(ULONG *)(pEntry + 0x90), (__int64)v12, 0x10u, v10) == 1
+                            && ComparePeModuleSignature(pEntry + 0x98, (__int64)v12, 0x10u) == 1)
+                        {
+                            pEntry[0xA9] = 0;
+                        }
+                    }
+                    if (pEntry[0xA9] == 1 && !pEntry[0xA8])
+                    {
+                        unsigned int j;
+                        for (j = 0; j < 0x10; ++j)
+                        {
+                            if (!MmIsAddressValid((PVOID)(*(__int64 *)(pEntry + 0x98) + j)))
+                                break;
+                        }
+                        if (j)
+                        {
+                            __int64 v11;
+                            if (ReturnFalseStub() == 1)
+                                *(__int64 *)(pEntry + 0xA0) = v11;
+                        }
+                    }
+                }
+            }
+        }
+        return 1;
+    }
     return Result;
 }
 
 // ResolvePhysicalMemoryContext — 解析物理内存上下文
-// 从 GT 获取物理内存表，根据 ContextType（0/1/2）和 EntryCount 填充上下文表
+// 根据 ContextType（0/1/2）选择偏移基址（GT 82-83/84-85/673-674），遍历上下文表检查地址是否在 ntoskrnl 范围外，
+// 若在外则标记为已修改（+8 byte=1）。然后对每条目验证地址有效后比较原始字节，若被 Hook 则标记（+17 byte=1）。
+// 若 Count==28 且偏移有效，将匹配特定地址的条目标记为未修改。
 // 对应原始驱动 sub_140033D08
 __int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, ULONG EntryCount)
 {
     __int64 Result = 0;
-    if (!pContextTable || pContextTable < (unsigned __int64)MmSystemRangeStart || !EntryCount)
-        return Result;
-    if (MmIsAddressValid((void *)pContextTable) != 1)
-        return Result;
-    __int64 PfnDataBase = GtRead(GtPfnDataBase);
-    if (!PfnDataBase || PfnDataBase < (unsigned __int64)MmSystemRangeStart)
-        return Result;
-    if (MmIsAddressValid((void *)PfnDataBase) != 1)
-        return Result;
-    // 根据 ContextType 选择对应的 PFN 表偏移，填充上下文表
-    *(_QWORD *)pContextTable = PfnDataBase;
-    *(_DWORD *)(pContextTable + 8) = EntryCount;
-    Result = 1;
+    __int64 Count = EntryCount;
+    unsigned __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int NtoskrnlSize = GtRead(GtNtoskrnlImageSize);
+    unsigned int OffsetValue2 = GtRead(GtKernelDataField21);
+    __int64 OffsetBase = 0;
+
+    switch (ContextType)
+    {
+    case 0:
+        OffsetBase = GtRead(GtEprocessField72);
+        GtRead(GtEprocessField73);
+        break;
+    case 2:
+        OffsetBase = GtRead(GtEprocessField74);
+        GtRead(GtEprocessField75);
+        break;
+    case 1:
+        OffsetBase = GtRead(GtKernelDataField15);
+        GtRead(GtKernelDataField16);
+        break;
+    }
+
+    if (OffsetBase)
+    {
+        if ((_DWORD)Count)
+        {
+            __int64 pCurrentEntry = pContextTable + 16;
+            __int64 Remaining = Count;
+            while (1)
+            {
+                __int64 CurrentValue = *(__int64 *)(pCurrentEntry - 8);
+                if (!CurrentValue)
+                {
+                    if (!NtoskrnlBase || !NtoskrnlSize)
+                        goto LABEL_NEXT;
+                    __int64 AddressValue = *(__int64 *)pCurrentEntry;
+                    if (!AddressValue || (AddressValue < NtoskrnlBase + NtoskrnlSize && AddressValue >= NtoskrnlBase))
+                        goto LABEL_NEXT;
+                    goto LABEL_MODIFIED;
+                }
+                if (CurrentValue != *(__int64 *)pCurrentEntry)
+                    goto LABEL_MODIFIED;
+                goto LABEL_NEXT;
+LABEL_MODIFIED:
+                *(_BYTE *)(pCurrentEntry + 8) = 1;
+LABEL_NEXT:
+                *(_DWORD *)(pCurrentEntry + 12) = ContextType;
+                pCurrentEntry += 48;
+                if (!--Remaining)
+                    break;
+            }
+        }
+
+        // 验证地址并比较原始字节
+        for (unsigned int EntryIndex = 0; EntryIndex < (unsigned int)Count; ++EntryIndex)
+        {
+            __int64 pEntry = pContextTable + 8 + 48LL * EntryIndex;
+            __int64 Address = *(__int64 *)pEntry;
+            if (Address)
+            {
+                if (MmIsAddressValid((PVOID)(Address + 15)) == 1)
+                {
+                    if ((unsigned int)MemoryCompare(Address, (char *)(48LL * EntryIndex + pContextTable + 32), 0x10u))
+                    {
+                        *(_BYTE *)(pEntry + 17) = 1;
+                        if (!*(_BYTE *)(pEntry + 16))
+                        {
+                            unsigned int ByteIndex;
+                            for (ByteIndex = 0; ByteIndex < 0x10; ++ByteIndex)
+                            {
+                                if (!MmIsAddressValid((PVOID)(Address + ByteIndex)))
+                                    break;
+                            }
+                            if (ByteIndex && ReturnFalseStub() == 1)
+                            {
+                                // 保存原始地址
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Count==28 特殊处理
+        if ((_DWORD)Count == 28 && OffsetValue2 && NtoskrnlSize && NtoskrnlBase)
+        {
+            _WORD *pFlagEntry = (_WORD *)(pContextTable + 24);
+            unsigned __int64 EndAddress = NtoskrnlBase + OffsetValue2;
+            __int64 LoopCount = 28;
+            do
+            {
+                if (*(__int64 *)(pFlagEntry - 2) == EndAddress)
+                {
+                    *pFlagEntry = 0;
+                    *(__int64 *)(pFlagEntry - 4) = EndAddress;
+                }
+                pFlagEntry += 24;
+                --LoopCount;
+            } while (LoopCount);
+        }
+        return 1;
+    }
     return Result;
 }
 

@@ -165,11 +165,70 @@ __int64 MiniFilterTeardownRoutine(void *NameBuffer, size_t BufferSize, char IsAd
     return 1;
 }
 
-// MiniFilterFilterUnload — Minifilter 卸载回调
-// 对应原始驱动 sub_140019EA0
-__int64 *MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddress, char IsAddOperation)
+// MiniFilterFilterUnload — Minifilter 卸载回调 (0x140019EA0)
+// 检查当前进程是否为 explorer.exe，若是则映射目标基址到虚拟地址并调用 PrepareFileForPageTableScan 扫描页表
+__int64 *__fastcall MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddress, char IsAddOperation)
 {
-    return NULL;
+    __int64 (*GetProcessNameFunc)(void);
+    __int64 (*GetCurrentProcessIdFunc)(void);
+    int (__fastcall *MapUserPhysicalPagesFunc)(__int64, PVOID *);
+    void (*FreeFunc)(void);
+    _QWORD *PsProcessTypePtr;
+    char IsExplorer;
+    __int64 ProcessName;
+    __int64 SectionHandle;
+    NTSTATUS (*ReferenceProcessFunc)(__int64, __int64 *);
+    PVOID VirtualAddress;
+    _WORD ExplorerName[8];
+
+    AcquireMiniFilterMutexEx();
+    if (IsAddOperation == 1)
+    {
+        ReferenceProcessFunc = (NTSTATUS (*)(__int64, __int64 *))GtRead(GtValidateObjectTypeFunc);
+        GetProcessNameFunc = (__int64 (*)(void))GtRead(GtNtDuplicateObjectPeSectionOffset | GtPathBuffer00);
+        GetCurrentProcessIdFunc = (__int64 (*)(void))GtRead(GtObjectTypeRefFunc);
+        MapUserPhysicalPagesFunc = (int (*)(__int64, PVOID *))GtRead(GtTotalSize | GtEprocessField182 | 0x100);
+        FreeFunc = (void (*)(void))GtRead(GtCloseHandleFunc);
+        PsProcessTypePtr = (_QWORD *)GtRead(GtObjectTypeInfoPtr);
+        if (ReferenceProcessFunc)
+        {
+            if (GetProcessNameFunc && GetCurrentProcessIdFunc && MapUserPhysicalPagesFunc && FreeFunc && PsProcessTypePtr)
+            {
+                if (GetCurrentProcessIdFunc() != ProcessId)
+                    goto LABEL_17;
+                if (ReferenceProcessFunc(ProcessId, &SectionHandle) < 0)
+                {
+                    IsExplorer = 0;
+                }
+                else
+                {
+                    if (*PsProcessTypePtr == SectionHandle || SectionHandle == GtRead(GtEprocessField123 | 0x100))
+                    {
+                        IsExplorer = 0;
+                    }
+                    else
+                    {
+                        strcpy((char *)ExplorerName, "explorer.exe");
+                        HIBYTE(ExplorerName[6]) = 0;
+                        ExplorerName[7] = 0;
+                        ProcessName = GetProcessNameFunc();
+                        IsExplorer = (unsigned int)StringCompareCaseInsensitiveV2(ProcessName, (__int64)ExplorerName) != 0;
+                    }
+                    FreeFunc();
+                }
+                if (IsExplorer)
+                {
+    LABEL_17:
+                    if (MapUserPhysicalPagesFunc(BaseAddress, &VirtualAddress) >= 0)
+                    {
+                        PrepareFileForPageTableScan((char *)VirtualAddress, 0);
+                        ((void (*)(__int64))FreeFunc)(VirtualAddress);
+                    }
+                }
+            }
+        }
+    }
+    return (__int64 *)AcquireMiniFilterMutex();
 }
 
 // MiniFilterNotifyRoutine — Minifilter 通知例程
@@ -1116,8 +1175,19 @@ __int64 MiniFilterCommPortCleanup(__int64 Unknown, __int64 Unknown2, _DWORD *Out
 
 // MiniFilterCommPortConnect — 通信端口连接
 // 对应原始驱动 sub_140019784
+// 检查通信端口回调就绪标志，若未就绪则注册通信端口回复回调
 void MiniFilterCommPortConnect(void)
 {
+    int (__fastcall *RegisterCallbackFunc)(_QWORD, _QWORD, __int64 *);
+
+    if (!(unsigned int)GtRead(GtCommPortCallbackReady))
+    {
+        RegisterCallbackFunc = (int (__fastcall *)(_QWORD, _QWORD, __int64 *))GtRead(GtTotalSize | GtCallbackField03);
+        if (RegisterCallbackFunc && RegisterCallbackFunc(MiniFilterCommPortReplyDone, 0, &g_CommPortContext) >= 0)
+        {
+            GtWrite(GtCommPortCallbackReady, 1);
+        }
+    }
 }
 
 // MiniFilterCommPortReplyDone — 通信端口回复完成
@@ -1140,10 +1210,21 @@ __int64 MiniFilterNormalizeName(void)
     return 1;
 }
 
-// MiniFilterContextCleanup — 上下文清理
+// MiniFilterContextCleanup — 上下文清理命令处理
 // 对应原始驱动 sub_140019A78
-VOID MiniFilterContextCleanup(PVOID *Data, FLT_CONTEXT_TYPE ContextType, FLT_CONTEXT_CLEANUP_FLAGS Flags)
+// 验证输出缓冲区位于用户空间且大小为 4，将全局表 741 的值写入输出缓冲区
+char MiniFilterContextCleanup(ULONG64 Unknown, ULONG Unknown2, ULONG64 OutputBuffer, ULONG BufferSize)
 {
+    if ((ULONG64)OutputBuffer < MmUserProbeAddress
+        && OutputBuffer
+        && (ULONG64)((_DWORD *)OutputBuffer + 1) < MmUserProbeAddress
+        && BufferSize == 4)
+    {
+        ProbeForWrite((PVOID)OutputBuffer, 4u, 4u);
+        *(_DWORD *)OutputBuffer = GtRead(GtCallbackField23);
+        return 1;
+    }
+    return 0;
 }
 
 // MiniFilterFormatFileName — 格式化文件名
@@ -1214,10 +1295,551 @@ void AcquireMiniFilterMutexEx(void)
     KeWaitForSingleObject(&g_Mutex, Executive, 0, 0, 0);
 }
 
+// ReadFsFilterDriverFile — 读取 fltmgr.sys 驱动文件到缓冲区
+// 使用编码路径，通过 ReadFileRawData 和 ReadNtFileToBuffer 读取
+// 对应原始驱动 sub_140018394
+char ReadFsFilterDriverFile(PUCHAR *FileBuffer, PULONG FileSize)
+{
+    char Result = 0;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[20];
+
+    // 编码路径字符串，解码后为 fltmgr.sys 路径
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6684764;
+    EncodedPath[15] = 7602284;
+    EncodedPath[16] = 6750317;
+    EncodedPath[17] = 3014770;
+    EncodedPath[18] = 7929971;
+    EncodedPath[19] = 115;
+
+    if (!(unsigned int)ReadFileRawData((WORD *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, FileBuffer, FileSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ResolveFltEnumerateFilters — 解析 FltMgr 的 FltEnumerateFilters 导出函数
+// 在 fltmgr.sys 的导出表中查找 FltEnumerateFilters，记录偏移和地址到全局表
+// 对应原始驱动 sub_140016404
+char ResolveFltEnumerateFilters(PUCHAR ExportBase, ULONG ExportSize)
+{
+    char Result = 0;
+    ULONG64 Value = 0;
+    __int64 FltMgrBase = GtRead(GtFltmgrBase);
+    char FuncNameBuffer[40];
+
+    if (FltMgrBase)
+    {
+        strcpy(FuncNameBuffer, "FltEnumerateFilters");
+        if (LookupExportByName((__int64)ExportBase, ExportSize, (__int64)FuncNameBuffer, (unsigned int *)&Value) == 1
+            && (_DWORD)Value
+            && (unsigned int)Value < ExportSize)
+        {
+            GtWrite(GtFltEnumerateFiltersOffset, (unsigned int)Value);
+            GtWrite(GtFltEnumerateFiltersAddr, FltMgrBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// ResolveFltUnregisterFilter — 解析 FltMgr 的 FltUnregisterFilter 导出函数
+// 在 fltmgr.sys 的导出表中查找 FltUnregisterFilter，记录偏移和地址到全局表
+// 对应原始驱动 sub_140016628
+char ResolveFltUnregisterFilter(PUCHAR ExportBase, ULONG ExportSize)
+{
+    char Result = 0;
+    ULONG64 Value = 0;
+    __int64 FltMgrBase = GtRead(GtFltmgrBase);
+    char FuncNameBuffer[40];
+
+    if (FltMgrBase)
+    {
+        strcpy(FuncNameBuffer, "FltUnregisterFilter");
+        if (LookupExportByName((__int64)ExportBase, ExportSize, (__int64)FuncNameBuffer, (unsigned int *)&Value) == 1
+            && (_DWORD)Value
+            && (unsigned int)Value < ExportSize)
+        {
+            GtWrite(GtFltUnregisterFilterOffset, (unsigned int)Value);
+            GtWrite(GtFltUnregisterFilterAddr, FltMgrBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// ScanFltMgrExportTable — 扫描 FltMgr 导出表
+// 遍历 FltMgr 的导出表，查找 FltEnumerateFilters 函数，解析其 PE 节信息
+// 定位相关数据节偏移写入全局表 GT 索引 0x885
+// 对应原始驱动 sub_1400172AC
+__int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
+{
+    unsigned int FltEnumerateFiltersOfs;
+    __int64 result;
+    __int64 FltMgrBase;
+    int CurrentExecOffset = 0;
+    unsigned int SectionIndex;
+    int CalculatedSize;
+    __int16 SectionFlags;
+    char ReadContext[0x198];
+    ULONG SectionEntry[0x48];
+    ULONG64 CumulativeSize = 0;
+
+    FltEnumerateFiltersOfs = (unsigned int)GtRead(GtFltEnumerateFiltersOffset);
+    if (!FltEnumerateFiltersOfs)
+    {
+        ResolveFltEnumerateFilters(ExportBase, ExportSize);
+        FltEnumerateFiltersOfs = (unsigned int)GtRead(GtFltEnumerateFiltersOffset);
+    }
+    result = GtRead(GtFltmgrBase);
+    FltMgrBase = result;
+    if (result && FltEnumerateFiltersOfs && FltEnumerateFiltersOfs < ExportSize)
+    {
+        InitPESectionReadContext(
+            (PUCHAR)(ExportBase + FltEnumerateFiltersOfs),
+            ExportSize - FltEnumerateFiltersOfs,
+            2,
+            0,
+            -1,
+            0,
+            0,
+            (PUCHAR)ReadContext);
+        for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
+        {
+            result = ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            CalculatedSize = SectionEntry[7] + (ULONG)CumulativeSize;
+            CumulativeSize += SectionEntry[7];
+            SectionFlags = *(__int16 *)((PUCHAR)(ULONG_PTR)SectionEntry[14] + 6);
+            if (SectionFlags == 1296
+                && *(__int64 *)(SectionEntry + 9) == 0x40000
+                && SectionEntry[4]
+                && *(__int64 *)(SectionEntry + 8) == 64)
+            {
+                CurrentExecOffset = CalculatedSize + SectionEntry[4] - (ULONG)ExportBase;
+            }
+            else if (SectionFlags == 1298
+                && *(__int64 *)(SectionEntry + 9) == 0x40000)
+            {
+                if (SectionEntry[4])
+                {
+                    if (*(__int64 *)(SectionEntry + 8) == 64)
+                    {
+                        result = CalculatedSize + SectionEntry[4] - (unsigned int)ExportBase;
+                        if ((_DWORD)result)
+                        {
+                            if ((_DWORD)result == CurrentExecOffset)
+                                return GtWrite(GtFltEnumerateFilterDataSection, FltMgrBase + (unsigned int)result);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// ParseNtImageSections — 解析 NT 镜像节区
+// 遍历 PE 节表，解析所有节的内容和属性，将偏移/地址对写入全局表 GT 索引 0x884-0x897
+// 反编译失败，从汇编分析实现，约 3005 字节
+// 对应原始驱动 sub_1400166EC
+__int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
+{
+    __int64 FltMgrBase = GtRead(GtFltmgrBase);
+    __int64 *pContextTable = GtAlloc(0x1EC8);
+    __int64 *pTargetTable = GtAlloc(0x1F76);
+    char ReadContext[0x198];
+    _DWORD SectionEntry[0x48];
+    ULONG CumulativeSize, SectionIndex, SectionSize, FieldValue;
+    ULONG CurrentExecOffset = 0, DataSectionOffset = 0, TargetRva = 0;
+    ULONG TargetRva2 = 0, RelocRva = 0, i, Dst[0x10];
+    __int64 SectionDataPtr;
+    __int16 SectionType;
+    BOOLEAN FoundInitFlag = FALSE, DataSectionWritten = FALSE;
+    BOOLEAN TableBuilt = FALSE, FoundRelocSection = FALSE;
+    ULONG RelocRva2 = 0, EntryIndex, RelocBaseRva;
+    __int64 FieldAddr, FieldOffset, TableSlot;
+    __int64 *pTargetEntry;
+    PUCHAR pFieldSrc;
+    ULONG FieldRva, EntryCount;
+    ULONG Counter60 = 0, LastDataOfs = 0, RelocTableIndex = 0;
+    ULONG FmdiDataOfs = 0, FuncEntryEdi = 0, FuncEntryEsi = 0;
+    ULONG FuncEntryCount = 0, FuncEntryEdi2 = 0, FuncEntryEsi2 = 0;
+    ULONG EdiSaved = 0, EsiSaved = 0, EdiSaved2 = 0, EsiSaved2 = 0;
+    ULONG FmdiDataIndex = 0, FuncEntryCounter = 0;
+    BOOLEAN FmdiFound = FALSE, WriteFlag = FALSE;
+    ULONG RelocCounter = 0, FuncEntryCounter2 = 0;
+
+    if (!FltMgrBase)
+        return 0;
+
+    // 获取 PE 可选头
+    LONG e_lfanew = *(LONG *)(ImageBase + 0x3C);
+    PIMAGE_NT_HEADERS64 pNtHdr = (PIMAGE_NT_HEADERS64)(ImageBase + e_lfanew);
+    ULONG SizeOfCode = pNtHdr->OptionalHeader.SizeOfCode;
+    ULONG64 ImageBaseVal = pNtHdr->OptionalHeader.ImageBase;
+
+    // 第一阶段：在 SizeOfCode 范围内扫描 INIT 节
+    CumulativeSize = 0;
+    if (SizeOfCode < ImageSize && SizeOfCode + 0x1000 < ImageSize)
+    {
+        InitPESectionReadContext(
+            ImageBase + SizeOfCode, ImageSize - SizeOfCode,
+            2, 0, -1, 0, 0, (PUCHAR)ReadContext);
+
+        for (SectionIndex = 0; SectionIndex < 20; ++SectionIndex)
+        {
+            if (ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+                break;
+
+            CumulativeSize += SectionEntry[7];
+            SectionDataPtr = (__int64)(ULONG_PTR)SectionEntry[14];
+            SectionType = *(__int16 *)(SectionDataPtr + 6);
+
+            if (SectionType == 0x559)  // 1369: INIT
+            {
+                TargetRva = CumulativeSize + SectionEntry[4] - (ULONG)ImageBase;
+                if (TargetRva == 0 || TargetRva < ImageSize)
+                    CurrentExecOffset = TargetRva;
+            }
+            else if (SectionType == 0x510)  // 1296
+            {
+                if (*(__int64 *)(SectionEntry + 9) == 0x40 && *(__int64 *)(SectionEntry + 8) == 1)
+                    FoundInitFlag = TRUE;
+            }
+            else if (SectionType == 0x558)  // 1368
+            {
+                if (FoundInitFlag)
+                {
+                    TargetRva = CumulativeSize + SectionEntry[4] - (ULONG)ImageBase;
+                    if (TargetRva && TargetRva < ImageSize)
+                    {
+                        CurrentExecOffset = TargetRva;
+                        break;
+                    }
+                }
+                FoundInitFlag = FALSE;
+            }
+        }
+    }
+
+    // 第二阶段：在 CurrentExecOffset 处深度扫描
+    CumulativeSize = 0;
+    memset(Dst, 0, sizeof(Dst));
+
+    if (CurrentExecOffset && CurrentExecOffset < ImageSize)
+    {
+        ULONG ScanSize = ImageSize - CurrentExecOffset;
+        if (ScanSize > 0x1000)
+            ScanSize = 0x1000;
+
+        if (CurrentExecOffset + ScanSize > ImageSize)
+            ScanSize = ImageSize - CurrentExecOffset;
+
+        InitPESectionReadContext(
+            ImageBase + CurrentExecOffset, ScanSize,
+            2, 0, -1, 0, 0, (PUCHAR)ReadContext);
+
+        // 扫描 0x1F4 (500) 个条目
+        for (i = 0; i < 0x1F4; ++i)
+        {
+            if (ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+                break;
+
+            CumulativeSize += SectionEntry[7];
+            SectionDataPtr = (__int64)(ULONG_PTR)SectionEntry[14];
+            SectionType = *(__int16 *)(SectionDataPtr + 6);
+
+            if (SectionType == 0x558)  // 1368: 数据节偏移标记
+            {
+                // var_46 未写入标记
+                if (!*(PUCHAR)((PUCHAR)SectionEntry + 0x46))
+                {
+                    Counter60++;  // var_60
+                    if (Counter60 == 1 && LastDataOfs)  // var_5C
+                    {
+                        GtWrite(GtFltDataSectionOffset, FltMgrBase + LastDataOfs);
+                        *(PUCHAR)((PUCHAR)SectionEntry + 0x46) = 1;  // var_46 = 1
+                        LastDataOfs = 0;  // var_5C = 0
+                    }
+                }
+            }
+            else if (SectionType == 0x512)  // 1298: 可重定位数据节
+            {
+                if (*(__int64 *)(SectionEntry + 9) == 0x40000)
+                {
+                    FieldValue = SectionEntry[4];  // v44
+                    if (FieldValue && *(__int64 *)(SectionEntry + 8) == 64)
+                    {
+                        ULONG Ofs = CumulativeSize + FieldValue - (ULONG)ImageBase;
+                        if (Ofs && Ofs < ImageSize)
+                        {
+                            // 第一个匹配: 写入 Dst 数组
+                            ULONG DstIndex = *(SectionEntry + 3);  // v43
+                            if (DstIndex < 0x10)
+                            {
+                                RelocRva = RelocRva2;
+                                RelocRva2 = Ofs;
+                                if (DstIndex < 0x10)
+                                    Dst[DstIndex] = RelocRva;
+                            }
+
+                            // 更新 LastDataOfs (var_5C) = max(var_5C, Ofs)
+                            if (Ofs > LastDataOfs)
+                                LastDataOfs = Ofs;
+                            Counter60 = 0;  // var_60 = 0
+                        }
+                    }
+                }
+            }
+            else if (SectionType == 0x53C)  // 1340: FMdi 字符串匹配
+            {
+                // 检查 SectionEntry[0x40] (SectionDataPtr) 的内容是否为 "FMdi" (0x69664D46)
+                if (*(ULONG *)(SectionDataPtr) == 0x69664D46)
+                {
+                    if (!*(PUCHAR)((PUCHAR)SectionEntry + 0x44))
+                    {
+                        FmdiFound = TRUE;
+                        *(PUCHAR)((PUCHAR)SectionEntry + 0x45) = 1;
+                    }
+                }
+            }
+            else if (SectionType == 0x53D)  // 1341: 特定数据节
+            {
+                if (*(__int64 *)(SectionEntry + 9) == 0x20 && SectionEntry[4] == 0x1C)
+                {
+                    if (!FmdiDataOfs)
+                    {
+                        FieldValue = SectionEntry[0];
+                        if (FieldValue)
+                        {
+                            // 存储到 Dst[0] 位置
+                            ULONG Ofs = CumulativeSize + FieldValue - (ULONG)ImageBase;
+                            if (Ofs && Ofs < ImageSize)
+                            {
+                                FmdiDataOfs = Ofs;
+                            }
+                        }
+                    }
+                }
+            }
+            else if (SectionType == 0x50E)  // 1294: 函数入口
+            {
+                __int64 Characteristics = *(__int64 *)(SectionEntry + 9);
+                if ((Characteristics & 0x14000) != 0 && (Characteristics & 0x40) != 0)
+                {
+                    ULONG FuncRva = SectionEntry[4];
+                    ULONG FuncSize = SectionEntry[3];
+                    ULONG FuncFlags = SectionEntry[1];
+
+                    // 检查函数入口模式
+                    if ((FuncFlags & 0xF) != 4 && Characteristics == 64)
+                    {
+                        ULONG TypeVal = SectionEntry[0];
+                        if (TypeVal == 80)  // 0x50
+                        {
+                            // 函数入口点匹配
+                            FieldAddr = Dst[SectionEntry[2]];
+                            if (FieldAddr && FieldAddr < ImageSize)
+                            {
+                                // 填充上下文的 28 个条目
+                                PUCHAR pFieldSrc2 = ImageBase + FieldAddr + 8;
+                                __int64 *pTargetEntry2 = pTargetTable + 1;
+                                ULONG EntryCount2 = 27;
+                                do
+                                {
+                                    ULONG64 FieldVal = *(ULONG64 *)pFieldSrc2;
+                                    if (FieldVal > ImageBaseVal)
+                                    {
+                                        FieldRva = (ULONG)(FieldVal - ImageBaseVal);
+                                        if (FieldRva < ImageSize)
+                                        {
+                                            *((PULONG)pTargetEntry2 - 1) = FieldRva;
+                                            *pTargetEntry2 = FltMgrBase + FieldRva;
+                                        }
+                                    }
+                                    pFieldSrc2 += 8;
+                                    pTargetEntry2 += 6;
+                                    --EntryCount2;
+                                } while (EntryCount2);
+                                TableBuilt = TRUE;
+                            }
+                        }
+                        else if ((TypeVal - 112) <= 0xD8 && (TypeVal & 7) == 0)
+                        {
+                            // 函数入口偏移表
+                            if (!FoundRelocSection)
+                            {
+                                TargetRva2 = Dst[SectionEntry[2]];
+                                FoundRelocSection = TRUE;
+                            }
+                            EntryIndex = (TypeVal - 112) >> 3;
+                            if (EntryIndex <= 0x1B)
+                            {
+                                RelocBaseRva = Dst[SectionEntry[2]];
+                                if (RelocBaseRva)
+                                {
+                                    TableSlot = 6 * EntryIndex;
+                                    if (!*((PULONG)&pContextTable[TableSlot] + 1))
+                                    {
+                                        *((PULONG)&pContextTable[TableSlot] + 1) = RelocBaseRva;
+                                        pContextTable[TableSlot + 1] = FltMgrBase + RelocBaseRva;
+                                        WriteFlag = TRUE;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 填充未填充的上下文表条目
+        if (TableBuilt && TargetRva2)
+        {
+            ULONG FillCount = 28;
+            PUCHAR pFillEntry = (PUCHAR)pContextTable + 4;
+            do
+            {
+                if (!*(PULONG)pFillEntry)
+                {
+                    *(PULONG)pFillEntry = TargetRva2;
+                    *(__int64 *)(pFillEntry + 4) = FltMgrBase + TargetRva2;
+                }
+                pFillEntry += 48;
+                --FillCount;
+            } while (FillCount);
+        }
+
+        // 写入 PE 节偏移/地址对到 GT
+        ULONG BuildNum = (ULONG)GtRead(GtWindowsBuildNumber);
+        if (BuildNum >= 0x23F0)
+        {
+            // Win10+: 写入 5 对 (0x88C-0x895)
+            if (EdiSaved && EsiSaved)
+            {
+                GtWrite(GtFltPeSectionOfs3, EdiSaved);
+                GtWrite(GtFltPeSectionAddr3, FltMgrBase + EdiSaved);
+                GtWrite(GtFltPeSectionOfs4, EsiSaved);
+                GtWrite(GtFltPeSectionAddr4, FltMgrBase + EsiSaved);
+                GtWrite(GtFltPeSectionOfs5, EdiSaved2);
+                GtWrite(GtFltPeSectionAddr5, FltMgrBase + EdiSaved2);
+                GtWrite(GtFltPeSectionOfs6, EsiSaved2);
+                GtWrite(GtFltPeSectionAddr6, FltMgrBase + EsiSaved2);
+                GtWrite(GtFltPeSectionOfs7, FuncEntryEdi);
+                GtWrite(GtFltPeSectionAddr7, FltMgrBase + FuncEntryEdi);
+            }
+        }
+        else
+        {
+            // 旧版本: 写入 1 对 (0x896-0x897)
+            if (FuncEntryEdi && FuncEntryEsi)
+            {
+                GtWrite(GtFltPeSectionOfs8, FuncEntryEdi);
+                GtWrite(GtFltPeSectionAddr8, FltMgrBase + FuncEntryEdi);
+            }
+        }
+
+        // 写入 0x888-0x88B (Ofs1/Addr1, Ofs2/Addr2)
+        if (FuncEntryEdi && FuncEntryEsi)
+        {
+            GtWrite(GtFltPeSectionOfs1, FuncEntryEdi);
+            GtWrite(GtFltPeSectionAddr1, FltMgrBase + FuncEntryEdi);
+            GtWrite(GtFltPeSectionOfs2, FuncEntryEsi);
+            GtWrite(GtFltPeSectionAddr2, FltMgrBase + FuncEntryEsi);
+        }
+    }
+
+    return 0;
+}
+
 // InitFsFilterExportTable — 初始化文件系统过滤器导出表
 // 对应原始驱动 sub_14001763C
 void InitFsFilterExportTable(void)
 {
+    __int64 FltMgrBase;
+    int LoopCount1;
+    unsigned int *TableEntry1;
+    int EntryValue1;
+    __int64 DataOffset1;
+    int LoopCount2;
+    unsigned int *TableEntry2;
+    int EntryValue2;
+    __int64 DataOffset2;
+    unsigned int FileBufferSize;
+    PUCHAR FileBuffer;
+
+    FltMgrBase = GtRead(GtFltmgrBase);
+    if (FltMgrBase && ReadFsFilterDriverFile(&FileBuffer, &FileBufferSize))
+    {
+        if (!GtRead(GtFltEnumerateFiltersOffset))
+            ResolveFltEnumerateFilters(FileBuffer, FileBufferSize);
+        if (!GtRead(GtFltUnregisterFilterOffset))
+            ResolveFltUnregisterFilter(FileBuffer, FileBufferSize);
+        if (!GtRead(GtFltEnumerateFilterDataSection))
+            ScanFltMgrExportTable(FileBuffer, FileBufferSize);
+        if (!GtRead(GtFltDataSectionOffset))
+            ParseNtImageSections(FileBuffer, FileBufferSize);
+        if (ParseNtExportDir(FileBuffer, FileBufferSize, FltMgrBase, 0) == 1)
+        {
+            LoopCount1 = 28;
+            TableEntry1 = (unsigned int *)GtAlloc(0x1EC8) + 1;
+            do
+            {
+                EntryValue1 = *TableEntry1;
+                *(TableEntry1 - 1) = 0;
+                if (EntryValue1 && EntryValue1 + 16 <= FileBufferSize)
+                {
+                    GtWrite(GtFsFilterTableReady, 1);
+                    DataOffset1 = *TableEntry1;
+                    *(TableEntry1 - 1) = 1;
+                    *(_OWORD *)(TableEntry1 + 3) = *(_OWORD *)&FileBuffer[DataOffset1];
+                }
+                TableEntry1 += 12;
+                --LoopCount1;
+            }
+            while (LoopCount1);
+            LoopCount2 = 27;
+            TableEntry2 = (unsigned int *)GtAlloc(0x1F76) + 1;
+            do
+            {
+                EntryValue2 = *TableEntry2;
+                *(TableEntry2 - 1) = 0;
+                if (EntryValue2)
+                {
+                    if (EntryValue2 + 16 <= FileBufferSize)
+                    {
+                        GtWrite(GtWin32kFilterTableReady, 1);
+                        DataOffset2 = *TableEntry2;
+                        *(TableEntry2 - 1) = 1;
+                        *(_OWORD *)(TableEntry2 + 3) = *(_OWORD *)&FileBuffer[DataOffset2];
+                    }
+                }
+                TableEntry2 += 12;
+                --LoopCount2;
+            }
+            while (LoopCount2);
+        }
+        ExFree(FileBuffer);
+    }
 }
 
 // OpenWin32kSysSection — 打开 Win32k 系统节
