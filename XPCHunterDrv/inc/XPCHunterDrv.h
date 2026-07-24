@@ -761,6 +761,7 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtNtOpenProcessHookAddress = 0x90A,  // 2314: NtOpenProcess Hook 目标地址(HookSyscallNtOpenProcess)
     GtFileSystemExportTable = 0x8A8,         // 2216: 文件系统导出表地址(InitFileSystemExportTable)
     GtFileSystemExportTable32 = 0x8AA,        // 2218: 32位文件系统导出表地址(InitFileSystemExportTable)
+    GtExReleaseFastMutex = 0x8AC,             // 2220: ExReleaseFastMutex 函数地址(InitDriverModuleParsing)
     GtFileSystemReady10 = 0x8B0,              // 2224: Win10 文件系统过滤器就绪标志(InitFileSystemExportTable)
     GtFileSystemReady7 = 0x8B1,               // 2225: Win7 文件系统过滤器就绪标志(InitFileSystemExportTable)
     GtObjectListOffset = 0x8C0,                // 2240: 进程对象列表偏移(InitObjectCallback)
@@ -775,6 +776,7 @@ typedef enum _GLOBAL_TABLE_INDEX {
     // ---- fltmgr.sys 分析数据 (2174-2202) ----
     GtFltmgrBase = 0x87E,                     // 2174: fltmgr.sys 模块基址
     GtFltmgrBaseBackup = 0x87F,               // 2175: fltmgr.sys 基址备份
+    GtObjectTypeMatchIndex = 0x878,           // 2168: 对象类型匹配索引(InitObjectCallbackEntries)，用于过滤对象类型条目
     GtNtosExportSectionOffset = 0x879,        // 2169: NT 导出节区偏移(Phase1/Phase2结果, ParseNtExportSectionsV2/Win10)
     GtNtosExportSectionVa = 0x87A,            // 2170: NT 导出节区 VA(Offset+Base, ParseNtExportSectionsV2/Win10)
     GtNtosExportSectionSize = 0x87B,          // 2171: NT 导出节区大小(ParseNtExportSectionsV2=0x800)
@@ -995,7 +997,7 @@ void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass);
 __int64 AllocateIrpStackAndCallDriver(__int64 (*pCallDriver)(__int64, ULONG_PTR, __int64), __int64 DeviceObject, ULONG_PTR Irp);
 __int64 AllocateNtHandleEntry(void);
 char AtomicExchange16Bytes(__int64 Source, _OWORD *ExchangeData);
-void AtomicWrite16Bytes(ULONG64 TargetAddress, void *Buffer);
+char AtomicWrite16Bytes(ULONG64 Context, void *Buffer);
 __int64 AtomicWrite64NoWriteProtect(volatile __int64 *Target, __int64 Value);
 __int64 AttachToProcessAndInitKernelMemory(void);
 char __fastcall BtreeSearchByKey(unsigned __int8 *pKeyData, unsigned int *pOutOrdinal, unsigned int EntryCount);
@@ -1555,6 +1557,11 @@ __int64 InitFileSystemExportTable(char Is64Bit);
 char InitFileSystemFilter(__int64 OutputBuffer, __int64 OutputSize, _BYTE *UserBuffer, int InputSize);
 __int64 InitFileSystemFilterCallbacks(__int64 FilterExtensionObject, _QWORD *FastIoDispatchPtr, char Is64Bit);
 void InitFsFilterExportTable(void);
+char ReadFsFilterDriverFile(PUCHAR *FileBuffer, PULONG FileSize);
+char ResolveFltEnumerateFilters(PUCHAR ExportBase, ULONG ExportSize);
+char ResolveFltUnregisterFilter(PUCHAR ExportBase, ULONG ExportSize);
+__int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize);
+__int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize);
 __int64 InitHandleTypeTable(void);
 __int64 InitHookSyscall(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
 char InitImageLoadCallback(__int64 InputBuffer, ULONG64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
@@ -1802,7 +1809,7 @@ char RemoveMouClassDriverObject(ULONG64 DriverObject);
 char RemoveNdisDriverObject(ULONG64 DriverObject);
 __int64 RemoveObjectFromTypeList(PVOID pTargetObject);
 char RemoveObjectListEntry(ULONG64 DevicePath, ULONG64 EntryToRemove);
-void RemoveOplockNodeByDwordKey(unsigned int *KeyArray, ULONG Offset, __int64 Context);
+ULONG64 RemoveOplockNodeByDwordKey(unsigned int *KeyArray, ULONG Offset, __int64 Context);
 char RemoveRawDriverObject(ULONG64 DriverObject);
 __int64 RemoveServiceEntryFromList(ULONG_PTR *a1, __int64 a2);
 __int64 RemoveServiceEntryFromListEx(__int64 ****a1, __int64 ***a2);
@@ -1846,7 +1853,7 @@ __int64 ResolveSyscallToAddress(unsigned int SyscallNumber);
 void ResolveWin32kServiceTable(char IsWow64Process);
 __int64 ResolveWin32kServiceTableDispatch(__int64 ImageBase, unsigned int ImageSize, unsigned int ExportOffset);
 __int64 ResolveWin32kServiceTableEx(__int64 ImageBase, unsigned int ImageSize);
-void RestoreCr0WriteProtect(void);
+unsigned __int64 RestoreCr0WriteProtect(unsigned __int64 *pOldCr0);
 void RestoreDiskIrpFunctionPointer(char State);
 __int64 RestoreSyscallHookByIndex(char a1, ULONG a2);
 char ReturnFalseStub(void);
@@ -2010,7 +2017,7 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 
 // Minifilter
 
-void MiniFilterContextCleanup(PVOID Arg1, PVOID Arg2);
+char MiniFilterContextCleanup(ULONG64 Unknown, ULONG Unknown2, ULONG64 OutputBuffer, ULONG BufferSize);
 
 // Global mutex
 extern KMUTEX g_Mutex;

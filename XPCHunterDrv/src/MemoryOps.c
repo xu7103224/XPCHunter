@@ -536,8 +536,48 @@ __int64 CmdCallKernelMemoryFunction(unsigned int *Address, int InputSize)
 
 // AtomicWrite16Bytes — 原子写入 16 字节
 // 对应原始驱动 sub_140082E14
-void AtomicWrite16Bytes(ULONG64 TargetAddress, void *Buffer)
+// 通过 MDL 映射目标地址，提升 IRQL 到 2，原子写入 16 字节数据
+char AtomicWrite16Bytes(ULONG64 Context, void *Buffer)
 {
+    char Result = 0;
+    __int64 TargetAddress;
+    struct _MDL *Mdl;
+    char *MappedSystemVa;
+    unsigned __int8 CurrentIrql;
+
+    if (*(_DWORD *)(Context + 4))
+    {
+        if (*(_DWORD *)Context == 1)
+        {
+            TargetAddress = *(_QWORD *)(Context + 8);
+            if (TargetAddress)
+            {
+                Mdl = IoAllocateMdl(
+                    (PVOID)(TargetAddress & 0xFFFFFFFFFFFFF000uLL),
+                    ((TargetAddress & 0xFFF) + 4111) & 0xFFFFF000,
+                    0, 0, 0);
+                if (Mdl)
+                {
+                    MmProbeAndLockPages(Mdl, 0, IoWriteAccess);
+                    if ((Mdl->MdlFlags & 5) != 0)
+                        MappedSystemVa = (char *)Mdl->MappedSystemVa;
+                    else
+                        MappedSystemVa = (char *)MmMapLockedPagesSpecifyCache(Mdl, 0, MmCached, 0, 0, 0x10u);
+                    if (MappedSystemVa)
+                    {
+                        CurrentIrql = KeGetCurrentIrql();
+                        __writecr8(2u);
+                        *(_OWORD *)&MappedSystemVa[TargetAddress & 0xFFF] = *(_OWORD *)Buffer;
+                        __writecr8(CurrentIrql);
+                        Result = 1;
+                    }
+                    MmUnlockPages(Mdl);
+                    IoFreeMdl(Mdl);
+                }
+            }
+        }
+    }
+    return Result;
 }
 
 // EnumerateVadWithBufferV1 — 枚举 VAD 节点(V1)

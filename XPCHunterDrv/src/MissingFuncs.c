@@ -2422,6 +2422,612 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     }
 }
 // =======================================================================
+// 新增函数实现（从 IDA 反编译）
+// =======================================================================
+
+// KernelNotifyRoutine — 内核通知例程
+// 对应原始驱动 sub_140019CFC
+// 调用 MiniFilterTeardownRoutine 转发通知，IsAddOperation=1
+__int64 KernelNotifyRoutine(void *NotificationBuffer, size_t BufferSize)
+{
+    return MiniFilterTeardownRoutine(NotificationBuffer, BufferSize, 1);
+}
+
+// KernelNotifyRoutineEx — 内核通知例程扩展
+// 对应原始驱动 sub_140019D04
+// 调用 MiniFilterTeardownRoutine 转发通知，IsAddOperation=0
+__int64 KernelNotifyRoutineEx(void *NotificationBuffer, size_t BufferSize)
+{
+    return MiniFilterTeardownRoutine(NotificationBuffer, BufferSize, 0);
+}
+
+// PowerCallbackRoutine — 电源回调处理例程
+// 对应原始驱动 sub_140011240
+// 从内核地址读取数据到用户缓冲区，按页映射内存，通过 ReadObjectNameFromCallback 或 ReadNameFunc 读取对象名称，逐页拷贝
+__int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
+{
+    char Success;
+    __int64 MapFunc;
+    __int64 ZeroFunc;
+    __int64 ReadNameFunc;
+    __int64 UnmapFunc;
+    __int64 FreeFunc;
+    __int64 FreeFunc2;
+    volatile void *TargetBuffer;
+    unsigned int ReadSize;
+    unsigned __int64 CurrentAddress;
+    unsigned __int64 RemainingSize;
+    char *OutputPtr;
+    unsigned int PageRemainder;
+    unsigned int BytesCopied;
+    char PageSuccess;
+    __int64 MappedMemory;
+    __int64 MappedBuffer;
+    __int64 MappedBuffer2;
+    __int64 ObjectNameFromCallback;
+    char CopySuccess;
+    __int64 (__fastcall *ReadNameFuncTyped)(__int64, _QWORD, __int64);
+    __int64 (__fastcall *MapMemoryFuncTyped)(unsigned __int64, __int64, _QWORD, _QWORD, _QWORD);
+    void (__fastcall *UnmapFuncTyped)(__int64, __int64);
+    void (__fastcall *MapFuncTyped)(__int64);
+    void (__fastcall *FreeFuncTyped)(__int64);
+    void (__fastcall *ZeroFuncTyped)(__int64, _QWORD, _QWORD);
+    void (__fastcall *FreeFunc2Typed)(__int64);
+    int SizeCopy;
+
+    Success = 0;
+    if (InputBuffer)
+    {
+        if (BufferSize == 24
+            && (unsigned __int64)InputBuffer < MmUserProbeAddress
+            && (unsigned __int64)(InputBuffer + 3) < MmUserProbeAddress)
+        {
+            MapMemoryFunc = GtRead(GtAllocPhysPagesFunc);
+            MapFunc = GtRead(GtMapPhysPagesFunc);
+            MapFuncTyped = (void (__fastcall *)(__int64))MapFunc;
+            ZeroFunc = GtRead(GtZeroPagesFunc);
+            ZeroFuncTyped = (void (__fastcall *)(__int64, _QWORD, _QWORD))ZeroFunc;
+            ReadNameFunc = GtRead(GtMapMemoryFunc);
+            ReadNameFuncTyped = (__int64 (__fastcall *)(__int64, _QWORD, __int64))ReadNameFunc;
+            UnmapFunc = GtRead(GtUnmapMemoryFunc);
+            UnmapFuncTyped = (void (__fastcall *)(__int64, __int64))UnmapFunc;
+            FreeFunc = GtRead(GtFreeMemoryFunc);
+            FreeFuncTyped = (void (__fastcall *)(__int64))FreeFunc;
+            FreeFunc2 = GtRead(GtFreePagesFunc);
+            FreeFunc2Typed = (void (__fastcall *)(__int64))FreeFunc2;
+            if (MapMemoryFunc && MapFunc && ZeroFunc && ReadNameFunc && UnmapFunc && FreeFunc && FreeFunc2)
+            {
+                ProbeForRead(InputBuffer, 0x18u, 4u);
+                TargetBuffer = InputBuffer[2];
+                if (TargetBuffer)
+                {
+                    ReadSize = *((_DWORD *)InputBuffer + 2);
+                    if (ReadSize)
+                    {
+                        if (ReadSize < (unsigned __int64)MmSystemRangeStart
+                            && *InputBuffer >= MmSystemRangeStart
+                            && (char *)*InputBuffer + ReadSize >= MmSystemRangeStart
+                            && (unsigned __int64)TargetBuffer < MmUserProbeAddress
+                            && (unsigned __int64)TargetBuffer + ReadSize < MmUserProbeAddress)
+                        {
+                            ProbeForWrite(TargetBuffer, ReadSize, 1u);
+                            CurrentAddress = (unsigned __int64)*InputBuffer;
+                            RemainingSize = *((unsigned int *)InputBuffer + 2);
+                            SizeCopy = *((_DWORD *)InputBuffer + 2);
+                            OutputPtr = (char *)InputBuffer[2];
+                            if (*InputBuffer >= MmSystemRangeStart
+                                && RemainingSize < (unsigned __int64)MmSystemRangeStart
+                                && CurrentAddress + (unsigned int)RemainingSize > (unsigned __int64)MmSystemRangeStart)
+                            {
+                                PageRemainder = 4096 - (CurrentAddress & 0xFFF);
+                                BytesCopied = 0;
+                                while (BytesCopied < (unsigned int)RemainingSize)
+                                {
+                                    if ((unsigned int)RemainingSize - BytesCopied < PageRemainder)
+                                        PageRemainder = RemainingSize - BytesCopied;
+                                    PageSuccess = 0;
+                                    CopySuccess = 0;
+                                    if (CheckMemoryValid((void *)CurrentAddress) == 1)
+                                    {
+                                        MappedMemory = MapMemoryFuncTyped(CurrentAddress & 0xFFFFFFFFFFFFF000uLL, 4096, 0, 0, 0);
+                                        if (MappedMemory)
+                                        {
+                                            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+                                            {
+                                                ZeroFuncTyped(MappedMemory, 0, 0);
+                                                ObjectNameFromCallback = ReadObjectNameFromCallback(
+                                                    MappedMemory,
+                                                    16,
+                                                    ReadNameFuncTyped);
+                                                if (ObjectNameFromCallback)
+                                                {
+                                                    memmove(
+                                                        OutputPtr,
+                                                        (const void *)(ObjectNameFromCallback + (CurrentAddress & 0xFFF)),
+                                                        PageRemainder);
+                                                    Success = 1;
+                                                    CopySuccess = 1;
+                                                }
+                                                FreeFuncTyped(MappedMemory);
+                                            }
+                                            else
+                                            {
+                                                MapFuncTyped(MappedMemory);
+                                                MappedBuffer = ReadNameFuncTyped(MappedMemory, 0, 1);
+                                                MappedBuffer2 = MappedBuffer;
+                                                if (MappedBuffer)
+                                                {
+                                                    memmove(
+                                                        OutputPtr,
+                                                        (const void *)(MappedBuffer + (CurrentAddress & 0xFFF)),
+                                                        PageRemainder);
+                                                    Success = 1;
+                                                    CopySuccess = 1;
+                                                    UnmapFuncTyped(MappedBuffer2, MappedMemory);
+                                                }
+                                            }
+                                            FreeFunc2Typed(MappedMemory);
+                                            PageSuccess = CopySuccess;
+                                        }
+                                    }
+                                    if (!PageSuccess)
+                                        memset(OutputPtr, 0, PageRemainder);
+                                    if (BytesCopied)
+                                        PageRemainder = 4096;
+                                    BytesCopied += 4096;
+                                    CurrentAddress += PageRemainder;
+                                    OutputPtr += PageRemainder;
+                                    LODWORD(RemainingSize) = SizeCopy;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Success;
+}
+
+// PowerCallbackUnregister — 卸载电源回调
+// 对应原始驱动 sub_140011630
+// 将指定进程的源缓冲区数据拷贝到目标缓冲区，使用 KeStackAttachProcess 附加到目标进程上下文后执行内存操作
+__int64 PowerCallbackUnregister(HANDLE *InputBuffer, int BufferSize)
+{
+    char Success;
+    HANDLE ProcessHandle;
+    unsigned int TargetSize;
+    HANDLE TargetBufferVal;
+    PVOID SourceBuffer;
+    NTSTATUS AllocStatus;
+    int LookupStatus;
+    const void *SourcePtr;
+    unsigned int BufferSizeCopy;
+    void *TargetPtr;
+    PEPROCESS Process;
+    unsigned int SizeVal;
+    HANDLE TargetHandle;
+    HANDLE *InputBufferPtr;
+    HANDLE SourceHandle;
+    PRKPROCESS ProcessObject;
+    struct _KAPC_STATE ApcState;
+
+    Success = 0;
+    Process = 0;
+    if (InputBuffer)
+    {
+        if (BufferSize == 40
+            && (unsigned __int64)InputBuffer < MmUserProbeAddress
+            && (unsigned __int64)(InputBuffer + 5) < MmUserProbeAddress)
+        {
+            ProbeForRead(InputBuffer, 0x28u, 4u);
+            InputBufferPtr = InputBuffer;
+            if (*InputBuffer)
+            {
+                if (InputBuffer[1])
+                {
+                    ProcessHandle = InputBuffer[4];
+                    if (ProcessHandle)
+                    {
+                        TargetSize = *((_DWORD *)InputBuffer + 6);
+                        if (TargetSize)
+                        {
+                            TargetBufferVal = InputBuffer[2];
+                            if (TargetBufferVal)
+                            {
+                                if (TargetSize < MmUserProbeAddress
+                                    && (unsigned __int64)TargetBufferVal < MmUserProbeAddress
+                                    && (unsigned __int64)TargetBufferVal + TargetSize < MmUserProbeAddress
+                                    && (unsigned __int64)ProcessHandle < MmUserProbeAddress
+                                    && (unsigned __int64)ProcessHandle + TargetSize < MmUserProbeAddress)
+                                {
+                                    ProbeForWrite(ProcessHandle, TargetSize, 1u);
+                                    SourceBuffer = ExAlloc(NonPagedPool, *((unsigned int *)InputBuffer + 6));
+                                    if (SourceBuffer)
+                                    {
+                                        AllocStatus = PsLookupProcessByProcessId(*InputBuffer, &Process);
+                                        LookupStatus = AllocStatus;
+                                        if (!InputBuffer[1] && AllocStatus >= 0)
+                                            InputBuffer[1] = Process;
+                                        if (ValidateProcessObject((struct _KPROCESS *)InputBuffer[1], 0) == 1)
+                                        {
+                                            ProcessObject = (PRKPROCESS)InputBuffer[1];
+                                            SourceHandle = InputBuffer[2];
+                                            SourcePtr = SourceHandle;
+                                            SizeVal = *((_DWORD *)InputBuffer + 6);
+                                            BufferSizeCopy = SizeVal;
+                                            TargetHandle = InputBuffer[4];
+                                            TargetPtr = TargetHandle;
+                                            KeStackAttachProcess(ProcessObject, &ApcState);
+                                            memset(SourceBuffer, 0, BufferSizeCopy);
+                                            memmove(SourceBuffer, SourcePtr, BufferSizeCopy);
+                                            Success = 1;
+                                            KeUnstackDetachProcess(&ApcState);
+                                            memmove(TargetPtr, SourceBuffer, BufferSizeCopy);
+                                        }
+                                        if (LookupStatus >= 0)
+                                            ObfDereferenceObject(Process);
+                                        ExFree(SourceBuffer);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Success;
+}
+
+// ShutdownCallbackUnregister — 卸载关机回调
+// 对应原始驱动 sub_1400118F4
+// 将目标缓冲区的数据写入到指定进程的源地址，使用 WritePhysicalMemoryBuffer 进行物理内存写入
+__int64 ShutdownCallbackUnregister(PRKPROCESS *InputBuffer, int BufferSize)
+{
+    bool Success;
+    PRKPROCESS TargetBuffer;
+    unsigned int TargetSize;
+    PRKPROCESS SourceBuffer;
+    PVOID AllocBuffer;
+    NTSTATUS LookupStatus;
+    int Status;
+    PRKPROCESS SourcePtr;
+    unsigned int BufferSizeCopy;
+    PEPROCESS Process;
+    PVOID AllocBufferPtr;
+    unsigned int SizeVal;
+    PRKPROCESS SourceBufferPtr;
+    PRKPROCESS TargetBufferPtr;
+    PRKPROCESS ProcessObject;
+    struct _KAPC_STATE ApcState;
+
+    Success = 0;
+    Process = 0;
+    if (InputBuffer)
+    {
+        if (BufferSize == 40
+            && (unsigned __int64)InputBuffer < MmUserProbeAddress
+            && (unsigned __int64)(InputBuffer + 5) < MmUserProbeAddress)
+        {
+            AllocBufferPtr = 0;
+            ProbeForRead(InputBuffer, 0x28u, 4u);
+            if (*InputBuffer)
+            {
+                if (InputBuffer[1])
+                {
+                    TargetBuffer = InputBuffer[4];
+                    if (TargetBuffer)
+                    {
+                        TargetSize = *((_DWORD *)InputBuffer + 6);
+                        if (TargetSize)
+                        {
+                            SourceBuffer = InputBuffer[2];
+                            if (SourceBuffer)
+                            {
+                                if (TargetSize < MmUserProbeAddress
+                                    && (unsigned __int64)SourceBuffer < MmUserProbeAddress
+                                    && (unsigned __int64)SourceBuffer + TargetSize < MmUserProbeAddress
+                                    && (unsigned __int64)TargetBuffer < MmUserProbeAddress
+                                    && (unsigned __int64)TargetBuffer + TargetSize < MmUserProbeAddress)
+                                {
+                                    ProbeForRead(TargetBuffer, TargetSize, 1u);
+                                    AllocBuffer = ExAlloc(NonPagedPool, *((unsigned int *)InputBuffer + 6));
+                                    AllocBufferPtr = AllocBuffer;
+                                    if (AllocBuffer)
+                                    {
+                                        LookupStatus = PsLookupProcessByProcessId(*InputBuffer, &Process);
+                                        Status = LookupStatus;
+                                        if (!InputBuffer[1] && LookupStatus >= 0)
+                                            InputBuffer[1] = Process;
+                                        if (ValidateProcessObject(InputBuffer[1], 0) == 1)
+                                        {
+                                            ProcessObject = InputBuffer[1];
+                                            SourceBufferPtr = InputBuffer[2];
+                                            SourcePtr = SourceBufferPtr;
+                                            BufferSizeCopy = *((_DWORD *)InputBuffer + 6);
+                                            SizeVal = BufferSizeCopy;
+                                            TargetBufferPtr = InputBuffer[4];
+                                            memmove(AllocBuffer, TargetBufferPtr, BufferSizeCopy);
+                                            KeStackAttachProcess(InputBuffer[1], &ApcState);
+                                            ProbeForRead(SourcePtr, BufferSizeCopy, 1u);
+                                            Success = WritePhysicalMemoryBuffer(
+                                                (unsigned __int64)SourcePtr,
+                                                AllocBuffer,
+                                                BufferSizeCopy,
+                                                1,
+                                                0) == 1;
+                                            KeUnstackDetachProcess(&ApcState);
+                                        }
+                                        if (Status >= 0)
+                                            ObfDereferenceObject(Process);
+                                        ExFree(AllocBuffer);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Success;
+}
+
+// EnumKernelModules — 枚举内核模块
+// 对应原始驱动 sub_1400669B8
+// 读取 GT 895(NDIS 节区扫描结果)获取内核模块链表头，遍历内核模块结构链表
+// 根据 GT 867(构建号)选择不同结构偏移映射：<0x60028 使用旧版偏移，>=0x60028 使用新版偏移
+// 每项输出 156 个 DWORD(624 字节)，含模块基址、大小、标志、名称字符串等
+__int64 EnumKernelModules(__int64 a1, __int64 a2, __int64 a3, __int64 a4)
+{
+    SIZE_T v4;
+    char v6;
+    _QWORD *v7;
+    unsigned int v8;
+    unsigned __int64 v9;
+    _QWORD *v10;
+    PVOID v11;
+    unsigned int v12;
+    unsigned __int64 v13;
+    unsigned __int16 v14;
+    __int64 v15;
+    _OWORD *v16;
+    _OWORD *v17;
+    __int64 v18;
+    unsigned __int64 v19;
+    unsigned __int64 v20;
+    unsigned __int64 v26;
+    unsigned __int16 v21;
+    __int64 v22;
+    _OWORD *v23;
+    _OWORD *v24;
+    __int64 v25;
+    unsigned __int64 v32;
+    unsigned __int16 v27;
+    __int64 v28;
+    _OWORD *v29;
+    _OWORD *v30;
+    __int64 v31;
+
+    v4 = a4;
+    v6 = 0;
+    v7 = (_QWORD *)GtRead(GtEprocessExtField41);
+    if (!v7)
+    {
+        InitKernelDataSectionTable();
+        v7 = (_QWORD *)GtRead(GtEprocessExtField41);
+    }
+    v8 = GtRead(GtEprocessExtField13);
+    if (v7
+        && v7 > MmSystemRangeStart
+        && v8 >= 0x60000
+        && a3
+        && (unsigned int)v4 >= 0x278
+        && (unsigned __int64)a3 < MmUserProbeAddress
+        && (unsigned __int64)a3 + v4 < MmUserProbeAddress)
+    {
+        ProbeForWrite(a3, v4, 4u);
+        memset(a3, 0, v4);
+        v9 = (v4 - 632) / 0x270 + 1;
+        *(_DWORD *)a3 = 0;
+        v10 = (_QWORD *)*v7;
+        v11 = MmSystemRangeStart;
+        if (*v7 > (unsigned __int64)MmSystemRangeStart && v10 != v7)
+        {
+            v12 = 0;
+            if (v8 >= 0x60028)
+            {
+                v20 = (unsigned __int64)(v10 - 154);
+                if (v8 >= 0x60053)
+                {
+                    while (v12 < 0x1000 && v20 > (unsigned __int64)v11 && CheckMemoryValid((void *)v20) == 1 && (_DWORD)v9)
+                    {
+                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 2] = v20;
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 4] = *(_DWORD *)(v20 + 560);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 5] = *(_DWORD *)(v20 + 1120);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 6] = *(unsigned __int8 *)(v20 + 1216);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 7] = *(_DWORD *)(v20 + 528);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 8] = *(_DWORD *)(v20 + 532);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 9] = *(_DWORD *)(v20 + 536);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 10] = *(_DWORD *)(v20 + 564);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 11] = *(_DWORD *)(v20 + 1220);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 12] = *(_DWORD *)(v20 + 1224);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 13] = *(_DWORD *)(v20 + 1192);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 14] = *(_DWORD *)(v20 + 1112);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 23] = *(_DWORD *)(v20 + 4);
+                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 154] = *(_QWORD *)(v20 + 1320);
+                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 156] = *(_QWORD *)(v20 + 1328);
+                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 15] = *(_OWORD *)(v20 + 540);
+                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 19] = *(_OWORD *)(v20 + 580);
+                        v27 = *(_WORD *)(v20 + 8);
+                        v28 = (unsigned int)*(_DWORD *)a3;
+                        if (v27 >= 0x200u)
+                        {
+                            v29 = &((_OWORD *)((_DWORD *)a3 + 156 * v28))[24];
+                            v30 = (_OWORD *)(v20 + 10);
+                            v31 = 4;
+                            do
+                            {
+                                *v29 = *v30;
+                                v29[1] = v30[1];
+                                v29[2] = v30[2];
+                                v29[3] = v30[3];
+                                v29[4] = v30[4];
+                                v29[5] = v30[5];
+                                v29[6] = v30[6];
+                                v29 += 8;
+                                *(v29 - 1) = v30[7];
+                                v30 += 8;
+                                --v31;
+                            }
+                            while (v31);
+                        }
+                        else
+                        {
+                            memmove(&((_DWORD *)a3)[156 * v28 + 24], (const void *)(v20 + 10), v27);
+                        }
+                        ++*(_DWORD *)a3;
+                        LODWORD(v9) = v9 - 1;
+                        v32 = *(_QWORD *)(v20 + 1232);
+                        if ((_QWORD *)v32 == v7)
+                            break;
+                        v11 = MmSystemRangeStart;
+                        if (v32 <= (unsigned __int64)MmSystemRangeStart)
+                            break;
+                        v20 = v32 - 1232;
+                        ++v12;
+                    }
+                }
+                else
+                {
+                    while (v12 < 0x1000 && v20 > (unsigned __int64)v11 && CheckMemoryValid((void *)v20) == 1 && (_DWORD)v9)
+                    {
+                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 2] = v20;
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 4] = *(_DWORD *)(v20 + 560);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 5] = *(_DWORD *)(v20 + 1120);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 6] = *(unsigned __int8 *)(v20 + 1216);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 7] = *(_DWORD *)(v20 + 528);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 8] = *(_DWORD *)(v20 + 532);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 9] = *(_DWORD *)(v20 + 536);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 10] = *(_DWORD *)(v20 + 564);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 11] = *(_DWORD *)(v20 + 1220);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 12] = *(_DWORD *)(v20 + 1224);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 13] = *(_DWORD *)(v20 + 1192);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 14] = *(_DWORD *)(v20 + 1112);
+                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 23] = *(_DWORD *)(v20 + 4);
+                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 154] = *(_QWORD *)(v20 + 1320);
+                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 156] = *(_QWORD *)(v20 + 1328);
+                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 15] = *(_OWORD *)(v20 + 540);
+                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 19] = *(_OWORD *)(v20 + 580);
+                        v21 = *(_WORD *)(v20 + 8);
+                        v22 = (unsigned int)*(_DWORD *)a3;
+                        if (v21 >= 0x200u)
+                        {
+                            v23 = &((_OWORD *)((_DWORD *)a3 + 156 * v22))[24];
+                            v24 = (_OWORD *)(v20 + 10);
+                            v25 = 4;
+                            do
+                            {
+                                *v23 = *v24;
+                                v23[1] = v24[1];
+                                v23[2] = v24[2];
+                                v23[3] = v24[3];
+                                v23[4] = v24[4];
+                                v23[5] = v24[5];
+                                v23[6] = v24[6];
+                                v23 += 8;
+                                *(v23 - 1) = v24[7];
+                                v24 += 8;
+                                --v25;
+                            }
+                            while (v25);
+                        }
+                        else
+                        {
+                            memmove(&((_DWORD *)a3)[156 * v22 + 24], (const void *)(v20 + 10), v21);
+                        }
+                        ++*(_DWORD *)a3;
+                        LODWORD(v9) = v9 - 1;
+                        v26 = *(_QWORD *)(v20 + 1232);
+                        if ((_QWORD *)v26 == v7)
+                            break;
+                        v11 = MmSystemRangeStart;
+                        if (v26 <= (unsigned __int64)MmSystemRangeStart)
+                            break;
+                        v20 = v26 - 1232;
+                        ++v12;
+                    }
+                }
+            }
+            else
+            {
+                v13 = (unsigned __int64)(v10 - 1);
+                while (v12 < 0x1000 && v13 > (unsigned __int64)v11 && CheckMemoryValid((void *)v13) == 1 && (_DWORD)v9)
+                {
+                    *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 2] = v13;
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 4] = *(_DWORD *)(v13 + 708);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 5] = *(_DWORD *)(v13 + 1264);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 6] = *(unsigned __int8 *)(v13 + 1360);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 7] = *(_DWORD *)(v13 + 676);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 8] = *(_DWORD *)(v13 + 680);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 9] = *(_DWORD *)(v13 + 684);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 10] = *(_DWORD *)(v13 + 712);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 11] = *(_DWORD *)(v13 + 1364);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 12] = *(_DWORD *)(v13 + 1368);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 13] = *(_DWORD *)(v13 + 1336);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 14] = *(_DWORD *)(v13 + 1256);
+                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 23] = *(_DWORD *)(v13 + 152);
+                    *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 154] = *(_QWORD *)(v13 + 96);
+                    *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 156] = *(_QWORD *)(v13 + 104);
+                    *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 15] = *(_OWORD *)(v13 + 688);
+                    *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 19] = *(_OWORD *)(v13 + 724);
+                    v14 = *(_WORD *)(v13 + 156);
+                    v15 = (unsigned int)*(_DWORD *)a3;
+                    if (v14 >= 0x200u)
+                    {
+                        v16 = &((_OWORD *)((_DWORD *)a3 + 156 * v15))[24];
+                        v17 = (_OWORD *)(v13 + 158);
+                        v18 = 4;
+                        do
+                        {
+                            *v16 = *v17;
+                            v16[1] = v17[1];
+                            v16[2] = v17[2];
+                            v16[3] = v17[3];
+                            v16[4] = v17[4];
+                            v16[5] = v17[5];
+                            v16[6] = v17[6];
+                            v16 += 8;
+                            *(v16 - 1) = v17[7];
+                            v17 += 8;
+                            --v18;
+                        }
+                        while (v18);
+                    }
+                    else
+                    {
+                        memmove(&((_DWORD *)a3)[156 * v15 + 24], (const void *)(v13 + 158), v14);
+                    }
+                    ++*(_DWORD *)a3;
+                    LODWORD(v9) = v9 - 1;
+                    v19 = *(_QWORD *)(v13 + 8);
+                    if ((_QWORD *)v19 == v7)
+                        break;
+                    v11 = MmSystemRangeStart;
+                    if (v19 <= (unsigned __int64)MmSystemRangeStart)
+                        break;
+                    v13 = v19 - 8;
+                    ++v12;
+                }
+            }
+        }
+        return *(_DWORD *)a3 != 0;
+    }
+    return v6;
+}
+
+// =======================================================================
 // 以下函数已移至其他源文件实现（此处仅保留注释）：
 // FindKernelDataSectionOffsetWin7 — SSDT.c
 // FindKernelDataSectionOffsetWin10 — SSDT.c

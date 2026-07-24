@@ -4,7 +4,7 @@
 #include "..\inc\XPCHunterDrv.h"
 
 // 前向声明（函数实现位于文件末尾，供 CleanupThreadWithBuffer 调用）
-void RemoveOplockNodeByQwordKey(const ULONG64 **KeyArray, ULONG Offset, __int64 Context);
+const ULONG64 *RemoveOplockNodeByQwordKey(const ULONG64 **KeyArray, ULONG Offset, __int64 Context);
 __int64 FindSystemRootEntry(_DWORD *ThreadInfoTable);
 void EnumerateVadIterativeV2(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *a3, unsigned int a4);
 void EnumerateVadRecursiveV2(_QWORD *VirtualAddress, int Level, _DWORD *a3, unsigned int a4);
@@ -332,8 +332,50 @@ char MiniFilterOpLockPost(PRKPROCESS ProcessObject, char IsQwordKey, __int64 Con
 
 // RemoveOplockNodeByDwordKey — 通过 DWORD 键移除 Oplock 节点
 // 对应原始驱动 sub_14001A798
-void RemoveOplockNodeByDwordKey(unsigned int *KeyArray, ULONG Offset, __int64 Context)
+// 遍历双向链表查找匹配 Context 键值的条目，从链表中摘除并重新连接前后指针
+ULONG64 RemoveOplockNodeByDwordKey(unsigned int *KeyArray, ULONG Offset, __int64 Context)
 {
+    unsigned int *CurrentEntry;
+    unsigned int LoopCount;
+    ULONG64 EntryBase;
+    ULONG64 NextEntry;
+    ULONG64 PrevEntry;
+
+    CurrentEntry = (unsigned int *)*KeyArray;
+    for (LoopCount = 0; ; LoopCount++)
+    {
+        if (CurrentEntry == KeyArray)
+            break;
+        if (LoopCount > 0x1000)
+            break;
+        EntryBase = (ULONG64)CurrentEntry - Offset;
+        if (EntryBase >= MmUserProbeAddress)
+            break;
+        if (EntryBase + 72 >= MmUserProbeAddress)
+            break;
+        if (Context == *(unsigned int *)(EntryBase + 24))
+        {
+            NextEntry = *CurrentEntry;
+            if (NextEntry < MmUserProbeAddress)
+            {
+                if (NextEntry + 8 < MmUserProbeAddress)
+                {
+                    PrevEntry = CurrentEntry[1];
+                    if (PrevEntry < MmUserProbeAddress)
+                    {
+                        if (PrevEntry + 8 < MmUserProbeAddress)
+                        {
+                            *(_DWORD *)(*CurrentEntry + 4) = (unsigned int)PrevEntry;
+                            *(_DWORD *)CurrentEntry[1] = (unsigned int)*CurrentEntry;
+                        }
+                    }
+                }
+            }
+            return NextEntry;
+        }
+        CurrentEntry = (unsigned int *)*CurrentEntry;
+    }
+    return (ULONG64)CurrentEntry;
 }
 
 // EnumProcessThreadInfo — 枚举进程线程信息
@@ -792,8 +834,50 @@ void NormalizeRelativePath(WORD *Path)
 
 // RemoveOplockNodeByQwordKey — 通过 QWORD 键移除 Oplock 节点
 // 对应原始驱动 sub_14001A82C
-void RemoveOplockNodeByQwordKey(const ULONG64 **KeyArray, ULONG Offset, __int64 Context)
+// 遍历双向链表查找匹配 Context 键值的条目，从链表中摘除并重新连接前后指针
+const ULONG64 *RemoveOplockNodeByQwordKey(const ULONG64 **KeyArray, ULONG Offset, __int64 Context)
 {
+    const ULONG64 *CurrentEntry;
+    unsigned int LoopCount;
+    ULONG64 EntryBase;
+    const ULONG64 *NextEntry;
+    ULONG64 PrevEntry;
+
+    CurrentEntry = *KeyArray;
+    for (LoopCount = 0; ; LoopCount++)
+    {
+        if (CurrentEntry == (const ULONG64 *)KeyArray)
+            break;
+        if (LoopCount > 0x1000)
+            break;
+        EntryBase = (ULONG64)CurrentEntry - Offset;
+        if (EntryBase >= MmUserProbeAddress)
+            break;
+        if (EntryBase + 136 >= MmUserProbeAddress)
+            break;
+        if (Context == *(_QWORD *)(EntryBase + 48))
+        {
+            NextEntry = (const ULONG64 *)*CurrentEntry;
+            if (*CurrentEntry < MmUserProbeAddress)
+            {
+                if ((unsigned __int64)(NextEntry + 2) < MmUserProbeAddress)
+                {
+                    PrevEntry = CurrentEntry[1];
+                    if (PrevEntry < MmUserProbeAddress)
+                    {
+                        if (PrevEntry + 16 < MmUserProbeAddress)
+                        {
+                            *((_QWORD *)NextEntry + 1) = PrevEntry;
+                            **((_QWORD **)CurrentEntry + 1) = *CurrentEntry;
+                        }
+                    }
+                }
+            }
+            return NextEntry;
+        }
+        CurrentEntry = (const ULONG64 *)*CurrentEntry;
+    }
+    return CurrentEntry;
 }
 
 // FindThreadEntry — 查找线程条目是否已存在

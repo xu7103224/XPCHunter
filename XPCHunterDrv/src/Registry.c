@@ -179,8 +179,84 @@ NTSTATUS RegNotifyCallback(PVOID CallbackContext, PVOID Argument1, PVOID Argumen
 
 // RegisterMiniFilterRegistry — 注册 Minifilter 注册表项
 // 对应原始驱动 sub_140018F4C
+// 在驱动注册表路径下创建 Instances 和 Instances\1 子键，设置 Altitude=315000、Flags=0 等标准 minifilter 注册表配置
 void RegisterMiniFilterRegistry(void)
 {
+    const WCHAR *RegPath;
+    WCHAR *RegPathBuffer;
+    unsigned int StringLength;
+    unsigned int PathLength;
+    WCHAR *AllocBuffer;
+    WCHAR *InstancePath;
+    struct _UNICODE_STRING DestinationString;
+    struct _OBJECT_ATTRIBUTES ObjectAttributes;
+    int Data;
+    void *KeyHandle;
+    HANDLE Handle;
+
+    RegPath = (const WCHAR *)GtRead(GtRegPathStringPtr);
+    RegPathBuffer = (WCHAR *)RegPath;
+    if (RegPath)
+    {
+        RtlInitUnicodeString(&DestinationString, RegPath);
+        memset(&ObjectAttributes.SecurityDescriptor, 0, sizeof(ObjectAttributes) - 24);
+        ObjectAttributes.ObjectName = &DestinationString;
+        ObjectAttributes.Length = 48;
+        ObjectAttributes.RootDirectory = 0;
+        ObjectAttributes.Attributes = 576;
+        if (ZwCreateKey(&KeyHandle, 0xF003F, &ObjectAttributes, 0, 0, 0, 0) >= 0)
+            ZwClose(KeyHandle);
+        StringLength = GetStringLength((_WORD *)RegPathBuffer);
+        if (StringLength)
+        {
+            if (StringLength + 200 >= StringLength)
+            {
+                PathLength = 2 * StringLength;
+                if (2 * StringLength > StringLength)
+                {
+                    AllocBuffer = (WCHAR *)ExAlloc(PagedPool, PathLength + 200);
+                    InstancePath = AllocBuffer;
+                    if (AllocBuffer)
+                    {
+                        memmove(AllocBuffer, RegPathBuffer, PathLength);
+                        WStringCopy((__int16 *)&InstancePath[(unsigned __int64)PathLength >> 1], L"\\Instances");
+                        RtlInitUnicodeString(&DestinationString, InstancePath);
+                        memset(&ObjectAttributes.SecurityDescriptor, 0, sizeof(ObjectAttributes) - 24);
+                        ObjectAttributes.ObjectName = &DestinationString;
+                        ObjectAttributes.Length = 48;
+                        ObjectAttributes.RootDirectory = 0;
+                        ObjectAttributes.Attributes = 576;
+                        if (ZwCreateKey(&KeyHandle, 0xF003F, &ObjectAttributes, 0, 0, 0, 0) >= 0)
+                        {
+                            RtlInitUnicodeString(&DestinationString, L"DefaultInstance");
+                            if (ZwSetValueKey(KeyHandle, &DestinationString, 0, 1, L"1", 4) >= 0)
+                            {
+                                memmove(InstancePath, RegPathBuffer, PathLength);
+                                WStringCopy((__int16 *)&InstancePath[(unsigned __int64)PathLength >> 1], L"\\Instances\\1");
+                                RtlInitUnicodeString(&DestinationString, InstancePath);
+                                memset(&ObjectAttributes.SecurityDescriptor, 0, sizeof(ObjectAttributes) - 24);
+                                ObjectAttributes.ObjectName = &DestinationString;
+                                ObjectAttributes.Length = 48;
+                                ObjectAttributes.RootDirectory = 0;
+                                ObjectAttributes.Attributes = 576;
+                                if (ZwCreateKey(&Handle, 0xF003F, &ObjectAttributes, 0, 0, 0, 0) >= 0)
+                                {
+                                    RtlInitUnicodeString(&DestinationString, L"Altitude");
+                                    ZwSetValueKey(Handle, &DestinationString, 0, 1, L"315000", 14);
+                                    RtlInitUnicodeString(&DestinationString, L"Flags");
+                                    Data = 0;
+                                    ZwSetValueKey(Handle, &DestinationString, 0, 4, &Data, 4);
+                                    ZwClose(Handle);
+                                }
+                            }
+                            ZwClose(KeyHandle);
+                        }
+                        ExFree(InstancePath);
+                    }
+                }
+            }
+        }
+    }
 }
 
 // InitRegistryCallback — 初始化注册表回调

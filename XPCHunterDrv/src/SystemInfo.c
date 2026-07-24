@@ -289,8 +289,12 @@ _WORD *BuildDriversPath(void)
 
 // RestoreCr0WriteProtect — 恢复 CR0 写保护
 // 对应原始驱动 sub_1400015B8
-void RestoreCr0WriteProtect(void)
+// 从 pOldCr0 恢复之前保存的值
+unsigned __int64 RestoreCr0WriteProtect(unsigned __int64 *pOldCr0)
 {
+    unsigned __int64 OldCr0 = *pOldCr0;
+    __writecr0(OldCr0);
+    return OldCr0;
 }
 
 // InitSystemPath — 初始化系统路径
@@ -611,8 +615,23 @@ __int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult)
 }
 
 // InitDriverModuleParsing -- 初始化驱动模块解析
+// 对应原始驱动 sub_140087D80
+// 读取 WDF 加载器模块，解析驱动初始化节区中的系统调用表描述符
 void InitDriverModuleParsing(void)
 {
+    __int64 v0;
+    unsigned int FileBufferSize;
+    void *FileBuffer;
+
+    v0 = GtRead(GtExReleaseFastMutex);
+    if (v0)
+    {
+        if (ReadWdfLoaderModule(&FileBuffer, &FileBufferSize))
+        {
+            ParseDriverInitSection((__int64)FileBuffer, FileBufferSize, v0);
+            ExFree(FileBuffer);
+        }
+    }
 }
 
 // ReadWdfLoaderModule -- 读取 WDF Loader 模块
