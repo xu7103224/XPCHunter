@@ -1,6 +1,7 @@
 // ContextMgmt.c — 上下文/回调管理函数
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 #include "..\inc\XPCHunterDrv.h"
+#pragma warning(disable:4700)
 
 // BuildCallbackContextHookTargets
 void BuildCallbackContextHookTargets(void)
@@ -137,28 +138,28 @@ __int64 CopyHookEntryArray(__int64 DestBuffer, _QWORD *pSourceArray, unsigned in
 // CopyKernelArrayToUserBuffer — 复制内核数组到用户缓冲区
 // 对应原始驱动 sub_14006BC78
 // 读取 GT 1973/1974，将内核数组（8 字节/项）复制到用户缓冲区
-__int64 CopyKernelArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, unsigned int a4)
+__int64 CopyKernelArrayToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, unsigned int *pOutputBuffer, unsigned int BufferSize)
 {
-    char *v7 = (char *)GtRead(GtEprocessExtField58|GtEprocessField27|0x400);
-    if (!v7)
+    char *pContextArray = (char *)GtRead(GtEprocessExtField58|GtEprocessField27|0x400);
+    if (!pContextArray)
     {
         InitKernelMemoryContext();
-        v7 = (char *)GtRead(GtEprocessExtField58|GtEprocessField27|0x400);
+        pContextArray = (char *)GtRead(GtEprocessExtField58|GtEprocessField27|0x400);
     }
-    unsigned int v9 = (unsigned int)GtRead(GtEprocessExtField58|GtEprocessField28|0x400);
+    unsigned int EntryCount = (unsigned int)GtRead(GtEprocessExtField58|GtEprocessField28|0x400);
 
-    if (v7 && v9 && v7 > (char *)MmSystemRangeStart && v9 < 0x100
-        && CheckMemoryValid(v7) == 1
-        && CheckMemoryValid(&v7[8 * v9 - 1]) == 1
-        && a3
-        && a4 >= 8 * (unsigned __int64)(v9 - 1) + 16
-        && (unsigned __int64)a3 < MmUserProbeAddress
-        && (unsigned __int64)a3 + a4 < MmUserProbeAddress)
+    if (pContextArray && EntryCount && pContextArray > (char *)MmSystemRangeStart && EntryCount < 0x100
+        && CheckMemoryValid(pContextArray) == 1
+        && CheckMemoryValid(&pContextArray[8 * EntryCount - 1]) == 1
+        && pOutputBuffer
+        && BufferSize >= 8 * (unsigned __int64)(EntryCount - 1) + 16
+        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)pOutputBuffer + BufferSize < MmUserProbeAddress)
     {
-        ProbeForWrite(a3, a4, 8u);
-        memset(a3, 0, a4);
-        *a3 = v9;
-        memmove(a3 + 2, v7, 8LL * v9);
+        ProbeForWrite(pOutputBuffer, BufferSize, 8u);
+        memset(pOutputBuffer, 0, BufferSize);
+        *pOutputBuffer = EntryCount;
+        memmove(pOutputBuffer + 2, pContextArray, 8LL * EntryCount);
         return 1;
     }
     return 0;
@@ -167,44 +168,44 @@ __int64 CopyKernelArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, un
 // CopyKernelDualArrayToUserBuffer — 复制内核双数组到用户缓冲区
 // 对应原始驱动 sub_14006BDA4
 // 将内核内存的双数组（两个并排数组，8 字节/项）复制到用户缓冲区
-__int64 CopyKernelDualArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, unsigned int a4)
+__int64 CopyKernelDualArrayToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, unsigned int *pOutputBuffer, unsigned int BufferSize)
 {
-    char *v7 = (char *)GtRead(GtEprocessExtField48|GtEprocessField54|0x400);
-    if (!v7)
+    char *pContextArray = (char *)GtRead(GtEprocessExtField48|GtEprocessField54|0x400);
+    if (!pContextArray)
     {
         InitKernelMemoryContext();
-        v7 = (char *)GtRead(GtEprocessExtField48|GtEprocessField54|0x400);
+        pContextArray = (char *)GtRead(GtEprocessExtField48|GtEprocessField54|0x400);
     }
-    unsigned int v9 = (unsigned int)GtRead(GtEprocessExtField47|GtEprocessField54|0x400);
-    if (!v7 || !v9)
+    unsigned int EntryCount = (unsigned int)GtRead(GtEprocessExtField47|GtEprocessField54|0x400);
+    if (!pContextArray || !EntryCount)
         return 0;
-    if (v7 <= (char *)MmSystemRangeStart || v9 >= 0x100)
+    if (pContextArray <= (char *)MmSystemRangeStart || EntryCount >= 0x100)
         return 0;
-    if (CheckMemoryValid(v7) != 1)
+    if (CheckMemoryValid(pContextArray) != 1)
         return 0;
-    __int64 MaxCount = 8LL * v9;
-    char *v10 = &v7[MaxCount];
-    if (CheckMemoryValid(&v7[MaxCount - 1]) != 1)
+    __int64 MaxCount = 8LL * EntryCount;
+    char *pSecondArray = &pContextArray[MaxCount];
+    if (CheckMemoryValid(&pContextArray[MaxCount - 1]) != 1)
         return 0;
-    if (!a3)
+    if (!pOutputBuffer)
         return 0;
-    unsigned int v11 = v9 - 1;
-    if (a4 < 8 * (unsigned __int64)(v9 - 1) + 16)
+    unsigned int LastIndex = EntryCount - 1;
+    if (BufferSize < 8 * (unsigned __int64)(EntryCount - 1) + 16)
         return 0;
-    if ((unsigned __int64)a3 >= MmUserProbeAddress || (unsigned __int64)a3 + a4 >= MmUserProbeAddress)
+    if ((unsigned __int64)pOutputBuffer >= MmUserProbeAddress || (unsigned __int64)pOutputBuffer + BufferSize >= MmUserProbeAddress)
         return 0;
-    ProbeForWrite(a3, a4, 8u);
-    memset(a3, 0, a4);
-    *a3 = v9;
+    ProbeForWrite(pOutputBuffer, BufferSize, 8u);
+    memset(pOutputBuffer, 0, BufferSize);
+    *pOutputBuffer = EntryCount;
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
     {
-        memmove(a3 + 2, v7, MaxCount);
+        memmove(pOutputBuffer + 2, pContextArray, MaxCount);
     }
     else
     {
-        memmove(a3 + 2, v7, 8LL * v11);
-        if (CheckMemoryValid(v10) == 1)
-            *(_QWORD *)&a3[2 * v11 + 2] = *(_QWORD *)v10;
+        memmove(pOutputBuffer + 2, pContextArray, 8LL * LastIndex);
+        if (CheckMemoryValid(pSecondArray) == 1)
+            *(_QWORD *)&pOutputBuffer[2 * LastIndex + 2] = *(_QWORD *)pSecondArray;
     }
     return 1;
 }
@@ -390,16 +391,16 @@ __int64 CopyProcessContextV3HookTable(__int64 pSourceTable)
 // 打开 usbport.sys 驱动节区，遍历 28 项服务表填充索引和函数地址
 __int64 CopyUSBPortServiceTable(__int64 pOutputBuffer)
 {
-    __int64 v3 = OpenUSBPortSection();
-    if (v3)
+    __int64 ContextBase = OpenUSBPortSection();
+    if (ContextBase)
     {
-        _QWORD *v4 = (_QWORD *)(v3 + 112);
-        for (unsigned int v2 = 0; v2 <= 0x1B; v2++)
+        _QWORD *pFuncEntry = (_QWORD *)(ContextBase + 112);
+        for (unsigned int EntryIndex = 0; EntryIndex <= 0x1B; EntryIndex++)
         {
-            *(_DWORD *)pOutputBuffer = v2;
-            *(_QWORD *)(pOutputBuffer + 16) = *v4;
+            *(_DWORD *)pOutputBuffer = EntryIndex;
+            *(_QWORD *)(pOutputBuffer + 16) = *pFuncEntry;
             pOutputBuffer += 48;
-            ++v4;
+            ++pFuncEntry;
         }
         return 1;
     }
@@ -424,22 +425,22 @@ __int64 DecryptProcessContextStr(void)
 // 对应原始驱动 sub_1400559FC
 __int64 DuplicateUSBPortSyscallOutput(__int64 pSourceTable)
 {
-    __int64 *v3 = GtAlloc((GLOBAL_TABLE_INDEX)15824);
-    char *v5 = (char *)v3 + 4;
-    __int64 v6 = pSourceTable - (__int64)v3;
-    char v2 = 0;
-    for (int v4 = 28; v4; v4--)
+    __int64 *pDestTable = GtAlloc((GLOBAL_TABLE_INDEX)15824);
+    char *pDestSlot = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+    char Result = 0;
+    for (int EntryCount = 28; EntryCount; EntryCount--)
     {
-        *(_DWORD *)&v5[v6] = *(_DWORD *)v5;
-        if (*(_DWORD *)v5 && *((_DWORD *)v5 - 1) == 1)
+        *(_DWORD *)&pDestSlot[DeltaOffset] = *(_DWORD *)pDestSlot;
+        if (*(_DWORD *)pDestSlot && *((_DWORD *)pDestSlot - 1) == 1)
         {
-            v2 = 1;
-            *(_QWORD *)&v5[v6 + 4] = *(_QWORD *)(v5 + 4);
-            *(_OWORD *)&v5[v6 + 22] = *(_OWORD *)(v5 + 12);
+            Result = 1;
+            *(_QWORD *)&pDestSlot[DeltaOffset + 4] = *(_QWORD *)(pDestSlot + 4);
+            *(_OWORD *)&pDestSlot[DeltaOffset + 22] = *(_OWORD *)(pDestSlot + 12);
         }
-        v5 += 48;
+        pDestSlot += 48;
     }
-    return v2;
+    return Result;
 }
 
 // EnumCallbackContextTable — 枚举回调上下文表
@@ -722,19 +723,19 @@ __int64 EnumProcessContextV3TableWin7(__int64 pOutputTable)
 // 对应原始驱动 sub_140057014
 __int64 EnumThreadContextTable(__int64 OutputBuffer)
 {
-    __int64 v3 = OpenVolumeDriverSection();
-    if (v3)
+    __int64 ContextBase = OpenVolumeDriverSection();
+    if (ContextBase)
     {
-        _QWORD *v4 = (_QWORD *)(v3 + 112);
-        unsigned int v2 = 0;
+        _QWORD *pFuncEntry = (_QWORD *)(ContextBase + 112);
+        unsigned int EntryIndex = 0;
         do
         {
-            *(_DWORD *)OutputBuffer = v2++;
-            *(_QWORD *)(OutputBuffer + 16) = *v4;
+            *(_DWORD *)OutputBuffer = EntryIndex++;
+            *(_QWORD *)(OutputBuffer + 16) = *pFuncEntry;
             OutputBuffer += 48;
-            ++v4;
+            ++pFuncEntry;
         }
-        while (v2 <= 0x1B);
+        while (EntryIndex <= 0x1B);
         return 1;
     }
     return 0;
@@ -1124,15 +1125,15 @@ __int64 SetSyscallContextByIndex(ULONG *pInputEntry)
 
 // SetUSBPortServiceTableEntry — 设置 USB 端口服务表条目
 // 对应原始驱动 sub_140055C78
-__int64 SetUSBPortServiceTableEntry(ULONG *a1)
+__int64 SetUSBPortServiceTableEntry(ULONG *pInputEntry)
 {
-    __int64 v3 = OpenUSBPortSection();
-    if (v3)
+    __int64 ContextBase = OpenUSBPortSection();
+    if (ContextBase)
     {
-        unsigned int v4 = *a1;
-        if (v4 <= 0x1B)
+        unsigned int SlotIndex = *pInputEntry;
+        if (SlotIndex <= 0x1B)
         {
-            WritePhysicalMemoryQword(v3 + 8 * v4 + 112, *((__int64 *)a1 + 1));
+            WritePhysicalMemoryQword(ContextBase + 8 * SlotIndex + 112, *((__int64 *)pInputEntry + 1));
             return 1;
         }
     }
@@ -1226,29 +1227,29 @@ __int64 ValidateFsFilterEntries(__int64 FilterContext)
 
 // ValidateSingleHookEntry — 验证单个钩子条目
 // 对应原始驱动 sub_140085ADC
-__int64 ValidateSingleHookEntry(__int64 a1)
+__int64 ValidateSingleHookEntry(__int64 pEntry)
 {
-    __int64 v2 = *(_QWORD *)(a1 + 8);
-    if (v2)
+    __int64 pTargetFunc = *(_QWORD *)(pEntry + 8);
+    if (pTargetFunc)
     {
-        if (v2 != *(_QWORD *)(a1 + 16))
-            *(_BYTE *)a1 = 1;
-        if (CheckMemoryValid((void *)(v2 + 15)) == 1)
+        if (pTargetFunc != *(_QWORD *)(pEntry + 16))
+            *(_BYTE *)pEntry = 1;
+        if (CheckMemoryValid((void *)(pTargetFunc + 15)) == 1)
         {
-            if ((unsigned int)MemoryCompare(*(_QWORD *)(a1 + 8), (char *)(a1 + 24), 0x10u))
+            if ((unsigned int)MemoryCompare(*(_QWORD *)(pEntry + 8), (char *)(pEntry + 24), 0x10u))
             {
-                char IsOriginal = *(_BYTE *)a1 == 0;
-                *(_BYTE *)(a1 + 1) = 1;
+                char IsOriginal = *(_BYTE *)pEntry == 0;
+                *(_BYTE *)(pEntry + 1) = 1;
                 if (IsOriginal)
                 {
                     unsigned int i;
                     for (i = 0; i < 0x10; i++)
                     {
-                        if (!CheckMemoryValid((void *)(*(_QWORD *)(a1 + 8) + i)))
+                        if (!CheckMemoryValid((void *)(*(_QWORD *)(pEntry + 8) + i)))
                             break;
                     }
                     if (i && ReturnFalseStub() == 1)
-                        *(_QWORD *)(a1 + 16) = *(unsigned int *)(a1 + 12);
+                        *(_QWORD *)(pEntry + 16) = *(unsigned int *)(pEntry + 12);
                 }
             }
         }
@@ -1316,15 +1317,15 @@ __int64 WriteProcessContextEntryWin7(ULONG *pInputEntry)
 
 // WriteThreadContextEntryWin10 — 写入线程上下文条目（Win10）
 // 对应原始驱动 sub_14005742C
-__int64 WriteThreadContextEntryWin10(ULONG *a1)
+__int64 WriteThreadContextEntryWin10(ULONG *pInputEntry)
 {
-    __int64 v3 = OpenVolumeDriverSection();
-    if (v3)
+    __int64 ContextBase = OpenVolumeDriverSection();
+    if (ContextBase)
     {
-        unsigned int v4 = *a1;
-        if (v4 <= 0x1B)
+        unsigned int EntryIndex = *pInputEntry;
+        if (EntryIndex <= 0x1B)
         {
-            WritePhysicalMemoryQword(v3 + 8 * v4 + 112, *((__int64 *)a1 + 1));
+            WritePhysicalMemoryQword(ContextBase + 8 * EntryIndex + 112, *((__int64 *)pInputEntry + 1));
             return 1;
         }
     }
@@ -1593,7 +1594,7 @@ __int64 LookupMsrTableEntry(void)
     unsigned int LoopIndex;
     int Dst[16];
     __int64 PeContext;
-    char EntryBuffer[64];
+    char EntryBuffer[80];
 
     Result = 0;
     ImageBase = GtRead(GtNtoskrnlPeFileBase);
@@ -1762,7 +1763,7 @@ __int64 ParseMsrRelatedSections(void)
     unsigned int Offset1;
     unsigned int Offset2;
     __int64 PeContext;
-    char EntryBuffer[64];
+    char EntryBuffer[80];
 
     Result = 0;
     ImageBase = GtRead(0x20);
@@ -1893,7 +1894,7 @@ __int64 ParseMsrTableFromSections(void)
     unsigned int Offset1;
     unsigned int Offset2;
     __int64 PeContext;
-    char EntryBuffer[64];
+    char EntryBuffer[80];
 
     Result = 0;
     ImageBase = GtRead(0x20);
@@ -2044,20 +2045,20 @@ __int64 ResolveStreamHandleContext(void)
 __int64 GetSystemRootForThread(PRKPROCESS PROCESS)
 {
     __int64 SystemRootEntry;
-    int *v3;
-    int *v4;
+    int *pAllocBuffer;
+    int *pBuffer;
 
     SystemRootEntry = 0;
-    v3 = (int *)ExAlloc(PagedPool, 0x200000u);
-    v4 = v3;
-    if (v3)
+    pAllocBuffer = (int *)ExAlloc(PagedPool, 0x200000u);
+    pBuffer = pAllocBuffer;
+    if (pAllocBuffer)
     {
-        memset(v3, 0, 0x200000u);
-        *v4 = 0;
-        EnumProcessThreadInfo(PROCESS, 1, v4, 0x200000u);
-        EnumProcessThreadInfo(PROCESS, 0, v4, 0x200000u);
-        SystemRootEntry = FindSystemRootEntry(v4);
-        ExFree(v4);
+        memset(pAllocBuffer, 0, 0x200000u);
+        *pBuffer = 0;
+        EnumProcessThreadInfo(PROCESS, 1, pBuffer, 0x200000u);
+        EnumProcessThreadInfo(PROCESS, 0, pBuffer, 0x200000u);
+        SystemRootEntry = FindSystemRootEntry(pBuffer);
+        ExFree(pBuffer);
     }
     return SystemRootEntry;
 }

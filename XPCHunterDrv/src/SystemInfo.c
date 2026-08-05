@@ -116,11 +116,11 @@ ULONG64 ByteSwap64(ULONG64 Value)
 
 // ReadGdtr — 读取 GDTR 寄存器
 // 对应原始驱动 sub_14000171F
-void ReadGdtr(void *a1)
+void ReadGdtr(void *pGdtr)
 {
     // x64: Read GDT base from KPCR (offset 0x28)
-    *(unsigned short *)a1 = 0xFFFF;
-    *(unsigned __int64 *)((char *)a1 + 2) = __readgsqword(0x28);
+    *(unsigned short *)pGdtr = 0xFFFF;
+    *(unsigned __int64 *)((char *)pGdtr + 2) = __readgsqword(0x28);
 }
 
 // SystemResetCommand — 系统复位命令
@@ -367,31 +367,31 @@ void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass)
 {
     void *Buffer = NULL;
     __int64 (__fastcall *pQueryFunc)(_QWORD, PVOID, _QWORD, _QWORD) = (__int64 (__fastcall *)(_QWORD, PVOID, _QWORD, _QWORD))GtRead(GtTotalSize | GtNtQuerySystemInformationFunc | GtEprocessField58);
-    unsigned int v3 = GtRead(GtSdstServiceCount);
-    unsigned int v4 = v3;
+    unsigned int ServiceCountOffset = GtRead(GtSdstServiceCount);
+    unsigned int ThreadOffset = ServiceCountOffset;
 
-    if (pQueryFunc && v3 != -1)
+    if (pQueryFunc && ServiceCountOffset != -1)
     {
-        int v10;
-        int v5 = -1073741820;
-        unsigned int v6 = 0x4000;
+        int QueryResult;
+        int Status = -1073741820;
+        unsigned int BufferSize = 0x4000;
         do
         {
             if (Buffer)
                 ExFree(Buffer);
-            Buffer = ExAlloc(PagedPool, v6);
+            Buffer = ExAlloc(PagedPool, BufferSize);
             if (!Buffer)
                 break;
             struct _KTHREAD *CurrentThread = KeGetCurrentThread();
-            unsigned char v9 = *((unsigned __int8 *)CurrentThread + v4);
-            *((_BYTE *)CurrentThread + v4) = 0;
-            v10 = (int)pQueryFunc(SystemInformationClass, Buffer, v6, 0);
-            v6 *= 4;
-            *((_BYTE *)CurrentThread + v4) = v9;
-            v5 = v10;
+            unsigned char SavedPreviousMode = *((unsigned __int8 *)CurrentThread + ThreadOffset);
+            *((_BYTE *)CurrentThread + ThreadOffset) = 0;
+            QueryResult = (int)pQueryFunc(SystemInformationClass, Buffer, BufferSize, 0);
+            BufferSize *= 4;
+            *((_BYTE *)CurrentThread + ThreadOffset) = SavedPreviousMode;
+            Status = QueryResult;
         }
-        while (v10 == -1073741820);
-        if (v5 && Buffer)
+        while (QueryResult == -1073741820);
+        if (Status && Buffer)
         {
             ExFree(Buffer);
             return NULL;
@@ -403,7 +403,7 @@ void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass)
 // CmdQueryDiskInfo — 查询磁盘信息命令处理
 __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
 {
-    unsigned int v10, v11;
+    unsigned int Part1Size, Part2Size;
 
     if (!(unsigned int)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField135 | 0x100)))
         InitDiskQueryExportTable();
@@ -412,29 +412,29 @@ __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
         && (unsigned __int64)(Dst + Length) < MmUserProbeAddress)
     {
         ProbeForWrite(Dst, (unsigned int)Length, 1u);
-        if (!QueryDiskInfoAta(Dst, (unsigned int)Length, &v10))
+        if (!QueryDiskInfoAta(Dst, (unsigned int)Length, &Part1Size))
         {
             memset(Dst, 0, 0x38u);
-            v10 = 56;
+            Part1Size = 56;
         }
-        if ((unsigned int)Length >= v10)
+        if ((unsigned int)Length >= Part1Size)
         {
-            if ((unsigned int)Length - v10 >= 0x1C)
+            if ((unsigned int)Length - Part1Size >= 0x1C)
             {
-                if (!SendAtaScsiCommand(&Dst[v10], (unsigned int)Length - v10, &v11))
+                if (!SendAtaScsiCommand(&Dst[Part1Size], (unsigned int)Length - Part1Size, &Part2Size))
                 {
-                    *(_QWORD *)&Dst[v10] = 0;
-                    *((_QWORD *)&Dst[v10] + 1) = 0;
-                    *((_QWORD *)&Dst[v10] + 2) = 0;
-                    *((_DWORD *)&Dst[v10] + 6) = 0;
-                    v11 = 28;
+                    *(_QWORD *)&Dst[Part1Size] = 0;
+                    *((_QWORD *)&Dst[Part1Size] + 1) = 0;
+                    *((_QWORD *)&Dst[Part1Size] + 2) = 0;
+                    *((_DWORD *)&Dst[Part1Size] + 6) = 0;
+                    Part2Size = 28;
                 }
-                if ((unsigned int)Length - v10 >= v11 && (unsigned int)Length - v10 - v11 >= 0xC)
+                if ((unsigned int)Length - Part1Size >= Part2Size && (unsigned int)Length - Part1Size - Part2Size >= 0xC)
                 {
-                    if (!(unsigned __int8)BuildDevicePath(&Dst[v10 + v11], (unsigned int)Length - v10 - v11))
+                    if (!(unsigned __int8)BuildDevicePath(&Dst[Part1Size + Part2Size], (unsigned int)Length - Part1Size - Part2Size))
                     {
-                        *(_QWORD *)&Dst[v10 + v11] = 0;
-                        *((_DWORD *)&Dst[v10 + v11] + 2) = 0;
+                        *(_QWORD *)&Dst[Part1Size + Part2Size] = 0;
+                        *((_DWORD *)&Dst[Part1Size + Part2Size] + 2) = 0;
                     }
                     return 1;
                 }
@@ -447,7 +447,7 @@ __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
 // CmdQuerySystemInfoExV2 — 查询系统信息（扩展版 V2）
 __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
 {
-    unsigned int v10, v11;
+    unsigned int Part1Size, Part2Size;
 
     if (!GtRead(GtNtQuerySystemInformationFunc))
     {
@@ -460,29 +460,29 @@ __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
         && (unsigned __int64)(Dst + Length) < MmUserProbeAddress)
     {
         ProbeForWrite(Dst, (unsigned int)Length, 1u);
-        if (!QuerySystemInfoPart1(Dst, (unsigned int)Length, &v10))
+        if (!QuerySystemInfoPart1(Dst, (unsigned int)Length, &Part1Size))
         {
             memset(Dst, 0, 0x38u);
-            v10 = 56;
+            Part1Size = 56;
         }
-        if ((unsigned int)Length >= v10)
+        if ((unsigned int)Length >= Part1Size)
         {
-            if ((unsigned int)Length - v10 >= 0x1C)
+            if ((unsigned int)Length - Part1Size >= 0x1C)
             {
-                if (!QuerySystemInfoPart2(&Dst[v10], (unsigned int)Length - v10, &v11))
+                if (!QuerySystemInfoPart2(&Dst[Part1Size], (unsigned int)Length - Part1Size, &Part2Size))
                 {
-                    *(_QWORD *)&Dst[v10] = 0;
-                    *((_QWORD *)&Dst[v10] + 1) = 0;
-                    *((_QWORD *)&Dst[v10] + 2) = 0;
-                    *((_DWORD *)&Dst[v10] + 6) = 0;
-                    v11 = 28;
+                    *(_QWORD *)&Dst[Part1Size] = 0;
+                    *((_QWORD *)&Dst[Part1Size] + 1) = 0;
+                    *((_QWORD *)&Dst[Part1Size] + 2) = 0;
+                    *((_DWORD *)&Dst[Part1Size] + 6) = 0;
+                    Part2Size = 28;
                 }
-                if ((unsigned int)Length - v10 >= v11 && (unsigned int)Length - v10 - v11 >= 0xC)
+                if ((unsigned int)Length - Part1Size >= Part2Size && (unsigned int)Length - Part1Size - Part2Size >= 0xC)
                 {
-                    if (!(unsigned __int8)BuildDevicePath(&Dst[v10 + v11], (unsigned int)Length - v10 - v11))
+                    if (!(unsigned __int8)BuildDevicePath(&Dst[Part1Size + Part2Size], (unsigned int)Length - Part1Size - Part2Size))
                     {
-                        *(_QWORD *)&Dst[v10 + v11] = 0;
-                        *((_DWORD *)&Dst[v10 + v11] + 2) = 0;
+                        *(_QWORD *)&Dst[Part1Size + Part2Size] = 0;
+                        *((_DWORD *)&Dst[Part1Size + Part2Size] + 2) = 0;
                     }
                     return 1;
                 }
@@ -619,16 +619,16 @@ __int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult)
 // 读取 WDF 加载器模块，解析驱动初始化节区中的系统调用表描述符
 void InitDriverModuleParsing(void)
 {
-    __int64 v0;
+    __int64 ReleaseMutexFunc;
     unsigned int FileBufferSize;
     void *FileBuffer;
 
-    v0 = GtRead(GtExReleaseFastMutex);
-    if (v0)
+    ReleaseMutexFunc = GtRead(GtExReleaseFastMutex);
+    if (ReleaseMutexFunc)
     {
         if (ReadWdfLoaderModule(&FileBuffer, &FileBufferSize))
         {
-            ParseDriverInitSection((__int64)FileBuffer, FileBufferSize, v0);
+            ParseDriverInitSection((__int64)FileBuffer, FileBufferSize, ReleaseMutexFunc);
             ExFree(FileBuffer);
         }
     }

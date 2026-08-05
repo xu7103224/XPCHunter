@@ -16,8 +16,8 @@ __int64 GtWrite(enum _GLOBAL_TABLE_INDEX Index, __int64 Value);
 
 // 外部函数声明（在其他模块中定义，未在头文件中声明）
 char ReturnFalseStub(void);
-char ValidateEnumerationResult(__int64 a1, __int64 a2, __int64 a3);
-__int64 CallRegisteredCallback(__int64 a1, __int64 a2);
+char ValidateEnumerationResult(__int64 ObjectEntry, __int64 Context, __int64 Result);
+__int64 CallRegisteredCallback(__int64 CallbackContext, __int64 Parameter);
 
 // 本文件后向引用前向声明
 ULONG64 FindModuleInLoaderList(_QWORD **ListHead, _QWORD *TargetName);
@@ -221,42 +221,42 @@ void EnumerateProcessListEntry(_QWORD **ListHead, unsigned int Offset, __int64 O
 
 // QueryProcessInfoByHandle — 通过句柄查询进程信息
 // 对应原始驱动 sub_140070E3C
-bool QueryProcessInfoByHandle(__int64 Process, __int64 a2, __int64 a3, int a4)
+bool QueryProcessInfoByHandle(__int64 Process, __int64 Handle, __int64 InfoBuffer, int BufferSize)
 {
     bool Result = 0;
     ULONG PrevModeOffset;
     int (__fastcall *OpenObjFunc)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *);
-    _QWORD *v8;
+    _QWORD *InfoSize;
     void (__fastcall *CloseFunc)(_QWORD);
-    __int64 v10;
+    __int64 QueryFuncAddr;
     __int64 (*QueryFunc)(_QWORD, __int64 *, ULONG64, __int64 *, int, int);
     struct _KTHREAD *CurrentThread;
-    int v13, v15;
-    char v14;
-    _QWORD v17[9];
-    __int64 v18, v19;
-    int v20 = a4;
+    int PrevModeResult, QueryStatus;
+    char PrevModeValue;
+    _QWORD ObjectHandleArr[9];
+    __int64 HandleValue, InfoBufferValue;
+    int BufferSizeLocal = BufferSize;
 
-    v19 = a3;
-    v18 = a2;
+    InfoBufferValue = InfoBuffer;
+    HandleValue = Handle;
     PrevModeOffset = (ULONG)GtRead(GtSdstServiceCount);
     OpenObjFunc = (int (__fastcall *)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *))GtRead(16735);
-    v8 = (_QWORD *)GtRead(16748);
+    InfoSize = (_QWORD *)GtRead(16748);
     CloseFunc = (void (__fastcall *)(_QWORD))GtRead(GtExFreePoolFunc);
-    v10 = GtRead(16839);
-    QueryFunc = (__int64 (*)(_QWORD, __int64 *, ULONG64, __int64 *, int, int))v10;
+    QueryFuncAddr = GtRead(16839);
+    QueryFunc = (__int64 (*)(_QWORD, __int64 *, ULONG64, __int64 *, int, int))QueryFuncAddr;
 
-    if (PrevModeOffset == (ULONG)-1 || !OpenObjFunc || !v8 || !CloseFunc || !v10) return Result;
+    if (PrevModeOffset == (ULONG)-1 || !OpenObjFunc || !InfoSize || !CloseFunc || !QueryFuncAddr) return Result;
 
     CurrentThread = KeGetCurrentThread();
-    if (OpenObjFunc(Process, 512, 0, 0x10000000, *v8, 0, v17) >= 0)
+    if (OpenObjFunc(Process, 512, 0, 0x10000000, *InfoSize, 0, ObjectHandleArr) >= 0)
     {
-        v14 = *((UCHAR *)CurrentThread + PrevModeOffset);
+        PrevModeValue = *((UCHAR *)CurrentThread + PrevModeOffset);
         *((UCHAR *)CurrentThread + PrevModeOffset) = 0;
-        v15 = QueryFunc(v17[0], &v18, 0, &v19, 4096, v20);
-        *((UCHAR *)CurrentThread + PrevModeOffset) = v14;
-        Result = v15 >= 0;
-        CloseFunc(v17[0]);
+        QueryStatus = QueryFunc(ObjectHandleArr[0], &HandleValue, 0, &InfoBufferValue, 4096, BufferSizeLocal);
+        *((UCHAR *)CurrentThread + PrevModeOffset) = PrevModeValue;
+        Result = QueryStatus >= 0;
+        CloseFunc(ObjectHandleArr[0]);
     }
 
     return Result;
@@ -267,13 +267,12 @@ bool QueryProcessInfoByHandle(__int64 Process, __int64 a2, __int64 a3, int a4)
 __int64 CmdProcessMonitor(_OWORD *Address, int InputSize)
 {
     bool ProcessInfoByHandle = 0;
-    NTSTATUS v4;
-    struct _KPROCESS *v5, *v6;
+    NTSTATUS LookupStatus;
+    struct _KPROCESS *LookedUpProcess, *Result;
     PEPROCESS Process = NULL;
-    HANDLE v9[3];
-    struct _KPROCESS *v10;
-    _OWORD v11;
-    __int64 v12;
+    HANDLE ProcessId[3];
+    _OWORD ProcessIdData;
+    __int64 ProcessIdData2;
 
     if (!Address || InputSize != 40 ||
         (ULONG64)Address >= MmUserProbeAddress ||
@@ -281,20 +280,20 @@ __int64 CmdProcessMonitor(_OWORD *Address, int InputSize)
         return ProcessInfoByHandle;
 
     ProbeForRead(Address, 0x28, 4);
-    *(_OWORD *)v9 = *(_OWORD *)Address;
-    v11 = Address[1];
-    v12 = Address[2].qword[0];
+    *(_OWORD *)ProcessId = *(_OWORD *)Address;
+    ProcessIdData = Address[1];
+    ProcessIdData2 = Address[2].qword[0];
 
-    v4 = PsLookupProcessByProcessId(v9[0], &Process);
-    v5 = (struct _KPROCESS *)Process;
-    if (v4 < 0) v5 = NULL;
-    Process = (PEPROCESS)v5;
+    LookupStatus = PsLookupProcessByProcessId(ProcessId[0], &Process);
+    LookedUpProcess = (struct _KPROCESS *)Process;
+    if (LookupStatus < 0) LookedUpProcess = NULL;
+    Process = (PEPROCESS)LookedUpProcess;
 
-    v6 = (struct _KPROCESS *)((_OWORD *)v9)->qword[1];
-    if (!v6) { if (v4 >= 0) v6 = v5; v10 = v6; }
+    Result = (struct _KPROCESS *)((_OWORD *)ProcessId)->qword[1];
+    if (!Result) { if (LookupStatus >= 0) Result = LookedUpProcess; Result = Result; }
 
-    if (ValidateProcessObject(v6, NULL) == 1 && v11.qword[1])
-        ProcessInfoByHandle = QueryProcessInfoByHandle((__int64)v6, v11.qword[0], v11.qword[1], v12);
+    if (ValidateProcessObject(Result, NULL) == 1 && ProcessIdData.qword[1])
+        ProcessInfoByHandle = QueryProcessInfoByHandle((__int64)Result, ProcessIdData.qword[0], ProcessIdData.qword[1], ProcessIdData2);
 
     if (Process) ObfDereferenceObject(Process);
     return ProcessInfoByHandle;
@@ -306,15 +305,15 @@ __int64 CmdProcessMonitor(_OWORD *Address, int InputSize)
 bool EnumerateProcessList(struct _KPROCESS *Process, __int64 OutputBuffer, unsigned int BufferSize)
 {
     char Result = 0;
-    UCHAR v7;
-    _BYTE v9[8];
-    __int64 v10;
-    struct _KPROCESS *v11;
+    UCHAR ProcessRefed;
+    _BYTE ContextData[8];
+    __int64 EntryCount;
+    struct _KPROCESS *ProcessLocal;
 
     if (BufferSize <= 0x50) return Result;
 
-    v11 = Process;
-    v10 = 0;
+    ProcessLocal = Process;
+    EntryCount = 0;
     *(__int64 *)OutputBuffer = 0;
     *(__int64 *)(OutputBuffer + 8) = (__int64)Process;
     *(ULONG *)(OutputBuffer + 16) = 0;
@@ -323,19 +322,19 @@ bool EnumerateProcessList(struct _KPROCESS *Process, __int64 OutputBuffer, unsig
     {
         if (ValidateProcessObject(Process, NULL) == 1)
         {
-            v7 = ReferenceObjectSafe((__int64)Process);
+            ProcessRefed = ReferenceObjectSafe((__int64)Process);
             DispatchProcessHandleTableEnum(OutputBuffer, BufferSize,
                 (void (__fastcall *)(__int64, __int64, ULONG64, __int64))ValidateAndEnumerateObject,
-                (__int64)v9);
+                (__int64)ContextData);
             EnumerateProcessInformation((__int64)Process, OutputBuffer, BufferSize);
-            if (v7 == 1) DereferenceObjectSafe((__int64)Process);
+            if (ProcessRefed == 1) DereferenceObjectSafe((__int64)Process);
         }
     }
     else
     {
         DispatchProcessHandleTableEnum(OutputBuffer, BufferSize,
             (void (__fastcall *)(__int64, __int64, ULONG64, __int64))ValidateAndEnumerateObject,
-            (__int64)v9);
+            (__int64)ContextData);
         EnumerateProcessInformation(0, OutputBuffer, BufferSize);
     }
 
@@ -357,15 +356,14 @@ char EnumerateProcessObjects(
     struct _KPROCESS *TargetProcess;
     ULONG Field64, Field30, Field37;
     ULONG EntryIndex;
-    __int64 EntryOffset;
     __int64 ProcessId;
     char IsNewProcess;
     ULONG Field36;
     _DWORD *Entry;
-    int v28;
-    void *v29;
-    WORD v30[8];
-    __int64 v26;
+    int EntryOffset;
+    void *ObjectBuffer;
+    WORD NameBuffer[8];
+    __int64 ProcessName;
     __int64 (*GetProcessNameFunc)(struct _KPROCESS *);
     ULONG BuildNumber;
 
@@ -426,11 +424,11 @@ char EnumerateProcessObjects(
     Entry = &OutputBuffer[EntryOffset];
     LOWORD_LV(OutputBuffer[EntryOffset + 12]) = 0;
 
-    if (GetProcessImagePath(PROCESS, *(HANDLE *)&OutputBuffer[EntryOffset + 6], &v29, NULL, (char)PathFlag) == 1)
+    if (GetProcessImagePath(PROCESS, *(HANDLE *)&OutputBuffer[EntryOffset + 6], &ObjectBuffer, NULL, (char)PathFlag) == 1)
     {
-        WStringCopyN((WORD *)Entry + 24, (__int64)v29, 0x100);
+        WStringCopyN((WORD *)Entry + 24, (__int64)ObjectBuffer, 0x100);
         HIWORD_LV(OutputBuffer[EntryOffset + 139]) = 0;
-        ExFree(v29);
+        ExFree(ObjectBuffer);
     }
     else
     {
@@ -449,9 +447,9 @@ char EnumerateProcessObjects(
                 GetProcessNameFunc = (__int64 (*)(struct _KPROCESS *))GtRead(16777);
                 if (GetProcessNameFunc)
                 {
-                    strcpy((char *)v30, "MemCompression");
-                    v26 = GetProcessNameFunc(PROCESS);
-                    if (StringCompareCaseInsensitiveV2(v26, (__int64)v30) == 0)
+                    strcpy((char *)NameBuffer, "MemCompression");
+                    ProcessName = GetProcessNameFunc(PROCESS);
+                    if (StringCompareCaseInsensitiveV2(ProcessName, (__int64)NameBuffer) == 0)
                     {
                         Entry[12] = 6619213; Entry[13] = 4391021;
                         Entry[14] = 7143535; Entry[15] = 7471216;
@@ -461,8 +459,8 @@ char EnumerateProcessObjects(
                     }
                     if (BuildNumber >= 0x42EE)
                     {
-                        strcpy((char *)v30, "Registry");
-                        if (StringCompareCaseInsensitiveV2(v26, (__int64)v30) == 0)
+                        strcpy((char *)NameBuffer, "Registry");
+                        if (StringCompareCaseInsensitiveV2(ProcessName, (__int64)NameBuffer) == 0)
                         {
                             Entry[12] = 6619218; Entry[13] = 6881383;
                             Entry[14] = 7602291;
@@ -486,32 +484,32 @@ Done:
 // 对应原始驱动 sub_140050078
 char ValidateAndEnumerateObject(char *VirtualAddress, __int64 OutputBuffer, unsigned int BufferSize, __int64 Context)
 {
-    __int64 *v8 = (__int64 *)GtRead(16748);
-    int v9_val = (int)GtRead(GtProcessOffset);
-    char v12;
-    bool v11;
+    __int64 *ObjectTypeTable = (__int64 *)GtRead(16748);
+    int ProcessOffset = (int)GtRead(GtProcessOffset);
+    char TypeFlagValue;
+    bool IsProcessMatch;
 
-    if (!v8 || v9_val == -1 || (ULONG64)VirtualAddress <= (ULONG64)MmSystemRangeStart)
+    if (!ObjectTypeTable || ProcessOffset == -1 || (ULONG64)VirtualAddress <= (ULONG64)MmSystemRangeStart)
         return 0;
 
-    char *v10 = &VirtualAddress[(unsigned int)v9_val];
-    if (MmIsAddressValid(VirtualAddress - 48) != 1 || MmIsAddressValid(v10) != 1)
+    char *ProcessFieldPtr = &VirtualAddress[(unsigned int)ProcessOffset];
+    if (MmIsAddressValid(VirtualAddress - 48) != 1 || MmIsAddressValid(ProcessFieldPtr) != 1)
         return 0;
 
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
     {
-        v12 = CheckObjectTypeFlagWrapper((__int64)(VirtualAddress - 48));
-        v11 = ((UCHAR)GtRead(16960) == (UCHAR)v12);
+        TypeFlagValue = CheckObjectTypeFlagWrapper((__int64)(VirtualAddress - 48));
+        IsProcessMatch = ((UCHAR)GtRead(16960) == (UCHAR)TypeFlagValue);
     }
     else
     {
-        v11 = (*((__int64 *)VirtualAddress - 4) == *v8);
+        IsProcessMatch = (*((__int64 *)VirtualAddress - 4) == *ObjectTypeTable);
     }
 
-    if (v11)
+    if (IsProcessMatch)
     {
         __int64 ctx_val = *(__int64 *)(Context + 16);
-        if (!ctx_val || *(__int64 *)v10 == ctx_val)
+        if (!ctx_val || *(__int64 *)ProcessFieldPtr == ctx_val)
             return FillProcessInformationEntry(VirtualAddress, VirtualAddress, OutputBuffer, BufferSize, 0, 0, 0);
     }
     return 0;
@@ -522,66 +520,66 @@ char ValidateAndEnumerateObject(char *VirtualAddress, __int64 OutputBuffer, unsi
 // 验证进程对象类型标志和是否已终止，有效则调用 EnumerateProcessObjects
 char ValidateProcessObjectEx(char *VirtualAddress, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
-    char *v4 = VirtualAddress - 48;
-    __int64 (*v7)(char *) = (__int64 (*)(char *))GtRead(16752);
-    __int64 (*v8)(char *) = v7;
+    char *HeaderPtr = VirtualAddress - 48;
+    __int64 (*ObjectType)(char *) = (__int64 (*)(char *))GtRead(16752);
+    __int64 (*ObjectHeader)(char *) = ObjectType;
     UCHAR Index16960 = (UCHAR)GtRead(16960);
     __int64 Index16748 = GtRead(16748);
 
-    if (!v7) return 0;
+    if (!ObjectType) return 0;
     if ((ULONG64)VirtualAddress <= (ULONG64)MmSystemRangeStart) return 0;
-    if (MmIsAddressValid(v4) != 1) return 0;
+    if (MmIsAddressValid(HeaderPtr) != 1) return 0;
 
-    _QWORD *v9;
-    __int64 v10;
-    bool v13;
-    char v14, v15;
-    char *v16;
-    struct _KPROCESS *v11, *v12;
+    _QWORD *TypeIndex;
+    __int64 TypeOffset;
+    bool IsTypeMatch;
+    char TypeFlagCheck, TypeFlagCheck2;
+    char *ObjectHeaderPtr;
+    struct _KPROCESS *TypeInfo, *ProcessBody;
 
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
     {
-        v14 = CheckObjectTypeFlagWrapper((__int64)v4);
-        if (v14 == Index16960)
+        TypeFlagCheck = CheckObjectTypeFlagWrapper((__int64)HeaderPtr);
+        if (TypeFlagCheck == Index16960)
         {
             if (!IsProcessObjectTerminated(VirtualAddress))
             {
-                v11 = (struct _KPROCESS *)VirtualAddress;
-                v12 = (struct _KPROCESS *)VirtualAddress;
-                return EnumerateProcessObjects(v12, v11, OutputBuffer, BufferSize, 0, 0, 0);
+                TypeInfo = (struct _KPROCESS *)VirtualAddress;
+                ProcessBody = (struct _KPROCESS *)VirtualAddress;
+                return EnumerateProcessObjects(ProcessBody, TypeInfo, OutputBuffer, BufferSize, 0, 0, 0);
             }
             return 0;
         }
-        v15 = CheckObjectTypeFlagWrapper((__int64)v4);
-        v13 = (v15 == Index16960);
+        TypeFlagCheck2 = CheckObjectTypeFlagWrapper((__int64)HeaderPtr);
+        IsTypeMatch = (TypeFlagCheck2 == Index16960);
     }
     else
     {
-        v9 = (_QWORD *)Index16748;
-        v7 = (__int64 (*)(char *))Index16748;
-        if (!v9 || !v7) return 0;
-        v10 = *((__int64 *)v4 + 2);
-        if (v10 == *v9)
+        TypeIndex = (_QWORD *)Index16748;
+        ObjectType = (__int64 (*)(char *))Index16748;
+        if (!TypeIndex || !ObjectType) return 0;
+        TypeOffset = *((__int64 *)HeaderPtr + 2);
+        if (TypeOffset == *TypeIndex)
         {
             if (!IsProcessObjectTerminated(VirtualAddress))
             {
-                v11 = (struct _KPROCESS *)VirtualAddress;
-                v12 = (struct _KPROCESS *)VirtualAddress;
-                return EnumerateProcessObjects(v12, v11, OutputBuffer, BufferSize, 0, 0, 0);
+                TypeInfo = (struct _KPROCESS *)VirtualAddress;
+                ProcessBody = (struct _KPROCESS *)VirtualAddress;
+                return EnumerateProcessObjects(ProcessBody, TypeInfo, OutputBuffer, BufferSize, 0, 0, 0);
             }
             return 0;
         }
-        v13 = (v10 == *(__int64 *)v7);
+        IsTypeMatch = (TypeOffset == *(__int64 *)ObjectType);
     }
 
-    if (v13)
+    if (IsTypeMatch)
     {
-        v16 = (char *)v8(VirtualAddress);
-        if (!IsProcessObjectTerminated(v16))
+        ObjectHeaderPtr = (char *)ObjectHeader(VirtualAddress);
+        if (!IsProcessObjectTerminated(ObjectHeaderPtr))
         {
-            v12 = (struct _KPROCESS *)v16;
-            v11 = (struct _KPROCESS *)v16;
-            return EnumerateProcessObjects(v12, v11, OutputBuffer, BufferSize, 0, 0, 0);
+            ProcessBody = (struct _KPROCESS *)ObjectHeaderPtr;
+            TypeInfo = (struct _KPROCESS *)ObjectHeaderPtr;
+            return EnumerateProcessObjects(ProcessBody, TypeInfo, OutputBuffer, BufferSize, 0, 0, 0);
         }
     }
     return 0;
@@ -591,11 +589,11 @@ char ValidateProcessObjectEx(char *VirtualAddress, _DWORD *OutputBuffer, unsigne
 // 对应原始驱动 sub_14005017C
 char FillProcessInformationEntry(
     char *VirtualAddress, char *AlternateAddr, __int64 OutputBuffer,
-    unsigned int BufferSize, char ValidateFlag, char EntryType, char a7)
+    unsigned int BufferSize, char ValidateFlag, char EntryType, char CheckFlag)
 {
     char *TargetAddr = AlternateAddr ? AlternateAddr : VirtualAddress;
     int CreateTimeOffset, Field51, Field52, Field41, Field53, Field54, Field55, FlagsOffset;
-    _QWORD *v24;
+    _QWORD *ObjectTypeTable;
     int MaxIndex;
     ULONG EntryIndex, BuildNumber;
     __int64 Offset;
@@ -609,15 +607,15 @@ char FillProcessInformationEntry(
     Field54 = (int)GtRead(GtEprocessField54);
     Field55 = (int)GtRead(GtEprocessField55);
     FlagsOffset = (int)GtRead(GtProcessFlagsOffset);
-    v24 = (_QWORD *)GtRead(16748);
-    if (!v24) return 0;
+    ObjectTypeTable = (_QWORD *)GtRead(16748);
+    if (!ObjectTypeTable) return 0;
 
     MaxIndex = (int)GtRead(GtObjectTypeCount) - 1;
     if (MmIsAddressValid(VirtualAddress) != 1 || MmIsAddressValid(&VirtualAddress[MaxIndex]) != 1) return 0;
 
     EntryIndex = *(unsigned int *)(OutputBuffer + 16);
     if (56 * EntryIndex + 80 >= BufferSize) return 0;
-    if (IsProcessThreadInList(OutputBuffer, (__int64)VirtualAddress, (__int64)TargetAddr, a7) != 1) return 0;
+    if (IsProcessThreadInList(OutputBuffer, (__int64)VirtualAddress, (__int64)TargetAddr, CheckFlag) != 1) return 0;
     if (ValidateFlag && ValidateKernelObject((ULONG64)VirtualAddress, (ULONG64)TargetAddr, 0, 0) != 1) return 0;
 
     Offset = 56 * EntryIndex;
@@ -632,15 +630,15 @@ char FillProcessInformationEntry(
     {
         if (BuildNumber < 0x1770)
         {
-            if (*(__int64 *)(Offset + OutputBuffer + 64) < *v24)
+            if (*(__int64 *)(Offset + OutputBuffer + 64) < *ObjectTypeTable)
             {
-                __int64 v18 = *(__int64 *)&VirtualAddress[Field41];
-                if (v18)
+                __int64 AltOffsetValue = *(__int64 *)&VirtualAddress[Field41];
+                if (AltOffsetValue)
                 {
                     if ((BuildNumber < 0xA28)
                         ? VirtualAddress[FlagsOffset] == 0
                         : (VirtualAddress[FlagsOffset] & 1) == 0)
-                        *(__int64 *)(Offset + OutputBuffer + 64) = v18;
+                        *(__int64 *)(Offset + OutputBuffer + 64) = AltOffsetValue;
                 }
             }
             goto Done;
@@ -665,128 +663,128 @@ char ValidateKernelObject(ULONG64 ObjectAddr, ULONG64 AltAddr, _QWORD *OutContex
 {
     char Result = 0;
     ULONG64 TargetAddr = AltAddr ? AltAddr : ObjectAddr;
-    __int64 v7;
-    ULONG64 v8;
-    _QWORD *v9;
-    bool v10;
-    char v11;
-    ULONG v12, v13, v14, v17, v19, v20, v23, v25, v34, v37, BuildNumber;
-    ULONG64 v15, v16, v21, v30, v32;
-    __int64 v18, v22, v26, v39;
-    _QWORD *v31, *v33, *v35;
+    __int64 ObjectType;
+    ULONG64 ObjectHeader;
+    _QWORD *ObjectBody;
+    bool TypeIndex;
+    char TypeOffset;
+    ULONG TypeInfo, TypeName, TypeCount, TypeFlags, TypeField2, TypeField3, TypeField6, TypeField8, EprocessField30, TypeFlagCheck, BuildNumber;
+    ULONG64 TypeList, TypeEntry, TypeField4, ListFlink, ListFlink2;
+    __int64 TypeField, TypeField5, TypeField9, ProcessFlagsValue;
+    _QWORD *ListBlink, *ListBlink2, *ObjectTypeTable;
     UCHAR Index16960 = (UCHAR)GtRead(16960);
     ULONG Index16774 = (ULONG)GtRead(16774);
     __int64 Index16748 = GtRead(16748);
 
     if (ObjectAddr <= (ULONG64)MmSystemRangeStart) return Result;
 
-    v7 = (int)GtRead(GtObjectTypeCount) - 1;
+    ObjectType = (int)GtRead(GtObjectTypeCount) - 1;
     BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     if (MmIsAddressValid((PVOID)(ObjectAddr - 48)) != 1 ||
-        MmIsAddressValid((PVOID)(v7 + ObjectAddr)) != 1 ||
+        MmIsAddressValid((PVOID)(ObjectType + ObjectAddr)) != 1 ||
         ObjectAddr <= (ULONG64)MmSystemRangeStart)
         return Result;
 
-    v8 = v7 + TargetAddr;
+    ObjectHeader = ObjectType + TargetAddr;
 
     if (BuildNumber >= 0x1DB0)
     {
-        v11 = CheckObjectTypeFlagWrapper((__int64)(ObjectAddr - 48));
-        v10 = (Index16960 == (UCHAR)v11);
+        TypeOffset = CheckObjectTypeFlagWrapper((__int64)(ObjectAddr - 48));
+        TypeIndex = (Index16960 == (UCHAR)TypeOffset);
     }
     else
     {
-        v9 = (_QWORD *)Index16748;
-        if (!v9) return Result;
-        v10 = (*(_QWORD *)(ObjectAddr - 32) == *v9);
+        ObjectBody = (_QWORD *)Index16748;
+        if (!ObjectBody) return Result;
+        TypeIndex = (*(_QWORD *)(ObjectAddr - 32) == *ObjectBody);
     }
 
-    if (!v10) return Result;
+    if (!TypeIndex) return Result;
 
-    v12 = (ULONG)GtRead(0x42C);
-    v13 = Index16774;
-    v14 = Index16774;
-    v15 = *(_QWORD *)(v12 + ObjectAddr);
-    v16 = *(_QWORD *)(v13 + ObjectAddr);
-    if (v15 <= v16 || v15 <= (ULONG64)MmSystemRangeStart ||
-        v16 <= (ULONG64)MmSystemRangeStart ||
-        *(_QWORD *)(v14 + ObjectAddr) <= (ULONG64)MmSystemRangeStart)
+    TypeInfo = (ULONG)GtRead(0x42C);
+    TypeName = Index16774;
+    TypeCount = Index16774;
+    TypeList = *(_QWORD *)(TypeInfo + ObjectAddr);
+    TypeEntry = *(_QWORD *)(TypeName + ObjectAddr);
+    if (TypeList <= TypeEntry || TypeList <= (ULONG64)MmSystemRangeStart ||
+        TypeEntry <= (ULONG64)MmSystemRangeStart ||
+        *(_QWORD *)(TypeCount + ObjectAddr) <= (ULONG64)MmSystemRangeStart)
         return Result;
 
-    v17 = (ULONG)GtRead(GtProcessEprocess);
-    v18 = (ULONG)GtRead(GtEprocessField51);
-    v39 = *(_QWORD *)(v17 + ObjectAddr);
-    if (*(_QWORD *)(v18 + ObjectAddr) < (ULONG64)MmSystemRangeStart) return Result;
-    v19 = (ULONG)GtRead(GtProcessOffset);
-    v20 = (ULONG)GtRead(GtEprocessField53);
-    v21 = *(_QWORD *)(v19 + ObjectAddr);
-    if ((v21 & 7) != 0 || v21 <= (ULONG64)MmSystemRangeStart ||
-        MmIsAddressValid(*(PVOID *)(v19 + ObjectAddr)) != 1 ||
-        *(UCHAR *)(v20 + ObjectAddr) > 5)
+    TypeFlags = (ULONG)GtRead(GtProcessEprocess);
+    TypeField = (ULONG)GtRead(GtEprocessField51);
+    ProcessFlagsValue = *(_QWORD *)(TypeFlags + ObjectAddr);
+    if (*(_QWORD *)(TypeField + ObjectAddr) < (ULONG64)MmSystemRangeStart) return Result;
+    TypeField2 = (ULONG)GtRead(GtProcessOffset);
+    TypeField3 = (ULONG)GtRead(GtEprocessField53);
+    TypeField4 = *(_QWORD *)(TypeField2 + ObjectAddr);
+    if ((TypeField4 & 7) != 0 || TypeField4 <= (ULONG64)MmSystemRangeStart ||
+        MmIsAddressValid(*(PVOID *)(TypeField2 + ObjectAddr)) != 1 ||
+        *(UCHAR *)(TypeField3 + ObjectAddr) > 5)
         return Result;
 
-    v22 = (ULONG)GtRead(GtEprocessField48);
-    v23 = (ULONG)GtRead(GtEprocessField47);
-    v25 = v23;
-    v26 = v22 + TargetAddr;
+    TypeField5 = (ULONG)GtRead(GtEprocessField48);
+    TypeField6 = (ULONG)GtRead(GtEprocessField47);
+    TypeField8 = TypeField6;
+    TypeField9 = TypeField5 + TargetAddr;
 
     // Extensive pointer validation chain
-    PVOID ptr = *(PVOID *)(v22 + ObjectAddr);
+    PVOID ptr = *(PVOID *)(TypeField5 + ObjectAddr);
     if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(v22 + ObjectAddr) + 15)) != 1)
+        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField5 + ObjectAddr) + 15)) != 1)
         return Result;
 
-    ptr = *(PVOID *)(v22 + ObjectAddr + 8);
+    ptr = *(PVOID *)(TypeField5 + ObjectAddr + 8);
     if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(v22 + ObjectAddr + 8) + 15)) != 1)
+        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField5 + ObjectAddr + 8) + 15)) != 1)
         return Result;
 
-    ptr = *(PVOID *)(v25 + ObjectAddr);
+    ptr = *(PVOID *)(TypeField8 + ObjectAddr);
     if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(v25 + ObjectAddr) + 15)) != 1)
+        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField8 + ObjectAddr) + 15)) != 1)
         return Result;
 
-    ptr = *(PVOID *)(v25 + ObjectAddr + 8);
+    ptr = *(PVOID *)(TypeField8 + ObjectAddr + 8);
     if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(v25 + ObjectAddr + 8) + 15)) != 1)
+        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField8 + ObjectAddr + 8) + 15)) != 1)
         return Result;
 
     // Verify linked list consistency
-    v30 = *(_QWORD *)(v22 + ObjectAddr);
-    if (*(_QWORD *)(v30 + 8) != v26) return Result;
-    v31 = *(_QWORD **)(v22 + ObjectAddr + 8);
-    if (*v31 != v26) return Result;
-    v32 = *(_QWORD *)(v25 + ObjectAddr);
-    if (*(_QWORD *)(v32 + 8) != v25 + TargetAddr) return Result;
-    v33 = *(_QWORD **)(v25 + ObjectAddr + 8);
-    if (*v33 != v25 + TargetAddr) return Result;
+    ListFlink = *(_QWORD *)(TypeField5 + ObjectAddr);
+    if (*(_QWORD *)(ListFlink + 8) != TypeField9) return Result;
+    ListBlink = *(_QWORD **)(TypeField5 + ObjectAddr + 8);
+    if (*ListBlink != TypeField9) return Result;
+    ListFlink2 = *(_QWORD *)(TypeField8 + ObjectAddr);
+    if (*(_QWORD *)(ListFlink2 + 8) != TypeField8 + TargetAddr) return Result;
+    ListBlink2 = *(_QWORD **)(TypeField8 + ObjectAddr + 8);
+    if (*ListBlink2 != TypeField8 + TargetAddr) return Result;
 
-    if (v30 < TargetAddr || v30 > v8 ||
-        (ULONG64)v31 < TargetAddr || (ULONG64)v31 > v8 ||
-        v32 < TargetAddr || v32 > v8 ||
-        (ULONG64)v33 < TargetAddr || (ULONG64)v33 > v8)
+    if (ListFlink < TargetAddr || ListFlink > ObjectHeader ||
+        (ULONG64)ListBlink < TargetAddr || (ULONG64)ListBlink > ObjectHeader ||
+        ListFlink2 < TargetAddr || ListFlink2 > ObjectHeader ||
+        (ULONG64)ListBlink2 < TargetAddr || (ULONG64)ListBlink2 > ObjectHeader)
         return Result;
 
-    v34 = (ULONG)GtRead(GtEprocessField30);
-    if (MmIsAddressValid((PVOID)(v21 + v34)) != 1) return Result;
+    EprocessField30 = (ULONG)GtRead(GtEprocessField30);
+    if (MmIsAddressValid((PVOID)(TypeField4 + EprocessField30)) != 1) return Result;
 
     if (BuildNumber >= 0x1DB0)
     {
-        if (MmIsAddressValid((PVOID)(v21 - 24)) != 1) return Result;
-        v37 = (UCHAR)CheckObjectTypeFlagWrapper(v21 - 48);
-        v10 = ((ULONG)Index16960 == v37);
+        if (MmIsAddressValid((PVOID)(TypeField4 - 24)) != 1) return Result;
+        TypeFlagCheck = (UCHAR)CheckObjectTypeFlagWrapper(TypeField4 - 48);
+        TypeIndex = ((ULONG)Index16960 == TypeFlagCheck);
     }
     else
     {
-        v35 = (_QWORD *)Index16748;
-        if (!v35 || MmIsAddressValid((PVOID)(v21 - 32)) != 1) return Result;
-        v10 = (*(_QWORD *)(v21 - 32) == *v35);
+        ObjectTypeTable = (_QWORD *)Index16748;
+        if (!ObjectTypeTable || MmIsAddressValid((PVOID)(TypeField4 - 32)) != 1) return Result;
+        TypeIndex = (*(_QWORD *)(TypeField4 - 32) == *ObjectTypeTable);
     }
 
-    if (v10)
+    if (TypeIndex)
     {
-        if (OutContext) *OutContext = v39;
-        if (OutProcess) *OutProcess = v21;
+        if (OutContext) *OutContext = ProcessFlagsValue;
+        if (OutProcess) *OutProcess = TypeField4;
         return 1;
     }
 
@@ -798,36 +796,36 @@ char ValidateKernelObject(ULONG64 ObjectAddr, ULONG64 AltAddr, _QWORD *OutContex
 // 通过进程ID查找EPROCESS，验证后枚举句柄表和进程信息
 bool EnumProcessInformationWorker(char *InputBuffer, __int64 OutputBuffer, unsigned int BufferSize)
 {
-    char v6 = 0;
-    NTSTATUS v7;
+    char Result = 0;
+    NTSTATUS LookupStatus;
     PEPROCESS Process;
-    UCHAR v9;
+    UCHAR ProcessRefed;
 
-    if (BufferSize <= 0x50) return v6;
+    if (BufferSize <= 0x50) return Result;
 
     *(__int64 *)OutputBuffer = *((__int64 *)InputBuffer + 1);
     *(__int64 *)(OutputBuffer + 8) = *((__int64 *)InputBuffer + 2);
     *(ULONG *)(OutputBuffer + 16) = 0;
 
-    char v12 = *InputBuffer;
-    v7 = PsLookupProcessByProcessId(*((HANDLE *)InputBuffer + 1), &Process);
-    int v8 = v7;
-    if (!*((__int64 *)InputBuffer + 2) && v7 >= 0)
+    char InfoFlag = *InputBuffer;
+    LookupStatus = PsLookupProcessByProcessId(*((HANDLE *)InputBuffer + 1), &Process);
+    int LookupStatusCopy = LookupStatus;
+    if (!*((__int64 *)InputBuffer + 2) && LookupStatus >= 0)
         *((__int64 *)InputBuffer + 2) = (__int64)Process;
 
     if (ValidateProcessObject(*((struct _KPROCESS **)InputBuffer + 2), NULL) == 1)
     {
-        v9 = ReferenceObjectSafe(*((__int64 *)InputBuffer + 2));
+        ProcessRefed = ReferenceObjectSafe(*((__int64 *)InputBuffer + 2));
         DispatchProcessHandleTableEnum(OutputBuffer, BufferSize,
             (void (__fastcall *)(__int64, __int64, ULONG64, __int64))ValidateAndEnumerateObject, (__int64)InputBuffer);
         EnumerateProcessHandleTableData(*((struct _KPROCESS **)InputBuffer + 2), OutputBuffer, BufferSize);
-        if (v12)
+        if (InfoFlag)
             EnumerateProcessInformation(*((__int64 *)InputBuffer + 2), OutputBuffer, BufferSize);
-        if (v9 == 1)
+        if (ProcessRefed == 1)
             DereferenceObjectSafe(*((__int64 *)InputBuffer + 2));
     }
 
-    if (v8 >= 0)
+    if (LookupStatusCopy >= 0)
         ObfDereferenceObject(Process);
 
     return *(ULONG *)(OutputBuffer + 16) != 0;
@@ -901,10 +899,10 @@ char GetProcessImagePath(PRKPROCESS PROCESS, HANDLE ProcessId, void **OutBuffer,
     ULONG SectionFieldOffset;
     NTSTATUS Status;
     PEPROCESS Process = NULL;
-    ULONG v13;
+    ULONG EprocessField64;
     char SectionObjectNameFromHandle;
-    bool v16;
-    void *v19[6];
+    bool NeedsFallback;
+    void *FallbackPath[6];
 
     SectionFieldOffset = (ULONG)GtRead(GtEprocessField31);
     if (SectionFieldOffset == (ULONG)-1) goto Fallback;
@@ -912,16 +910,16 @@ char GetProcessImagePath(PRKPROCESS PROCESS, HANDLE ProcessId, void **OutBuffer,
     Status = PsLookupProcessByProcessId(ProcessId, &Process);
     if (!PROCESS) PROCESS = (PRKPROCESS)Process;
 
-    v13 = (ULONG)GtRead(GtEprocessField64) - 1;
-    if (PROCESS && MmIsAddressValid(PROCESS) == 1 && MmIsAddressValid((char *)PROCESS + v13) == 1)
+    EprocessField64 = (ULONG)GtRead(GtEprocessField64) - 1;
+    if (PROCESS && MmIsAddressValid(PROCESS) == 1 && MmIsAddressValid((char *)PROCESS + EprocessField64) == 1)
     {
         if ((ULONG)GtRead(GtEprocessField28) == 1)
             SectionObjectNameFromHandle = GetSectionObjectNameFromHandle(PROCESS, *(HANDLE *)((char *)PROCESS + SectionFieldOffset), OutBuffer, OutSize);
         else
         {
-            ULONG64 v14 = *(ULONG64 *)((char *)PROCESS + SectionFieldOffset);
-            if (!v14) goto Cleanup;
-            SectionObjectNameFromHandle = QueryObjectNameByAddress(v14, OutBuffer, OutSize);
+            ULONG64 SectionObjectAddr = *(ULONG64 *)((char *)PROCESS + SectionFieldOffset);
+            if (!SectionObjectAddr) goto Cleanup;
+            SectionObjectNameFromHandle = QueryObjectNameByAddress(SectionObjectAddr, OutBuffer, OutSize);
         }
         Result = SectionObjectNameFromHandle;
     }
@@ -932,21 +930,21 @@ Cleanup:
 Fallback:
     if (!(UCHAR)Flags)
     {
-        v16 = Result == 0;
+        NeedsFallback = Result == 0;
         if (Result == 1)
         {
             if (OutSize)
             {
-                if (*OutSize <= 6) v16 = 1;
+                if (*OutSize <= 6) NeedsFallback = 1;
             }
-            else if (GetStringLength(*OutBuffer) <= 3) v16 = 1;
-            if (!WStringFindChar((WORD *)*OutBuffer, L'.')) v16 = 1;
+            else if (GetStringLength(*OutBuffer) <= 3) NeedsFallback = 1;
+            if (!WStringFindChar((WORD *)*OutBuffer, L'.')) NeedsFallback = 1;
         }
-        if (v16 && GetProcessImagePathByAttach(PROCESS, ProcessId, v19, &Flags) == 1)
+        if (NeedsFallback && GetProcessImagePathByAttach(PROCESS, ProcessId, FallbackPath, &Flags) == 1)
         {
-            ParseFilePathForSystemRoot((WORD **)v19, &Flags);
+            ParseFilePathForSystemRoot((WORD **)FallbackPath, &Flags);
             if (Result == 1 && *OutBuffer) ExFree(*OutBuffer);
-            *OutBuffer = v19[0];
+            *OutBuffer = FallbackPath[0];
             if (OutSize) *OutSize = (ULONG)Flags;
             Result = 1;
         }
@@ -963,15 +961,15 @@ bool IsProcessObjectTerminated(char *VirtualAddress)
 {
     char Result = 0;
     __int64 (*GetCurrentProcess)(void);
-    int v4;
+    int PathStr;
 
     GetCurrentProcess = (__int64 (*)(void))GtRead(16733);
     if (GetCurrentProcess && VirtualAddress == (char *)GetCurrentProcess())
         return Result;
 
-    v4 = (int)GtRead(GtEprocessField64) - 1;
+    PathStr = (int)GtRead(GtEprocessField64) - 1;
     if (MmIsAddressValid(VirtualAddress) == 1 &&
-        MmIsAddressValid(&VirtualAddress[v4]) == 1)
+        MmIsAddressValid(&VirtualAddress[PathStr]) == 1)
         return *(__int64 *)&VirtualAddress[(ULONG)GtRead(GtEprocessField44)] == 0;
 
     return Result;
@@ -1029,13 +1027,12 @@ char BuildExportServiceTableForProcess(
     unsigned int ServiceIndex;
     __int64 FuncValue;
     ULONG64 FuncAddrPtr;
-    unsigned int v22;
-    int v23;
-    char *v24;
-    __int64 v25;
-    ULONG64 v26;
-    __int64 v27;
-    __int64 v28[9];
+    unsigned int UserDllSize;
+    int ServiceIndexEnd;
+    char *UserDllBuffer;
+    __int64 RelocTableAddr;
+    __int64 ImageBaseAddr;
+    __int64 RelocDataOut[9];
 
     Success = 0;
     ServiceCount = (unsigned int)GtRead(GtWin32kServiceCount);
@@ -1052,58 +1049,58 @@ char BuildExportServiceTableForProcess(
         IsWin32k = 0;
     }
     RelocBuffer = RelocAllocBuffer;
-    v26 = ParseNtRelocationTable(TargetProcess, Is64Bit, &v27, v28, (void **)&v25);
-    if (v26)
+    ModuleBase = ParseNtRelocationTable(TargetProcess, Is64Bit, &ImageBaseAddr, RelocDataOut, (void **)&RelocTableAddr);
+    if (ModuleBase)
     {
         if (ServiceCount && ModuleEntrySize && RelocBuffer)
         {
-            ImageBasePtr = v27;
-            if (v27)
+            ImageBasePtr = ImageBaseAddr;
+            if (ImageBaseAddr)
             {
-                if (ReadUser32DllFile(&v24, &v22, Is64Bit))
+                if (ReadUser32DllFile(&UserDllBuffer, &UserDllSize, Is64Bit))
                 {
                     IsWin32kCopy = IsWin32k;
-                    ModuleBase = v26;
-                    if (ParseNtExportDir((__int64)v24, v22, v26, IsWin32kCopy) == 1)
+                    ModuleBase = ModuleBase;
+                    if (ParseNtExportDir((__int64)UserDllBuffer, UserDllSize, ModuleBase, IsWin32kCopy) == 1)
                     {
                         ExportEntry = (unsigned int *)RelocBuffer + 1;
                         ServiceCount2 = ServiceCount;
                         do
                         {
                             *(ExportEntry - 1) = 0;
-                            if (*ExportEntry < v22 && *ExportEntry + 16 <= v22)
+                            if (*ExportEntry < UserDllSize && *ExportEntry + 16 <= UserDllSize)
                             {
                                 *(ExportEntry - 1) = 1;
-                                *(_OWORD *)(ExportEntry + 3) = *(_OWORD *)&v24[*ExportEntry];
+                                *(_OWORD *)(ExportEntry + 3) = *(_OWORD *)&UserDllBuffer[*ExportEntry];
                             }
                             ExportEntry += 12;
                             --ServiceCount2;
                         }
                         while (ServiceCount2);
                     }
-                    ExFree(v24);
+                    ExFree(UserDllBuffer);
                 }
                 else
                 {
-                    ModuleBase = v26;
+                    ModuleBase = ModuleBase;
                 }
                 FuncTableAddr = ModuleBase + ModuleEntrySize;
                 OutServiceTable[1] = ImageBasePtr;
-                OutServiceTable[3] = v28[0];
+                OutServiceTable[3] = RelocDataOut[0];
                 OutServiceTable[2] = FuncTableAddr;
                 ServiceIndex = 0;
-                v23 = 0;
+                ServiceIndexEnd = 0;
                 while (ServiceIndex < ServiceCount)
                 {
                     OutServiceTable[9 * ServiceIndex + 8] = ServiceIndex;
                     if (Is64Bit)
                     {
-                        FuncValue = *(unsigned int *)(v25 + 4LL * ServiceIndex);
+                        FuncValue = *(unsigned int *)(RelocTableAddr + 4LL * ServiceIndex);
                         FuncAddrPtr = FuncTableAddr + 4LL * ServiceIndex;
                     }
                     else
                     {
-                        FuncValue = *(_QWORD *)(v25 + 8LL * ServiceIndex);
+                        FuncValue = *(_QWORD *)(RelocTableAddr + 8LL * ServiceIndex);
                         FuncAddrPtr = FuncTableAddr + 8LL * ServiceIndex;
                     }
                     OutServiceTable[9 * ServiceIndex + 10] = FuncValue;
@@ -1111,12 +1108,12 @@ char BuildExportServiceTableForProcess(
                     OutServiceTable[9 * ServiceIndex + 5] = (_QWORD)TargetProcess;
                     OutServiceTable[9 * ServiceIndex + 6] = ImageBase;
                     OutServiceTable[9 * ServiceIndex + 9] = ModuleBase + HIDWORD(RelocBuffer[6 * ServiceIndex]);
-                    v23 = ++ServiceIndex;
+                    ServiceIndexEnd = ++ServiceIndex;
                 }
                 Success = 1;
             }
         }
-        ExFree((void *)v25);
+        ExFree((void *)RelocTableAddr);
     }
     return Success;
 }
@@ -1177,7 +1174,7 @@ char ParseNtImageSectionHeadersForProcess(PRKPROCESS PROCESS, __int64 SectionInf
     _OWORD SectionHeader4;
     __int64 SectionHeader5;
     KAPC_STATE ApcState;
-    _OWORD v21;
+    _OWORD SectionDataCopy;
 
     SectionCount = (unsigned int)GtRead(GtWin32kServiceCount);
     SectionCountCopy = SectionCount;
@@ -1212,8 +1209,8 @@ char ParseNtImageSectionHeadersForProcess(PRKPROCESS PROCESS, __int64 SectionInf
                     BYTE1_LV(SectionHeader4) = 1;
                     if (!LOBYTE_LV(SectionHeader4.qword[0]))
                     {
-                        memset(&v21, 0, sizeof(v21));
-                        v21 = *(_OWORD *)SectionHeader3.qword[0];
+                        memset(&SectionDataCopy, 0, sizeof(SectionDataCopy));
+                        SectionDataCopy = *(_OWORD *)SectionHeader3.qword[0];
                         FuncResult = ReturnFalseStub();
                         SavedValue = SectionHeader3.qword[1];
                         if (FuncResult == 1)
@@ -1309,69 +1306,68 @@ char WriteProcessMemoryBuffer(_QWORD *InputParams)
 // GetProcessImagePathByAttach — 通过附加(Attach)方式获取进程镜像路径
 // 对应原始驱动 sub_14004A3E0
 // 附加到目标进程后获取其镜像路径
-char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **a3, _DWORD *a4)
+char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **pImagePathBuffer, _DWORD *pImagePathSize)
 {
-    char v6;
-    unsigned int v7;
-    NTSTATUS v8;
-    unsigned __int64 v9;
-    unsigned __int64 v10;
-    unsigned __int64 v11;
-    __int64 v12;
-    unsigned __int64 v13;
-    PVOID v14;
-    unsigned __int8 v16;
+    unsigned int TargetProcess;
+    NTSTATUS LookupStatus;
+    unsigned __int64 ImagePath;
+    unsigned __int64 PathLen;
+    unsigned __int64 Status;
+    __int64 Result;
+    unsigned __int64 PathDataPtr;
+    PVOID PathBuffer;
+    unsigned __int8 ProcessRefed;
     PEPROCESS Process;
-    _DWORD *v19;
-    void **v20;
+    _DWORD *pPathSizeCopy;
+    void **pPathBufCopy;
     KAPC_STATE ApcState;
 
-    v19 = a4;
-    v20 = a3;
-    v6 = 0;
-    *a3 = 0;
-    v7 = (unsigned int)GtRead(GtEprocessField33);
-    if (v7 != -1)
+    pPathSizeCopy = pImagePathSize;
+    pPathBufCopy = pImagePathBuffer;
+    Result = 0;
+    *pImagePathBuffer = 0;
+    TargetProcess = (unsigned int)GtRead(GtEprocessField33);
+    if (TargetProcess != -1)
     {
-        v8 = PsLookupProcessByProcessId(ProcessId, &Process);
-        if (!v8 && !PROCESS)
+        LookupStatus = PsLookupProcessByProcessId(ProcessId, &Process);
+        if (!LookupStatus && !PROCESS)
             PROCESS = (PRKPROCESS)Process;
         if (PROCESS && ValidateProcessObject(PROCESS, 0) == 1)
         {
-            v16 = ReferenceObjectSafe((__int64)PROCESS);
+            ProcessRefed = ReferenceObjectSafe((__int64)PROCESS);
             KeStackAttachProcess(PROCESS, &ApcState);
-            if (MmIsAddressValid((char *)PROCESS + v7) == 1)
+            if (MmIsAddressValid((char *)PROCESS + TargetProcess) == 1)
             {
-                v9 = *(_QWORD *)((char *)PROCESS + v7);
-                if (v9 < (unsigned __int64)MmSystemRangeStart && v9 + 96 < (unsigned __int64)MmSystemRangeStart)
+                ImagePath = *(_QWORD *)((char *)PROCESS + TargetProcess);
+                if (ImagePath < (unsigned __int64)MmSystemRangeStart && ImagePath + 96 < (unsigned __int64)MmSystemRangeStart)
                 {
-                    v10 = *(_QWORD *)(v9 + 24);
-                    if (v10 < (unsigned __int64)MmSystemRangeStart && v10 + 72 < (unsigned __int64)MmSystemRangeStart)
+                    PathLen = *(_QWORD *)(ImagePath + 24);
+                    if (PathLen < (unsigned __int64)MmSystemRangeStart && PathLen + 72 < (unsigned __int64)MmSystemRangeStart)
                     {
-                        v11 = *(_QWORD *)(v10 + 16);
-                        if (v11 < (unsigned __int64)MmSystemRangeStart && v11 + 136 < (unsigned __int64)MmSystemRangeStart)
+                        Status = *(_QWORD *)(PathLen + 16);
+                        if (Status < (unsigned __int64)MmSystemRangeStart && Status + 136 < (unsigned __int64)MmSystemRangeStart)
                         {
-                            v12 = *(unsigned __int16 *)(v11 + 72);
-                            if ((unsigned int)v12 > 0x1000)
-                                v12 = 4096;
-                            if ((unsigned int)v12 > 2)
+                            Result = *(unsigned __int16 *)(Status + 72);
+                            if ((unsigned int)Result > 0x1000)
+                                Result = 4096;
+                            if ((unsigned int)Result > 2)
                             {
-                                v13 = *(_QWORD *)(v11 + 80);
-                                if (v13 < (unsigned __int64)MmSystemRangeStart)
+                                PathDataPtr = *(_QWORD *)(Status + 80);
+                                if (PathDataPtr < (unsigned __int64)MmSystemRangeStart)
                                 {
-                                    if (v13)
+                                    if (PathDataPtr)
                                     {
-                                        if ((unsigned int)v12 + v13 < (unsigned __int64)MmSystemRangeStart)
+                                        if ((unsigned int)Result + PathDataPtr < (unsigned __int64)MmSystemRangeStart)
                                         {
-                                            v14 = ExAlloc(PagedPool, v12 + 2);
-                                            *a3 = v14;
-                                            if (v14)
+                                            PathBuffer = ExAlloc(PagedPool, Result + 2);
+                                            *pImagePathBuffer = PathBuffer;
+                                            if (PathBuffer)
                                             {
-                                                if (v19)
-                                                    *v19 = (unsigned int)v12;
-                                                memmove(*a3, *(const void **)(v11 + 80), (unsigned int)v12);
-                                                *((_WORD *)*a3 + ((unsigned __int64)(unsigned int)v12 >> 1)) = 0;
-                                                v6 = 1;
+                                                if (pPathSizeCopy)
+                                                    *pPathSizeCopy = (unsigned int)Result;
+                                                memmove(*pImagePathBuffer, *(const void **)(Status + 80), (unsigned int)Result);
+                                                *((_WORD *)*pImagePathBuffer + ((unsigned __int64)(unsigned int)Result >> 1)) = 0;
+                                                Result = 1;
                                             }
                                         }
                                     }
@@ -1382,145 +1378,145 @@ char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **a3
                 }
             }
             KeUnstackDetachProcess(&ApcState);
-            if (v16 == 1)
+            if (ProcessRefed == 1)
                 DereferenceObjectSafe((__int64)PROCESS);
         }
-        if (!v8)
+        if (!LookupStatus)
             ObfDereferenceObject(Process);
     }
-    return v6;
+    return Result;
 }
 
 // ParseFilePathForSystemRoot — 解析文件路径中的系统根目录
 // 对应原始驱动 sub_14004B9A0
 // 将 \SystemRoot\ 等系统路径前缀替换为实际系统根目录路径，\??\ 前缀则跳过前 4 字符
-char ParseFilePathForSystemRoot(__int16 **a1, _DWORD *a2)
+char ParseFilePathForSystemRoot(__int16 **pPathString, _DWORD *pPathLength)
 {
-    char v2;
-    __int16 *v4;
-    int v6;
-    __int16 *v7;
+    char IsParsed;
+    __int16 *PathStr;
+    int Result;
+    __int16 *PathLen;
     __int16 *inited;
-    __int16 *v9;
+    __int16 *PathChar;
     __int64 StringLength;
-    unsigned int v11;
-    unsigned int v12;
-    SIZE_T v13;
-    __int16 *v14;
-    __int16 *v15;
-    _DWORD v17[2];
-    _DWORD v18[5];
-    __int64 v19;
+    unsigned int ColonPos;
+    unsigned int BackslashPos;
+    SIZE_T SystemRoot;
+    __int16 *NewBuffer;
+    __int16 *NewBufferCopy;
+    _DWORD DosPrefix[2];
+    _DWORD SystemRootPrefix[5];
+    __int64 SystemRootSuffix;
 
-    v2 = 0;
-    v4 = *a1;
-    if (*v4 == 92)  // L'\\'
+    IsParsed = 0;
+    PathStr = *pPathString;
+    if (*PathStr == 92)  // L'\\'
     {
         // "\\??\\" 前缀检查
-        v17[0] = 4128860;  // L"\\??"
-        v17[1] = 6029375;  // L"\\\0\0"
-        v6 = WStringCompare((__int64)v4, (unsigned __int16 *)v17, 4u);
-        v7 = *a1;
-        if (v6)
+        DosPrefix[0] = 4128860;  // L"\\??"
+        DosPrefix[1] = 6029375;  // L"\\\0\0"
+        Result = WStringCompare((__int64)PathStr, (unsigned __int16 *)DosPrefix, 4u);
+        PathLen = *pPathString;
+        if (Result)
         {
             // "\\SystemRoot\\" 前缀检查 (12 个字符)
-            v18[0] = 5439580;   // L"\\Sys"
-            v18[1] = 7536761;   // L"temR"
-            v18[2] = 6619252;   // L"oot\\"
-            v18[3] = 5374061;   // L"syst"
-            v18[4] = 7274607;   // L"em32"
-            v19 = 6029428;      // L"\\\0\0\0"
-            if (!(unsigned int)StringCompare3Way((__int64)v7, (unsigned __int16 *)v18, 0xCu))
+            SystemRootPrefix[0] = 5439580;   // L"\\Sys"
+            SystemRootPrefix[1] = 7536761;   // L"temR"
+            SystemRootPrefix[2] = 6619252;   // L"oot\\"
+            SystemRootPrefix[3] = 5374061;   // L"syst"
+            SystemRootPrefix[4] = 7274607;   // L"em32"
+            SystemRootSuffix = 6029428;      // L"\\\0\0\0"
+            if (!(unsigned int)StringCompare3Way((__int64)PathLen, (unsigned __int16 *)SystemRootPrefix, 0xCu))
             {
                 inited = InitSystemPath();
-                v9 = inited;
+                PathChar = inited;
                 if (inited)
                 {
                     StringLength = (unsigned int)GetStringLength(inited);
-                    v11 = GetStringLength(*a1);
-                    v12 = v11 + (unsigned int)StringLength;
-                    if (v11 + (unsigned int)StringLength > (unsigned int)StringLength && v12 > v11)
+                    ColonPos = GetStringLength(*pPathString);
+                    BackslashPos = ColonPos + (unsigned int)StringLength;
+                    if (ColonPos + (unsigned int)StringLength > (unsigned int)StringLength && BackslashPos > ColonPos)
                     {
-                        v13 = 2 * v12;
-                        if ((unsigned int)v13 > v12)
+                        SystemRoot = 2 * BackslashPos;
+                        if ((unsigned int)SystemRoot > BackslashPos)
                         {
-                            v14 = (__int16 *)ExAlloc(PagedPool, v13);
-                            v15 = v14;
-                            if (v14)
+                            NewBuffer = (__int16 *)ExAlloc(PagedPool, SystemRoot);
+                            NewBufferCopy = NewBuffer;
+                            if (NewBuffer)
                             {
-                                WStringCopy(v14, v9);
-                                WStringCopy(&v15[StringLength], *a1 + 11);
-                                ExFree(*a1);
-                                *a1 = v15;
-                                if (a2)
-                                    *a2 = 2 * GetStringLength(v15);
-                                v2 = 1;
+                                WStringCopy(NewBuffer, PathChar);
+                                WStringCopy(&NewBufferCopy[StringLength], *pPathString + 11);
+                                ExFree(*pPathString);
+                                *pPathString = NewBufferCopy;
+                                if (pPathLength)
+                                    *pPathLength = 2 * GetStringLength(NewBufferCopy);
+                                IsParsed = 1;
                             }
                         }
                     }
-                    ExFree(v9);
+                    ExFree(PathChar);
                 }
             }
         }
         else
         {
             // 跳过 "\\??\\" 前缀 (4 个字符)
-            WStringCopy(v7, v7 + 4);
-            if (a2)
-                *a2 = 2 * GetStringLength(*a1);
+            WStringCopy(PathLen, PathLen + 4);
+            if (pPathLength)
+                *pPathLength = 2 * GetStringLength(*pPathString);
             return 1;
         }
     }
-    return v2;
+    return IsParsed;
 }
 
 // QueryObjectNameByAddress — 按地址查询对象名称
 // 对应原始驱动 sub_1400794A0
 // 根据Windows版本选择新版或旧版名称查询方式
-char QueryObjectNameByAddress(unsigned __int64 a1, _QWORD *a2, _DWORD *a3)
+char QueryObjectNameByAddress(unsigned __int64 ObjectAddress, _QWORD *pNameBuffer, _DWORD *pNameLength)
 {
-    char v7;
-    _QWORD *v8;
-    _QWORD *v9;
+    char Result;
+    _QWORD *NamePointer;
+    _QWORD *NamePointerCheck;
 
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x2800)
-        return QueryObjectNameLegacy((_QWORD *)a1, a2, a3);
+        return QueryObjectNameLegacy((_QWORD *)ObjectAddress, pNameBuffer, pNameLength);
 
-    v7 = 0;
-    if (a1 > (unsigned __int64)MmSystemRangeStart && (a1 & 7) == 0)
+    Result = 0;
+    if (ObjectAddress > (unsigned __int64)MmSystemRangeStart && (ObjectAddress & 7) == 0)
     {
-        v8 = (_QWORD *)ResolveObjectNamePointer(a1);
-        v9 = v8;
-        if (v8)
+        NamePointer = (_QWORD *)ResolveObjectNamePointer(ObjectAddress);
+        NamePointerCheck = NamePointer;
+        if (NamePointer)
         {
-            if (v8 > MmSystemRangeStart && MmIsAddressValid(v8) == 1 && MmIsAddressValid((char *)v9 + 127) == 1)
-                return QueryObjectNameString(v9[8], a2, a3);
+            if (NamePointer > MmSystemRangeStart && MmIsAddressValid(NamePointer) == 1 && MmIsAddressValid((char *)NamePointerCheck + 127) == 1)
+                return QueryObjectNameString(NamePointerCheck[8], pNameBuffer, pNameLength);
         }
     }
-    return v7;
+    return Result;
 }
 
 // GetSectionObjectNameFromHandle — 从句柄获取节区对象名称
 // 对应原始驱动 sub_1400793F0
 // 附加到进程并通过句柄查询Section对象名称
-char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *a3, _DWORD *a4)
+char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *pNameBuffer, _DWORD *pNameLength)
 {
     char ObjectNameByAddress;
-    unsigned __int8 v9;
-    NTSTATUS v10;
+    unsigned __int8 ProcessRefed;
+    NTSTATUS LookupStatus;
     PVOID Object;
     KAPC_STATE ApcState;
 
     ObjectNameByAddress = 0;
-    v9 = ReferenceObjectSafe((__int64)PROCESS);
+    ProcessRefed = ReferenceObjectSafe((__int64)PROCESS);
     KeStackAttachProcess(PROCESS, &ApcState);
-    v10 = ObReferenceObjectByHandle(Handle, 0x80000000, MmSectionObjectType, 0, &Object, 0);
+    LookupStatus = ObReferenceObjectByHandle(Handle, 0x80000000, MmSectionObjectType, 0, &Object, 0);
     KeUnstackDetachProcess(&ApcState);
-    if (v9 == 1)
+    if (ProcessRefed == 1)
         DereferenceObjectSafe((__int64)PROCESS);
-    if (!v10)
+    if (!LookupStatus)
     {
-        ObjectNameByAddress = QueryObjectNameByAddress((unsigned __int64)Object, a3, a4);
+        ObjectNameByAddress = QueryObjectNameByAddress((unsigned __int64)Object, pNameBuffer, pNameLength);
         ObfDereferenceObject(Object);
     }
     return ObjectNameByAddress;
@@ -1529,316 +1525,316 @@ char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *a
 // QueryDevicePathFromSymbolicLink — 从符号链接查询设备路径
 // 对应原始驱动 sub_140079970
 // 通过符号链接查询设备路径
-char QueryDevicePathFromSymbolicLink(__int64 a1, void **a2, _DWORD *a3)
+char QueryDevicePathFromSymbolicLink(__int64 SymLink, void **pPathBuffer, _DWORD *pPathLength)
 {
-    char v5;
-    int (__fastcall *v6)(__int64 *, __int64, int *, _QWORD *);
-    __int64 (__fastcall *v7)(__int64, __int64, void **, __int64, unsigned int *);
-    void (__fastcall *v8)(__int64);
-    unsigned int v9;
-    unsigned int v10;
+    char Success;
+    int (__fastcall *QuerySymLinkFunc)(__int64 *, __int64, int *, _QWORD *);
+    __int64 (__fastcall *UnicodeStr)(__int64, __int64, void **, __int64, unsigned int *);
+    void (__fastcall *ObjAttr)(__int64);
+    unsigned int SymLinkHandle;
+    unsigned int DevicePath;
     struct _KTHREAD *CurrentThread;
-    __int64 v12;
-    char v13;
-    int v14;
-    unsigned int v15;
-    char v16;
-    int v17;
-    void *v18;
-    unsigned int v20;
-    _WORD *v21;
-    unsigned int v23;
+    __int64 PathBuffer;
+    char Status;
+    int QueryStatus;
+    unsigned int BufferSize;
+    char BufferSize2;
+    int BuildNumber;
+    void *PathBufferOut;
+    unsigned int PathLen2;
+    _WORD *PathBuffer2;
+    unsigned int NameLen;
     void *Dst;
-    __int64 v25;
-    _QWORD v26[2];
-    int v27;
-    __int64 v28;
-    __int64 v29;
-    int v30;
-    _OWORD v31;
-    __int16 v33;
+    __int64 SymLinkHandleOut;
+    _QWORD ObjectAttributes[2];
+    int AttrLength;
+    __int64 AttrOffset;
+    __int64 AttrFlags;
+    int AttrSize;
+    _OWORD AttrBuffer;
+    __int16 DevicePathFirst;
 
-    v5 = 0;
-    v6 = (int (__fastcall *)(__int64 *, __int64, int *, _QWORD *))GtRead(GtUninstallHookSyscallPeOffset|GtPathBuffer02|0x100);
-    v7 = (__int64 (__fastcall *)(__int64, __int64, void **, __int64, unsigned int *))GtRead(GtTotalSize|GtObjectTypeField34|GtDriverObject);
-    v8 = (void (__fastcall *)(__int64))GtRead(GtExFreePoolFunc);
-    v9 = (unsigned int)GtRead(GtSdstServiceCount);
-    v10 = v9;
-    if (v6 && v7 && v8 && v9 != -1)
+    Success = 0;
+    QuerySymLinkFunc = (int (__fastcall *)(__int64 *, __int64, int *, _QWORD *))GtRead(GtUninstallHookSyscallPeOffset|GtPathBuffer02|0x100);
+    UnicodeStr = (__int64 (__fastcall *)(__int64, __int64, void **, __int64, unsigned int *))GtRead(GtTotalSize|GtObjectTypeField34|GtDriverObject);
+    ObjAttr = (void (__fastcall *)(__int64))GtRead(GtExFreePoolFunc);
+    SymLinkHandle = (unsigned int)GtRead(GtSdstServiceCount);
+    DevicePath = SymLinkHandle;
+    if (QuerySymLinkFunc && UnicodeStr && ObjAttr && SymLinkHandle != -1)
     {
-        v27 = 48;
-        memset(&v31, 0, sizeof(v31));
-        v28 = 0;
-        v30 = 512;
-        v29 = 0;
-        v26[0] = a1;
-        v26[1] = 0;
-        if (v6(&v25, 1024, &v27, v26) >= 0)
+        AttrLength = 48;
+        memset(&AttrBuffer, 0, sizeof(AttrBuffer));
+        AttrOffset = 0;
+        AttrSize = 512;
+        AttrFlags = 0;
+        ObjectAttributes[0] = SymLink;
+        ObjectAttributes[1] = 0;
+        if (QuerySymLinkFunc(&SymLinkHandleOut, 1024, &AttrLength, ObjectAttributes) >= 0)
         {
-            v23 = 0;
+            NameLen = 0;
             CurrentThread = KeGetCurrentThread();
-            v12 = v10;
-            v13 = *((_BYTE *)CurrentThread + v10);
-            *((_BYTE *)CurrentThread + v12) = 0;
-            v14 = v7(v25, 27, &Dst, 8, &v23);
-            *((_BYTE *)CurrentThread + v12) = v13;
-            if (v14 != -1073741820)
+            PathBuffer = DevicePath;
+            Status = *((_BYTE *)CurrentThread + DevicePath);
+            *((_BYTE *)CurrentThread + PathBuffer) = 0;
+            QueryStatus = UnicodeStr(SymLinkHandleOut, 27, &Dst, 8, &NameLen);
+            *((_BYTE *)CurrentThread + PathBuffer) = Status;
+            if (QueryStatus != -1073741820)
                 goto LABEL_19;
-            v15 = v23;
-            if (!v23)
+            BufferSize = NameLen;
+            if (!NameLen)
                 goto LABEL_19;
-            v23 += 20;
-            Dst = ExAlloc(PagedPool, v15 + 20);
+            NameLen += 20;
+            Dst = ExAlloc(PagedPool, BufferSize + 20);
             if (!Dst)
                 goto LABEL_19;
-            v16 = *((_BYTE *)CurrentThread + v12);
-            *((_BYTE *)CurrentThread + v12) = 0;
-            v17 = v7(v25, 27, (void **)Dst, v23 - 4, &v23);
-            *((_BYTE *)CurrentThread + v12) = v16;
-            if (v17 >= 0)
+            BufferSize2 = *((_BYTE *)CurrentThread + PathBuffer);
+            *((_BYTE *)CurrentThread + PathBuffer) = 0;
+            BuildNumber = UnicodeStr(SymLinkHandleOut, 27, (void **)Dst, NameLen - 4, &NameLen);
+            *((_BYTE *)CurrentThread + PathBuffer) = BufferSize2;
+            if (BuildNumber >= 0)
             {
-                v18 = Dst;
+                PathBufferOut = Dst;
                 if ((char *)Dst + 16 != *((void **)Dst + 1))
                     goto LABEL_18;
                 if ((*(_WORD *)Dst & 0xFFFE) == 0)
                     goto LABEL_18;
-                v20 = *(_WORD *)Dst & 0xFFFE;
-                v23 = v20;
-                memmove(Dst, *((const void **)Dst + 1), v20);
-                *((_WORD *)Dst + ((unsigned __int64)v23 >> 1)) = 0;
-                if (BuildDevicePathFromObjects((unsigned __int16 *)Dst, &v33, (int *)&v23) == 1 && v23 > 2)
+                PathLen2 = *(_WORD *)Dst & 0xFFFE;
+                NameLen = PathLen2;
+                memmove(Dst, *((const void **)Dst + 1), PathLen2);
+                *((_WORD *)Dst + ((unsigned __int64)NameLen >> 1)) = 0;
+                if (BuildDevicePathFromObjects((unsigned __int16 *)Dst, &DevicePathFirst, (int *)&NameLen) == 1 && NameLen > 2)
                 {
-                    *(_WORD *)Dst = v33;
+                    *(_WORD *)Dst = DevicePathFirst;
                     *((_WORD *)Dst + 1) = 58;  // L':'
-                    WStringCopy((__int16 *)Dst + 2, (__int16 *)Dst + v23);
-                    v21 = Dst;
-                    *a2 = Dst;
-                    if (a3)
-                        *a3 = 2 * GetStringLength(v21);
-                    v5 = 1;
+                    WStringCopy((__int16 *)Dst + 2, (__int16 *)Dst + NameLen);
+                    PathBuffer2 = Dst;
+                    *pPathBuffer = Dst;
+                    if (pPathLength)
+                        *pPathLength = 2 * GetStringLength(PathBuffer2);
+                    Success = 1;
                     goto LABEL_19;
                 }
             }
-            v18 = Dst;
+            PathBufferOut = Dst;
 LABEL_18:
-            ExFree(v18);
+            ExFree(PathBufferOut);
 LABEL_19:
-            v8(v25);
+            ObjAttr(SymLinkHandleOut);
         }
     }
-    return v5;
+    return Success;
 }
 
 // IsProcessThreadInList — 检查进程或线程是否已在输出列表中
 // 对应原始驱动 sub_14004F2A0
 // 遍历已填充的条目，按对象地址比较，防止重复枚举
-char IsProcessThreadInList(__int64 a1, __int64 a2, __int64 a3, char a4)
+char IsProcessThreadInList(__int64 Process, __int64 Thread, __int64 ListHead, char CheckFlag)
 {
-    char v8;
-    unsigned int v9;
-    unsigned int v10;
-    unsigned int v11;
-    int v12;
+    char IsInList;
+    unsigned int EntryOffset;
+    unsigned int Result;
+    unsigned int EntryCount;
+    int LoopIndex;
     __int64 *i;
-    __int64 v14;
+    __int64 CurrentEntry;
 
-    v8 = 1;
-    v9 = (unsigned int)GtRead(GtKiFastCallEntryAddr|GtNtoskrnlImageSize);
-    v10 = (unsigned int)GtRead(GtEprocessField182|GtEprocessField06|0x100);
-    v11 = *(_DWORD *)(a1 + 16);
-    v12 = 0;
-    if (v11)
+    IsInList = 1;
+    EntryOffset = (unsigned int)GtRead(GtKiFastCallEntryAddr|GtNtoskrnlImageSize);
+    Result = (unsigned int)GtRead(GtEprocessField182|GtEprocessField06|0x100);
+    EntryCount = *(_DWORD *)(Process + 16);
+    LoopIndex = 0;
+    if (EntryCount)
     {
-        for (i = (__int64 *)(a1 + 32); ; i += 7)
+        for (i = (__int64 *)(Process + 32); ; i += 7)
         {
-            v14 = *i;
-            if (a3 == *i
-                || a4 == 1
-                && v9
-                && v10 != -1
-                && *(_QWORD *)(v9 + a2) == *(_QWORD *)(v14 + v9)
-                && *(_QWORD *)(v10 + a2) == *(_QWORD *)(v14 + v10))
+            CurrentEntry = *i;
+            if (IsInList == *i
+                || CheckFlag == 1
+                && EntryOffset
+                && Result != -1
+                && *(_QWORD *)(EntryOffset + Thread) == *(_QWORD *)(CurrentEntry + EntryOffset)
+                && *(_QWORD *)(Result + Thread) == *(_QWORD *)(CurrentEntry + Result))
             {
                 break;
             }
-            if (++v12 >= v11)
-                return v8;
+            if (++LoopIndex >= EntryCount)
+                return IsInList;
         }
         return 0;
     }
-    return v8;
+    return IsInList;
 }
 
 // EnumerateProcessInformation — 枚举进程信息
 // 对应原始驱动 sub_14004FAC4
 // 分配缓冲区，读取 GT 索引获取函数指针，遍历内核地址空间填充进程条目
-char EnumerateProcessInformation(__int64 a1, __int64 a2, unsigned int a3)
+char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned int BufferSize)
 {
     char Result;
     void *Buffer;
-    ULONG64 v6;
-    ULONG64 v7;
-    ULONG64 v8;
-    ULONG64 v9;
-    ULONG64 v10;
-    ULONG64 v11;
-    ULONG64 v12;
-    ULONG64 v13;
-    ULONG64 v14;
-    ULONG64 v15;
-    ULONG64 v16;
-    ULONG64 v17;
-    ULONG64 v18;
-    __int64 v19;
-    __int64 v20;
-    unsigned int v21;
-    int v22;
-    __int64 v23;
-    __int64 v24;
-    __int64 v25;
-    __int64 v26;
-    __int64 v27;
-    __int64 v28;
-    __int64 v29;
-    ULONG64 v30;
-    __int64 v31;
-    __int64 v32;
-    __int64 v33;
-    __int64 v34;
+    ULONG64 ServiceTableFunc;
+    ULONG64 ServiceTableSize;
+    ULONG64 KernelBase;
+    ULONG64 ModuleCount;
+    ULONG64 ProcessEntry;
+    ULONG64 BuildNumber;
+    ULONG64 ProcessIndex;
+    ULONG64 EntryCount;
+    ULONG64 MaxCount;
+    ULONG64 ProcessAddr;
+    ULONG64 ProcessId;
+    ULONG64 ParentId;
+    ULONG64 Flags;
+    __int64 ImageSize;
+    __int64 ImageBase;
+    unsigned int NamePtr;
+    int NameLen;
+    __int64 SessionId;
+    __int64 ExitStatus;
+    __int64 CreateTime;
+    __int64 ExitTime;
+    __int64 Affinity;
+    __int64 BasePriority;
+    __int64 Quantum;
+    ULONG64 ProcessType;
+    __int64 SecurityAttr;
+    __int64 DebugPort;
+    __int64 Wow64Flag;
+    __int64 ImageFileName;
     __int64 Dst[8];
-    char v36;
-    ULONG64 v37;
-    __int64 v38;
+    char CurrentDir;
+    ULONG64 Environment;
+    __int64 WindowTitle;
     KAPC_STATE ApcState;
-    __int64 v40;
-    char v41;
-    char v42;
-    char v43;
-    char v44;
-    char v45;
-    void *v46;
-    ULONG64 *v47;
-    int v48;
-    int v49;
-    char v50;
-    __int64 v51;
-    __int64 v52;
-    __int64 v53;
-    __int64 v54;
-    __int64 v55;
-    __int64 v56;
-    __int64 v57;
-    __int64 v58;
-    __int64 v59;
-    __int64 v60;
-    __int64 v61;
-    __int64 v62;
-    __int64 v63;
-    __int64 v64;
-    __int64 v65;
-    __int64 v66;
-    __int64 v67;
-    __int64 v68;
-    __int64 v69;
-    __int64 v70;
-    __int64 v71;
-    __int64 v72;
-    __int64 v73;
-    __int64 v74;
-    __int64 v75;
-    __int64 v76;
-    __int64 v77;
-    __int64 v78;
-    __int64 v79;
-    __int64 v80;
-    __int64 v81;
-    ULONG64 v82;
-    __int64 v83;
-    __int64 v84;
-    __int64 v85;
-    __int64 v86;
-    __int64 v87;
-    __int64 v88;
-    __int64 v89;
-    __int64 v90;
-    __int64 v91;
-    __int64 v92;
-    ULONG64 v93;
-    ULONG64 v94;
-    __int64 v95;
-    ULONG64 v96;
-    ULONG64 v97;
-    ULONG64 v98;
-    ULONG64 v99;
-    __int64 v100;
-    __int64 v101;
-    __int64 v102;
-    __int64 v103;
-    __int64 v104;
-    __int64 v105;
-    __int64 v106;
-    __int64 v107;
-    __int64 v108;
-    __int64 v109;
-    __int64 v110;
-    __int64 v111;
-    __int64 v112;
-    __int64 v113;
-    __int64 v114;
-    __int64 v115;
-    __int64 v116;
-    __int64 v117;
-    __int64 v118;
-    __int64 v119;
-    __int64 v120;
-    __int64 v121;
-    __int64 v122;
-    __int64 v123;
-    ULONG64 v124;
-    ULONG64 v125;
-    char v126;
-    char v127;
-    char v128;
-    ULONG64 v129;
-    ULONG64 v130;
-    __int64 v131;
-    ULONG64 v132;
-    char v133;
-    char v134;
-    char v135;
-    char v136;
-    ULONG64 *v137;
-    ULONG64 *v138;
-    __int64 v139;
-    ULONG64 *v140;
-    ULONG64 v141;
-    __int64 v142;
-    __int64 v143;
-    ULONG64 v144;
-    ULONG64 v145;
-    ULONG64 v146;
-    ULONG64 v147;
-    ULONG64 v148;
-    ULONG64 v149;
-    ULONG64 v150;
-    ULONG64 v151;
-    ULONG64 *v152;
-    ULONG64 *v153;
-    ULONG64 *v154;
-    ULONG64 v155;
-    ULONG64 v156;
-    ULONG64 v157;
-    ULONG64 v158;
-    ULONG64 v159;
-    ULONG64 v160;
-    ULONG64 v161;
-    ULONG64 v162;
-    ULONG64 v163;
-    ULONG64 v164;
-    ULONG64 v165;
-    ULONG64 v166;
-    ULONG64 v167;
-    ULONG64 v168;
+    __int64 ShellInfo;
+    char UserSid;
+    char GroupSid;
+    char Privileges;
+    char TokenInfo;
+    char HandleCount;
+    void *ThreadCount;
+    ULONG64 *ModuleCount2;
+    int VadCount;
+    int PageFaultCount;
+    char PeakWorkingSet;
+    __int64 WorkingSet;
+    __int64 QuotaPeak;
+    __int64 Quota;
+    __int64 PagefileUsage;
+    __int64 PeakPagefileUsage;
+    __int64 PrivatePageCount;
+    __int64 VirtualSize;
+    __int64 PeakVirtualSize;
+    __int64 PagedPoolUsage;
+    __int64 NonPagedPoolUsage;
+    __int64 PagedPoolPeak;
+    __int64 NonPagedPoolPeak;
+    __int64 CommitCharge;
+    __int64 KernelTime;
+    __int64 UserTime;
+    __int64 WaitTime;
+    __int64 ContextSwitches;
+    __int64 ReadOperationCount;
+    __int64 WriteOperationCount;
+    __int64 OtherOperationCount;
+    __int64 ReadTransferCount;
+    __int64 WriteTransferCount;
+    __int64 OtherTransferCount;
+    __int64 PriorityClass;
+    __int64 ProcessName;
+    __int64 OutputEntry;
+    __int64 OutputOffset;
+    __int64 OutputSize;
+    __int64 OutputBuffer;
+    __int64 BufferLimit;
+    __int64 Field81;
+    ULONG64 Field82;
+    __int64 Field83;
+    __int64 Field84;
+    __int64 Field85;
+    __int64 Field86;
+    __int64 Field87;
+    __int64 Field88;
+    __int64 Field89;
+    __int64 Field90;
+    __int64 Field91;
+    __int64 Field92;
+    ULONG64 Field93;
+    ULONG64 Field94;
+    __int64 Field95;
+    ULONG64 Field96;
+    ULONG64 Field97;
+    ULONG64 Field98;
+    ULONG64 Field99;
+    __int64 Field100;
+    __int64 Field101;
+    __int64 Field102;
+    __int64 Field103;
+    __int64 Field104;
+    __int64 Field105;
+    __int64 Field106;
+    __int64 Field107;
+    __int64 Field108;
+    __int64 Field109;
+    __int64 Field110;
+    __int64 Field111;
+    __int64 Field112;
+    __int64 Field113;
+    __int64 Field114;
+    __int64 Field115;
+    __int64 Field116;
+    __int64 Field117;
+    __int64 Field118;
+    __int64 Field119;
+    __int64 Field120;
+    __int64 Field121;
+    __int64 Field122;
+    __int64 Field123;
+    ULONG64 Field124;
+    ULONG64 Field125;
+    char Field126;
+    char Field127;
+    char Field128;
+    ULONG64 Field129;
+    ULONG64 Field130;
+    __int64 Field131;
+    ULONG64 Field132;
+    char Field133;
+    char Field134;
+    char Field135;
+    char Field136;
+    ULONG64 *Field137;
+    ULONG64 *Field138;
+    __int64 Field139;
+    ULONG64 *Field140;
+    ULONG64 Field141;
+    __int64 Field142;
+    __int64 Field143;
+    ULONG64 Field144;
+    ULONG64 Field145;
+    ULONG64 Field146;
+    ULONG64 Field147;
+    ULONG64 Field148;
+    ULONG64 Field149;
+    ULONG64 Field150;
+    ULONG64 Field151;
+    ULONG64 *Field152;
+    ULONG64 *Field153;
+    ULONG64 *Field154;
+    ULONG64 Field155;
+    ULONG64 Field156;
+    ULONG64 Field157;
+    ULONG64 Field158;
+    ULONG64 Field159;
+    ULONG64 Field160;
+    ULONG64 Field161;
+    ULONG64 Field162;
+    ULONG64 Field163;
+    ULONG64 Field164;
+    ULONG64 Field165;
+    ULONG64 Field166;
+    ULONG64 Field167;
+    ULONG64 Field168;
 
     // 分配 0x3000 字节缓冲区
     Buffer = ExAlloc((POOL_TYPE)1, 0x3000);
@@ -1848,18 +1844,18 @@ char EnumerateProcessInformation(__int64 a1, __int64 a2, unsigned int a3)
     memset(Buffer, 0, 0x3000);
 
     // 读取所需 GT 索引
-    v6 = GtRead((GLOBAL_TABLE_INDEX)0x41DE);
-    v7 = GtRead((GLOBAL_TABLE_INDEX)0x41E4);
-    v8 = GtRead((GLOBAL_TABLE_INDEX)0x41E1);
-    v9 = GtRead((GLOBAL_TABLE_INDEX)0x27);
-    v10 = GtRead((GLOBAL_TABLE_INDEX)0x41DB);
-    v11 = GtRead((GLOBAL_TABLE_INDEX)3);
-    v12 = GtRead((GLOBAL_TABLE_INDEX)2);
-    v13 = GtRead((GLOBAL_TABLE_INDEX)0x4B);
-    v14 = GtRead((GLOBAL_TABLE_INDEX)0x4169);
+    ServiceTableFunc = GtRead((GLOBAL_TABLE_INDEX)0x41DE);
+    ServiceTableSize = GtRead((GLOBAL_TABLE_INDEX)0x41E4);
+    KernelBase = GtRead((GLOBAL_TABLE_INDEX)0x41E1);
+    ModuleCount = GtRead((GLOBAL_TABLE_INDEX)0x27);
+    ProcessEntry = GtRead((GLOBAL_TABLE_INDEX)0x41DB);
+    BuildNumber = GtRead((GLOBAL_TABLE_INDEX)3);
+    ProcessIndex = GtRead((GLOBAL_TABLE_INDEX)2);
+    EntryCount = GtRead((GLOBAL_TABLE_INDEX)0x4B);
+    MaxCount = GtRead((GLOBAL_TABLE_INDEX)0x4169);
 
     // 验证所有必要指针
-    if (!v11 || !v12 || !v13 || !v14 || !v10 || !v6 || !v7 || !v8 || v9 == -1)
+    if (!BuildNumber || !ProcessIndex || !EntryCount || !MaxCount || !ProcessEntry || !ServiceTableFunc || !ServiceTableSize || !KernelBase || ModuleCount == -1)
     {
         ExFree(Buffer);
         return 0;
@@ -1869,27 +1865,27 @@ char EnumerateProcessInformation(__int64 a1, __int64 a2, unsigned int a3)
     memset(&Dst, 0, 0x40);
 
     // 设置当前线程 PreviousMode
-    v19 = (__int64)KeGetCurrentThread();
-    v20 = v9;
-    v21 = *(unsigned __int8 *)(v19 + v9);
-    *(unsigned __int8 *)(v19 + v20) = 0;
+    ImageSize = (__int64)KeGetCurrentThread();
+    ImageBase = ModuleCount;
+    NamePtr = *(unsigned __int8 *)(ImageSize + ModuleCount);
+    *(unsigned __int8 *)(ImageSize + ImageBase) = 0;
 
     // 调用枚举函数
-    v22 = ((__int64(__fastcall *)(__int64, __int64, __int64, __int64))v6)(
+    NameLen = ((__int64(__fastcall *)(__int64, __int64, __int64, __int64))ServiceTableFunc)(
         (__int64)&Dst, 0, 0x40, 0);
-    *(unsigned __int8 *)(v19 + v20) = (unsigned __int8)v21;
+    *(unsigned __int8 *)(ImageSize + ImageBase) = (unsigned __int8)NamePtr;
 
     // 获取内核地址范围
-    GetKernelVirtualAddressRange((__int64)&Dst, &v37, &v38);
+    GetKernelVirtualAddressRange((__int64)&Dst, &Environment, &WindowTitle);
 
     // 计算步进
-    v21 = (unsigned int)(v13 + 0x30) & 0xFFFFFFF8;
+    NamePtr = (unsigned int)(EntryCount + 0x30) & 0xFFFFFFF8;
 
     // 遍历地址空间 — 简化版本
     // 汇编完整实现需要深入分析，当前为骨架
-    v23 = 0;
-    v24 = 0;
-    v25 = 0;
+    SessionId = 0;
+    ExitStatus = 0;
+    CreateTime = 0;
     Result = 0;
 
     // 主循环
@@ -2413,10 +2409,10 @@ __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSi
             (PUCHAR)(ImageBase + EntryPoint),   // Base
             0x1000,                             // Size
             2,                                  // Mode
-            0,                                  // a4
-            -1,                                 // a5 (0xFFFFFFFF)
-            0,                                  // a6
-            (LONG64)(ULONG64)Context,           // a7 = 上下文指针
+            0,                                  // ValidateFlag
+            -1,                                 // SectionType (0xFFFFFFFF)
+            0,                                  // EntryIndex
+            (LONG64)(ULONG64)Context,           // Context = 上下文指针
             Context);                           // a8 = 上下文输出
 
         AccumulatedOffset = 0;
@@ -2664,7 +2660,7 @@ __int64 ReadProcessMemoryWithAttach(__int64 ProcessHandle)
 // ExecuteWithThreadContext — 在线程上下文中执行
 char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress)
 {
-    unsigned int v4 = GtRead(GtSdstServiceCount);
+    unsigned int PrevModeOffset = GtRead(GtSdstServiceCount);
     __int64 (__fastcall *TargetFunc)(__int64) = (__int64 (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessExtField58 | GtDriverObject));
     unsigned int FlagOffset;
     unsigned int ThreadFlagOffset;
@@ -2674,7 +2670,7 @@ char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress)
     char SavedThreadFlag;
     unsigned int Result, BuildNumber;
 
-    if (v4 == -1 || !TargetFunc)
+    if (PrevModeOffset == -1 || !TargetFunc)
         return -1073741823;
     BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
     FlagOffset = GtRead(GtCallbackField122);
@@ -2692,10 +2688,10 @@ char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress)
     SavedFlags2 = *(_BYTE *)(FlagOffset + VirtualAddress + 1);
     *(_WORD *)(FlagOffset + VirtualAddress) = 0;
     CurrentThread = KeGetCurrentThread();
-    SavedThreadFlag = *((_BYTE *)CurrentThread + v4);
-    *((_BYTE *)CurrentThread + v4) = 0;
+    SavedThreadFlag = *((_BYTE *)CurrentThread + PrevModeOffset);
+    *((_BYTE *)CurrentThread + PrevModeOffset) = 0;
     Result = TargetFunc(Handle);
-    *((_BYTE *)CurrentThread + v4) = SavedThreadFlag;
+    *((_BYTE *)CurrentThread + PrevModeOffset) = SavedThreadFlag;
     *(_BYTE *)(FlagOffset + VirtualAddress) = (char)SavedFlags1;
     *(_BYTE *)(FlagOffset + VirtualAddress + 1) = SavedFlags2;
     return Result;
@@ -2704,7 +2700,7 @@ char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress)
 // ExecuteWithThreadFlagCleared — 清除线程标志后执行
 __int64 ExecuteWithThreadFlagCleared(__int64 Address)
 {
-    unsigned int v2 = GtRead(GtSdstServiceCount);
+    unsigned int PrevModeOffset = GtRead(GtSdstServiceCount);
     __int64 (__fastcall *SyscallFunc)(__int64, _QWORD) = (__int64 (__fastcall *)(__int64, _QWORD))ResolveSyscallAddressesInProcess();
     __int64 (__fastcall *AttachSyscall)(__int64, __int64, _QWORD, __int64, _QWORD, char, __int64 *) = (__int64 (__fastcall *)(__int64, __int64, _QWORD, __int64, _QWORD, char, __int64 *))GtRead((GLOBAL_TABLE_INDEX)(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54));
     _QWORD *pFlags = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField95 | 0x100));
@@ -2714,17 +2710,17 @@ __int64 ExecuteWithThreadFlagCleared(__int64 Address)
     struct _KTHREAD *CurrentThread;
     char SavedFlag;
 
-    if (v2 == -1 || !SyscallFunc || !AttachSyscall || !pFlags || !CleanupFunc)
+    if (PrevModeOffset == -1 || !SyscallFunc || !AttachSyscall || !pFlags || !CleanupFunc)
         return -1073741823;
     Result = AttachSyscall(Address, 512, 0, 0x10000000, *pFlags, 0, &Handle);
     if (!Result)
     {
         CurrentThread = KeGetCurrentThread();
-        SavedFlag = *((_BYTE *)CurrentThread + v2);
-        *((_BYTE *)CurrentThread + v2) = 0;
+        SavedFlag = *((_BYTE *)CurrentThread + PrevModeOffset);
+        *((_BYTE *)CurrentThread + PrevModeOffset) = 0;
         Result = SyscallFunc(Handle, 0);
         CleanupFunc(Handle);
-        *((_BYTE *)CurrentThread + v2) = SavedFlag;
+        *((_BYTE *)CurrentThread + PrevModeOffset) = SavedFlag;
     }
     return Result;
 }

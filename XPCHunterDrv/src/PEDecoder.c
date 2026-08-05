@@ -86,20 +86,20 @@ void InitPESectionReadContext(
     PUCHAR Base,
     ULONG Size,
     INT Mode,
-    LONG64 a4,
-    INT a5,
-    LONG64 a6,
-    LONG64 a7,
+    LONG64 Param5,
+    INT ExtraField,
+    LONG64 Param6,
+    LONG64 Param7,
     PUCHAR Context)
 {
     SET_Q(Context, DEC_CTX_BUFFER_BASE, Base);
     SET_D(Context, DEC_CTX_MODE, Mode);
     SET_Q(Context, DEC_CTX_BUFFER_END, (ULONG64)(Base + Size));
     SET_D(Context, DEC_CTX_MODE_DUP, Mode);
-    SET_D(Context, DEC_CTX_EXTRA_FIELD, a5);
-    SET_Q(Context, DEC_CTX_PARAM5, a4);
-    SET_Q(Context, DEC_CTX_PARAM6, a6);
-    SET_Q(Context, DEC_CTX_PARAM7, a7);
+    SET_D(Context, DEC_CTX_EXTRA_FIELD, ExtraField);
+    SET_Q(Context, DEC_CTX_PARAM5, Param5);
+    SET_Q(Context, DEC_CTX_PARAM6, Param6);
+    SET_Q(Context, DEC_CTX_PARAM7, Param7);
 
     if (Mode == 2)
     {
@@ -250,11 +250,11 @@ LABEL_CONTINUE:
     {
         if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) == 2)
         {
-            ULONG64 v20 = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
+            ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
                           CTX_Q(Context, DEC_CTX_PARAM5);
             SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, 0);
             SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT, 1);
-            SET_Q(SectionInfo, DEC_CTX_PARAM4, v20);
+            SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
             SET_Q(SectionInfo, 0x118, DecodeTablePtr + 2880);
             return 0;
         }
@@ -263,10 +263,10 @@ LABEL_CONTINUE:
     {
         // 正常完成：分发到指令解码器
         SET_B(SectionInfo, DEC_CTX_LAST_OPCODE_SAVE, *BufferPos);
-        ULONG64 v18 = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
+        ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
                       CTX_Q(Context, DEC_CTX_PARAM5);
         SET_W(SectionInfo, DEC_CTX_INSTR_IDX, ByteIndex);
-        SET_Q(SectionInfo, DEC_CTX_PARAM4, v18);
+        SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
 
         DispatchResult = (int)DispatchInstructionDecode(
             (ULONG64)(BufferPos + 1),
@@ -297,11 +297,11 @@ LABEL_ERROR:
     {
         if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) == 2)
         {
-            ULONG64 v20 = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
+            ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
                           CTX_Q(Context, DEC_CTX_PARAM5);
             SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, 0);
             SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT, 1);
-            SET_Q(SectionInfo, DEC_CTX_PARAM4, v20);
+            SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
             SET_Q(SectionInfo, 0x118, DecodeTablePtr + 2880);
             return 0;
         }
@@ -1061,7 +1061,7 @@ __int64 DecodeOpcodeTableGroup3(PUCHAR Context)
 // DecodeMultiByteOpcode — 解码多字节操作码
 // 对应原始驱动 sub_14008B338
 // 处理 0xC0-0xFF 范围的多字节操作码
-__int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 a2, ULONG64 a3)
+__int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedParam)
 {
     PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
     PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
@@ -1120,19 +1120,19 @@ __int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 a2, ULONG64 a3)
         // 构造调用上下文
         PUCHAR FuncContext = CTX_Q(Context, 0);
         // 设置函数分发参数
-        ULONG64 v14[6];
-        v14[0] = (ULONG64)(BufferBase + TotalSize + OpIndex);
-        v14[1] = (ULONG64)BufferEnd;
-        v14[2] = (ULONG64)SubTable;
-        v14[3] = (ULONG64)a2;
-        v14[4] = (ULONG64)DecodeContext;
-        v14[5] = 0;
+        ULONG64 FuncContextArray[6];
+        FuncContextArray[0] = (ULONG64)(BufferBase + TotalSize + OpIndex);
+        FuncContextArray[1] = (ULONG64)BufferEnd;
+        FuncContextArray[2] = (ULONG64)SubTable;
+        FuncContextArray[3] = (ULONG64)Param2;
+        FuncContextArray[4] = (ULONG64)DecodeContext;
+        FuncContextArray[5] = 0;
 
         ULONG64 FuncTable = CTX_Q(DecodeContext, DEC_CTX_FUNC_TABLE);
         ULONG64 FuncPtr = *(ULONG64 *)(FuncTable + 8 * *OpPtr);
         ULONG64 (*Func)(ULONG64 *) = (ULONG64 (*)(ULONG64 *))FuncPtr;
 
-        ULONG64 FuncResult = Func(v14);
+        ULONG64 FuncResult = Func(FuncContextArray);
         if (FuncResult == (ULONG64)-1)
             return (ULONG64)-1;
 
@@ -2116,7 +2116,7 @@ __int64 DecodeImmediateOperandSize(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR D
 // ============================================================
 __int64 DecodeModrmAddressingMode(
     PULONG Context,
-    ULONG64 a2,
+    ULONG64 UnusedParam,
     INT OperandType,
     PUCHAR OperandOut,
     INT Flag)
@@ -2401,13 +2401,13 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
     ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) >> 4) & 0xF;
     ULONG AddrField = (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) >> 8) & 3;
     ULONG TableEntryFlags = *(USHORT *)(CTX_Q(DecodeCtx, DEC_CTX_CUR_TABLE_ENTRY) + 4);
-    INT v24 = 0;
-    int v16;
+    INT IsModrmAddr = 0;
+    int Is32BitMode;
 
     // 检查标志位组合
     if (OpFlags == 640)
     {
-        v24 = 0;
+        IsModrmAddr = 0;
         goto LABEL_MODRM_ADDR;
     }
 
@@ -2510,7 +2510,7 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             return 0;
         }
 
-        v16 = 0;
+        Is32BitMode = 0;
         goto LABEL_MODRM;
     }
     else
@@ -2534,7 +2534,7 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             }
 
             CTX_Q(OperandOut, 0x20) |= 1;
-            v24 = 1;
+            IsModrmAddr = 1;
             goto LABEL_MODRM_ADDR;
         }
 
@@ -2572,15 +2572,15 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             return 0;
         }
 
-        v16 = 1;
+        Is32BitMode = 1;
     }
 
 LABEL_MODRM:
-    if (v16 != 1)
+    if (Is32BitMode != 1)
         return 0;
 
 LABEL_MODRM_ADDR:
-    DecodeModrmAddressingMode(DecodeCtx, 0, RegField, OperandOut, v24);
+    DecodeModrmAddressingMode(DecodeCtx, 0, RegField, OperandOut, IsModrmAddr);
     return 0;
 }
 

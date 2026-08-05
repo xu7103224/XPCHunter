@@ -2,6 +2,7 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 
 #include "..\inc\XPCHunterDrv.h"
+#pragma warning(disable:4700)
 
 // 全局变量声明
 extern KMUTEX g_Mutex;
@@ -209,7 +210,7 @@ __int64 *__fastcall MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddres
                     else
                     {
                         strcpy((char *)ExplorerName, "explorer.exe");
-                        HIBYTE(ExplorerName[6]) = 0;
+                        HIBYTE_LV(ExplorerName[6]) = 0;
                         ExplorerName[7] = 0;
                         ProcessName = GetProcessNameFunc();
                         IsExplorer = (unsigned int)StringCompareCaseInsensitiveV2(ProcessName, (__int64)ExplorerName) != 0;
@@ -228,7 +229,8 @@ __int64 *__fastcall MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddres
             }
         }
     }
-    return (__int64 *)AcquireMiniFilterMutex();
+    AcquireMiniFilterMutex();
+    return 0;
 }
 
 // MiniFilterNotifyRoutine — Minifilter 通知例程
@@ -694,9 +696,9 @@ __int64 MiniFilterPreHardLink(__int64 Unknown1, __int64 Unknown2, __int64 *Outpu
     __int64 FltMgrBase, TempVar, ServiceTableAddr1, ServiceTableAddr2, BaseAddr;
     __int64 TableValue1, TableValue2, TableValue3, TableValue4;
     __int64 FltMgrBaseCopy, FileVersion;
-    ULONG64 v14, v15;
-    ULONG v16;
-    __int64 v17;
+    ULONG64 TopAddress, CurrentEntry;
+    ULONG BuildNumber;
+    __int64 ServiceTableEntry;
 
     if (!ExecSectionBase)
     {
@@ -722,8 +724,8 @@ __int64 MiniFilterPreHardLink(__int64 Unknown1, __int64 Unknown2, __int64 *Outpu
         (ULONG64)ExecSectionBase <= NtImageBase)
         return Result;
 
-    v14 = ModuleInfoSize + NtImageBase;
-    if ((ULONG64)ExecSectionBase >= v14 || (ULONG64)(ExecSectionBase + 6) >= v14 ||
+    TopAddress = ModuleInfoSize + NtImageBase;
+    if ((ULONG64)ExecSectionBase >= TopAddress || (ULONG64)(ExecSectionBase + 6) >= TopAddress ||
         !OutputBuffer || (ULONG)BufferSize < 0x70 ||
         (ULONG64)OutputBuffer >= MmUserProbeAddress ||
         (ULONG64)OutputBuffer + BufferSize >= MmUserProbeAddress)
@@ -732,10 +734,10 @@ __int64 MiniFilterPreHardLink(__int64 Unknown1, __int64 Unknown2, __int64 *Outpu
     ProbeForWrite(OutputBuffer, BufferSize, 8);
     memset(OutputBuffer, 0, BufferSize);
     *OutputBuffer = FileVersion;
-    v15 = *ExecSectionBase;
+    CurrentEntry = *ExecSectionBase;
     OutputBuffer[1] = *ExecSectionBase;
 
-    if (!v15 || v15 <= (ULONG64)MmSystemRangeStart)
+    if (!CurrentEntry || CurrentEntry <= (ULONG64)MmSystemRangeStart)
         return 1;
 
     if ((ULONG)GtRead(GtWindowsBuildNumber) < 0x23F0)
@@ -745,10 +747,10 @@ __int64 MiniFilterPreHardLink(__int64 Unknown1, __int64 Unknown2, __int64 *Outpu
     }
     else
     {
-        v16 = (ULONG)GtRead(GtWindowsBuildNumber);
+        BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
         OutputBuffer[2] = ServiceTableAddr1;
         OutputBuffer[3] = *(__int64 *)OutputBuffer[1];
-        if (v16 >= 0x4A61)
+        if (BuildNumber >= 0x4A61)
         {
             OutputBuffer[12] = ServiceTableAddr2;
             OutputBuffer[13] = *(__int64 *)(OutputBuffer[1] + 8);
@@ -759,7 +761,7 @@ __int64 MiniFilterPreHardLink(__int64 Unknown1, __int64 Unknown2, __int64 *Outpu
             OutputBuffer[8] = TableValue3;
             OutputBuffer[9] = *(__int64 *)(OutputBuffer[1] + 32);
             OutputBuffer[10] = TableValue4;
-            v17 = *(__int64 *)(OutputBuffer[1] + 40);
+            ServiceTableEntry = *(__int64 *)(OutputBuffer[1] + 40);
         }
         else
         {
@@ -770,9 +772,9 @@ __int64 MiniFilterPreHardLink(__int64 Unknown1, __int64 Unknown2, __int64 *Outpu
             OutputBuffer[8] = TableValue3;
             OutputBuffer[9] = *(__int64 *)(OutputBuffer[1] + 24);
             OutputBuffer[10] = TableValue4;
-            v17 = *(__int64 *)(OutputBuffer[1] + 32);
+            ServiceTableEntry = *(__int64 *)(OutputBuffer[1] + 32);
         }
-        OutputBuffer[11] = v17;
+        OutputBuffer[11] = ServiceTableEntry;
     }
     return 1;
 }
@@ -1586,14 +1588,14 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
             {
                 if (*(__int64 *)(SectionEntry + 9) == 0x40000)
                 {
-                    FieldValue = SectionEntry[4];  // v44
+                    FieldValue = SectionEntry[4];
                     if (FieldValue && *(__int64 *)(SectionEntry + 8) == 64)
                     {
                         ULONG Ofs = CumulativeSize + FieldValue - (ULONG)ImageBase;
                         if (Ofs && Ofs < ImageSize)
                         {
                             // 第一个匹配: 写入 Dst 数组
-                            ULONG DstIndex = *(SectionEntry + 3);  // v43
+                            ULONG DstIndex = *(SectionEntry + 3);
                             if (DstIndex < 0x10)
                             {
                                 RelocRva = RelocRva2;
@@ -2944,17 +2946,17 @@ __int64 EnumFileSystemCallbackEntries(void)
     int ComputedRva;
     unsigned int SectionEntrySize;
     __int64 RootOffsetAccum;
-    __int64 v26;
-    __int64 v31;
-    int v32;
-    int v33;
-    __int64 v34;
-    __int64 v36;
-    int v35;
-    int v28;
-    int v29;
-    int v30;
-    __int64 v27[8];
+    __int64 UnusedVar;
+    __int64 SectionDataPtr;
+    int ModeField;
+    int ModeField2;
+    __int64 SectionCharacteristics;
+    __int64 SectionDataPtr2;
+    int EntrySize;
+    int SectionFlags;
+    int FieldValue;
+    int FieldValue2;
+    __int64 SectionEntry[8];
     char ReadContext[8];
     struct _KAPC_STATE ApcState;
     __int64 StackCookie;
@@ -2992,45 +2994,45 @@ __int64 EnumFileSystemCallbackEntries(void)
             (PUCHAR)ReadContext);
 
         SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
         {
-            v35 = (int)v27[6];
-            RootOffsetAccum += v35;
-            v36 = v31;
+            EntrySize = (int)SectionEntry[6];
+            RootOffsetAccum += EntrySize;
+            SectionDataPtr2 = SectionDataPtr;
 
             // 检查是否到达终止类型 (0x545 = 1349)
-            if (*(_WORD *)(v31 + 6) == 0x545)
+            if (*(_WORD *)(SectionDataPtr + 6) == 0x545)
                 break;
 
             // 检查是否为 SSDT 表类型 (0x512 = 1298)
-            if (*(_WORD *)(v31 + 6) == 0x512)
+            if (*(_WORD *)(SectionDataPtr + 6) == 0x512)
             {
                 // 检查字段条件: FieldValueSize == 64, FieldCount == 2, FieldFlags == 4
-                if (v34 == 64 && v32 == 2 && v33 == 4)
+                if (SectionCharacteristics == 64 && ModeField == 2 && ModeField2 == 4)
                 {
                     // 读取下一个条目
-                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
                     {
-                        v35 = (int)v27[6];
-                        RootOffsetAccum += v35;
-                        v36 = v31;
+                        EntrySize = (int)SectionEntry[6];
+                        RootOffsetAccum += EntrySize;
+                        SectionDataPtr2 = SectionDataPtr;
 
                         // 再次检查 Type 0x512
-                        if (*(_WORD *)(v31 + 6) == 0x512)
+                        if (*(_WORD *)(SectionDataPtr + 6) == 0x512)
                         {
                             // 检查字段条件: FieldValueSize == 64, FieldCount == 1, FieldFileOffset == 0x40000
-                            if (v34 == 64 && v32 == 1 && v33 == 0x40000)
+                            if (SectionCharacteristics == 64 && ModeField == 1 && ModeField2 == 0x40000)
                             {
-                                ComputedRva = v29 - (int)SectionSize + (int)RootOffsetAccum;
+                                ComputedRva = FieldValue - (int)SectionSize + (int)RootOffsetAccum;
 
                                 // 读取下一个条目确认 Type 0x558
-                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
                                 {
-                                    v35 = (int)v27[6];
-                                    RootOffsetAccum += v35;
-                                    v36 = v31;
+                                    EntrySize = (int)SectionEntry[6];
+                                    RootOffsetAccum += EntrySize;
+                                    SectionDataPtr2 = SectionDataPtr;
 
-                                    if (*(_WORD *)(v31 + 6) == 0x558 && ComputedRva)
+                                    if (*(_WORD *)(SectionDataPtr + 6) == 0x558 && ComputedRva)
                                     {
                                         if ((unsigned int)ComputedRva < (unsigned int)NtoskrnlBase)
                                         {
@@ -3039,27 +3041,27 @@ __int64 EnumFileSystemCallbackEntries(void)
 
                                             // 第二遍扫描：查找偏移地址
                                             FieldIndex = 0;
-                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, v27))
+                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
                                             {
-                                                v35 = (int)v27[6];
-                                                RootOffsetAccum += v35;
-                                                v36 = v31;
+                                                EntrySize = (int)SectionEntry[6];
+                                                RootOffsetAccum += EntrySize;
+                                                SectionDataPtr2 = SectionDataPtr;
 
                                                 // 检查是否达到构建号边界
                                                 if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x55F0)
                                                 {
-                                                    if (*(_WORD *)(v31 + 6) == 0x545)
+                                                    if (*(_WORD *)(SectionDataPtr + 6) == 0x545)
                                                         break;
                                                 }
 
                                                 // 检查类型匹配: 0x4B1(1201), 0x175(373), 0x472(1138)
-                                                if (*(_WORD *)(v31 + 6) == 0x4B1
-                                                    || *(_WORD *)(v31 + 6) == 0x175
-                                                    || *(_WORD *)(v31 + 6) == 0x472)
+                                                if (*(_WORD *)(SectionDataPtr + 6) == 0x4B1
+                                                    || *(_WORD *)(SectionDataPtr + 6) == 0x175
+                                                    || *(_WORD *)(SectionDataPtr + 6) == 0x472)
                                                 {
-                                                    if ((v28 & 4) != 0 && v34 == 0x40000)
+                                                    if ((SectionFlags & 4) != 0 && SectionCharacteristics == 0x40000)
                                                     {
-                                                        ComputedRva = v30 - (int)SectionSize + (int)RootOffsetAccum;
+                                                        ComputedRva = FieldValue2 - (int)SectionSize + (int)RootOffsetAccum;
                                                         if (ComputedRva && (unsigned int)ComputedRva < (unsigned int)NtoskrnlBase)
                                                         {
                                                             GtWrite(GtKernelDataField40, NtoskrnlImageBase + ComputedRva);
@@ -3103,9 +3105,9 @@ char ParseNtRelocSection(__int64 PeBase, unsigned int PeSize, __int64 Context)
 
 // FileSystemFilterCallback — 文件系统过滤回调 (0x14000EF84)
 // 处理文件系统过滤补丁数据，根据补丁标志执行 PatchFsFilterDriverIndex 和 WritePhysicalMemoryBuffer
-char __fastcall FileSystemFilterCallback(char *PatchBuffer, int BufferSize)
+__int64 __fastcall FileSystemFilterCallback(char *PatchBuffer, int BufferSize)
 {
-    char Result;
+    __int64 Result;
     char PatchResult;
     char WriteResult;
     PVOID TargetAddress;

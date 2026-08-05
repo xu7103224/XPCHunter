@@ -326,7 +326,7 @@ __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress)
 // EnumKernelMemoryContext — 枚举内核内存上下文
 // 对应原始驱动 sub_14006A968
 // 遍历内核内存上下文链表，根据构建号选择步长写入输出缓冲区
-__int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *a3, unsigned int a4)
+__int64 EnumKernelMemoryContext(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutputBuffer, unsigned int BufferSize)
 {
     __int64 EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField32|0x400);
     if (!EprocessExtField58)
@@ -334,25 +334,25 @@ __int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *a3, unsigned int
         InitKernelMemoryContext();
         EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField32|0x400);
     }
-    _QWORD *v7 = (_QWORD *)EprocessExtField58;
-    unsigned int v8 = (unsigned int)GtRead(GtEprocessExtField42|GtEprocessField54|0x400);
-    if (!v7 || !v8)
+    _QWORD *pContextHead = (_QWORD *)EprocessExtField58;
+    unsigned int EntrySize = (unsigned int)GtRead(GtEprocessExtField42|GtEprocessField54|0x400);
+    if (!pContextHead || !EntrySize)
         return 0;
-    if (v7 <= (_QWORD *)MmSystemRangeStart)
+    if (pContextHead <= (_QWORD *)MmSystemRangeStart)
         return 0;
-    if (*v7 <= (unsigned __int64)MmSystemRangeStart)
+    if (*pContextHead <= (unsigned __int64)MmSystemRangeStart)
         return 0;
-    _QWORD *v9 = (_QWORD *)(*v7 + v8);
-    if (CheckMemoryValid(v9) != 1)
+    _QWORD *pEntry = (_QWORD *)(*pContextHead + EntrySize);
+    if (CheckMemoryValid(pEntry) != 1)
         return 0;
-    if (!a3 || a4 < 0x18)
+    if (!pOutputBuffer || BufferSize < 0x18)
         return 0;
-    if ((unsigned __int64)a3 >= MmUserProbeAddress || (unsigned __int64)a3 + a4 >= MmUserProbeAddress)
+    if ((unsigned __int64)pOutputBuffer >= MmUserProbeAddress || (unsigned __int64)pOutputBuffer + BufferSize >= MmUserProbeAddress)
         return 0;
-    ProbeForWrite(a3, a4, 8u);
-    memset(a3, 0, a4);
-    *a3 = 0;
-    unsigned __int64 v10 = ((a4 - 24) >> 4) + 1;
+    ProbeForWrite(pOutputBuffer, BufferSize, 8u);
+    memset(pOutputBuffer, 0, BufferSize);
+    *pOutputBuffer = 0;
+    unsigned __int64 MaxCount = ((BufferSize - 24) >> 4) + 1;
     unsigned int BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
 
     if (BuildNumber < 0x4563)
@@ -363,51 +363,51 @@ __int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *a3, unsigned int
             if (BuildNumber == 7600
                 || BuildNumber == 7601)
             {
-                for (unsigned int i = 0; i < 3 && (_DWORD)v10
-                    && CheckMemoryValid(v9) == 1
-                    && CheckMemoryValid((char *)v9 + 15) == 1; i++)
+                for (unsigned int i = 0; i < 3 && (_DWORD)MaxCount
+                    && CheckMemoryValid(pEntry) == 1
+                    && CheckMemoryValid((char *)pEntry + 15) == 1; i++)
                 {
-                    if (v9[1])
+                    if (pEntry[1])
                     {
-                        a3[4 * *a3 + 2] = *(_DWORD *)v9;
-                        *(_QWORD *)&a3[4 * (*a3)++ + 4] = v9[1];
-                        v10--;
+                        pOutputBuffer[4 * *pOutputBuffer + 2] = *(_DWORD *)pEntry;
+                        *(_QWORD *)&pOutputBuffer[4 * (*pOutputBuffer)++ + 4] = pEntry[1];
+                        MaxCount--;
                     }
-                    v9 += 2;
+                    pEntry += 2;
                 }
             }
         }
         else
         {
             // Win8.x
-            for (unsigned int j = 0; j < 5 && (_DWORD)v10
-                && CheckMemoryValid(v9) == 1
-                && CheckMemoryValid((char *)v9 + 15) == 1; j++)
+            for (unsigned int j = 0; j < 5 && (_DWORD)MaxCount
+                && CheckMemoryValid(pEntry) == 1
+                && CheckMemoryValid((char *)pEntry + 15) == 1; j++)
             {
-                if (v9[1])
+                if (pEntry[1])
                 {
-                    a3[4 * *a3 + 2] = *(_DWORD *)v9;
-                    *(_QWORD *)&a3[4 * (*a3)++ + 4] = v9[1];
-                    v10--;
+                    pOutputBuffer[4 * *pOutputBuffer + 2] = *(_DWORD *)pEntry;
+                    *(_QWORD *)&pOutputBuffer[4 * (*pOutputBuffer)++ + 4] = pEntry[1];
+                    MaxCount--;
                 }
-                v9 += 2;
+                pEntry += 2;
             }
         }
     }
     else
     {
         // Win10+
-        for (unsigned int k = 0; k < 5 && (_DWORD)v10
-            && CheckMemoryValid(v9) == 1
-            && CheckMemoryValid((char *)v9 + 31) == 1; k++)
+        for (unsigned int k = 0; k < 5 && (_DWORD)MaxCount
+            && CheckMemoryValid(pEntry) == 1
+            && CheckMemoryValid((char *)pEntry + 31) == 1; k++)
         {
-            if (v9[1])
+            if (pEntry[1])
             {
-                a3[4 * *a3 + 2] = *(_DWORD *)v9;
-                *(_QWORD *)&a3[4 * (*a3)++ + 4] = v9[1];
-                v10--;
+                pOutputBuffer[4 * *pOutputBuffer + 2] = *(_DWORD *)pEntry;
+                *(_QWORD *)&pOutputBuffer[4 * (*pOutputBuffer)++ + 4] = pEntry[1];
+                MaxCount--;
             }
-            v9 += 4;
+            pEntry += 4;
         }
     }
     return 1;
@@ -571,28 +571,28 @@ __int64 FreeProcessMemoryBuffer(PVOID VirtualAddress)
 // 对应原始驱动 sub_14007E034
 char InitKernelObjectHeader(char *VirtualAddress)
 {
-    int v2 = (int)GtRead(GtEprocessField53);
-    int v3 = (int)GtRead(GtEprocessField94);
-    int v4 = (int)GtRead(GtEprocessField95);
-    unsigned int v6 = (unsigned int)GtRead(GtObjectTypeCount);
-    if (!v2 || v3 == -1 || !v4 || !v6)
+    int ObjectTypeOffset = (int)GtRead(GtEprocessField53);
+    int FlagsOffset = (int)GtRead(GtEprocessField94);
+    int BuildDependentOffset = (int)GtRead(GtEprocessField95);
+    unsigned int ObjectTypeCount = (unsigned int)GtRead(GtObjectTypeCount);
+    if (!ObjectTypeOffset || FlagsOffset == -1 || !BuildDependentOffset || !ObjectTypeCount)
         return 0;
     if (MmIsAddressValid(VirtualAddress) != 1)
         return 0;
-    if (MmIsAddressValid(&VirtualAddress[v6 - 1]) != 1)
+    if (MmIsAddressValid(&VirtualAddress[ObjectTypeCount - 1]) != 1)
         return 0;
-    *(_DWORD *)&VirtualAddress[v3] &= ~1u;
+    *(_DWORD *)&VirtualAddress[FlagsOffset] &= ~1u;
     ModifyObjectHeaderFlagsByVersion((__int64)VirtualAddress, 1);
-    VirtualAddress[v2] = 5;
+    VirtualAddress[ObjectTypeOffset] = 5;
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
-        *(_DWORD *)&VirtualAddress[v4] = 0;
+        *(_DWORD *)&VirtualAddress[BuildDependentOffset] = 0;
     return 1;
 }
 
 // ReadKernelMemoryToUserBuffer — 读取内核内存到用户缓冲区
 // 对应原始驱动 sub_14006AFEC
 // 读取 GT 2000（内核内存上下文指针），验证后复制 QWORD 到用户缓冲区
-__int64 ReadKernelMemoryToUserBuffer(__int64 a1, __int64 a2, _QWORD *a3, int a4)
+__int64 ReadKernelMemoryToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, _QWORD *pOutputBuffer, int BufferSize)
 {
     __int64 EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField54|0x400);
     if (!EprocessExtField58)
@@ -600,15 +600,15 @@ __int64 ReadKernelMemoryToUserBuffer(__int64 a1, __int64 a2, _QWORD *a3, int a4)
         InitKernelMemoryContext();
         EprocessExtField58 = GtRead(GtEprocessExtField58|GtEprocessField54|0x400);
     }
-    _QWORD *v8 = (_QWORD *)EprocessExtField58;
-    if (v8 && v8 > (_QWORD *)MmSystemRangeStart && CheckMemoryValid(v8) == 1
-        && a3 && a4 == 8
-        && (unsigned __int64)a3 < MmUserProbeAddress
-        && (unsigned __int64)(a3 + 1) < MmUserProbeAddress)
+    _QWORD *pContextHead = (_QWORD *)EprocessExtField58;
+    if (pContextHead && pContextHead > (_QWORD *)MmSystemRangeStart && CheckMemoryValid(pContextHead) == 1
+        && pOutputBuffer && BufferSize == 8
+        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)(pOutputBuffer + 1) < MmUserProbeAddress)
     {
-        ProbeForWrite(a3, 8u, 8u);
-        *a3 = 0;
-        *a3 = *v8;
+        ProbeForWrite(pOutputBuffer, 8u, 8u);
+        *pOutputBuffer = 0;
+        *pOutputBuffer = *pContextHead;
         return 1;
     }
     return 0;

@@ -387,7 +387,7 @@ char CheckTmDllSection(unsigned __int8 *NameToMatch)
     __int64 FileBuffer;
     unsigned int FileSize;
     unsigned int Offset;
-    _WORD NameBuffer[16];
+    _WORD NameBuffer[32];
 
     Result = 0;
     wcscpy((wchar_t *)NameBuffer, L"ext-ms-win-ntos-tm-l1-1-0.dll");
@@ -894,7 +894,7 @@ char OpenDeviceTarget(__int64 DevicePath, __int64 IoctlBuffer, _QWORD *pDeviceHa
 
 // ReadModifyWriteDiskSector — 读取修改写入磁盘扇区
 // 对应原始驱动 sub_14007CA18
-char ReadModifyWriteDiskSector(int a1, unsigned int a2)
+char ReadModifyWriteDiskSector(int UseProcessDiskData, unsigned int SectorIndex)
 {
     char Result;
     struct _DEVICE_OBJECT *pDeviceObject;
@@ -905,8 +905,8 @@ char ReadModifyWriteDiskSector(int a1, unsigned int a2)
     _BYTE *pByte;
 
     Result = 0;
-    if (a1) a2 = 0;
-    if (a2 < 0x40)
+    if (UseProcessDiskData) SectorIndex = 0;
+    if (SectorIndex < 0x40)
     {
         pDeviceObject = (struct _DEVICE_OBJECT *)QueryObjectTypeDirectoryPath();
         if (pDeviceObject)
@@ -921,9 +921,9 @@ char ReadModifyWriteDiskSector(int a1, unsigned int a2)
                     if (pBuffer)
                     {
                         memset(pBuffer, 0, SectorSize);
-                        if (a2)
+                        if (SectorIndex)
                         {
-                            if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, pBuffer, a2, 1, SectorSize))
+                            if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, pBuffer, SectorIndex, 1, SectorSize))
                                 goto CHECK_BUFFER;
                         }
                         else
@@ -958,7 +958,7 @@ CHECK_BUFFER:
 
 // WriteDiskSectorsWithMbr — 带 MBR 写入磁盘扇区
 // 对应原始驱动 sub_14007C7A8
-char WriteDiskSectorsWithMbr(int a1, unsigned int a2)
+char WriteDiskSectorsWithMbr(int UseProcessDiskData, unsigned int SectorOffset)
 {
     char Result;
     struct _DEVICE_OBJECT *pDeviceObject;
@@ -1006,14 +1006,14 @@ char WriteDiskSectorsWithMbr(int a1, unsigned int a2)
                                 if (StartSector)
                                 {
                                     memset((void *)pBuffer, 0, SectorSize);
-                                    if (a1)
+                                    if (UseProcessDiskData)
                                     {
                                         if ((unsigned char)ProcessDiskSectorData(pDeviceObject, (unsigned int)(SectorSize * StartSector), (void *)pBuffer, (unsigned int)SectorSize) == 1)
                                             goto CHECK_READ;
                                     }
-                                    else if (a2 < 0x100)
+                                    else if (SectorOffset < 0x100)
                                     {
-                                        if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, (void *)pBuffer, StartSector + a2, 1, SectorSize))
+                                        if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, (void *)pBuffer, StartSector + SectorOffset, 1, SectorSize))
                                         {
 CHECK_READ:
                                             Index = 0; pByte = (_BYTE *)pBuffer;
@@ -1039,25 +1039,25 @@ LABEL_EXIT:
 
 // ReadWin32kBaseDriverFile — 读取 win32k 基础驱动文件
 // 对应原始驱动 sub_140051920
-char ReadWin32kBaseDriverFile(__int64 *a1, unsigned int *a2)
+char ReadWin32kBaseDriverFile(__int64 *pBuffer, unsigned int *pBufferSize)
 {
     char Result;
     size_t MaxCount;
     void *Src;
-    int v8[20];
+    int EncodedPath[20];
 
-    v8[6] = 7929971; v8[16] = 7929971; Result = 0;
-    v8[0] = 5439580; v8[1] = 7536761; v8[2] = 6619252;
-    v8[3] = 5374061; v8[4] = 7274607; v8[5] = 6029428;
-    v8[7] = 7602291; v8[8] = 7143525; v8[9] = 3276851;
-    v8[10] = 7798876; v8[11] = 7209065; v8[12] = 3276851;
-    v8[13] = 6422635; v8[14] = 7536737; v8[15] = 3014757;
-    v8[17] = 115;
-    if (!(unsigned int)ReadFileRawData((__int16 *)v8, &Src, (ULONG *)&MaxCount, 1))
+    EncodedPath[6] = 7929971; EncodedPath[16] = 7929971; Result = 0;
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761; EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061; EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[7] = 7602291; EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 7798876; EncodedPath[11] = 7209065; EncodedPath[12] = 3276851;
+    EncodedPath[13] = 6422635; EncodedPath[14] = 7536737; EncodedPath[15] = 3014757;
+    EncodedPath[17] = 115;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        if (ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, a1, a2) == 1)
+        if (ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pBuffer, pBufferSize) == 1)
         {
-            ValidateWin32kBaseDriverImage(*a1, *a2);
+            ValidateWin32kBaseDriverImage(*pBuffer, *pBufferSize);
             Result = 1;
         }
         ExFree(Src);

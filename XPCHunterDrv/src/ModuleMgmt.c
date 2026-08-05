@@ -3,6 +3,9 @@
 
 #include "..\inc\XPCHunterDrv.h"
 
+// C4700 抑制：PE 解析函数中大量变量由间接路径初始化，编译器无法跟踪代码路径
+#pragma warning(disable:4700)
+
 // 前向声明 — 这些函数在当前文件中定义，但在调用点之后定义
 char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, unsigned int Image2Size);
 __int64 EnumerateKernelModules(unsigned int *pOutputBuffer, unsigned int OutputSize);
@@ -174,8 +177,8 @@ void *FindExportEntryByName(char *Dst)
 __int64 CmdEnumKernelModules(_OWORD *Address, int InputSize, volatile void *OutputBuffer, unsigned int BufferSize)
 {
     char Result = 0;
-    _OWORD v9;
-    __int64 v10;
+    _OWORD Buffer;
+    __int64 ProcessInfoSize;
 
     if (!Address || InputSize != 24 ||
         (ULONG64)Address >= MmUserProbeAddress ||
@@ -187,9 +190,9 @@ __int64 CmdEnumKernelModules(_OWORD *Address, int InputSize, volatile void *Outp
 
     ProbeForRead(Address, 0x18, 4);
     ProbeForWrite(OutputBuffer, BufferSize, 1);
-    v9 = *Address;
-    v10 = *((__int64 *)Address + 2);
-    return EnumProcessInformationWorker((char *)&v9, (__int64)OutputBuffer, BufferSize);
+    Buffer = *Address;
+    ProcessInfoSize = *((__int64 *)Address + 2);
+    return EnumProcessInformationWorker((char *)&Buffer, (__int64)OutputBuffer, ProcessInfoSize);
 }
 
 // CmdEnumProcessModules — 枚举进程模块命令
@@ -303,38 +306,37 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
     ULONG RemainingSize, RemainingSize2, RemainingSize3, RemainingSize4, RemainingSize5, RemainingSize6;
     ULONG ExportCount1, AuxExportCount;
     ULONG64 ExportEntryPtr, ExportEntryPtr2, ExportEntryPtr3, ExportEntryPtr4, ExportEntryPtr5;
-    __int64 v16, v19, v23;
+    __int64 ExportEntryCount, ModuleBase, KernelRoutineTable;
     __int64 BytesWritten;
     __int64 Win32kTable;
     ULONG Win32kEntryCount;
     size_t MaxCount;
-    void *v33, *Src;
-    __int64 v34, v36;
-    ULONG v37, v38;
+    void *NtImageBuffer2, *Src;
+    __int64 KernelRoutineCount;
 
     if (ReadFileRawData((WORD *)(ModuleEntry + 36), &Src, (ULONG *)&MaxCount, 1))
         return Result;
 
-    ReadResult = ReadNtFileToBuffer((int *)Src, (ULONG)MaxCount, &v33, &v37);
+    ReadResult = ReadNtFileToBuffer((int *)Src, (ULONG)MaxCount, &NtImageBuffer2, &NtImageSize);
     ExFree(Src);
     if (ReadResult != 1) return Result;
 
-    RawDataBuf = ExAlloc(PagedPool, v37 + 256);
+    RawDataBuf = ExAlloc(PagedPool, NtImageSize + 256);
     NtImageBuffer = RawDataBuf;
-    if (!RawDataBuf) { ExFree(v33); return Result; }
+    if (!RawDataBuf) { ExFree(NtImageBuffer2); return Result; }
 
-    memset(RawDataBuf, 0, v37 + 256);
-    if (ReadFileIntoBuffer(*(_QWORD *)(ModuleEntry + 24), v37, (char *)NtImageBuffer) != 1 ||
-        ComparePeHeaders((__int64)NtImageBuffer, v37, (__int64)v33, v37))
+    memset(RawDataBuf, 0, NtImageSize + 256);
+    if (ReadFileIntoBuffer(*(_QWORD *)(ModuleEntry + 24), NtImageSize, (char *)NtImageBuffer) != 1 ||
+        ComparePeHeaders((__int64)NtImageBuffer, NtImageSize, (__int64)NtImageBuffer2, NtImageSize))
     {
         ExFree(NtImageBuffer);
-        ExFree(v33);
+        ExFree(NtImageBuffer2);
         return Result;
     }
 
     WStringCopyN((WORD *)OutputBuffer, ModuleEntry + 36, 0x104);
-    NtImageSize = v37;
-    NtImageBase = (__int64)v33;
+    NtImageSize = NtImageSize;
+    NtImageBase = (__int64)NtImageBuffer2;
     *(WORD *)(OutputBuffer + 518) = 0;
     RemainingSize = OutputSize - 536;
 
@@ -356,16 +358,16 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
 
     if (RemainingSize2 >= 0x2A8)
         *(_DWORD *)(OutputBuffer + 524) = ParseExportDirectoryEntries(
-            (__int64)v33, v37, *(_QWORD *)(ModuleEntry + 24),
+            (__int64)NtImageBuffer2, NtImageSize, *(_QWORD *)(ModuleEntry + 24),
             (__int64)NtImageBuffer, ExportEntryPtr, RemainingSize2);
 
-    if (ParseNtExportDir((__int64)v33, v37, *(_QWORD *)(ModuleEntry + 24), 0) == 1)
+    if (ParseNtExportDir((__int64)NtImageBuffer2, NtImageSize, *(_QWORD *)(ModuleEntry + 24), 0) == 1)
     {
-        v16 = *(unsigned int *)(OutputBuffer + 524);
-        if (v16)
+        ExportEntryCount = *(unsigned int *)(OutputBuffer + 524);
+        if (ExportEntryCount)
         {
-            RemainingSize3 = (ULONG)(RemainingSize2 - 680 * v16);
-            ExportEntryPtr2 = ExportEntryPtr + 680 * v16;
+            RemainingSize3 = (ULONG)(RemainingSize2 - 680 * ExportEntryCount);
+            ExportEntryPtr2 = ExportEntryPtr + 680 * ExportEntryCount;
         }
         else
         {
@@ -375,37 +377,37 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
 
         if (RemainingSize3 >= 0x25E)
         {
-            v19 = *(_QWORD *)(ModuleEntry + 24);
+            ModuleBase = *(_QWORD *)(ModuleEntry + 24);
             ExportEntryPtr3 = ExportEntryPtr2;
-            v34 = ExportEntryPtr2;
+            ExportEntryPtr2 = ExportEntryPtr2;
             *(_DWORD *)(OutputBuffer + 528) = ParseNtExportDirTable(
-                (__int64)v33, v37, v19, (__int64)NtImageBuffer,
-                ExportEntryPtr2, RemainingSize3, &v38);
+                (__int64)NtImageBuffer2, NtImageSize, ModuleBase, (__int64)NtImageBuffer,
+                ExportEntryPtr2, RemainingSize3, &BytesWritten);
 
             if ((ULONG)GtRead(GtWin32kServiceTableVersion) == 2)
             {
-                BytesWritten = v38;
-                if (RemainingSize3 >= v38)
+                BytesWritten = BytesWritten;
+                if (RemainingSize3 >= BytesWritten)
                 {
-                    RemainingSize4 = RemainingSize3 - (ULONG)v38;
+                    RemainingSize4 = RemainingSize3 - (ULONG)BytesWritten;
                     if (RemainingSize4 >= 0x25E)
                     {
-                        v36 = GtRead(GtKernelRoutineTableCount);
-                        if (!v36)
+                        KernelRoutineCount = GtRead(GtKernelRoutineTableCount);
+                        if (!KernelRoutineCount)
                         {
                             InitKernelRoutineTable();
-                            v36 = GtRead(GtKernelRoutineTableCount);
+                            KernelRoutineCount = GtRead(GtKernelRoutineTableCount);
                         }
-                        v23 = GtRead(GtKernelRoutineTable);
+                        KernelRoutineTable = GtRead(GtKernelRoutineTable);
                         ExportEntryPtr4 = BytesWritten + ExportEntryPtr2;
                         *(_DWORD *)(OutputBuffer + 528) += ParseExportEntriesDetailed(
-                            v23, v36, (__int64)v33, v37, *(_QWORD *)(ModuleEntry + 24),
+                            KernelRoutineTable, KernelRoutineCount, (__int64)NtImageBuffer2, NtImageSize, *(_QWORD *)(ModuleEntry + 24),
                             (__int64)NtImageBuffer, ExportEntryPtr4, RemainingSize4,
-                            &v38, v34, *(_DWORD *)(OutputBuffer + 528));
+                            &BytesWritten, ExportEntryPtr2, *(_DWORD *)(OutputBuffer + 528));
 
-                        if (RemainingSize4 >= v38)
+                        if (RemainingSize4 >= BytesWritten)
                         {
-                            RemainingSize5 = RemainingSize4 - (ULONG)v38;
+                            RemainingSize5 = RemainingSize4 - (ULONG)BytesWritten;
                             if (RemainingSize5 >= 0x25E)
                             {
                                 Win32kTable = GtRead(GtWin32kServiceTable);
@@ -415,24 +417,24 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
                                     Win32kTable = GtRead(GtWin32kServiceTable);
                                 }
                                 Win32kEntryCount = (ULONG)GtRead(GtWin32kServiceEntryCount);
-                                ExportEntryPtr5 = v38 + ExportEntryPtr4;
+                                ExportEntryPtr5 = BytesWritten + ExportEntryPtr4;
                                 *(_DWORD *)(OutputBuffer + 528) += ParseExportEntriesDetailed(
-                                    Win32kTable, Win32kEntryCount, (__int64)v33, v37,
+                                    Win32kTable, Win32kEntryCount, (__int64)NtImageBuffer2, NtImageSize,
                                     *(_QWORD *)(ModuleEntry + 24), (__int64)NtImageBuffer,
-                                    ExportEntryPtr5, RemainingSize5, &v38, v34,
+                                    ExportEntryPtr5, RemainingSize5, &BytesWritten, ExportEntryPtr2,
                                     *(_DWORD *)(OutputBuffer + 528));
 
-                                if (RemainingSize5 >= v38)
+                                if (RemainingSize5 >= BytesWritten)
                                 {
-                                    RemainingSize3 = RemainingSize5 - (ULONG)v38;
+                                    RemainingSize3 = RemainingSize5 - (ULONG)BytesWritten;
                                     if (RemainingSize3 >= 0x25E)
                                     {
-                                        ExportEntryPtr2 = v38 + ExportEntryPtr5;
+                                        ExportEntryPtr2 = BytesWritten + ExportEntryPtr5;
                                         *(_DWORD *)(OutputBuffer + 528) += ParseNtExportAuxData(
-                                            v33, v37, *(_QWORD *)(ModuleEntry + 24),
+                                            NtImageBuffer2, NtImageSize, *(_QWORD *)(ModuleEntry + 24),
                                             (ULONG)NtImageBuffer, ExportEntryPtr2,
-                                            RemainingSize3, &v38);
-                                        ExportEntryPtr3 = v34;
+                                            RemainingSize3, &BytesWritten);
+                                        ExportEntryPtr3 = ExportEntryPtr2;
                                     }
                                 }
                             }
@@ -440,13 +442,13 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
                     }
                 }
             }
-            if (RemainingSize3 >= v38)
+            if (RemainingSize3 >= BytesWritten)
             {
-                RemainingSize6 = RemainingSize3 - (ULONG)v38;
+                RemainingSize6 = RemainingSize3 - (ULONG)BytesWritten;
                 if (RemainingSize6 >= 0x25E)
                     *(_DWORD *)(OutputBuffer + 532) = ParseAndCompareExportEntries(
-                        (__int64)v33, v37, *(_QWORD *)(ModuleEntry + 24),
-                        (__int64)NtImageBuffer, ExportEntryPtr2 + v38,
+                        (__int64)NtImageBuffer2, NtImageSize, *(_QWORD *)(ModuleEntry + 24),
+                        (__int64)NtImageBuffer, ExportEntryPtr2 + BytesWritten,
                         RemainingSize6, ExportEntryPtr3, *(_DWORD *)(OutputBuffer + 528));
             }
         }
@@ -454,7 +456,7 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
 
     Result = 1;
     ExFree(NtImageBuffer);
-    ExFree(v33);
+    ExFree(NtImageBuffer2);
     return Result;
 }
 
@@ -1767,7 +1769,7 @@ FoundName:
                             CalcSectionRangeSize(FuncRva + ImageBase, (unsigned __int64)ExportData);
 
                             if (ReturnFalseStub() == 1)
-                                *(_QWORD *)(OutputEntry + 8) = 0; // v59
+                                *(_QWORD *)(OutputEntry + 8) = 0;
 
                             *(_WORD *)(OutputEntry + 16) = 0;
                             __int64 ExportAddr = *(_QWORD *)(OutputEntry + 8);
@@ -3737,79 +3739,79 @@ __int64 ResolveKernelModuleBasePair2(__int64 CpuNumber, ULONG_PTR *pMsrPair)
 // AdjustKernelModuleSectionPointers — 调整内核模块节区指针
 __int64 AdjustKernelModuleSectionPointers(void)
 {
-    __int64 v0;
+    __int64 EprocessField191;
     __int64 result;
-    __int64 v2;
-    __int64 v3;
+    __int64 EprocessField192;
+    __int64 AdjustedOffset;
 
-    v0 = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField187 | 0x100));
+    EprocessField191 = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField187 | 0x100));
     result = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField188 | 0x100));
-    v2 = result;
-    if (v0 && result)
+    EprocessField192 = result;
+    if (EprocessField191 && result)
     {
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
         {
             result = GtRead(GtWindowsBuildNumber);
             if ((_DWORD)result != 9200)
                 return result;
-            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), v0 + 16);
-            v3 = v2 + 16;
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), EprocessField191 + 16);
+            AdjustedOffset = EprocessField192 + 16;
         }
         else
         {
-            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), v0 + 8);
-            v3 = v2 + 8;
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | 0x100), EprocessField191 + 8);
+            AdjustedOffset = EprocessField192 + 8;
         }
-        return GtWrite((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | 0x100), v3);
+        return GtWrite((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | 0x100), AdjustedOffset);
     }
     return result;
 }
 
 // ResolveKernelModuleIndex — 解析内核模块索引
 __int64 __fastcall ResolveKernelModuleIndex(
-    enum _GLOBAL_TABLE_INDEX a1,
-    enum _GLOBAL_TABLE_INDEX a2,
-    enum _GLOBAL_TABLE_INDEX a3)
+    enum _GLOBAL_TABLE_INDEX SectionType,
+    enum _GLOBAL_TABLE_INDEX ResultTableIndex,
+    enum _GLOBAL_TABLE_INDEX TargetTableIndex)
 {
-    __int64 v6;
-    struct _KPROCESS *v7;
-    __int64 v8;
-    unsigned int v9;
-    __int64 v10;
+    __int64 Result;
+    struct _KPROCESS *TargetProcess;
+    __int64 CopyBase;
+    unsigned int CopySize;
+    __int64 ModuleBase;
     unsigned int KernelPESectionByType;
-    unsigned int v12;
-    unsigned int v13;
-    __int64 v14;
+    unsigned int MaxSectionCount;
+    unsigned int SyscallIndex;
+    __int64 RvaOffset;
     struct _KAPC_STATE ApcState;
 
-    v6 = GtRead(a3);
-    if (!v6)
+    Result = GtRead(TargetTableIndex);
+    if (!Result)
     {
-        v7 = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
-        if (IoGetCurrentProcess() == v7)
-            v7 = 0;
-        if (v7)
-            KeStackAttachProcess(v7, &ApcState);
-        v8 = GtRead(GtEprocessField22);
-        v9 = GtRead(GtEprocessField23);
-        v10 = GtRead(GtNtoskrnlModuleBase);
-        KernelPESectionByType = FindKernelPESectionByType(a1);
-        v12 = GtRead(GtWin32kServiceEntryCount);
-        if (v8 && v9 && v10 && KernelPESectionByType && KernelPESectionByType < v12)
+        TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+        if (IoGetCurrentProcess() == TargetProcess)
+            TargetProcess = 0;
+        if (TargetProcess)
+            KeStackAttachProcess(TargetProcess, &ApcState);
+        CopyBase = GtRead(GtEprocessField22);
+        CopySize = GtRead(GtEprocessField23);
+        ModuleBase = GtRead(GtNtoskrnlModuleBase);
+        KernelPESectionByType = FindKernelPESectionByType(SectionType);
+        MaxSectionCount = GtRead(GtWin32kServiceEntryCount);
+        if (CopyBase && CopySize && ModuleBase && KernelPESectionByType && KernelPESectionByType < MaxSectionCount)
         {
-            v13 = ResolveSyscallToAddress(KernelPESectionByType);
-            if (v13 && v13 < v9)
+            SyscallIndex = ResolveSyscallToAddress(KernelPESectionByType);
+            if (SyscallIndex && SyscallIndex < CopySize)
             {
-                v14 = v13;
-                GtWrite(a2, v13);
-                v6 = v10 + v14;
-                GtWrite(a3, v6);
+                RvaOffset = SyscallIndex;
+                GtWrite(ResultTableIndex, SyscallIndex);
+                Result = ModuleBase + RvaOffset;
+                GtWrite(TargetTableIndex, Result);
             }
         }
-        if (v7)
+        if (TargetProcess)
             KeUnstackDetachProcess(&ApcState);
     }
-    return v6;
+    return Result;
 }
 
 // WalkKernelModuleList — 遍历内核模块链表
@@ -3969,32 +3971,32 @@ void ParseRegistryDriverExportDir(void)
 __int64 ParseExportDirForDriver(__int64 DriverInfo, __int64 Context, __int64 PeBuffer, unsigned int PeSize)
 {
     char Result;
-    __int64 v8;
-    unsigned int v9;
-    unsigned int v10;
-    unsigned int *v11;
-    __int64 v12;
+    __int64 KernelModuleBase;
+    unsigned int EntryCount;
+    unsigned int LoopIndex;
+    unsigned int *pEntry;
+    __int64 EntryValue;
 
     Result = 0;
-    v8 = GtRead(GtKernelModuleBase);
-    if (v8 && ParseNtExportDir(PeBuffer, PeSize, v8, 0) == 1)
+    KernelModuleBase = GtRead(GtKernelModuleBase);
+    if (KernelModuleBase && ParseNtExportDir(PeBuffer, PeSize, KernelModuleBase, 0) == 1)
     {
-        v9 = *(_DWORD *)(DriverInfo + 4);
-        v10 = 0;
-        if (!v9)
+        EntryCount = *(_DWORD *)(DriverInfo + 4);
+        LoopIndex = 0;
+        if (!EntryCount)
             return 1;
-        v11 = (unsigned int *)(DriverInfo + 12);
+        pEntry = (unsigned int *)(DriverInfo + 12);
         do
         {
-            v12 = *v11;
-            if ((int)v12 + 16 > PeSize)
+            EntryValue = *pEntry;
+            if ((int)EntryValue + 16 > PeSize)
                 break;
-            ++v10;
-            v11 += 12;
-            *(_OWORD *)((char *)v11 - 26) = *(_OWORD *)(v12 + PeBuffer);
+            ++LoopIndex;
+            pEntry += 12;
+            *(_OWORD *)((char *)pEntry - 26) = *(_OWORD *)(EntryValue + PeBuffer);
         }
-        while (v10 < v9);
-        if (v10 >= v9)
+        while (LoopIndex < EntryCount);
+        if (LoopIndex >= EntryCount)
             return 1;
     }
     return Result;
@@ -4371,7 +4373,7 @@ __int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray)
     _OWORD SectionHeader4;
     __int64 SectionHeader5;
     struct _KAPC_STATE ApcState;
-    _OWORD v21;
+    _OWORD SectionHeaderBuf;
     __int64 SectionAddr;
     __int64 SectionAddrEnd;
 
@@ -4410,8 +4412,8 @@ __int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray)
                     *((_BYTE *)&SectionHeader4 + 1) = 1;
                     if (!(*(_BYTE *)&SectionHeader4))
                     {
-                        memset(&v21, 0, sizeof(v21));
-                        v21 = *(_OWORD *)(*(__int64 *)&SectionHeader3);
+                        memset(&SectionHeaderBuf, 0, sizeof(SectionHeaderBuf));
+                        SectionHeaderBuf = *(_OWORD *)(*(__int64 *)&SectionHeader3);
                         FuncResult = ReturnFalseStub();
                         SavedValue = *((__int64 *)&SectionHeader3 + 1);
                         if (FuncResult == 1)
@@ -4672,7 +4674,6 @@ char QueryProcessModuleFilePath(
     unsigned __int16 StringLength;
     _WORD *LastChar;
     _WORD *pFileName;
-    unsigned int v21;
     __int64 CopyLength;
     char SavedPrevModeByte;
     __int64 Handle;
@@ -4739,9 +4740,9 @@ char QueryProcessModuleFilePath(
                                 if (!LastChar || (pFileName = LastChar + 1, !LastChar[1]))
                                     pFileName = (_WORD *)pBuffer[1];
 
-                                v21 = GetStringLength(pFileName);
-                                CopyLength = v21;
-                                if (v21 > (unsigned int)(BufferSize - 1))
+                                StringLength = GetStringLength(pFileName);
+                                CopyLength = StringLength;
+                                if (StringLength > (unsigned int)(BufferSize - 1))
                                     CopyLength = (unsigned int)(BufferSize - 1);
 
                                 memmove(pOutputBuffer, pFileName, (unsigned int)(2 * CopyLength));
@@ -6450,75 +6451,59 @@ char FindHalInitPatternOffsets(__int64 FileBuffer, unsigned int FileSize)
 // 先记录 Type 0x510 且 SectionCharacteristics==0x40000 的偏移，再查找 Type 0x512 且偏移匹配的节区
 __int64 FindKernelDataSectionOffsetWin8(void)
 {
+    __int64 NtImageBase;
+    unsigned int NtImageSize;
+    __int64 NtoskrnlImageBase;
     __int64 Result = 0;
-    __int64 NtoskrnlBase;
-    __int64 PeFileBase;
-    unsigned int PeFileSize;
-    unsigned int PeScanBase;
-    __int64 PeContext;
-    unsigned int SectionSize;
-    __int64 CumulativeSize;
-    __int64 SectionDataPtr;
+    int SectionOffset = 0;
+    unsigned int SectionIndex;
+    __int64 ComputedOffset;
+    __int64 SectionContext;
+    __int64 AccumulatedOffset;
+    ULONG SectionEntry[0x80];
+    unsigned int RawDataSize;
+    __int64 SectionCharacteristics;
     unsigned short SectionType;
-    unsigned int EntryCount;
-    unsigned int Phase1Offset = 0;
-    ULONG EntryBuffer[32];
 
-    PeFileBase = GtRead(GtNtoskrnlPeFileBase);
-    PeFileSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
-    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    PeScanBase = (unsigned int)GtRead(GtNtoskrnlPeScanBase);
-    if (!PeFileBase || !NtoskrnlBase || !PeScanBase || !PeFileSize)
-        return 0;
-
-    unsigned int ExportDirSize = *(unsigned int *)(PeFileBase + 0x3C);
-    ExportDirSize = *(unsigned int *)(ExportDirSize + PeFileBase);
-    if (!ExportDirSize || ExportDirSize >= PeFileSize)
-        return 0;
-
-    // 初始化 PE 节区读取上下文
-    InitPESectionReadContext((PUCHAR)PeFileBase + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
-    EntryCount = 0;
-    while (EntryCount < 0x64)
+    NtImageBase = GtRead(GtEprocessField22);
+    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
+    Result = GtRead(GtNtoskrnlPeScanBase);
+    if (NtImageBase && NtImageSize && NtoskrnlImageBase && (_DWORD)Result &&
+        (unsigned int)Result < NtImageSize)
     {
-        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
-            break;
-        SectionSize = EntryBuffer[0x48 >> 2];
-        CumulativeSize = EntryBuffer[0x40 >> 2];
-        CumulativeSize += SectionSize;
-        SectionDataPtr = EntryBuffer[0x20 >> 2];
-        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
-
-        if (SectionType == 0x510)
+        InitPESectionReadContext((PUCHAR)NtImageBase + (unsigned int)Result,
+            NtImageSize - (unsigned int)Result, 2, 0, -1, 0, 0, (PUCHAR)&SectionContext);
+        SectionOffset = 0;
+        AccumulatedOffset = 0;
+        for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
         {
-            __int64 B0 = EntryBuffer[0x118 >> 2];
-            unsigned int C0 = EntryBuffer[0x108 >> 2];
-            if (B0 == 0x40000 && C0)
+            Result = ReadPESectionEntry((PUCHAR)&SectionContext, SectionEntry);
+            if ((_DWORD)Result)
+                break;
+            ComputedOffset = SectionEntry[0xF0 >> 2] + AccumulatedOffset;
+            AccumulatedOffset += SectionEntry[0xF0 >> 2];
+            SectionType = *(unsigned short *)(SectionEntry[0x118 >> 2] + 6);
+            RawDataSize = SectionEntry[0x78 >> 2];
+            SectionCharacteristics = SectionEntry[0x88 >> 2];
+            if (SectionType == 1296 && SectionCharacteristics == 0x40000 && RawDataSize)
             {
-                int Offset = (int)C0 - (int)PeFileBase + (int)CumulativeSize;
-                if (Offset)
-                    Phase1Offset = (unsigned int)Offset;
+                SectionOffset = (int)(ComputedOffset + RawDataSize - NtImageBase);
             }
-        }
-        else if (SectionType == 0x512)
-        {
-            __int64 B0 = EntryBuffer[0x118 >> 2];
-            unsigned int C0 = EntryBuffer[0x108 >> 2];
-            if (B0 == 0x40000 && C0)
+            else if (SectionType == 1298 && SectionCharacteristics == 0x40000)
             {
-                int Offset = (int)C0 - (int)PeFileBase + (int)CumulativeSize;
-                if (Offset && (unsigned int)Offset < PeFileSize && Phase1Offset == (unsigned int)Offset)
+                if (RawDataSize)
                 {
-                    Result = Offset + PeScanBase;
-                    GtWrite(GtKernelDataSectionOffset, Result);
-                    break;
+                    Result = ComputedOffset + RawDataSize - (unsigned int)NtImageBase;
+                    if ((_DWORD)Result)
+                    {
+                        if ((unsigned int)Result < NtImageSize && SectionOffset == (_DWORD)Result)
+                            return GtWrite(GtKernelDataSectionOffset, NtoskrnlImageBase + (unsigned int)Result);
+                    }
                 }
             }
         }
-        ++EntryCount;
     }
-
     return Result;
 }
 
@@ -6621,10 +6606,10 @@ _DWORD *__fastcall BtreeBufferAllocator(__int64 *pAllocator, unsigned int Reques
         *((_QWORD *)result + 2) = result + 10;
         result[7] = RemainingSize;
         *((_QWORD *)result + 1) = (char *)result + AllocSize;
-        if ((((char *)result + 40) & 3) != 0)
+        if ((((ULONG_PTR)result + 40) & 3) != 0)
         {
-            result[7] = (((char *)result + 40) & 3) + RemainingSize - 4;
-            *((_QWORD *)result + 2) = (char *)result - (((char *)result + 40) & 3) + 44;
+            result[7] = (((ULONG_PTR)result + 40) & 3) + RemainingSize - 4;
+            *((_QWORD *)result + 2) = (char *)result - (((ULONG_PTR)result + 40) & 3) + 44;
         }
         *((_QWORD *)result + 4) = *pAllocator;
         *pAllocator = (__int64)result;
@@ -6634,10 +6619,10 @@ _DWORD *__fastcall BtreeBufferAllocator(__int64 *pAllocator, unsigned int Reques
     *(_DWORD *)(pBlock + 28) -= Size;
     AdjustedSize = *(_DWORD *)(pBlock + 28);
     *(_QWORD *)(pBlock + 16) = pCurrentPos + Size;
-    if (((_BYTE)pCurrentPos + (_BYTE)Size & 3) != 0)
+    if (((ULONG_PTR)pCurrentPos + Size & 3) != 0)
     {
-        *(_DWORD *)(pBlock + 28) = ((char *)pCurrentPos + Size & 3) + AdjustedSize - 4;
-        *(_QWORD *)(pBlock + 16) = pCurrentPos + Size - ((char *)pCurrentPos + Size & 3) + 4;
+        *(_DWORD *)(pBlock + 28) = ((ULONG_PTR)pCurrentPos + Size & 3) + AdjustedSize - 4;
+        *(_QWORD *)(pBlock + 16) = pCurrentPos + Size - ((ULONG_PTR)pCurrentPos + Size & 3) + 4;
     }
     return (_DWORD *)pCurrentPos;
 }
@@ -6645,122 +6630,122 @@ _DWORD *__fastcall BtreeBufferAllocator(__int64 *pAllocator, unsigned int Reques
 // RBTreeRotateLeft — 红黑树左旋 (0x140071CEC)
 __int64 __fastcall RBTreeRotateLeft(__int64 Node, _QWORD *Root)
 {
-    __int64 v2;
-    __int64 v3;
+    __int64 ParentNode;
+    __int64 ChildNode;
     __int64 result;
 
-    v2 = *(_QWORD *)(Node + 24);
-    v3 = *(_QWORD *)(v2 + 16);
-    *(_QWORD *)(Node + 24) = v3;
-    if (v3)
-        *(_QWORD *)(*(_QWORD *)(v2 + 16) + 8) = Node;
-    *(_QWORD *)(v2 + 16) = Node;
+    ParentNode = *(_QWORD *)(Node + 24);
+    ChildNode = *(_QWORD *)(ParentNode + 16);
+    *(_QWORD *)(Node + 24) = ChildNode;
+    if (ChildNode)
+        *(_QWORD *)(*(_QWORD *)(ParentNode + 16) + 8) = Node;
+    *(_QWORD *)(ParentNode + 16) = Node;
     result = *(_QWORD *)(Node + 8);
-    *(_QWORD *)(v2 + 8) = result;
+    *(_QWORD *)(ParentNode + 8) = result;
     if (result)
     {
         result = *(_QWORD *)(Node + 8);
         if (Node == *(_QWORD *)(result + 16))
-            *(_QWORD *)(result + 16) = v2;
+            *(_QWORD *)(result + 16) = ParentNode;
         else
-            *(_QWORD *)(result + 24) = v2;
+            *(_QWORD *)(result + 24) = ParentNode;
     }
     else
     {
-        *Root = v2;
+        *Root = ParentNode;
     }
-    *(_QWORD *)(Node + 8) = v2;
+    *(_QWORD *)(Node + 8) = ParentNode;
     return result;
 }
 
 // RBTreeRotateRight — 红黑树右旋 (0x140071D34)
 __int64 __fastcall RBTreeRotateRight(__int64 Node, _QWORD *Root)
 {
-    __int64 v2;
-    __int64 v3;
+    __int64 ParentNode;
+    __int64 ChildNode;
     __int64 result;
 
-    v2 = *(_QWORD *)(Node + 16);
-    v3 = *(_QWORD *)(v2 + 24);
-    *(_QWORD *)(Node + 16) = v3;
-    if (v3)
-        *(_QWORD *)(*(_QWORD *)(v2 + 24) + 8) = Node;
-    *(_QWORD *)(v2 + 24) = Node;
+    ParentNode = *(_QWORD *)(Node + 16);
+    ChildNode = *(_QWORD *)(ParentNode + 24);
+    *(_QWORD *)(Node + 16) = ChildNode;
+    if (ChildNode)
+        *(_QWORD *)(*(_QWORD *)(ParentNode + 24) + 8) = Node;
+    *(_QWORD *)(ParentNode + 24) = Node;
     result = *(_QWORD *)(Node + 8);
-    *(_QWORD *)(v2 + 8) = result;
+    *(_QWORD *)(ParentNode + 8) = result;
     if (result)
     {
         result = *(_QWORD *)(Node + 8);
         if (Node == *(_QWORD *)(result + 24))
-            *(_QWORD *)(result + 24) = v2;
+            *(_QWORD *)(result + 24) = ParentNode;
         else
-            *(_QWORD *)(result + 16) = v2;
+            *(_QWORD *)(result + 16) = ParentNode;
     }
     else
     {
-        *Root = v2;
+        *Root = ParentNode;
     }
-    *(_QWORD *)(Node + 8) = v2;
+    *(_QWORD *)(Node + 8) = ParentNode;
     return result;
 }
 
 // RBTreeInsertFixup — 红黑树插入修复 (0x140071D7C)
 _DWORD *__fastcall RBTreeInsertFixup(__int64 NewNode, _QWORD *Root)
 {
-    __int64 v2;
-    __int64 v4;
-    __int64 v5;
-    _DWORD *v6;
-    __int64 v7;
-    __int64 v8;
+    __int64 CurrentNode;
+    __int64 TargetNode;
+    __int64 SiblingNode;
+    _DWORD *UncleNode;
+    __int64 TempNode;
+    __int64 TempNode2;
     _DWORD *result;
 
-    v2 = *(_QWORD *)(NewNode + 8);
-    v4 = NewNode;
-    while (v2 && !*(_DWORD *)v2)
+    CurrentNode = *(_QWORD *)(NewNode + 8);
+    TargetNode = NewNode;
+    while (CurrentNode && !*(_DWORD *)CurrentNode)
     {
-        v5 = *(_QWORD *)(v2 + 8);
-        v6 = *(_DWORD **)(v5 + 16);
-        if ((_DWORD *)v2 == v6)
+        SiblingNode = *(_QWORD *)(CurrentNode + 8);
+        UncleNode = *(_DWORD **)(SiblingNode + 16);
+        if ((_DWORD *)CurrentNode == UncleNode)
         {
-            v6 = *(_DWORD **)(v5 + 24);
-            if (v6 && !*v6)
+            UncleNode = *(_DWORD **)(SiblingNode + 24);
+            if (UncleNode && !*UncleNode)
                 goto LABEL_6;
-            if (*(_QWORD *)(v2 + 24) == v4)
+            if (*(_QWORD *)(CurrentNode + 24) == TargetNode)
             {
-                RBTreeRotateLeft(v2, Root);
-                v7 = v2;
-                v2 = v4;
-                v4 = v7;
+                RBTreeRotateLeft(CurrentNode, Root);
+                TempNode = CurrentNode;
+                CurrentNode = TargetNode;
+                TargetNode = TempNode;
             }
-            *(_DWORD *)v2 = 1;
-            *(_DWORD *)v5 = 0;
-            RBTreeRotateRight(v5, Root);
+            *(_DWORD *)CurrentNode = 1;
+            *(_DWORD *)SiblingNode = 0;
+            RBTreeRotateRight(SiblingNode, Root);
         }
         else
         {
-            if (v6 && !*v6)
+            if (UncleNode && !*UncleNode)
             {
     LABEL_6:
-                *v6 = 1;
-                *(_DWORD *)v2 = 1;
-                *(_DWORD *)v5 = 0;
-                v4 = v5;
+                *UncleNode = 1;
+                *(_DWORD *)CurrentNode = 1;
+                *(_DWORD *)SiblingNode = 0;
+                TargetNode = SiblingNode;
                 goto LABEL_15;
             }
-            if (*(_QWORD *)(v2 + 16) == v4)
+            if (*(_QWORD *)(CurrentNode + 16) == TargetNode)
             {
-                RBTreeRotateRight(v2, Root);
-                v8 = v2;
-                v2 = v4;
-                v4 = v8;
+                RBTreeRotateRight(CurrentNode, Root);
+                TempNode2 = CurrentNode;
+                CurrentNode = TargetNode;
+                TargetNode = TempNode2;
             }
-            *(_DWORD *)v2 = 1;
-            *(_DWORD *)v5 = 0;
-            RBTreeRotateLeft(v5, Root);
+            *(_DWORD *)CurrentNode = 1;
+            *(_DWORD *)SiblingNode = 0;
+            RBTreeRotateLeft(SiblingNode, Root);
         }
     LABEL_15:
-        v2 = *(_QWORD *)(v4 + 8);
+        CurrentNode = *(_QWORD *)(TargetNode + 8);
     }
     result = (_DWORD *)*Root;
     *(_DWORD *)*Root = 1;

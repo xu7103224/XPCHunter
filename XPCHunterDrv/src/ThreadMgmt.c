@@ -6,22 +6,22 @@
 // 前向声明（函数实现位于文件末尾，供 CleanupThreadWithBuffer 调用）
 const ULONG64 *RemoveOplockNodeByQwordKey(const ULONG64 **KeyArray, ULONG Offset, __int64 Context);
 __int64 FindSystemRootEntry(_DWORD *ThreadInfoTable);
-void EnumerateVadIterativeV2(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *a3, unsigned int a4);
-void EnumerateVadRecursiveV2(_QWORD *VirtualAddress, int Level, _DWORD *a3, unsigned int a4);
-_QWORD *ResetThreadStateIfMatch(__int64 a1, __int64 a2);
-ULONG64 EnumerateThreadListEntries(unsigned int *a1, unsigned int a2, int a3, _DWORD *a4, unsigned int a5, int a6);
-void EnumerateVadIterativeV3(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *a3, unsigned int a4);
-void EnumerateVadRecursiveV3(_QWORD *VirtualAddress, int Level, _DWORD *a3, unsigned int a4);
-void EnumerateVadIterativeV4(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *a3, unsigned int a4);
-void EnumerateVadRecursiveV4(_QWORD *VirtualAddress, int Level, _DWORD *a3, unsigned int a4);
-void EnumerateFileMappingSectionIterativeV1(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *a3, unsigned int a4);
-void EnumerateFileMappingSectionRecursiveV1(_QWORD *VirtualAddress, int Level, _DWORD *a3, unsigned int a4);
+void EnumerateVadIterativeV2(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize);
+void EnumerateVadRecursiveV2(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
+_QWORD *ResetThreadStateIfMatch(__int64 Process, __int64 OutputBuffer);
+ULONG64 EnumerateThreadListEntries(unsigned int *ListHead, unsigned int EntryOffset, int IsUserMode, _DWORD *OutputBuffer, unsigned int BufferSize, int IsVirtual);
+void EnumerateVadIterativeV3(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize);
+void EnumerateVadRecursiveV3(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
+void EnumerateVadIterativeV4(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize);
+void EnumerateVadRecursiveV4(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
+void EnumerateFileMappingSectionIterativeV1(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize);
+void EnumerateFileMappingSectionRecursiveV1(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateFileMappingSectionEx(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateFileMappingSectionStub(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateFileMappingSectionByIndex(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumVadMemoryRegions(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize);
 char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize);
-char FindThreadEntry(_DWORD *a1, __int64 a2, unsigned int *a3, char a4);
+char FindThreadEntry(_DWORD *ThreadId, __int64 Context, unsigned int *pResult, char Flags);
 char NormalizeRelativePath(_DWORD *Path);
 void PatchThreadImagePathWithWow64(__int64 Path);
 __int64 StringCompareCaseInsensitiveV2(const char *Str1, const char *Str2);
@@ -266,7 +266,7 @@ char MiniFilterOpLockPost(PRKPROCESS ProcessObject, char IsQwordKey, __int64 Con
     _QWORD *OplockField, *OplockHead;
     char ResolveResult, IsReferenced;
     ULONG64 OplockOffsetVal;
-    _QWORD v16[2];
+    _QWORD ResolvedHead[2];
     KAPC_STATE ApcState;
 
     OplockOffset = IsQwordKey ? 2064 : 43;
@@ -279,15 +279,15 @@ char MiniFilterOpLockPost(PRKPROCESS ProcessObject, char IsQwordKey, __int64 Con
         return 0;
 
     OplockHead = (_QWORD *)*OplockField;
-    v16[0] = *OplockField;
+    ResolvedHead[0] = *OplockField;
 
     if (IsQwordKey)
     {
-        ResolveResult = ResolvePointerSafe(OplockHead, v16);
-        OplockHead = (_QWORD *)v16[0];
+        ResolveResult = ResolvePointerSafe(OplockHead, ResolvedHead);
+        OplockHead = (_QWORD *)ResolvedHead[0];
         if (!ResolveResult)
             OplockHead = NULL;
-        v16[0] = (__int64)OplockHead;
+        ResolvedHead[0] = (__int64)OplockHead;
     }
 
     if (!OplockHead || ValidateProcessObject(ProcessObject, NULL) != 1)
@@ -298,9 +298,9 @@ char MiniFilterOpLockPost(PRKPROCESS ProcessObject, char IsQwordKey, __int64 Con
 
     if (IsQwordKey)
     {
-        if (v16[0] < MmUserProbeAddress && v16[0] + 48 < MmUserProbeAddress)
+        if (ResolvedHead[0] < MmUserProbeAddress && ResolvedHead[0] + 48 < MmUserProbeAddress)
         {
-            ULONG *DwordKeyArray = (ULONG *)*(ULONG *)(v16[0] + 12);
+            ULONG *DwordKeyArray = (ULONG *)*(ULONG *)(ResolvedHead[0] + 12);
             if ((ULONG64)DwordKeyArray < MmUserProbeAddress && (ULONG64)(DwordKeyArray + 10) < MmUserProbeAddress)
             {
                 RemoveOplockNodeByDwordKey(DwordKeyArray + 3, 0, Context);
@@ -311,9 +311,9 @@ char MiniFilterOpLockPost(PRKPROCESS ProcessObject, char IsQwordKey, __int64 Con
     }
     else
     {
-        if (v16[0] < MmUserProbeAddress && v16[0] + 96 < MmUserProbeAddress)
+        if (ResolvedHead[0] < MmUserProbeAddress && ResolvedHead[0] + 96 < MmUserProbeAddress)
         {
-            const ULONG64 **QwordKeyArray = *(const ULONG64 ***)(v16[0] + 24);
+            const ULONG64 **QwordKeyArray = *(const ULONG64 ***)(ResolvedHead[0] + 24);
             if ((ULONG64)QwordKeyArray < MmUserProbeAddress && (ULONG64)(QwordKeyArray + 9) < MmUserProbeAddress)
             {
                 RemoveOplockNodeByQwordKey(QwordKeyArray + 2, 0, Context);
@@ -392,11 +392,11 @@ char EnumProcessThreadInfo(PRKPROCESS PROCESS, char IsUserMode, int *OutputBuffe
     char ResolveOk;
     _DWORD *TempBuffer;
     int SavedCount;
-    UCHAR v23;
-    ULONG64 v16, v21;
-    ULONG v17, v20;
-    unsigned int *v18;
-    char v19;
+    UCHAR IsReferenced;
+    ULONG64 EntrySize, ThreadListBase;
+    ULONG TempRemainingSize, ThreadListOffset;
+    unsigned int *ThreadListArray;
+    char UserModeFlag;
     KAPC_STATE ApcState;
 
     OffsetIndex = IsUserMode ? GtEprocessModuleListOffset : GtEprocessField33;
@@ -428,45 +428,45 @@ char EnumProcessThreadInfo(PRKPROCESS PROCESS, char IsUserMode, int *OutputBuffe
     *TempBuffer = SavedCount;
 
     if (ValidateProcessObject(PROCESS, NULL) != 1) goto Cleanup;
-    v23 = ReferenceObjectSafe((__int64)PROCESS);
+    IsReferenced = ReferenceObjectSafe((__int64)PROCESS);
     KeStackAttachProcess(PROCESS, &ApcState);
 
     if (IsUserMode)
     {
         if (ListEntrySafe < MmUserProbeAddress && ListEntrySafe + 48 < MmUserProbeAddress)
         {
-            v21 = *(unsigned int *)(ListEntrySafe + 12);
-            if (v21 < MmUserProbeAddress && v21 + 40 < MmUserProbeAddress)
+            ThreadListBase = *(unsigned int *)(ListEntrySafe + 12);
+            if (ThreadListBase < MmUserProbeAddress && ThreadListBase + 40 < MmUserProbeAddress)
             {
-                v17 = BufferSize;
-                EnumerateThreadListEntries((unsigned int *)(v21 + 12), 0, 1, TempBuffer, BufferSize, 0);
-                EnumerateThreadListEntries((unsigned int *)(v21 + 20), 8, 1, TempBuffer, v17, 0);
-                v18 = (unsigned int *)(v21 + 28);
-                v19 = 1;
-                v20 = 16;
+                TempRemainingSize = BufferSize;
+                EnumerateThreadListEntries((unsigned int *)(ThreadListBase + 12), 0, 1, TempBuffer, BufferSize, 0);
+                EnumerateThreadListEntries((unsigned int *)(ThreadListBase + 20), 8, 1, TempBuffer, TempRemainingSize, 0);
+                ThreadListArray = (unsigned int *)(ThreadListBase + 28);
+                UserModeFlag = 1;
+                ThreadListOffset = 16;
                 goto Enumerate;
             }
         }
     }
     else if (ListEntrySafe < MmUserProbeAddress && ListEntrySafe + 96 < MmUserProbeAddress)
     {
-        v16 = *(_QWORD *)(ListEntrySafe + 24);
-        if (v16 < MmUserProbeAddress && v16 + 72 < MmUserProbeAddress)
+        EntrySize = *(_QWORD *)(ListEntrySafe + 24);
+        if (EntrySize < MmUserProbeAddress && EntrySize + 72 < MmUserProbeAddress)
         {
-            v17 = BufferSize;
-            EnumerateThreadListEntries((unsigned int *)(v16 + 16), 0, 0, TempBuffer, BufferSize, 0);
-            EnumerateThreadListEntries((unsigned int *)(v16 + 32), 0x10, 0, TempBuffer, v17, 0);
-            v18 = (unsigned int *)(v16 + 48);
-            v19 = 0;
-            v20 = 32;
+            TempRemainingSize = BufferSize;
+            EnumerateThreadListEntries((unsigned int *)(EntrySize + 16), 0, 0, TempBuffer, BufferSize, 0);
+            EnumerateThreadListEntries((unsigned int *)(EntrySize + 32), 0x10, 0, TempBuffer, TempRemainingSize, 0);
+            ThreadListArray = (unsigned int *)(EntrySize + 48);
+            UserModeFlag = 0;
+            ThreadListOffset = 32;
 Enumerate:
-            EnumerateThreadListEntries(v18, v20, v19, TempBuffer, v17, 0);
-            Result = 1;
+            EnumerateThreadListEntries(ThreadListArray, ThreadListOffset, UserModeFlag, TempBuffer, TempRemainingSize, 0);
+            TempRemainingSize = 1;
         }
     }
 
     KeUnstackDetachProcess(&ApcState);
-    if (v23 == 1) DereferenceObjectSafe((__int64)PROCESS);
+    if (IsReferenced == 1) DereferenceObjectSafe((__int64)PROCESS);
 
 Cleanup:
     if (*TempBuffer)
@@ -483,7 +483,7 @@ char EnumerateThreadsInProcess(ULONG64 BaseAddr, struct _KPROCESS *Process, char
     char Result = 0;
     _DWORD *TempBuffer;
     int SavedCount;
-    UCHAR v11;
+    UCHAR IsReferenced;
     ULONG j;
     __int64 i;
     KAPC_STATE ApcState;
@@ -500,7 +500,7 @@ char EnumerateThreadsInProcess(ULONG64 BaseAddr, struct _KPROCESS *Process, char
 
     if (ValidateProcessObject(Process, NULL) == 1)
     {
-        v11 = ReferenceObjectSafe((__int64)Process);
+        IsReferenced = ReferenceObjectSafe((__int64)Process);
         KeStackAttachProcess(Process, &ApcState);
 
         if (Use8ByteStep)
@@ -524,7 +524,7 @@ char EnumerateThreadsInProcess(ULONG64 BaseAddr, struct _KPROCESS *Process, char
         }
 
         KeUnstackDetachProcess(&ApcState);
-        if (v11 == 1) DereferenceObjectSafe((__int64)Process);
+        if (IsReferenced == 1) DereferenceObjectSafe((__int64)Process);
     }
 
     if (*TempBuffer)
@@ -539,29 +539,29 @@ char EnumerateThreadsInProcess(ULONG64 BaseAddr, struct _KPROCESS *Process, char
 __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, int OutputSize)
 {
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
-    char Result = 0;
+    char RetVal = 0;
     char *ProcessId;
     char Success;
     __int64 (*GetProcessNameFunc)(PEPROCESS);
-    __int64 v10;
-    int v12;
+    __int64 StartAddr;
+    int Status;
     PEPROCESS Process;
-    void *v14;
-    int v15;
-    WORD v16[8];
+    void *ImagePath;
+    int ThreadIndex;
+    WORD Result[8];
 
-    if (InputSize != 8 || OutputSize != 520) return Result;
+    if (InputSize != 8 || OutputSize != 520) return -1;
 
     ProbeForRead(InputBuffer, 8, 4);
     ProbeForWrite(OutputBuffer, 0x208, 1);
     ProcessId = *InputBuffer;
     memset(OutputBuffer, 0, 0x208);
 
-    if (GetProcessImagePath(0, ProcessId, &v14, &v15, 0) == 1)
+    if (GetProcessImagePath(0, ProcessId, &ImagePath, &ThreadIndex, 0) == 1)
     {
-        WStringCopyN(OutputBuffer, (__int64)v14, 0x104);
+        WStringCopyN(OutputBuffer, (__int64)ImagePath, 0x104);
         *((WORD *)OutputBuffer + 259) = 0;
-        ExFree(v14);
+        ExFree(ImagePath);
         return 1;
     }
 
@@ -573,14 +573,14 @@ __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, 
         {
             if (PsLookupProcessByProcessId(ProcessId, &Process) >= 0)
             {
-                strcpy((char *)v16, "MemCompression");
-                v10 = GetProcessNameFunc(Process);
-                if (StringCompareCaseInsensitiveV2(v10, (__int64)v16))
+                strcpy((char *)Result, "MemCompression");
+                StartAddr = GetProcessNameFunc(Process);
+                if (StringCompareCaseInsensitiveV2(StartAddr, (__int64)Result))
                 {
                     if (BuildNumber >= 0x42EE)
                     {
-                        strcpy((char *)v16, "Registry");
-                        if (StringCompareCaseInsensitiveV2(v10, (__int64)v16))
+                        strcpy((char *)Result, "Registry");
+                        if (StringCompareCaseInsensitiveV2(StartAddr, (__int64)Result))
                             goto Cleanup;
                         OutputBuffer[0] = 6619218;
                         OutputBuffer[1] = 6881383;
@@ -598,8 +598,8 @@ __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, 
                     OutputBuffer[5] = 6881395;
                     *((__int64 *)OutputBuffer + 3) = 7209071;
                 }
-                Result = 1;
                 Success = 1;
+                RetVal = 1;
 Cleanup:
                 ObfDereferenceObject(Process);
             }
@@ -614,7 +614,7 @@ Cleanup:
         return 1;
     }
 
-    return Result;
+    return RetVal;
 }
 
 // DecryptAndCompareStrings — 解密并比较 VAD 文件名
@@ -631,15 +631,15 @@ void DecryptAndCompareStrings(__int64 Process, unsigned int *OutputBuffer, unsig
     if (!ProcessType) return;
 
     // Encoded whitelist entries (simplified)
-    WORD *v7 = BuildSystem32Path();
-    if (!v7) return;
+    WORD *pStr1 = BuildSystem32Path();
+    if (!pStr1) return;
 
-    ULONG PathLen = GetStringLength(v7);
+    ULONG PathLen = GetStringLength(pStr1);
 
     while (Index < *OutputBuffer)
     {
         WORD *Dst = (WORD *)&EntryPtr[136 * Index];
-        if (StringCompare3Way((__int64)v7, Dst + 16, PathLen) == 0)
+        if (StringCompare3Way((__int64)pStr1, Dst + 16, PathLen) == 0)
         {
             __int64 Offset = 136 * Index;
             if (*((WORD *)&OutputBuffer[Offset + 8] + PathLen) == L'\\')
@@ -670,7 +670,7 @@ void DecryptAndCompareStrings(__int64 Process, unsigned int *OutputBuffer, unsig
         Index++;
     }
 
-    ExFree(v7);
+    ExFree(pStr1);
 }
 
 // CleanupProcessThreads — 清理进程线程 VAD 枚举
@@ -680,51 +680,51 @@ char CleanupProcessThreads(struct _KPROCESS *Process, unsigned int *OutputBuffer
 {
     char Result = 0;
     ULONG VadOffset;
-    _QWORD **v8;
-    UCHAR v9;
-    ULONG v10;
+    _QWORD **ThreadCount;
+    UCHAR EntryIndex;
+    ULONG pThread;
 
     VadOffset = (ULONG)GtRead(GtEprocessField49);
     if (!VadOffset) return Result;
 
-    v8 = (_QWORD **)((char *)Process + VadOffset);
-    if (MmIsAddressValid(v8) != 1) return Result;
+    ThreadCount = (_QWORD **)((char *)Process + VadOffset);
+    if (MmIsAddressValid(ThreadCount) != 1) return Result;
 
-    v9 = 0;
+    EntryIndex = 0;
     if (ValidateProcessObject(Process, NULL) == 1)
-        v9 = ReferenceObjectSafe((__int64)Process);
+        EntryIndex = ReferenceObjectSafe((__int64)Process);
 
     ULONG BuildNum = (ULONG)GtRead(GtWindowsBuildNumber);
     if (BuildNum > 0xA28)
     {
         if (BuildNum == 3790)
         {
-            EnumerateVadWithBufferV1(v8[1], OutputBuffer, BufferSize);
-            EnumerateVadWithBufferV1(v8[2], OutputBuffer, BufferSize);
+            EnumerateVadWithBufferV1(ThreadCount[1], OutputBuffer, BufferSize);
+            EnumerateVadWithBufferV1(ThreadCount[2], OutputBuffer, BufferSize);
         }
         else if ((BuildNum >= 0x1770 && BuildNum <= 0x1772) || BuildNum == 7600 || BuildNum == 7601)
         {
-            v10 = *OutputBuffer;
-            EnumerateVadWithBufferV2(v8[1], OutputBuffer, BufferSize);
-            EnumerateVadWithBufferV2(v8[2], OutputBuffer, BufferSize);
-            DecryptAndCompareStrings((__int64)Process, OutputBuffer, v10);
+            pThread = *OutputBuffer;
+            EnumerateVadWithBufferV2(ThreadCount[1], OutputBuffer, BufferSize);
+            EnumerateVadWithBufferV2(ThreadCount[2], OutputBuffer, BufferSize);
+            DecryptAndCompareStrings((__int64)Process, OutputBuffer, pThread);
         }
         else if (BuildNum == 9200)
         {
-            EnumerateVadWithBufferV3(v8[1], OutputBuffer, BufferSize);
-            EnumerateVadWithBufferV3(v8[2], OutputBuffer, BufferSize);
+            EnumerateVadWithBufferV3(ThreadCount[1], OutputBuffer, BufferSize);
+            EnumerateVadWithBufferV3(ThreadCount[2], OutputBuffer, BufferSize);
         }
         else if (BuildNum >= 0x2580)
         {
-            EnumerateVadWithBufferV4(*v8, OutputBuffer, BufferSize);
-            EnumerateVadWithBufferV4(v8[1], OutputBuffer, BufferSize);
+            EnumerateVadWithBufferV4(*ThreadCount, OutputBuffer, BufferSize);
+            EnumerateVadWithBufferV4(ThreadCount[1], OutputBuffer, BufferSize);
         }
     }
     else
-        CleanupThreadWithBuffer(*v8, OutputBuffer, BufferSize);
+        CleanupThreadWithBuffer(*ThreadCount, OutputBuffer, BufferSize);
 
     Result = 1;
-    if (v9 == 1)
+    if (EntryIndex == 1)
         DereferenceObjectSafe((__int64)Process);
 
     return Result;
@@ -735,13 +735,12 @@ char CleanupProcessThreads(struct _KPROCESS *Process, unsigned int *OutputBuffer
 // 从 32 字节输入缓冲区解析进程ID/进程对象/系统根目录/保护偏移
 __int64 CmdEnumThreadsEx(void **Address, int InputSize, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
-    char Result = 0;
-    void *v8;
-    struct _KPROCESS *v9, *v13;
-    void *v10, *v11;
-    NTSTATUS v12;
+    void *ThreadId;
+    struct _KPROCESS *Teb, *ThreadCount;
+    void *StartAddr, *ProcessId;
+    NTSTATUS Result;
     __int64 SystemRootEntry;
-    ULONG64 v15;
+    ULONG64 ThreadEntry;
     PEPROCESS Process;
 
     Process = NULL;
@@ -758,39 +757,39 @@ __int64 CmdEnumThreadsEx(void **Address, int InputSize, _DWORD *OutputBuffer, un
     memset(OutputBuffer, 0, BufferSize);
     *OutputBuffer = 0;
 
-    v8 = *Address;
-    v9 = (struct _KPROCESS *)Address[1];
-    v10 = Address[2];
-    v11 = Address[3];
+    ThreadId = *Address;
+    Teb = (struct _KPROCESS *)Address[1];
+    StartAddr = Address[2];
+    ProcessId = Address[3];
 
-    v12 = PsLookupProcessByProcessId(v8, &Process);
-    v13 = (struct _KPROCESS *)Process;
-    if (v12 < 0) v13 = NULL;
-    Process = (PEPROCESS)v13;
-    if (!v9) { if (v12 >= 0) v9 = v13; }
+    Result = PsLookupProcessByProcessId(ThreadId, &Process);
+    ThreadCount = (struct _KPROCESS *)Process;
+    if (Result < 0) ThreadCount = NULL;
+    Process = (PEPROCESS)ThreadCount;
+    if (!Teb) { if (Result >= 0) Teb = ThreadCount; }
 
-    if (ValidateProcessObject(v9, NULL) == 1)
+    if (ValidateProcessObject(Teb, NULL) == 1)
     {
-        EnumProcessThreadInfo(v9, 1, OutputBuffer, BufferSize);
-        EnumProcessThreadInfo(v9, 0, OutputBuffer, BufferSize);
-        EnumerateThreadsInProcess((ULONG64)v10, v9, 0, OutputBuffer, BufferSize);
+        EnumProcessThreadInfo(Teb, 1, OutputBuffer, BufferSize);
+        EnumProcessThreadInfo(Teb, 0, OutputBuffer, BufferSize);
+        EnumerateThreadsInProcess((ULONG64)StartAddr, Teb, 0, OutputBuffer, BufferSize);
 
-        if (v11 && CheckProtectedEntry((__int64)v9) == 1)
+        if (ProcessId && CheckProtectedEntry((__int64)Teb) == 1)
         {
             SystemRootEntry = FindSystemRootEntry(OutputBuffer);
             if (SystemRootEntry)
             {
-                v15 = (ULONG64)v11 + SystemRootEntry;
-                GtWrite(0x810 | 1, v15);
-                EnumerateThreadsInProcess(v15, v9, 1, OutputBuffer, BufferSize);
+                ThreadEntry = (ULONG64)ProcessId + SystemRootEntry;
+                GtWrite(0x810 | 1, ThreadEntry);
+                EnumerateThreadsInProcess(ThreadEntry, Teb, 1, OutputBuffer, BufferSize);
             }
         }
-        CleanupProcessThreads(v9, OutputBuffer, BufferSize);
-        ResetThreadStateIfMatch((__int64)v9, (__int64)OutputBuffer);
-        ResetThreadStateFlag((__int64)v9, (__int64)OutputBuffer);
+        CleanupProcessThreads(Teb, OutputBuffer, BufferSize);
+        ResetThreadStateIfMatch((__int64)Teb, (__int64)OutputBuffer);
+        ResetThreadStateFlag((__int64)Teb, (__int64)OutputBuffer);
     }
 
-    if (v12 >= 0) { ObfDereferenceObject(Process); Process = NULL; }
+    if (Result >= 0) { ObfDereferenceObject(Process); Process = NULL; }
     return *OutputBuffer != 0;
 }
 
@@ -800,7 +799,7 @@ __int64 CmdEnumThreadsEx(void **Address, int InputSize, _DWORD *OutputBuffer, un
 void NormalizeRelativePath(WORD *Path)
 {
     WORD *inited;
-    WORD *v4;
+    WORD *SuffixBuffer;
     WORD *Char;
     int StringLen;
 
@@ -809,24 +808,24 @@ void NormalizeRelativePath(WORD *Path)
         inited = InitSystemPath();
         if (!inited) return;
 
-        v4 = ExAlloc(PagedPool, 0x400);
-        if (v4)
+        SuffixBuffer = ExAlloc(PagedPool, 0x400);
+        if (SuffixBuffer)
         {
             Char = WStringFindChar(Path + 1, L'\\');
             if (Char)
             {
-                WStringCopyN(v4, (__int64)Char, 0x100);
-                v4[255] = 0;
+                WStringCopyN(SuffixBuffer, (__int64)Char, 0x100);
+                SuffixBuffer[255] = 0;
                 WStringCopyN(Path, (__int64)inited, 0x100);
                 Path[255] = 0;
                 if (GetStringLength(Path) < 0xFF)
                 {
                     StringLen = GetStringLength(Path);
-                    WStringConcat(Path, v4, 255 - StringLen);
+                    WStringConcat(Path, SuffixBuffer, 255 - StringLen);
                     Path[255] = 0;
                 }
             }
-            ExFree(v4);
+            ExFree(SuffixBuffer);
         }
         ExFree(inited);
     }
@@ -917,15 +916,15 @@ char FindThreadEntry(_DWORD *OutputBuffer, __int64 Target, unsigned int *OutInde
 // ResetThreadStateIfMatch — 匹配时重置线程状态
 // 对应原始驱动 sub_14004CC10
 // 检查 CSRSS 进程对象是否匹配，若匹配且线程状态为 2 则重置线程状态和扩展状态
-_QWORD *ResetThreadStateIfMatch(__int64 a1, __int64 a2)
+_QWORD *ResetThreadStateIfMatch(__int64 Process, __int64 OutputBuffer)
 {
     _QWORD *result;
 
     result = (_QWORD *)GtRead(GtObjectTypeInfoPtr);
-    if (result && *result == a1 && *(_DWORD *)a2 == 2)
+    if (result && *result == Process && *(_DWORD *)OutputBuffer == 2)
     {
-        *(_BYTE *)(a2 + 8) = 0;
-        *(_BYTE *)(a2 + 552) = 0;
+        *(_BYTE *)(OutputBuffer + 8) = 0;
+        *(_BYTE *)(OutputBuffer + 552) = 0;
     }
     return result;
 }
@@ -935,229 +934,225 @@ _QWORD *ResetThreadStateIfMatch(__int64 a1, __int64 a2)
 // 对应原始驱动 sub_14004E350
 // 遍历双向链表，从每个条目中提取线程信息。填充 544 字节每项的线程条目到输出缓冲区
 ULONG64 EnumerateThreadListEntries(
-    unsigned int *a1,
-    unsigned int a2,
-    char a3,
-    unsigned int *a4,
-    unsigned int a5,
-    char a6)
+    unsigned int *ListHead,
+    unsigned int ListFieldOffset,
+    char IsUserMode,
+    unsigned int *OutputBuffer,
+    unsigned int OutputSize,
+    char EntryTypeValue)
 {
-    unsigned int v7;
-    unsigned int *v8;
-    ULONG64 result;
-    unsigned int v10;
-    unsigned int *v11;
-    unsigned int v12;
-    ULONG64 v13;
-    _OWORD v14;
-    __int64 v15;
-    _OWORD v16;
-    _OWORD v17;
-    _OWORD v18;
-    _OWORD v19;
-    _OWORD v20;
-    _OWORD v21;
-    ULONG64 v22;
-    unsigned __int16 v23;
-    __int64 v24;
-    unsigned int v25;
-    unsigned int v26;
-    __int64 v27;
+    unsigned int pListHead;
+    unsigned int *pCurrent;
+    ULONG64 ResultCount;
+    unsigned int ThreadEntry;
+    unsigned int *ThreadId;
+    __int64 ThreadIdValue;
+    unsigned int EntrySizeTemp;
+    ULONG64 Field13;
+    _OWORD Field14;
+    __int64 Field15;
+    _OWORD Fields32b;
+    _OWORD Fields48b;
+    _OWORD Fields64b;
+    _OWORD Fields80;
+    _OWORD Fields96;
+    _OWORD Fields112;
+    ULONG64 PathPtr;
+    unsigned __int16 PathLength;
+    unsigned int ThreadFlags;
+    unsigned int ClampedLength;
+    __int64 CurrentEntryOffset;
     unsigned int StringLength;
-    const void *v29;
-    unsigned int *v30;
-    __int64 v31;
-    __int64 v32;
-    __int64 v33;
-    char ThreadEntry;
-    __int64 v35;
-    char v36;
-    unsigned int v37;
-    unsigned int v38;
-    __int64 v39;
-    unsigned int *v40;
-    unsigned int v41;
-    unsigned int v42;
-    _OWORD v43;
-    _OWORD v44;
-    _OWORD v45;
-    _OWORD v46;
-    _OWORD v47;
+    const void *SrcPtr;
+    unsigned int *DstEntry;
+    __int64 ExistingEntryOffset;
+    __int64 ExistingEntryBytes;
+    __int64 ExistingEntryBytes2;
+    __int64 ThreadFlagsVal;
+    char IsUserModeLocal;
+    unsigned int EntrySize;
+    unsigned int ExistingEntryIndex;
+    __int64 ExistingEntryBytes3;
+    unsigned int *ListHeadLocal;
+    unsigned int LoopCount;
+    unsigned int EntryOffsetLocal;
+    _OWORD Fields0;
+    _OWORD Fields16;
+    _OWORD Fields32;
+    _OWORD Fields48;
+    _OWORD Fields64;
     _OWORD Src;
-    _OWORD v49;
-    _OWORD v50;
-    __int64 v51;
-    int v52;
-    __int64 v53;
+    _OWORD Fields96b;
+    _OWORD Fields112b;
+    __int64 Fields128;
+    int EncodedPrefix;
+    __int64 EncodedPrefix2;
 
-    v36 = a3;
-    v7 = *a4;
-    v42 = a2;
-    v8 = a1;
-    v40 = a1;
-    result = 0;
-    v52 = 4128860;          // L"\\??\\"
-    v10 = 544 * v7 + 552;
-    v53 = 6029375;          // L"\\??\\" 续
+    IsUserModeLocal = IsUserMode;
+    pListHead = *OutputBuffer;
+    EntryOffsetLocal = ListFieldOffset;
+    pCurrent = ListHead;
+    ListHeadLocal = ListHead;
+    ResultCount = 0;
+    EncodedPrefix = 4128860;          // L"\\??\\"
+    ThreadEntry = 544 * pListHead + 552;
+    EncodedPrefix2 = 6029375;          // L"\\??\\" 续
 
-    if (a3)
+    if (IsUserMode)
     {
-        v11 = (unsigned int *)*a1;  // LIST_ENTRY Flink (72字节条目)
-        v12 = 72;
+        ThreadId = (unsigned int *)*ListHead;  // LIST_ENTRY Flink (72字节条目)
+        EntrySize = 72;
     }
     else
     {
-        v11 = *(unsigned int **)a1; // 136字节条目
-        v12 = 136;
+        ThreadId = *(unsigned int **)ListHead; // 136字节条目
+        EntrySize = 136;
     }
-    v37 = v12;
 
-    if (v11 != a1)
+    if (ThreadId != ListHead)
     {
         do
         {
-            result = (unsigned int)(result + 1);
-            v41 = (unsigned int)result;
-            if ((unsigned int)result > 0x1000)
+            ResultCount = (unsigned int)(ResultCount + 1);
+            LoopCount = (unsigned int)ResultCount;
+            if ((unsigned int)ResultCount > 0x1000)
                 break;
 
-            v13 = (ULONG64)v11 - a2;
-            result = MmUserProbeAddress;
-            if (v13 >= MmUserProbeAddress)
+            Field13 = (ULONG64)ThreadId - ListFieldOffset;
+            ResultCount = MmUserProbeAddress;
+            if (Field13 >= MmUserProbeAddress)
                 break;
 
-            result = v13 + v12;
-            if (result >= MmUserProbeAddress || v10 >= a5)
+            ResultCount = Field13 + EntrySize;
+            if (ResultCount >= MmUserProbeAddress || ThreadEntry >= OutputSize)
                 break;
 
-            if (a3)
+            if (IsUserMode)
             {
                 // 72字节 LIST_ENTRY 格式
-                v24 = *(unsigned int *)(v13 + 24);
-                v25 = *(_DWORD *)(v13 + 32);
-                v23 = *(_WORD *)(v13 + 36);
-                v22 = *(unsigned int *)(v13 + 40);
-                v46.qword[0] = v24;
-                v47.dword[0] = v25;
-                v47.word[4] = v23;
-                Src.qword[0] = v22;
+                ThreadIdValue = *(unsigned int *)(Field13 + 24);
+                ThreadFlags = *(_DWORD *)(Field13 + 32);
+                PathLength = *(_WORD *)(Field13 + 36);
+                PathPtr = *(unsigned int *)(Field13 + 40);
+                Fields48.qword[0] = ThreadIdValue;
+                Fields64.dword[0] = ThreadFlags;
+                Fields64.word[4] = PathLength;
+                Src.qword[0] = PathPtr;
             }
             else
             {
                 // 136字节格式
-                v14 = *(_OWORD *)(v13 + 16);
-                v15 = *(_QWORD *)(v13 + 128);
-                v43 = *(_OWORD *)v13;
-                v16 = *(_OWORD *)(v13 + 32);
-                v44 = v14;
-                v17 = *(_OWORD *)(v13 + 48);
-                v45 = v16;
-                v18 = *(_OWORD *)(v13 + 64);
-                v46 = v17;
-                v19 = *(_OWORD *)(v13 + 80);
-                v47 = v18;
-                v20 = *(_OWORD *)(v13 + 96);
-                Src = v19;
-                v21 = *(_OWORD *)(v13 + 112);
-                v49 = v20;
-                v50 = v21;
-                v51 = v15;
-                v22 = (unsigned int)Src.dword[0];
-                v23 = v47.word[4];
-                v24 = v46.dword[0];
-                v25 = v47.dword[0];
+                Field14 = *(_OWORD *)(Field13 + 16);
+                Field15 = *(_QWORD *)(Field13 + 128);
+                Fields0 = *(_OWORD *)Field13;
+                Fields32b = *(_OWORD *)(Field13 + 32);
+                Fields16 = Field14;
+                Fields48b = *(_OWORD *)(Field13 + 48);
+                Fields32 = Fields32b;
+                Fields64b = *(_OWORD *)(Field13 + 64);
+                Fields48 = Fields48b;
+                Fields80 = *(_OWORD *)(Field13 + 80);
+                Fields64 = Fields64b;
+                Fields96 = *(_OWORD *)(Field13 + 96);
+                Src = Fields80;
+                Fields112 = *(_OWORD *)(Field13 + 112);
+                Fields96b = Fields96;
+                Fields112b = Fields112;
+                Fields128 = Field15;
+                PathPtr = (unsigned int)Src.dword[0];
+                PathLength = Fields64.word[4];
+                ThreadIdValue = Fields48.dword[0];
+                ThreadFlags = Fields64.dword[0];
             }
 
-            if (v24)
+            if (ThreadIdValue)
             {
-                v26 = v23;
-                v27 = 136LL * v7;
-                if (v23 > 0x1FEu)
-                    v26 = 510;
+                ClampedLength = PathLength;
+                CurrentEntryOffset = 136LL * pListHead;
+                if (PathLength > 0x1FEu)
+                    ClampedLength = 510;
 
-                *(_QWORD *)&a4[v27 + 4] = v24;
+                *(_QWORD *)&OutputBuffer[CurrentEntryOffset + 4] = ThreadIdValue;
 
-                if (v26 > 2 && v22 < MmUserProbeAddress && v22 && v22 + v26 < MmUserProbeAddress)
+                if (ClampedLength > 2 && PathPtr < MmUserProbeAddress && PathPtr && PathPtr + ClampedLength < MmUserProbeAddress)
                 {
-                    *(_QWORD *)&a4[v27 + 8] = 0;
-                    *((UCHAR *)a4 + v27 + 2) = a6;
-                    *(_QWORD *)&a4[v27 + 6] = v25;
-                    StringLength = GetStringLength((PWSTR)&v52);
-                    v39 = StringLength;
+                    *(_QWORD *)&OutputBuffer[CurrentEntryOffset + 8] = 0;
+                    *((UCHAR *)OutputBuffer + CurrentEntryOffset + 2) = EntryTypeValue;
+                    *(_QWORD *)&OutputBuffer[CurrentEntryOffset + 6] = ThreadFlags;
+                    StringLength = GetStringLength((PWSTR)&EncodedPrefix);
+                    ExistingEntryBytes3 = StringLength;
 
-                    if (v26 <= StringLength || (unsigned int)WStringCompare((__int64)&v52, (unsigned __int16 *)v22, StringLength))
+                    if (ClampedLength <= StringLength || (unsigned int)WStringCompare((__int64)&EncodedPrefix, (unsigned __int16 *)PathPtr, StringLength))
                     {
-                        v29 = (const void *)v22;
+                        SrcPtr = (const void *)PathPtr;
                     }
                     else
                     {
-                        v29 = (const void *)(v22 + 2LL * (unsigned int)v39);
-                        v26 -= 2 * v39;
+                        SrcPtr = (const void *)(PathPtr + 2LL * (unsigned int)ExistingEntryBytes3);
+                        ClampedLength -= 2 * ExistingEntryBytes3;
                     }
-                    v30 = &a4[v27 + 10];
-                    memmove(v30, v29, v26);
-                    *((_WORD *)&a4[136 * v7 + 10] + ((unsigned __int64)v26 >> 1)) = 0;
-                    *(WORD *)((UCHAR *)a4 + v27 + 138) = 0;
-                    NormalizeRelativePath(v30);
+                    DstEntry = &OutputBuffer[CurrentEntryOffset + 10];
+                    memmove(DstEntry, SrcPtr, ClampedLength);
+                    *((_WORD *)&OutputBuffer[136 * pListHead + 10] + ((unsigned __int64)ClampedLength >> 1)) = 0;
+                    *(WORD *)((UCHAR *)OutputBuffer + CurrentEntryOffset + 138) = 0;
+                    NormalizeRelativePath(DstEntry);
 
-                    if (v36 == 1)
-                        PatchThreadImagePathWithWow64((__int64)&a4[v27 + 10]);
+                    if (IsUserModeLocal == 1)
+                        PatchThreadImagePathWithWow64((__int64)&OutputBuffer[CurrentEntryOffset + 10]);
 
-                    if (FindThreadEntry(a4, v46.qword[0], &v38, 0) == 1)
+                    if (FindThreadEntry(OutputBuffer, Fields48.qword[0], &ExistingEntryIndex, 0) == 1)
                     {
-                        v10 += 544;
-                        *a4 = ++v7;
+                        ThreadEntry += 544;
+                        *OutputBuffer = ++pListHead;
                     }
                     else
                     {
-                        v31 = 136LL * v38;
-                        v39 = v31 * 4;
-                        *(WORD *)((UCHAR *)a4 + v31 + 138) = 0;
-                        *(WORD *)((UCHAR *)a4 + v27 + 138) = 0;
+                        ExistingEntryOffset = 136LL * ExistingEntryIndex;
+                        ExistingEntryBytes3 = ExistingEntryOffset * 4;
+                        *(WORD *)((UCHAR *)OutputBuffer + ExistingEntryOffset + 138) = 0;
+                        *(WORD *)((UCHAR *)OutputBuffer + CurrentEntryOffset + 138) = 0;
 
-                        if ((2LL * (unsigned int)GetStringLength((PWSTR)&a4[v31 + 10]) != v26
-                            || (unsigned int)StringCompare3Way((__int64)a4 + v39 + 40, (unsigned __int16 *)v30, v26 >> 1))
-                            && v26 > 2 * (unsigned __int64)(unsigned int)GetStringLength((PWSTR)((char *)a4 + v39 + 40)))
+                        if ((2LL * (unsigned int)GetStringLength((PWSTR)&OutputBuffer[ExistingEntryOffset + 10]) != ClampedLength
+                            || (unsigned int)StringCompare3Way((__int64)OutputBuffer + ExistingEntryBytes3 + 40, (unsigned __int16 *)DstEntry, ClampedLength >> 1))
+                            && ClampedLength > 2 * (unsigned __int64)(unsigned int)GetStringLength((PWSTR)((char *)OutputBuffer + ExistingEntryBytes3 + 40)))
                         {
-                            v32 = v39;
-                            *((_BYTE *)a4 + v39 + 8) = a6;
-                            if (v26 > 0x1FE)
-                                v26 = 510;
-                            memmove((char *)a4 + v32 + 40, v30, v26);
-                            v33 = v39;
-                            *((_WORD *)&a4[136 * v38 + 10] + ((unsigned __int64)v26 >> 1)) = 0;
-                            *(_WORD *)((char *)a4 + v33 + 550) = 0;
+                            ExistingEntryBytes = ExistingEntryBytes3;
+                            *((_BYTE *)OutputBuffer + ExistingEntryBytes3 + 8) = EntryTypeValue;
+                            if (ClampedLength > 0x1FE)
+                                ClampedLength = 510;
+                            memmove((char *)OutputBuffer + ExistingEntryBytes + 40, DstEntry, ClampedLength);
+                            ExistingEntryBytes2 = ExistingEntryBytes3;
+                            *((_WORD *)&OutputBuffer[136 * ExistingEntryIndex + 10] + ((unsigned __int64)ClampedLength >> 1)) = 0;
+                            *(_WORD *)((char *)OutputBuffer + ExistingEntryBytes2 + 550) = 0;
                         }
                     }
-                    v12 = v37;
-                    v8 = v40;
+                    pCurrent = ListHeadLocal;
                 }
                 else
                 {
-                    ThreadEntry = FindThreadEntry(a4, v24, &v38, 0);
-                    v8 = v40;
-                    v12 = v37;
+                    ThreadEntry = FindThreadEntry(OutputBuffer, ThreadIdValue, &ExistingEntryIndex, 0);
+                    pCurrent = ListHeadLocal;
                     if (ThreadEntry == 1)
                     {
-                        *((UCHAR *)a4 + v27 + 2) = 1;
-                        v35 = v47.dword[0];
-                        *(_QWORD *)&a4[v27 + 8] = 0;
-                        *(_QWORD *)&a4[v27 + 6] = v35;
-                        v10 += 544;
-                        ++v7;
-                        *(WORD *)((UCHAR *)a4 + v27 + 10) = 0;
-                        *a4 = v7;
+                        *((UCHAR *)OutputBuffer + CurrentEntryOffset + 2) = 1;
+                        ThreadFlagsVal = Fields64.dword[0];
+                        *(_QWORD *)&OutputBuffer[CurrentEntryOffset + 8] = 0;
+                        *(_QWORD *)&OutputBuffer[CurrentEntryOffset + 6] = ThreadFlagsVal;
+                        ThreadEntry += 544;
+                        ++pListHead;
+                        *(WORD *)((UCHAR *)OutputBuffer + CurrentEntryOffset + 10) = 0;
+                        *OutputBuffer = pListHead;
                     }
                 }
             }
-            a3 = v36;
-            v11 = v36 ? (unsigned int *)*v11 : *(unsigned int **)v11;
-            result = v41;
-            a2 = v42;
+            IsUserMode = IsUserModeLocal;
+            ThreadId = IsUserModeLocal ? (unsigned int *)*ThreadId : *(unsigned int **)ThreadId;
+            ResultCount = LoopCount;
+            ListFieldOffset = EntryOffsetLocal;
         }
-        while (v11 != v8);
+        while (ThreadId != pCurrent);
     }
-    return result;
+    return ResultCount;
 }
 
 // FindSystemRootEntry — 在线程信息中查找系统根目录条目
@@ -1169,12 +1164,12 @@ __int64 FindSystemRootEntry(_DWORD *ThreadInfoTable)
     ULONG EntryCount, EntryIndex;
     WORD *EntryPtr;
     _DWORD EncodedPath[13];
-    __int64 v9;
+    __int64 EncodedPath2;
 
     Result = 0;
     EncodedPath[0] = 6029370; EncodedPath[1] = 6881367;
     EncodedPath[2] = 6553710; EncodedPath[11] = 7077996;
-    v9 = 7077996;
+    EncodedPath2 = 7077996;
     EncodedPath[3] = 7798895; EncodedPath[4] = 6029427;
     EncodedPath[5] = 7929939; EncodedPath[6] = 5701747;
     EncodedPath[7] = 5701711; EncodedPath[8] = 3407926;
@@ -1284,14 +1279,14 @@ void PatchThreadImagePathWithWow64(__int64 Path)
 // ResetThreadStateFlag — 重置线程状态标志
 // 对应原始驱动 sub_14004CBD0
 // 检查线程状态值是否 <=5，若匹配则重置线程状态字节为 0
-__int64 ResetThreadStateFlag(__int64 a1, __int64 a2)
+__int64 ResetThreadStateFlag(__int64 Thread, __int64 FlagOffset)
 {
     __int64 result = GtRead(GtEprocessField37);
-    if ((_DWORD)result != -1 && *(_DWORD *)a2 <= 5u)
+    if ((_DWORD)result != -1 && *(_DWORD *)FlagOffset <= 5u)
     {
         result = (unsigned int)result;
-        if (*(_DWORD *)((unsigned int)result + a1) <= 8u)
-            *(_BYTE *)(a2 + 8) = 0;
+        if (*(_DWORD *)((unsigned int)result + Thread) <= 8u)
+            *(_BYTE *)(FlagOffset + 8) = 0;
     }
     return result;
 }
@@ -1305,78 +1300,78 @@ void EnumerateFileMappingSectionEx(__int64 VadNode, _DWORD *OutputBuffer, unsign
     if (544 * (int)EntryIndex + 552 > BufferSize)
         return;
 
-    __int64 *v6 = *(__int64 **)(VadNode + 72);
-    if (!v6)
+    __int64 *FileObjectPtr = *(__int64 **)(VadNode + 72);
+    if (!FileObjectPtr)
         return;
     if (MmIsAddressValid(*(PVOID *)(VadNode + 72)) != 1 ||
-        MmIsAddressValid((char *)v6 + 55) != 1)
+        MmIsAddressValid((char *)FileObjectPtr + 55) != 1)
         return;
 
-    __int64 v7 = *v6;
-    if (!v7)
+    __int64 FileObject = *FileObjectPtr;
+    if (!FileObject)
         return;
-    if (MmIsAddressValid((PVOID)v7) != 1 ||
-        MmIsAddressValid((PVOID)(v7 + 119)) != 1)
+    if (MmIsAddressValid((PVOID)FileObject) != 1 ||
+        MmIsAddressValid((PVOID)(FileObject + 119)) != 1)
         return;
 
-    bool v8 = (ULONG)GtRead(GtWindowsBuildNumber) < 0x47BA
+    bool IsValidSection = (ULONG)GtRead(GtWindowsBuildNumber) < 0x47BA
         ? (*(_DWORD *)(VadNode + 48) & 0x38) == 56
         : (*(_DWORD *)(VadNode + 48) & 0x380) == 896;
 
-    if ((*(UCHAR *)(v7 + 56) & 0xA0) != 0xA0 || !v8)
+    if ((*(UCHAR *)(FileObject + 56) & 0xA0) != 0xA0 || !IsValidSection)
         return;
 
-    WORD *v9 = (WORD *)(*(_QWORD *)(v7 + 64) & 0xFFFFFFFFFFFFFFF0ULL);
-    if ((ULONG64)v9 <= (ULONG64)MmSystemRangeStart)
+    WORD *FileHeader = (WORD *)(*(_QWORD *)(FileObject + 64) & 0xFFFFFFFFFFFFFFF0ULL);
+    if ((ULONG64)FileHeader <= (ULONG64)MmSystemRangeStart)
         return;
-    if (MmIsAddressValid(v9) != 1 || MmIsAddressValid((char *)v9 + 183) != 1)
+    if (MmIsAddressValid(FileHeader) != 1 || MmIsAddressValid((char *)FileHeader + 183) != 1)
         return;
-    if (*v9 != 5 || ((v9[1] - 184) & 0xFFDF) != 0)
+    if (*FileHeader != 5 || ((FileHeader[1] - 184) & 0xFFDF) != 0)
         return;
 
     ULONG64 StartAddr = *(ULONG *)(VadNode + 24) + ((ULONG64)*(UCHAR *)(VadNode + 32) << 32);
     ULONG64 EndAddr = *(ULONG *)(VadNode + 28) + ((ULONG64)*(UCHAR *)(VadNode + 33) << 32);
-    ULONG v24;
+    ULONG ExistingEntryIndex;
     void *Src[2];
-    ULONG v23, v15, v16;
+    ULONG ObjNameLength, StringLen, StringLenAligned;
 
-    if (FindThreadEntry(OutputBuffer, StartAddr << 12, &v24, (__int64)v9) == 1)
+    if (FindThreadEntry(OutputBuffer, StartAddr << 12, &ExistingEntryIndex, (__int64)FileHeader) == 1)
     {
-        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)v9, Src, &v23) == 1)
+        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
         {
-            __int64 v14 = 136 * EntryIndex;
-            LOBYTE_LV(OutputBuffer[v14 + 2]) = 1;
-            v15 = v23;
-            *(__int64 *)&OutputBuffer[v14 + 8] = (__int64)v9;
-            *(__int64 *)&OutputBuffer[v14 + 4] = StartAddr << 12;
-            *(__int64 *)&OutputBuffer[v14 + 6] = (EndAddr - StartAddr + 1) << 12;
-            if (v15 > 0x1FE) v15 = 510;
-            v23 = v15;
-            v16 = v15;
-            memmove(&OutputBuffer[v14 + 10], Src[0], v15);
-            *((WORD *)&OutputBuffer[136 * EntryIndex + 10] + (v16 >> 1)) = 0;
-            HIWORD_LV(OutputBuffer[v14 + 137]) = 0;
+            __int64 EntryByteOffset = 136 * EntryIndex;
+            LOBYTE_LV(OutputBuffer[EntryByteOffset + 2]) = 1;
+            StringLen = ObjNameLength;
+            *(__int64 *)&OutputBuffer[EntryByteOffset + 8] = (__int64)FileHeader;
+            *(__int64 *)&OutputBuffer[EntryByteOffset + 4] = StartAddr << 12;
+            *(__int64 *)&OutputBuffer[EntryByteOffset + 6] = (EndAddr - StartAddr + 1) << 12;
+            if (StringLen > 0x1FE) StringLen = 510;
+            ObjNameLength = StringLen;
+            StringLenAligned = StringLen;
+            memmove(&OutputBuffer[EntryByteOffset + 10], Src[0], StringLen);
+            *((WORD *)&OutputBuffer[136 * EntryIndex + 10] + (StringLenAligned >> 1)) = 0;
+            HIWORD_LV(OutputBuffer[EntryByteOffset + 137]) = 0;
             *OutputBuffer = (ULONG)(EntryIndex + 1);
             ExFree(Src[0]);
         }
     }
-    else if (QueryObjectNameString((ULONG64)v9, Src, &v23) == 1)
+    else if (QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
     {
-        __int64 v18 = 136 * v24;
-        HIWORD_LV(OutputBuffer[v18 + 137]) = 0;
-        ULONG StringLen = GetStringLength(&OutputBuffer[v18 + 10]);
-        if (2 * StringLen != v23 ||
-            StringCompare3Way((__int64)&OutputBuffer[v18 + 10], (WORD *)Src[0], v23 >> 1))
+        __int64 ExistingEntryOffset = 136 * ExistingEntryIndex;
+        HIWORD_LV(OutputBuffer[ExistingEntryOffset + 137]) = 0;
+        ULONG StringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+        if (2 * StringLen != ObjNameLength ||
+            StringCompare3Way((__int64)&OutputBuffer[ExistingEntryOffset + 10], (WORD *)Src[0], ObjNameLength >> 1))
         {
-            ULONG v20 = GetStringLength(&OutputBuffer[v18 + 10]);
-            if (v23 > 2 * (ULONG64)v20)
+            ULONG ExistingStringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+            if (ObjNameLength > 2 * (ULONG64)ExistingStringLen)
             {
-                LOBYTE_LV(OutputBuffer[v18 + 2]) = 1;
-                ULONG v21 = v23 > 0x1FE ? 510 : v23;
-                v23 = v21;
-                memmove(&OutputBuffer[v18 + 10], Src[0], v21);
-                *((WORD *)&OutputBuffer[136 * (ULONG)v24 + 10] + (v23 >> 1)) = 0;
-                HIWORD_LV(OutputBuffer[v18 + 137]) = 0;
+                LOBYTE_LV(OutputBuffer[ExistingEntryOffset + 2]) = 1;
+                ULONG ClampedStringLen = ObjNameLength > 0x1FE ? 510 : ObjNameLength;
+                ObjNameLength = ClampedStringLen;
+                memmove(&OutputBuffer[ExistingEntryOffset + 10], Src[0], ClampedStringLen);
+                *((WORD *)&OutputBuffer[136 * (ULONG)ExistingEntryIndex + 10] + (ObjNameLength >> 1)) = 0;
+                HIWORD_LV(OutputBuffer[ExistingEntryOffset + 137]) = 0;
             }
         }
         ExFree(Src[0]);
@@ -1401,78 +1396,78 @@ void EnumerateFileMappingSectionByIndex(__int64 VadNode, _DWORD *OutputBuffer, u
     if (544 * (int)EntryIndex + 552 > BufferSize)
         return;
 
-    __int64 *v6 = *(__int64 **)(VadNode + 72);
-    if (!v6)
+    __int64 *FileObjectPtr = *(__int64 **)(VadNode + 72);
+    if (!FileObjectPtr)
         return;
     if (MmIsAddressValid(*(PVOID *)(VadNode + 72)) != 1 ||
-        MmIsAddressValid((char *)v6 + 55) != 1)
+        MmIsAddressValid((char *)FileObjectPtr + 55) != 1)
         return;
 
-    __int64 v7 = *v6;
-    if (!v7)
+    __int64 FileObject = *FileObjectPtr;
+    if (!FileObject)
         return;
-    if (MmIsAddressValid((PVOID)v7) != 1 ||
-        MmIsAddressValid((PVOID)(v7 + 119)) != 1)
+    if (MmIsAddressValid((PVOID)FileObject) != 1 ||
+        MmIsAddressValid((PVOID)(FileObject + 119)) != 1)
         return;
 
-    bool v8 = (ULONG)GtRead(GtWindowsBuildNumber) < 0x47BA
+    bool IsValidSection = (ULONG)GtRead(GtWindowsBuildNumber) < 0x47BA
         ? (*(_DWORD *)(VadNode + 48) & 0x38) == 56
         : (*(_DWORD *)(VadNode + 48) & 0x380) == 896;
 
-    if ((*(UCHAR *)(v7 + 56) & 0xA0) != 0xA0 || !v8)
+    if ((*(UCHAR *)(FileObject + 56) & 0xA0) != 0xA0 || !IsValidSection)
         return;
 
-    WORD *v9 = (WORD *)(*(_QWORD *)(v7 + 64) & 0xFFFFFFFFFFFFFFF0ULL);
-    if ((ULONG64)v9 <= (ULONG64)MmSystemRangeStart)
+    WORD *FileHeader = (WORD *)(*(_QWORD *)(FileObject + 64) & 0xFFFFFFFFFFFFFFF0ULL);
+    if ((ULONG64)FileHeader <= (ULONG64)MmSystemRangeStart)
         return;
-    if (MmIsAddressValid(v9) != 1 || MmIsAddressValid((char *)v9 + 183) != 1)
+    if (MmIsAddressValid(FileHeader) != 1 || MmIsAddressValid((char *)FileHeader + 183) != 1)
         return;
-    if (*v9 != 5 || ((v9[1] - 184) & 0xFFDF) != 0)
+    if (*FileHeader != 5 || ((FileHeader[1] - 184) & 0xFFDF) != 0)
         return;
 
     ULONG64 StartAddr = *(ULONG *)(VadNode + 24) + ((ULONG64)*(UCHAR *)(VadNode + 32) << 32);
     ULONG64 EndAddr = *(ULONG *)(VadNode + 28) + ((ULONG64)*(UCHAR *)(VadNode + 33) << 32);
-    ULONG v24;
+    ULONG ExistingEntryIndex;
     void *Src[2];
-    ULONG v23, v15, v16;
+    ULONG ObjNameLength, StringLen, StringLenAligned;
 
-    if (FindThreadEntry(OutputBuffer, StartAddr << 12, &v24, (__int64)v9) == 1)
+    if (FindThreadEntry(OutputBuffer, StartAddr << 12, &ExistingEntryIndex, (__int64)FileHeader) == 1)
     {
-        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)v9, Src, &v23) == 1)
+        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
         {
-            __int64 v14 = 136 * EntryIndex;
-            LOBYTE_LV(OutputBuffer[v14 + 2]) = 1;
-            v15 = v23;
-            *(__int64 *)&OutputBuffer[v14 + 8] = (__int64)v9;
-            *(__int64 *)&OutputBuffer[v14 + 4] = StartAddr << 12;
-            *(__int64 *)&OutputBuffer[v14 + 6] = (EndAddr - StartAddr + 1) << 12;
-            if (v15 > 0x1FE) v15 = 510;
-            v23 = v15;
-            v16 = v15;
-            memmove(&OutputBuffer[v14 + 10], Src[0], v15);
-            *((WORD *)&OutputBuffer[136 * EntryIndex + 10] + (v16 >> 1)) = 0;
-            HIWORD_LV(OutputBuffer[v14 + 137]) = 0;
+            __int64 EntryByteOffset = 136 * EntryIndex;
+            LOBYTE_LV(OutputBuffer[EntryByteOffset + 2]) = 1;
+            StringLen = ObjNameLength;
+            *(__int64 *)&OutputBuffer[EntryByteOffset + 8] = (__int64)FileHeader;
+            *(__int64 *)&OutputBuffer[EntryByteOffset + 4] = StartAddr << 12;
+            *(__int64 *)&OutputBuffer[EntryByteOffset + 6] = (EndAddr - StartAddr + 1) << 12;
+            if (StringLen > 0x1FE) StringLen = 510;
+            ObjNameLength = StringLen;
+            StringLenAligned = StringLen;
+            memmove(&OutputBuffer[EntryByteOffset + 10], Src[0], StringLen);
+            *((WORD *)&OutputBuffer[136 * EntryIndex + 10] + (StringLenAligned >> 1)) = 0;
+            HIWORD_LV(OutputBuffer[EntryByteOffset + 137]) = 0;
             *OutputBuffer = (ULONG)(EntryIndex + 1);
             ExFree(Src[0]);
         }
     }
-    else if (QueryObjectNameString((ULONG64)v9, Src, &v23) == 1)
+    else if (QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
     {
-        __int64 v18 = 136 * v24;
-        HIWORD_LV(OutputBuffer[v18 + 137]) = 0;
-        ULONG StringLen = GetStringLength(&OutputBuffer[v18 + 10]);
-        if (2 * StringLen != v23 ||
-            StringCompare3Way((__int64)&OutputBuffer[v18 + 10], (WORD *)Src[0], v23 >> 1))
+        __int64 ExistingEntryOffset = 136 * ExistingEntryIndex;
+        HIWORD_LV(OutputBuffer[ExistingEntryOffset + 137]) = 0;
+        ULONG StringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+        if (2 * StringLen != ObjNameLength ||
+            StringCompare3Way((__int64)&OutputBuffer[ExistingEntryOffset + 10], (WORD *)Src[0], ObjNameLength >> 1))
         {
-            ULONG v20 = GetStringLength(&OutputBuffer[v18 + 10]);
-            if (v23 > 2 * (ULONG64)v20)
+            ULONG ExistingStringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+            if (ObjNameLength > 2 * (ULONG64)ExistingStringLen)
             {
-                LOBYTE_LV(OutputBuffer[v18 + 2]) = 1;
-                ULONG v21 = v23 > 0x1FE ? 510 : v23;
-                v23 = v21;
-                memmove(&OutputBuffer[v18 + 10], Src[0], v21);
-                *((WORD *)&OutputBuffer[136 * (ULONG)v24 + 10] + (v23 >> 1)) = 0;
-                HIWORD_LV(OutputBuffer[v18 + 137]) = 0;
+                LOBYTE_LV(OutputBuffer[ExistingEntryOffset + 2]) = 1;
+                ULONG ClampedStringLen = ObjNameLength > 0x1FE ? 510 : ObjNameLength;
+                ObjNameLength = ClampedStringLen;
+                memmove(&OutputBuffer[ExistingEntryOffset + 10], Src[0], ClampedStringLen);
+                *((WORD *)&OutputBuffer[136 * (ULONG)ExistingEntryIndex + 10] + (ObjNameLength >> 1)) = 0;
+                HIWORD_LV(OutputBuffer[ExistingEntryOffset + 137]) = 0;
             }
         }
         ExFree(Src[0]);
@@ -1964,20 +1959,20 @@ __int64 MatchSystemProcessName(_QWORD *Process)
 // Moved from MemoryCleanup.c
 __int64 CopyThreadContextTable(__int64 pSourceTable)
 {
-    __int64 *v3 = GtAlloc(GtTotalSize|GtEprocessField144);
-    char *v5 = (char *)v3 + 4;
-    __int64 v6 = pSourceTable - (__int64)v3;
-    char v2 = 0;
-    for (int v4 = 28; v4; v4--)
+    __int64 *DestTable = GtAlloc(GtTotalSize|GtEprocessField144);
+    char *CurrentEntry = (char *)DestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)DestTable;
+    char Result = 0;
+    for (int LoopCount = 28; LoopCount; LoopCount--)
     {
-        *(_DWORD *)&v5[v6] = *(_DWORD *)v5;
-        if (*(_DWORD *)v5 && *((_DWORD *)v5 - 1) == 1)
+        *(_DWORD *)&CurrentEntry[DeltaOffset] = *(_DWORD *)CurrentEntry;
+        if (*(_DWORD *)CurrentEntry && *((_DWORD *)CurrentEntry - 1) == 1)
         {
-            v2 = 1;
-            *(_QWORD *)&v5[v6 + 4] = *(_QWORD *)(v5 + 4);
-            *(_OWORD *)&v5[v6 + 22] = *(_OWORD *)(v5 + 12);
+            Result = 1;
+            *(_QWORD *)&CurrentEntry[DeltaOffset + 4] = *(_QWORD *)(CurrentEntry + 4);
+            *(_OWORD *)&CurrentEntry[DeltaOffset + 22] = *(_OWORD *)(CurrentEntry + 12);
         }
-        v5 += 48;
+        CurrentEntry += 48;
     }
-    return v2;
+    return Result;
 }

@@ -54,3 +54,5 @@ __pycache__/
 *.swp
 *.swo
 *~
+# Build log output
+XPCHunterDrv/build_output.txt

@@ -2,8 +2,11 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 
 #include "..\inc\XPCHunterDrv.h"
+
+// C4700 抑制：对象管理函数中变量由间接路径初始化，编译器无法跟踪代码路径
+#pragma warning(disable:4700)
 // Forward declarations
-__int64 (*EnumKbdclassDriverObjects(unsigned int *a1, _DWORD *a2))(void);
+__int64 (*EnumKbdclassDriverObjects(unsigned int *OutputBuffer, _DWORD *pCount))(void);
 __int64 (*ReadVolumeDataToBuffer(__int64 (__fastcall *Callback)(_QWORD *, _QWORD *, __int64), __int64 Context))(_QWORD);
 _QWORD *ValidateObjectTypeList(_QWORD *TypeListEntry);
 
@@ -67,7 +70,7 @@ char EnableObjectProtect(_OWORD *Address, int BufferSize)
 
 // DisableObjectProtect — 禁用对象保护
 // 对应原始驱动 sub_140007CC4
-char DisableObjectProtect(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned int BufferSize)
+char DisableObjectProtect(__int64 DeviceObject, __int64 Irp, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     if (!OutputBuffer || BufferSize < 0x80)
         return 0;
@@ -195,7 +198,7 @@ char __fastcall WalkObjectTypeList(_QWORD **NodeStack, int MaxDepth, _DWORD *Out
                                             *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 6] = ObjectHeader;
                                             *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 4] = HandlerEntry;
                                             *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 2] = HandlerEntry[3];
-                                            LOWORD(OutputBuffer[30 * *OutputBuffer + 8]) = 0;
+                                            LOWORD_LV(OutputBuffer[30 * *OutputBuffer + 8]) = 0;
                                             if (ResolveObjectHeaderPointer((__int64)ObjectHeader, &NameInfo) == 1)
                                             {
                                                 NameLength = *NameInfo;
@@ -296,7 +299,6 @@ char InitObjectCallback(__int64 UnusedParam, __int64 UnusedParam2, _DWORD *Outpu
     int TypeFlags;
     __int64 IsProtected;
     int SavedProcessIndex;
-    _QWORD **v42;
     unsigned int SavedRemainingSize;
     unsigned int QueryResultSize;
     __int64 SavedMaxTypeIndex;
@@ -421,7 +423,6 @@ Label26:
                 continue;
 
             ObjectTypeListPtr = (_QWORD **)((char *)ProcessEntry[1] + (ULONG)ObjectListOffsetVal);
-            v42 = ObjectTypeListPtr;
             ObjectTypeListPtrSaved = ObjectTypeListPtr;
             TypeListIndex = 0;
 
@@ -554,96 +555,96 @@ char ObjectPreCallback(__int64 CallbackContext, unsigned int CallbackArg)
 char QueryObjectNameInfo(ULONG64 ObjectAddress, WORD *TargetName, ULONG NameLength, _QWORD *OutBuffer, _DWORD *OutSize)
 {
     char Result = 0;
-    UCHAR (*v7)(void);
-    int (__fastcall *v8)(ULONG64, ULONG64, ULONG64, ULONG64);
-    __int64 v9;
-    void (__fastcall *v26)(ULONG64);
-    _QWORD *v10;
-    ULONG (*v25)(_QWORD, __int64 *, _QWORD, char *);
-    _QWORD *v12;
-    size_t v13;
-    SIZE_T v14;
-    char v15;
-    PVOID v16;
-    __int64 *v17, *v18;
+    UCHAR (*ObjectTypeCheck)(void);
+    int (__fastcall *QueryNameBuffered)(ULONG64, ULONG64, ULONG64, ULONG64);
+    __int64 CloseHandleAddr;
+    void (__fastcall *CloseHandleFunc)(ULONG64);
+    _QWORD *CreateFilePtr;
+    ULONG (*QueryObjectNameFunc)(_QWORD, __int64 *, _QWORD, char *);
+    _QWORD *ObjectHeader;
+    size_t NameInfoStatus;
+    SIZE_T ResultSize;
+    char IsMatch;
+    PVOID AllocBuffer;
+    __int64 *TempBuffer, *TempNamePtr;
     ULONG StringLength;
-    __int64 v20;
-    ULONG v21;
-    char v23 = 0;
-    char v24[4];
+    __int64 MatchedLength;
+    ULONG TailLength;
+    char IsCopied = 0;
+    char QueryResult[4];
 
     *OutBuffer = 0;
-    v7 = (UCHAR (*)(void))GtRead(GtObjectTypeCheckFlag);
-    v8 = (int (__fastcall *)(ULONG64, ULONG64, ULONG64, ULONG64))GtRead(16742);
-    v9 = GtRead(GtCloseHandleFunc);
-    v26 = (void (__fastcall *)(ULONG64))v9;
-    v10 = (_QWORD *)GtRead(GtZwCreateFileFunc);
-    v25 = (ULONG (*)(_QWORD, __int64 *, _QWORD, char *))GtRead(GtQueryObjectNameFunc);
+    ObjectTypeCheck = (UCHAR (*)(void))GtRead(GtObjectTypeCheckFlag);
+    QueryNameBuffered = (int (__fastcall *)(ULONG64, ULONG64, ULONG64, ULONG64))GtRead(16742);
+    CloseHandleAddr = GtRead(GtCloseHandleFunc);
+    CloseHandleFunc = (void (__fastcall *)(ULONG64))CloseHandleAddr;
+    CreateFilePtr = (_QWORD *)GtRead(GtZwCreateFileFunc);
+    QueryObjectNameFunc = (ULONG (*)(_QWORD, __int64 *, _QWORD, char *))GtRead(GtQueryObjectNameFunc);
 
-    if (!v7 || !v8 || !v9 || !v10 || !v25) return 0;
+    if (!ObjectTypeCheck || !QueryNameBuffered || !CloseHandleAddr || !CreateFilePtr || !QueryObjectNameFunc) return 0;
 
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1770)
         ObjectAddress &= 0xFFFFFFFFFFFFFFF0ULL;
 
-    v12 = (_QWORD *)(ObjectAddress - 48);
+    ObjectHeader = (_QWORD *)(ObjectAddress - 48);
     if (!ObjectAddress || ObjectAddress <= (ULONG64)MmSystemRangeStart ||
-        ((UCHAR (*)(ULONG64))v7)(ObjectAddress - 48) != 1 ||
-        ((UCHAR (*)(ULONG64))v7)(ObjectAddress + 183) != 1 ||
-        !*v12 || !*(_QWORD *)(ObjectAddress + 8) || v7() != 1 ||
-        v8(ObjectAddress, 0, *v10, 0) < 0)
+        ((UCHAR (*)(ULONG64))ObjectTypeCheck)(ObjectAddress - 48) != 1 ||
+        ((UCHAR (*)(ULONG64))ObjectTypeCheck)(ObjectAddress + 183) != 1 ||
+        !*ObjectHeader || !*(_QWORD *)(ObjectAddress + 8) || ObjectTypeCheck() != 1 ||
+        QueryNameBuffered(ObjectAddress, 0, *CreateFilePtr, 0) < 0)
         return 0;
 
-    v13 = *(WORD *)(ObjectAddress + 88);
-    v14 = (ULONG)(v13 + 0x10000) + 2;
-    v15 = 0;
-    v16 = ExAlloc(NonPagedPool, (ULONG)v14);
-    if (!v16) goto Cleanup;
+    NameInfoStatus = *(WORD *)(ObjectAddress + 88);
+    ResultSize = (ULONG)(NameInfoStatus + 0x10000) + 2;
+    IsMatch = 0;
+    AllocBuffer = ExAlloc(NonPagedPool, (ULONG)ResultSize);
+    if (!AllocBuffer) goto Cleanup;
 
-    v17 = ExAlloc(NonPagedPool, (ULONG)v14);
-    if (!v17) { ExFree(v16); goto Cleanup; }
+    TempBuffer = ExAlloc(NonPagedPool, (ULONG)ResultSize);
+    if (!TempBuffer) { ExFree(AllocBuffer); goto Cleanup; }
 
-    memset(v17, 0, v14);
-    if (!v25(*(_QWORD *)(ObjectAddress + 8), v17, (ULONG)(v13 + 0x10000), v24))
+    memset(TempBuffer, 0, ResultSize);
+    if (!QueryObjectNameFunc(*(_QWORD *)(ObjectAddress + 8), TempBuffer, (ULONG)(NameInfoStatus + 0x10000), QueryResult))
     {
-        v18 = (__int64 *)v17[1];
-        if (v18 == v17 + 2)
+        TempNamePtr = (__int64 *)TempBuffer[1];
+        if (TempNamePtr == TempBuffer + 2)
         {
-            *((WORD *)v18 + (*(WORD *)v17 >> 1)) = 0;
-            StringLength = GetStringLength((WORD *)v17[1]);
-            v20 = StringLength;
+            *((WORD *)TempNamePtr + (*(WORD *)TempBuffer >> 1)) = 0;
+            StringLength = GetStringLength((WORD *)TempBuffer[1]);
+            MatchedLength = StringLength;
 
             if (StringLength <= NameLength &&
-                StringCompare3Way(v17[1], TargetName, StringLength) == 0)
+                StringCompare3Way(TempBuffer[1], TargetName, StringLength) == 0)
             {
-                v21 = NameLength - (ULONG)v20;
-                if (!v21)
+                TailLength = NameLength - (ULONG)MatchedLength;
+                if (!TailLength)
                 {
-                    memset(v16, 0, v14);
-                    memmove(v16, *(const void **)(ObjectAddress + 96), v13);
-                    *OutBuffer = (__int64)v16;
+                    memset(AllocBuffer, 0, ResultSize);
+                    memmove(AllocBuffer, *(const void **)(ObjectAddress + 96), NameInfoStatus);
+                    *OutBuffer = (__int64)AllocBuffer;
                     *OutSize = 0;
                     goto Done;
                 }
-                if (2 * (ULONG64)v21 <= v13 &&
-                    StringCompare3Way(*(_QWORD *)(ObjectAddress + 96), &TargetName[v20], v21) == 0)
+                if (2 * (ULONG64)TailLength <= NameInfoStatus &&
+                    StringCompare3Way(*(_QWORD *)(ObjectAddress + 96), &TargetName[MatchedLength], TailLength) == 0)
                 {
-                    memset(v16, 0, v14);
-                    memmove(v16, *(const void **)(ObjectAddress + 96), (ULONG)v13);
-                    *OutBuffer = (__int64)v16;
-                    *OutSize = v13;
+                    memset(AllocBuffer, 0, ResultSize);
+                    memmove(AllocBuffer, *(const void **)(ObjectAddress + 96), (ULONG)NameInfoStatus);
+                    *OutBuffer = (__int64)AllocBuffer;
+                    *OutSize = NameInfoStatus;
 Done:
-                    v23 = 1;
+                    IsCopied = 1;
                 }
             }
         }
     }
-    ExFree(v17);
-    v15 = v23;
-    if (!v23) { ExFree(v16); }
+    ExFree(TempBuffer);
+    IsMatch = IsCopied;
+    if (!IsCopied) { ExFree(AllocBuffer); }
 
 Cleanup:
-    if (*v12) v26(ObjectAddress);
-    return v15;
+    if (*ObjectHeader) CloseHandleFunc(ObjectAddress);
+    return IsMatch;
 }
 
 // EnableDeviceObjectProtection — 启用设备对象保护
@@ -667,9 +668,9 @@ char EnableDeviceObjectProtection(void)
 // 对应原始驱动 sub_1400798B4
 char CheckObjectTypeFlag(__int64 ObjectHeader)
 {
-    char v3 = 0;
+    char ZeroMask = 0;
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x2800)
-        return *(char *)(ObjectHeader + 24) ^ v3;
+        return *(char *)(ObjectHeader + 24) ^ ZeroMask;
     else
         return *(char *)(ObjectHeader + 24);
 }
@@ -683,31 +684,31 @@ char CheckObjectTypeFlagWrapper(__int64 ObjectHeader)
 
 // ReadObjectNameFromCallback — 从回调读取对象名称
 // 对应原始驱动 sub_140077B6C
-__int64 ReadObjectNameFromCallback(__int64 a1, __int64 a2, __int64 (__fastcall *Callback)(__int64, ULONG64, __int64))
+__int64 ReadObjectNameFromCallback(__int64 Object, __int64 Context, __int64 (__fastcall *Callback)(__int64, ULONG64, __int64))
 {
     GtRead(GtWindowsBuildNumber);
-    if ((*(UCHAR *)(a1 + 10) & 5) != 0)
-        return *(_QWORD *)(a1 + 24);
+    if ((*(UCHAR *)(Object + 10) & 5) != 0)
+        return *(_QWORD *)(Object + 24);
     else
-        return Callback(a1, 0, 1);
+        return Callback(Object, 0, 1);
 }
 
 // ResolveObjectNamePointer — 解析对象名称指针
 // 对应原始驱动 sub_140077B30
-__int64 ResolveObjectNamePointer(__int64 a1)
+__int64 ResolveObjectNamePointer(__int64 ObjectAddress)
 {
-    __int64 v1 = *(_QWORD *)(a1 + 40);
-    if (v1 & 1)
+    __int64 NameInfoPtr = *(_QWORD *)(ObjectAddress + 40);
+    if (NameInfoPtr & 1)
     {
-        __int64 v3 = *(_QWORD *)((v1 & 0xFFFFFFFFFFFFFFFCULL) + 40);
-        return v3 ? *(_QWORD *)(v3 + 16) : 0;
+        __int64 NameInfo = *(_QWORD *)((NameInfoPtr & 0xFFFFFFFFFFFFFFFCULL) + 40);
+        return NameInfo ? *(_QWORD *)(NameInfo + 16) : 0;
     }
-    if (v1 & 2)
+    if (NameInfoPtr & 2)
     {
-        __int64 v4 = *(_QWORD *)((v1 & 0xFFFFFFFFFFFFFFFCULL) + 40);
-        return v4 ? *(_QWORD *)v4 : 0;
+        __int64 NameInfo2 = *(_QWORD *)((NameInfoPtr & 0xFFFFFFFFFFFFFFFCULL) + 40);
+        return NameInfo2 ? *(_QWORD *)NameInfo2 : 0;
     }
-    return *(_QWORD *)(a1 + 40);
+    return *(_QWORD *)(ObjectAddress + 40);
 }
 
 // ResolveObjectHeaderPointer — 解析对象头指针
@@ -718,26 +719,26 @@ char ResolveObjectHeaderPointer(__int64 ObjectBody, _QWORD *OutHeader)
     char Result = 0;
     if ((ULONG)GtRead(GtWindowsBuildNumber) > 0x1772)
     {
-        _BYTE *v9 = (_BYTE *)(ObjectBody - 48);
-        if (!v9 || MmIsAddressValid(v9) != 1 || MmIsAddressValid(v9 + 47) != 1) return Result;
-        char v10 = v9[26];
-        if ((v10 & 2) == 0) return Result;
-        _BYTE *v8 = v9 - 32;
-        if (v10 & 1) v8 -= 32;
-        if (!v8) return Result;
-        if (MmIsAddressValid(v8) == 1 && MmIsAddressValid(v8 + 31) == 1)
-        { Result = 1; *OutHeader = (__int64)(v8 + 8); }
+        _BYTE *HeaderCandidate = (_BYTE *)(ObjectBody - 48);
+        if (!HeaderCandidate || MmIsAddressValid(HeaderCandidate) != 1 || MmIsAddressValid(HeaderCandidate + 47) != 1) return Result;
+        char HeaderFlags = HeaderCandidate[26];
+        if ((HeaderFlags & 2) == 0) return Result;
+        _BYTE *BodyPtr = HeaderCandidate - 32;
+        if (HeaderFlags & 1) BodyPtr -= 32;
+        if (!BodyPtr) return Result;
+        if (MmIsAddressValid(BodyPtr) == 1 && MmIsAddressValid(BodyPtr + 31) == 1)
+        { Result = 1; *OutHeader = (__int64)(BodyPtr + 8); }
     }
     else
     {
-        _BYTE *v5 = (_BYTE *)(ObjectBody - 48);
-        if (!v5 || MmIsAddressValid(v5) != 1 || MmIsAddressValid(v5 + 47) != 1) return Result;
-        UCHAR v6 = v5[24];
-        if (!v6) return Result;
-        _BYTE *v8 = &v5[-v6];
-        if (!v8) return Result;
-        if (MmIsAddressValid(v8) == 1 && MmIsAddressValid(v8 + 31) == 1)
-        { Result = 1; *OutHeader = (__int64)(v8 + 8); }
+        _BYTE *HeaderCandidate2 = (_BYTE *)(ObjectBody - 48);
+        if (!HeaderCandidate2 || MmIsAddressValid(HeaderCandidate2) != 1 || MmIsAddressValid(HeaderCandidate2 + 47) != 1) return Result;
+        UCHAR HeaderSize = HeaderCandidate2[24];
+        if (!HeaderSize) return Result;
+        _BYTE *BodyPtr = &HeaderCandidate2[-HeaderSize];
+        if (!BodyPtr) return Result;
+        if (MmIsAddressValid(BodyPtr) == 1 && MmIsAddressValid(BodyPtr + 31) == 1)
+        { Result = 1; *OutHeader = (__int64)(BodyPtr + 8); }
     }
     return Result;
 }
@@ -747,129 +748,127 @@ char ResolveObjectHeaderPointer(__int64 ObjectBody, _QWORD *OutHeader)
 char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize)
 {
     char Result = 0;
-    UCHAR (*v5)(void);
-    int (__fastcall *v6)(_QWORD, WORD *);
-    int (__fastcall *v7)(ULONG64, ULONG64, ULONG64, ULONG64);
-    void (__fastcall *v32)(ULONG64);
-    _QWORD *v8;
-    __int64 v31_func;
-    int v9, v11, v22, v24;
-    char v10, v28 = 0, v37;
-    ULONG v15;
-    __int64 *v16;
-    size_t v17;
-    int StringLen;
-    char *v13, *v14;
-    struct _OBJECT_NAME_INFORMATION *v19, *v20, *Buffer, *v23;
-    __int64 v25;
-    WORD v26;
+    UCHAR (*ObjectTypeCheck)(void);
+    int (__fastcall *ResultFunc)(_QWORD, WORD *);
+    int (__fastcall *ObjectAddr)(ULONG64, ULONG64, ULONG64, ULONG64);
+    void (__fastcall *CloseHandleFunc)(ULONG64);
+    _QWORD *NameBuffer;
+    __int64 QueryObjectNameFuncPtr;
+    int NameLen, MaxLen, FirstNameLen, SecondNameLen;
+    char NamePtr, HasExtendedName = 0, SavedNamePtr;
+    ULONG BufferSize;
+    char *ResultBuffer;
+    size_t StringLen;
+    int StringLength;
+    struct _OBJECT_NAME_INFORMATION *NameStr, *RetryCount, *Buffer, *SecondNameInfo;
+    __int64 CurrentNameLen;
+    WORD ObjectNameLen;
     ULONG ReturnLength, Length;
-    __int64 v31_val;
-    WORD v33;
+    __int64 SavedFirstNameLen;
+    WORD ObjectNameStatus;
     PVOID P = NULL;
 
     *OutBuffer = NULL;
-    v5 = (UCHAR (*)(void))GtRead(GtObjectTypeCheckFlag);
-    v6 = (int (__fastcall *)(_QWORD, WORD *))GtRead(16910);
-    v7 = (int (__fastcall *)(ULONG64, ULONG64, ULONG64, ULONG64))GtRead(16742);
-    v32 = (void (__fastcall *)(ULONG64))GtRead(GtCloseHandleFunc);
-    v8 = (_QWORD *)GtRead(GtZwCreateFileFunc);
-    v31_func = GtRead(GtQueryObjectNameFunc);
+    ObjectTypeCheck = (UCHAR (*)(void))GtRead(GtObjectTypeCheckFlag);
+    ResultFunc = (int (__fastcall *)(_QWORD, WORD *))GtRead(16910);
+    ObjectAddr = (int (__fastcall *)(ULONG64, ULONG64, ULONG64, ULONG64))GtRead(16742);
+    CloseHandleFunc = (void (__fastcall *)(ULONG64))GtRead(GtCloseHandleFunc);
+    NameBuffer = (_QWORD *)GtRead(GtZwCreateFileFunc);
+    QueryObjectNameFuncPtr = GtRead(GtQueryObjectNameFunc);
 
-    if (!v5 || !v6 || !v7 || !v32 || !v8) return Result;
+    if (!ObjectTypeCheck || !ResultFunc || !ObjectAddr || !CloseHandleFunc || !NameBuffer) return Result;
 
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1770)
         Object &= 0xFFFFFFFFFFFFFFF0ULL;
 
     if (!Object || Object <= (ULONG64)MmSystemRangeStart ||
-        ((UCHAR (*)(ULONG64))v5)(Object) != 1 ||
-        ((UCHAR (*)(ULONG64))v5)(Object + 183) != 1 ||
-        !*(_QWORD *)(Object + 8) || v5() != 1 ||
+        ((UCHAR (*)(ULONG64))ObjectTypeCheck)(Object) != 1 ||
+        ((UCHAR (*)(ULONG64))ObjectTypeCheck)(Object + 183) != 1 ||
+        !*(_QWORD *)(Object + 8) || ObjectTypeCheck() != 1 ||
         OpenMountPointManagerDevice(*(_QWORD *)(Object + 8)) != 1 ||
-        v7(Object, 0, *v8, 0) < 0)
+        ObjectAddr(Object, 0, *NameBuffer, 0) < 0)
         return Result;
 
-    if (v6(*(_QWORD *)(Object + 8), &v33) < 0) { v32(Object); return Result; }
+    if (ResultFunc(*(_QWORD *)(Object + 8), &ObjectNameStatus) < 0) { CloseHandleFunc(Object); return Result; }
 
-    v9 = *(WORD *)(Object + 88);
-    if (P && v5() == 1) { v10 = 1; v37 = 1; v11 = v33 + v9; }
-    else { v10 = 0; v37 = 0; v11 = v9 + 2 * GetStringLength((WORD *)0x14008CA70); }
+    NameLen = *(WORD *)(Object + 88);
+    if (P && ObjectTypeCheck() == 1) { NamePtr = 1; SavedNamePtr = 1; MaxLen = ObjectNameStatus + NameLen; }
+    else { NamePtr = 0; SavedNamePtr = 0; MaxLen = NameLen + 2 * GetStringLength((WORD *)0x14008CA70); }
 
-    Length = v11 + 0x10000;
-    SIZE_T v12 = (ULONG)(v11 + 0x10000) + 2;
-    v13 = ExAlloc(NonPagedPool, (ULONG)v12);
-    v14 = v13;
-    if (!v13) { if (v10 == 1) ExFreePoolWithTag(P, 0); v32(Object); return Result; }
+    Length = MaxLen + 0x10000;
+    SIZE_T UnicodeStr = (ULONG)(MaxLen + 0x10000) + 2;
+    ResultBuffer = ExAlloc(NonPagedPool, (ULONG)UnicodeStr);
+    if (!ResultBuffer) { if (NamePtr == 1) ExFreePoolWithTag(P, 0); CloseHandleFunc(Object); return Result; }
 
-    memset(v13, 0, v12);
-    if (v10 == 1) { v15 = v33; v16 = (__int64 *)P; v17 = v33; }
-    else { StringLen = GetStringLength((WORD *)0x14008CA70); v16 = (__int64 *)0x14008CA70; v15 = 2 * StringLen; v17 = v15; }
+    memset(ResultBuffer, 0, UnicodeStr);
+    if (NamePtr == 1) { BufferSize = ObjectNameStatus; StringLen = ObjectNameStatus; }
+    else { StringLength = GetStringLength((WORD *)0x14008CA70); BufferSize = 2 * StringLength; StringLen = BufferSize; }
 
-    memmove(v14, v16, v17);
-    v28 = 0;
+    memmove(ResultBuffer, (NamePtr == 1) ? (void *)P : (void *)0x14008CA70, StringLen);
+    HasExtendedName = 0;
 
-    if (v31_func)
+    if (QueryObjectNameFuncPtr)
     {
-        v19 = ExAlloc(NonPagedPool, (ULONG)v12);
-        v20 = v19;
-        if (v19)
+        NameStr = ExAlloc(NonPagedPool, (ULONG)UnicodeStr);
+        RetryCount = NameStr;
+        if (NameStr)
         {
-            memset(v19, 0, v12);
-            if (!((ULONG (*)(_QWORD, struct _OBJECT_NAME_INFORMATION *, ULONG64, ULONG *))v31_func)(
-                    *(_QWORD *)(Object + 8), v20, Length, &ReturnLength))
+            memset(NameStr, 0, UnicodeStr);
+            if (!((ULONG (*)(_QWORD, struct _OBJECT_NAME_INFORMATION *, ULONG64, ULONG *))QueryObjectNameFuncPtr)(
+                    *(_QWORD *)(Object + 8), RetryCount, Length, &ReturnLength))
             {
-                Buffer = (struct _OBJECT_NAME_INFORMATION *)v20->Name.Buffer;
-                if (Buffer == &v20[1])
+                Buffer = (struct _OBJECT_NAME_INFORMATION *)RetryCount->Name.Buffer;
+                if (Buffer == &RetryCount[1])
                 {
-                    *(&Buffer->Name.Length + (v20->Name.Length >> 1)) = 0;
-                    v22 = GetStringLength(v20->Name.Buffer);
+                    *(&Buffer->Name.Length + (RetryCount->Name.Length >> 1)) = 0;
+                    FirstNameLen = GetStringLength(RetryCount->Name.Buffer);
                     ReturnLength = 0;
-                    v31_val = v22;
-                    if (QueryObjectNameByType((PVOID)Object, NULL, 0, &ReturnLength) == -1073741820 && ReturnLength && ReturnLength < v12)
+                    SavedFirstNameLen = FirstNameLen;
+                    if (QueryObjectNameByType((PVOID)Object, NULL, 0, &ReturnLength) == -1073741820 && ReturnLength && ReturnLength < UnicodeStr)
                     {
-                        memset(v20, 0, v12);
-                        if (!QueryObjectNameByType((PVOID)Object, v20, Length, &ReturnLength))
+                        memset(RetryCount, 0, UnicodeStr);
+                        if (!QueryObjectNameByType((PVOID)Object, RetryCount, Length, &ReturnLength))
                         {
-                            v23 = (struct _OBJECT_NAME_INFORMATION *)v20->Name.Buffer;
-                            if (v23 == &v20[1])
+                            SecondNameInfo = (struct _OBJECT_NAME_INFORMATION *)RetryCount->Name.Buffer;
+                            if (SecondNameInfo == &RetryCount[1])
                             {
-                                *(&v23->Name.Length + (v20->Name.Length >> 1)) = 0;
-                                v24 = GetStringLength(v20->Name.Buffer);
-                                if (v24 > (ULONG)v31_val)
+                                *(&SecondNameInfo->Name.Length + (RetryCount->Name.Length >> 1)) = 0;
+                                SecondNameLen = GetStringLength(RetryCount->Name.Buffer);
+                                if (SecondNameLen > (ULONG)SavedFirstNameLen)
                                 {
-                                    v25 = (ULONG)v31_val;
-                                    WStringCopy((WORD *)&v14[(ULONG)v15], (WORD *)&v20->Name.Buffer[(ULONG)v31_val]);
-                                    v28 = 1;
-                                    v15 = (ULONG)v15 + 2 * GetStringLength(&v20->Name.Buffer[v25]);
+                                    CurrentNameLen = (ULONG)SavedFirstNameLen;
+                                    WStringCopy((WORD *)&ResultBuffer[(ULONG)BufferSize], (WORD *)&RetryCount->Name.Buffer[(ULONG)SavedFirstNameLen]);
+                                    HasExtendedName = 1;
+                                    BufferSize = (ULONG)BufferSize + 2 * GetStringLength(&RetryCount->Name.Buffer[CurrentNameLen]);
                                 }
                             }
                         }
                     }
                 }
-                v10 = v37;
+                NamePtr = SavedNamePtr;
             }
-            ExFree(v20);
+            ExFree(RetryCount);
         }
     }
 
-    if (!v28)
+    if (!HasExtendedName)
     {
-        v26 = *(WORD *)(Object + 88);
-        if (v26 && ((UCHAR (*)(__int64))v5)(*(_QWORD *)(Object + 96) - 1 + v26) == 1)
+        ObjectNameLen = *(WORD *)(Object + 88);
+        if (ObjectNameLen && ((UCHAR (*)(__int64))ObjectTypeCheck)(*(_QWORD *)(Object + 96) - 1 + ObjectNameLen) == 1)
         {
-            memmove(&v14[(ULONG)v15], *(const void **)(Object + 96), *(WORD *)(Object + 88));
-            v15 = *(WORD *)(Object + 88) + (ULONG)v15;
+            memmove(&ResultBuffer[(ULONG)BufferSize], *(const void **)(Object + 96), *(WORD *)(Object + 88));
+            BufferSize = *(WORD *)(Object + 88) + (ULONG)BufferSize;
         }
     }
 
-    v14[v15] = 0;
-    v14[(ULONG)(v15 + 1)] = 0;
-    *OutBuffer = (__int64)v14;
-    if (OutSize) *OutSize = v15;
+    ResultBuffer[BufferSize] = 0;
+    ResultBuffer[(ULONG)(BufferSize + 1)] = 0;
+    *OutBuffer = (__int64)ResultBuffer;
+    if (OutSize) *OutSize = BufferSize;
     Result = 1;
 
-    if (v10 == 1) ExFreePoolWithTag(P, 0);
-    v32(Object);
+    if (NamePtr == 1) ExFreePoolWithTag(P, 0);
+    CloseHandleFunc(Object);
     return Result;
 }
 
@@ -878,103 +877,103 @@ char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize)
 __int64 QueryObjectNameWithRetry(__int64 ObjectEntry, struct _OBJECT_NAME_INFORMATION *NameInfo, ULONG BufferSize, ULONG *OutSize)
 {
     __int64 CurrentEntry = ObjectEntry;
-    void *v5;
-    ULONG v7 = 16, v10 = 16, v12 = 0, v14, v21;
-    NTSTATUS v11;
-    char v13;
-    __int64 v15, v16, v23;
-    struct _OBJECT_NAME_INFORMATION *v17;
-    void *v18;
-    __int64 Length;
-    char *v20;
-    WORD v22;
+    void *ObjectBody;
+    ULONG TotalLength = 16, RequiredSize = 16, NameChainLength = 0, EntryCount, LoopIndex;
+    NTSTATUS QueryStatus;
+    char HasError;
+    __int64 ChainEntry, NextChainEntry, CurrentChainEntry;
+    struct _OBJECT_NAME_INFORMATION *NameWritePos;
+    void *ObjectBody2;
+    __int64 NameLength;
+    char *NameWritePtr;
+    WORD ChainNameLen;
     ULONG ReturnLength;
 
-    v5 = *(void **)(ObjectEntry + 8);
-    if (v5)
+    ObjectBody = *(void **)(ObjectEntry + 8);
+    if (ObjectBody)
     {
         ReturnLength = 0;
-        v11 = ObQueryNameString(v5, NULL, 0, &ReturnLength);
-        if (v11 != -1073741820) goto CheckBuffer;
-        if (!ReturnLength) return (ULONG)v11;
-        v10 = ReturnLength + 276;
+        QueryStatus = ObQueryNameString(ObjectBody, NULL, 0, &ReturnLength);
+        if (QueryStatus != -1073741820) goto CheckBuffer;
+        if (!ReturnLength) return (ULONG)QueryStatus;
+        RequiredSize = ReturnLength + 276;
     }
-    v11 = 0;
+    QueryStatus = 0;
 
 CheckBuffer:
-    if (v11) return (ULONG)v11;
+    if (QueryStatus) return (ULONG)QueryStatus;
 
-    v12 = 0;
-    v13 = 1;
+    NameChainLength = 0;
+    HasError = 1;
     if (*(_QWORD *)(ObjectEntry + 96))
     {
-        v14 = 0;
-        v15 = ObjectEntry;
-        while (v14 < 0x100)
+        EntryCount = 0;
+        ChainEntry = ObjectEntry;
+        while (EntryCount < 0x100)
         {
-            v12 += *(WORD *)(v15 + 88);
-            v16 = *(_QWORD *)(v15 + 64);
-            if (v15 == v16 || !v16) break;
-            v14++;
-            v15 = *(_QWORD *)(v15 + 64);
+            NameChainLength += *(WORD *)(ChainEntry + 88);
+            NextChainEntry = *(_QWORD *)(ChainEntry + 64);
+            if (ChainEntry == NextChainEntry || !NextChainEntry) break;
+            EntryCount++;
+            ChainEntry = *(_QWORD *)(ChainEntry + 64);
         }
-        v10 += v12;
+        RequiredSize += NameChainLength;
     }
 
-    if (BufferSize < v10)
+    if (BufferSize < RequiredSize)
     {
-        if (OutSize) *OutSize = v10;
+        if (OutSize) *OutSize = RequiredSize;
         return -1073741820;
     }
 
-    v17 = NameInfo + 1;
+    NameWritePos = NameInfo + 1;
     NameInfo->Name.Length = 0;
     NameInfo->Name.Buffer = (PWSTR)&NameInfo[1].Name.Length;
-    v18 = *(void **)(ObjectEntry + 8);
-    if (v18)
+    ObjectBody2 = *(void **)(ObjectEntry + 8);
+    if (ObjectBody2)
     {
-        v11 = ObQueryNameString(v18, NameInfo, BufferSize, &ReturnLength);
-        if (v11 < 0) { if (OutSize) *OutSize = ReturnLength; return (ULONG)v11; }
-        Length = NameInfo->Name.Length;
-        v17 = (struct _OBJECT_NAME_INFORMATION *)((char *)v17 + Length);
-        v7 = (ULONG)(Length + 16);
+        QueryStatus = ObQueryNameString(ObjectBody2, NameInfo, BufferSize, &ReturnLength);
+        if (QueryStatus < 0) { if (OutSize) *OutSize = ReturnLength; return (ULONG)QueryStatus; }
+        NameLength = NameInfo->Name.Length;
+        NameWritePos = (struct _OBJECT_NAME_INFORMATION *)((char *)NameWritePos + NameLength);
+        TotalLength = (ULONG)(NameLength + 16);
     }
 
-    if (v11 >= 0)
+    if (QueryStatus >= 0)
     {
         if (*(_QWORD *)(ObjectEntry + 96))
         {
-            v7 += v12;
-            v20 = (char *)v17 + v12;
-            NameInfo->Name.Length += (WORD)v12;
-            v21 = 0;
+            TotalLength += NameChainLength;
+            NameWritePtr = (char *)NameWritePos + NameChainLength;
+            NameInfo->Name.Length += (WORD)NameChainLength;
+            LoopIndex = 0;
             do
             {
-                if (v21 >= 0x100) break;
-                v22 = *(WORD *)(CurrentEntry + 88);
-                if (v22 & 1) goto CheckResult;
-                v20 -= v22;
-                memmove(v20, *(const void **)(CurrentEntry + 96), v22);
-                v23 = *(_QWORD *)(CurrentEntry + 64);
-                if (CurrentEntry == v23) break;
-                v21++;
+                if (LoopIndex >= 0x100) break;
+                ChainNameLen = *(WORD *)(CurrentEntry + 88);
+                if (ChainNameLen & 1) goto CheckResult;
+                NameWritePtr -= ChainNameLen;
+                memmove(NameWritePtr, *(const void **)(CurrentEntry + 96), ChainNameLen);
+                CurrentChainEntry = *(_QWORD *)(CurrentEntry + 64);
+                if (CurrentEntry == CurrentChainEntry) break;
+                LoopIndex++;
                 CurrentEntry = *(_QWORD *)(CurrentEntry + 64);
-            } while (v23);
+            } while (CurrentChainEntry);
         }
-        else { v13 = ReturnLength; goto CheckResult; }
+        else { HasError = ReturnLength; goto CheckResult; }
 
 CheckResult:
-        if (v13) return -1073741823;
-        if (OutSize) *OutSize = v7;
+        if (HasError) return -1073741823;
+        if (OutSize) *OutSize = TotalLength;
         return 0;
     }
 
-    return (ULONG)v11;
+    return (ULONG)QueryStatus;
 }
 
 // MatchObjectTypeEntry — 匹配对象类型条目
 // 对应原始驱动 sub_14006EBF8
-// 遍历 a2 偏移+16 处的 17 个条目(步长 26 QWORD/208 字节)
+// 遍历 TableBase 偏移+16 处的 17 个条目(步长 26 QWORD/208 字节)
 char MatchObjectTypeEntry(__int64 Target, __int64 TableBase)
 {
     _QWORD *Entry = (_QWORD *)(TableBase + 16);
@@ -988,35 +987,35 @@ char MatchObjectTypeEntry(__int64 Target, __int64 TableBase)
 
 // CmdEnumGdiObjects — 枚举 GDI 对象命令
 // 对应原始驱动 sub_14006D3A8
-__int64 CmdEnumGdiObjects(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned int BufferSize)
+__int64 CmdEnumGdiObjects(__int64 DeviceObject, __int64 Irp, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     char Result = 0;
-    __int64 v6;
-    _DWORD v8[5];
+    __int64 BufferSize64;
+    _DWORD EntryCount[5];
 
     if (!OutputBuffer || BufferSize < 0x220 ||
         (ULONG64)OutputBuffer >= MmUserProbeAddress ||
         (ULONG64)OutputBuffer + BufferSize >= MmUserProbeAddress)
         return Result;
 
-    v6 = BufferSize;
+    BufferSize64 = BufferSize;
     ProbeForWrite(OutputBuffer, BufferSize, 1);
-    memset(OutputBuffer, 0, (ULONG)v6);
+    memset(OutputBuffer, 0, (ULONG)BufferSize64);
     *OutputBuffer = 0;
-    v8[0] = (v6 - 544) / 0x218 + 1;
+    EntryCount[0] = (BufferSize64 - 544) / 0x218 + 1;
 
-    EnumGdiObjectEntries(OutputBuffer, v8);
-    if (v8[0])
+    EnumGdiObjectEntries(OutputBuffer, EntryCount);
+    if (EntryCount[0])
     {
-        EnumKbdclassDriverObjects(OutputBuffer, v8);
-        if (v8[0])
+        EnumKbdclassDriverObjects(OutputBuffer, EntryCount);
+        if (EntryCount[0])
         {
-            CollectObjectDirAndTypeEntries(OutputBuffer, v8);
-            if (v8[0])
+            CollectObjectDirAndTypeEntries(OutputBuffer, EntryCount);
+            if (EntryCount[0])
             {
-                EnumDriverPeImageEntries(OutputBuffer, v8);
-                if (v8[0])
-                    EnumHandleTableToBuffer(OutputBuffer, v8);
+                EnumDriverPeImageEntries(OutputBuffer, EntryCount);
+                if (EntryCount[0])
+                    EnumHandleTableToBuffer(OutputBuffer, EntryCount);
             }
         }
     }
@@ -1026,34 +1025,34 @@ __int64 CmdEnumGdiObjects(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned
 // MatchObjectTypeFilterCallback — 匹配对象类型过滤回调 V1
 // 对应原始驱动 sub_14006CDA0
 // 检查对象类型是否匹配过滤条件。>0x1772 使用 CheckObjectTypeFlagWrapper 检查标志，
-// 否则比较对象类型指针。匹配时设置 a3+8 标志位。
-__int64 MatchObjectTypeFilterCallback(_QWORD *a1, _QWORD *a2, __int64 a3)
+// 否则比较对象类型指针。匹配时设置 TypeFilter+8 标志位。
+__int64 MatchObjectTypeFilterCallback(_QWORD *ObjectEntry, _QWORD *Context, __int64 TypeFilter)
 {
-    char v6 = 0;
-    __int64 v8;
-    __int64 a1Val = (__int64)a1;
-    __int64 a2Val = (__int64)a2;
+    char Result = 0;
+    __int64 MatchAddr;
+    __int64 a1Val = (__int64)ObjectEntry;
+    __int64 a2Val = (__int64)Context;
 
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x1772)
     {
-        char v9 = CheckObjectTypeFlagWrapper(a2);
-        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer01) != v9)
-            return v6;
-        v8 = a2Val + 48;
+        char TypeFlag = CheckObjectTypeFlagWrapper(a2Val);
+        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer01) != TypeFlag)
+            return Result;
+        MatchAddr = a2Val + 48;
     }
     else
     {
-        _QWORD *v7 = (_QWORD *)GtRead(GtTotalSize | GtPspTerminateThreadAddr | 0x100);
-        if (!v7 || *v7 != *(_QWORD *)(a1Val + 16))
-            return v6;
-        v8 = a1Val + 48;
+        _QWORD *pTypeObject = (_QWORD *)GtRead(GtTotalSize | GtPspTerminateThreadAddr | 0x100);
+        if (!pTypeObject || *pTypeObject != *(_QWORD *)(a1Val + 16))
+            return Result;
+        MatchAddr = a1Val + 48;
     }
-    if (v8 && v8 == *(_QWORD *)a3)
+    if (MatchAddr && MatchAddr == *(_QWORD *)TypeFilter)
     {
-        *(_BYTE *)(a3 + 8) = 1;
+        *(_BYTE *)(TypeFilter + 8) = 1;
         return 1;
     }
-    return v6;
+    return Result;
 }
 
 // EnumKernelObjectDirectory — 枚举内核对象目录
@@ -1064,82 +1063,82 @@ __int64 (*EnumKernelObjectDirectory(__int64 ObjectPath, unsigned int Offset, uns
 {
     void (__fastcall *InitUnicodeFunc)(_BYTE *, __int64);
     __int64 (__fastcall *CreateFileFunc)(_BYTE *, __int64, ULONG64);
-    __int64 v10;
+    __int64 DriverListHead;
     void (*CloseFunc)(void);
-    __int64 (*result)(void);
-    __int64 v13, v14, v15, v16, v17;
-    __int64 v18 = 0;
-    __int64 (*v19)(void);
-    __int64 v20;
-    char v21;
-    _BYTE v22[16];
+    __int64 (*CloseHandleFunc)(void);
+    __int64 CurrentDriver, DirEntryPtr, ObjectEntryPtr, SecondaryListPtr, ChildEntryPtr;
+    __int64 FileObjectHandle = 0;
+    __int64 (*SavedCloseFunc)(void);
+    __int64 MatchAddr;
+    char IsMatch;
+    _BYTE UnicodeString[16];
 
     InitUnicodeFunc = (void (__fastcall *)(_BYTE *, __int64))GtRead(GtRtlInitUnicodeStringFunc);
     CreateFileFunc = (__int64 (__fastcall *)(_BYTE *, __int64, ULONG64))GtRead(GtIoCreateFileFunc);
-    v10 = GtRead(GtDriverObjectListHead);
-    result = (__int64 (*)(void))GtRead(GtCloseHandleFunc);
-    v19 = result;
+    DriverListHead = GtRead(GtDriverObjectListHead);
+    CloseHandleFunc = (__int64 (*)(void))GtRead(GtCloseHandleFunc);
+    SavedCloseFunc = CloseHandleFunc;
 
-    if (!InitUnicodeFunc || !CreateFileFunc || !v10 || !result) return result;
+    if (!InitUnicodeFunc || !CreateFileFunc || !DriverListHead || !CloseHandleFunc) return CloseHandleFunc;
 
-    InitUnicodeFunc(v22, ObjectPath);
-    result = (__int64 (*)(void))CreateFileFunc(v22, 64, 0);
-    if ((int)result < 0 || !v18) return result;
+    InitUnicodeFunc(UnicodeString, ObjectPath);
+    CloseHandleFunc = (__int64 (*)(void))CreateFileFunc(UnicodeString, 64, 0);
+    if ((int)CloseHandleFunc < 0 || !FileObjectHandle) return CloseHandleFunc;
 
-    v13 = *(__int64 *)(v18 + 8);
-    if (!v13) return (__int64 (*)())v19();
+    CurrentDriver = *(__int64 *)(FileObjectHandle + 8);
+    if (!CurrentDriver) return (__int64 (*)())SavedCloseFunc();
 
     do
     {
-        v14 = *(__int64 *)(v13 + 64);
-        if (!v14) goto NextNode;
-        v15 = *(__int64 *)(Offset + v14);
-        if (!v15 || !*pCount) goto NextNode;
+        DirEntryPtr = *(__int64 *)(CurrentDriver + 64);
+        if (!DirEntryPtr) goto NextNode;
+        ObjectEntryPtr = *(__int64 *)(Offset + DirEntryPtr);
+        if (!ObjectEntryPtr || !*pCount) goto NextNode;
 
         if ((ULONG)GtRead(GtWindowsBuildNumber) > 0x1772)
         {
-            if ((*(UCHAR *)(v15 - 22) & 2) == 0) goto CheckSecondary;
+            if ((*(UCHAR *)(ObjectEntryPtr - 22) & 2) == 0) goto CheckSecondary;
         }
         else
         {
-            if (!*(UCHAR *)(v15 - 24)) goto CheckSecondary;
+            if (!*(UCHAR *)(ObjectEntryPtr - 24)) goto CheckSecondary;
         }
 
-        v21 = 0;
-        v20 = v15;
+        IsMatch = 0;
+        MatchAddr = ObjectEntryPtr;
         ReadVolumeDataToBuffer((__int64 (*)(_QWORD *, _QWORD *, __int64))MatchObjectTypeFilterCallback,
-            (__int64)&v20);
-        if (v21) goto CheckChild;
+            (__int64)&MatchAddr);
+        if (IsMatch) goto CheckChild;
         goto CopyEntry;
 
 CheckSecondary:
-        v16 = *(__int64 *)(v13 + 312);
-        if (v16 && MmIsAddressValid(*(PVOID *)(v13 + 312)) == 1 &&
-            MmIsAddressValid((PVOID)(v16 + 55)) == 1 &&
-            v15 != *(__int64 *)(v16 + 48))
+        SecondaryListPtr = *(__int64 *)(CurrentDriver + 312);
+        if (SecondaryListPtr && MmIsAddressValid(*(PVOID *)(CurrentDriver + 312)) == 1 &&
+            MmIsAddressValid((PVOID)(SecondaryListPtr + 55)) == 1 &&
+            ObjectEntryPtr != *(__int64 *)(SecondaryListPtr + 48))
             goto CopyEntry;
         goto CheckChild;
 
 CopyEntry:
-        CopyObjectEntryToBuffer(v15, 1, Flags, OutputBuffer, pCount);
+        CopyObjectEntryToBuffer(ObjectEntryPtr, 1, Flags, OutputBuffer, pCount);
 
 CheckChild:
-        v17 = *(__int64 *)(v15 + 8);
-        if (v17 && *pCount)
+        ChildEntryPtr = *(__int64 *)(ObjectEntryPtr + 8);
+        if (ChildEntryPtr && *pCount)
         {
-            v21 = 0;
-            v20 = v17;
+            IsMatch = 0;
+            MatchAddr = ChildEntryPtr;
             ReadVolumeDataToBuffer((__int64 (*)(_QWORD *, _QWORD *, __int64))MatchObjectTypeFilterCallbackV2,
-                (__int64)&v20);
-            if (!v21)
-                CopyObjectEntryToBuffer(v17, 2, Flags, OutputBuffer, pCount);
+                (__int64)&MatchAddr);
+            if (!IsMatch)
+                CopyObjectEntryToBuffer(ChildEntryPtr, 2, Flags, OutputBuffer, pCount);
         }
 
 NextNode:
-        v13 = *(__int64 *)(v13 + 16);
-    } while (v13);
+        CurrentDriver = *(__int64 *)(CurrentDriver + 16);
+    } while (CurrentDriver);
 
-    return (__int64 (*)())v19();
+    return (__int64 (*)())SavedCloseFunc();
 }
 
 // CopyObjectEntryToBuffer — 复制对象条目到缓冲区
@@ -1149,12 +1148,12 @@ char CopyObjectEntryToBuffer(__int64 Entry, unsigned int Type, unsigned int Flag
 {
     __int64 NameLength = 0;
     char *NamePtr = NULL;
-    ULONG v9;
-    __int64 v10, v11;
-    WORD *v12;
-    size_t v13;
-    const void *v14;
-    WORD *v16;
+    ULONG EntrySize;
+    __int64 Result, NameInfoAddr;
+    WORD *NameBuffer2;
+    size_t CopySize;
+    const void *CopySource;
+    WORD *ResolvedHeader;
 
     if (!*pCount) return 0;
 
@@ -1167,10 +1166,10 @@ char CopyObjectEntryToBuffer(__int64 Entry, unsigned int Type, unsigned int Flag
     {
         if (Type == 1)
         {
-            if (ResolveObjectHeaderPointer(Entry, &v16) == 1)
+            if (ResolveObjectHeaderPointer(Entry, &ResolvedHeader) == 1)
             {
-                NameLength = *v16;
-                NamePtr = (char *)*((__int64 *)v16 + 1);
+                NameLength = *ResolvedHeader;
+                NamePtr = (char *)*((__int64 *)ResolvedHeader + 1);
             }
         }
         else if (Type == 2)
@@ -1185,33 +1184,33 @@ char CopyObjectEntryToBuffer(__int64 Entry, unsigned int Type, unsigned int Flag
         if (MmIsAddressValid(NamePtr) != 1 || MmIsAddressValid(&NamePtr[NameLength - 1]) != 1)
             goto Increment;
 
-        v13 = (ULONG)NameLength;
-        v14 = NamePtr;
+        CopySize = (ULONG)NameLength;
+        CopySource = NamePtr;
     }
     else
     {
         if (Type == 3)
         {
-            v10 = 134LL * *pCount;
-            v11 = *(__int64 *)(Entry + 24);
-            v12 = (WORD *)(Entry + 36);
+            Result = 134LL * *pCount;
+            NameInfoAddr = *(__int64 *)(Entry + 24);
+            NameBuffer2 = (WORD *)(Entry + 36);
         }
         else
         {
             if (Type != 4) goto Increment;
-            v10 = 134LL * *pCount;
-            v11 = *(__int64 *)(Entry + 32);
-            v12 = (WORD *)(Entry + 40);
+            Result = 134LL * *pCount;
+            NameInfoAddr = *(__int64 *)(Entry + 32);
+            NameBuffer2 = (WORD *)(Entry + 40);
         }
-        *(__int64 *)&OutputBuffer[v10 + 2] = v11;
-        v9 = 2 * GetStringLength(v12);
-        if (v9 > 0x208) v9 = 520;
-        if (v9 <= 2) goto Increment;
-        v13 = v9;
-        v14 = v12;
+        *(__int64 *)&OutputBuffer[Result + 2] = NameInfoAddr;
+        EntrySize = 2 * GetStringLength(NameBuffer2);
+        if (EntrySize > 0x208) EntrySize = 520;
+        if (EntrySize <= 2) goto Increment;
+        CopySize = EntrySize;
+        CopySource = NameBuffer2;
     }
 
-    memmove(&OutputBuffer[134 * *pCount + 6], v14, v13);
+    memmove(&OutputBuffer[134 * *pCount + 6], CopySource, CopySize);
     HIWORD_LV(OutputBuffer[134 * *pCount + 135]) = 0;
 
 Increment:
@@ -1480,7 +1479,7 @@ char OpenMountPointManagerDevice(_QWORD ObjectBody)
 // EnumKbdclassDriverObjects — 枚举键盘类驱动对象
 // 对应原始驱动 sub_14006C9AC
 // 使用加密字符串路径调用 EnumKernelObjectDirectory 枚举 kbdclass 驱动对象
-__int64 (*EnumKbdclassDriverObjects(unsigned int *a1, _DWORD *a2))(void)
+__int64 (*EnumKbdclassDriverObjects(unsigned int *OutputBuffer, _DWORD *pCount))(void)
 {
     _DWORD EncodedPath[10];
 
@@ -1493,88 +1492,88 @@ __int64 (*EnumKbdclassDriverObjects(unsigned int *a1, _DWORD *a2))(void)
     EncodedPath[5] = 4391012;
     EncodedPath[6] = 6357100;
     EncodedPath[7] = 7536755;
-    return EnumKernelObjectDirectory((__int64)EncodedPath, 0x10u, 2u, a1, a2);
+    return EnumKernelObjectDirectory((__int64)EncodedPath, 0x10u, 2u, OutputBuffer, pCount);
 }
 
 // EnumObjectTypeFilterCallback — 枚举对象类型过滤回调
 // 对应原始驱动 sub_14006CEC8
 // 根据构建号分支使用 CheckObjectTypeFlagWrapper 或直接比较指针，将匹配的地址存入缓冲区数组
-char EnumObjectTypeFilterCallback(__int64 a1, __int64 a2, __int64 a3)
+char EnumObjectTypeFilterCallback(__int64 ObjectEntry, __int64 Context, __int64 TypeFilter)
 {
-    _QWORD *v6;
-    __int64 v7;
-    __int64 v8;
-    _QWORD *v9;
-    __int64 v10;
-    __int64 v11;
-    char v12;
-    char v13;
+    _QWORD *pTypeObject;
+    __int64 CountValue;
+    __int64 MatchAddr;
+    _QWORD *pDriverObject;
+    __int64 IndexValue;
+    __int64 SlotAddr;
+    char Flag1;
+    char Flag2;
 
     if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x1772)
     {
-        v6 = (_QWORD *)GtRead(GtTotalSize | GtPspTerminateThreadAddr | 0x100);
-        if (v6 && *v6 == *(_QWORD *)(a1 + 16))
+        pTypeObject = (_QWORD *)GtRead(GtTotalSize | GtPspTerminateThreadAddr | 0x100);
+        if (pTypeObject && *pTypeObject == *(_QWORD *)(ObjectEntry + 16))
         {
-            if (*(_BYTE *)a3 != 1)
+            if (*(_BYTE *)TypeFilter != 1)
             {
-                v7 = *(unsigned int *)(a3 + 28);
-                if ((unsigned int)v7 < *(_DWORD *)(a3 + 24))
+                CountValue = *(unsigned int *)(TypeFilter + 28);
+                if ((unsigned int)CountValue < *(_DWORD *)(TypeFilter + 24))
                 {
-                    v8 = a1 + 48;
-                    *(_QWORD *)(*(_QWORD *)(a3 + 32) + 8 * v7) = v8;
-                    ++*(_DWORD *)(a3 + 28);
+                    MatchAddr = ObjectEntry + 48;
+                    *(_QWORD *)(*(_QWORD *)(TypeFilter + 32) + 8 * CountValue) = MatchAddr;
+                    ++*(_DWORD *)(TypeFilter + 28);
                 }
                 return 0;
             }
-            ++*(_DWORD *)(a3 + 24);
+            ++*(_DWORD *)(TypeFilter + 24);
             return 0;
         }
-        v9 = (_QWORD *)GtRead(GtDriverObjectListHead);
-        if (!v9 || *v9 != *(_QWORD *)(a1 + 16))
+        pDriverObject = (_QWORD *)GtRead(GtDriverObjectListHead);
+        if (!pDriverObject || *pDriverObject != *(_QWORD *)(ObjectEntry + 16))
             return 0;
-        if (*(_BYTE *)a3 != 1)
+        if (*(_BYTE *)TypeFilter != 1)
         {
-            v10 = *(unsigned int *)(a3 + 8);
-            if ((unsigned int)v10 >= *(_DWORD *)(a3 + 4))
+            IndexValue = *(unsigned int *)(TypeFilter + 8);
+            if ((unsigned int)IndexValue >= *(_DWORD *)(TypeFilter + 4))
                 return 0;
-            v11 = a1 + 48;
-            *(_QWORD *)(*(_QWORD *)(a3 + 16) + 8 * v10) = v11;
-            ++*(_DWORD *)(a3 + 8);
+            SlotAddr = ObjectEntry + 48;
+            *(_QWORD *)(*(_QWORD *)(TypeFilter + 16) + 8 * IndexValue) = SlotAddr;
+            ++*(_DWORD *)(TypeFilter + 8);
             return 0;
         }
-        ++*(_DWORD *)(a3 + 4);
+        ++*(_DWORD *)(TypeFilter + 4);
         return 0;
     }
-    v12 = CheckObjectTypeFlagWrapper(a2);
-    if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer01) != v12)
+    Flag1 = CheckObjectTypeFlagWrapper(Context);
+    if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer01) != Flag1)
     {
-        v13 = CheckObjectTypeFlagWrapper(a2);
-        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer02) != v13)
+        Flag2 = CheckObjectTypeFlagWrapper(Context);
+        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer02) != Flag2)
             return 0;
-        if (*(_BYTE *)a3 != 1)
+        if (*(_BYTE *)TypeFilter != 1)
         {
-            v10 = *(unsigned int *)(a3 + 8);
-            if ((unsigned int)v10 >= *(_DWORD *)(a3 + 4))
+            IndexValue = *(unsigned int *)(TypeFilter + 8);
+            if ((unsigned int)IndexValue >= *(_DWORD *)(TypeFilter + 4))
                 return 0;
-            v11 = a2 + 48;
-            *(_QWORD *)(*(_QWORD *)(a3 + 16) + 8 * v10) = v11;
-            ++*(_DWORD *)(a3 + 8);
+            SlotAddr = Context + 48;
+            *(_QWORD *)(*(_QWORD *)(TypeFilter + 16) + 8 * IndexValue) = SlotAddr;
+            ++*(_DWORD *)(TypeFilter + 8);
             return 0;
         }
-        ++*(_DWORD *)(a3 + 4);
+        ++*(_DWORD *)(TypeFilter + 4);
         return 0;
     }
-    if (*(_BYTE *)a3 == 1)
+    if (*(_BYTE *)TypeFilter == 1)
     {
-        ++*(_DWORD *)(a3 + 24);
+        ++*(_DWORD *)(TypeFilter + 24);
         return 0;
     }
-    v7 = *(unsigned int *)(a3 + 28);
-    if ((unsigned int)v7 < *(_DWORD *)(a3 + 24))
+    CountValue = *(unsigned int *)(TypeFilter + 28);
+    if ((unsigned int)CountValue < *(_DWORD *)(TypeFilter + 24))
     {
-        v8 = a2 + 48;
-        *(_QWORD *)(*(_QWORD *)(a3 + 32) + 8 * v7) = v8;
-        ++*(_DWORD *)(a3 + 28);
+        MatchAddr = Context + 48;
+        *(_QWORD *)(*(_QWORD *)(TypeFilter + 32) + 8 * CountValue) = MatchAddr;
+        ++*(_DWORD *)(TypeFilter + 28);
     }
     return 0;
 }
@@ -1582,7 +1581,7 @@ char EnumObjectTypeFilterCallback(__int64 a1, __int64 a2, __int64 a3)
 // CollectObjectDirAndTypeEntries — 收集对象目录和类型条目
 // 对应原始驱动 sub_14006CBBC
 // 通过 EnumObjectTypeFilterCallback 收集所有对象目录和对象类型地址，遍历并输出
-void CollectObjectDirAndTypeEntries(unsigned int *a1, _DWORD *a2)
+void CollectObjectDirAndTypeEntries(unsigned int *OutputBuffer, _DWORD *pCount)
 {
     // 回调状态结构体 — 必须与 EnumObjectTypeFilterCallback 期望的布局一致
     // 回调中两组字段：偏移 4/8/16 用于目录条目，偏移 24/28/32 用于类型条目
@@ -1636,19 +1635,19 @@ void CollectObjectDirAndTypeEntries(unsigned int *a1, _DWORD *a2)
 
     for (i = 0; i < CallbackState.DirIndex; i++)
     {
-        if (!*a2) break;
-        CollectObjectDirEntry((__int64)&CallbackState, *(_QWORD *)(CallbackState.DirArray[i] + 8), a1, a2);
+        if (!*pCount) break;
+        CollectObjectDirEntry((__int64)&CallbackState, *(_QWORD *)(CallbackState.DirArray[i] + 8), OutputBuffer, pCount);
     }
 
     for (j = 0; (unsigned int)j < CallbackState.TypeIndex; j = (unsigned int)(j + 1))
     {
-        if (!*a2) break;
-        CollectObjectTypeEntry((__int64)&CallbackState, *(_QWORD *)(CallbackState.TypeArray[j] + 8), a1, a2);
+        if (!*pCount) break;
+        CollectObjectTypeEntry((__int64)&CallbackState, *(_QWORD *)(CallbackState.TypeArray[j] + 8), OutputBuffer, pCount);
     }
 
     for (k = 0; k < CallbackState.DirIndex; k++)
     {
-        if (!*a2) break;
+        if (!*pCount) break;
         NestLimit = 0;
         CurrentEntry = *(_QWORD *)(CallbackState.DirArray[k] + 24);
         if (CurrentEntry)
@@ -1656,9 +1655,9 @@ void CollectObjectDirAndTypeEntries(unsigned int *a1, _DWORD *a2)
             do
             {
                 if (NestLimit >= 0x1000) break;
-                if (!*a2) break;
-                CollectObjectTypeEntry((__int64)&CallbackState, CurrentEntry, a1, a2);
-                CollectObjectDirEntry((__int64)&CallbackState, *(_QWORD *)(CurrentEntry + 8), a1, a2);
+                if (!*pCount) break;
+                CollectObjectTypeEntry((__int64)&CallbackState, CurrentEntry, OutputBuffer, pCount);
+                CollectObjectDirEntry((__int64)&CallbackState, *(_QWORD *)(CurrentEntry + 8), OutputBuffer, pCount);
                 CurrentEntry = *(_QWORD *)(CurrentEntry + 24);
                 NestLimit++;
             } while (CurrentEntry);
@@ -1720,7 +1719,7 @@ _QWORD *ValidateObjectTypeList(_QWORD *TypeListEntry)
 // MatchObjectTypeFilterCallbackV2 — 匹配对象类型过滤回调 V2
 // 对应原始驱动 sub_14006CE34
 // 检查对象类型是否匹配 GT 2078 标志，匹配时设置标志位
-__int64 MatchObjectTypeFilterCallbackV2(_QWORD *a1, _QWORD *a2, __int64 a3)
+__int64 MatchObjectTypeFilterCallbackV2(_QWORD *ObjectEntry, _QWORD *Context, __int64 TypeFilter)
 {
     char Result;
     _QWORD *TypePtr;
@@ -1729,20 +1728,20 @@ __int64 MatchObjectTypeFilterCallbackV2(_QWORD *a1, _QWORD *a2, __int64 a3)
     Result = 0;
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x1772)
     {
-        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer02) != CheckObjectTypeFlagWrapper(a2))
+        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer02) != CheckObjectTypeFlagWrapper(Context))
             return Result;
-        EntryPtr = (__int64)a2 + 48;
+        EntryPtr = (__int64)Context + 48;
     }
     else
     {
         TypePtr = (_QWORD *)GtRead(GtDriverObjectListHead);
-        if (!TypePtr || *TypePtr != *(_QWORD *)(a1 + 16))
+        if (!TypePtr || *TypePtr != *(_QWORD *)(ObjectEntry + 16))
             return Result;
-        EntryPtr = (__int64)a1 + 48;
+        EntryPtr = (__int64)ObjectEntry + 48;
     }
-    if (EntryPtr && EntryPtr == *(_QWORD *)a3)
+    if (EntryPtr && EntryPtr == *(_QWORD *)TypeFilter)
     {
-        *(_BYTE *)(a3 + 8) = 1;
+        *(_BYTE *)(TypeFilter + 8) = 1;
         return 1;
     }
     return Result;
@@ -1868,53 +1867,53 @@ char EnumGdiObjectEntries(unsigned int *OutputBuffer, _DWORD *pCount)
 {
     char Result = 0;
     __int64 ObjectTypeDirectoryPath;
-    __int64 v6;
-    _QWORD *v7;
-    __int64 v8;
-    __int64 v9;
-    __int64 v11;
-    char v12;
+    __int64 TypeDirectoryPtr;
+    _QWORD *GdiHandle;
+    __int64 ObjectEntry;
+    __int64 EntryCount;
+    __int64 MatchAddr;
+    char IsMatch;
 
     ObjectTypeDirectoryPath = QueryObjectTypeDirectoryPath();
     if (ObjectTypeDirectoryPath)
     {
-        v6 = *(_QWORD *)(ObjectTypeDirectoryPath + 64);
-        v7 = *(_QWORD **)(ObjectTypeDirectoryPath + 312);
-        if (v6)
+        TypeDirectoryPtr = *(_QWORD *)(ObjectTypeDirectoryPath + 64);
+        GdiHandle = *(_QWORD **)(ObjectTypeDirectoryPath + 312);
+        if (TypeDirectoryPtr)
         {
-            v8 = *(_QWORD *)(v6 + 16);
-            if (v8 && *pCount)
+            ObjectEntry = *(_QWORD *)(TypeDirectoryPtr + 16);
+            if (ObjectEntry && *pCount)
             {
-                v9 = *(_QWORD *)(v8 + 8);
-                if (v9)
+                EntryCount = *(_QWORD *)(ObjectEntry + 8);
+                if (EntryCount)
                 {
-                    v12 = 0;
-                    v11 = v9;
+                    IsMatch = 0;
+                    MatchAddr = EntryCount;
                     ReadVolumeDataToBuffer(
                         (__int64 (__fastcall *)(_QWORD *, _QWORD *, __int64))MatchObjectTypeFilterCallbackV2,
-                        (__int64)&v11);
-                    if (!v12)
+                        (__int64)&MatchAddr);
+                    if (!IsMatch)
                     {
                         Result = 1;
-                        CopyObjectEntryToBuffer(v9, 2, 1, OutputBuffer, pCount);
+                        CopyObjectEntryToBuffer(EntryCount, 2, 1, OutputBuffer, pCount);
                     }
                 }
-                v12 = 0;
-                v11 = v8;
+                IsMatch = 0;
+                MatchAddr = ObjectEntry;
                 ReadVolumeDataToBuffer(
                     (__int64 (__fastcall *)(_QWORD *, _QWORD *, __int64))MatchObjectTypeFilterCallback,
-                    (__int64)&v11);
-                if (!v12)
+                    (__int64)&MatchAddr);
+                if (!IsMatch)
                 {
                     if (Result == 1
-                        || v9
-                        && (ValidateKernelModuleAddressRange(v9) == 1
-                            || v7
-                            && CheckMemoryValid(v7) == 1
-                            && CheckMemoryValid((char *)v7 + 55) == 1
-                            && v8 != v7[6]))
+                        || EntryCount
+                        && (ValidateKernelModuleAddressRange(EntryCount) == 1
+                            || GdiHandle
+                            && CheckMemoryValid(GdiHandle) == 1
+                            && CheckMemoryValid((char *)GdiHandle + 55) == 1
+                            && ObjectEntry != GdiHandle[6]))
                     {
-                        CopyObjectEntryToBuffer(v8, 1, 1, OutputBuffer, pCount);
+                        CopyObjectEntryToBuffer(ObjectEntry, 1, 1, OutputBuffer, pCount);
                     }
                 }
             }
@@ -2239,13 +2238,13 @@ char InitObjectCallbackFiles(int ObjectName)
 
 // FindMatchingEntryInArray — 在数组中查找匹配条目
 // 对应原始驱动 sub_14006D4D0
-// 遍历 134 字节/项(138 DWORD)的数组，查找 a2==a3[i+4]且 a1==a3[i+2..i+3]的 QWORD 匹配项
+// 遍历 134 字节/项(138 DWORD)的数组，查找 Type==Array[i+4]且 Entry==Array[i+2..i+3]的 QWORD 匹配项
 char FindMatchingEntryInArray(__int64 Entry, unsigned int Type, unsigned int *Array)
 {
     for (unsigned int i = 0; i < *Array; ++i)
     {
-        __int64 v6 = 134LL * i;
-        if (Type == Array[v6 + 4] && Entry == *(_QWORD *)&Array[v6 + 2])
+        __int64 EntryOffset = 134LL * i;
+        if (Type == Array[EntryOffset + 4] && Entry == *(_QWORD *)&Array[EntryOffset + 2])
             return 1;
     }
     return 0;
@@ -2253,7 +2252,7 @@ char FindMatchingEntryInArray(__int64 Entry, unsigned int Type, unsigned int *Ar
 
 // TraverseHashTableWithCallback — 通过回调函数遍历哈希表
 // 对应原始驱动 sub_14006D18C
-// 遍历 0x25 个哈希桶，对每个条目检查类型标志匹配，匹配的条目按深度优先存入 a1 数组，不匹配的调用 a3 回调处理
+// 遍历 0x25 个哈希桶，对每个条目检查类型标志匹配，匹配的条目按深度优先存入 HashTable 数组，不匹配的调用 Callback 回调处理
 char TraverseHashTableWithCallback(
     _QWORD **HashTable,
     int MaxDepth,
@@ -2345,56 +2344,56 @@ __int64 (*ReadVolumeDataToBuffer(
     void (__fastcall *CloseHandleFunc)(_QWORD *);
     __int64 (__fastcall *ExFreePoolFunc)(_QWORD);
     __int64 (__fastcall *Result)(_QWORD);
-    __int64 (__fastcall *v9)(_QWORD);
-    _QWORD **v10;
-    void *v11;
-    _QWORD v12[4];
-    _BYTE v13[16];
-    int v14;
-    __int64 v15;
-    _BYTE *v16;
-    int v17;
-    _OWORD v18;
-    int v19;
-    _QWORD *v20;
+    __int64 (__fastcall *SavedExFreeFunc)(_QWORD);
+    _QWORD **HashTable;
+    void *HashTablePtr;
+    _QWORD IoArgs[4];
+    _BYTE UnicodeBuffer[16];
+    int AccessMode;
+    __int64 EventHandle;
+    _BYTE *UnicodePtr;
+    int DesiredAccessLevel;
+    _OWORD SecurityDescriptor;
+    int PathChar;
+    _QWORD *FileObject;
 
     RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, int *))GtRead(GtRtlInitUnicodeStringFunc);
     DeviceIoControlFunc = (__int64 (__fastcall *)(_QWORD *, __int64, int *))GtRead(GtDeviceIoControlFunc);
     NtFsControlFileFunc = (int (__fastcall *)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
     CloseHandleFunc = (void (__fastcall *)(_QWORD *))GtRead(GtCloseHandleFunc);
-    v12[1] = CloseHandleFunc;
+    IoArgs[1] = CloseHandleFunc;
     Result = (__int64 (__fastcall *)(_QWORD))GtRead(GtExFreePoolFunc);
-    v9 = Result;
-    v12[2] = Result;
+    SavedExFreeFunc = Result;
+    IoArgs[2] = Result;
 
     if (!RtlInitUnicodeStringFunc || !DeviceIoControlFunc || !NtFsControlFileFunc || !CloseHandleFunc || !Result)
         return Result;
 
-    v19 = 92;
-    RtlInitUnicodeStringFunc(v13, &v19);
-    v14 = 48;
-    v15 = 0;
-    v17 = 576;
-    v16 = v13;
-    memset(&v18, 0, sizeof(v18));
+    PathChar = 92;
+    RtlInitUnicodeStringFunc(UnicodeBuffer, &PathChar);
+    AccessMode = 48;
+    EventHandle = 0;
+    DesiredAccessLevel = 576;
+    UnicodePtr = UnicodeBuffer;
+    memset(&SecurityDescriptor, 0, sizeof(SecurityDescriptor));
 
-    Result = (__int64 (__fastcall *)(_QWORD))DeviceIoControlFunc(v12, 1, &v14);
+    Result = (__int64 (__fastcall *)(_QWORD))DeviceIoControlFunc(IoArgs, 1, &AccessMode);
     if ((int)Result >= 0)
     {
-        if (NtFsControlFileFunc(v12[0], 983055, 0, 0, &v20, 0) >= 0)
+        if (NtFsControlFileFunc(IoArgs[0], 983055, 0, 0, &FileObject, 0) >= 0)
         {
-            v10 = (_QWORD **)ExAlloc(PagedPool, 0x100000);
-            v11 = v10;
-            v12[3] = v10;
-            if (v10)
+            HashTable = (_QWORD **)ExAlloc(PagedPool, 0x100000);
+            HashTablePtr = HashTable;
+            IoArgs[3] = HashTable;
+            if (HashTable)
             {
-                *v10 = v20;
-                TraverseHashTableWithCallback(v10, 0x20000, Callback, Context);
-                ExFree(v11);
+                *HashTable = FileObject;
+                TraverseHashTableWithCallback(HashTable, 0x20000, Callback, Context);
+                ExFree(HashTablePtr);
             }
-            CloseHandleFunc(v20);
+            CloseHandleFunc(FileObject);
         }
-        return (__int64 (__fastcall *)(_QWORD))v9(v12[0]);
+        return (__int64 (__fastcall *)(_QWORD))SavedExFreeFunc(IoArgs[0]);
     }
     return Result;
 }
@@ -2941,7 +2940,7 @@ __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
     __int64 RemainingFields;
     unsigned __int64 ObjectAddress;
     unsigned int AddressOffset;
-    bool v14;
+    bool IsTypeEntryNull;
     unsigned int i;
     __int64 HalExportTable;
     __int64 ResolvedAddress;
@@ -3000,9 +2999,9 @@ __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
                                                 0x10u);
                                             if ((_DWORD)NtoskrnlBase)
                                             {
-                                                v14 = *pTypeEntry == 0;
+                                                IsTypeEntryNull = *pTypeEntry == 0;
                                                 pTypeEntry[1] = 1;
-                                                if (v14)
+                                                if (IsTypeEntryNull)
                                                 {
                                                     for (i = 0; i < 0x10; ++i)
                                                     {
@@ -3044,11 +3043,11 @@ __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
 char __fastcall ModifyObjectHeaderFlagsByVersion(__int64 ObjectHeader, char SetFlag)
 {
     char Result;
-    unsigned int v5;
+    unsigned int HeaderOffsetBase;
 
     Result = 0;
-    v5 = GtRead((enum _GLOBAL_TABLE_INDEX)2312);
-    if (v5)
+    HeaderOffsetBase = GtRead((enum _GLOBAL_TABLE_INDEX)2312);
+    if (HeaderOffsetBase)
     {
         Result = 1;
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
@@ -3060,35 +3059,35 @@ char __fastcall ModifyObjectHeaderFlagsByVersion(__int64 ObjectHeader, char SetF
                     if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200)
                     {
                         if (SetFlag == 1)
-                            *(_DWORD *)(v5 + ObjectHeader) |= 0x10000u;
+                            *(_DWORD *)(HeaderOffsetBase + ObjectHeader) |= 0x10000u;
                         else
-                            *(_DWORD *)(v5 + ObjectHeader) &= ~0x10000u;
+                            *(_DWORD *)(HeaderOffsetBase + ObjectHeader) &= ~0x10000u;
                     }
                     else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9600)
                     {
                         if (SetFlag == 1)
-                            *(_DWORD *)(v5 + ObjectHeader) |= 0x8000u;
+                            *(_DWORD *)(HeaderOffsetBase + ObjectHeader) |= 0x8000u;
                         else
-                            *(_DWORD *)(v5 + ObjectHeader) &= ~0x8000u;
+                            *(_DWORD *)(HeaderOffsetBase + ObjectHeader) &= ~0x8000u;
                     }
                     else if (SetFlag == 1)
-                        *(_DWORD *)(v5 + ObjectHeader) |= 0x4000u;
+                        *(_DWORD *)(HeaderOffsetBase + ObjectHeader) |= 0x4000u;
                     else
-                        *(_DWORD *)(v5 + ObjectHeader) &= ~0x4000u;
+                        *(_DWORD *)(HeaderOffsetBase + ObjectHeader) &= ~0x4000u;
                 }
                 else if (SetFlag == 1)
-                    *(_DWORD *)(v5 + ObjectHeader) |= 0x20u;
+                    *(_DWORD *)(HeaderOffsetBase + ObjectHeader) |= 0x20u;
                 else
-                    *(_DWORD *)(v5 + ObjectHeader) &= ~0x20u;
+                    *(_DWORD *)(HeaderOffsetBase + ObjectHeader) &= ~0x20u;
             }
             else if (SetFlag == 1)
-                *(_DWORD *)(v5 + ObjectHeader) |= 0x40u;
+                *(_DWORD *)(HeaderOffsetBase + ObjectHeader) |= 0x40u;
             else
-                *(_DWORD *)(v5 + ObjectHeader) &= ~0x40u;
+                *(_DWORD *)(HeaderOffsetBase + ObjectHeader) &= ~0x40u;
         }
         else
         {
-            *(_BYTE *)(v5 + ObjectHeader) = SetFlag;
+            *(_BYTE *)(HeaderOffsetBase + ObjectHeader) = SetFlag;
         }
     }
     return Result;
@@ -4158,7 +4157,7 @@ char RestoreObjectPreCallbackHooks(void)
 // 系统对象类型信息，遍历所有对象类型条目并验证（比较类型编号、内核对象有效性），
 // 为符合条件的对象类型注册回调函数。包括对象引用计数管理、PreviousMode 临时切换等操作。
 // 对应原始驱动 sub_1400100A4
-char __fastcall InitObjectCallbackEntries(__int64 a1)
+char __fastcall InitObjectCallbackEntries(__int64 TableBase)
 {
     char Result;
     unsigned int EntryCount;
@@ -4231,7 +4230,7 @@ char __fastcall InitObjectCallbackEntries(__int64 a1)
     // 实际函数指针来自 GtRead(0x41C6)（GT 表中存储的 ObReferenceObjectByHandle 或类似函数）
     {
         int Status = ((int (__fastcall *)(__int64, ULONG, __int64, int, _OWORD *, int, int))NtFsControlFileFunc)(
-            a1, 0x80000000, *(__int64 *)ZwCreateFileFunc, 0, &ObjectInfoStorage, 0, 0);
+            TableBase, 0x80000000, *(__int64 *)ZwCreateFileFunc, 0, &ObjectInfoStorage, 0, 0);
         if (Status < 0)
             return Result;
     }
@@ -4263,7 +4262,7 @@ char __fastcall InitObjectCallbackEntries(__int64 a1)
             // 检查类型匹配索引
             if (CompareInt16Equal(*(unsigned short *)(pEntry - 6), (unsigned int)SavedMatchIndex))
             {
-                if (((*(unsigned short *)pEntry | 0x80000000u)) == (unsigned int)a1)
+                if (((*(unsigned short *)pEntry | 0x80000000u)) == (unsigned int)TableBase)
                     goto NEXT_ENTRY;
             }
 

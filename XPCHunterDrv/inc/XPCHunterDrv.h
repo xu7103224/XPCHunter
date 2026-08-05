@@ -70,6 +70,8 @@ typedef union _OWORD {
 #define LOWORD_LV(x)  *(WORD  *)(WORD *)&(x)
 #define HIWORD_LV(x)  *(WORD  *)((UCHAR *)&(x) + 2)
 
+#define LODWORD_LV(x)  *(ULONG *)(ULONG *)&(x)
+
 // 非 lvalue 字节/字宏（兼容原始反编译代码中的用法）
 #define HIBYTE(x)     ((UCHAR)(((ULONG_PTR)(x) >> 8) & 0xFF))
 #define BYTE1(x)      ((UCHAR)(((ULONG_PTR)(x) >> 8) & 0xFF))
@@ -866,6 +868,463 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtKernelDataSectionScanTarget2 = 0x42C7,     // 17095: 内核数据节区扫描目标偏移 2 (旧版本)
     GtKernelDataSectionScanTarget3 = 0x4444,     // 17476: 内核数据节区扫描目标偏移 3 (Win10 1607+)
 
+    // ---- 扩展 EPROCESS 字段 (0x171-0x1CB, 偏移 0x100) ----
+    GtEprocessExtField113 = 0x171,       // 369: 扩展 EPROCESS 字段 113
+    GtEprocessExtField119 = 0x177,       // 375: 扩展 EPROCESS 字段 119(PE 镜像大小)
+    GtEprocessExtField124 = 0x17C,       // 380: 扩展 EPROCESS 字段 124(PE 节偏移)
+    GtEprocessExtField203 = 0x1CB,       // 459: 扩展 EPROCESS 字段 203(内核内存上下文)
+    GtEprocessExtField812 = 0x42C,       // 1068: 扩展 EPROCESS 字段 812
+
+    // ---- 上下文内存区域 (0x7C8-0x7D0) ----
+    GtKernelMemoryContext = 0x7C8,         // 1992: 内核内存上下文(InitKernelMemoryContext)
+    GtCallbackContextBase = 0x7CC,         // 1996: 回调上下文基址(InitCallbackFunctions)
+    GtKernelMemoryContextReady = 0x7D0,    // 2000: 内核内存上下文就绪标志(InitKernelMemoryContext)
+
+    // ---- 模块链表/类型标志 (2073-2078) ----
+    GtMiniFilterListHead4 = 0x819,         // 2073: MiniFilter 列表头 4(InitMiniFilterDriver)
+    GtMiniFilterListHead1 = 0x81A,         // 2074: MiniFilter 列表头 1(InitMiniFilterDriver)
+    GtModuleListHead1 = 0x81B,             // 2075: 模块链表头 1(CmdEnumProcessModules)
+    GtModuleListHead2 = 0x81C,             // 2076: 模块链表头 2(CmdEnumProcessModules)
+    GtModuleTypeFlag1 = 0x81D,             // 2077: 模块类型标志 1
+    GtModuleTypeFlag2 = 0x81E,             // 2078: 模块类型标志 2
+
+    // ---- 函数指针表: 通用/内核函数 (16733-17529) ----
+    // 注：以下条目由 InitKernelRoutineTable/InitSyscallNumberTable 初始化
+    GtGetCurrentProcessFunc = 0x415D,              // 16733: IoGetCurrentProcess 函数指针
+    GtSyscallHashInit0 = 0x415E,                   // 16734: 系统调用哈希表初始值 0
+    GtSyscallHashInit1 = 0x4161,                   // 16737: 系统调用哈希表初始值 1
+    GtSyscallHashInit2 = 0x4164,                   // 16740: 系统调用哈希表初始值 2
+    GtSyscallHashInit3 = 0x4167,                   // 16743: 系统调用哈希表初始值 3
+    GtSyscallHashInit4 = 0x416A,                   // 16746: 系统调用哈希表初始值 4
+    GtSyscallHashInit5 = 0x416D,                   // 16749: 系统调用哈希表初始值 5
+    GtSyscallHashInit6 = 0x4170,                   // 16752: 系统调用哈希表初始值 6
+    GtSyscallHashInit7 = 0x4173,                   // 16755: 系统调用哈希表初始值 7
+    GtSyscallHashInit8 = 0x4176,                   // 16758: 系统调用哈希表初始值 8
+    GtSyscallHashInit9 = 0x4179,                   // 16761: 系统调用哈希表初始值 9
+    GtSyscallHashInit10 = 0x417C,                  // 16764: 系统调用哈希表初始值 10
+    GtSyscallHashInit11 = 0x417F,                  // 16767: 系统调用哈希表初始值 11
+    GtSyscallHashInit12 = 0x4182,                  // 16770: 系统调用哈希表初始值 12
+    GtSyscallHashInit13 = 0x4185,                  // 16773: 系统调用哈希表初始值 13
+    GtSyscallHashInit14 = 0x4188,                  // 16776: 系统调用哈希表初始值 14
+    GtSyscallHashInit15 = 0x418B,                  // 16779: 系统调用哈希表初始值 15
+    GtSyscallHashInit16 = 0x418E,                  // 16782: 系统调用哈希表初始值 16
+    GtSyscallHashInit17 = 0x4191,                  // 16785: 系统调用哈希表初始值 17
+    GtSyscallHashInit18 = 0x4194,                  // 16788: 系统调用哈希表初始值 18
+    GtSyscallHashInit19 = 0x4197,                  // 16791: 系统调用哈希表初始值 19
+    GtSyscallHashInit20 = 0x419A,                  // 16794: 系统调用哈希表初始值 20
+    GtSyscallHashInit21 = 0x419D,                  // 16797: 系统调用哈希表初始值 21
+    GtSyscallHashInit22 = 0x41A0,                  // 16800: 系统调用哈希表初始值 22
+    GtSyscallHashInit23 = 0x41A3,                  // 16803: 系统调用哈希表初始值 23
+    GtSyscallHashInit24 = 0x41A6,                  // 16806: 系统调用哈希表初始值 24
+    GtSyscallHashInit25 = 0x41A9,                  // 16809: 系统调用哈希表初始值 25
+    GtSyscallHashInit26 = 0x41AC,                  // 16812: 系统调用哈希表初始值 26
+    GtSyscallHashInit27 = 0x41AF,                  // 16815: 系统调用哈希表初始值 27
+    GtSyscallHashInit28 = 0x41B2,                  // 16818: 系统调用哈希表初始值 28
+    GtSyscallHashInit29 = 0x41B5,                  // 16821: 系统调用哈希表初始值 29
+    GtSyscallHashInit30 = 0x41B8,                  // 16824: 系统调用哈希表初始值 30
+    GtSyscallHashInit31 = 0x41BB,                  // 16827: 系统调用哈希表初始值 31
+    GtSyscallHashInit32 = 0x41BE,                  // 16830: 系统调用哈希表初始值 32
+    GtSyscallHashInit33 = 0x41C1,                  // 16833: 系统调用哈希表初始值 33
+    GtSyscallHashInit34 = 0x41C4,                  // 16836: 系统调用哈希表初始值 34
+    GtSyscallHashInit35 = 0x41C7,                  // 16839: 系统调用哈希表初始值 35
+    GtSyscallHashInit36 = 0x41CA,                  // 16842: 系统调用哈希表初始值 36
+    GtSyscallHashInit37 = 0x41CD,                  // 16845: 系统调用哈希表初始值 37
+    GtSyscallHashInit38 = 0x41D0,                  // 16848: 系统调用哈希表初始值 38
+    GtSyscallHashInit39 = 0x41D3,                  // 16851: 系统调用哈希表初始值 39
+    GtSyscallHashInit40 = 0x41D6,                  // 16854: 系统调用哈希表初始值 40
+    GtSyscallHashInit41 = 0x41D9,                  // 16857: 系统调用哈希表初始值 41
+    GtSyscallHashInit42 = 0x41DC,                  // 16860: 系统调用哈希表初始值 42
+    GtSyscallHashInit43 = 0x41DF,                  // 16863: 系统调用哈希表初始值 43
+    GtSyscallHashInit44 = 0x41E2,                  // 16866: 系统调用哈希表初始值 44
+    GtSyscallHashInit45 = 0x41E5,                  // 16869: 系统调用哈希表初始值 45
+    GtSyscallHashInit46 = 0x41E8,                  // 16872: 系统调用哈希表初始值 46
+    GtSyscallHashInit47 = 0x41EB,                  // 16875: 系统调用哈希表初始值 47
+    GtSyscallHashInit48 = 0x41EE,                  // 16878: 系统调用哈希表初始值 48
+    GtSyscallHashInit49 = 0x41F1,                  // 16881: 系统调用哈希表初始值 49
+    GtSyscallHashInit50 = 0x41F4,                  // 16884: 系统调用哈希表初始值 50
+    GtSyscallHashInit51 = 0x41F7,                  // 16887: 系统调用哈希表初始值 51
+    GtSyscallHashInit52 = 0x41FA,                  // 16890: 系统调用哈希表初始值 52
+    GtSyscallHashInit53 = 0x41FD,                  // 16893: 系统调用哈希表初始值 53
+    GtSyscallHashInit54 = 0x4200,                  // 16896: 系统调用哈希表初始值 54
+    GtSyscallHashInit55 = 0x4203,                  // 16899: 系统调用哈希表初始值 55
+    GtSyscallHashInit56 = 0x4206,                  // 16902: 系统调用哈希表初始值 56
+    GtSyscallHashInit57 = 0x4209,                  // 16905: 系统调用哈希表初始值 57
+    GtSyscallHashInit58 = 0x420C,                  // 16908: 系统调用哈希表初始值 58
+    GtSyscallHashInit59 = 0x420F,                  // 16911: 系统调用哈希表初始值 59
+    GtSyscallHashInit60 = 0x4212,                  // 16914: 系统调用哈希表初始值 60
+    GtSyscallHashInit61 = 0x4215,                  // 16917: 系统调用哈希表初始值 61
+    GtSyscallHashInit62 = 0x4218,                  // 16920: 系统调用哈希表初始值 62
+    GtSyscallHashInit63 = 0x421B,                  // 16923: 系统调用哈希表初始值 63
+    GtSyscallHashInit64 = 0x421E,                  // 16926: 系统调用哈希表初始值 64
+    GtSyscallHashInit65 = 0x4221,                  // 16929: 系统调用哈希表初始值 65
+    GtSyscallHashInit66 = 0x4224,                  // 16932: 系统调用哈希表初始值 66
+    GtSyscallHashInit67 = 0x4227,                  // 16935: 系统调用哈希表初始值 67
+    GtSyscallHashInit68 = 0x422A,                  // 16938: 系统调用哈希表初始值 68
+    GtSyscallHashInit69 = 0x422D,                  // 16941: 系统调用哈希表初始值 69
+    GtSyscallHashInit70 = 0x4230,                  // 16944: 系统调用哈希表初始值 70
+    GtSyscallHashInit71 = 0x4233,                  // 16947: 系统调用哈希表初始值 71
+    GtSyscallHashInit72 = 0x4236,                  // 16950: 系统调用哈希表初始值 72
+    GtSyscallHashInit73 = 0x4239,                  // 16953: 系统调用哈希表初始值 73
+    GtSyscallHashInit74 = 0x423C,                  // 16956: 系统调用哈希表初始值 74
+    GtSyscallHashInit75 = 0x423F,                  // 16959: 系统调用哈希表初始值 75
+    GtSyscallHashInit76 = 0x4242,                  // 16962: 系统调用哈希表初始值 76
+    GtSyscallHashInit77 = 0x4245,                  // 16965: 系统调用哈希表初始值 77
+    GtSyscallHashInit78 = 0x4248,                  // 16968: 系统调用哈希表初始值 78
+    GtSyscallHashInit79 = 0x424B,                  // 16971: 系统调用哈希表初始值 79
+    GtSyscallHashInit80 = 0x424E,                  // 16974: 系统调用哈希表初始值 80
+    GtSyscallHashInit81 = 0x4251,                  // 16977: 系统调用哈希表初始值 81
+    GtSyscallHashInit82 = 0x4254,                  // 16980: 系统调用哈希表初始值 82
+    GtSyscallHashInit83 = 0x4257,                  // 16983: 系统调用哈希表初始值 83
+    GtSyscallHashInit84 = 0x425A,                  // 16986: 系统调用哈希表初始值 84
+    GtSyscallHashInit85 = 0x425D,                  // 16989: 系统调用哈希表初始值 85
+    GtSyscallHashInit86 = 0x4260,                  // 16992: 系统调用哈希表初始值 86
+    GtSyscallHashInit87 = 0x4263,                  // 16995: 系统调用哈希表初始值 87
+    GtSyscallHashInit88 = 0x4266,                  // 16998: 系统调用哈希表初始值 88
+    GtSyscallHashInit89 = 0x4269,                  // 17001: 系统调用哈希表初始值 89
+    GtSyscallHashInit90 = 0x426C,                  // 17004: 系统调用哈希表初始值 90
+    GtSyscallHashInit91 = 0x426F,                  // 17007: 系统调用哈希表初始值 91
+    GtSyscallHashInit92 = 0x4272,                  // 17010: 系统调用哈希表初始值 92
+    GtSyscallHashInit93 = 0x4275,                  // 17013: 系统调用哈希表初始值 93
+    GtSyscallHashInit94 = 0x4278,                  // 17016: 系统调用哈希表初始值 94
+    GtSyscallHashInit95 = 0x427B,                  // 17019: 系统调用哈希表初始值 95
+    GtSyscallHashInit96 = 0x427E,                  // 17022: 系统调用哈希表初始值 96
+    GtSyscallHashInit97 = 0x4281,                  // 17025: 系统调用哈希表初始值 97
+    GtSyscallHashInit98 = 0x4284,                  // 17028: 系统调用哈希表初始值 98
+    GtSyscallHashInit99 = 0x4287,                  // 17031: 系统调用哈希表初始值 99
+    GtSyscallHashInit100 = 0x428A,                 // 17034: 系统调用哈希表初始值 100
+    GtSyscallHashInit101 = 0x428D,                 // 17037: 系统调用哈希表初始值 101
+    GtSyscallHashInit102 = 0x4290,                 // 17040: 系统调用哈希表初始值 102
+    GtSyscallHashInit103 = 0x4293,                 // 17043: 系统调用哈希表初始值 103
+    GtSyscallHashInit104 = 0x4296,                 // 17046: 系统调用哈希表初始值 104
+    GtSyscallHashInit105 = 0x4299,                 // 17049: 系统调用哈希表初始值 105
+    GtSyscallHashInit106 = 0x429C,                 // 17052: 系统调用哈希表初始值 106
+    GtSyscallHashInit107 = 0x429F,                 // 17055: 系统调用哈希表初始值 107
+    GtSyscallHashInit108 = 0x42A2,                 // 17058: 系统调用哈希表初始值 108
+    GtSyscallHashInit109 = 0x42A5,                 // 17061: 系统调用哈希表初始值 109
+    GtSyscallHashInit110 = 0x42A8,                 // 17064: 系统调用哈希表初始值 110
+    GtSyscallHashInit111 = 0x42AB,                 // 17067: 系统调用哈希表初始值 111
+    GtSyscallHashInit112 = 0x42AE,                 // 17070: 系统调用哈希表初始值 112
+    GtSyscallHashInit113 = 0x42B1,                 // 17073: 系统调用哈希表初始值 113
+    GtSyscallHashInit114 = 0x42B4,                 // 17076: 系统调用哈希表初始值 114
+    GtSyscallHashInit115 = 0x42B7,                 // 17079: 系统调用哈希表初始值 115
+    GtSyscallHashInit116 = 0x42BA,                 // 17082: 系统调用哈希表初始值 116
+    GtSyscallHashInit117 = 0x42BD,                 // 17085: 系统调用哈希表初始值 117
+    GtSyscallHashInit118 = 0x42C0,                 // 17088: 系统调用哈希表初始值 118
+    GtSyscallHashInit119 = 0x42C3,                 // 17091: 系统调用哈希表初始值 119
+    GtSyscallHashInit120 = 0x42C6,                 // 17094: 系统调用哈希表初始值 120
+    GtSyscallHashInit121 = 0x42C9,                 // 17097: 系统调用哈希表初始值 121
+    GtSyscallHashInit122 = 0x42CC,                 // 17100: 系统调用哈希表初始值 122
+    GtSyscallHashInit123 = 0x42CF,                 // 17103: 系统调用哈希表初始值 123
+    GtSyscallHashInit124 = 0x42D2,                 // 17106: 系统调用哈希表初始值 124
+    GtSyscallHashInit125 = 0x42D5,                 // 17109: 系统调用哈希表初始值 125
+    GtSyscallHashInit126 = 0x42D8,                 // 17112: 系统调用哈希表初始值 126
+    GtSyscallHashInit127 = 0x42DB,                 // 17115: 系统调用哈希表初始值 127
+    GtSyscallHashInit128 = 0x42DE,                 // 17118: 系统调用哈希表初始值 128
+    GtSyscallHashInit129 = 0x42E1,                 // 17121: 系统调用哈希表初始值 129
+    GtSyscallHashInit130 = 0x42E4,                 // 17124: 系统调用哈希表初始值 130
+    GtSyscallHashInit131 = 0x42E7,                 // 17127: 系统调用哈希表初始值 131
+    GtSyscallHashInit132 = 0x42EA,                 // 17130: 系统调用哈希表初始值 132
+    GtSyscallHashInit133 = 0x42ED,                 // 17133: 系统调用哈希表初始值 133
+    GtSyscallHashInit134 = 0x42F0,                 // 17136: 系统调用哈希表初始值 134
+    GtSyscallHashInit135 = 0x42F3,                 // 17139: 系统调用哈希表初始值 135
+    GtSyscallHashInit136 = 0x42F6,                 // 17142: 系统调用哈希表初始值 136
+    GtSyscallHashInit137 = 0x42F9,                 // 17145: 系统调用哈希表初始值 137
+    GtSyscallHashInit138 = 0x42FC,                 // 17148: 系统调用哈希表初始值 138
+    GtSyscallHashInit139 = 0x42FF,                 // 17151: 系统调用哈希表初始值 139
+    GtSyscallHashInit140 = 0x4302,                 // 17154: 系统调用哈希表初始值 140
+    GtSyscallHashInit141 = 0x4305,                 // 17157: 系统调用哈希表初始值 141
+    GtSyscallHashInit142 = 0x4308,                 // 17160: 系统调用哈希表初始值 142
+    GtSyscallHashInit143 = 0x430B,                 // 17163: 系统调用哈希表初始值 143
+    GtSyscallHashInit144 = 0x430E,                 // 17166: 系统调用哈希表初始值 144
+    GtSyscallHashInit145 = 0x4311,                 // 17169: 系统调用哈希表初始值 145
+    GtSyscallHashInit146 = 0x4314,                 // 17172: 系统调用哈希表初始值 146
+    GtSyscallHashInit147 = 0x4317,                 // 17175: 系统调用哈希表初始值 147
+    GtSyscallHashInit148 = 0x431A,                 // 17178: 系统调用哈希表初始值 148
+    GtSyscallHashInit149 = 0x431D,                 // 17181: 系统调用哈希表初始值 149
+    GtSyscallHashInit150 = 0x4320,                 // 17184: 系统调用哈希表初始值 150
+    GtSyscallHashInit151 = 0x4323,                 // 17187: 系统调用哈希表初始值 151
+    GtSyscallHashInit152 = 0x4326,                 // 17190: 系统调用哈希表初始值 152
+    GtSyscallHashInit153 = 0x4329,                 // 17193: 系统调用哈希表初始值 153
+    GtSyscallHashInit154 = 0x432C,                 // 17196: 系统调用哈希表初始值 154
+    GtSyscallHashInit155 = 0x432F,                 // 17199: 系统调用哈希表初始值 155
+    GtSyscallHashInit156 = 0x4332,                 // 17202: 系统调用哈希表初始值 156
+    GtSyscallHashInit157 = 0x4335,                 // 17205: 系统调用哈希表初始值 157
+    GtSyscallHashInit158 = 0x4338,                 // 17208: 系统调用哈希表初始值 158
+    GtSyscallHashInit159 = 0x433B,                 // 17211: 系统调用哈希表初始值 159
+    GtSyscallHashInit160 = 0x433E,                 // 17214: 系统调用哈希表初始值 160
+    GtSyscallHashInit161 = 0x4341,                 // 17217: 系统调用哈希表初始值 161
+    GtSyscallHashInit162 = 0x4344,                 // 17220: 系统调用哈希表初始值 162
+    GtSyscallHashInit163 = 0x4347,                 // 17223: 系统调用哈希表初始值 163
+    GtSyscallHashInit164 = 0x434D,                 // 17229: 系统调用哈希表初始值 164
+    GtSyscallHashInit165 = 0x4350,                 // 17232: 系统调用哈希表初始值 165
+    GtSyscallHashInit166 = 0x4353,                 // 17235: 系统调用哈希表初始值 166
+    GtSyscallHashInit167 = 0x4356,                 // 17238: 系统调用哈希表初始值 167
+    GtSyscallHashInit168 = 0x4359,                 // 17241: 系统调用哈希表初始值 168
+    GtSyscallHashInit169 = 0x435C,                 // 17244: 系统调用哈希表初始值 169
+    GtSyscallHashInit170 = 0x435F,                 // 17247: 系统调用哈希表初始值 170
+    GtSyscallHashInit171 = 0x4362,                 // 17250: 系统调用哈希表初始值 171
+    GtSyscallHashInit172 = 0x4365,                 // 17253: 系统调用哈希表初始值 172
+    GtSyscallHashInit173 = 0x4368,                 // 17256: 系统调用哈希表初始值 173
+    GtSyscallHashInit174 = 0x436B,                 // 17259: 系统调用哈希表初始值 174
+    GtSyscallHashInit175 = 0x436E,                 // 17262: 系统调用哈希表初始值 175
+    GtSyscallHashInit176 = 0x4371,                 // 17265: 系统调用哈希表初始值 176
+    GtSyscallHashInit177 = 0x4374,                 // 17268: 系统调用哈希表初始值 177
+    GtSyscallHashInit178 = 0x4377,                 // 17271: 系统调用哈希表初始值 178
+    GtSyscallHashInit179 = 0x437A,                 // 17274: 系统调用哈希表初始值 179
+    GtSyscallHashInit180 = 0x437D,                 // 17277: 系统调用哈希表初始值 180
+    GtSyscallHashInit181 = 0x4380,                 // 17280: 系统调用哈希表初始值 181
+    GtSyscallHashInit182 = 0x4383,                 // 17283: 系统调用哈希表初始值 182
+    GtSyscallHashInit183 = 0x4386,                 // 17286: 系统调用哈希表初始值 183
+    GtSyscallHashInit184 = 0x4389,                 // 17289: 系统调用哈希表初始值 184
+    GtSyscallHashInit185 = 0x438C,                 // 17292: 系统调用哈希表初始值 185
+    GtSyscallHashInit186 = 0x438F,                 // 17295: 系统调用哈希表初始值 186
+    GtSyscallHashInit187 = 0x4392,                 // 17298: 系统调用哈希表初始值 187
+    GtSyscallHashInit188 = 0x4395,                 // 17301: 系统调用哈希表初始值 188
+    GtSyscallHashInit189 = 0x4398,                 // 17304: 系统调用哈希表初始值 189
+    GtSyscallHashInit190 = 0x439B,                 // 17307: 系统调用哈希表初始值 190
+    GtSyscallHashInit191 = 0x439E,                 // 17310: 系统调用哈希表初始值 191
+    GtSyscallHashInit192 = 0x43A1,                 // 17313: 系统调用哈希表初始值 192
+    GtSyscallHashInit193 = 0x43A4,                 // 17316: 系统调用哈希表初始值 193
+    GtSyscallHashInit194 = 0x43A7,                 // 17319: 系统调用哈希表初始值 194
+    GtSyscallHashInit195 = 0x43AA,                 // 17322: 系统调用哈希表初始值 195
+    GtSyscallHashInit196 = 0x43AD,                 // 17325: 系统调用哈希表初始值 196
+    GtSyscallHashInit197 = 0x43B0,                 // 17328: 系统调用哈希表初始值 197
+    GtSyscallHashInit198 = 0x43B3,                 // 17331: 系统调用哈希表初始值 198
+    GtSyscallHashInit199 = 0x43B6,                 // 17334: 系统调用哈希表初始值 199
+    GtSyscallHashInit200 = 0x43B9,                 // 17337: 系统调用哈希表初始值 200
+    GtSyscallHashInit201 = 0x43BC,                 // 17340: 系统调用哈希表初始值 201
+    GtSyscallHashInit202 = 0x43BF,                 // 17343: 系统调用哈希表初始值 202
+    GtSyscallHashInit203 = 0x43C2,                 // 17346: 系统调用哈希表初始值 203
+    GtSyscallHashInit204 = 0x43C5,                 // 17349: 系统调用哈希表初始值 204
+    GtSyscallHashInit205 = 0x43C8,                 // 17352: 系统调用哈希表初始值 205
+    GtSyscallHashInit206 = 0x43CB,                 // 17355: 系统调用哈希表初始值 206
+    GtSyscallHashInit207 = 0x43CE,                 // 17358: 系统调用哈希表初始值 207
+    GtSyscallHashInit208 = 0x43D1,                 // 17361: 系统调用哈希表初始值 208
+    GtSyscallHashInit209 = 0x43D4,                 // 17364: 系统调用哈希表初始值 209
+    GtSyscallHashInit210 = 0x43D7,                 // 17367: 系统调用哈希表初始值 210
+    GtSyscallHashInit211 = 0x43DA,                 // 17370: 系统调用哈希表初始值 211
+    GtSyscallHashInit212 = 0x43DD,                 // 17373: 系统调用哈希表初始值 212
+    GtSyscallHashInit213 = 0x43E0,                 // 17376: 系统调用哈希表初始值 213
+    GtSyscallHashInit214 = 0x43E3,                 // 17379: 系统调用哈希表初始值 214
+    GtSyscallHashInit215 = 0x43E6,                 // 17382: 系统调用哈希表初始值 215
+    GtSyscallHashInit216 = 0x43E9,                 // 17385: 系统调用哈希表初始值 216
+    GtSyscallHashInit217 = 0x43EC,                 // 17388: 系统调用哈希表初始值 217
+    GtSyscallHashInit218 = 0x43EF,                 // 17391: 系统调用哈希表初始值 218
+    GtSyscallHashInit219 = 0x43F2,                 // 17394: 系统调用哈希表初始值 219
+    GtSyscallHashInit220 = 0x43F5,                 // 17397: 系统调用哈希表初始值 220
+    GtSyscallHashInit221 = 0x43F8,                 // 17400: 系统调用哈希表初始值 221
+    GtSyscallHashInit222 = 0x43FB,                 // 17403: 系统调用哈希表初始值 222
+    GtSyscallHashInit223 = 0x43FE,                 // 17406: 系统调用哈希表初始值 223
+    GtSyscallHashInit224 = 0x4401,                 // 17409: 系统调用哈希表初始值 224
+    GtSyscallHashInit225 = 0x4404,                 // 17412: 系统调用哈希表初始值 225
+    GtSyscallHashInit226 = 0x4407,                 // 17415: 系统调用哈希表初始值 226
+    GtSyscallHashInit227 = 0x440A,                 // 17418: 系统调用哈希表初始值 227
+    GtSyscallHashInit228 = 0x440D,                 // 17421: 系统调用哈希表初始值 228
+    GtSyscallHashInit229 = 0x4410,                 // 17424: 系统调用哈希表初始值 229
+    GtSyscallHashInit230 = 0x4413,                 // 17427: 系统调用哈希表初始值 230
+    GtSyscallHashInit231 = 0x4416,                 // 17430: 系统调用哈希表初始值 231
+    GtSyscallHashInit232 = 0x4419,                 // 17433: 系统调用哈希表初始值 232
+    GtSyscallHashInit233 = 0x441C,                 // 17436: 系统调用哈希表初始值 233
+    GtSyscallHashInit234 = 0x441F,                 // 17439: 系统调用哈希表初始值 234
+    GtSyscallHashInit235 = 0x4422,                 // 17442: 系统调用哈希表初始值 235
+    GtSyscallHashInit236 = 0x4425,                 // 17445: 系统调用哈希表初始值 236
+    GtSyscallHashInit237 = 0x4428,                 // 17448: 系统调用哈希表初始值 237
+    GtSyscallHashInit238 = 0x442B,                 // 17451: 系统调用哈希表初始值 238
+    GtSyscallHashInit239 = 0x442E,                 // 17454: 系统调用哈希表初始值 239
+    GtSyscallHashInit240 = 0x4431,                 // 17457: 系统调用哈希表初始值 240
+    GtSyscallHashInit241 = 0x4434,                 // 17460: 系统调用哈希表初始值 241
+    GtSyscallHashInit242 = 0x4437,                 // 17463: 系统调用哈希表初始值 242
+    GtSyscallHashInit243 = 0x443A,                 // 17466: 系统调用哈希表初始值 243
+    GtSyscallHashInit244 = 0x443D,                 // 17469: 系统调用哈希表初始值 244
+    GtSyscallHashInit245 = 0x4440,                 // 17472: 系统调用哈希表初始值 245
+    GtSyscallHashInit246 = 0x4443,                 // 17475: 系统调用哈希表初始值 246
+    GtSyscallHashInit247 = 0x4446,                 // 17478: 系统调用哈希表初始值 247
+    GtSyscallHashInit248 = 0x4449,                 // 17481: 系统调用哈希表初始值 248
+    GtSyscallHashInit249 = 0x444C,                 // 17484: 系统调用哈希表初始值 249
+    GtSyscallHashInit250 = 0x444F,                 // 17487: 系统调用哈希表初始值 250
+    GtSyscallHashInit251 = 0x4452,                 // 17490: 系统调用哈希表初始值 251
+    GtSyscallHashInit252 = 0x4455,                 // 17493: 系统调用哈希表初始值 252
+    GtSyscallHashInit253 = 0x4458,                 // 17496: 系统调用哈希表初始值 253
+    GtSyscallHashInit254 = 0x445B,                 // 17499: 系统调用哈希表初始值 254
+    GtSyscallHashInit255 = 0x445E,                 // 17502: 系统调用哈希表初始值 255
+    GtSyscallHashInit256 = 0x4461,                 // 17505: 系统调用哈希表初始值 256
+    GtSyscallHashInit257 = 0x4464,                 // 17508: 系统调用哈希表初始值 257
+    GtSyscallHashInit258 = 0x4467,                 // 17511: 系统调用哈希表初始值 258
+    GtSyscallHashInit259 = 0x446A,                 // 17514: 系统调用哈希表初始值 259
+    GtSyscallHashInit260 = 0x446D,                 // 17517: 系统调用哈希表初始值 260
+    GtSyscallHashInit261 = 0x4470,                 // 17520: 系统调用哈希表初始值 261
+    GtSyscallHashInit262 = 0x4473,                 // 17523: 系统调用哈希表初始值 262
+    GtSyscallHashInit263 = 0x4476,                 // 17526: 系统调用哈希表初始值 263
+
+    // ---- 函数指针/PE 节区偏移 (0x4244-0x4477) ----
+    GtIrpDispatchFunc = 0x4244,                      // 16964: IRP 分发函数指针(Utility)
+    GtHandleTablePeSectionOffset = 0x42B8,           // 17080: 句柄表 PE 节区偏移(EnumProcessHandleTable)
+    GtMiniFilterSectionOffset1 = 0x42D0,             // 17104: Minifilter PE 节区偏移 1
+    GtDiskIoIrpFunc = 0x4328,                        // 17192: 磁盘 IO IRP 函数指针(Utility)
+    GtDiskIoCloseHandleFunc = 0x432B,                // 17195: 磁盘 IO 关闭句柄函数指针(Utility)
+    GtObjectTypeUnknownFunc = 0x4340,                // 17216: 对象类型未知函数指针(ObjectMgmt)
+    GtMiniFilterSectionTarget1 = 0x435D,             // 17245: Minifilter 节区扫描目标 1
+    GtModuleListSectionOffset1 = 0x4420,             // 17440: 模块链表 PE 节区偏移 1(ParseNtSectionsForModuleList1)
+    GtModuleListSectionOffset2 = 0x4414,             // 17428: 模块链表 PE 节区偏移 2(ParseNtSectionsForModuleList1)
+    GtModuleListMatchOffset1 = 0x4477,               // 17527: 模块链表匹配偏移 1(ParseNtSectionsForModuleList1)
+    GtModuleListSectionOffset3 = 0x4417,             // 17431: 模块链表 PE 节区偏移 3(ParseNtSectionsForModuleList2)
+    GtMiniFilterSectionTarget2 = 0x4426,             // 17446: Minifilter 节区扫描目标 2
+    GtMiniFilterSectionTarget3 = 0x4465,             // 17509: Minifilter 节区扫描目标 3
+
+    // ---- 函数指针表: 重复使用/覆盖条目 (由 InitSyscallNumberTable 写入哈希值，后被函数指针覆盖) ----
+    // 注：以下索引先由 InitSyscallNumberTable 写入哈希值，后由各 Init 函数覆盖为实际函数指针
+    GtQueryObjectNameFunc2 = 0x4163,                     // 16739: ObQueryNameString 函数指针 2(ModuleMgmt)
+    GtObjectTypeQueryFunc2 = 0x4166,                     // 16742: 对象类型查询函数指针 2(HandleMgmt/ObjectMgmt)
+    GtKernelDataPtr = 0x416C,                            // 16748: 内核数据指针(MemoryOps/ProcessMgmt/Protocol)
+    GtProcessValidateFunc = 0x4170,                      // 16752: 进程验证函数指针(ProcessMgmt)
+    GtMiniFilterResultFlag = 0x4174,                     // 16756: Minifilter 结果标志(MinifilterPostWrite)
+    GtMiniFilterSectionIdx2 = 0x417D,                    // 16765: Minifilter 节区索引 2
+    GtProcessObjectSectionIdx = 0x4186,                  // 16774: 进程对象节区索引(ValidateKernelObject)
+    GtMiniFilterSectionIdx3 = 0x418A,                    // 16778: Minifilter 节区索引 3
+    GtHandleTypeTableCount = 0x41A0,                     // 16800: 句柄类型表计数(HandleMgmt)
+    GtMiniFilterFormatCallback = 0x41A8,                 // 16808: Minifilter 格式化回调函数指针
+    GtProcessContextDataPtr = 0x41C7,                    // 16839: 进程上下文数据指针(ProcessMgmt/Protocol)
+    GtMemoryContextDataPtr = 0x41D6,                     // 16854: 内存上下文数据指针(MemoryOps)
+    GtQuerySystemInfoFunc = 0x41DE,                      // 16862: NtQuerySystemInformation 函数指针(HandleMgmt/ModuleMgmt)
+    GtValidateObjectFunc = 0x41E1,                       // 16865: 对象验证函数指针(HandleMgmt/ModuleMgmt)
+    GtZwQuerySystemInfoFunc = 0x41F3,                    // 16883: ZwQuerySystemInformation 函数指针(DriverEntry/Protocol)
+    GtMemoryAtomicFuncParam = 0x420D,                    // 16909: 内存原子操作函数参数(MemoryOps)
+    GtQueryVolumeFunc = 0x420E,                          // 16910: 查询卷函数指针(ObjectMgmt/SystemInfo)
+    GtMapViewFunc = 0x4210,                              // 16912: 映射视图函数指针(SystemInfo)
+    GtAtomicOpFunc = 0x4214,                             // 16916: 原子操作函数指针(MemoryOps)
+    GtRefCountFunc = 0x4230,                             // 16944: 引用计数函数指针(MemoryOps)
+    GtObjectTypeFlag = 0x4240,                           // 16960: 对象类型标志/参数(ProcessMgmt/MemoryOps)
+
+    // ---- SSDT 函数名哈希表详细条目 (InitSyscallNumberTable 写入，只写不读) ----
+    // 这些是 SSDT 函数名查找用的预计算哈希值，仅由 InitSyscallNumberTable 写入，不被读取
+    GtSyscallHash16741 = 0x4165,  // 16741: SSDT 哈希值 0xFC7D413E
+    GtSyscallHash16753 = 0x4171,  // 16753: SSDT 哈希值 0xACD04BF3
+    GtSyscallHash16760 = 0x4178,  // 16760: SSDT 哈希值 0xA00702AA
+    GtSyscallHash16762 = 0x417A,  // 16762: SSDT 哈希值 0xECB7091E
+    GtSyscallHash16763 = 0x417B,  // 16763: SSDT 哈希值 0xBEA5E2EF
+    GtSyscallHash16768 = 0x4180,  // 16768: SSDT 哈希值 0xDA519BA5
+    GtSyscallHash16772 = 0x4184,  // 16772: SSDT 哈希值 0xF91CE2EB
+    GtSyscallHash16780 = 0x418C,  // 16780: SSDT 哈希值 0xCE61BFBB
+    GtSyscallHash16781 = 0x418D,  // 16781: SSDT 哈希值 0xEA6C46EF
+    GtSyscallHash16783 = 0x418F,  // 16783: SSDT 哈希值 0xEB9830DD
+    GtSyscallHash16789 = 0x4195,  // 16789: SSDT 哈希值 0xD52ADA4F
+    GtSyscallHash16790 = 0x4196,  // 16790: SSDT 哈希值 0xD849C233
+    GtSyscallHash16796 = 0x419C,  // 16796: SSDT 哈希值 0x8B02D8A2
+    GtSyscallHash16799 = 0x419F,  // 16799: SSDT 哈希值 0xC9422A37
+    GtSyscallHash16801 = 0x41A1,  // 16801: SSDT 哈希值 0x9FF33383
+    GtSyscallHash16804 = 0x41A4,  // 16804: SSDT 哈希值 0x9848CEAB
+    GtSyscallHash16805 = 0x41A5,  // 16805: SSDT 哈希值 0xFE213B95
+    GtSyscallHash16807 = 0x41A7,  // 16807: SSDT 哈希值 0xFC040A43
+    GtSyscallHash16811 = 0x41AB,  // 16811: SSDT 哈希值 0xFCD830C4
+    GtSyscallHash16814 = 0x41AE,  // 16814: SSDT 哈希值 0x99A62677
+    GtSyscallHash16819 = 0x41B3,  // 16819: SSDT 哈希值 0xBD01010E
+    GtSyscallHash16820 = 0x41B4,  // 16820: SSDT 哈希值 0xA9724E39
+    GtSyscallHash16822 = 0x41B6,  // 16822: SSDT 哈希值 0xCFA77882
+    GtSyscallHash16832 = 0x41C0,  // 16832: SSDT 哈希值 0xBB1A0857
+    GtSyscallHash16835 = 0x41C3,  // 16835: SSDT 哈希值 0xC28E0472
+    GtSyscallHash16837 = 0x41C5,  // 16837: SSDT 哈希值 0xCA66CD85
+    GtSyscallHash16840 = 0x41C8,  // 16840: SSDT 哈希值 0xFDF9BD5E
+    GtSyscallHash16841 = 0x41C9,  // 16841: SSDT 哈希值 0xA733E150
+    GtSyscallHash16844 = 0x41CC,  // 16844: SSDT 哈希值 0xE8E050DB
+    GtSyscallHash16846 = 0x41CE,  // 16846: SSDT 哈希值 0x969C12BC
+    GtSyscallHash16847 = 0x41CF,  // 16847: SSDT 哈希值 0x9BED0DAF
+    GtSyscallHash16852 = 0x41D4,  // 16852: SSDT 哈希值 0x8E429199
+    GtSyscallHash16855 = 0x41D7,  // 16855: SSDT 哈希值 0xE1E1D2DA
+    GtSyscallHash16856 = 0x41D8,  // 16856: SSDT 哈希值 0x8DB049F3
+    GtSyscallHash16864 = 0x41E0,  // 16864: SSDT 哈希值 0x992020AA
+    GtSyscallHash16867 = 0x41E3,  // 16867: SSDT 哈希值 0xB585B522
+    GtSyscallHash16870 = 0x41E6,  // 16870: SSDT 哈希值 0xA608DEB3
+    GtSyscallHash16879 = 0x41EF,  // 16879: SSDT 哈希值 0xFDED2BE9
+    GtSyscallHash16880 = 0x41F0,  // 16880: SSDT 哈希值 0xA01EE269
+    GtSyscallHash16885 = 0x41F5,  // 16885: SSDT 哈希值 0xE39F0C9C
+    GtSyscallHash16886 = 0x41F6,  // 16886: SSDT 哈希值 0xEDDFEBDC
+    GtSyscallHash16889 = 0x41F9,  // 16889: SSDT 哈希值 0xDCE054DA
+    GtSyscallHash16891 = 0x41FB,  // 16891: SSDT 哈希值 0xC5F7E0A4
+    GtSyscallHash16892 = 0x41FC,  // 16892: SSDT 哈希值 0x890EDED3
+    GtSyscallHash16894 = 0x41FE,  // 16894: SSDT 哈希值 0xA23A41C8
+    GtSyscallHash16895 = 0x41FF,  // 16895: SSDT 哈希值 0xCB14C8BC
+    GtSyscallHash16898 = 0x4202,  // 16898: SSDT 哈希值 0x9759743F
+    GtSyscallHash16900 = 0x4204,  // 16900: SSDT 哈希值 0xDC8DDD66
+    GtSyscallHash16903 = 0x4207,  // 16903: SSDT 哈希值 0xE4F18F9E
+    GtSyscallHash16907 = 0x420B,  // 16907: SSDT 哈希值 0x9827428E
+    GtSyscallHash16915 = 0x4213,  // 16915: SSDT 哈希值 0xAA7C5725
+    GtSyscallHash16918 = 0x4216,  // 16918: SSDT 哈希值 0x8D50A0AE
+    GtSyscallHash16919 = 0x4217,  // 16919: SSDT 哈希值 0x84038C18
+    GtSyscallHash16930 = 0x4222,  // 16930: SSDT 哈希值 0xC3C7B2BC
+    GtSyscallHash16933 = 0x4225,  // 16933: SSDT 哈希值 0xD776C56E
+    GtSyscallHash16937 = 0x4229,  // 16937: SSDT 哈希值 0xDE817CA7
+    GtSyscallHash16940 = 0x422C,  // 16940: SSDT 哈希值 0xB71F96F8
+    GtSyscallHash16942 = 0x422E,  // 16942: SSDT 哈希值 0xAC4060D8
+    GtSyscallHash16945 = 0x4231,  // 16945: SSDT 哈希值 0xDEAF455A
+    GtSyscallHash16955 = 0x423B,  // 16955: SSDT 哈希值 0xC936E5ED
+    GtSyscallHash16957 = 0x423D,  // 16957: SSDT 哈希值 0xDCB2E1E3
+    GtSyscallHash16958 = 0x423E,  // 16958: SSDT 哈希值 0xB025F852
+    GtSyscallHash16961 = 0x4241,  // 16961: SSDT 哈希值 0x9EA7F1F5
+    GtSyscallHash16963 = 0x4243,  // 16963: SSDT 哈希值 0xA566F83B
+    GtSyscallHash16967 = 0x4247,  // 16967: SSDT 哈希值 0x9CBC0C9B
+    GtSyscallHash16975 = 0x424F,  // 16975: SSDT 哈希值 0x81841CC1
+    GtSyscallHash16981 = 0x4255,  // 16981: SSDT 哈希值 0xAE45EF20
+    GtSyscallHash16991 = 0x425F,  // 16991: SSDT 哈希值 0xFF67D295
+    GtSyscallHash16993 = 0x4261,  // 16993: SSDT 哈希值 0xB26A3E6A
+    GtSyscallHash16994 = 0x4262,  // 16994: SSDT 哈希值 0x9BAF4E6D
+    GtSyscallHash16996 = 0x4264,  // 16996: SSDT 哈希值 0xA8D092A5
+    GtSyscallHash16738 = 0x4162,  // 16738: SSDT 哈希值 0x52E5A42A
+    GtSyscallHash16744 = 0x4168,  // 16744: SSDT 哈希值 0x1C710C25
+    GtSyscallHash16745 = 0x4169,  // 16745: SSDT 哈希值 0x596508BC
+    GtSyscallHash16757 = 0x4175,  // 16757: SSDT 哈希值 0x6BCD42A9
+    GtSyscallHash16759 = 0x4177,  // 16759: SSDT 哈希值 0x11443CA9
+    GtSyscallHash16766 = 0x417E,  // 16766: SSDT 哈希值 0x3E171C0D
+    GtSyscallHash16769 = 0x4181,  // 16769: SSDT 哈希值 0x60E6A55E
+    GtSyscallHash16775 = 0x4187,  // 16775: SSDT 哈希值 0x71CF9A3E
+    GtSyscallHash16784 = 0x4190,  // 16784: SSDT 哈希值 0x4C641018
+    GtSyscallHash16786 = 0x4192,  // 16786: SSDT 哈希值 0x182C7ABD
+    GtSyscallHash16787 = 0x4193,  // 16787: SSDT 哈希值 0x38EA43CA
+    GtSyscallHash16792 = 0x4198,  // 16792: SSDT 哈希值 0x1AD07B46
+    GtSyscallHash16795 = 0x419B,  // 16795: SSDT 哈希值 0x3A404733
+    GtSyscallHash16798 = 0x419E,  // 16798: SSDT 哈希值 0x24E8CC0D
+    GtSyscallHash16802 = 0x41A2,  // 16802: SSDT 哈希值 0x15809667
+    GtSyscallHash16810 = 0x41AA,  // 16810: SSDT 哈希值 0x79352A4E
+    GtSyscallHash16813 = 0x41AD,  // 16813: SSDT 哈希值 0x49733B00
+    GtSyscallHash16816 = 0x41B0,  // 16816: SSDT 哈希值 0x63B8D286
+    GtSyscallHash16817 = 0x41B1,  // 16817: SSDT 哈希值 0x20AF640D
+    GtSyscallHash16823 = 0x41B7,  // 16823: SSDT 哈希值 0x7158131
+    GtSyscallHash16825 = 0x41B9,  // 16825: SSDT 哈希值 0x1B0386BD
+    GtSyscallHash16826 = 0x41BA,  // 16826: SSDT 哈希值 0xDFF75FD
+    GtSyscallHash16831 = 0x41BF,  // 16831: SSDT 哈希值 0x777A6033
+    GtSyscallHash16834 = 0x41C2,  // 16834: SSDT 哈希值 0x38145A3F
+    GtSyscallHash16843 = 0x41CB,  // 16843: SSDT 哈希值 0x29291EB
+    GtSyscallHash16849 = 0x41D1,  // 16849: SSDT 哈希值 0x4910DB26
+    GtSyscallHash16850 = 0x41D2,  // 16850: SSDT 哈希值 0x5612B523
+    GtSyscallHash16853 = 0x41D5,  // 16853: SSDT 哈希值 0x360B8B54
+    GtSyscallHash16858 = 0x41DA,  // 16858: SSDT 哈希值 0x34FDB1E5
+    GtSyscallHash16861 = 0x41DD,  // 16861: SSDT 哈希值 0x3E6F0E31
+    GtSyscallHash16871 = 0x41E7,  // 16871: SSDT 哈希值 0x50AE9DEF
+    GtSyscallHash16873 = 0x41E9,  // 16873: SSDT 哈希值 0x194066FF
+    GtSyscallHash16876 = 0x41EC,  // 16876: SSDT 哈希值 0x7AD36E07
+    GtSyscallHash16882 = 0x41F2,  // 16882: SSDT 哈希值 0x2A61C490
+    GtSyscallHash16888 = 0x41F8,  // 16888: SSDT 哈希值 0x5D00C553
+    GtSyscallHash16897 = 0x4201,  // 16897: SSDT 哈希值 0x377015DC
+    GtSyscallHash16901 = 0x4205,  // 16901: SSDT 哈希值 0x7CCC51A6
+    GtSyscallHash16904 = 0x4208,  // 16904: SSDT 哈希值 0x15248FA8
+    GtSyscallHash16906 = 0x420A,  // 16906: SSDT 哈希值 0x33CFA96A
+    GtSyscallHash16913 = 0x4211,  // 16913: SSDT 哈希值 0x50C6C12D
+    GtSyscallHash16921 = 0x4219,  // 16921: SSDT 哈希值 0x3036CD1
+    GtSyscallHash16924 = 0x421C,  // 16924: SSDT 哈希值 0x50DC4713
+    GtSyscallHash16927 = 0x421F,  // 16927: SSDT 哈希值 0x56AA7C37
+    GtSyscallHash16939 = 0x422B,  // 16939: SSDT 哈希值 0x13F4E81A
+    GtSyscallHash16948 = 0x4234,  // 16948: SSDT 哈希值 0x5503C59B
+    GtSyscallHash16951 = 0x4237,  // 16951: SSDT 哈希值 0x71BF7B31
+    GtSyscallHash16954 = 0x423A,  // 16954: SSDT 哈希值 0x64E4BA3
+    GtSyscallHash16966 = 0x4246,  // 16966: SSDT 哈希值 0x785354C2
+    GtSyscallHash16969 = 0x4249,  // 16969: SSDT 哈希值 0x65EC3CC0
+    GtSyscallHash16972 = 0x424C,  // 16972: SSDT 哈希值 0x2A0A82C4
+    GtSyscallHash16978 = 0x4252,  // 16978: SSDT 哈希值 0x6AD0955E
+    GtSyscallHash16984 = 0x4258,  // 16984: SSDT 哈希值 0x80850FD
+    GtSyscallHash16987 = 0x425B,  // 16987: SSDT 哈希值 0x661F49E4
+    GtSyscallHash16990 = 0x425E,  // 16990: SSDT 哈希值 0x66D9753C
+    GtSyscallHash16999 = 0x4267,  // 16999: SSDT 哈希值 0x537EB693
+    GtSyscallHash17000 = 0x4268,  // 17000: SSDT 哈希值 0x6A2E832C
+
 } GLOBAL_TABLE_INDEX;
 
 // EPROCESS 字段别名（源码使用原始索引编号，枚举使用偏移量）
@@ -920,6 +1379,27 @@ typedef enum _GLOBAL_TABLE_INDEX {
 
 // 全局表大小
 #define GT_TOTAL_SIZE              ((int)GtTotalSize)
+
+// ---- 缺失的 GT 别名定义（rename 脚本回退后补充） ----
+// 以下值从 IDA 反编译确认，部分与新枚举条目重叠，用宏定义兼容旧代码引用
+// SSDT 相关索引 (IDA 确认)
+#define GtSsdtTableOffset      0x90F           // 2319: SSDT 表偏移(EnumProcessModules)
+#define GtFwpsDispatchTableBase 0x910          // 2320: Fwps 调度表基址(EnumProcessModules)
+#define GtPteBase              0x911           // 2321: PTE 基址(EnumProcessModules)
+#define GtSsdtServiceTable     0x8B3           // 2227: SSDT 服务表基址(EnumSsdtHooks)
+#define GtSsdtServiceCount     0x914           // 2324: SSDT 服务计数(EnumSsdtHooks, 同GtWindowsBuildNumber)
+// 从 r15-0x14=0x90F-0x14=0x8FB 的别名
+#define Gt87B                  0x8FB           // 2299: 别名(EnumProcessModules)
+// mov ecx, 8F7h 的直接值
+#define Gt821                  0x8F7           // 2295: 别名(EnumProcessModules)
+// Win32k 基址/大小 (与 EPROCESS 模块链表偏移重叠)
+#define GtWin32kBase           0x80F           // 2063: 同GtEprocessModuleEntryCount
+#define GtWin32kSize           0x810           // 2064: 同GtEprocessModuleListOffset
+// 文件系统过滤驱动 (开发者添加，非原始 IDA 数据)
+#define GtFsFilterDriverBase   0x2F1           // 753: 同GtFsFilterExportTable(简化版使用)
+#define GtFsFilterDriverSize   0x2F2           // 754: 同GtCallbackField36(简化版使用)
+// 对象目录表 (开发者添加，非原始 IDA 数据)
+#define GtObjectDirectoryTable 0x41C6          // 16838: 同GtNtFsControlFileFunc(简化版使用)
 
 // ============================================================
 // IRP 通信协议常量
@@ -1004,7 +1484,7 @@ char __fastcall BtreeSearchByKey(unsigned __int8 *pKeyData, unsigned int *pOutOr
 char BugcheckCallbackRoutine(ULONG64 InputBuffer, ULONG64 BufferSize, PULONG StateFlags, ULONG64 OutputBuffer);
 
 void BuildContextTableFromNtFile(void);
-__int64 BuildDriverInfoEntries(unsigned int *a1, unsigned int a2);
+__int64 BuildDriverInfoEntries(unsigned int *EntryArray, unsigned int BufferSize);
 
 __int64 BuildExportIndexTable( __int64 PeBase, unsigned int PeSize, _BYTE *OutTable, unsigned int MaxEntries, unsigned char (__fastcall *FilterFunc)(__int64));
 
@@ -1012,12 +1492,12 @@ char BuildExportServiceTable(PUCHAR ImageBase, ULONG ImageSize, PUCHAR ServiceTa
 char BuildExportServiceTableForProcess( __int64 ImageBase, struct _KPROCESS *TargetProcess, char Is64Bit, _QWORD *OutServiceTable);
 
 void BuildHookTable(void);
-char BuildJmpPatchStub(int a1, __int64 a2, __int64 a3, unsigned int a4, int a5);
+char BuildJmpPatchStub(int PatchBase, __int64 TargetAddress, __int64 StubBuffer, unsigned int BufferSize, int Flags);
 __int64 BuildPeServiceNumberTable(__int64 ImageBase, unsigned int ImageSize, unsigned int ServiceTableOffset, char Is64Bit);
 
-__int64 BuildServiceTableFromNtKernel(_QWORD a1, _QWORD a2);
+__int64 BuildServiceTableFromNtKernel(_QWORD PeFileBuffer, _QWORD PeFileSize);
 __int64 BuildSyscallDriverPath(void);
-__int64 CalcDiskPartitionOffset(int *a1, unsigned int a2);
+__int64 CalcDiskPartitionOffset(int *PartitionEntry, unsigned int EntryCount);
 __int64 CalcOpcodeSize(PUCHAR DecodeCtx, PULONG OperandInfo);
 __int64 CalcPESectionFieldSize(PUCHAR Context);
 __int64 CalcPESectionFieldSizeAlt(PUCHAR Context);
@@ -1038,7 +1518,7 @@ __int64 CallQuerySystemInformation(
     PVOID ParamBuffer11,
     ULONG Param12,
     PULONG pReturnLength);
-char CheckAddressInModuleRange(__int64 a1);
+char CheckAddressInModuleRange(__int64 TargetAddress);
 char CheckAddressInPhysicalMemoryRange(unsigned __int64 Address);
 char CheckAddressInSystemModuleRange(unsigned __int64 Address);
 char CheckExportEntryFlags(PUCHAR ExportEntry);
@@ -1048,8 +1528,8 @@ __int64 CheckFilePathFilter(__int64 FilePath, unsigned int FilePathLength);
 BOOLEAN CheckMemoryValid(void *Address);
 char CheckObjectTypeFlag(__int64 ObjectHeader);
 char CheckObjectTypeFlagWrapper(__int64 ObjectHeader);
-__int64 CheckProcessJobObject(__int64 a1);
-__int64 CheckProcessObjectFlag(__int64 a1);
+__int64 CheckProcessJobObject(__int64 ProcessHandle);
+__int64 CheckProcessObjectFlag(__int64 ProcessObject);
 char CheckProcessProtection(__int64 ProcessObject, _DWORD *OutProtectionType);
 __int64 CheckProtectedEntry(__int64 Entry);
 char CheckSsdtHookIntegrity(ULONG64 ProcessId, ULONG64 BufferSize, _DWORD *OutputBuffer, int OutputSize);
@@ -1074,101 +1554,101 @@ char ClearKernelMemoryPointer(void);
 __int64 ClearKernelObjectEntry(__int64 TargetAddress);
 __int64 ClearSsdtRelatedEntry(__int64 TargetAddress);
 __int64 CmdCallKernelMemoryFunction(unsigned int *Address, int InputSize);
-__int64 CmdCallSystemRoutine(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdCallbackControl(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdCheckBytePattern(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdCheckFileExist(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdCheckProcessAccess(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdCheckProcessHideDetect(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdClearKernelBase(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdCloseHandle(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdCloseProcessHandle(__int64 a1, __int64 a2, _DWORD *pOutputBuffer, int BufferSize);
+__int64 CmdCallSystemRoutine(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdCallbackControl(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdCheckBytePattern(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdCheckFileExist(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdCheckProcessAccess(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdCheckProcessHideDetect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdClearKernelBase(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdCloseHandle(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdCloseProcessHandle(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int BufferSize);
 char CmdCloseProcessHandleEx(__int64 InputBuffer);
-__int64 CmdCopyFile(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdCopyFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdCreateFile(_QWORD *Address, int InputSize);
-__int64 CmdCreateFileWithPath(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDeleteFile(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDeviceIoControl(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDeviceIoControlEx(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDeviceIoControlSimple(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDeviceIoControlWithBuffer(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDeviceIoControlWithString(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDiskOperationDispatch(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDiskReadSector(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDiskSectorReadWrite(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdCreateFileWithPath(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDeleteFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDeviceIoControl(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDeviceIoControlEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDeviceIoControlSimple(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDeviceIoControlWithBuffer(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDeviceIoControlWithString(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDiskOperationDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDiskReadSector(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDiskSectorReadWrite(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdDispatchSsdtByVersion(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 CmdDriverLoadUnload(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDriverProtectOp(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdDriverProtectStatus(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumCallbackContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumDirectory(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdDriverLoadUnload(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDriverProtectOp(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdDriverProtectStatus(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumCallbackContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 char CmdEnumDriverObjects(unsigned int *pOutputBuffer, unsigned int OutputSize, char Flags, char Flags2);
-__int64 CmdEnumFileSystemContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumGdiObjects(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 CmdEnumHandles(__int64 a1, __int64 a2, volatile void *OutputBuffer, unsigned int BufferSize);
+__int64 CmdEnumFileSystemContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumGdiObjects(__int64 InputBuffer, __int64 InputSize, _DWORD *OutputBuffer, unsigned int BufferSize);
+__int64 CmdEnumHandles(__int64 InputBuffer, __int64 InputSize, volatile void *OutputBuffer, unsigned int BufferSize);
 __int64 CmdEnumHandlesByPid(volatile void *Address, SIZE_T Length, char *OutputBuffer, unsigned int BufferSize);
-__int64 CmdEnumHookDetail(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumHookInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumKernelDriver(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumKernelDrivers(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 CmdEnumKernelHandleTable(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumKernelInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumKernelMemoryDetail(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumKernelModuleInfoEx(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdEnumHookDetail(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumHookInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumKernelDriver(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumKernelDrivers(__int64 InputBuffer, __int64 InputSize, _DWORD *OutputBuffer, unsigned int BufferSize);
+__int64 CmdEnumKernelHandleTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumKernelInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumKernelMemoryDetail(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumKernelModuleInfoEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumKernelModules(_OWORD *Address, int InputSize, volatile void *OutputBuffer, unsigned int BufferSize);
-__int64 CmdEnumKernelObjectTable(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdEnumKernelObjectTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumObjectAllTypes(__int64 OutputBuffer, __int64 OutputSize, char *UserBuffer, unsigned int UserBufferSize);
-__int64 CmdEnumObjectContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjectDirectory(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjectHandles(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 CmdEnumObjectTypeDetail(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjectTypeDirectory(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjectTypeInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjectTypeTable(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjectTypes(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjects(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumObjectsEx(__int64 a1, unsigned int a2, _DWORD *a3, unsigned int a4);
-__int64 CmdEnumObjectsLegacy(__int64 a1, unsigned int a2, _DWORD *a3, unsigned int a4);
-__int64 CmdEnumProcessContextWin10(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumProcessContextWin7(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumProcessContextWin8(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdEnumObjectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjectDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjectHandles(__int64 InputBuffer, __int64 InputSize, _DWORD *OutputBuffer, unsigned int BufferSize);
+__int64 CmdEnumObjectTypeDetail(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjectTypeDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjectTypeInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjectTypeTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjectTypes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjects(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumObjectsEx(__int64 InputBuffer, unsigned int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
+__int64 CmdEnumObjectsLegacy(__int64 InputBuffer, unsigned int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
+__int64 CmdEnumProcessContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumProcessContextWin7(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumProcessContextWin8(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumProcessHandles(__int64 Address, int InputSize, _DWORD *OutputBuffer, unsigned int OutputBufferSize);
-__int64 CmdEnumProcessListEx(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumProcessListWin10(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumProcessListWin7(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumProcessListWin8(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdEnumProcessListEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumProcessListWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumProcessListWin7(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumProcessListWin8(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumProcessModules(__int64 DeviceObject, __int64 Irp, _DWORD *pOutputBuffer, unsigned int BufferSize);
-__int64 CmdEnumProcessProtectContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumProcessorInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumRegistry(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumRegistryContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumServiceTable(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumServices(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdEnumShadowSyscallEntries(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSsdtEntryTable(__int64 a1, __int64 a2, _DWORD *pOutputBuffer, unsigned int OutputBufferSize);
-__int64 CmdEnumSyscallEntries(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable2(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable3(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable4(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable5(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable6(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable7(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable8(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumSyscallTable9(__int64 a1, __int64 a2, _BYTE *pOutputBuffer, int OutputSize);
-__int64 CmdEnumThreadContextWin10(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdEnumProcessProtectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumProcessorInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumRegistry(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumRegistryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumServiceTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumServices(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdEnumShadowSyscallEntries(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSsdtEntryTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, unsigned int OutputBufferSize);
+__int64 CmdEnumSyscallEntries(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable2(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable3(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable4(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable5(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable6(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable7(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable8(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumSyscallTable9(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 CmdEnumThreadContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, int OutputSize);
 __int64 CmdEnumThreadsEx(void **Address, int InputSize, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 CmdEnumUSBPortSyscallTable(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdFixProcessEProcess(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdEnumUSBPortSyscallTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdFixProcessEProcess(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdFixSsdtEntryAddress(unsigned int *pSyscallIndex, int FieldSize);
-__int64 CmdFsctlOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdGetHookEntryInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdGetKernelBaseLegacy(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdGetModuleCount(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdGetSsdtTableInfo(__int64 a1, __int64 a2, _QWORD *pOutputBuffer, int OutputSize);
-__int64 CmdHandleMonitor(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdInitKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdInitSsdtTable(__int64 a1, __int64 a2, _DWORD *OutputBuffer, int BufferSize);
+__int64 CmdFsctlOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdGetHookEntryInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdGetKernelBaseLegacy(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdGetModuleCount(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdGetSsdtTableInfo(__int64 InputBuffer, __int64 InputSize, _QWORD *pOutputBuffer, int OutputSize);
+__int64 CmdHandleMonitor(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdInitKernelMemoryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdInitSsdtTable(__int64 InputBuffer, __int64 InputSize, _DWORD *OutputBuffer, int BufferSize);
 __int64 CmdInstallShadowHook(char *pInputBuffer, int InputSize);
 __int64 CmdInstallSyscallHook2(char *pInputBuffer, int InputSize);
 __int64 CmdInstallSyscallHook3(char *pInputBuffer, int InputSize);
@@ -1179,109 +1659,109 @@ __int64 CmdInstallSyscallHook7(char *pInputBuffer, int InputSize);
 __int64 CmdInstallSyscallHook8(char *pInputBuffer, int InputSize);
 __int64 CmdInstallSyscallHook9(char *pInputBuffer, int InputSize);
 __int64 CmdInstallSystemHook(char *pInputBuffer, int InputSize);
-__int64 CmdInstallUSBPortSyscallHook(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdIoPortOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdKernelMemoryOpDispatch(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdKernelMemoryOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdKernelObjectMonitor(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdLookupObjectTypeByAddr(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdMemoryQueryOp(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdModuleOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdObjectOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdInstallUSBPortSyscallHook(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdIoPortOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdKernelMemoryOpDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdKernelMemoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdKernelObjectMonitor(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdLookupObjectTypeByAddr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdMemoryQueryOp(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdModuleOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdObjectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 
-__int64 CmdObjectOperationDispatch(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdOpenFileForEnum(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdOpenFileHandle(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdOpenSectionObject(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdProcessMemoryOpDispatch(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdProcessMemoryOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdObjectOperationDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdOpenFileForEnum(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdOpenFileHandle(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdOpenSectionObject(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdProcessMemoryOpDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdProcessMemoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdProcessMonitor(_OWORD *Address, int InputSize);
-__int64 CmdProcessOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdProtectStatus(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdProcessOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdProtectStatus(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length);
 __int64 CmdQueryFileAllocationSize(void *FileHandle, _QWORD *pAllocationSize);
-__int64 CmdQueryFileInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdQueryFileInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdQueryFileStandardInfo(void *FileHandle, _QWORD *pStandardInfo);
-__int64 CmdQueryHookStatus(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdQueryMemoryInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdQueryModuleInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdQueryObjectInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdQueryHookStatus(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQueryMemoryInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQueryModuleInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQueryObjectInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdQueryProcessInfo(__int64 ProcessId, __int64 BufferSize, _DWORD *pOutputBuffer, int OutputSize);
-__int64 CmdQueryProcessInfoEx(__int64 Address, int InputSize, _DWORD *a3, int a4);
-__int64 CmdQueryProcessNameByPid(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdQuerySsdtDetails(__int64 a1, __int64 a2, _QWORD *pOutputBuffer, int OutputSize);
-__int64 CmdQuerySsdtInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdQuerySystemInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdQuerySystemInfoEx(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdQueryProcessInfoEx(__int64 Address, int InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQueryProcessNameByPid(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQuerySsdtDetails(__int64 InputBuffer, __int64 InputSize, _QWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQuerySsdtInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQuerySystemInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdQuerySystemInfoEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length);
-__int64 CmdReadCpuBaseAddr(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadCpuBaseAddrEx(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadCpuId(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadCpuInfoEx(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadCpuMsr(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadDirectory(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadExportDirectory(__int64 a1, __int64 a2, char *OutputBuffer, unsigned int BufferSize);
-__int64 CmdReadFile(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdReadCpuBaseAddr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadCpuBaseAddrEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadCpuId(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadCpuInfoEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadCpuMsr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadExportDirectory(__int64 InputBuffer, __int64 InputSize, char *OutputBuffer, unsigned int BufferSize);
+__int64 CmdReadFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdReadFileInfo(void *FileHandle, _DWORD *pFileInfo);
-__int64 CmdReadFileSize(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadKernelBase(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadKernelMemoryRange(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadKernelMemoryRangeSize(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadMsrValue(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadPhysicalMemory(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadProcessMemory(__int64 Address, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadProcessMemoryBlock(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdReadFileSize(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadKernelBase(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadKernelMemoryRange(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadKernelMemoryRangeSize(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadMsrValue(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadPhysicalMemory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadProcessMemory(__int64 Address, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadProcessMemoryBlock(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdReadProcessMemoryEx(_OWORD *Address, int InputSize, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 CmdReadProcessMemoryStr(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdReadSsdtEntryTable(__int64 a1, __int64 a2, _DWORD *pOutputBuffer, unsigned int OutputBufferSize);
-__int64 CmdReadSsdtEntryTableEx(__int64 a1, __int64 a2, _DWORD *pOutputBuffer, unsigned int OutputBufferSize);
-__int64 CmdRegistryOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdRegistryProtect(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdRenameFile(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdResetDriverState(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdResetProcessContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdRestoreDriverDispatch(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdReadProcessMemoryStr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdReadSsdtEntryTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, unsigned int OutputBufferSize);
+__int64 CmdReadSsdtEntryTableEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, unsigned int OutputBufferSize);
+__int64 CmdRegistryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdRegistryProtect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdRenameFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdResetDriverState(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdResetProcessContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdRestoreDriverDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdRestoreExportTable(void);
 __int64 CmdRestoreSsdtTable(void);
 __int64 CmdSendRenameFileIrp(void *FileHandle, const void *RenameBuffer, unsigned int BufferSize);
-__int64 CmdSetCallbackContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetFileAttributes(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdSetCallbackContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetFileAttributes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdSetFileBasicInfo(void *FileHandle, struct _IRP *FileBasicInfo);
-__int64 CmdSetFileSystemContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetKernelModuleInfo(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetModuleInfoInternal(_QWORD a1);
-__int64 CmdSetObjectContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetProcessContextWin10(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetProcessContextWin7(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetProcessContextWin8(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetProcessProtectContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetProcessorField(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdSetRegistryContext(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdSetFileSystemContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetKernelModuleInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetModuleInfoInternal(__int64 InputBuffer);
+__int64 CmdSetObjectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetProcessContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetProcessContextWin7(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetProcessContextWin8(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetProcessProtectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetProcessorField(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdSetRegistryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdSetSsdtEntry(_DWORD *pInputBuffer, int InputSize);
-__int64 CmdSetThreadContextWin10(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdStubAlwaysTrue(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdTerminateProcessByEProcess(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdThreadMonitor(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdThreadOperation(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdThreadProtectStatus(__int64 Address, int InputSize, _DWORD *a3, int a4);
+__int64 CmdSetThreadContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdStubAlwaysTrue(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdTerminateProcessByEProcess(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdThreadMonitor(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdThreadOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdThreadProtectStatus(__int64 Address, int InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdUpdateExportEntry(__int64 *pInputBuffer, int InputSize);
 __int64 CmdVirtualMemoryOp(_OWORD *Address, int InputSize);
-__int64 CmdWriteFile(__int64 a1, __int64 a2, _DWORD *a3, int a4);
+__int64 CmdWriteFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdWriteKernelMemoryRange(void);
-__int64 CmdWriteKernelObjectField(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdWriteMsrValue(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-__int64 CmdWriteProcessMemoryEx(__int64 a1, __int64 a2, _DWORD *a3, int a4);
-void CollectObjectDirAndTypeEntries(unsigned int *a1, _DWORD *a2);
+__int64 CmdWriteKernelObjectField(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdWriteMsrValue(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 CmdWriteProcessMemoryEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+void CollectObjectDirAndTypeEntries(unsigned int *OutputBuffer, _DWORD *pCount);
 unsigned int __fastcall CompareExportNamePrefix(_BYTE *pBuffer1, _BYTE *pBuffer2, unsigned __int64 LimitAddress);
-__int64 CompleteIrpAndCleanupMdl(__int64 a1, __int64 Irp, __int64 a3);
+__int64 CompleteIrpAndCleanupMdl(__int64 DeviceObject, __int64 Irp, __int64 Context);
 __int64 CopyCallbackContextHookTable(__int64 pSourceTable);
 __int64 CopyCallbackContextTable(__int64 pSourceTable, int ContextType);
 __int64 CopyCallbackContextV3Table(__int64 pSourceTable);
 __int64 CopyContextTableEntries(__int64 pOutputTable);
 __int64 CopyFsFilterEntryTable(__int64 OutputBuffer, char Is64Bit);
 __int64 CopyHookEntryArray(__int64 DestBuffer, _QWORD *pSourceArray, unsigned int EntryCount);
-__int64 CopyKernelArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, unsigned int a4);
-__int64 CopyKernelDualArrayToUserBuffer(__int64 a1, __int64 a2, unsigned int *a3, unsigned int a4);
+__int64 CopyKernelArrayToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, unsigned int *pOutputBuffer, unsigned int BufferSize);
+__int64 CopyKernelDualArrayToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, unsigned int *pOutputBuffer, unsigned int BufferSize);
 __int64 CopyObjectContextHookTable(__int64 pSourceTable);
 char CopyObjectEntryToBuffer(__int64 Entry, unsigned int Type, unsigned int Flags, unsigned int *OutputBuffer, _DWORD *pCount);
 __int64 CopyPhysicalMemoryContextTable(__int64 pSourceTable, int ContextType);
@@ -1304,13 +1784,13 @@ __int64 DecodeCheckBound4Byte(PUCHAR *Context);
 __int64 DecodeCheckBound8Byte(PUCHAR *Context);
 __int64 DecodeImmediateOperandSize(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx, PULONG pSize);
 __int64 DecodeImmediateOperandValue(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx, PULONG pSize);
-__int64 DecodeModrmAddressingMode( PULONG Context, ULONG64 a2, INT OperandType, PUCHAR OperandOut, INT Flag);
+__int64 DecodeModrmAddressingMode(PULONG Context, ULONG64 UnusedParam, INT OperandType, PUCHAR OperandOut, INT Flag);
 
 __int64 DecodeModrmByte(ULONG64 BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx);
 __int64 DecodeModrmByteSimple(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx);
 __int64 DecodeModrmInstruction(PULONG64 ContextArray);
 __int64 DecodeModrmOpcodeTable(PUCHAR Context);
-__int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 a2, ULONG64 a3);
+__int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedParam);
 __int64 DecodeOneByteOpcodeTable(PUCHAR Context);
 __int64 DecodeOpcodeByPrefixGroup(PUCHAR Context);
 __int64 DecodeOpcodeByte(PUCHAR Context);
@@ -1347,14 +1827,14 @@ __int64 DecryptDiskDeviceContextStr(void);
 __int64 DecryptInputBuffer(PUCHAR Buffer);
 void DereferenceObjectSafe(__int64 Object);
 void DisableCr0WriteProtect(void);
-__int64 DisableHookProtection(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
+__int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __int64 DisableObjectCallback(__int16 *DevicePath, _QWORD *pResult);
 char __fastcall DisableObjectCallbackWithFallback(__int16 *DeviceId, _QWORD *Context);
 char __fastcall DisableObjectCallbackViaDevice(__int16 *DevicePath, _QWORD *pResult);
 char InstallObjectPreCallbackHooks(void);
 char RestoreObjectPreCallbackHooks(void);
-char __fastcall InitObjectCallbackEntries(__int64 a1);
-char DisableObjectProtect(__int64 a1, __int64 a2, _DWORD *OutputBuffer, unsigned int BufferSize);
+char __fastcall InitObjectCallbackEntries(__int64 TableBase);
+char DisableObjectProtect(__int64 DeviceObject, __int64 Irp, _DWORD *OutputBuffer, unsigned int BufferSize);
 char DisableObjectProtectEx(_DWORD *OutputBuffer, unsigned int BufferSize);
 __int64 DisableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 char DisableProcessProtect(_OWORD *Address, int InputSize);
@@ -1375,13 +1855,13 @@ __int64 DispatchParseNtExportFunctions(void);
 __int64 DispatchWin32kPatternMatching(__int64 Buffer, unsigned int BufferSize);
 __int64 DuplicateUSBPortSyscallOutput(__int64 pSourceTable);
 char EnableDeviceObjectProtection(void);
-__int64 EnableHookProtection(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
+__int64 EnableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 char EnableObjectCallback(PVOID ObjectName, SIZE_T Length);
 char EnableObjectProtect(_OWORD *Address, int BufferSize);
 __int64 EnableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 EnableProcessProtect(PVOID *Address, int InputSize, _DWORD *OutputBuffer, int OutputBufferSize);
 char EnableThreadProtect(__int64 *Address, int InputSize, _QWORD *OutputBuffer, int OutputSize);
-__int64 EnumCallbackContextOperation(__int64 a1, __int64 a2, _WORD *pOutputBuffer, int OutputSize);
+__int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _WORD *pOutputBuffer, int OutputSize);
 __int64 EnumCallbackContextTable(__int64 pOutputTable);
 __int64 EnumCallbackContextV3Table(__int64 pOutputTable);
 __int64 EnumDeviceObjectTypeList(int DeviceIndex, __int64 pOutputTable);
@@ -1389,21 +1869,21 @@ __int64 EnumDeviceObjectTypeList(int DeviceIndex, __int64 pOutputTable);
 void EnumHandleTableToBuffer(unsigned int *OutputBuffer, _DWORD *pCount);
 __int64 EnumHandlesByType(WORD *TargetName, ULONG NameLen, _DWORD *TypeTable, _DWORD *OutputBuffer, int MaxEntries);
 __int64 EnumKernelDriverObjects(_DWORD *pOutputArray, unsigned int MaxCount);
-__int64 EnumKernelMemoryContext(__int64 a1, __int64 a2, _DWORD *pOutputBuffer, unsigned int BufferSize);
-__int64 EnumKernelModules(__int64 a1, __int64 a2, __int64 a3, __int64 a4);
+__int64 EnumKernelMemoryContext(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutputBuffer, unsigned int BufferSize);
+char EnumKernelModules(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutputBuffer, unsigned int BufferSize);
 __int64 EnumObjectContextTable(__int64 pOutputBuffer);
 __int64 EnumObjectDirectoryEntries(unsigned __int16 *pDirectoryPath, _DWORD *pDirectoryInfo, __int64 OutputBuffer, int MaxCount);
 __int64 EnumObjectTypeCleanupList(PVOID *pTargetObject);
-char EnumObjectTypeFilterCallback(__int64 a1, __int64 a2, __int64 a3);
+char EnumObjectTypeFilterCallback(__int64 ObjectEntry, __int64 Context, __int64 TypeFilter);
 char EnumObjectTypeList(unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnumProcessAndInitObjects(__int64 a1, char a2);
+__int64 EnumProcessAndInitObjects(__int64 Process, char Flags);
 __int64 EnumProcessContextSsdtTable(__int64 pOutputTable);
 __int64 EnumProcessContextTable(__int64 pOutputTable);
 __int64 EnumProcessContextV2Table(__int64 pOutputTable);
 __int64 EnumProcessContextV3Table(__int64 pOutputTable);
 __int64 EnumProcessContextV3TableWin7(__int64 pOutputTable);
 
-__int64 EnumProcessModules(ULONG64 ProcessId, int Flags, volatile void *OutputBuffer, unsigned int BufferSize);
+char EnumProcessModules(ULONG64 pProcessId, int InputSize, volatile void *OutputBuffer, unsigned int OutputSize);
 char EnumProcessThreadInfo(PRKPROCESS PROCESS, char IsUserMode, int *OutputBuffer, unsigned int BufferSize);
 __int64 EnumServiceTableWin10(__int64 *pServiceList, __int64 OutputBuffer, _DWORD *pCount, int MaxCount);
 __int64 EnumServiceTableWin1020H1(_QWORD **pServiceList, __int64 OutputBuffer, _DWORD *pCount, int MaxCount);
@@ -1422,7 +1902,7 @@ void EnumerateFileMappingSectionRecursiveV1(_QWORD *VirtualAddress, int Level, _
 char __fastcall EnumerateKernelDrivers( PVOID *pObjectStack, int StackSize, unsigned int *pOutputBuffer, int OutputSize);
 
 void EnumerateProcessHandleTableData(struct _KPROCESS *Process, __int64 OutputBuffer, unsigned int BufferSize);
-char EnumerateProcessInformation(__int64 a1, __int64 a2, unsigned int a3);
+char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned int BufferSize);
 void EnumerateProcessListEntry(_QWORD **ListHead, unsigned int Offset, __int64 OutputBuffer, unsigned int BufferSize);
 __int64 EnumerateProcessObjectTable(__int64 ProcessObject, __int64 OutputFlags);
 char EnumerateProcessObjects( struct _KPROCESS *PROCESS, struct _KPROCESS *AlternateProcess, _DWORD *OutputBuffer, unsigned int BufferSize, char MarkType, char ValidateFlag, char PathFlag);
@@ -1444,7 +1924,7 @@ void EnumerateVadWithBufferV3(_QWORD *VirtualAddress, _DWORD *OutputBuffer, unsi
 void EnumerateVadWithBufferV4(_QWORD *VirtualAddress, _DWORD *OutputBuffer, unsigned int BufferSize);
 void *ExAlloc(ULONG PoolType, ULONG Size);
 __int64 FileSystemFilterCallback(char *PatchBuffer, int BufferSize);
-char FillProcessInformationEntry( char *VirtualAddress, char *AlternateAddr, __int64 OutputBuffer, unsigned int BufferSize, char ValidateFlag, char EntryType, char a7);
+char FillProcessInformationEntry(char *VirtualAddress, char *AlternateAddr, __int64 OutputBuffer, unsigned int BufferSize, char ValidateFlag, char EntryType, char CheckFlag);
 
 __int64 FilterActiveHookEntries(__int64 OutputBuffer, unsigned int EntryCount, enum _GLOBAL_TABLE_INDEX TableIndex);
 __int64 __fastcall FindDeleteValueKeyTarget(__int64 Buffer, unsigned int BufferSize, __int64 Context, __int64 BaseOffset, unsigned int MaxDelta, __int64 *pResult);
@@ -1455,11 +1935,11 @@ void __fastcall FindHalDllInDriverList( unsigned int *pDriverArray, __int64 Arra
 
 __int64 FindHookTargetDataSection(__int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase);
 __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex);
-char FindKernelRdataSection(__int64 a1, unsigned int a2);
+char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize);
 char FindMatchingEntryInArray(__int64 Entry, unsigned int Type, unsigned int *Array);
-__int64 FindNdisExportsBySectionScanV2(__int64 a1, unsigned int a2);
-__int64 FindNtOpenThreadTargetWin7(__int64 a1, unsigned int a2, __int64 a3, __int64 a4, unsigned int a5);
-__int64 FindNtOpenThreadTargetWin8(__int64 a1, unsigned int a2, __int64 a3, __int64 a4, unsigned int a5);
+__int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize);
+__int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset);
+__int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset);
 __int64 FindNtoskrnlExportsInThreadEnv(void);
 __int64 FindOpenProcessTokenOffset(__int64 TargetBase, unsigned int TargetSize);
 __int64 FindOpenProcessTokenTarget(__int64 TargetBase, unsigned int TargetSize);
@@ -1495,9 +1975,9 @@ char GetIrpMonitorContext(__int64 DeviceObject, unsigned int IrpMajorFunc, _OWOR
 __int64 GetKernelObjectTypeInfo(__int64 ObjectHeader);
 __int64 GetProcessFromHandleEntry(__int64 HandleTableEntry);
 char GetProcessImagePath(PRKPROCESS PROCESS, HANDLE ProcessId, void **OutBuffer, _DWORD *OutSize, int Flags);
-char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **a3, _DWORD *a4);
+char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **pImagePathBuffer, _DWORD *pImagePathSize);
 char GetProcessVirtualizationContextFallback(_DWORD *OutputBuffer, unsigned int BufferSize);
-char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *a3, _DWORD *a4);
+char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *pNameBuffer, _DWORD *pNameLength);
 __int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult);
 __int64 GetSsdtFunctionBase2(void);
 __int64 GetSsdtFunctionBase4(void);
@@ -1505,20 +1985,20 @@ __int64 GetStringLength(_WORD *String);
 __int64 GetWin7Sp1EprocessOffset(void);
 __int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtCreateFile(__int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase);
-__int64 HookSyscallNtCreateKey(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
-__int64 HookSyscallNtCreateProcess(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
-__int64 HookSyscallNtCreateThread(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
+__int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
+__int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
+__int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize);
-__int64 HookSyscallNtDeleteKey(unsigned __int64 a1, unsigned int a2, __int64 a3, __int64 a4);
-__int64 HookSyscallNtDeleteValueKey(unsigned __int64 a1, unsigned int a2, __int64 a3, __int64 a4, unsigned int a5);
+__int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
+__int64 HookSyscallNtDeleteValueKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset);
 __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int64 Context, __int64 RelocBase);
 __int64 HookSyscallNtOpenFile(__int64 TargetBase, unsigned int TargetSize);
-__int64 HookSyscallNtOpenKey(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
-__int64 HookSyscallNtOpenKeyEx(__int64 a1, unsigned int a2);
-__int64 HookSyscallNtOpenProcess(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
+__int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
+__int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize);
+__int64 HookSyscallNtOpenProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __int64 HookSyscallNtOpenProcessToken(__int64 TargetAddress, unsigned int TargetSize);
-__int64 HookSyscallNtOpenThread(__int64 a1, unsigned int a2, __int64 a3, __int64 a4, unsigned int a5);
+__int64 HookSyscallNtOpenThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset);
 __int64 HookSyscallNtOpenThreadToken(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtQueryInformationProcess(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtQueryInformationThread(__int64 TargetBase, unsigned int TargetSize);
@@ -1528,7 +2008,7 @@ __int64 HookSyscallNtResumeProcess(void);
 __int64 HookSyscallNtResumeThread(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtSetInformationProcess(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int TargetSize);
-__int64 HookSyscallNtSetValueKey(__int64 a1, unsigned int a2, __int64 a3, __int64 a4, unsigned int a5);
+__int64 HookSyscallNtSetValueKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset);
 __int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtSuspendThread(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtWriteFile(__int64 TargetBase, unsigned int TargetSize);
@@ -1563,7 +2043,7 @@ char ResolveFltUnregisterFilter(PUCHAR ExportBase, ULONG ExportSize);
 __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize);
 __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize);
 __int64 InitHandleTypeTable(void);
-__int64 InitHookSyscall(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
+__int64 InitHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 char InitImageLoadCallback(__int64 InputBuffer, ULONG64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
 __int64 InitImageNotify(void);
 __int64 InitImageNotifyCallbackWin7(void);
@@ -1572,11 +2052,11 @@ __int64 InitKernelMemoryContextOperation();
 __int64 InitKernelModuleSectionScan(void);
 void InitMd5Context(PMD5_CONTEXT Context);
 __int64 InitMsrTable(void);
-__int64 InitObjectAndQueryName(__int64 a1, int a2);
+__int64 InitObjectAndQueryName(__int64 VirtualAddress, int Flags);
 char InitObjectCallback(__int64 UnusedParam, __int64 UnusedParam2, _DWORD *OutputBuffer, unsigned int OutputBufferSize);
 __int64 InitObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 InitObjectTypeTable(_QWORD a1);
-void InitPESectionReadContext( PUCHAR Base, ULONG Size, INT Mode, LONG64 a4, INT a5, LONG64 a6, LONG64 a7, PUCHAR Context);
+__int64 InitObjectTypeTable(_QWORD InputName);
+void InitPESectionReadContext(PUCHAR Base, ULONG Size, INT Mode, LONG64 Param5, INT ExtraField, LONG64 Param6, LONG64 Param7, PUCHAR Context);
 
 __int64 InitPhysicalMemoryContextTable(int DeviceIndex, __int64 pOutputTable);
 char InitPowerCallback(__int64 InputBuffer, ULONG64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
@@ -1599,7 +2079,7 @@ __int64 InitUnicodeStringBuffer(__int64 Buffer, __int64 StringPtr, unsigned int 
 void InitWin32kServiceTableEntries(void);
 void InitWin32kTableByVersion(void);
 __int64 InstallCallbackContextHookEntry(unsigned int *pInputEntry);
-__int64 InstallHookSyscall(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
+__int64 InstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 char InstallSsdtHookForThreadProtect(__int64 pInputEntry);
 __int64 InvokeCallbackWithZeroArg(__int64 Arg1, __int64 Arg2, __int64 Arg3, __int64 (__fastcall *Callback)(__int64, __int64, __int64, ULONG64));
 __int64 InvokeNullCallback(__int64 Arg1, __int64 Arg2, __int64 Arg3, __int64 (*Callback)(void));
@@ -1618,7 +2098,7 @@ __int64 IrpSetupBufferMdl(PIRP Irp, __int64 StackLocation, void *Buffer, ULONG B
 __int64 IrpWriteFile( void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, void *Buffer, PLARGE_INTEGER Timeout, struct _IO_STATUS_BLOCK *IoStatusBlock);
 
 char IsExportForwarder(PUCHAR ExportEntry);
-char IsProcessThreadInList(__int64 a1, __int64 a2, __int64 a3, char a4);
+char IsProcessThreadInList(__int64 Process, __int64 Thread, __int64 ListHead, char CheckFlag);
 
 __int64 KernelNotifyRoutine(void *NotificationBuffer, size_t BufferSize);
 __int64 KernelNotifyRoutineEx(void *NotificationBuffer, size_t BufferSize);
@@ -1630,8 +2110,8 @@ __int64 LookupExportFuncAddr(__int64 ExportIndexTable, unsigned int EntryCount, 
 __int64 *LookupModuleByName(const char *ModuleName, __int64 *OutBaseAddress);
 __int64 LookupMsrTableEntry(void);
 char MatchObjectTypeEntry(__int64 Target, __int64 TableBase);
-__int64 MatchObjectTypeFilterCallback(_QWORD *a1, _QWORD *a2, __int64 a3);
-__int64 MatchObjectTypeFilterCallbackV2(_QWORD *a1, _QWORD *a2, __int64 a3);
+__int64 MatchObjectTypeFilterCallback(_QWORD *ObjectEntry, _QWORD *Context, __int64 TypeFilter);
+__int64 MatchObjectTypeFilterCallbackV2(_QWORD *ObjectEntry, _QWORD *Context, __int64 TypeFilter);
 __int64 MatchSystemProcessName(_QWORD *Process);
 void Md5Final(PMD5_CONTEXT Context, PUCHAR Digest);
 void Md5Final2(PMD5_CONTEXT Context, PUCHAR Digest);
@@ -1690,7 +2170,7 @@ NTSTATUS MiniFilterReleaseForCcFlush(void);
 NTSTATUS MiniFilterReleaseForModWrite(void);
 NTSTATUS MiniFilterServerContext(void);
 NTSTATUS MiniFilterStreamHandle(void);
-char MiniFilterStreamHandleEx(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 a3, __int64 BaseOffset);
+char MiniFilterStreamHandleEx(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 StreamHandle, __int64 BaseOffset);
 __int64 ModuleOperation(__int64 *pInputBuffer, unsigned int InputSize);
 __int64 ModuleOperationDispatch(void *InputBuffer, int BufferSize);
 void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
@@ -1704,23 +2184,23 @@ __int64 OpenFileSection(__int64 EncodedPath);
 __int64 OpenKbdClassDriverSection(void);
 __int64 OpenMountMgrDriverSection(void);
 char OpenMountPointManagerDevice(_QWORD ObjectBody);
-__int64 OpenPhysicalDiskDevice(__int16 *a1, void *a2, void **a3);
-__int64 OpenSectionWithIoControl(__int64 DeviceHandle);
+__int64 OpenPhysicalDiskDevice(__int16 *DevicePath, void *DeviceHandle, void **ppFileHandle);
+bool OpenSectionWithIoControl(__int64 DeviceHandle);
 __int64 OpenTcpIpDriverSection(void);
 __int64 OpenWdfDriverSection(void);
 __int64 OpenWin32kSection(void);
 __int64 OpenWin32kSysSection(void);
 __int64 ParseExportDirForDriver(__int64 DriverInfo, __int64 Context, __int64 PeBuffer, unsigned int PeSize);
 void __fastcall ParseExportSectionAndIndex(__int64 ImageBase, unsigned int ImageSize, unsigned int RegRefCount);
-char ParseFilePathForSystemRoot(__int16 **a1, _DWORD *a2);
+char ParseFilePathForSystemRoot(__int16 **pPathString, _DWORD *pPathLength);
 void ParseFsFilterDriverExport(char Is64Bit);
-__int64 ParseKernelDataSectionRelocs(__int64 a1, unsigned int a2);
+__int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize);
 __int64 ParseKernelModuleDiskInfo(void);
 char ParseNtExportDir(PUCHAR ImageBase, ULONG ExportDirSize, ULONG64 ImageBaseUnused, int Flags);
-char ParseNtHeaders(unsigned __int16 *a1, unsigned int SectionNameLength);
+char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLength);
 __int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray);
 char ParseNtImageSectionHeadersForProcess(PRKPROCESS PROCESS, __int64 SectionInfoArray);
-char ParseNtKernelDataOffsets(__int64 a1, unsigned int a2);
+char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize);
 char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize);
 void ParseObjectContextExportDir(void);
 char ParsePESectionHeaders(__int64 PeBase, unsigned int PeSize, __int64 SectionName, unsigned __int8 *NameToMatch, unsigned int *OutOffset);
@@ -1728,19 +2208,19 @@ void ParseRegistryDriverExportDir(void);
 char PatchFsFilterDriverIndex(__int64 PatchEntry, char Is64Bit);
 __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize);
 __int64 PowerCallbackUnregister(HANDLE *InputBuffer, int BufferSize);
-char PrepareFileForPageTableScan(char *VirtualAddress, char a2);
+char PrepareFileForPageTableScan(char *VirtualAddress, char Flags);
 char ProcessCallbackRoutine(__int64 Reserved, __int64 Reserved2, _DWORD *OutputBuffer, unsigned int BufferSize);
 __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize);
 __int64 ProcessOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 ProcessOperationWithAttach(void);
-char QueryDeviceObjectInfo(__int64 a1, __int64 *a2);
-char QueryDevicePathFromSymbolicLink(__int64 a1, void **a2, _DWORD *a3);
+char QueryDeviceObjectInfo(__int64 DeviceObject, __int64 *pDeviceInfo);
+char QueryDevicePathFromSymbolicLink(__int64 SymLink, void **pPathBuffer, _DWORD *pPathLength);
 __int64 QueryDiskFsControlInfo(__int16 *FilePath, __int64 Size, char **OutBuffer, __int64 *OutBufferSize);
-__int64 QueryDiskFsControlInfoEx(void *FileHandle, __int64 a2, unsigned int a3, unsigned int a4, unsigned __int64 a5, char *a6);
+__int64 QueryDiskFsControlInfoEx(void *FileHandle, __int64 InputHeader, unsigned int DesiredAccess, unsigned int SectorSize, unsigned __int64 TotalBytes, char *WriteBuffer);
 
-__int64 QueryKernelMemoryByAddress(PVOID ***VirtualAddress, char a2);
+__int64 QueryKernelMemoryByAddress(PVOID ***VirtualAddress, char Flags);
 
-char QueryObjectNameByAddress(unsigned __int64 a1, _QWORD *a2, _DWORD *a3);
+char QueryObjectNameByAddress(unsigned __int64 ObjectAddress, _QWORD *pNameBuffer, _DWORD *pNameLength);
 __int64 QueryObjectNameByType(PVOID Object, POBJECT_NAME_INFORMATION ObjectNameInfo, ULONG Length, PULONG ReturnLength);
 char QueryObjectNameInfo(ULONG64 ObjectAddress, WORD *TargetName, ULONG NameLength, _QWORD *OutBuffer, _DWORD *OutSize);
 char QueryObjectNameLegacy(_QWORD *Object, _QWORD *NameBuffer, _DWORD *NameLength);
@@ -1751,33 +2231,33 @@ __int64 QueryObjectTypeInformation(PVOID Object);
 __int64 QueryPhysicalDiskInfo(void *FileHandle, _QWORD *pDeviceObject, void **pPhysicalHandle);
 
 char QueryProcessMemoryRegions(__int64 ProcessId, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 QueryProcessModuleInfo(volatile void **Address, int a2, _DWORD *a3, unsigned int a4);
+__int64 QueryProcessModuleInfo(volatile void **Address, int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
 __int64 QuerySsdHookByProcessInfo(void *Src, size_t MaxCount, _DWORD *Address, int OutputSize);
-__int64 QuerySyscallHookStatus(__int64 a1);
+__int64 QuerySyscallHookStatus(__int64 TargetAddress);
 
 unsigned int ReadDiskSectors(void);
-__int64 ReadDiskSectorsWithAlloc(__int64 a1);
-__int64 ReadDiskSectorsWithPartition(char a1, void *a2, unsigned int *a3, int a4, unsigned int a5);
+__int64 ReadDiskSectorsWithAlloc(__int64 BufferSize);
+__int64 ReadDiskSectorsWithPartition(char IsRead, void *Buffer, unsigned int *pSectorCount, int SectorCount, unsigned int BufferSize);
 char ReadFileIntoBuffer(__int64 SrcAddress, unsigned int BufferSize, char *DstBuffer);
 __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char RequirePeHeader);
-void ReadGdtr(void *a1);
+void ReadGdtr(void *pGdtr);
 char ReadKernelExportDirFile(_QWORD *OutBuffer, unsigned int *OutSize);
-__int64 ReadKernelMemoryToUserBuffer(__int64 a1, __int64 a2, _QWORD *a3, int a4);
+__int64 ReadKernelMemoryToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, _QWORD *pOutputBuffer, int BufferSize);
 char __fastcall ReadModuleFileToBuffer( const char *ModuleName, void **ppBuffer, unsigned int *pFileSize, __int64 *pExportDirBase);
 
 __int64 ReadNtFilePartial(WORD *FilePath, void *Buffer, ULONG Size, char RequirePeHeader);
 char ReadNtFileToBuffer(PUCHAR Src, ULONG MaxCount, PUCHAR *OutBuffer, PULONG OutSize);
-__int64 ReadNtOsKrnlFile(__int64 *a1, __int64 *a2);
+__int64 ReadNtOsKrnlFile(__int64 *pBuffer, __int64 *pSize);
 char ReadNtoskrnlFile(void);
-__int64 ReadObjectBodyOffset(PVOID ***VirtualAddress, char a2);
-__int64 ReadObjectHeaderCreateInfo(PVOID ***VirtualAddress, char a2);
+__int64 ReadObjectBodyOffset(PVOID ***VirtualAddress, char Flags);
+__int64 ReadObjectHeaderCreateInfo(PVOID ***VirtualAddress, char Flags);
 __int64 ReadObjectHeaderField(PVOID ***VirtualAddress, unsigned int FieldOffset, char DerefFirst);
-__int64 ReadObjectHeaderHandle(PVOID ***VirtualAddress, char a2);
-__int64 ReadObjectHeaderName(PVOID ***VirtualAddress, char a2);
-__int64 ReadObjectHeaderQuota(PVOID ***VirtualAddress, char a2);
-__int64 ReadObjectHeaderType(PVOID ***VirtualAddress, char a2);
-__int64 ReadObjectNameFromCallback(__int64 a1, __int64 a2, __int64 (__fastcall *Callback)(__int64, ULONG64, __int64));
-__int64 ReadObjectTypeOffset(PVOID ***VirtualAddress, char a2);
+__int64 ReadObjectHeaderHandle(PVOID ***VirtualAddress, char Flags);
+__int64 ReadObjectHeaderName(PVOID ***VirtualAddress, char Flags);
+__int64 ReadObjectHeaderQuota(PVOID ***VirtualAddress, char Flags);
+__int64 ReadObjectHeaderType(PVOID ***VirtualAddress, char Flags);
+__int64 ReadObjectNameFromCallback(__int64 Object, __int64 Context, __int64 (__fastcall *Callback)(__int64, ULONG64, __int64));
+__int64 ReadObjectTypeOffset(PVOID ***VirtualAddress, char Flags);
 __int64 ReadObjectTypeOffsetByIndex(void);
 __int64 ReadPESectionAsmField(PUCHAR Context);
 __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo);
@@ -1788,14 +2268,15 @@ __int64 ReadProcessMemoryString(void *Process, void *Address, char *Buffer, unsi
 __int64 ReadKernelMemoryViaSwap(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize);
 __int64 ReadKernelMemoryViaSwapEx(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize);
 __int64 ReadProcessMemoryWithAttach(void);
-__int64 ReadServiceTableEntries(__int64 OutputBuffer, __int64 a2, char *PeFileData, unsigned int PeFileSize);
+__int64 ReadServiceTableEntries(__int64 OutputBuffer, __int64 UnusedParam, char *PeFileData, unsigned int PeFileSize);
 char ReadSystemDriverFile(_QWORD *OutBuffer, unsigned int *OutSize);
+unsigned __int64 ReadDebugRegisters(unsigned __int64 *pDebugRegisters);
 char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
 NTSTATUS RegNotifyCallback(PVOID CallbackContext, PVOID Argument1, PVOID Argument2);
 void RegisterMiniFilterRegistry(void);
 __int64 RegistryOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 RegistryOperationDispatch(void *InputBuffer, int BufferSize);
-__int64 ReleaseDiskBuffer(__int64 a1);
+__int64 ReleaseDiskBuffer(__int64 DiskObject);
 char ReleaseIrpMonitorContext(char IsAcquired, __int64 DeviceObject, unsigned int IrpMajorFunc, _OWORD *pContextBuffer);
 __int64 ReleaseProcessMemoryBlock(_QWORD *pTargetEntry);
 char __fastcall RelocateExportAddresses(void *Src, size_t MaxCount, int BaseDelta);
@@ -1811,20 +2292,20 @@ __int64 RemoveObjectFromTypeList(PVOID pTargetObject);
 char RemoveObjectListEntry(ULONG64 DevicePath, ULONG64 EntryToRemove);
 ULONG64 RemoveOplockNodeByDwordKey(unsigned int *KeyArray, ULONG Offset, __int64 Context);
 char RemoveRawDriverObject(ULONG64 DriverObject);
-__int64 RemoveServiceEntryFromList(ULONG_PTR *a1, __int64 a2);
-__int64 RemoveServiceEntryFromListEx(__int64 ****a1, __int64 ***a2);
-__int64 RemoveServiceTableNodeWin10(__int64 ***a1, __int64 **a2);
-__int64 RemoveServiceTableNodeWin7(ULONG_PTR *a1, __int64 a2);
+__int64 RemoveServiceEntryFromList(ULONG_PTR *pListHead, __int64 TargetAddress);
+__int64 RemoveServiceEntryFromListEx(__int64 ****pListHead, __int64 ***TargetAddress);
+__int64 RemoveServiceTableNodeWin10(__int64 ***pListHead, __int64 **TargetAddress);
+__int64 RemoveServiceTableNodeWin7(ULONG_PTR *pListHead, __int64 TargetAddress);
 char RemoveTcpipDriverObject(ULONG64 DriverObject);
 char RemoveVolmgrDriverObject(ULONG64 DriverObject);
-__int64 ResetThreadStateFlag(__int64 a1, __int64 a2);
+__int64 ResetThreadStateFlag(__int64 Thread, __int64 FlagOffset);
 __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Context, __int64 RelocBase);
 
-__int64 ResolveDriverEntryAddresses(__int64 a1);
-char ResolveDriverModuleNames(ULONG *a1);
-__int64 ResolveDriverRelativeAddresses(__int64 a1, __int64 a2, int **a3);
+__int64 ResolveDriverEntryAddresses(__int64 DriverInfo);
+char ResolveDriverModuleNames(ULONG *DriverInfoBuffer);
+__int64 ResolveDriverRelativeAddresses(__int64 DriverInfo, __int64 Flags, int **pRelocTable);
 __int64 ResolveKernelModuleBasePair(__int64 CpuNumber, ULONG_PTR *pMsrPair);
-__int64 ResolveKernelModuleIndex(GLOBAL_TABLE_INDEX a1, GLOBAL_TABLE_INDEX a2, GLOBAL_TABLE_INDEX a3);
+__int64 ResolveKernelModuleIndex(GLOBAL_TABLE_INDEX SectionType, GLOBAL_TABLE_INDEX ResultTableIndex, GLOBAL_TABLE_INDEX TargetTableIndex);
 
 // CPU MSR 基址查找函数
 extern __int64 g_HalDispatchTable;
@@ -1842,7 +2323,7 @@ __int64 ResolveKernelObjectAddresses(__int64 pObjectTable);
 __int64 ResolveModuleBaseAddress(void);
 __int64 ResolveModuleEnumBase(void);
 char ResolveObjectHeaderPointer(__int64 ObjectBody, _QWORD *OutHeader);
-__int64 ResolveObjectNamePointer(__int64 a1);
+__int64 ResolveObjectNamePointer(__int64 ObjectAddress);
 __int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, ULONG EntryCount);
 char ResolvePointerSafe(_QWORD *Pointer, _QWORD *OutValue);
 __int64 ResolveServiceTableBase(void);
@@ -1855,11 +2336,11 @@ __int64 ResolveWin32kServiceTableDispatch(__int64 ImageBase, unsigned int ImageS
 __int64 ResolveWin32kServiceTableEx(__int64 ImageBase, unsigned int ImageSize);
 unsigned __int64 RestoreCr0WriteProtect(unsigned __int64 *pOldCr0);
 void RestoreDiskIrpFunctionPointer(char State);
-__int64 RestoreSyscallHookByIndex(char a1, ULONG a2);
+__int64 RestoreSyscallHookByIndex(char TableType, unsigned int HookIndex);
 char ReturnFalseStub(void);
-__int64 ScanDataSectionPattern(__int64 a1, unsigned int a2);
+__int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize);
 __int64 ScanFileForPeSectionInfo(void);
-char ScanKernelMemForFsChanges(ULONG *a1, int a2);
+char ScanKernelMemForFsChanges(ULONG *EntryCountPtr, int ScanSize);
 __int64 ScanKernelModuleDataSectionEx(void);
 __int64 ScanKernelModuleInitSection(void);
 __int64 ScanKernelModulePESections(void);
@@ -1867,15 +2348,15 @@ __int64 ScanKernelModulePageOrRsrcSection(void);
 __int64 ScanKernelModuleSectionByType(void);
 __int64 ScanKernelModuleSectionForWin10(void);
 __int64 ScanKernelModuleSectionForWin10RS3(void);
-__int64 ScanRegValueBodyForRef(ULONG64 a1, ULONG a2, __int64 a3, __int64 a4, int a5, __int64 *a6);
+char ScanRegValueBodyForRef(unsigned __int64 Buffer, unsigned int BufferSize, __int64 Context, __int64 BaseOffset, int MaxDelta, __int64 *pResult);
 
 void ScanVadForModifiedPages(ULONG *OutputBuffer, int MaxModifiedCount);
-__int64 ScanWin32kDriverForPatterns(ULONG_PTR a1, ULONG_PTR a2);
-__int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, int BlockCount, int SectorSize, int a6);
+__int64 ScanWin32kDriverForPatterns(ULONG_PTR PatternBase, ULONG_PTR PatternSize);
+__int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, int BlockCount, int SectorSize, int SectorCount);
 __int64 __fastcall SendDeviceIoControlWithRetry(__int64 Handle, unsigned int IoControlCode, char Flags, _DWORD **OutputHandle, __int64 IoStatusBlock);
-__int64 SendFsctlWithHookSwap(__int64 a1, ULONG a2, __int64 a3, ULONG a4, __int64 a5, int a6, __int64 a7);
+char SendFsctlWithHookSwap(__int64 DeviceHandle, unsigned int IoControlCode, __int64 InputBuffer, unsigned int InputSize, __int64 OutputBuffer, int OutputSize, __int64 Flags);
 
-_DWORD *SendIoControlWithUnicodeString(__int64 a1);
+_DWORD *SendIoControlWithUnicodeString(__int64 UnicodeString);
 __int64 SerializeDataToBuffer(PUCHAR Context);
 __int64 SetCallbackContextEntry(ULONG *pInputEntry);
 __int64 SetDecoderStateFlags(PUCHAR Context);
@@ -1883,7 +2364,7 @@ __int64 SetObjectContextEntry(ULONG *pInputEntry);
 __int64 SetProcessContextEntry(__int64 pInputEntry);
 __int64 SetRegistryContextEntry(ULONG *pInputEntry);
 __int64 SetSyscallContextByIndex(ULONG *pInputEntry);
-__int64 SetUSBPortServiceTableEntry(ULONG *a1);
+__int64 SetUSBPortServiceTableEntry(ULONG *pInputEntry);
 __int64 SetupDecodedInstructionState(PUCHAR OperandOut, PUCHAR DecodeCtx);
 __int64 Sha1HashToDword(char *String);
 char ShutdownCallbackRoutine(ULONG64 InputBuffer, ULONG64 BufferSize, PULONG StateFlags, PUCHAR OutputBuffer);
@@ -1895,7 +2376,7 @@ __int64 StringCompareCaseInsensitive(__int64 Str1, char *Str2, unsigned int MaxL
 __int64 StringCompareCaseInsensitiveV2(__int64 Str1, __int64 Str2);
 __int64 StringLength(_BYTE *String);
 char SwapDiskIrpFunctionPointer(void);
-__int64 *SwapKernelMemoryPointer(__int64 *a1);
+__int64 *SwapKernelMemoryPointer(__int64 *pTarget);
 __int64 __fastcall SwapKernelObjectPointerPreWin10(__int64 Handle, __int64 *OriginalValue);
 __int64 __fastcall SwapKernelObjectPointerWin10(__int64 Handle, __int64 *OriginalValue);
 char SwapPhysicalMemoryQword(GLOBAL_TABLE_INDEX AddressGtIndex, GLOBAL_TABLE_INDEX OldValueGtIndex);
@@ -1905,7 +2386,7 @@ __int64 ThreadOperation(char *pInputBuffer, int InputSize, unsigned int *pOutput
 char TraverseHashTableWithCallback( _QWORD **HashTable, int MaxDepth, __int64 (__fastcall *Callback)(_QWORD *, _QWORD *, __int64),
 
     __int64 Context);
-__int64 UninstallHookSyscall(__int64 a1, unsigned int a2, __int64 a3, __int64 a4);
+__int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __int64 UnlinkFromMemoryBlockList(PVOID *pTargetPointer);
 __int64 UnlinkFromProcessMemoryList(PVOID *pTargetPointer);
 __int64 UnlinkProcessMemoryBlock(ULONG_PTR *pTargetEntry);
@@ -1917,12 +2398,12 @@ char ValidateDriverObjectAddress( __int64 pLdrEntry, __int64 pAddressOverride, c
 
 char __fastcall ValidateEnumerationResult(__int64 pCheckFlagFunc, __int64 CurrentAddr, __int64 Offset);
 __int64 ValidateFsFilterEntries(__int64 FilterContext);
-__int64 ValidateHookEntries(__int64 a1, ULONG a2);
+__int64 ValidateHookEntries(__int64 HookEntries, unsigned int EntryCount);
 char ValidateKernelObject(ULONG64 ObjectAddr, ULONG64 AltAddr, _QWORD *OutContext, ULONG64 *OutProcess);
 void ValidateObjReferences(__int64 Object1, __int64 Object2);
 char ValidateProcessObject(struct _KPROCESS *ProcessObject, struct _KPROCESS *AlternateProcess);
 char ValidateProcessObjectEx(char *VirtualAddress, _DWORD *OutputBuffer, unsigned int BufferSize);
-__int64 ValidateSingleHookEntry(__int64 a1);
+__int64 ValidateSingleHookEntry(__int64 pEntry);
 char __fastcall ValidateUtf8Bytes( unsigned __int64 *BufferPtr, unsigned __int64 BufferEnd, _DWORD *ByteCount, _DWORD *StateFlags, _BYTE *ClassFlags);
 
 char __fastcall ValidateZeroPage(__int64 Address, unsigned __int64 LimitAddress);
@@ -1930,7 +2411,7 @@ __int64 WStringCompare(__int64 Str1, unsigned __int16 *Str2, unsigned int MaxLen
 __int64 WStringCompareCaseInsensitive(__int64 Str1, __int64 Str2);
 __int64 WalkKernelModuleList(ULONG64 *pModuleList, ULONG *pOutputBuffer, ULONG *pMaxEntries);
 char WalkObjectTypeList(_QWORD **NodeStack, int MaxDepth, _DWORD *OutputBuffer, unsigned int MaxBufferSize);
-__int64 WriteDiskSectorsWithPartitionCheck(char a1, const void *a2, ULONG a3);
+__int64 WriteDiskSectorsWithPartitionCheck(char IsWrite, const void *DataBuffer, ULONG SectorCount);
 char SendDiskDeviceInternalIrp(__int64 DeviceObject, struct _IRP *Irp);
 char DispatchDiskIrpWithHookInit(void *DeviceObject, int Direction, void *Buffer, int SectorOffset, unsigned int SectorIndex, unsigned int SectorSize);
 char CheckMbrBootablePartition(void *Buffer);
@@ -1945,7 +2426,7 @@ char CheckBootSectorErrors(__int64, unsigned int);
 __int64 __fastcall ProcessDiskSectorData(__int64 ObjectHandle, __int64 arg2, __int64 arg3, unsigned int arg4);
 
 // 进程枚举与对象类型验证
-char EnumerateProcessList(__int64 a1, __int64 Buffer, unsigned int BufferSize);
+char EnumerateProcessList(__int64 Process, __int64 Buffer, unsigned int BufferSize);
 _QWORD *ValidateObjectTypeList(_QWORD *TypeEntryCheck);
 
 // 系统信息查询辅助
@@ -1971,7 +2452,7 @@ __int64 WriteProcessContextEntryWin7(ULONG *pInputEntry);
 char WriteProcessMemoryBuffer(_QWORD *InputParams);
 char WriteProcessMemoryValue(_QWORD *InputParams);
 void WritePtrToAddress(void);
-__int64 WriteThreadContextEntryWin10(ULONG *a1);
+__int64 WriteThreadContextEntryWin10(ULONG *pInputEntry);
 __int64 ZeroProcessMemoryPages(PRKPROCESS PROCESS);
 
 // PEDecoder globals
@@ -2038,9 +2519,9 @@ __int64 GetProcessContextBase(void);
 __int64 OpenVolumeDriverSection(void);
 bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize);
 bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize);
-char ReadWin32kFullDriverFile(__int64 *a1, unsigned int *a2);
-char ReadWin32kBaseDriverFile(__int64 *a1, unsigned int *a2);
-char VerifyServiceTableDriverFile(__int64 a1, unsigned int a2);
+char ReadWin32kFullDriverFile(__int64 *pBuffer, unsigned int *pSize);
+char ReadWin32kBaseDriverFile(__int64 *pBuffer, unsigned int *pBufferSize);
+char VerifyServiceTableDriverFile(__int64 DiskBuffer, unsigned int DiskSize);
 void BuildProcessContextExportTable(void);
 __int64 QueryObjectOperationByVersion(__int64 ImageBase, int ImageSize, int SectionBase);
 __int64 FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSize, int SectionBase);
@@ -2055,7 +2536,7 @@ void ReadNtOsKrnlAndParseServiceTable(void);
 __int64 ParseServiceTable(char *Src, size_t MaxCount);
 char ParseServiceTableWin8(char *Src, size_t MaxCount);
 char ParseServiceTableWin7(char *Src, size_t MaxCount);
-bool InitProcessAndQueryInfo(struct _KPROCESS *ProcessObject, char a2);
+bool InitProcessAndQueryInfo(struct _KPROCESS *ProcessObject, char Flags);
 __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int64 Context, unsigned __int64 MaxOffset);
 
 // MissingFuncs.c 子函数声明
@@ -2111,9 +2592,9 @@ extern __int64 GtRead(GLOBAL_TABLE_INDEX Index);
 extern __int64 GtWrite(GLOBAL_TABLE_INDEX Index, __int64 Value);
 
 // ===== Missing function declarations needed by MissingFuncs.c =====
-void ExFree(void *a1);
+void ExFree(void *Buffer);
 char FindExportInFileByName(__int64 PeBase, unsigned int PeSize, __int64 OutEntry);
-char ComparePeModuleSignature(char *a1, __int64 a2, unsigned int a3);
+char ComparePeModuleSignature(char *pSignature1, __int64 Signature2, unsigned int SignatureSize);
 __int64 *GtAlloc(enum _GLOBAL_TABLE_INDEX Index);
 __int64 InitHookFunctionTable(void);
 __int64 ResolveKernelModuleFunctionAddrs(void);
@@ -2140,7 +2621,6 @@ __int64 ParseMsrRelatedSections(void);
 __int64 ParseMsrTableFromSections(void);
 __int64 ParseNtExportFunctions(void);
 __int64 ParseNtExportFunctionsV2(void);
-__int64 InitObjectTypeTable(_QWORD a1);
 __int64 LookupMsrTableEntry(void);
 __int64 QueryObjectTypeInformation(PVOID Object);
 char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize);
@@ -2151,7 +2631,7 @@ char RemoveObjectFromLinkedListLegacy(_QWORD *pEntry, __int64 TableIndex);
 char RemoveObjectSingleLinkedListLegacy(_QWORD *pEntry, __int64 TableIndex);
 
 // 以下为新添加的内部函数声明
-char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 a3, __int64 BaseOffset, __int64 (*CallbackFunc)(void));
+char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 ContextFlag, __int64 BaseOffset, __int64 (*CallbackFunc)(void));
 void InitDriverModuleParsing(void);
 __int64 BuildSystemRootPath(void);
 __int64 QuerySystemInfoAllocateBuffers(unsigned int SystemInformationClass, __int64 Argument2, int Argument3, __int64 *pBuffer1, int Buffer1Count, __int64 *pBuffer2, int Buffer2Count, __int64 *pBuffer3, int Buffer3Count, _QWORD *pBuffer4, int Buffer4Count, _DWORD *pRequiredSize);

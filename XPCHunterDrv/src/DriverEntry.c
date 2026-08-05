@@ -30,11 +30,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     NTSTATUS Status;
     PWSTR Buffer;
     PVOID RegistryPathCopy;
-    void *v8;
+    void *RegistryPathCopyPtr;
     wchar_t *BackslashPos;
     const wchar_t *DriverNameStart;
-    __int64 DevNameIdx, SymNameIdx, v14;
-    WCHAR v12, v16;
+    __int64 DevNameIdx, SymNameIdx, NameLength;
+    WCHAR CurrentChar, SymlinkChar;
     struct _UNICODE_STRING DestStr, SymStr;
     PDEVICE_OBJECT DeviceObject;
 
@@ -64,15 +64,15 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
         return Status;
 
     RegistryPathCopy = ExAlloc(PagedPool, RegistryPath->Length + 2);
-    v8 = RegistryPathCopy;
+    RegistryPathCopyPtr = RegistryPathCopy;
     if (!RegistryPathCopy) return Status;
 
     memset(RegistryPathCopy, 0, RegistryPath->Length + 2);
-    memmove(v8, RegistryPath->Buffer, RegistryPath->Length & 0xFFFE);
+    memmove(RegistryPathCopyPtr, RegistryPath->Buffer, RegistryPath->Length & 0xFFFE);
 
-    BackslashPos = wcsrchr((const wchar_t *)v8, L'\\');
+    BackslashPos = wcsrchr((const wchar_t *)RegistryPathCopyPtr, L'\\');
     if (!BackslashPos || !BackslashPos[1])
-        DriverNameStart = (const wchar_t *)v8;
+        DriverNameStart = (const wchar_t *)RegistryPathCopyPtr;
     else
         DriverNameStart = BackslashPos + 1;
 
@@ -112,7 +112,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     Status = IoCreateSymbolicLink(&SymStr, &DestStr);
     if (Status < 0) { IoDeleteDevice(DeviceObject); goto Cleanup2; }
 
-    GtWrite(GtRegPathStringPtr, (__int64)v8);
+    GtWrite(GtRegPathStringPtr, (__int64)RegistryPathCopyPtr);
     InitCommandHandlerTable();
     DriverObject->DriverUnload = (PDRIVER_UNLOAD)DriverUnload;
     DriverObject->MajorFunction[IRP_MJ_CREATE] = (PDRIVER_DISPATCH)DispatchCreateClose;
@@ -124,7 +124,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 Cleanup2:
     CleanupNtoskrnlFile();
 Cleanup1:
-    ExFree(v8);
+    ExFree(RegistryPathCopyPtr);
     return Status;
 }
 
@@ -280,8 +280,8 @@ __int64 InitCallbackFunctions(void)
 char InvokeRegisteredCallbackWithUserData(unsigned int *Address, int InputSize)
 {
     char Result = 0;
-    ULONG64 v5;
-    void (__fastcall *v6)(ULONG64, ULONG64);
+    ULONG64 CallbackFuncAddr;
+    void (__fastcall *CallbackFuncPtr)(ULONG64, ULONG64);
     ULONG BuildNumber;
     ULONG64 Index1996;
 
@@ -291,17 +291,17 @@ char InvokeRegisteredCallbackWithUserData(unsigned int *Address, int InputSize)
         InitKernelMemoryContext();
         Index1996 = GtRead(1996);
     }
-    v5 = Index1996;
-    v6 = (void (__fastcall *)(ULONG64, ULONG64))v5;
+    CallbackFuncAddr = Index1996;
+    CallbackFuncPtr = (void (__fastcall *)(ULONG64, ULONG64))CallbackFuncAddr;
 
-    if (v5 && v5 > (ULONG64)MmSystemRangeStart && Address &&
+    if (CallbackFuncAddr && CallbackFuncAddr > (ULONG64)MmSystemRangeStart && Address &&
         InputSize == 16 && (ULONG64)Address < MmUserProbeAddress &&
         (ULONG64)(Address + 4) < MmUserProbeAddress)
     {
         ProbeForRead(Address, 0x10, 4);
         BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
         if (BuildNumber >= 0x23F0 || BuildNumber == 7600 || BuildNumber == 7601)
-            v6(*Address, *((ULONG64 *)Address + 1));
+            CallbackFuncPtr(*Address, *((ULONG64 *)Address + 1));
         return 1;
     }
     return Result;
@@ -1688,61 +1688,61 @@ __int64 InitEprocessOffsetsWin8(void)
 // 对应原始驱动 sub_140026E78
 __int64 InitEprocessOffsetsWin81(void)
 {
-    char v0;
-    __int64 v1;
-    unsigned int v2;
-    __int64 v3;
-    __int64 v4;
-    int v5;
-    unsigned int v6;
-    char v7;
+    char SectionFound;
+    __int64 ExportDirVa;
+    unsigned int ExportDirSize;
+    __int64 ServiceTableBase;
+    __int64 NtoskrnlBase;
+    int NtoskrnlImageSize;
+    unsigned int SectionOffset;
+    char IsWin81Update;
     unsigned int i;
     int Field38Offset;
     unsigned int Field43Offset;
-    __int64 v11;
-    int v12 = 0;
-    int v13;
-    __int64 v15;
+    __int64 EprocessField130Val;
+    int EprocessField94Val = 0;
+    int ObjectTypeCountVal;
+    __int64 CallbackField75Val;
     __int64 NtCreateThreadHookSuccess;
-    __int64 v17;
-    __int64 v18;
-    __int64 v19;
-    __int64 v20;
-    char v22 = 0;
-    __int64 v23;
-    __int64 v24 = 0;
-    _DWORD v25[8];
-    char v26 = 0;
-    int v27 = 0;
-    __int64 v28 = 0;
-    unsigned int v29 = 0;
-    __int64 v30 = 0;
+    __int64 CallbackField101Val;
+    __int64 EprocessField34Val;
+    __int64 FltPeSectionOfs3Val;
+    __int64 FltPeSectionAddrVal;
+    char DefaultFlag = 0;
+    __int64 PeSectionReadContext;
+    __int64 SectionCharacteristics = 0;
+    _DWORD SectionEntryBuf[8];
+    char CharacteristicsFlags = 0;
+    int SectionCharaCheck = 0;
+    __int64 SectionNameCheck = 0;
+    unsigned int SectionVirtualSize = 0;
+    __int64 SectionEntryPtr = 0;
 
-    v0 = 0;
-    v1 = GtRead(GtEprocessField22);
-    v2 = (unsigned int)GtRead(GtEprocessField23);
-    v3 = GtRead(GtEprocessField24);
-    v4 = GtRead(GtNtoskrnlModuleBase);
-    v5 = (int)GtRead(GtNtoskrnlImageSize);
-    if (v1 && v2 && v3 && v4 && v5 && (v6 = (unsigned int)GtRead(GtTotalSize | GtEprocessField94 | 0x400)) != 0 && v6 < v2)
+    SectionFound = 0;
+    ExportDirVa = GtRead(GtEprocessField22);
+    ExportDirSize = (unsigned int)GtRead(GtEprocessField23);
+    ServiceTableBase = GtRead(GtEprocessField24);
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    NtoskrnlImageSize = (int)GtRead(GtNtoskrnlImageSize);
+    if (ExportDirVa && ExportDirSize && ServiceTableBase && NtoskrnlBase && NtoskrnlImageSize && (SectionOffset = (unsigned int)GtRead(GtTotalSize | GtEprocessField94 | 0x400)) != 0 && SectionOffset < ExportDirSize)
     {
-        InitPESectionReadContext(v1 + v6, v2 - v6, 2, 0, -1, 0, 0, (__int64)&v23);
-        v7 = v22;
+        InitPESectionReadContext(ExportDirVa + SectionOffset, ExportDirSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&PeSectionReadContext);
+        IsWin81Update = DefaultFlag;
         for (i = 0; i < 0x14; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry(&v23, v25))
+            if ((unsigned int)ReadPESectionEntry(&PeSectionReadContext, SectionEntryBuf))
                 break;
-            v24 += v29;
-            if (*(_WORD *)(v30 + 6) == 373 && (v26 & 4) != 0 && v28 == 65601)
+            SectionCharacteristics += SectionVirtualSize;
+            if (*(_WORD *)(SectionEntryPtr + 6) == 373 && (CharacteristicsFlags & 4) != 0 && SectionNameCheck == 65601)
             {
-                v0 = 1;
-                v7 = v27 == 24904;
+                SectionFound = 1;
+                IsWin81Update = SectionCharaCheck == 24904;
             }
         }
     }
     else
     {
-        v7 = v22;
+        IsWin81Update = DefaultFlag;
     }
     GtWrite(GtEprocessExtField01, 64);
     GtWrite(GtEprocessExtBase, 16);
@@ -1809,25 +1809,25 @@ __int64 InitEprocessOffsetsWin81(void)
     GtWrite(GtObjectTypeCount, 1912);
     GtWrite(GtWin32kServiceEntryCount, 433);
     GtWrite(GtEprocessField57, 1038);
-    if (v0 == 1)
+    if (SectionFound == 1)
     {
-        if (v7)
+        if (IsWin81Update)
         {
             GtWrite(GtEprocessField129 | 0x100, 22656);
-            v11 = 22784;
+            EprocessField130Val = 22784;
         }
         else
         {
             GtWrite(GtEprocessField129 | 0x100, 20608);
-            v11 = 20736;
+            EprocessField130Val = 20736;
         }
     }
     else
     {
         GtWrite(GtEprocessField129 | 0x100, 0);
-        v11 = 0;
+        EprocessField130Val = 0;
     }
-    GtWrite(GtEprocessField130 | 0x100, v11);
+    GtWrite(GtEprocessField130 | 0x100, EprocessField130Val);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -1855,9 +1855,9 @@ __int64 InitEprocessOffsetsWin81(void)
     GtWrite(GtKernelDataField43, 1010);
     GtWrite(GtKernelDataField45, 912);
     GtWrite(GtCallbackField55, 113);
-    v12 = (int)GtRead(GtEprocessField94);
-    v13 = (int)GtRead(GtObjectTypeCount);
-    if (v12 == -1 || v12 >= v13)
+    EprocessField94Val = (int)GtRead(GtEprocessField94);
+    ObjectTypeCountVal = (int)GtRead(GtObjectTypeCount);
+    if (EprocessField94Val == -1 || EprocessField94Val >= ObjectTypeCountVal)
         GtWrite(GtEprocessField94, 1716);
     GtWrite(GtObjectTypeField10, 183);
     GtWrite(GtObjectTypeField11, 77);
@@ -1874,10 +1874,10 @@ __int64 InitEprocessOffsetsWin81(void)
     GtWrite(GtWin32kServiceCount, 114);
     GtWrite(GtCallbackField74, 320);
     NtCreateThreadHookSuccess = GtRead(GtNtCreateThreadHookSuccess);
-    v15 = 116;
+    CallbackField75Val = 116;
     if (NtCreateThreadHookSuccess)
-        v15 = 120;
-    GtWrite(GtCallbackField75, v15);
+        CallbackField75Val = 120;
+    GtWrite(GtCallbackField75, CallbackField75Val);
     GtWrite(GtCallbackField76, 232);
     GtWrite(GtCallbackField77, 728);
     GtWrite(GtDeviceObjectProtectOffset, 184);
@@ -1889,10 +1889,10 @@ __int64 InitEprocessOffsetsWin81(void)
     GtWrite(GtTargetProtectionOffset, 188);
     GtWrite(GtCallbackField91, 32);
     GtWrite(GtCallbackField92, 116);
-    v17 = 1504;
+    CallbackField101Val = 1504;
     if (NtCreateThreadHookSuccess)
-        v17 = 1512;
-    GtWrite(GtCallbackField101, v17);
+        CallbackField101Val = 1512;
+    GtWrite(GtCallbackField101, CallbackField101Val);
     GtWrite(GtProcessSectionOffset, 0);
     GtWrite(GtDebugPortOffset, 0);
     GtWrite(GtNtCreateFileSyscallOffset, 167);
@@ -1911,18 +1911,18 @@ __int64 InitEprocessOffsetsWin81(void)
     GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer01, 26);
     GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer02, 27);
     GtWrite(GtEprocessField33 | 0x800, 640);
-    if (v0 == 1)
+    if (SectionFound == 1)
     {
-        if (v7)
-            v18 = 14336;
+        if (IsWin81Update)
+            EprocessField34Val = 14336;
         else
-            v18 = 12288;
+            EprocessField34Val = 12288;
     }
     else
     {
-        v18 = 0;
+        EprocessField34Val = 0;
     }
-    GtWrite(GtEprocessField34 | 0x800, v18);
+    GtWrite(GtEprocessField34 | 0x800, EprocessField34Val);
     if ((ULONG)GtRead(GtEprocessField35 | 0x800) == -1)
         GtWrite(GtEprocessField35 | 0x800, 1600);
     GtWrite(GtCallbackField124, 764);
@@ -1935,18 +1935,18 @@ __int64 InitEprocessOffsetsWin81(void)
     GtWrite(GtObjectListOffset, 1520);
     if (NtCreateThreadHookSuccess)
     {
-        if (v0 != 1 || (v19 = 176, !v7))
-            v19 = 172;
+        if (SectionFound != 1 || (FltPeSectionOfs3Val = 176, !IsWin81Update))
+            FltPeSectionOfs3Val = 172;
     }
     else
     {
-        v19 = 168;
+        FltPeSectionOfs3Val = 168;
     }
-    GtWrite(GtFltPeSectionOfs3 | GtEprocessField54, v19);
+    GtWrite(GtFltPeSectionOfs3 | GtEprocessField54, FltPeSectionOfs3Val);
     GtWrite(GtFltPeSectionAddr3 | GtEprocessField54, 108);
     GtWrite(GtFltPeSectionAddr1 | GtEprocessField86, 116);
-    v20 = GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
-    GtWrite((enum _GLOBAL_TABLE_INDEX)2312, v20);
+    FltPeSectionAddrVal = GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
+    GtWrite((enum _GLOBAL_TABLE_INDEX)2312, FltPeSectionAddrVal);
     GtWrite(GtEprocessField01 | 0x900, 0);
     GtWrite((enum _GLOBAL_TABLE_INDEX)2316, 456);
     return GtWrite(GtEprocessField03 | 0x900, 1597);
@@ -1956,30 +1956,30 @@ __int64 InitEprocessOffsetsWin81(void)
 // 对应原始驱动 sub_14002656C
 __int64 InitEprocessOffsetsWin81_Update(void)
 {
-    char v0;
+    char SectionFound;
     int Win7Sp1EprocessOffset;
-    int v2;
-    int v3;
+    int Field35Val;
+    int IsField35Match;
     int Field38Offset;
     unsigned int Field43Offset;
-    unsigned int v6;
-    __int64 v7;
-    int v8;
-    int v9;
-    __int64 v10;
-    int v12 = 0;
+    unsigned int Field182Val;
+    __int64 EprocessField130Val;
+    int EprocessField94Val;
+    int ObjectTypeCountVal;
+    __int64 EprocessField34Val;
+    int DefaultFlag = 0;
 
-    v0 = 0;
+    SectionFound = 0;
     Win7Sp1EprocessOffset = GetWin7Sp1EprocessOffset();
-    v2 = (int)GtRead(GtEprocessField35 | 0x800);
-    if (v2 == -1)
+    Field35Val = (int)GtRead(GtEprocessField35 | 0x800);
+    if (Field35Val == -1)
     {
-        v3 = v12;
+        IsField35Match = DefaultFlag;
     }
     else
     {
-        v0 = 1;
-        v3 = v2 == 20280;
+        SectionFound = 1;
+        IsField35Match = Field35Val == 20280;
     }
     GtWrite(GtEprocessExtField01, 64);
     GtWrite(GtEprocessExtBase, 16);
@@ -2034,8 +2034,8 @@ __int64 InitEprocessOffsetsWin81_Update(void)
         GtWrite(GtProcessOffset, 528);
     if ((unsigned int)GtRead(GtEprocessField182 | GtEprocessField06 | 0x100) == -1)
         GtWrite(GtEprocessField182 | GtEprocessField06 | 0x100, 48);
-    v6 = GtRead(GtEprocessField182 | GtEprocessField06 | 0x100);
-    GtWrite(GtEprocessField183 | GtEprocessField06 | 0x100, v6 + 8LL);
+    Field182Val = GtRead(GtEprocessField182 | GtEprocessField06 | 0x100);
+    GtWrite(GtEprocessField183 | GtEprocessField06 | 0x100, Field182Val + 8LL);
     GtWrite(GtEprocessField47, (unsigned int)(Win7Sp1EprocessOffset + 1056));
     GtWrite(GtEprocessField48, 760);
     GtWrite(GtEprocessField64, 1232);
@@ -2047,25 +2047,25 @@ __int64 InitEprocessOffsetsWin81_Update(void)
     GtWrite(GtObjectTypeCount, (unsigned int)(2 * Win7Sp1EprocessOffset + 1176));
     GtWrite(GtWin32kServiceEntryCount, 401);
     GtWrite(GtEprocessField57, 827);
-    if (v0 == 1)
+    if (SectionFound == 1)
     {
-        if (v3)
+        if (IsField35Match)
         {
             GtWrite(GtEprocessField129 | 0x100, 19584);
-            v7 = 19712;
+            EprocessField130Val = 19712;
         }
         else
         {
             GtWrite(GtEprocessField129 | 0x100, 17536);
-            v7 = 17664;
+            EprocessField130Val = 17664;
         }
     }
     else
     {
         GtWrite(GtEprocessField129 | 0x100, 0);
-        v7 = 0;
+        EprocessField130Val = 0;
     }
-    GtWrite(GtEprocessField130 | 0x100, v7);
+    GtWrite(GtEprocessField130 | 0x100, EprocessField130Val);
     GtWrite(GtEprocessField95, 452);
     GtWrite(GtEprocessField131 | 0x100, 160);
     GtWrite(GtEprocessField132 | 0x100, 80);
@@ -2093,9 +2093,9 @@ __int64 InitEprocessOffsetsWin81_Update(void)
     GtWrite(GtKernelDataField43, 806);
     GtWrite(GtKernelDataField45, 731);
     GtWrite(GtCallbackField55, 112);
-    v8 = (int)GtRead(GtEprocessField94);
-    v9 = (int)GtRead(GtObjectTypeCount);
-    if (v8 == -1 || v8 >= v9)
+    EprocessField94Val = (int)GtRead(GtEprocessField94);
+    ObjectTypeCountVal = (int)GtRead(GtObjectTypeCount);
+    if (EprocessField94Val == -1 || EprocessField94Val >= ObjectTypeCountVal)
         GtWrite(GtEprocessField94, (unsigned int)(Win7Sp1EprocessOffset + 1096));
     GtWrite(GtObjectTypeField10, 170);
     GtWrite(GtObjectTypeField11, 75);
@@ -2142,18 +2142,18 @@ __int64 InitEprocessOffsetsWin81_Update(void)
     GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer01, 25);
     GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer02, 26);
     GtWrite(GtEprocessField33 | 0x800, 256);
-    if (v0 == 1)
+    if (SectionFound == 1)
     {
-        if (v3)
-            v10 = 11264;
+        if (IsField35Match)
+            EprocessField34Val = 11264;
         else
-            v10 = 9216;
+            EprocessField34Val = 9216;
     }
     else
     {
-        v10 = 0;
+        EprocessField34Val = 0;
     }
-    GtWrite(GtEprocessField34 | 0x800, v10);
+    GtWrite(GtEprocessField34 | 0x800, EprocessField34Val);
     if ((unsigned int)GtRead(GtEprocessField35 | 0x800) == -1)
         GtWrite(GtEprocessField35 | 0x800, -1);
     GtWrite(GtCallbackField124, 1088);
@@ -2177,20 +2177,20 @@ __int64 InitEprocessOffsetsWin10_10240(void)
 {
     int Field38Offset;
     unsigned int Field43Offset;
-    __int64 v9;
-    __int64 v11;
-    __int64 v13;
-    __int64 v14;
-    __int64 v15;
+    __int64 EprocessField64Val;
+    __int64 Win32kEntryCountVal;
+    __int64 EprocessField57Val;
+    __int64 SubsystemField07Val;
+    __int64 KernelDataField45Val;
     int Field94Value;
     int ObjTypeCount;
-    __int64 v18;
-    __int64 v20;
-    __int64 v22;
-    __int64 v24;
-    __int64 v26;
-    __int64 v28;
-    __int64 v30;
+    __int64 ObjectTypeField12Val;
+    __int64 ObjectTypeField30Val;
+    __int64 CallbackField20Val;
+    __int64 CallbackField25Val;
+    __int64 TargetProtectOffsetVal;
+    __int64 NtCreateFileSyscallOffsetVal;
+    __int64 EprocessField49Val;
     __int64 FltPeSectionVal;
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     BOOLEAN Is10240 = (BuildNumber == 10240);
@@ -2251,18 +2251,18 @@ __int64 InitEprocessOffsetsWin10_10240(void)
     GtWrite(GtEprocessField183 | GtEprocessField06 | 0x100, 88);
     GtWrite(GtEprocessField47, 1680);
     GtWrite(GtEprocessField48, 760);
-    v9 = Is10240 ? 1944 : 1928;
-    GtWrite(GtEprocessField64, v9);
+    EprocessField64Val = Is10240 ? 1944 : 1928;
+    GtWrite(GtEprocessField64, EprocessField64Val);
     GtWrite(GtEprocessField52, 1536);
     GtWrite(GtObjectTypeField41, 1664);
     GtWrite(GtEprocessField53, 388);
     GtWrite(GtEprocessField54, 195);
     GtWrite(GtEprocessField55, 340);
     GtWrite(GtObjectTypeCount, 1984);
-    v11 = Is10240 ? 441 : 444;
-    GtWrite(GtWin32kServiceEntryCount, v11);
-    v13 = Is10240 ? 1130 : 1135;
-    GtWrite(GtEprocessField57, v13);
+    Win32kEntryCountVal = Is10240 ? 441 : 444;
+    GtWrite(GtWin32kServiceEntryCount, Win32kEntryCountVal);
+    EprocessField57Val = Is10240 ? 1130 : 1135;
+    GtWrite(GtEprocessField57, EprocessField57Val);
     GtWrite(GtEprocessField129 | 0x100, 22656);
     GtWrite(GtEprocessField130 | 0x100, 22784);
     GtWrite(GtEprocessField95, 484);
@@ -2275,16 +2275,16 @@ __int64 InitEprocessOffsetsWin10_10240(void)
         GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 353);
         GtWrite(GtEprocessField189 | GtEprocessField06 | 0x100, 82);
         GtWrite(GtNtQuerySystemInformationFunc | GtEprocessField54, 415);
-        v14 = 416;
+        SubsystemField07Val = 416;
     }
     else
     {
         GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 356);
         GtWrite(GtEprocessField189 | GtEprocessField06 | 0x100, 82);
         GtWrite(GtNtQuerySystemInformationFunc | GtEprocessField54, 418);
-        v14 = 419;
+        SubsystemField07Val = 419;
     }
-    GtWrite(GtSubsystemConfigBase | GtEprocessField07 | 0x100, v14);
+    GtWrite(GtSubsystemConfigBase | GtEprocessField07 | 0x100, SubsystemField07Val);
     GtWrite(GtKiFastCallEntryAddr | GtEprocessField08, 644);
     GtWrite(GtIrpBufferSize, 31);
     GtWrite(GtObjectTypeField37, 159);
@@ -2303,14 +2303,14 @@ __int64 InitEprocessOffsetsWin10_10240(void)
     if (Is10240)
     {
         GtWrite(GtKernelDataField43, 1101);
-        v15 = 993;
+        KernelDataField45Val = 993;
     }
     else
     {
         GtWrite(GtKernelDataField43, 1105);
-        v15 = 997;
+        KernelDataField45Val = 997;
     }
-    GtWrite(GtKernelDataField45, v15);
+    GtWrite(GtKernelDataField45, KernelDataField45Val);
     GtWrite(GtCallbackField55, 114);
     Field94Value = (int)GtRead(GtEprocessField94);
     ObjTypeCount = (int)GtRead(GtObjectTypeCount);
@@ -2320,27 +2320,27 @@ __int64 InitEprocessOffsetsWin10_10240(void)
     {
         GtWrite(GtObjectTypeField10, 186);
         GtWrite(GtObjectTypeField11, 78);
-        v18 = 179;
+        ObjectTypeField12Val = 179;
     }
     else
     {
         GtWrite(GtObjectTypeField10, 187);
         GtWrite(GtObjectTypeField11, 78);
-        v18 = 180;
+        ObjectTypeField12Val = 180;
     }
-    GtWrite(GtObjectTypeField12, v18);
+    GtWrite(GtObjectTypeField12, ObjectTypeField12Val);
     GtWrite(GtObjectTypeField15 | GtDriverObject, 652);
     GtWrite(GtObjectTypeField16, 732);
-    v20 = Is10240 ? 241 : 243;
-    GtWrite(GtObjectTypeField30, v20);
+    ObjectTypeField30Val = Is10240 ? 241 : 243;
+    GtWrite(GtObjectTypeField30, ObjectTypeField30Val);
     GtWrite(GtKernelDataField01, 35);
     GtWrite(GtCallbackField06, 80);
     GtWrite(GtCallbackField16, 27);
     GtWrite(GtCallbackField18, 42);
-    v22 = Is10240 ? 1025 : 1029;
-    GtWrite(GtCallbackField20, v22);
-    v24 = Is10240 ? 272 : 275;
-    GtWrite(GtCallbackField25, v24);
+    CallbackField20Val = Is10240 ? 1025 : 1029;
+    GtWrite(GtCallbackField20, CallbackField20Val);
+    CallbackField25Val = Is10240 ? 272 : 275;
+    GtWrite(GtCallbackField25, CallbackField25Val);
     GtWrite(GtWin32kServiceCount, 118);
     GtWrite(GtCallbackField74, 320);
     GtWrite(GtCallbackField75, 120);
@@ -2352,15 +2352,15 @@ __int64 InitEprocessOffsetsWin10_10240(void)
     GtWrite(GtTargetDeviceObjectProtectOffset, 204);
     GtWrite(GtDeviceObjectChildPtrOffset, 168);
     GtWrite(GtDeviceObjectTargetPtrOffset, 72);
-    v26 = Is10240 ? 204 : 212;
-    GtWrite(GtTargetProtectionOffset, v26);
+    TargetProtectOffsetVal = Is10240 ? 204 : 212;
+    GtWrite(GtTargetProtectionOffset, TargetProtectOffsetVal);
     GtWrite(GtCallbackField91, 32);
     GtWrite(GtCallbackField92, 124);
     GtWrite(GtCallbackField101, 2728);
     GtWrite(GtProcessSectionOffset, 0);
     GtWrite(GtDebugPortOffset, 0);
-    v28 = Is10240 ? 169 : 170;
-    GtWrite(GtNtCreateFileSyscallOffset, v28);
+    NtCreateFileSyscallOffsetVal = Is10240 ? 169 : 170;
+    GtWrite(GtNtCreateFileSyscallOffset, NtCreateFileSyscallOffsetVal);
     GtWrite(GtCallbackField122, 114);
     GtWrite(GtCallbackField121, 116);
     GtWrite(GtProcessFlagsOffset, 1732);
@@ -2370,8 +2370,8 @@ __int64 InitEprocessOffsetsWin10_10240(void)
     GtWrite(GtEprocessModuleListOffset, 1064);
     GtWrite(GtEprocessField42, 248);
     GtWrite(GtEprocessField41, 48);
-    v30 = Is10240 ? 1544 : 1552;
-    GtWrite(GtEprocessField49, v30);
+    EprocessField49Val = Is10240 ? 1544 : 1552;
+    GtWrite(GtEprocessField49, EprocessField49Val);
     GtWrite(GtDisableHookProtectionAddr2 | GtNtoskrnlModuleBase, 0);
     GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer00, 0);
     GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer01, 0);
@@ -3492,25 +3492,25 @@ __int64 InitEprocessOffsetsWin11(void)
 {
     int Field38Offset;
     unsigned int Field43Offset;
-    __int64 v3;
-    __int64 v5;
-    __int64 v6;
-    __int64 v8;
-    __int64 v9;
-    __int64 v10;
-    __int64 v11;
-    __int64 v13;
+    __int64 EprocessField64Val;
+    __int64 ObjectTypeCountVal;
+    __int64 Win32kEntryCountVal;
+    __int64 EprocessField57Val;
+    __int64 SubsystemField07Val;
+    __int64 CallbackField18Val;
+    __int64 CallbackField20Val;
+    __int64 KernelDataField43Val;
     int Field94Value;
     int ObjTypeCount;
-    __int64 v16;
-    __int64 v17;
-    __int64 v19;
-    __int64 v20;
-    __int64 v22;
-    __int64 v23;
-    __int64 v24;
-    __int64 v25;
-    __int64 v26;
+    __int64 ObjectTypeField12Val;
+    __int64 NtCreateFileSyscallOffsetVal;
+    __int64 Win32kServiceCountVal;
+    __int64 TargetProtectOffsetVal;
+    __int64 EprocessField95Val;
+    __int64 FltPeSectionAddrVal;
+    __int64 EprocessField69Val;
+    __int64 InitHookSyscallAddrVal;
+    __int64 EprocessField01Val;
     __int64 result;
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
 
@@ -3571,42 +3571,42 @@ __int64 InitEprocessOffsetsWin11(void)
     GtWrite(GtEprocessField47, 1336);
     GtWrite(GtEprocessField48, 760);
     if (BuildNumber == 20348 || BuildNumber == 22000)
-        v3 = 2888;
+        EprocessField64Val = 2888;
     else
-        v3 = 2936;
-    GtWrite(GtEprocessField64, v3);
+        EprocessField64Val = 2936;
+    GtWrite(GtEprocessField64, EprocessField64Val);
     GtWrite(GtEprocessField52, 1184);
     GtWrite(GtObjectTypeField41, 1312);
     GtWrite(GtEprocessField53, 388);
     GtWrite(GtEprocessField54, 195);
     GtWrite(GtEprocessField55, 340);
     if (BuildNumber == 20348 || BuildNumber == 22000)
-        v5 = 2288;
+        ObjectTypeCountVal = 2288;
     else
-        v5 = 2304;
-    GtWrite(GtObjectTypeCount, v5);
+        ObjectTypeCountVal = 2304;
+    GtWrite(GtObjectTypeCount, ObjectTypeCountVal);
     if (BuildNumber == 20348)
     {
-        v6 = 477;
+        Win32kEntryCountVal = 477;
     }
     else
     {
-        v6 = 481;
+        Win32kEntryCountVal = 481;
         if (BuildNumber != 22000)
-            v6 = 486;
+            Win32kEntryCountVal = 486;
     }
-    GtWrite(GtWin32kServiceEntryCount, v6);
+    GtWrite(GtWin32kServiceEntryCount, Win32kEntryCountVal);
     if (BuildNumber == 20348 ||
         BuildNumber == 22000 ||
         BuildNumber != 22621)
     {
-        v8 = 1456;
+        EprocessField57Val = 1456;
     }
     else
     {
-        v8 = 1452;
+        EprocessField57Val = 1452;
     }
-    GtWrite(GtEprocessField57, v8);
+    GtWrite(GtEprocessField57, EprocessField57Val);
     GtWrite(GtEprocessField129 | 0x100, 32448);
     GtWrite(GtEprocessField130 | 0x100, 32576);
     GtWrite(GtEprocessField95, 484);
@@ -3619,23 +3619,23 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 386);
         GtWrite(GtEprocessField189 | GtEprocessField06 | 0x100, 82);
         GtWrite(GtNtQuerySystemInformationFunc | GtEprocessField54, 450);
-        v9 = 451;
+        SubsystemField07Val = 451;
     }
     else if (BuildNumber == 22000)
     {
         GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 388);
         GtWrite(GtEprocessField189 | GtEprocessField06 | 0x100, 82);
         GtWrite(GtNtQuerySystemInformationFunc | GtEprocessField54, 454);
-        v9 = 455;
+        SubsystemField07Val = 455;
     }
     else
     {
         GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 392);
         GtWrite(GtEprocessField189 | GtEprocessField06 | 0x100, 82);
         GtWrite(GtNtQuerySystemInformationFunc | GtEprocessField54, 459);
-        v9 = 460;
+        SubsystemField07Val = 460;
     }
-    GtWrite(GtSubsystemConfigBase | GtEprocessField07 | 0x100, v9);
+    GtWrite(GtSubsystemConfigBase | GtEprocessField07 | 0x100, SubsystemField07Val);
     GtWrite(GtKiFastCallEntryAddr | GtEprocessField08, 644);
     if (BuildNumber == 20348)
     {
@@ -3658,7 +3658,7 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtCallbackField20, 1258);
         GtWrite(GtCallbackField55, 110);
         GtWrite(GtCallbackField16, 24);
-        v10 = 39;
+        CallbackField18Val = 39;
     }
     else
     {
@@ -3680,23 +3680,23 @@ __int64 InitEprocessOffsetsWin11(void)
         {
             GtWrite(GtKernelDataField43, 1411);
             GtWrite(GtKernelDataField45, 1202);
-            v11 = 1255;
+            CallbackField20Val = 1255;
         }
         else
         {
-            v13 = 1410;
+            KernelDataField43Val = 1410;
             if (BuildNumber != 22621)
-                v13 = 1414;
-            GtWrite(GtKernelDataField43, v13);
+                KernelDataField43Val = 1414;
+            GtWrite(GtKernelDataField43, KernelDataField43Val);
             GtWrite(GtKernelDataField45, 1201);
-            v11 = 1256;
+            CallbackField20Val = 1256;
         }
-        GtWrite(GtCallbackField20, v11);
+        GtWrite(GtCallbackField20, CallbackField20Val);
         GtWrite(GtCallbackField55, 105);
         GtWrite(GtCallbackField16, 22);
-        v10 = -1;
+        CallbackField18Val = -1;
     }
-    GtWrite(GtCallbackField18, v10);
+    GtWrite(GtCallbackField18, CallbackField18Val);
     Field94Value = (int)GtRead(GtEprocessField94);
     ObjTypeCount = (int)GtRead(GtObjectTypeCount);
     if (Field94Value == -1 || Field94Value >= ObjTypeCount)
@@ -3705,21 +3705,21 @@ __int64 InitEprocessOffsetsWin11(void)
     {
         GtWrite(GtObjectTypeField10, 204);
         GtWrite(GtObjectTypeField11, 78);
-        v16 = 196;
+        ObjectTypeField12Val = 196;
     }
     else if (BuildNumber == 22000)
     {
         GtWrite(GtObjectTypeField10, 205);
         GtWrite(GtObjectTypeField11, 78);
-        v16 = 197;
+        ObjectTypeField12Val = 197;
     }
     else
     {
         GtWrite(GtObjectTypeField10, 207);
         GtWrite(GtObjectTypeField11, 78);
-        v16 = 199;
+        ObjectTypeField12Val = 199;
     }
-    GtWrite(GtObjectTypeField12, v16);
+    GtWrite(GtObjectTypeField12, ObjectTypeField12Val);
     GtWrite(GtObjectTypeField15 | GtDriverObject, 652);
     GtWrite(GtObjectTypeField16, 732);
     if (BuildNumber == 20348)
@@ -3728,7 +3728,7 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtKernelDataField01, 35);
         GtWrite(GtCallbackField06, 80);
         GtWrite(GtCallbackField25, 297);
-        v17 = 183;
+        NtCreateFileSyscallOffsetVal = 183;
     }
     else if (BuildNumber == 22000)
     {
@@ -3736,7 +3736,7 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtKernelDataField01, 35);
         GtWrite(GtCallbackField06, 80);
         GtWrite(GtCallbackField25, 298);
-        v17 = 184;
+        NtCreateFileSyscallOffsetVal = 184;
     }
     else
     {
@@ -3744,16 +3744,16 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtKernelDataField01, 35);
         GtWrite(GtCallbackField06, 80);
         GtWrite(GtCallbackField25, 301);
-        v17 = 186;
+        NtCreateFileSyscallOffsetVal = 186;
     }
-    GtWrite(GtNtCreateFileSyscallOffset, v17);
+    GtWrite(GtNtCreateFileSyscallOffset, NtCreateFileSyscallOffsetVal);
     GtWrite(GtObjectTypeField19, 83);
     GtWrite(GtEprocessModuleEntryCount, 90);
     if (BuildNumber == 20348 || BuildNumber == 22000)
-        v19 = 130;
+        Win32kServiceCountVal = 130;
     else
-        v19 = 131;
-    GtWrite(GtWin32kServiceCount, v19);
+        Win32kServiceCountVal = 131;
+    GtWrite(GtWin32kServiceCount, Win32kServiceCountVal);
     GtWrite(GtCallbackField74, 320);
     GtWrite(GtCallbackField75, 120);
     GtWrite(GtCallbackField76, 232);
@@ -3766,7 +3766,7 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtTargetDeviceObjectProtectOffset, 188);
         GtWrite(GtDeviceObjectChildPtrOffset, 168);
         GtWrite(GtDeviceObjectTargetPtrOffset, 72);
-        v20 = 212;
+        TargetProtectOffsetVal = 212;
     }
     else
     {
@@ -3776,9 +3776,9 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtTargetDeviceObjectProtectOffset, 188);
         GtWrite(GtDeviceObjectChildPtrOffset, 176);
         GtWrite(GtDeviceObjectTargetPtrOffset, 72);
-        v20 = 220;
+        TargetProtectOffsetVal = 220;
     }
-    GtWrite(GtTargetProtectionOffset, v20);
+    GtWrite(GtTargetProtectionOffset, TargetProtectOffsetVal);
     GtWrite(GtCallbackField91, 32);
     GtWrite(GtCallbackField92, 140);
     GtWrite(GtCallbackField101, 1608);
@@ -3802,10 +3802,10 @@ __int64 InitEprocessOffsetsWin11(void)
         GtWrite(GtEprocessField35 | 0x800, 192);
     GtWrite(GtCallbackField124, 1124);
     GtWrite(GtEprocessField94 | 0x800, 23);
-    v22 = 153;
+    EprocessField95Val = 153;
     if (BuildNumber != 20348)
-        v22 = 157;
-    GtWrite(GtEprocessField95 | 0x800, v22);
+        EprocessField95Val = 157;
+    GtWrite(GtEprocessField95 | 0x800, EprocessField95Val);
     GtWrite(GtEprocessModuleListOffset | GtEprocessField24, 21);
     GtWrite(GtEprocessModuleListOffset | GtEprocessField88, 288);
     GtWrite(GtEprocessModuleListOffset | GtPspTerminateThreadAddr, 400);
@@ -3815,29 +3815,29 @@ __int64 InitEprocessOffsetsWin11(void)
     GtWrite(GtFltPeSectionAddr3 | GtEprocessField54, 132);
     GtWrite((enum _GLOBAL_TABLE_INDEX)2304, 280);
     GtWrite(GtFltPeSectionAddr1 | GtEprocessField86, 116);
-    v23 = GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
-    GtWrite((enum _GLOBAL_TABLE_INDEX)2312, v23);
-    v24 = GtRead(GtEprocessField69);
-    v25 = GtRead(GtInitHookSyscallAddress);
-    if (v24 && v25)
+    FltPeSectionAddrVal = GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
+    GtWrite((enum _GLOBAL_TABLE_INDEX)2312, FltPeSectionAddrVal);
+    EprocessField69Val = GtRead(GtEprocessField69);
+    InitHookSyscallAddrVal = GtRead(GtInitHookSyscallAddress);
+    if (EprocessField69Val && InitHookSyscallAddrVal)
     {
-        v26 = (int)v24 - (int)v25;
+        EprocessField01Val = (int)EprocessField69Val - (int)InitHookSyscallAddrVal;
     }
     else if (BuildNumber == 20348)
     {
-        v26 = -320;
+        EprocessField01Val = -320;
     }
     else if (BuildNumber == 22000)
     {
-        v26 = -256;
+        EprocessField01Val = -256;
     }
     else
     {
-        v26 = -320;
+        EprocessField01Val = -320;
         if (BuildNumber != 22621)
-            v26 = -384;
+            EprocessField01Val = -384;
     }
-    GtWrite(GtEprocessField01 | 0x900, v26);
+    GtWrite(GtEprocessField01 | 0x900, EprocessField01Val);
     GtWrite((enum _GLOBAL_TABLE_INDEX)2316, 456);
     GtWrite(GtEprocessField03 | 0x900, 141);
     result = BuildNumber;
@@ -3962,12 +3962,12 @@ void ParseFsFilterDriverExport(char Is64Bit)
 // ScanKernelMemForFsChanges — 扫描内核内存中的文件系统变更
 // 遍历内核内存区域，查找文件系统相关的内存变更，填充输出缓冲区
 // 对应原始驱动 sub_14000D7B0
-char ScanKernelMemForFsChanges(ULONG *a1, int a2)
+char ScanKernelMemForFsChanges(ULONG *EntryCountPtr, int ScanSize)
 {
     char Result = 0;
-    if (!a1 || (unsigned __int64)a1 >= MmUserProbeAddress || a2 <= 0)
+    if (!EntryCountPtr || (unsigned __int64)EntryCountPtr >= MmUserProbeAddress || ScanSize <= 0)
         return Result;
-    *a1 = 0; // EntryCount
+    *EntryCountPtr = 0; // EntryCount
     Result = 1;
     return Result;
 }
@@ -4088,7 +4088,7 @@ void ScanVadForModifiedPages(ULONG *OutputBuffer, int MaxModifiedCount)
 // ScanWin32kDriverForPatterns — 扫描 Win32k 驱动查找模式
 // 在 win32k.sys/win32kfull.sys 中搜索特定字节模式（如 SSDT 基址、回调地址等）
 // 对应原始驱动 sub_140052320
-__int64 ScanWin32kDriverForPatterns(ULONG_PTR a1, ULONG_PTR a2)
+__int64 ScanWin32kDriverForPatterns(ULONG_PTR PatternBase, ULONG_PTR PatternSize)
 {
     __int64 Result = 0;
     __int64 Win32kBase = GtRead(GtWin32kBase);

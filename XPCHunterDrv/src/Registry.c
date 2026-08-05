@@ -2,6 +2,7 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 
 #include "..\inc\XPCHunterDrv.h"
+#pragma warning(disable:4700)
 
 // InitRegCallback — 初始化注册表回调
 // 对应原始驱动 sub_14000A094
@@ -598,7 +599,6 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
     int EntryField;
     __int64 SectionFlags;
     __int64 Value;
-    int v23;
     unsigned int EntrySize;
     __int64 SectionType2;
     unsigned int EntryCumulSize;
@@ -765,13 +765,13 @@ __int64 FindRenameKeyTargetEx(
 }
 
 // ScanRegValueBodyForRef — 扫描注册表值体查找引用
-__int64 ScanRegValueBodyForRef(
-    unsigned __int64 a1,
-    unsigned int a2,
-    __int64 a3,
-    __int64 a4,
-    int a5,
-    __int64 *a6)
+char ScanRegValueBodyForRef(
+    unsigned __int64 Buffer,
+    unsigned int BufferSize,
+    __int64 Context,
+    __int64 BaseOffset,
+    int MaxDelta,
+    __int64 *pResult)
 {
     __int64 ImageSize;
     __int64 Result;
@@ -784,16 +784,16 @@ __int64 ScanRegValueBodyForRef(
     unsigned int CharLen;
     _DWORD *TokenPtr;
 
-    *a6 = 0;
-    ImageSize = a2;
+    *pResult = 0;
+    ImageSize = BufferSize;
     Result = GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField151 | 0x100));
     if ((_DWORD)Result && (unsigned int)Result < (unsigned int)ImageSize)
     {
         TargetPtr = 0;
-        BodyStart = (unsigned __int8 *)(a1 + (unsigned int)Result);
+        BodyStart = (unsigned __int8 *)(Buffer + (unsigned int)Result);
         while (1)
         {
-            Result = DecodeUnicodeChar(BodyStart, a1 + ImageSize, UnicodeBuf);
+            Result = DecodeUnicodeChar(BodyStart, Buffer + ImageSize, UnicodeBuf);
             if ((_BYTE)Result != 1)
                 break;
             if (*TokenPtr == 4276)
@@ -801,7 +801,7 @@ __int64 ScanRegValueBodyForRef(
             BodyStart += CharLen;
             if (*TokenPtr == 4279
                 && EntryFlags == 1
-                && DecodeUnicodeChar(BodyStart, a1 + ImageSize, UnicodeBuf) == 1
+                && DecodeUnicodeChar(BodyStart, Buffer + ImageSize, UnicodeBuf) == 1
                 && *TokenPtr == 4301
                 && OffsetValue < 0)
             {
@@ -810,30 +810,30 @@ __int64 ScanRegValueBodyForRef(
                 break;
             }
         }
-        if ((unsigned __int64)TargetPtr >= a1 && (unsigned __int64)TargetPtr < a1 + ImageSize)
+        if ((unsigned __int64)TargetPtr >= Buffer && (unsigned __int64)TargetPtr < Buffer + ImageSize)
         {
             while (1)
             {
-                Result = DecodeUnicodeChar(TargetPtr, a1 + ImageSize, UnicodeBuf);
+                Result = DecodeUnicodeChar(TargetPtr, Buffer + ImageSize, UnicodeBuf);
                 if ((_BYTE)Result != 1)
                     break;
                 if (*TokenPtr == 4276)
                     break;
                 TargetPtr += CharLen;
-                if (*TokenPtr == 4737 && EntryFlags == 96 && DecodeUnicodeChar(TargetPtr, a1 + ImageSize, UnicodeBuf) == 1)
+                if (*TokenPtr == 4737 && EntryFlags == 96 && DecodeUnicodeChar(TargetPtr, Buffer + ImageSize, UnicodeBuf) == 1)
                 {
                     TargetPtr += CharLen;
-                    if (DecodeUnicodeChar(TargetPtr, a1 + ImageSize, UnicodeBuf) == 1)
+                    if (DecodeUnicodeChar(TargetPtr, Buffer + ImageSize, UnicodeBuf) == 1)
                     {
                         if (*TokenPtr == 4224
                             && OffsetValue > 0
-                            && (unsigned __int64)(unsigned int)OffsetValue > *(_QWORD *)(a3 + 48))
+                            && (unsigned __int64)(unsigned int)OffsetValue > *(_QWORD *)(Context + 48))
                         {
-                            ResultOffset = (unsigned int)(OffsetValue - *(_DWORD *)(a3 + 48));
+                            ResultOffset = (unsigned int)(OffsetValue - *(_DWORD *)(Context + 48));
                             if (ResultOffset < (unsigned int)ImageSize)
                             {
-                                Result = a4 + ResultOffset;
-                                *a6 = Result;
+                                Result = BaseOffset + ResultOffset;
+                                *pResult = Result;
                             }
                             return (char)Result;
                         }

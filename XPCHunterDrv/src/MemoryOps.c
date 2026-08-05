@@ -59,7 +59,7 @@ char WritePhysicalMemory(unsigned __int64 TargetAddress, __int64 pWriteContext)
     __int32 DwordValue;
     char *MappedVa;
     void *MappedBuffer;
-    volatile __int32 *v14;
+    volatile __int32 *pExchangePtr;
 
     Mdl = IoAllocateMdl(
         (PVOID)(TargetAddress & 0xFFFFFFFFFFFFF000ui64),
@@ -75,11 +75,11 @@ char WritePhysicalMemory(unsigned __int64 TargetAddress, __int64 pWriteContext)
             MappedBuffer = MappedVa;
             if (MappedVa)
             {
-                v14 = (volatile __int32 *)&MappedVa[TargetAddress & 0xFFF];
+                pExchangePtr = (volatile __int32 *)&MappedVa[TargetAddress & 0xFFF];
                 if (*(_BYTE *)pWriteContext)
-                    InterlockedExchange(v14, *(_DWORD *)(pWriteContext + 8));
+                    InterlockedExchange(pExchangePtr, *(_DWORD *)(pWriteContext + 8));
                 else
-                    InterlockedExchange64((volatile __int64 *)v14, *(_QWORD *)(pWriteContext + 8));
+                    InterlockedExchange64((volatile __int64 *)pExchangePtr, *(_QWORD *)(pWriteContext + 8));
                 MmUnmapLockedPages(MappedBuffer, Mdl);
                 Success = 1;
             }
@@ -209,8 +209,8 @@ char AtomicExchange16Bytes(__int64 Source, _OWORD *ExchangeData)
 {
     char Result;
     char *TargetPtr;
-    PMDL Mdl, v7;
-    char *MappedSystemVa, *v9;
+    PMDL Mdl;
+    char *MappedSystemVa, *MappedVa;
     UCHAR CurrentIrql;
 
     Result = 0;
@@ -228,30 +228,30 @@ char AtomicExchange16Bytes(__int64 Source, _OWORD *ExchangeData)
         (PVOID)((ULONG64)TargetPtr & 0xFFFFFFFFFFFFF000ULL),
         (((WORD)TargetPtr & 0xFFF) + 4111) & 0xFFFFF000,
         FALSE, FALSE, NULL);
-    v7 = Mdl;
+    Mdl = Mdl;
     if (!Mdl)
         return Result;
 
     MmProbeAndLockPages(Mdl, KernelMode, IoWriteAccess);
 
-    if ((v7->MdlFlags & 5) != 0)
-        MappedSystemVa = (char *)v7->MappedSystemVa;
+    if ((Mdl->MdlFlags & 5) != 0)
+        MappedSystemVa = (char *)Mdl->MappedSystemVa;
     else
-        MappedSystemVa = (char *)MmMapLockedPagesSpecifyCache(v7, KernelMode, MmCached, NULL, FALSE, 0x10);
+        MappedSystemVa = (char *)MmMapLockedPagesSpecifyCache(Mdl, KernelMode, MmCached, NULL, FALSE, 0x10);
 
     if (MappedSystemVa)
     {
-        v9 = &MappedSystemVa[(WORD)TargetPtr & 0xFFF];
+        MappedVa = &MappedSystemVa[(WORD)TargetPtr & 0xFFF];
         CurrentIrql = KeGetCurrentIrql();
         __writecr8(2);
-        *ExchangeData = *(_OWORD *)v9;
-        *(_OWORD *)v9 = *(_OWORD *)(Source + 16);
+        *ExchangeData = *(_OWORD *)MappedVa;
+        *(_OWORD *)MappedVa = *(_OWORD *)(Source + 16);
         Result = 1;
         __writecr8(CurrentIrql);
     }
 
-    MmUnlockPages(v7);
-    IoFreeMdl(v7);
+    MmUnlockPages(Mdl);
+    IoFreeMdl(Mdl);
     return Result;
 }
 
@@ -260,51 +260,51 @@ char AtomicExchange16Bytes(__int64 Source, _OWORD *ExchangeData)
 
 // ReadObjectHeaderCreateInfo — 读取对象头创建信息
 // 对应原始驱动 sub_14006E960
-__int64 ReadObjectHeaderCreateInfo(PVOID ***VirtualAddress, char a2)
+__int64 ReadObjectHeaderCreateInfo(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField05), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField05), Flags);
 }
 
 // ReadObjectHeaderName — 读取对象头名称
 // 对应原始驱动 sub_14006E990
-__int64 ReadObjectHeaderName(PVOID ***VirtualAddress, char a2)
+__int64 ReadObjectHeaderName(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField06), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField06), Flags);
 }
 
 // ReadObjectHeaderType — 读取对象头类型
 // 对应原始驱动 sub_14006E9C0
-__int64 ReadObjectHeaderType(PVOID ***VirtualAddress, char a2)
+__int64 ReadObjectHeaderType(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField07), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField07), Flags);
 }
 
 // ReadObjectHeaderQuota — 读取对象头配额
 // 对应原始驱动 sub_14006E9F0
-__int64 ReadObjectHeaderQuota(PVOID ***VirtualAddress, char a2)
+__int64 ReadObjectHeaderQuota(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField08), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField08), Flags);
 }
 
 // ReadObjectHeaderHandle — 读取对象头句柄
 // 对应原始驱动 sub_14006EA20
-__int64 ReadObjectHeaderHandle(PVOID ***VirtualAddress, char a2)
+__int64 ReadObjectHeaderHandle(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField09), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField09), Flags);
 }
 
 // ReadObjectTypeOffset — 读取对象类型偏移
 // 对应原始驱动 sub_14006EAE8
-__int64 ReadObjectTypeOffset(PVOID ***VirtualAddress, char a2)
+__int64 ReadObjectTypeOffset(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField08), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField08), Flags);
 }
 
 // ReadObjectBodyOffset — 读取对象体偏移
 // 对应原始驱动 sub_14006EB18
-__int64 ReadObjectBodyOffset(PVOID ***VirtualAddress, char a2)
+__int64 ReadObjectBodyOffset(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField10), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField10), Flags);
 }
 
 // ReadWriteVirtualMemory — 读写虚拟内存通用函数
@@ -312,41 +312,41 @@ __int64 ReadObjectBodyOffset(PVOID ***VirtualAddress, char a2)
 bool ReadWriteVirtualMemory(__int64 Process, __int64 SrcAddr, __int64 DstAddr, unsigned int Size)
 {
     bool Result = 0;
-    __int64 (*v6)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *);
-    ULONG v7;
-    int (__fastcall *v8)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *);
-    _QWORD *v9;
-    __int64 v10;
-    void (__fastcall *v11)(_QWORD);
+    __int64 (*pOpenProcessFunc)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *);
+    ULONG ServiceCount;
+    int (__fastcall *pAttachProcessFunc)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *);
+    _QWORD *pServiceCount;
+    __int64 FreeFuncAddr;
+    void (__fastcall *pFreeFunc)(_QWORD);
     struct _KTHREAD *CurrentThread;
-    __int64 v13;
-    char v14;
-    int v15;
-    _BYTE v17[8];
-    _QWORD v18[8];
-    __int64 v19 = SrcAddr;
-    __int64 v20 = DstAddr;
-    unsigned int v21 = Size;
+    __int64 BufferSize;
+    char SavedByte;
+    int CallResult;
+    _BYTE ObjectAttrBuffer[8];
+    _QWORD HandleBuffer[8];
+    __int64 SrcAddrLocal = SrcAddr;
+    __int64 DstAddrLocal = DstAddr;
+    unsigned int CopySize = Size;
 
-    v6 = (__int64 (*)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *))GtRead(GtCallbackField07);
-    if (!v6) { ResolveModuleBaseAddress(); v6 = (__int64 (*)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *))GtRead(GtCallbackField07); }
-    v7 = (ULONG)GtRead(GtSdstServiceCount);
-    v8 = (int (__fastcall *)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *))GtRead(16735);
-    v9 = (_QWORD *)GtRead(16748);
-    v10 = GtRead(GtExFreePoolFunc);
-    v11 = (void (__fastcall *)(_QWORD))v10;
+    pOpenProcessFunc = (__int64 (*)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *))GtRead(GtCallbackField07);
+    if (!pOpenProcessFunc) { ResolveModuleBaseAddress(); pOpenProcessFunc = (__int64 (*)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *))GtRead(GtCallbackField07); }
+    ServiceCount = (ULONG)GtRead(GtSdstServiceCount);
+    pAttachProcessFunc = (int (__fastcall *)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *))GtRead(16735);
+    pServiceCount = (_QWORD *)GtRead(16748);
+    FreeFuncAddr = GtRead(GtExFreePoolFunc);
+    pFreeFunc = (void (__fastcall *)(_QWORD))FreeFuncAddr;
 
-    if (v7 == (ULONG)-1 || !v8 || !v9 || !v10 || !v6) return Result;
+    if (ServiceCount == (ULONG)-1 || !pAttachProcessFunc || !pServiceCount || !FreeFuncAddr || !pOpenProcessFunc) return Result;
 
     CurrentThread = KeGetCurrentThread();
-    if (v8(Process, 512, 0, 0x10000000, *v9, 0, v18) >= 0)
+    if (pAttachProcessFunc(Process, 512, 0, 0x10000000, *pServiceCount, 0, HandleBuffer) >= 0)
     {
-        v14 = *((UCHAR *)CurrentThread + v7);
-        *((UCHAR *)CurrentThread + v7) = 0;
-        v15 = v6(v18[0], &v19, &v20, v21, v17);
-        *((UCHAR *)CurrentThread + v7) = v14;
-        Result = v15 >= 0;
-        v11(v18[0]);
+        SavedByte = *((UCHAR *)CurrentThread + ServiceCount);
+        *((UCHAR *)CurrentThread + ServiceCount) = 0;
+        CallResult = pOpenProcessFunc(HandleBuffer[0], &SrcAddrLocal, &DstAddrLocal, CopySize, ObjectAttrBuffer);
+        *((UCHAR *)CurrentThread + ServiceCount) = SavedByte;
+        Result = CallResult >= 0;
+        pFreeFunc(HandleBuffer[0]);
     }
 
     return Result;
@@ -357,12 +357,12 @@ bool ReadWriteVirtualMemory(__int64 Process, __int64 SrcAddr, __int64 DstAddr, u
 __int64 CmdVirtualMemoryOp(_OWORD *Address, int InputSize)
 {
     bool Result = 0;
-    NTSTATUS v4;
-    struct _KPROCESS *v5, *v6;
+    NTSTATUS LookupStatus;
+    struct _KPROCESS *TargetProcess, *pQueryFunc;
     PEPROCESS Process = NULL;
-    _OWORD v9;
-    _OWORD v11;
-    __int64 v12;
+    _OWORD InputArgs;
+    _OWORD MemoryArgs;
+    __int64 OperationData;
 
     if (!Address || InputSize != 40 ||
         (ULONG64)Address >= MmUserProbeAddress ||
@@ -370,19 +370,19 @@ __int64 CmdVirtualMemoryOp(_OWORD *Address, int InputSize)
         return Result;
 
     ProbeForRead(Address, 0x28, 4);
-    v9 = Address[0];
-    v11 = Address[1];
-    v12 = Address[2].qword[0];
+    InputArgs = Address[0];
+    MemoryArgs = Address[1];
+    OperationData = Address[2].qword[0];
 
-    v4 = PsLookupProcessByProcessId((HANDLE)v9.qword[0], &Process);
-    v5 = (struct _KPROCESS *)Process;
-    if (v4 < 0) v5 = NULL;
-    Process = (PEPROCESS)v5;
-    v6 = (struct _KPROCESS *)v9.qword[1];
-    if (!v6) { if (v4 >= 0) v6 = v5; }
+    LookupStatus = PsLookupProcessByProcessId((HANDLE)InputArgs.qword[0], &Process);
+    TargetProcess = (struct _KPROCESS *)Process;
+    if (LookupStatus < 0) TargetProcess = NULL;
+    Process = (PEPROCESS)TargetProcess;
+    pQueryFunc = (struct _KPROCESS *)InputArgs.qword[1];
+    if (!pQueryFunc) { if (LookupStatus >= 0) pQueryFunc = TargetProcess; }
 
-    if (ValidateProcessObject(v6, NULL) == 1 && v11.qword[1])
-        Result = ReadWriteVirtualMemory((__int64)v6, v11.qword[0], v11.qword[1], v12);
+    if (ValidateProcessObject(pQueryFunc, NULL) == 1 && MemoryArgs.qword[1])
+        Result = ReadWriteVirtualMemory((__int64)pQueryFunc, MemoryArgs.qword[0], MemoryArgs.qword[1], OperationData);
 
     if (Process) ObfDereferenceObject(Process);
     return Result;
@@ -390,19 +390,19 @@ __int64 CmdVirtualMemoryOp(_OWORD *Address, int InputSize)
 
 // SwapKernelMemoryPointer — 交换内核内存指针
 // 对应原始驱动 sub_1400759F8
-__int64 *SwapKernelMemoryPointer(__int64 *a1)
+__int64 *SwapKernelMemoryPointer(__int64 *pTarget)
 {
-    __int64 *v2 = NULL;
+    __int64 *pOldEntry = NULL;
     if (!GtRead(459)) AttachToProcessAndInitKernelMemory();
-    ULONG v3 = (ULONG)GtRead(GtEprocessExtField01);
-    __int64 v4 = GtRead(16854);
-    _QWORD *v5 = (_QWORD *)GtRead(16854);
-    if (v3 && v4 && v5)
+    ULONG Offset = (ULONG)GtRead(GtEprocessExtField01);
+    __int64 NewValue = GtRead(16854);
+    _QWORD *Result = (_QWORD *)GtRead(16854);
+    if (Offset && NewValue && Result)
     {
-        __int64 *v6 = (__int64 *)(*v5 + v3 + (ULONG64)(ULONG)ReadObjectTypeOffsetByIndex());
-        if (*v6 != v4) { *a1 = *v6; v2 = v6; *v6 = v4; }
+        __int64 *ExchangeBuffer = (__int64 *)(*Result + Offset + (ULONG64)(ULONG)ReadObjectTypeOffsetByIndex());
+        if (*ExchangeBuffer != NewValue) { *pTarget = *ExchangeBuffer; pOldEntry = ExchangeBuffer; *ExchangeBuffer = NewValue; }
     }
-    return v2;
+    return pOldEntry;
 }
 
 // CmdReadProcessMemoryEx — 读取进程内存扩展命令
@@ -410,11 +410,11 @@ __int64 *SwapKernelMemoryPointer(__int64 *a1)
 __int64 CmdReadProcessMemoryEx(_OWORD *Address, int InputSize, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     char Result = 0;
-    _OWORD v8;
-    NTSTATUS v9;
-    struct _KPROCESS *v10, *v11;
+    _OWORD Status;
+    NTSTATUS SavedByte;
+    struct _KPROCESS *ServiceCount, *AddressPair;
     PEPROCESS Process = NULL;
-    _OWORD v14;
+    _OWORD AddressPair2;
 
     if (!Address || InputSize != 16 ||
         (ULONG64)Address >= MmUserProbeAddress ||
@@ -426,25 +426,25 @@ __int64 CmdReadProcessMemoryEx(_OWORD *Address, int InputSize, _DWORD *OutputBuf
 
     ProbeForRead(Address, 0x10, 4);
     ProbeForWrite(OutputBuffer, BufferSize, 1);
-    v8 = *Address;
-    v14 = v8;
-    v9 = PsLookupProcessByProcessId((HANDLE)v8.qword[0], &Process);
-    v10 = (struct _KPROCESS *)Process;
-    if (v9 < 0) v10 = NULL;
-    Process = (PEPROCESS)v10;
-    v11 = (struct _KPROCESS *)v8.qword[1];
-    if (!v11) { if (v9 >= 0) v11 = v10; v14.qword[1] = (__int64)v11; }
-    if (ValidateProcessObject(v11, NULL) == 1)
-        Result = QueryProcessMemoryRegions((__int64)v11, OutputBuffer, BufferSize);
+    Status = *Address;
+    AddressPair2 = Status;
+    SavedByte = PsLookupProcessByProcessId((HANDLE)Status.qword[0], &Process);
+    ServiceCount = (struct _KPROCESS *)Process;
+    if (SavedByte < 0) ServiceCount = NULL;
+    Process = (PEPROCESS)ServiceCount;
+    AddressPair = (struct _KPROCESS *)Status.qword[1];
+    if (!AddressPair) { if (SavedByte >= 0) AddressPair = ServiceCount; AddressPair2.qword[1] = (__int64)AddressPair; }
+    if (ValidateProcessObject(AddressPair, NULL) == 1)
+        Result = QueryProcessMemoryRegions((__int64)AddressPair, OutputBuffer, BufferSize);
     if (Process) ObfDereferenceObject(Process);
     return Result;
 }
 
 // QueryKernelMemoryByAddress — 按地址查询内核内存
 // 对应原始驱动 sub_14006E930
-__int64 QueryKernelMemoryByAddress(PVOID ***VirtualAddress, char a2)
+__int64 QueryKernelMemoryByAddress(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField04), a2);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField04), Flags);
 }
 __int64 ReadObjectHeaderField(PVOID ***VirtualAddress, unsigned int FieldOffset, char DerefFirst)
 {
@@ -456,8 +456,8 @@ __int64 ReadObjectHeaderField(PVOID ***VirtualAddress, unsigned int FieldOffset,
     if (!DerefFirst) VirtualAddress = (PVOID ***)*VirtualAddress;
     if (!VirtualAddress || MmIsAddressValid(VirtualAddress) != 1) return Result;
 
-    char *v8 = (char *)VirtualAddress + BaseOffset + FieldOffset;
-    if (MmIsAddressValid(v8) == 1) return *(__int64 *)v8;
+    char *TargetAddr = (char *)VirtualAddress + BaseOffset + FieldOffset;
+    if (MmIsAddressValid(TargetAddr) == 1) return *(__int64 *)TargetAddr;
     return Result;
 }
 
@@ -465,13 +465,13 @@ __int64 ReadObjectHeaderField(PVOID ***VirtualAddress, unsigned int FieldOffset,
 // 对应原始驱动 sub_14006E7F8
 __int64 AttachToProcessAndInitKernelMemory(void)
 {
-    struct _KPROCESS *v0 = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    struct _KPROCESS *TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
     KAPC_STATE ApcState;
 
-    if (IoGetCurrentProcess() == v0) v0 = NULL;
-    if (v0) KeStackAttachProcess(v0, &ApcState);
+    if (IoGetCurrentProcess() == TargetProcess) TargetProcess = NULL;
+    if (TargetProcess) KeStackAttachProcess(TargetProcess, &ApcState);
     InitKernelModuleSectionScan();
-    if (v0) KeUnstackDetachProcess(&ApcState);
+    if (TargetProcess) KeUnstackDetachProcess(&ApcState);
     return GtWrite((GLOBAL_TABLE_INDEX)459, 1);
 }
 
@@ -480,25 +480,25 @@ __int64 AttachToProcessAndInitKernelMemory(void)
 __int64 CmdWriteKernelMemoryRange(void)
 {
     char Result = 0;
-    ULONG v1;
-    _QWORD *v2;
-    __int64 *v3;
+    ULONG HandleTableSize;
+    _QWORD *HandleTablePtr;
+    __int64 *TargetSlot;
     __int64 NtHandleEntry;
 
     if (!GtRead(2000)) InitKernelMemoryContext();
-    v1 = (ULONG)GtRead(2000);
-    v2 = (_QWORD *)GtRead(1992);
+    HandleTableSize = (ULONG)GtRead(2000);
+    HandleTablePtr = (_QWORD *)GtRead(1992);
 
-    if (v2 && (ULONG64)v2 > (ULONG64)MmSystemRangeStart && v1 &&
-        (v1 & 7) == 0 && *v2 > (ULONG64)MmSystemRangeStart)
+    if (HandleTablePtr && (ULONG64)HandleTablePtr > (ULONG64)MmSystemRangeStart && HandleTableSize &&
+        (HandleTableSize & 7) == 0 && *HandleTablePtr > (ULONG64)MmSystemRangeStart)
     {
-        v3 = (__int64 *)(*v2 + v1);
-        if (CheckMemoryValid(v3) == 1)
+        TargetSlot = (__int64 *)(*HandleTablePtr + HandleTableSize);
+        if (CheckMemoryValid(TargetSlot) == 1)
         {
             NtHandleEntry = AllocateNtHandleEntry();
             if (NtHandleEntry)
             {
-                *v3 = NtHandleEntry;
+                *TargetSlot = NtHandleEntry;
                 return 1;
             }
         }
@@ -511,24 +511,24 @@ __int64 CmdWriteKernelMemoryRange(void)
 __int64 CmdCallKernelMemoryFunction(unsigned int *Address, int InputSize)
 {
     char Result = 0;
-    int (__fastcall *v9)(ULONG64);
+    int (__fastcall *pOpenFunc)(ULONG64);
 
     ULONG BuildNum = (ULONG)GtRead(GtWindowsBuildNumber);
-    GLOBAL_TABLE_INDEX v6 = BuildNum >= 0x585D ? (GLOBAL_TABLE_INDEX)2017 : (GLOBAL_TABLE_INDEX)2015;
+    GLOBAL_TABLE_INDEX SavedByte = BuildNum >= 0x585D ? (GLOBAL_TABLE_INDEX)2017 : (GLOBAL_TABLE_INDEX)2015;
 
-    if (!GtRead(v6)) InitKernelMemoryContext();
+    if (!GtRead(SavedByte)) InitKernelMemoryContext();
 
     BuildNum = (ULONG)GtRead(GtWindowsBuildNumber);
-    GLOBAL_TABLE_INDEX v8 = BuildNum >= 0x585D ? (GLOBAL_TABLE_INDEX)2017 : (GLOBAL_TABLE_INDEX)2015;
-    v9 = (int (__fastcall *)(ULONG64))GtRead(v8);
+    GLOBAL_TABLE_INDEX CallResult = BuildNum >= 0x585D ? (GLOBAL_TABLE_INDEX)2017 : (GLOBAL_TABLE_INDEX)2015;
+    pOpenFunc = (int (__fastcall *)(ULONG64))GtRead(CallResult);
 
-    if (v9 && (char *)v9 > (char *)MmSystemRangeStart &&
+    if (pOpenFunc && (char *)pOpenFunc > (char *)MmSystemRangeStart &&
         Address && InputSize == 4 &&
         (ULONG64)Address < MmUserProbeAddress &&
         (ULONG64)(Address + 1) < MmUserProbeAddress)
     {
         ProbeForRead(Address, 4, 4);
-        return v9(*Address) >= 0;
+        return pOpenFunc(*Address) >= 0;
     }
 
     return Result;
@@ -602,71 +602,71 @@ void EnumVadMemoryRegions(__int64 VadNode, _DWORD *OutputBuffer, unsigned int Bu
     ULONG EntryIndex = *OutputBuffer;
     if (544 * (int)EntryIndex + 552 > BufferSize) return;
 
-    __int64 *v6 = *(__int64 **)(VadNode + 72);
-    if (!v6) return;
+    __int64 *pVadRoot = *(__int64 **)(VadNode + 72);
+    if (!pVadRoot) return;
     if (MmIsAddressValid(*(PVOID *)(VadNode + 72)) != 1 ||
-        MmIsAddressValid((char *)v6 + 55) != 1) return;
+        MmIsAddressValid((char *)pVadRoot + 55) != 1) return;
 
-    __int64 v7 = *v6;
-    if (!v7) return;
-    if (MmIsAddressValid((PVOID)v7) != 1 ||
-        MmIsAddressValid((PVOID)(v7 + 119)) != 1) return;
+    __int64 pVadNode = *pVadRoot;
+    if (!pVadNode) return;
+    if (MmIsAddressValid((PVOID)pVadNode) != 1 ||
+        MmIsAddressValid((PVOID)(pVadNode + 119)) != 1) return;
 
-    bool v8 = (ULONG)GtRead(GtWindowsBuildNumber) < 0x47BA
+    bool IsLargePage = (ULONG)GtRead(GtWindowsBuildNumber) < 0x47BA
         ? (*(_DWORD *)(VadNode + 48) & 0x38) == 56
         : (*(_DWORD *)(VadNode + 48) & 0x380) == 896;
 
-    if ((*(UCHAR *)(v7 + 56) & 0xA0) != 0xA0 || !v8) return;
+    if ((*(UCHAR *)(pVadNode + 56) & 0xA0) != 0xA0 || !IsLargePage) return;
 
-    WORD *v9 = (WORD *)(*(_QWORD *)(v7 + 64) & 0xFFFFFFFFFFFFFFF0ULL);
-    if ((ULONG64)v9 <= (ULONG64)MmSystemRangeStart) return;
-    if (MmIsAddressValid(v9) != 1 || MmIsAddressValid((char *)v9 + 183) != 1) return;
-    if (*v9 != 5 || ((v9[1] - 184) & 0xFFDF) != 0) return;
+    WORD *pFileObject = (WORD *)(*(_QWORD *)(pVadNode + 64) & 0xFFFFFFFFFFFFFFF0ULL);
+    if ((ULONG64)pFileObject <= (ULONG64)MmSystemRangeStart) return;
+    if (MmIsAddressValid(pFileObject) != 1 || MmIsAddressValid((char *)pFileObject + 183) != 1) return;
+    if (*pFileObject != 5 || ((pFileObject[1] - 184) & 0xFFDF) != 0) return;
 
     ULONG64 StartAddr = *(ULONG *)(VadNode + 24) + ((ULONG64)*(UCHAR *)(VadNode + 32) << 32);
     ULONG64 EndAddr = *(ULONG *)(VadNode + 28) + ((ULONG64)*(UCHAR *)(VadNode + 33) << 32);
-    ULONG v24;
+    ULONG ThreadIndex;
     void *Src[2];
-    ULONG v23, v15, v16, v20, v21;
+    ULONG NameLen, NameLength, CopyLength, StringLength, StringLength2;
 
-    if (FindThreadEntry(OutputBuffer, StartAddr << 12, &v24, (__int64)v9) == 1)
+    if (FindThreadEntry(OutputBuffer, StartAddr << 12, &ThreadIndex, (__int64)pFileObject) == 1)
     {
-        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)v9, Src, &v23) == 1)
+        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)pFileObject, Src, &NameLen) == 1)
         {
-            __int64 v13 = EntryIndex;
-            __int64 v14 = 136 * EntryIndex;
-            LOBYTE_LV(OutputBuffer[v14 + 2]) = 1;
-            v15 = v23;
-            *(__int64 *)&OutputBuffer[v14 + 8] = (__int64)v9;
-            *(__int64 *)&OutputBuffer[v14 + 4] = StartAddr << 12;
-            *(__int64 *)&OutputBuffer[v14 + 6] = (EndAddr - StartAddr + 1) << 12;
-            if (v15 > 0x1FE) v15 = 510;
-            v23 = v15;
-            v16 = v15;
-            memmove(&OutputBuffer[v14 + 10], Src[0], v15);
-            *((WORD *)&OutputBuffer[136 * EntryIndex + 10] + (v16 >> 1)) = 0;
-            HIWORD_LV(OutputBuffer[v14 + 137]) = 0;
+            __int64 EntryIndex = EntryIndex;
+            __int64 BufferOffset = 136 * EntryIndex;
+            LOBYTE_LV(OutputBuffer[BufferOffset + 2]) = 1;
+            NameLength = NameLen;
+            *(__int64 *)&OutputBuffer[BufferOffset + 8] = (__int64)pFileObject;
+            *(__int64 *)&OutputBuffer[BufferOffset + 4] = StartAddr << 12;
+            *(__int64 *)&OutputBuffer[BufferOffset + 6] = (EndAddr - StartAddr + 1) << 12;
+            if (NameLength > 0x1FE) NameLength = 510;
+            NameLen = NameLength;
+            CopyLength = NameLength;
+            memmove(&OutputBuffer[BufferOffset + 10], Src[0], NameLength);
+            *((WORD *)&OutputBuffer[136 * EntryIndex + 10] + (CopyLength >> 1)) = 0;
+            HIWORD_LV(OutputBuffer[BufferOffset + 137]) = 0;
             *OutputBuffer = (ULONG)(EntryIndex + 1);
             ExFree(Src[0]);
         }
     }
-    else if (QueryObjectNameString((ULONG64)v9, Src, &v23) == 1)
+    else if (QueryObjectNameString((ULONG64)pFileObject, Src, &NameLen) == 1)
     {
-        __int64 v18 = 136 * v24;
-        HIWORD_LV(OutputBuffer[v18 + 137]) = 0;
-        ULONG StringLen = GetStringLength(&OutputBuffer[v18 + 10]);
-        if (2 * StringLen != v23 ||
-            StringCompare3Way((__int64)&OutputBuffer[v18 + 10], (WORD *)Src[0], v23 >> 1))
+        __int64 BufferOffset2 = 136 * ThreadIndex;
+        HIWORD_LV(OutputBuffer[BufferOffset2 + 137]) = 0;
+        ULONG StringLen = GetStringLength(&OutputBuffer[BufferOffset2 + 10]);
+        if (2 * StringLen != NameLen ||
+            StringCompare3Way((__int64)&OutputBuffer[BufferOffset2 + 10], (WORD *)Src[0], NameLen >> 1))
         {
-            v20 = GetStringLength(&OutputBuffer[v18 + 10]);
-            if (v23 > 2 * (ULONG64)v20)
+            StringLength = GetStringLength(&OutputBuffer[BufferOffset2 + 10]);
+            if (NameLen > 2 * (ULONG64)StringLength)
             {
-                LOBYTE_LV(OutputBuffer[v18 + 2]) = 1;
-                v21 = v23 > 0x1FE ? 510 : v23;
-                v23 = v21;
-                memmove(&OutputBuffer[v18 + 10], Src[0], v21);
-                *((WORD *)&OutputBuffer[136 * (ULONG)v24 + 10] + (v23 >> 1)) = 0;
-                HIWORD_LV(OutputBuffer[v18 + 137]) = 0;
+                LOBYTE_LV(OutputBuffer[BufferOffset2 + 2]) = 1;
+                StringLength2 = NameLen > 0x1FE ? 510 : NameLen;
+                NameLen = StringLength2;
+                memmove(&OutputBuffer[BufferOffset2 + 10], Src[0], StringLength2);
+                *((WORD *)&OutputBuffer[136 * (ULONG)ThreadIndex + 10] + (NameLen >> 1)) = 0;
+                HIWORD_LV(OutputBuffer[BufferOffset2 + 137]) = 0;
             }
         }
         ExFree(Src[0]);
@@ -681,11 +681,11 @@ char ReadProcessMemoryBlock(PRKPROCESS PROCESS, void *Dst, size_t Size)
     ULONG PebOffset;
     ULONG64 *pPeb;
     ULONG64 PebAddr;
-    UCHAR v10;
-    ULONG64 v11;
-    WORD *v12, *v15;
-    __int64 v13;
-    ULONG v14;
+    UCHAR pEntryData;
+    ULONG64 ProcessParams;
+    WORD *CmdLinePtr, *TokenPtr;
+    __int64 CmdLineLen;
+    ULONG TokenCount;
     ULONG i, j, k;
     KAPC_STATE ApcState;
 
@@ -697,45 +697,45 @@ char ReadProcessMemoryBlock(PRKPROCESS PROCESS, void *Dst, size_t Size)
 
     memset(Dst, 0, Size);
     PebAddr = *pPeb;
-    v10 = ReferenceObjectSafe((__int64)PROCESS);
+    pEntryData = ReferenceObjectSafe((__int64)PROCESS);
     KeStackAttachProcess(PROCESS, &ApcState);
 
     if (PebAddr && PebAddr < MmUserProbeAddress && PebAddr + 96 < MmUserProbeAddress)
     {
-        v11 = *(_QWORD *)(PebAddr + 32);
-        if (v11 < MmUserProbeAddress && v11 + 1008 < MmUserProbeAddress)
+        ProcessParams = *(_QWORD *)(PebAddr + 32);
+        if (ProcessParams < MmUserProbeAddress && ProcessParams + 1008 < MmUserProbeAddress)
         {
-            v12 = *(WORD **)(v11 + 120);
-            v13 = *(WORD *)(v11 + 112);
-            if (v12 && (_DWORD)v13 && (ULONG64)v12 < MmUserProbeAddress && (ULONG64)v12 + v13 < MmUserProbeAddress)
+            CmdLinePtr = *(WORD **)(ProcessParams + 120);
+            CmdLineLen = *(WORD *)(ProcessParams + 112);
+            if (CmdLinePtr && (_DWORD)CmdLineLen && (ULONG64)CmdLinePtr < MmUserProbeAddress && (ULONG64)CmdLinePtr + CmdLineLen < MmUserProbeAddress)
             {
-                if ((ULONG)v13 > (ULONG)Size) v13 = (ULONG)Size;
-                v14 = (ULONG)v13 >> 1;
-                if (v14)
+                if ((ULONG)CmdLineLen > (ULONG)Size) CmdLineLen = (ULONG)Size;
+                TokenCount = (ULONG)CmdLineLen >> 1;
+                if (TokenCount)
                 {
-                    v15 = NULL;
-                    if (*v12 == L'"')
+                    TokenPtr = NULL;
+                    if (*CmdLinePtr == L'"')
                     {
-                        for (i = 1; i < v14; i++)
+                        for (i = 1; i < TokenCount; i++)
                         {
-                            if (v12[i] == L'"') { v15 = &v12[i + 1]; v14 += -1 - i; break; }
+                            if (CmdLinePtr[i] == L'"') { TokenPtr = &CmdLinePtr[i + 1]; TokenCount += -1 - i; break; }
                         }
                     }
-                    if (!v15) v15 = v12;
+                    if (!TokenPtr) TokenPtr = CmdLinePtr;
 
                     // Strip leading spaces
-                    for (j = 0; j < v14; j++)
+                    for (j = 0; j < TokenCount; j++)
                     {
-                        if (v15[j] == L' ') { v15 = &v15[j + 1]; v14 += -1 - j; if (j < v14) goto CheckPath; break; }
+                        if (TokenPtr[j] == L' ') { TokenPtr = &TokenPtr[j + 1]; TokenCount += -1 - j; if (j < TokenCount) goto CheckPath; break; }
                     }
 
 CheckPath:
-                    if (v14 && *v15 == L'\\') v14 = 0;
-                    if (v14 > 3 && v15[1] == L':' && v15[2] == L'\\') v14 = 0;
+                    if (TokenCount && *TokenPtr == L'\\') TokenCount = 0;
+                    if (TokenCount > 3 && TokenPtr[1] == L':' && TokenPtr[2] == L'\\') TokenCount = 0;
 
-                    for (k = 1; k < v14; k++) { if (v15[k] == L'.') goto CopyPath; }
+                    for (k = 1; k < TokenCount; k++) { if (TokenPtr[k] == L'.') goto CopyPath; }
 CopyPath:
-                    if (v14) memmove(Dst, v15, 2 * v14);
+                    if (TokenCount) memmove(Dst, TokenPtr, 2 * TokenCount);
                     Result = 1;
                 }
             }
@@ -743,7 +743,7 @@ CopyPath:
     }
 
     KeUnstackDetachProcess(&ApcState);
-    if (v10 == 1) DereferenceObjectSafe((__int64)PROCESS);
+    if (pEntryData == 1) DereferenceObjectSafe((__int64)PROCESS);
 
     return Result;
 }
@@ -1191,7 +1191,7 @@ char QueryProcessMemoryRegions(__int64 ProcessId, _DWORD *OutputBuffer, unsigned
     unsigned int OutOffset;
     ULONG64 ProtectionInfo;
     ULONG64 AlignedEnd;
-    __int64 v20;
+    __int64 Handle;
     /* 三个 16 字节的 VAD 条目信息缓冲区 */
     ULONG64 VadEntryInfo[2];
     ULONG64 VadEntryInfo2[2];
@@ -1215,7 +1215,7 @@ char QueryProcessMemoryRegions(__int64 ProcessId, _DWORD *OutputBuffer, unsigned
         {
             CurrentThread = KeGetCurrentThread();
             Success = 0;
-            if (DuplicateObjectFunc(ProcessId, 512, 0, 0x10000000, *NtQueryVirtualMemoryFunc, Success, &v20) >= 0)
+            if (DuplicateObjectFunc(ProcessId, 512, 0, 0x10000000, *NtQueryVirtualMemoryFunc, Success, &Handle) >= 0)
             {
                 SavedPreviousMode = *((_BYTE *)CurrentThread + CurrentAddress);
                 *((_BYTE *)CurrentThread + CurrentAddress) = 0;
@@ -1223,7 +1223,7 @@ char QueryProcessMemoryRegions(__int64 ProcessId, _DWORD *OutputBuffer, unsigned
                 OutOffset = 56;
                 memset(VadEntryInfo, 0, sizeof(VadEntryInfo));
                 while (CurrentAddress < MmUserProbeAddress &&
-                       QueryVirtualMemoryFunc(v20, CurrentAddress, 0, VadEntryInfo, 48, (_BYTE *)VadEntryInfo3 + 8) >= 0)
+                       QueryVirtualMemoryFunc(Handle, CurrentAddress, 0, VadEntryInfo, 48, (_BYTE *)VadEntryInfo3 + 8) >= 0)
                 {
                     ProtectionInfo = VadEntryInfo2[1];
                     if (VadEntryInfo2[1] < 0x1000u)
@@ -1245,7 +1245,7 @@ char QueryProcessMemoryRegions(__int64 ProcessId, _DWORD *OutputBuffer, unsigned
                     }
                 }
                 *((_BYTE *)CurrentThread + (ULONG64)GtRead(GtSdstServiceCount)) = SavedPreviousMode;
-                CloseHandleFunc(v20);
+                CloseHandleFunc(Handle);
             }
         }
     }
@@ -1272,32 +1272,32 @@ void EnumerateVadWithBufferV2(_QWORD *VirtualAddress, _DWORD *OutputBuffer, unsi
 // GetKernelVirtualAddressRange — 获取内核虚拟地址范围
 // 对应原始驱动 sub_14007AD54
 // 根据系统版本返回内核地址扫描起始和结束地址
-unsigned __int64 GetKernelVirtualAddressRange(__int64 a1, unsigned __int64 *pStartAddress, unsigned __int64 *pEndAddress)
+unsigned __int64 GetKernelVirtualAddressRange(__int64 DriverObject, unsigned __int64 *pStartAddress, unsigned __int64 *pEndAddress)
 {
     unsigned __int64 result;
-    unsigned __int64 *v7;
-    unsigned __int64 *v8;
-    unsigned __int64 v9;
-    unsigned __int64 v10;
-    unsigned __int64 v11;
+    unsigned __int64 *pStartAddr;
+    unsigned __int64 *pEndAddr;
+    unsigned __int64 EndValue;
+    unsigned __int64 StartValue;
+    unsigned __int64 AlignedBase;
 
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
     {
-        v7 = (unsigned __int64 *)GtRead(GtNtCreateThreadResultAddr);
-        v8 = (unsigned __int64 *)GtRead(GtNtCreateProcessResultAddr);
-        if (v7 && v8 && (v9 = *v8, v10 = *v7, *v7 > (unsigned __int64)MmSystemRangeStart) && v9 > (unsigned __int64)MmSystemRangeStart && v9 > v10)
+        pStartAddr = (unsigned __int64 *)GtRead(GtNtCreateThreadResultAddr);
+        pEndAddr = (unsigned __int64 *)GtRead(GtNtCreateProcessResultAddr);
+        if (pStartAddr && pEndAddr && (EndValue = *pEndAddr, StartValue = *pStartAddr, *pStartAddr > (unsigned __int64)MmSystemRangeStart) && EndValue > (unsigned __int64)MmSystemRangeStart && EndValue > StartValue)
         {
-            *pStartAddress = v10;
-            *pEndAddress = v9;
+            *pStartAddress = StartValue;
+            *pEndAddress = EndValue;
             result = *pStartAddress + 0x10000000;
-            if (v9 <= result)
+            if (EndValue <= result)
                 return result;
         }
-        else if (a1 || (a1 = GtRead(GtDriverObject)) != 0)
+        else if (DriverObject || (DriverObject = GtRead(GtDriverObject)) != 0)
         {
-            v11 = a1 & 0xFFFFFFFF00000000ULL;
-            result = v11 + 0x100000000LL;
-            *pStartAddress = v11;
+            AlignedBase = DriverObject & 0xFFFFFFFF00000000ULL;
+            result = AlignedBase + 0x100000000LL;
+            *pStartAddress = AlignedBase;
         }
         else
         {
@@ -1324,42 +1324,42 @@ unsigned __int64 GetKernelVirtualAddressRange(__int64 a1, unsigned __int64 *pSta
 __int64 (__fastcall *QueryProcessVirtualizationEx(void))(__int64)
 {
     PEPROCESS CurrentProcess = IoGetCurrentProcess();
-    __int16 v1 = (__int16)GtRead(GtEprocessField86);
+    __int16 TargetSessionId = (__int16)GtRead(GtEprocessField86);
     __int64 (__fastcall *pQueryFunc)(PEPROCESS, __int64, _QWORD, __int64, _QWORD, char, __int64 *) = (__int64 (__fastcall *)(PEPROCESS, __int64, _QWORD, __int64, _QWORD, char, __int64 *))GtRead(GtEprocessField54);
     _QWORD *pBuffer = (_QWORD *)GtRead(GtEprocessField58 | 0x100);
     __int64 (__fastcall *pFreeFunc)(__int64) = (__int64 (__fastcall *)(__int64))GtRead(GtExFreePoolFunc);
-    unsigned int v5 = 0;
+    unsigned int EntryIndex = 0;
     __int64 (__fastcall *result)(__int64) = pFreeFunc;
 
     if (pQueryFunc && pBuffer && pFreeFunc)
     {
-        char v12 = 0;
-        __int64 v13;
-        result = (__int64 (__fastcall *)(__int64))pQueryFunc(CurrentProcess, 512, 0, 0x80000000LL, *pBuffer, v12, &v13);
+        char QueryFlags = 0;
+        __int64 ReturnHandle;
+        result = (__int64 (__fastcall *)(__int64))pQueryFunc(CurrentProcess, 512, 0, 0x80000000LL, *pBuffer, QueryFlags, &ReturnHandle);
         if ((int)result >= 0)
         {
             __int16 *SystemInfo = (__int16 *)AllocExBufferAndQuerySystemInfo(0x10u);
             if (SystemInfo)
             {
-                unsigned int v9 = *(_DWORD *)SystemInfo;
-                if (v9)
+                unsigned int EntryCount = *(_DWORD *)SystemInfo;
+                if (EntryCount)
                 {
-                    __int16 *v10 = SystemInfo + 4;
-                    while (v10[3] != (_WORD)v13 || !CompareInt16Equal(*v10, v1))
+                    __int16 *CurrentEntry = SystemInfo + 4;
+                    while (CurrentEntry[3] != (_WORD)ReturnHandle || !CompareInt16Equal(*CurrentEntry, TargetSessionId))
                     {
-                        ++v5;
-                        v10 += 12;
-                        if (v5 >= v9)
+                        ++EntryIndex;
+                        CurrentEntry += 12;
+                        if (EntryIndex >= EntryCount)
                             goto LABEL_13;
                     }
-                    unsigned int v11 = LOBYTE_LV(SystemInfo[12 * v5 + 6]);
+                    unsigned int SessionIdValue = LOBYTE_LV(SystemInfo[12 * EntryIndex + 6]);
                     GtWrite(GtEprocessField61, 1);
-                    GtWrite(GtEprocessField62, v11);
+                    GtWrite(GtEprocessField62, SessionIdValue);
                 }
 LABEL_13:
                 ExFree(SystemInfo);
             }
-            return (__int64 (__fastcall *)(__int64))pFreeFunc(v13);
+            return (__int64 (__fastcall *)(__int64))pFreeFunc(ReturnHandle);
         }
     }
     return result;
@@ -1372,49 +1372,49 @@ LABEL_13:
 // ReadDiskSectorsWithAlloc — 分配并读取磁盘扇区
 // 对应原始驱动 sub_14007AAD8
 // 分配缓冲区后读取磁盘扇区数据
-__int64 ReadDiskSectorsWithAlloc(__int64 a1)
+__int64 ReadDiskSectorsWithAlloc(__int64 BufferSize)
 {
-    char v2 = 0;
+    char IsInitialized = 0;
     void (__fastcall *pCreateFunc)(__int64, __int64) = (void (__fastcall *)(__int64, __int64))GtRead(GtCreateObjectTypeFunc);
-    __int64 v4 = GtRead(GtCloseObjectTypeFunc);
+    __int64 CloseObjectTypeFunc = GtRead(GtCloseObjectTypeFunc);
     int (__fastcall *pValidateFunc)(_QWORD, __int64 *) = (int (__fastcall *)(_QWORD, __int64 *))GtRead(GtValidateObjectTypeFunc);
-    __int64 v6 = GtRead(GtCloseHandleFunc);
-    void (__fastcall *pCloseFunc)(__int64) = (void (__fastcall *)(__int64))v6;
+    __int64 pDeviceObject = GtRead(GtCloseHandleFunc);
+    void (__fastcall *pCloseFunc)(__int64) = (void (__fastcall *)(__int64))pDeviceObject;
 
-    if (pCreateFunc && v4 && pValidateFunc && pCloseFunc)
+    if (pCreateFunc && CloseObjectTypeFunc && pValidateFunc && pCloseFunc)
     {
-        unsigned int v8 = GtRead(GtCallbackField52);
-        if (!v8)
+        unsigned int Result = GtRead(GtCallbackField52);
+        if (!Result)
         {
             unsigned int DiskSectors = ReadDiskSectors();
-            v8 = DiskSectors;
+            Result = DiskSectors;
             if (!DiskSectors)
-                return v2;
+                return IsInitialized;
             GtWrite(GtCallbackField52, DiskSectors);
         }
-        __int64 v11;
-        if (pValidateFunc(v8, &v11) >= 0)
+        __int64 DiskObject;
+        if (pValidateFunc(Result, &DiskObject) >= 0)
         {
-            pCreateFunc(v11, a1);
-            v2 = 1;
-            pCloseFunc(v11);
+            pCreateFunc(DiskObject, BufferSize);
+            IsInitialized = 1;
+            pCloseFunc(DiskObject);
         }
     }
-    return v2;
+    return IsInitialized;
 }
 
 // ReleaseDiskBuffer — 释放磁盘缓冲区
 // 对应原始驱动 sub_14007ABA4
-__int64 ReleaseDiskBuffer(__int64 a1)
+__int64 ReleaseDiskBuffer(__int64 DiskObject)
 {
-    char v2 = 0;
+    char pEntry = 0;
     void (__fastcall *pCloseFunc)(__int64) = (void (__fastcall *)(__int64))GtRead(GtCloseObjectTypeFunc);
     if (pCloseFunc)
     {
-        pCloseFunc(a1);
+        pCloseFunc(DiskObject);
         return 1;
     }
-    return v2;
+    return pEntry;
 }
 
 // ResolveModuleEnumBase — 解析模块枚举基址
@@ -1422,20 +1422,20 @@ __int64 ReleaseDiskBuffer(__int64 a1)
 // 从全局表读取 ntoskrnl 映射基址和大小，通过系统调用号解析模块枚举函数的地址
 __int64 ResolveModuleEnumBase(void)
 {
-    __int64 v0 = GtRead(GtEprocessField22);
-    unsigned int v1 = GtRead(GtEprocessField23);
-    __int64 v2 = GtRead(GtNtoskrnlModuleBase);
-    unsigned int v3 = GtRead(GtKernelDataField01);
+    __int64 NtImageBase = GtRead(GtEprocessField22);
+    unsigned int NtImageSize = GtRead(GtEprocessField23);
+    __int64 NtoskrnlModuleBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int KernelBase = GtRead(GtKernelDataField01);
     __int64 result = GtRead(GtWin32kServiceEntryCount);
 
-    if (v0 && v1 && v2 && v3 && v3 < (unsigned int)result)
+    if (NtImageBase && NtImageSize && NtoskrnlModuleBase && KernelBase && KernelBase < (unsigned int)result)
     {
-        result = ResolveSyscallToAddress(v3);
-        if ((_DWORD)result && (unsigned int)result < v1)
+        result = ResolveSyscallToAddress(KernelBase);
+        if ((_DWORD)result && (unsigned int)result < NtImageSize)
         {
-            __int64 v5 = (unsigned int)result;
+            __int64 CumulativeSize = (unsigned int)result;
             GtWrite(GtKernelDataField02, (unsigned int)result);
-            return GtWrite(GtKernelDataField03, v5 + v2);
+            return GtWrite(GtKernelDataField03, CumulativeSize + NtoskrnlModuleBase);
         }
     }
     return result;
@@ -1446,25 +1446,25 @@ __int64 ResolveModuleEnumBase(void)
 // 在系统调用号表中查找对应的函数地址偏移
 __int64 ResolveSyscallToAddress(unsigned int SyscallNumber)
 {
-    __int64 v1 = SyscallNumber;
-    unsigned int v2 = 0;
-    unsigned int v3 = GtRead(GtWin32kServiceEntryCount);
-    __int64 v4 = GtRead(GtEprocessField24);
-    unsigned int v5 = GtRead(GtEprocessField23);
-    unsigned int v6 = v5;
+    __int64 TargetSyscall = SyscallNumber;
+    unsigned int NotResolved = 0;
+    unsigned int ServiceCount = GtRead(GtWin32kServiceEntryCount);
+    __int64 ServiceTableBase = GtRead(GtEprocessField24);
+    unsigned int NtImageSize = GtRead(GtEprocessField23);
+    unsigned int SizeLimit = NtImageSize;
 
-    if (v3 && (_DWORD)v1 && (unsigned int)v1 < v3 && v4 && v5)
+    if (ServiceCount && (_DWORD)TargetSyscall && (unsigned int)TargetSyscall < ServiceCount && ServiceTableBase && NtImageSize)
     {
-        __int64 v7 = GtRead(GtEprocessField88);
-        if (v7 || (ResolveSyscallNumbers(), (v7 = GtRead(GtEprocessField88)) != 0))
+        __int64 SyscallTable = GtRead(GtEprocessField88);
+        if (SyscallTable || (ResolveSyscallNumbers(), (SyscallTable = GtRead(GtEprocessField88)) != 0))
         {
-            unsigned __int64 v8 = *(_QWORD *)(v7 + 8 * v1);
-            unsigned __int64 v9 = *(_QWORD *)(v4 + 48);
-            if (v8 > v9 && (int)v8 - (int)v9 < v6 && v8 == v9 + (unsigned int)(v8 - v9))
-                return (unsigned int)(v8 - v9);
+            unsigned __int64 EntryValue = *(_QWORD *)(SyscallTable + 8 * TargetSyscall);
+            unsigned __int64 ServiceLimit = *(_QWORD *)(ServiceTableBase + 48);
+            if (EntryValue > ServiceLimit && (int)EntryValue - (int)ServiceLimit < SizeLimit && EntryValue == ServiceLimit + (unsigned int)(EntryValue - ServiceLimit))
+                return (unsigned int)(EntryValue - ServiceLimit);
         }
     }
-    return v2;
+    return NotResolved;
 }
 
 // AllocateNtHandleEntry — 分配 NT 句柄条目

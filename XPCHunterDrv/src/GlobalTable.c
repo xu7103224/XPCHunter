@@ -16,6 +16,7 @@ volatile LONG g_GlobalLock;         // 全局锁
 // MiniFilter 链表互斥体与链表头指针
 KMUTEX g_Mutex;                     // MiniFilter 链表互斥体
 volatile PVOID g_Pointer;           // MiniFilter 链表头指针 (单向链表)
+__int64 g_CommPortContext;          // MiniFilter 通信端口上下文
 
 // 驱动初始化同步事件
 KEVENT g_Event;                     // 驱动初始化完成事件

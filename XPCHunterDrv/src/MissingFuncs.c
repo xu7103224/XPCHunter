@@ -1,6 +1,9 @@
 // MissingFuncs.c — 暂未分配到各源文件的函数实现
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 #include "..\inc\XPCHunterDrv.h"
+
+// C4700 抑制：各种函数中变量由间接路径初始化，编译器无法跟踪代码路径
+#pragma warning(disable:4700)
 #include <intrin.h>
 
 // 前向声明 — 定义在 Protocol.c 中
@@ -11,7 +14,7 @@ extern char OpenDeviceTarget(__int64 EncodedPath, __int64 *pDeviceHandle, __int6
 extern __int64 GetDeviceObjectFromContext(__int64 DeviceHandle);
 extern char GetDiskDriverInfo(char State, void *pBuffer, __int64 *pFuncTable);
 extern char SetDiskDriverInfo(char State, char Flags, void *pBuffer);
-extern char FindPeSectionByType0x510(__int64 Base, unsigned int Size, int a3, unsigned int a4);
+extern char FindPeSectionByType0x510(__int64 Base, unsigned int Size, int SectionType, unsigned int SectionFlags);
 extern char FindPeSectionByTypeRsrc(__int64 Buffer, unsigned int Size, __int64 Address);
 extern char FindPatchThreadWindowsExport(__int64 FileBuffer, unsigned int FileSize);
 extern void QueryProcessModuleFilePath(__int64 ProcessId, __int64 Address, _WORD *pBuffer, unsigned int MaxLen);
@@ -608,7 +611,7 @@ __int64 ParseNtExportFunctions(void)
     unsigned int ImageSize;
     unsigned int DataDirRva;
     __int64 PeContext;
-    char EntryBuffer[64];
+    char EntryBuffer[80];
     __int64 PeFileData;
 
     Result = 0;
@@ -909,7 +912,7 @@ __int64 ParseNtExportFunctionsV2(void)
     unsigned int DataDirRva;
     unsigned int ImageSize;
     __int64 PeContext;
-    char EntryBuffer[64];
+    char EntryBuffer[80];
     __int64 PeFileData;
 
     Result = 0;
@@ -1201,20 +1204,20 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
     __int64 NtoskrnlBase2;
     __int64 *pContextTable;
     __int64 *pTargetTable;
-    unsigned __int64 v36;
+    unsigned __int64 ImageNtHeader;
     __int64 ReadContext;
     __int64 CumulativeSize;
     _DWORD SectionEntry[14];
-    int v40;
-    int v41;
-    __int64 v42;
-    unsigned int v43;
-    int v44;
-    __int64 v45;
-    int v46;
-    int v47;
-    unsigned int v48;
-    __int64 v49;
+    int FieldValue;
+    int FieldValue2;
+    __int64 SectionCharacteristics;
+    unsigned int SectionEntryIndex;
+    int FieldValueB;
+    __int64 SectionDataPtr;
+    int EntryIndex2;
+    int FieldValueC;
+    unsigned int SectionSize;
+    __int64 SectionDataPtr2;
     _DWORD Dst[16];
 
     SectionRva = 0;
@@ -1227,7 +1230,7 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
     if (NtoskrnlBase2)
     {
         OptHeaderSize = *(unsigned int *)(*(int *)(PeBase + 60) + PeBase + 40);
-        v36 = *(_QWORD *)(*(int *)(PeBase + 60) + PeBase + 48);
+        ImageNtHeader = *(_QWORD *)(*(int *)(PeBase + 60) + PeBase + 48);
         if ((unsigned int)OptHeaderSize < (unsigned int)FileSize)
         {
             FoundInitSection = 0;
@@ -1235,16 +1238,16 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
             SectionIndex = 0;
             while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
             {
-                SectionEnd = v48 + CumulativeSize;
-                CumulativeSize += v48;
-                SectionType = *(_WORD *)(v49 + 6);
+                SectionEnd = SectionSize + CumulativeSize;
+                CumulativeSize += SectionSize;
+                SectionType = *(_WORD *)(SectionDataPtr2 + 6);
                 if (SectionType == 1369)
                 {
-                    TargetRva = SectionEnd + v40 - PeBase;
+                    TargetRva = SectionEnd + FieldValue - PeBase;
                     if (TargetRva && TargetRva < (unsigned int)FileSize)
                         goto LABEL_8;
                 }
-                else if (SectionType == 1296 && v42 == 64 && v43 == 1)
+                else if (SectionType == 1296 && SectionCharacteristics == 64 && SectionEntryIndex == 1)
                 {
                     FoundInitSection = 1;
                 }
@@ -1252,7 +1255,7 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
                 {
                     if (FoundInitSection == 1)
                     {
-                        TargetRva = SectionEnd + v40 - PeBase;
+                        TargetRva = SectionEnd + FieldValue - PeBase;
                         if (TargetRva && TargetRva < (unsigned int)FileSize)
                         {
 LABEL_8:
@@ -1281,26 +1284,26 @@ LABEL_8:
             {
                 if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
                     break;
-                SectionEnd2 = v48 + CumulativeSize;
-                CumulativeSize += v48;
-                SectionType2 = *(_WORD *)(v49 + 6);
-                if (SectionType2 == 1298 && v45 == 0x40000 && v44 && v42 == 64)
+                SectionEnd2 = SectionSize + CumulativeSize;
+                CumulativeSize += SectionSize;
+                SectionType2 = *(_WORD *)(SectionDataPtr2 + 6);
+                if (SectionType2 == 1298 && SectionDataPtr == 0x40000 && FieldValueB && SectionCharacteristics == 64)
                 {
-                    RelocRva = SectionEnd2 + v44 - PeBase;
-                    if (RelocRva && RelocRva < (unsigned int)FileSize && v43 < 0x10)
+                    RelocRva = SectionEnd2 + FieldValueB - PeBase;
+                    if (RelocRva && RelocRva < (unsigned int)FileSize && SectionEntryIndex < 0x10)
                     {
                         SectionRva = RelocRva2;
-                        RelocRva2 = SectionEnd2 + v44 - PeBase;
-                        Dst[v43] = RelocRva;
+                        RelocRva2 = SectionEnd2 + FieldValueB - PeBase;
+                        Dst[SectionEntryIndex] = RelocRva;
                     }
                 }
-                else if (SectionType2 == 1294 && (v42 & 0x14000) != 0 && (v42 & 0x40) != 0 && (v47 & 0xF) != 4 && v45 == 64)
+                else if (SectionType2 == 1294 && (SectionCharacteristics & 0x14000) != 0 && (SectionCharacteristics & 0x40) != 0 && (FieldValueC & 0xF) != 4 && SectionDataPtr == 64)
                 {
-                    if ((unsigned int)(v41 - 112) > 0xD8 || (v41 & 7) != 0)
+                    if ((unsigned int)(FieldValue2 - 112) > 0xD8 || (FieldValue2 & 7) != 0)
                     {
-                        if (v41 == 80)
+                        if (FieldValue2 == 80)
                         {
-                            FieldAddr = (unsigned int)Dst[v46];
+                            FieldAddr = (unsigned int)Dst[EntryIndex2];
                             if ((_DWORD)FieldAddr)
                             {
                                 if ((unsigned int)FieldAddr < (unsigned int)FileSize)
@@ -1313,9 +1316,9 @@ LABEL_8:
                                         pFieldSrc = (unsigned __int64 *)(PeBase + FieldOffset + 8);
                                         do
                                         {
-                                            if (*pFieldSrc > v36)
+                                            if (*pFieldSrc > ImageNtHeader)
                                             {
-                                                FieldRva = (unsigned int)*pFieldSrc - (unsigned int)v36;
+                                                FieldRva = (unsigned int)*pFieldSrc - (unsigned int)ImageNtHeader;
                                                 if ((unsigned int)FileSize > (unsigned int)FieldRva)
                                                 {
                                                     *((_DWORD *)pTargetEntry - 1) = FieldRva;
@@ -1339,10 +1342,10 @@ LABEL_8:
                             TargetRva2 = SectionRva;
                             FoundRelocSection = 1;
                         }
-                        EntryIndex = (unsigned int)(v41 - 112) >> 3;
+                        EntryIndex = (unsigned int)(FieldValue2 - 112) >> 3;
                         if ((unsigned int)EntryIndex <= 0x1B)
                         {
-                            RelocBaseRva = Dst[v46];
+                            RelocBaseRva = Dst[EntryIndex2];
                             if (RelocBaseRva)
                             {
                                 TableSlot = 6 * EntryIndex;
@@ -2250,7 +2253,7 @@ char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *Out
 
 // MiniFilterStreamHandleCleanup — Minifilter 流句柄清理
 // 对应原始驱动 sub_14001AE7C
-char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 a3, __int64 BaseOffset, __int64 (*CallbackFunc)(void))
+char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 ContextFlag, __int64 BaseOffset, __int64 (*CallbackFunc)(void))
 {
     ULONG64 ProtectedBase;
     __int64 SystemRootForThread;
@@ -2258,7 +2261,7 @@ char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, 
     int IsSuccess;
     int CallbackResult2;
 
-    MiniFilterOpLockPre(PROCESS, CallbackContext, a3, 0);
+    MiniFilterOpLockPre(PROCESS, CallbackContext, ContextFlag, 0);
     if (CheckProtectedEntry((__int64)PROCESS))
     {
         ProtectedBase = GtRead(GtEprocessModuleListOffset | GtDriverObject);
@@ -2303,120 +2306,120 @@ char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, 
 // 对应原始驱动 sub_140087580
 void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 RelocBase)
 {
-    int v6;
+    int LoopIndex;
     unsigned int ExportByNameInPeBody;
-    __int64 v8;
+    __int64 ExportOffset;
     unsigned int PESectionByName;
     unsigned int PESectionByNameReturnVa;
-    unsigned int v11;
-    int v12;
-    unsigned int v13;
-    int v14;
-    int v15;
-    __int16 v16;
-    unsigned int v17;
-    unsigned int v18;
-    int v19;
-    __int64 v20;
-    __int64 v21;
-    __int64 v22;
-    _DWORD v23[14];
-    int v24;
-    int v25;
-    __int64 v26;
-    int v27;
-    int v28;
-    __int64 v29;
-    unsigned int v30;
-    unsigned int v31;
-    __int64 v32;
-    _QWORD v33[2];
+    unsigned int SectionEnd;
+    int SectionEnd2;
+    unsigned int TargetRva;
+    int LoopIndex2;
+    int SectionEnd3;
+    __int16 SectionType;
+    unsigned int RelocRva;
+    unsigned int EntryIndex;
+    int SectionEnd4;
+    __int64 BaseOffset;
+    __int64 ReadContext;
+    __int64 CumulativeSize;
+    _DWORD SectionEntry[14];
+    int FieldValue;
+    int FieldValue2;
+    __int64 SectionCharacteristics;
+    int FieldValue3;
+    int FieldValue4;
+    __int64 SectionFlags;
+    unsigned int EntryCount;
+    unsigned int SectionSize;
+    __int64 SectionDataPtr;
+    _QWORD FuncNameBuffer[2];
     _DWORD Dst[16];
 
     if (!RelocBase)
         return;
 
-    v6 = 0;
-    strcpy((char *)v33, "DllInitialize");
-    v33[1] = 0;
-    ExportByNameInPeBody = FindExportByNameInPeBody((PUCHAR)PeBuffer, PeSize, (char *)v33, 0);
-    v8 = ExportByNameInPeBody;
+    LoopIndex = 0;
+    strcpy((char *)FuncNameBuffer, "DllInitialize");
+    FuncNameBuffer[1] = 0;
+    ExportByNameInPeBody = FindExportByNameInPeBody((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer, 0);
+    ExportOffset = ExportByNameInPeBody;
     if (!ExportByNameInPeBody)
         return;
     if (ExportByNameInPeBody >= PeSize || ExportByNameInPeBody + 4096 >= PeSize)
         return;
 
-    v33[0] = 1414090313;  // "INIT" as DWORD
-    PESectionByName = FindPESectionByName((PUCHAR)PeBuffer, PeSize, (char *)v33);
-    PESectionByNameReturnVa = FindPESectionByNameReturnVa((PUCHAR)PeBuffer, PeSize, (char *)v33);
+    FuncNameBuffer[0] = 1414090313;  // "INIT" as DWORD
+    PESectionByName = FindPESectionByName((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer);
+    PESectionByNameReturnVa = FindPESectionByNameReturnVa((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer);
     if (!PESectionByName || !PESectionByNameReturnVa)
         return;
     if (PESectionByName >= PeSize || PESectionByNameReturnVa >= PeSize)
         return;
 
-    v11 = PESectionByNameReturnVa + PESectionByName;
-    if (v11 >= PeSize)
+    SectionEnd = PESectionByNameReturnVa + PESectionByName;
+    if (SectionEnd >= PeSize)
         return;
 
-    InitPESectionReadContext((PUCHAR)(PeBuffer + v8), 4096, 2, 0, -1, 0, 0, (PUCHAR)&v21);
-    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&v21, v23))
+    InitPESectionReadContext((PUCHAR)(PeBuffer + ExportOffset), 4096, 2, 0, -1, 0, 0, (PUCHAR)&ReadContext);
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
     {
-        v12 = v31 + (int)v22;
-        v22 += v31;
-        if ((unsigned __int16)(*(_WORD *)(v32 + 6) - 1368) <= 1u)
+        SectionEnd2 = SectionSize + (int)CumulativeSize;
+        CumulativeSize += SectionSize;
+        if ((unsigned __int16)(*(_WORD *)(SectionDataPtr + 6) - 1368) <= 1u)
         {
-            if (v24)
+            if (FieldValue)
             {
-                v13 = v12 + v24 - PeBuffer;
-                if (v13 && v13 < PeSize && (PESectionByName > v13 || v13 >= v11))
+                TargetRva = SectionEnd2 + FieldValue - PeBuffer;
+                if (TargetRva && TargetRva < PeSize && (PESectionByName > TargetRva || TargetRva >= SectionEnd))
                 {
-                    v8 = v13;
+                    ExportOffset = TargetRva;
                     break;
                 }
             }
         }
-        if ((unsigned int)++v6 >= 0x14)
+        if ((unsigned int)++LoopIndex >= 0x14)
             break;
     }
 
-    if ((unsigned int)v8 < PeSize && (int)v8 + 4096 < PeSize)
+    if ((unsigned int)ExportOffset < PeSize && (int)ExportOffset + 4096 < PeSize)
     {
-        InitPESectionReadContext((PUCHAR)(PeBuffer + (unsigned int)v8), 4096, 2, 0, -1, 0, 0, (PUCHAR)&v21);
+        InitPESectionReadContext((PUCHAR)(PeBuffer + (unsigned int)ExportOffset), 4096, 2, 0, -1, 0, 0, (PUCHAR)&ReadContext);
         memset(Dst, 0, sizeof(Dst));
-        v14 = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&v21, v23))
+        LoopIndex2 = 0;
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
-            v15 = v31 + (int)v22;
-            v22 += v31;
-            v16 = *(_WORD *)(v32 + 6);
-            if (v16 == 1298 && v29 == 0x40000)
+            SectionEnd3 = SectionSize + (int)CumulativeSize;
+            CumulativeSize += SectionSize;
+            SectionType = *(_WORD *)(SectionDataPtr + 6);
+            if (SectionType == 1298 && SectionFlags == 0x40000)
             {
-                if (v28 && v26 == 64)
+                if (FieldValue4 && SectionCharacteristics == 64)
                 {
-                    v17 = v15 + v28 - PeBuffer;
-                    if (v17 && v17 < PeSize)
-                        Dst[v27] = v17;
+                    RelocRva = SectionEnd3 + FieldValue4 - PeBuffer;
+                    if (RelocRva && RelocRva < PeSize)
+                        Dst[FieldValue3] = RelocRva;
                 }
             }
-            if (v16 == 1294 && v26 == 0x40000)
+            if (SectionType == 1294 && SectionCharacteristics == 0x40000)
             {
-                if (v25 && v29 == 64 && v30 < 0x10)
+                if (FieldValue2 && SectionFlags == 64 && EntryCount < 0x10)
                 {
-                    v18 = v15 + v25 - PeBuffer;
-                    if (v18 && v18 < PeSize)
+                    EntryIndex = SectionEnd3 + FieldValue2 - PeBuffer;
+                    if (EntryIndex && EntryIndex < PeSize)
                     {
-                        v19 = Dst[v30];
-                        if (v19 && v18 == (unsigned int)v19)
+                        SectionEnd4 = Dst[EntryCount];
+                        if (SectionEnd4 && EntryIndex == (unsigned int)SectionEnd4)
                         {
-                            v20 = v18;
-                            GtWrite(GtFltPeSectionOfs6 | GtEprocessField22, v18);
-                            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr6 | GtEprocessField22), v20 + RelocBase);
+                            BaseOffset = EntryIndex;
+                            GtWrite(GtFltPeSectionOfs6 | GtEprocessField22, EntryIndex);
+                            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr6 | GtEprocessField22), BaseOffset + RelocBase);
                             return;
                         }
                     }
                 }
             }
-            if ((unsigned int)++v14 >= 0x12C)
+            if ((unsigned int)++LoopIndex2 >= 0x12C)
                 return;
         }
     }
@@ -2447,6 +2450,7 @@ __int64 KernelNotifyRoutineEx(void *NotificationBuffer, size_t BufferSize)
 __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
 {
     char Success;
+    __int64 MapMemoryFunc;
     __int64 MapFunc;
     __int64 ZeroFunc;
     __int64 ReadNameFunc;
@@ -2577,7 +2581,7 @@ __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
                                     BytesCopied += 4096;
                                     CurrentAddress += PageRemainder;
                                     OutputPtr += PageRemainder;
-                                    LODWORD(RemainingSize) = SizeCopy;
+                                    LODWORD_LV(RemainingSize) = SizeCopy;
                                 }
                             }
                         }
@@ -2779,252 +2783,252 @@ __int64 ShutdownCallbackUnregister(PRKPROCESS *InputBuffer, int BufferSize)
 // 读取 GT 895(NDIS 节区扫描结果)获取内核模块链表头，遍历内核模块结构链表
 // 根据 GT 867(构建号)选择不同结构偏移映射：<0x60028 使用旧版偏移，>=0x60028 使用新版偏移
 // 每项输出 156 个 DWORD(624 字节)，含模块基址、大小、标志、名称字符串等
-__int64 EnumKernelModules(__int64 a1, __int64 a2, __int64 a3, __int64 a4)
+char EnumKernelModules(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutputBuffer, unsigned int BufferSize)
 {
-    SIZE_T v4;
-    char v6;
-    _QWORD *v7;
-    unsigned int v8;
-    unsigned __int64 v9;
-    _QWORD *v10;
-    PVOID v11;
-    unsigned int v12;
-    unsigned __int64 v13;
-    unsigned __int16 v14;
-    __int64 v15;
-    _OWORD *v16;
-    _OWORD *v17;
-    __int64 v18;
-    unsigned __int64 v19;
-    unsigned __int64 v20;
-    unsigned __int64 v26;
-    unsigned __int16 v21;
-    __int64 v22;
-    _OWORD *v23;
-    _OWORD *v24;
-    __int64 v25;
-    unsigned __int64 v32;
-    unsigned __int16 v27;
-    __int64 v28;
-    _OWORD *v29;
-    _OWORD *v30;
-    __int64 v31;
+    SIZE_T RemainingSize;
+    char Result;
+    _QWORD *pModuleListHead;
+    unsigned int BuildNumber;
+    unsigned __int64 MaxCount;
+    _QWORD *pCurrentEntry;
+    PVOID MinAddress;
+    unsigned int ModuleIndex;
+    unsigned __int64 EntryOffset;
+    unsigned __int16 NameLength;
+    __int64 OutputIndex;
+    _OWORD *pOutputEntry;
+    _OWORD *pSrcEntry;
+    __int64 CopyCount;
+    unsigned __int64 EntryOffset2;
+    unsigned __int64 EntryOffset3;
+    unsigned __int64 EntryOffset4;
+    unsigned __int16 NameLength2;
+    __int64 OutputIndex2;
+    _OWORD *pOutputEntry2;
+    _OWORD *pSrcEntry2;
+    __int64 CopyCount2;
+    unsigned __int64 EntryOffset5;
+    unsigned __int16 NameLength3;
+    __int64 OutputIndex3;
+    _OWORD *pOutputEntry3;
+    _OWORD *pSrcEntry3;
+    __int64 CopyCount3;
 
-    v4 = a4;
-    v6 = 0;
-    v7 = (_QWORD *)GtRead(GtEprocessExtField41);
-    if (!v7)
+    RemainingSize = BufferSize;
+    Result = 0;
+    pModuleListHead = (_QWORD *)GtRead(GtEprocessExtField41);
+    if (!pModuleListHead)
     {
         InitKernelDataSectionTable();
-        v7 = (_QWORD *)GtRead(GtEprocessExtField41);
+        pModuleListHead = (_QWORD *)GtRead(GtEprocessExtField41);
     }
-    v8 = GtRead(GtEprocessExtField13);
-    if (v7
-        && v7 > MmSystemRangeStart
-        && v8 >= 0x60000
-        && a3
-        && (unsigned int)v4 >= 0x278
-        && (unsigned __int64)a3 < MmUserProbeAddress
-        && (unsigned __int64)a3 + v4 < MmUserProbeAddress)
+    BuildNumber = GtRead(GtEprocessExtField13);
+    if (pModuleListHead
+        && pModuleListHead > MmSystemRangeStart
+        && BuildNumber >= 0x60000
+        && pOutputBuffer
+        && (unsigned int)RemainingSize >= 0x278
+        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)pOutputBuffer + RemainingSize < MmUserProbeAddress)
     {
-        ProbeForWrite(a3, v4, 4u);
-        memset(a3, 0, v4);
-        v9 = (v4 - 632) / 0x270 + 1;
-        *(_DWORD *)a3 = 0;
-        v10 = (_QWORD *)*v7;
-        v11 = MmSystemRangeStart;
-        if (*v7 > (unsigned __int64)MmSystemRangeStart && v10 != v7)
+        ProbeForWrite(pOutputBuffer, RemainingSize, 4u);
+        memset(pOutputBuffer, 0, RemainingSize);
+        MaxCount = (RemainingSize - 632) / 0x270 + 1;
+        *(_DWORD *)pOutputBuffer = 0;
+        pCurrentEntry = (_QWORD *)*pModuleListHead;
+        MinAddress = MmSystemRangeStart;
+        if (*pModuleListHead > (unsigned __int64)MmSystemRangeStart && pCurrentEntry != pModuleListHead)
         {
-            v12 = 0;
-            if (v8 >= 0x60028)
+            ModuleIndex = 0;
+            if (BuildNumber >= 0x60028)
             {
-                v20 = (unsigned __int64)(v10 - 154);
-                if (v8 >= 0x60053)
+                EntryOffset3 = (unsigned __int64)(pCurrentEntry - 154);
+                if (BuildNumber >= 0x60053)
                 {
-                    while (v12 < 0x1000 && v20 > (unsigned __int64)v11 && CheckMemoryValid((void *)v20) == 1 && (_DWORD)v9)
+                    while (ModuleIndex < 0x1000 && EntryOffset3 > (unsigned __int64)MinAddress && CheckMemoryValid((void *)EntryOffset3) == 1 && (_DWORD)MaxCount)
                     {
-                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 2] = v20;
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 4] = *(_DWORD *)(v20 + 560);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 5] = *(_DWORD *)(v20 + 1120);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 6] = *(unsigned __int8 *)(v20 + 1216);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 7] = *(_DWORD *)(v20 + 528);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 8] = *(_DWORD *)(v20 + 532);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 9] = *(_DWORD *)(v20 + 536);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 10] = *(_DWORD *)(v20 + 564);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 11] = *(_DWORD *)(v20 + 1220);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 12] = *(_DWORD *)(v20 + 1224);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 13] = *(_DWORD *)(v20 + 1192);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 14] = *(_DWORD *)(v20 + 1112);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 23] = *(_DWORD *)(v20 + 4);
-                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 154] = *(_QWORD *)(v20 + 1320);
-                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 156] = *(_QWORD *)(v20 + 1328);
-                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 15] = *(_OWORD *)(v20 + 540);
-                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 19] = *(_OWORD *)(v20 + 580);
-                        v27 = *(_WORD *)(v20 + 8);
-                        v28 = (unsigned int)*(_DWORD *)a3;
-                        if (v27 >= 0x200u)
+                        *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 2] = EntryOffset3;
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 4] = *(_DWORD *)(EntryOffset3 + 560);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 5] = *(_DWORD *)(EntryOffset3 + 1120);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 6] = *(unsigned __int8 *)(EntryOffset3 + 1216);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 7] = *(_DWORD *)(EntryOffset3 + 528);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 8] = *(_DWORD *)(EntryOffset3 + 532);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 9] = *(_DWORD *)(EntryOffset3 + 536);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 10] = *(_DWORD *)(EntryOffset3 + 564);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 11] = *(_DWORD *)(EntryOffset3 + 1220);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 12] = *(_DWORD *)(EntryOffset3 + 1224);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 13] = *(_DWORD *)(EntryOffset3 + 1192);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 14] = *(_DWORD *)(EntryOffset3 + 1112);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 23] = *(_DWORD *)(EntryOffset3 + 4);
+                        *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 154] = *(_QWORD *)(EntryOffset3 + 1320);
+                        *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 156] = *(_QWORD *)(EntryOffset3 + 1328);
+                        *(_OWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 15] = *(_OWORD *)(EntryOffset3 + 540);
+                        *(_OWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 19] = *(_OWORD *)(EntryOffset3 + 580);
+                        NameLength3 = *(_WORD *)(EntryOffset3 + 8);
+                        OutputIndex3 = (unsigned int)*(_DWORD *)pOutputBuffer;
+                        if (NameLength3 >= 0x200u)
                         {
-                            v29 = &((_OWORD *)((_DWORD *)a3 + 156 * v28))[24];
-                            v30 = (_OWORD *)(v20 + 10);
-                            v31 = 4;
+                            pOutputEntry3 = &((_OWORD *)((_DWORD *)pOutputBuffer + 156 * OutputIndex3))[24];
+                            pSrcEntry3 = (_OWORD *)(EntryOffset3 + 10);
+                            CopyCount3 = 4;
                             do
                             {
-                                *v29 = *v30;
-                                v29[1] = v30[1];
-                                v29[2] = v30[2];
-                                v29[3] = v30[3];
-                                v29[4] = v30[4];
-                                v29[5] = v30[5];
-                                v29[6] = v30[6];
-                                v29 += 8;
-                                *(v29 - 1) = v30[7];
-                                v30 += 8;
-                                --v31;
+                                *pOutputEntry3 = *pSrcEntry3;
+                                pOutputEntry3[1] = pSrcEntry3[1];
+                                pOutputEntry3[2] = pSrcEntry3[2];
+                                pOutputEntry3[3] = pSrcEntry3[3];
+                                pOutputEntry3[4] = pSrcEntry3[4];
+                                pOutputEntry3[5] = pSrcEntry3[5];
+                                pOutputEntry3[6] = pSrcEntry3[6];
+                                pOutputEntry3 += 8;
+                                *(pOutputEntry3 - 1) = pSrcEntry3[7];
+                                pSrcEntry3 += 8;
+                                --CopyCount3;
                             }
-                            while (v31);
+                            while (CopyCount3);
                         }
                         else
                         {
-                            memmove(&((_DWORD *)a3)[156 * v28 + 24], (const void *)(v20 + 10), v27);
+                            memmove(&((_DWORD *)pOutputBuffer)[156 * OutputIndex3 + 24], (const void *)(EntryOffset3 + 10), NameLength3);
                         }
-                        ++*(_DWORD *)a3;
-                        LODWORD(v9) = v9 - 1;
-                        v32 = *(_QWORD *)(v20 + 1232);
-                        if ((_QWORD *)v32 == v7)
+                        ++*(_DWORD *)pOutputBuffer;
+                        LODWORD_LV(MaxCount) = MaxCount - 1;
+                        EntryOffset5 = *(_QWORD *)(EntryOffset3 + 1232);
+                        if ((_QWORD *)EntryOffset5 == pModuleListHead)
                             break;
-                        v11 = MmSystemRangeStart;
-                        if (v32 <= (unsigned __int64)MmSystemRangeStart)
+                        MinAddress = MmSystemRangeStart;
+                        if (EntryOffset5 <= (unsigned __int64)MmSystemRangeStart)
                             break;
-                        v20 = v32 - 1232;
-                        ++v12;
+                        EntryOffset3 = EntryOffset5 - 1232;
+                        ++ModuleIndex;
                     }
                 }
                 else
                 {
-                    while (v12 < 0x1000 && v20 > (unsigned __int64)v11 && CheckMemoryValid((void *)v20) == 1 && (_DWORD)v9)
+                    while (ModuleIndex < 0x1000 && EntryOffset3 > (unsigned __int64)MinAddress && CheckMemoryValid((void *)EntryOffset3) == 1 && (_DWORD)MaxCount)
                     {
-                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 2] = v20;
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 4] = *(_DWORD *)(v20 + 560);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 5] = *(_DWORD *)(v20 + 1120);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 6] = *(unsigned __int8 *)(v20 + 1216);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 7] = *(_DWORD *)(v20 + 528);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 8] = *(_DWORD *)(v20 + 532);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 9] = *(_DWORD *)(v20 + 536);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 10] = *(_DWORD *)(v20 + 564);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 11] = *(_DWORD *)(v20 + 1220);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 12] = *(_DWORD *)(v20 + 1224);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 13] = *(_DWORD *)(v20 + 1192);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 14] = *(_DWORD *)(v20 + 1112);
-                        ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 23] = *(_DWORD *)(v20 + 4);
-                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 154] = *(_QWORD *)(v20 + 1320);
-                        *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 156] = *(_QWORD *)(v20 + 1328);
-                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 15] = *(_OWORD *)(v20 + 540);
-                        *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 19] = *(_OWORD *)(v20 + 580);
-                        v21 = *(_WORD *)(v20 + 8);
-                        v22 = (unsigned int)*(_DWORD *)a3;
-                        if (v21 >= 0x200u)
+                        *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 2] = EntryOffset3;
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 4] = *(_DWORD *)(EntryOffset3 + 560);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 5] = *(_DWORD *)(EntryOffset3 + 1120);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 6] = *(unsigned __int8 *)(EntryOffset3 + 1216);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 7] = *(_DWORD *)(EntryOffset3 + 528);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 8] = *(_DWORD *)(EntryOffset3 + 532);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 9] = *(_DWORD *)(EntryOffset3 + 536);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 10] = *(_DWORD *)(EntryOffset3 + 564);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 11] = *(_DWORD *)(EntryOffset3 + 1220);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 12] = *(_DWORD *)(EntryOffset3 + 1224);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 13] = *(_DWORD *)(EntryOffset3 + 1192);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 14] = *(_DWORD *)(EntryOffset3 + 1112);
+                        ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 23] = *(_DWORD *)(EntryOffset3 + 4);
+                        *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 154] = *(_QWORD *)(EntryOffset3 + 1320);
+                        *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 156] = *(_QWORD *)(EntryOffset3 + 1328);
+                        *(_OWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 15] = *(_OWORD *)(EntryOffset3 + 540);
+                        *(_OWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 19] = *(_OWORD *)(EntryOffset3 + 580);
+                        NameLength2 = *(_WORD *)(EntryOffset3 + 8);
+                        OutputIndex2 = (unsigned int)*(_DWORD *)pOutputBuffer;
+                        if (NameLength2 >= 0x200u)
                         {
-                            v23 = &((_OWORD *)((_DWORD *)a3 + 156 * v22))[24];
-                            v24 = (_OWORD *)(v20 + 10);
-                            v25 = 4;
+                            pOutputEntry2 = &((_OWORD *)((_DWORD *)pOutputBuffer + 156 * OutputIndex2))[24];
+                            pSrcEntry2 = (_OWORD *)(EntryOffset3 + 10);
+                            CopyCount2 = 4;
                             do
                             {
-                                *v23 = *v24;
-                                v23[1] = v24[1];
-                                v23[2] = v24[2];
-                                v23[3] = v24[3];
-                                v23[4] = v24[4];
-                                v23[5] = v24[5];
-                                v23[6] = v24[6];
-                                v23 += 8;
-                                *(v23 - 1) = v24[7];
-                                v24 += 8;
-                                --v25;
+                                *pOutputEntry2 = *pSrcEntry2;
+                                pOutputEntry2[1] = pSrcEntry2[1];
+                                pOutputEntry2[2] = pSrcEntry2[2];
+                                pOutputEntry2[3] = pSrcEntry2[3];
+                                pOutputEntry2[4] = pSrcEntry2[4];
+                                pOutputEntry2[5] = pSrcEntry2[5];
+                                pOutputEntry2[6] = pSrcEntry2[6];
+                                pOutputEntry2 += 8;
+                                *(pOutputEntry2 - 1) = pSrcEntry2[7];
+                                pSrcEntry2 += 8;
+                                --CopyCount2;
                             }
-                            while (v25);
+                            while (CopyCount2);
                         }
                         else
                         {
-                            memmove(&((_DWORD *)a3)[156 * v22 + 24], (const void *)(v20 + 10), v21);
+                            memmove(&((_DWORD *)pOutputBuffer)[156 * OutputIndex2 + 24], (const void *)(EntryOffset3 + 10), NameLength2);
                         }
-                        ++*(_DWORD *)a3;
-                        LODWORD(v9) = v9 - 1;
-                        v26 = *(_QWORD *)(v20 + 1232);
-                        if ((_QWORD *)v26 == v7)
+                        ++*(_DWORD *)pOutputBuffer;
+                        LODWORD_LV(MaxCount) = MaxCount - 1;
+                        EntryOffset4 = *(_QWORD *)(EntryOffset3 + 1232);
+                        if ((_QWORD *)EntryOffset4 == pModuleListHead)
                             break;
-                        v11 = MmSystemRangeStart;
-                        if (v26 <= (unsigned __int64)MmSystemRangeStart)
+                        MinAddress = MmSystemRangeStart;
+                        if (EntryOffset4 <= (unsigned __int64)MmSystemRangeStart)
                             break;
-                        v20 = v26 - 1232;
-                        ++v12;
+                        EntryOffset3 = EntryOffset4 - 1232;
+                        ++ModuleIndex;
                     }
                 }
             }
             else
             {
-                v13 = (unsigned __int64)(v10 - 1);
-                while (v12 < 0x1000 && v13 > (unsigned __int64)v11 && CheckMemoryValid((void *)v13) == 1 && (_DWORD)v9)
+                EntryOffset = (unsigned __int64)(pCurrentEntry - 1);
+                while (ModuleIndex < 0x1000 && EntryOffset > (unsigned __int64)MinAddress && CheckMemoryValid((void *)EntryOffset) == 1 && (_DWORD)MaxCount)
                 {
-                    *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 2] = v13;
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 4] = *(_DWORD *)(v13 + 708);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 5] = *(_DWORD *)(v13 + 1264);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 6] = *(unsigned __int8 *)(v13 + 1360);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 7] = *(_DWORD *)(v13 + 676);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 8] = *(_DWORD *)(v13 + 680);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 9] = *(_DWORD *)(v13 + 684);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 10] = *(_DWORD *)(v13 + 712);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 11] = *(_DWORD *)(v13 + 1364);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 12] = *(_DWORD *)(v13 + 1368);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 13] = *(_DWORD *)(v13 + 1336);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 14] = *(_DWORD *)(v13 + 1256);
-                    ((_DWORD *)a3)[156 * *(_DWORD *)a3 + 23] = *(_DWORD *)(v13 + 152);
-                    *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 154] = *(_QWORD *)(v13 + 96);
-                    *(_QWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 156] = *(_QWORD *)(v13 + 104);
-                    *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 15] = *(_OWORD *)(v13 + 688);
-                    *(_OWORD *)&((_DWORD *)a3)[156 * *(_DWORD *)a3 + 19] = *(_OWORD *)(v13 + 724);
-                    v14 = *(_WORD *)(v13 + 156);
-                    v15 = (unsigned int)*(_DWORD *)a3;
-                    if (v14 >= 0x200u)
+                    *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 2] = EntryOffset;
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 4] = *(_DWORD *)(EntryOffset + 708);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 5] = *(_DWORD *)(EntryOffset + 1264);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 6] = *(unsigned __int8 *)(EntryOffset + 1360);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 7] = *(_DWORD *)(EntryOffset + 676);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 8] = *(_DWORD *)(EntryOffset + 680);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 9] = *(_DWORD *)(EntryOffset + 684);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 10] = *(_DWORD *)(EntryOffset + 712);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 11] = *(_DWORD *)(EntryOffset + 1364);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 12] = *(_DWORD *)(EntryOffset + 1368);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 13] = *(_DWORD *)(EntryOffset + 1336);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 14] = *(_DWORD *)(EntryOffset + 1256);
+                    ((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 23] = *(_DWORD *)(EntryOffset + 152);
+                    *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 154] = *(_QWORD *)(EntryOffset + 96);
+                    *(_QWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 156] = *(_QWORD *)(EntryOffset + 104);
+                    *(_OWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 15] = *(_OWORD *)(EntryOffset + 688);
+                    *(_OWORD *)&((_DWORD *)pOutputBuffer)[156 * *(_DWORD *)pOutputBuffer + 19] = *(_OWORD *)(EntryOffset + 724);
+                    NameLength = *(_WORD *)(EntryOffset + 156);
+                    OutputIndex = (unsigned int)*(_DWORD *)pOutputBuffer;
+                    if (NameLength >= 0x200u)
                     {
-                        v16 = &((_OWORD *)((_DWORD *)a3 + 156 * v15))[24];
-                        v17 = (_OWORD *)(v13 + 158);
-                        v18 = 4;
+                        pOutputEntry = &((_OWORD *)((_DWORD *)pOutputBuffer + 156 * OutputIndex))[24];
+                        pSrcEntry = (_OWORD *)(EntryOffset + 158);
+                        CopyCount = 4;
                         do
                         {
-                            *v16 = *v17;
-                            v16[1] = v17[1];
-                            v16[2] = v17[2];
-                            v16[3] = v17[3];
-                            v16[4] = v17[4];
-                            v16[5] = v17[5];
-                            v16[6] = v17[6];
-                            v16 += 8;
-                            *(v16 - 1) = v17[7];
-                            v17 += 8;
-                            --v18;
+                            *pOutputEntry = *pSrcEntry;
+                            pOutputEntry[1] = pSrcEntry[1];
+                            pOutputEntry[2] = pSrcEntry[2];
+                            pOutputEntry[3] = pSrcEntry[3];
+                            pOutputEntry[4] = pSrcEntry[4];
+                            pOutputEntry[5] = pSrcEntry[5];
+                            pOutputEntry[6] = pSrcEntry[6];
+                            pOutputEntry += 8;
+                            *(pOutputEntry - 1) = pSrcEntry[7];
+                            pSrcEntry += 8;
+                            --CopyCount;
                         }
-                        while (v18);
+                        while (CopyCount);
                     }
                     else
                     {
-                        memmove(&((_DWORD *)a3)[156 * v15 + 24], (const void *)(v13 + 158), v14);
+                        memmove(&((_DWORD *)pOutputBuffer)[156 * OutputIndex + 24], (const void *)(EntryOffset + 158), NameLength);
                     }
-                    ++*(_DWORD *)a3;
-                    LODWORD(v9) = v9 - 1;
-                    v19 = *(_QWORD *)(v13 + 8);
-                    if ((_QWORD *)v19 == v7)
+                    ++*(_DWORD *)pOutputBuffer;
+                    LODWORD_LV(MaxCount) = MaxCount - 1;
+                    EntryOffset2 = *(_QWORD *)(EntryOffset + 8);
+                    if ((_QWORD *)EntryOffset2 == pModuleListHead)
                         break;
-                    v11 = MmSystemRangeStart;
-                    if (v19 <= (unsigned __int64)MmSystemRangeStart)
+                    MinAddress = MmSystemRangeStart;
+                    if (EntryOffset2 <= (unsigned __int64)MmSystemRangeStart)
                         break;
-                    v13 = v19 - 8;
-                    ++v12;
+                    EntryOffset = EntryOffset2 - 8;
+                    ++ModuleIndex;
                 }
             }
         }
-        return *(_DWORD *)a3 != 0;
+        return *(_DWORD *)pOutputBuffer != 0;
     }
-    return v6;
+    return Result;
 }
 
 // =======================================================================
