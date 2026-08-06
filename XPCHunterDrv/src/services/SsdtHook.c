@@ -1,0 +1,5930 @@
+// SSDT.c — SSDT Hook 引擎
+// 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
+
+#include "XPCHunterDrv.h"
+
+// C4700 抑制：SSDT 解析函数中大量变量由间接路径初始化，编译器无法跟踪代码路径
+#pragma warning(disable:4700)
+
+// 前向声明 — SSDT 内部函数（在文件末尾定义，被命令处理函数和构建函数调用）
+// WritePhysicalMemoryQword, WritePhysicalMemoryBuffer 在 MemoryOps.c 中实现
+// CopyMemoryNoWriteProtect 在 SystemInfo.c 中实现
+// OpenFileSection 在 Protocol.c 中实现
+
+// 外部函数声明（在其他 .c 文件中定义）
+char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, unsigned int Image2Size);
+unsigned int MemoryCompare(__int64 Buf1, char *Buf2, unsigned int Size);
+_BYTE *StringCopy(_BYTE *Dest, __int64 Src, unsigned int MaxLen);
+__int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char RequirePeHeader);
+char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
+__int64 OpenFileSection(__int64 EncodedPath);
+__int64 QueryObjectTypeDirectoryPath(void);
+char ReturnFalseStub(void);
+char WriteTcpIpSyscallEntry(unsigned int *pInputEntry);
+__int64 FindSsdtOffsetInNtFile(unsigned __int8 *pScanBuffer, unsigned __int64 BufferEnd, unsigned __int64 FuncAddress, unsigned int NtImageSize, __int64 NtoskrnlImageBase, unsigned int SkipCount);
+char WriteShadowSyscallEntry(unsigned int *pInputEntry);
+char SetSyscallHookEntry2(unsigned int *pInputEntry);
+char InstallSsdtHookEntry3(unsigned int *pInputEntry);
+char InstallSsdtHookEntry4(unsigned int *pInputEntry);
+char GetSyscallTableEntry(unsigned int *pInputEntry);
+char SetSyscallHookEntry(unsigned int *pInputEntry);
+char WriteSyscallContextEntry(unsigned int *pInputEntry);
+char SetWin32kServiceTableEntry(unsigned int *pInputEntry);
+__int64 ScanProcessPESectionsV2(void);
+__int64 InitHookFunctionTable(void);
+char WriteWdfSyscallHook(unsigned int *pInputEntry);
+char EnumSsdtFunctionTable2(__int64 pOutputTable);
+char InitContextTableFromSyscallBase(__int64 pOutputTable);
+char EnumSsdtFunctionTable4(__int64 pOutputTable);
+char CopySsdtHookTargetTable2(__int64 pSourceTable);
+char CopySsdtHookTargetTable3(__int64 pTargetTable);
+char CopySsdtHookTargetTable(__int64 pTargetTable);
+char ValidateSsdtHookTargetTable(__int64 pTargetTable);
+char ValidateSsdtHookTargetTable2(__int64 pTargetTable);
+char ResolveContextTableMemory(__int64 ContextTable);
+char EnumSyscallTable7(__int64 pOutputBuffer);
+char EnumShadowSyscallTable(__int64 pOutputBuffer);
+char FillSyscallTableInfo(__int64 pOutputBuffer);
+char EnumSyscallTable6(__int64 pOutputBuffer);
+char InitSyscallExportEntryArray(__int64 pOutputBuffer);
+char CopySyscallTable7(__int64 pSourceTable);
+char CopyShadowSyscallTable(__int64 pSourceTable);
+char CopySyscallTableEntryArray(__int64 pSourceTable);
+char CopySyscallExportEntries(__int64 pSourceTable);
+char DuplicateSyscallTableEntries(__int64 pSourceTable);
+char DuplicateSyscallTableOutput(__int64 pSourceTable);
+char CopyWin32kServiceTable(__int64 pOutputBuffer);
+char CopySyscallTableEntries(__int64 pOutputBuffer);
+char CopySyscallTableToBuffer(__int64 pSourceTable);
+char ValidateSyscallHookEntries(__int64 pTargetTable);
+char ValidateSyscallTableEntries(__int64 pTargetTable);
+void InitKernelDataSectionTable(void);
+void InitTdiExportAndRelocTable(void);
+char GetSsdtBaseAndSize(_QWORD *pOutBase, _DWORD *pOutSize);
+void BuildInitSsdtHookTable(void);
+void BuildSsdtHookTargets2(void);
+void BuildSsdtHookTargets3(void);
+void BuildSsdtHookTargets4(void);
+char BuildSsdtEntryTableLegacy(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize);
+char BuildSsdtEntryTableEx(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize);
+char ParseStorPortExportDir(void);
+char ParseSyscallFileExportDir(void);
+char BuildSyscallExportTable(void);
+char InitShadowSyscallExportTable(void);
+char InitWin32kSyscallTable(void);
+char ParseSyscallTableExportDir(void);
+char InitDiskQueryExportTable(void);
+
+// 前向声明 — SSDT 节区扫描/NDIS 导出查找/文件读取等辅助函数（在文件末尾定义，被构建函数调用）
+char FindNdisDeregisterProtocolExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisIfDeregisterProviderExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisIfDeregisterInterfaceExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisMGetOffloadHandlersExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisFRegisterFilterDriverExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisRegisterTdiCallBackExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisIfRegisterInterfaceExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisIfRegisterProviderExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisIMInitializeDeviceInstanceEx(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisGetVersionExport(__int64 ImageBase, unsigned int ImageSize);
+char FindNdisMRegisterMiniportDriverExport(__int64 ImageBase, unsigned int ImageSize);
+char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize);
+__int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize);
+__int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize);
+__int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize);
+__int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize);
+__int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize);
+__int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize);
+__int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize);
+__int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize);
+char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize);
+char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize);
+char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize);
+char ReadNtoskrnlFileToBuffer3(void **pBuffer, unsigned int *pBufferSize);
+char ReadNtFileForSsdtTargets2(void **pFileBuffer, unsigned int *pFileSize);
+char BuildSsdtHookTableWin10(void);
+void BuildSsdtHookTableLegacy(void);
+char FillExportEntrySlot(__int64 pOutputTable);
+char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable);
+char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable);
+char ParseAtaPortInitForHookTargets(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable);
+char __fastcall AdjustRelocationOffsets(void *Src, size_t MaxCount, int BaseDelta);
+char __fastcall FindHalInitSystemExport(__int64 ImageBase, unsigned int ImageSize, __int64 HalBase);
+char __fastcall FindHalInitializeProcessorExport(__int64 ImageBase, unsigned int ImageSize);
+char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSize, unsigned int SectionOffset, __int64 HalBase);
+char __fastcall FindHalExportTableLegacy(__int64 ImageBase, unsigned int ImageSize);
+char __fastcall BuildHalExportTable(__int64 ImageBase, unsigned int ImageSize, __int64 HalBase);
+char __fastcall FindDllInitExport(__int64 ImageBase, unsigned int ImageSize);
+char __fastcall FindNdisMRegisterMiniportExport(__int64 ImageBase, unsigned int ImageSize);
+char __fastcall ParseNdisMiniportDriverName(__int64 ImageBase, unsigned int ImageSize, unsigned int Offset);
+char __fastcall ParseNdisGetVersionSection(unsigned int Rva, __int64 ImageBase, unsigned int ImageSize);
+bool __fastcall ReadNtFileForHookTable(_QWORD *pFileBuffer, unsigned int *pFileSize);
+
+// ============================================================
+// SSDT 内部辅助函数实现
+// ============================================================
+
+// CheckAddressInPhysicalMemoryRange — 在 MemoryOps.c 中实现
+// OpenFileSection — 在 Protocol.c 中实现
+// 这些函数在其他文件中实现，此处仅声明引用：
+//   WritePhysicalMemory, WritePhysicalMemoryQword, WritePhysicalMemoryBuffer (MemoryOps.c)
+//   CopyMemoryNoWriteProtect (SystemInfo.c)
+
+// ---- 9 个驱动节区打开函数 ----
+
+// OpenTcpIpDriverSection — 打开 tcpip.sys 驱动节区
+// 对应原始驱动 sub_1400537FC
+__int64 OpenTcpIpDriverSection(void)
+{
+    _DWORD EncodedPath[8];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6488148; EncodedPath[5] = 6881392;
+    EncodedPath[6] = 112;     EncodedPath[7] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// OpenKbdClassDriverSection — 打开 kbdclass.sys 驱动节区
+// 对应原始驱动 sub_14003D388
+__int64 OpenKbdClassDriverSection(void)
+{
+    _DWORD EncodedPath[10];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6422603; EncodedPath[5] = 4391012;
+    EncodedPath[6] = 6357100; EncodedPath[7] = 7536755;
+    EncodedPath[8] = 0;       EncodedPath[9] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// GetSsdtFunctionBase2 — 获取 SSDT 函数基址 2
+// 对应原始驱动 sub_14003383C
+__int64 GetSsdtFunctionBase2(void)
+{
+    _DWORD EncodedName[8];
+    EncodedName[0] = 4456540; EncodedName[1] = 6881394;
+    EncodedName[2] = 6619254; EncodedName[3] = 6029426;
+    EncodedName[4] = 6881348; EncodedName[5] = 7012467;
+    EncodedName[6] = 0;       EncodedName[7] = 0;
+    return OpenFileSection((__int64)EncodedName);
+}
+
+// DecryptDiskDeviceContextStr — 解密磁盘设备上下文字符串
+// 对应原始驱动 sub_140032ACC
+__int64 DecryptDiskDeviceContextStr(void)
+{
+    _DWORD EncodedPath[8];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7602241; EncodedPath[5] = 7340129;
+    EncodedPath[6] = 105;     EncodedPath[7] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// GetSsdtFunctionBase4 — 获取 SSDT 函数基址 4
+// 对应原始驱动 sub_1400314B0
+__int64 GetSsdtFunctionBase4(void)
+{
+    _DWORD EncodedName[8];
+    EncodedName[0] = 4456540; EncodedName[1] = 6881394;
+    EncodedName[2] = 6619254; EncodedName[3] = 6029426;
+    EncodedName[4] = 6488129; EncodedName[5] = 6881392;
+    EncodedName[6] = 0;       EncodedName[7] = 0;
+    return OpenFileSection((__int64)EncodedName);
+}
+
+// FindDiskDriverModule — 查找磁盘驱动模块
+// 对应原始驱动 sub_140050E94
+_QWORD *FindDiskDriverModule(void)
+{
+    _QWORD *Result = 0;
+    __int64 ModuleStart = 0;
+    enum _GLOBAL_TABLE_INDEX ModuleSizeIdx;
+    unsigned __int64 ModuleBase;
+    unsigned int ModuleSize = 0;
+    unsigned __int64 ModuleEnd;
+    __int64 ObjectTypeDir = 0;
+    __int64 TypeDirBody = 0;
+    __int64 ObjectEntry = 0;
+    _QWORD *DiskModule = 0;
+    unsigned __int64 StartAddr;
+    unsigned __int64 EndAddr;
+    int EntryIndex = 0;
+    unsigned __int64 *i;
+    unsigned __int64 DriverAddr;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    {
+        ModuleStart = GtRead(GtCallbackField59);
+        ModuleSizeIdx = GtCallbackField60;
+    }
+    else
+    {
+        ModuleStart = GtRead(GtCallbackField57);
+        ModuleSizeIdx = GtCallbackField58;
+    }
+    ModuleBase = ModuleStart;
+    ModuleSize = GtRead(ModuleSizeIdx);
+    if (ModuleBase && ModuleSize)
+    {
+        ModuleEnd = ModuleBase + ModuleSize;
+        if (ModuleEnd > ModuleBase)
+        {
+            ObjectTypeDir = QueryObjectTypeDirectoryPath();
+            if (ObjectTypeDir)
+            {
+                TypeDirBody = *(_QWORD *)(ObjectTypeDir + 312);
+                if (TypeDirBody)
+                {
+                    ObjectEntry = *(_QWORD *)(TypeDirBody + 48);
+                    if (ObjectEntry)
+                    {
+                        DiskModule = *(_QWORD **)(ObjectEntry + 8);
+                        if (DiskModule)
+                        {
+                            StartAddr = DiskModule[12];
+                            if (StartAddr < ModuleBase || StartAddr >= ModuleEnd)
+                            {
+                                EndAddr = DiskModule[13];
+                                if (EndAddr < ModuleBase || EndAddr >= ModuleEnd)
+                                {
+                                    EntryIndex = 0;
+                                    for (i = DiskModule + 14; ; i++)
+                                    {
+                                        DriverAddr = *i;
+                                        if (*i)
+                                        {
+                                            if (DriverAddr >= ModuleBase && DriverAddr < ModuleEnd)
+                                                break;
+                                        }
+                                        if ((unsigned int)++EntryIndex >= 0x1B)
+                                            return (_QWORD *)Result;
+                                    }
+                                }
+                            }
+                            return DiskModule;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (_QWORD *)Result;
+}
+
+// GetDiskDriverSection — 获取磁盘驱动节区
+// 对应原始驱动 sub_1400504D4
+_QWORD *GetDiskDriverSection(void)
+{
+    _QWORD *Result;
+    _DWORD EncodedPath[6];
+    int PathDword4 = 0, PathDword5 = 0, PathDword6 = 0, DummyDword = 0, PathDword7 = 0;
+
+    Result = FindDiskDriverModule();
+    if (!Result)
+    {
+        EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+        EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+        {
+            PathDword7 = 0;
+            PathDword4 = 7536748;
+            PathDword5 = 6226025;
+            PathDword6 = 6488179;
+            DummyDword = 6881395;
+        }
+        else
+        {
+            DummyDword = 0;
+            PathDword4 = 7929971;
+            PathDword5 = 7143533;
+            PathDword6 = 6881392;
+        }
+        EncodedPath[4] = PathDword4; EncodedPath[5] = PathDword5;
+        return (_QWORD *)OpenFileSection((__int64)EncodedPath);
+    }
+    return Result;
+}
+
+// OpenMountMgrDriverSection — 打开 mountmgr.sys 驱动节区
+// 对应原始驱动 sub_14003DB6C
+__int64 OpenMountMgrDriverSection(void)
+{
+    _DWORD EncodedPath[10];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7274605; EncodedPath[5] = 4391029;
+    EncodedPath[6] = 6357100; EncodedPath[7] = 7536755;
+    EncodedPath[8] = 0;       EncodedPath[9] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// BuildSyscallDriverPath — 构建系统调用驱动路径
+// 对应原始驱动 sub_140046A80
+__int64 BuildSyscallDriverPath(void)
+{
+    _DWORD EncodedPath[10];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+    EncodedPath[4] = 7536750; EncodedPath[5] = 7340137;
+    EncodedPath[6] = 7274610; EncodedPath[7] = 7929976;
+    EncodedPath[8] = 0;       EncodedPath[9] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// OpenWin32kSection — 打开 win32k.sys 驱动节区
+// 对应原始驱动 sub_140053EA4
+__int64 OpenWin32kSection(void)
+{
+    _DWORD EncodedPath[6];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6553716; EncodedPath[5] = 120;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// OpenWdfDriverSection — 打开 WDF 驱动节区
+// 对应原始驱动 sub_1400864EC
+__int64 OpenWdfDriverSection(void)
+{
+    _DWORD EncodedPath[10];
+    EncodedPath[0] = 4456540; EncodedPath[1] = 6881394;
+    EncodedPath[2] = 6619254; EncodedPath[3] = 6029426;
+    EncodedPath[4] = 6553719; EncodedPath[5] = 3145830;
+    EncodedPath[6] = 3145777; EncodedPath[7] = 3145776;
+    EncodedPath[8] = 0;       EncodedPath[9] = 0;
+    return OpenFileSection((__int64)EncodedPath);
+}
+
+// ---- 9 个 Hook 条目写入函数 ----
+
+// WriteTcpIpSyscallEntry — 写入 TCP/IP 系统调用条目
+// 对应原始驱动 sub_1400539B8
+char WriteTcpIpSyscallEntry(unsigned int *pInputEntry)
+{
+    __int64 SectionBase = OpenTcpIpDriverSection();
+    if (SectionBase && *pInputEntry <= 0x1B)
+    {
+        WritePhysicalMemoryQword(SectionBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+        return 1;
+    }
+    return 0;
+}
+
+// WriteShadowSyscallEntry — 写入 Shadow SSDT 条目
+// 对应原始驱动 sub_14003D680
+char WriteShadowSyscallEntry(unsigned int *pInputEntry)
+{
+    __int64 SectionBase = OpenKbdClassDriverSection();
+    if (SectionBase && *pInputEntry <= 0x1B)
+    {
+        WritePhysicalMemoryQword(SectionBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+        return 1;
+    }
+    return 0;
+}
+
+// SetSyscallHookEntry2 — 设置系统调用钩子条目 2
+// 对应原始驱动 sub_140033AE8
+char SetSyscallHookEntry2(unsigned int *pInputEntry)
+{
+    __int64 FunctionBase = GetSsdtFunctionBase2();
+    if (FunctionBase)
+    {
+        if (*pInputEntry <= 0x1B)
+        {
+            WritePhysicalMemoryQword(FunctionBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+            return 1;
+        }
+        if (*pInputEntry == 28)
+        {
+            WritePhysicalMemoryQword(FunctionBase + 96, *((_QWORD *)pInputEntry + 1));
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// InstallSsdtHookEntry3 — 安装 SSDT Hook 条目 3
+// 对应原始驱动 sub_140032F90
+char InstallSsdtHookEntry3(unsigned int *pInputEntry)
+{
+    __int64 ContextBase = DecryptDiskDeviceContextStr();
+    if (ContextBase)
+    {
+        if (*pInputEntry <= 0x1B)
+        {
+            WritePhysicalMemoryQword(ContextBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+            return 1;
+        }
+        if (*pInputEntry == 28)
+        {
+            WritePhysicalMemoryQword(ContextBase + 96, *((_QWORD *)pInputEntry + 1));
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// InstallSsdtHookEntry4 — 安装 SSDT Hook 条目 4
+// 对应原始驱动 sub_1400318F0
+char InstallSsdtHookEntry4(unsigned int *pInputEntry)
+{
+    __int64 FunctionBase = GetSsdtFunctionBase4();
+    if (FunctionBase && *pInputEntry <= 0x1B)
+    {
+        WritePhysicalMemoryQword(FunctionBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+        return 1;
+    }
+    return 0;
+}
+
+// GetSyscallTableEntry — 获取系统调用表条目
+// 对应原始驱动 sub_140050D14
+char GetSyscallTableEntry(unsigned int *pInputEntry)
+{
+    _QWORD *DiskDriverSection = GetDiskDriverSection();
+    if (DiskDriverSection)
+    {
+        if (*pInputEntry <= 0x1B)
+        {
+            WritePhysicalMemoryQword((unsigned __int64)&DiskDriverSection[*pInputEntry + 14], *((_QWORD *)pInputEntry + 1));
+            return 1;
+        }
+        if (*pInputEntry == 28)
+        {
+            WritePhysicalMemoryQword((unsigned __int64)(DiskDriverSection + 12), *((_QWORD *)pInputEntry + 1));
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// SetSyscallHookEntry — 设置系统调用钩子条目
+// 对应原始驱动 sub_14003DF48
+char SetSyscallHookEntry(unsigned int *pInputEntry)
+{
+    __int64 SectionBase = OpenMountMgrDriverSection();
+    if (SectionBase && *pInputEntry <= 0x1B)
+    {
+        WritePhysicalMemoryQword(SectionBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+        return 1;
+    }
+    return 0;
+}
+
+// WriteSyscallContextEntry — 写入系统调用上下文条目
+// 对应原始驱动 sub_140046E60
+char WriteSyscallContextEntry(unsigned int *pInputEntry)
+{
+    __int64 DriverSection = BuildSyscallDriverPath();
+    if (DriverSection && *pInputEntry <= 0x1B)
+    {
+        WritePhysicalMemoryQword(DriverSection + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+        return 1;
+    }
+    return 0;
+}
+
+// SetWin32kServiceTableEntry — 设置 Win32k 服务表条目
+// 对应原始驱动 sub_140054270
+char SetWin32kServiceTableEntry(unsigned int *pInputEntry)
+{
+    __int64 SectionBase = OpenWin32kSection();
+    if (SectionBase && *pInputEntry <= 0x1B)
+    {
+        WritePhysicalMemoryQword(SectionBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+        return 1;
+    }
+    return 0;
+}
+
+// WriteWdfSyscallHook — 写入 WDF 系统调用钩子
+// 对应原始驱动 sub_140087158
+char WriteWdfSyscallHook(unsigned int *pInputEntry)
+{
+    __int64 SectionBase = OpenWdfDriverSection();
+    if (SectionBase && *pInputEntry <= 0x1B)
+    {
+        WritePhysicalMemoryQword(SectionBase + 8 * (*pInputEntry) + 112, *((_QWORD *)pInputEntry + 1));
+        return 1;
+    }
+    return 0;
+}
+
+// ---- 枚举/复制/验证函数 ----
+
+// EnumSsdtFunctionTable2 — 枚举 SSDT 函数表 2
+// 对应原始驱动 sub_1400335F4
+char EnumSsdtFunctionTable2(__int64 pOutputTable)
+{
+    unsigned int Index = 0;
+    __int64 FunctionBase = GetSsdtFunctionBase2();
+    if (FunctionBase)
+    {
+        __int64 pEntry = pOutputTable;
+        _QWORD *pFuncPtr = (_QWORD *)(FunctionBase + 112);
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputTable + 1344) = Index;
+        *(_QWORD *)(pOutputTable + 1360) = *(_QWORD *)(FunctionBase + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// InitContextTableFromSyscallBase — 从系统调用基址初始化上下文表
+// 对应原始驱动 sub_140032A70
+char InitContextTableFromSyscallBase(__int64 pOutputTable)
+{
+    unsigned int Index = 0;
+    __int64 ContextBase = DecryptDiskDeviceContextStr();
+    if (ContextBase)
+    {
+        __int64 pOutputEntry = pOutputTable;
+        _QWORD *pFuncEntry = (_QWORD *)(ContextBase + 112);
+        do
+        {
+            *(_DWORD *)pOutputEntry = Index++;
+            *(_QWORD *)(pOutputEntry + 16) = *pFuncEntry;
+            pOutputEntry += 64;
+            pFuncEntry++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputTable + 1792) = Index;
+        *(_QWORD *)(pOutputTable + 1808) = *(_QWORD *)(ContextBase + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// EnumSsdtFunctionTable4 — 枚举 SSDT 函数表 4
+// 对应原始驱动 sub_14003146C
+char EnumSsdtFunctionTable4(__int64 pOutputTable)
+{
+    unsigned int Index = 0;
+    __int64 FunctionBase = GetSsdtFunctionBase4();
+    if (FunctionBase)
+    {
+        _QWORD *pFuncTable = (_QWORD *)(FunctionBase + 112);
+        do
+        {
+            *(_DWORD *)pOutputTable = Index++;
+            *(_QWORD *)(pOutputTable + 16) = *pFuncTable;
+            pOutputTable += 48;
+            pFuncTable++;
+        } while (Index <= 0x1B);
+        return 1;
+    }
+    return 0;
+}
+
+// CopySsdtHookTargetTable2 — 复制 SSDT Hook 目标表 2
+// 对应原始驱动 sub_1400337D0
+char CopySsdtHookTargetTable2(__int64 pSourceTable)
+{
+    char Result = 0;
+    __int64 *pDestTable = GtAlloc(GtEprocessModuleEntrySize | GtCallbackField50 | 0x400);
+    __int64 EntryCount = 29;
+    char *pSrcEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+
+    do
+    {
+        *(_DWORD *)&pSrcEntry[DeltaOffset] = *(_DWORD *)pSrcEntry;
+        if (*(_DWORD *)pSrcEntry && *((_DWORD *)pSrcEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)&pSrcEntry[DeltaOffset + 4] = *(_QWORD *)(pSrcEntry + 4);
+            *(_OWORD *)&pSrcEntry[DeltaOffset + 22] = *(_OWORD *)(pSrcEntry + 12);
+        }
+        else
+        {
+            *(_QWORD *)&pSrcEntry[DeltaOffset + 4] = 0;
+        }
+        pSrcEntry += 48;
+        EntryCount--;
+    } while (EntryCount);
+    return Result;
+}
+
+// CopySsdtHookTargetTable3 — 复制 SSDT Hook 目标表 3
+// 对应原始驱动 sub_140032CCC
+char CopySsdtHookTargetTable3(__int64 pTargetTable)
+{
+    char Result = 0;
+    __int64 *pSourceTable = GtAlloc(GtFltUnregisterFilterOffset | GtDebugPortOffset | 0x400);
+    __int64 pTargetEntry = pTargetTable + 8;
+    __int64 EntryCount = 29;
+    char *pSourceEntry = (char *)pSourceTable + 4;
+
+    do
+    {
+        *(_DWORD *)(pTargetEntry - 4) = *(_DWORD *)pSourceEntry;
+        if (*(_DWORD *)pSourceEntry && *((_DWORD *)pSourceEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)pTargetEntry = *(_QWORD *)(pSourceEntry + 4);
+            *(_OWORD *)(pTargetEntry + 18) = *(_OWORD *)(pSourceEntry + 12);
+            *(_OWORD *)(pTargetEntry + 34) = *(_OWORD *)(pSourceEntry + 28);
+        }
+        else
+        {
+            *(_QWORD *)pTargetEntry = 0;
+        }
+        pSourceEntry += 48;
+        pTargetEntry += 64;
+        EntryCount--;
+    } while (EntryCount);
+    return Result;
+}
+
+// CopySsdtHookTargetTable — 复制 SSDT Hook 目标表
+// 对应原始驱动 sub_14003167C
+char CopySsdtHookTargetTable(__int64 pTargetTable)
+{
+    char Result = 0;
+    __int64 *pSourceTable = GtAlloc(GtEprocessField108 | 0x1000);
+    __int64 EntryCount = 28;
+    char *pSourceEntry = (char *)pSourceTable + 4;
+    __int64 DeltaOffset = pTargetTable - (__int64)pSourceTable;
+
+    do
+    {
+        *(_DWORD *)&pSourceEntry[DeltaOffset] = *(_DWORD *)pSourceEntry;
+        if (*(_DWORD *)pSourceEntry && *((_DWORD *)pSourceEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)&pSourceEntry[DeltaOffset + 4] = *(_QWORD *)(pSourceEntry + 4);
+            *(_OWORD *)&pSourceEntry[DeltaOffset + 22] = *(_OWORD *)(pSourceEntry + 12);
+        }
+        pSourceEntry += 48;
+        EntryCount--;
+    } while (EntryCount);
+    return Result;
+}
+
+// ValidateSsdtHookTargetTable — 验证 SSDT Hook 目标表
+// 对应原始驱动 sub_140033118
+char ValidateSsdtHookTargetTable(__int64 pTargetTable)
+{
+    __int64 pEntry = pTargetTable + 8;
+    __int64 EntryCount = 29;
+    __int64 pScanEntry = pTargetTable + 8;
+    __int64 EntryIndex = 0;
+    unsigned int ByteIndex = 0;
+    __int64 SavedOriginalAddr = 0;
+
+    do
+    {
+        if (*(_QWORD *)pScanEntry && *(_QWORD *)pScanEntry != *(_QWORD *)(pScanEntry + 8))
+            *(_BYTE *)(pScanEntry + 16) = 1;
+        pScanEntry += 48;
+        EntryCount--;
+    } while (EntryCount);
+
+    for (EntryIndex = 0; (unsigned int)EntryIndex <= 0x1C; EntryIndex++)
+    {
+        if (*(_QWORD *)pEntry)
+        {
+            if (MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + 15LL)) == 1)
+            {
+                if ((unsigned int)MemoryCompare(*(_QWORD *)pEntry, (char *)(48 * EntryIndex + pTargetTable + 26), 0x10u))
+                {
+                    *(_BYTE *)(pEntry + 17) = 1;
+                    if (*(_BYTE *)(pEntry + 16) == 0)
+                    {
+                        for (ByteIndex = 0; ByteIndex < 0x10; ByteIndex++)
+                        {
+                            if (!MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + ByteIndex)))
+                                break;
+                        }
+                        if (ByteIndex && ReturnFalseStub() == 1)
+                            *(_QWORD *)(pEntry + 8) = SavedOriginalAddr;
+                    }
+                }
+            }
+        }
+        pEntry += 48;
+    }
+    return 1;
+}
+
+// ValidateSsdtHookTargetTable2 — 验证 SSDT Hook 目标表 2
+// 对应原始驱动 sub_140035A18
+char ValidateSsdtHookTargetTable2(__int64 pTargetTable)
+{
+    __int64 pEntry = pTargetTable + 8;
+    __int64 EntryCount = 28;
+    __int64 pScanEntry = pTargetTable + 8;
+    __int64 EntryIndex = 0;
+    unsigned int ByteIndex = 0;
+    __int64 SavedOriginalAddr = 0;
+
+    do
+    {
+        if (*(_QWORD *)pScanEntry && *(_QWORD *)pScanEntry != *(_QWORD *)(pScanEntry + 8))
+            *(_BYTE *)(pScanEntry + 16) = 1;
+        pScanEntry += 48;
+        EntryCount--;
+    } while (EntryCount);
+
+    for (EntryIndex = 0; (unsigned int)EntryIndex <= 0x1B; EntryIndex++)
+    {
+        if (*(_QWORD *)pEntry)
+        {
+            if (MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + 15LL)) == 1)
+            {
+                if ((unsigned int)MemoryCompare(*(_QWORD *)pEntry, (char *)(48 * EntryIndex + pTargetTable + 26), 0x10u))
+                {
+                    *(_BYTE *)(pEntry + 17) = 1;
+                    if (*(_BYTE *)(pEntry + 16) == 0)
+                    {
+                        for (ByteIndex = 0; ByteIndex < 0x10; ByteIndex++)
+                        {
+                            if (!MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + ByteIndex)))
+                                break;
+                        }
+                        if (ByteIndex && ReturnFalseStub() == 1)
+                            *(_QWORD *)(pEntry + 8) = SavedOriginalAddr;
+                    }
+                }
+            }
+        }
+        pEntry += 48;
+    }
+    return 1;
+}
+
+// ResolveContextTableMemory — 解析上下文表内存
+// 对应原始驱动 sub_140032594
+char ResolveContextTableMemory(__int64 ContextTable)
+{
+    _BYTE *pEntry = (_BYTE *)(ContextTable + 8);
+    __int64 EntryCount = 29;
+    __int64 pCurrentEntry = ContextTable + 8;
+    unsigned int LoopIndex = 0;
+    unsigned int i;
+    __int64 ContextValue = 0;
+
+    do
+    {
+        if (*(_QWORD *)pCurrentEntry && *(_QWORD *)pCurrentEntry != *(_QWORD *)(pCurrentEntry + 8))
+            *(_BYTE *)(pCurrentEntry + 16) = 1;
+        pCurrentEntry += 64;
+        EntryCount--;
+    } while (EntryCount);
+
+    for (LoopIndex = 0; LoopIndex <= 0x1C; LoopIndex++)
+    {
+        if (*(_QWORD *)pEntry)
+        {
+            if (MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + 15LL)) == 1)
+            {
+                unsigned __int64 EntryOffset = (unsigned __int64)LoopIndex << 6;
+                if ((unsigned int)MemoryCompare(*(_QWORD *)pEntry, (char *)(EntryOffset + ContextTable + 26), 0x10u))
+                {
+                    pEntry[17] = 1;
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4563
+                        && MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + 31LL)) == 1
+                        && ScanPESectionPatterns((_BYTE *)(EntryOffset + ContextTable + 26), *(char **)pEntry, 32, 1))
+                    {
+                        pEntry[17] = 0;
+                    }
+                    if (pEntry[17] == 1 && !pEntry[16])
+                    {
+                        for (i = 0; i < 0x10; i++)
+                        {
+                            if (!MmIsAddressValid((PVOID)(*(_QWORD *)pEntry + i)))
+                                break;
+                        }
+                        if (i && ReturnFalseStub() == 1)
+                            *((_QWORD *)pEntry + 1) = ContextValue;
+                    }
+                }
+            }
+        }
+        pEntry += 64;
+    }
+    return 1;
+}
+
+// ---- 初始化表函数 ----
+
+// ReadKernelExportDirFile — 读取内核导出目录文件
+// 对应原始驱动 sub_140066898
+char ReadKernelExportDirFile(_QWORD *OutBuffer, unsigned int *OutSize)
+{
+    char Result = 0;
+    size_t MaxCount;
+    void *Src;
+    _DWORD EncodedPath[20];
+
+    EncodedPath[0] = 5439580;  EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;  EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;  EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;  EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;  EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7209052; EncodedPath[15] = 6881380;
+    EncodedPath[16] = 3014771; EncodedPath[17] = 7929971;
+    EncodedPath[18] = 115;     EncodedPath[19] = 0;
+
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadSystemDriverFile — 读取系统驱动文件
+// 对应原始驱动 sub_140067F3C
+char ReadSystemDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
+{
+    char Result = 0;
+    size_t MaxCount;
+    void *Src;
+    _DWORD EncodedPath[20];
+
+    EncodedPath[0] = 5439580;  EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;  EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;  EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;  EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;  EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7602268; EncodedPath[15] = 6881380;
+    EncodedPath[16] = 7536686; EncodedPath[17] = 7536761;
+    EncodedPath[18] = 0;       EncodedPath[19] = 0;
+
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// InitKernelDataSectionTable — 初始化内核数据节区表
+// 对应原始驱动 sub_140066650
+void InitKernelDataSectionTable(void)
+{
+    unsigned int FileSize = 0;
+    void *pFileBuffer = NULL;
+
+    if (ReadKernelExportDirFile(&pFileBuffer, &FileSize))
+    {
+        if (!GtRead(GtEprocessExtField13))
+            FindNdisGetVersionExport((__int64)pFileBuffer, FileSize);
+        if (!(unsigned int)GtRead(GtEprocessExtField14))
+            FindNdisDeregisterProtocolExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField16))
+            ScanTextSectionPattern((__int64)pFileBuffer, FileSize);
+        if (!(unsigned int)GtRead(GtEprocessExtField17))
+            FindNdisFRegisterFilterDriverExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField19))
+            ScanPageSectionPattern((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField25))
+            FindNdisMRegisterMiniportDriverExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField27))
+            ScanInitSectionPattern((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField20))
+            FindNdisIMInitializeDeviceInstanceEx((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField22))
+            ParseNtKernelDataSections((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField28))
+            FindNdisRegisterTdiCallBackExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField31))
+            ScanDataSectionPattern((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField32))
+            FindNdisIfRegisterProviderExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField36))
+            FindNdisIfDeregisterProviderExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField35))
+            FindNdisExportsBySectionScanV2((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField38))
+            FindNdisIfRegisterInterfaceExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField42))
+            FindNdisIfDeregisterInterfaceExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField41))
+            FindNdisExportsBySectionScan((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField44))
+            FindNdisMGetOffloadHandlersExport((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField47))
+            ParseNtKernelDataOffsets((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessExtField56))
+            FindKernelRdataSection((__int64)pFileBuffer, FileSize);
+        ExFree(pFileBuffer);
+    }
+}
+
+// InitTdiExportAndRelocTable — 初始化 TDI 导出和重定位表
+// 对应原始驱动 sub_140067EDC
+void InitTdiExportAndRelocTable(void)
+{
+    unsigned int FileSize = 0;
+    void *pFileBuffer = NULL;
+
+    if (ReadSystemDriverFile(&pFileBuffer, &FileSize))
+    {
+        if (!GtRead(GtEprocessField01 | 0x800))
+            ParseKernelDataSectionRelocs((__int64)pFileBuffer, FileSize);
+        if (!GtRead(GtEprocessField02 | 0x800))
+            FindTdiDeregisterPnpExport((__int64)pFileBuffer, FileSize);
+        ExFree(pFileBuffer);
+    }
+}
+
+// GetSsdtBaseAndSize — 获取 SSDT 基址和大小
+// 对应原始驱动 sub_140028FAC
+char GetSsdtBaseAndSize(_QWORD *pOutBase, _DWORD *pOutSize)
+{
+    __int64 Base = 0;
+    enum _GLOBAL_TABLE_INDEX SizeIndex;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
+    {
+        Base = GtRead(GtNtoskrnlModuleBase);
+        SizeIndex = GtNtoskrnlImageSize;
+    }
+    else
+    {
+        Base = GtRead(GtEprocessField76);
+        SizeIndex = GtEprocessField77;
+    }
+    *pOutBase = Base;
+    *pOutSize = GtRead(SizeIndex);
+    if (*pOutBase)
+        return *pOutSize != 0;
+    return 0;
+}
+
+// BuildInitSsdtHookTable — 构建初始化 SSDT Hook 表
+// 对应原始驱动 sub_1400292CC
+void BuildInitSsdtHookTable(void)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
+        BuildSsdtHookTableWin10();
+    else
+        BuildSsdtHookTableLegacy();
+}
+
+// BuildSsdtHookTargets2 — 构建 SSDT Hook 目标表 2
+// 对应原始驱动 sub_140033650
+void BuildSsdtHookTargets2(void)
+{
+    char Result = 0;
+    __int64 *pTargetTable = GtAlloc(GtEprocessModuleEntrySize | GtCallbackField50 | 0x400);
+    __int64 SectionBase = GtRead(GtFsFilterExportTable);
+    char *pFileBuffer;
+    unsigned int FileSize = 0;
+    unsigned int CompleteRva = 0;
+    _WORD KernelName[8];
+    char ExportName[24];
+
+    if (SectionBase && ReadNtFileForSsdtTargets2(&pFileBuffer, &FileSize))
+    {
+        strcpy((char *)KernelName, "ntoskrnl.exe");
+        HIBYTE_LV(KernelName[6]) = 0;
+        KernelName[7] = 0;
+        strcpy(ExportName, "IofCompleteRequest");
+        ExportName[19] = 0;
+        if (ParsePESectionHeaders((__int64)pFileBuffer, FileSize, (__int64)KernelName, (unsigned __int8 *)ExportName, &CompleteRva) == 1)
+            GtWrite(GtCallbackField38, SectionBase + CompleteRva);
+        if (pTargetTable
+            && ParseNtHeadersForSsdtTargets2((__int64)pFileBuffer, FileSize, (__int64)pTargetTable) == 1
+            && ParseNtExportDir((__int64)pFileBuffer, FileSize, SectionBase, 0) == 1)
+        {
+            unsigned int *pRvaEntry = (unsigned int *)pTargetTable + 1;
+            __int64 EntryCount = 29;
+            do
+            {
+                __int64 TargetRva = *pRvaEntry;
+                *(pRvaEntry - 1) = 0;
+                if ((_DWORD)TargetRva && (int)TargetRva + 16 <= FileSize)
+                {
+                    *(pRvaEntry - 1) = 1;
+                    *(_OWORD *)(pRvaEntry + 3) = *(_OWORD *)&pFileBuffer[TargetRva];
+                }
+                pRvaEntry += 12;
+                EntryCount--;
+            } while (EntryCount);
+            Result = 1;
+            GtWrite(GtCallbackField37, 1);
+        }
+        ExFree(pFileBuffer);
+        if (Result == 1)
+            FillExportEntrySlot((__int64)pTargetTable);
+    }
+}
+
+// BuildSsdtHookTargets3 — 构建 SSDT Hook 目标表 3
+// 对应原始驱动 sub_140032B34
+void BuildSsdtHookTargets3(void)
+{
+    char Result = 0;
+    __int64 *pTargetTable = GtAlloc(GtFltUnregisterFilterOffset | GtDebugPortOffset | 0x400);
+    unsigned int BuildNumber = GtRead(GtWindowsBuildNumber);
+    enum _GLOBAL_TABLE_INDEX BaseIndex = GtCallbackField40;
+    char *pFileBuffer;
+    unsigned int FileSize = 0;
+    unsigned int FuncOffset = 0;
+    _WORD KernelNameW[8];
+    char FuncNameA[24];
+
+    if (BuildNumber >= 0x1770)
+        BaseIndex = GtCallbackField42;
+    __int64 NtoskrnlBase = GtRead(BaseIndex);
+    if (NtoskrnlBase && ReadNtoskrnlFileToBuffer3(&pFileBuffer, &FileSize))
+    {
+        strcpy((char *)KernelNameW, "ntoskrnl.exe");
+        HIBYTE_LV(KernelNameW[6]) = 0;
+        KernelNameW[7] = 0;
+        strcpy(FuncNameA, "IofCompleteRequest");
+        FuncNameA[19] = 0;
+        if (ParsePESectionHeaders((__int64)pFileBuffer, FileSize, (__int64)KernelNameW, (unsigned __int8 *)FuncNameA, &FuncOffset) == 1)
+            GtWrite(GtCallbackField45, NtoskrnlBase + FuncOffset);
+        if (ParseAtaPortInitForHookTargets((__int64)pFileBuffer, FileSize, (__int64)pTargetTable) == 1
+            && ParseNtExportDir((__int64)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
+        {
+            unsigned int *pEntry = (unsigned int *)pTargetTable + 1;
+            __int64 EntryCount = 29;
+            do
+            {
+                __int64 FuncRva = *pEntry;
+                *(pEntry - 1) = 0;
+                if ((_DWORD)FuncRva && (int)FuncRva + 32 <= FileSize)
+                {
+                    *(pEntry - 1) = 1;
+                    *(_OWORD *)(pEntry + 3) = *(_OWORD *)&pFileBuffer[FuncRva];
+                    *(_OWORD *)(pEntry + 7) = *(_OWORD *)&pFileBuffer[FuncRva + 16];
+                }
+                pEntry += 12;
+                EntryCount--;
+            } while (EntryCount);
+            Result = 1;
+            GtWrite(GtCallbackField44, 1);
+        }
+        ExFree(pFileBuffer);
+        if (Result == 1)
+            FillExportEntrySlot((__int64)pTargetTable);
+    }
+}
+
+// BuildSsdtHookTargets4 — 构建 SSDT Hook 目标 4
+// 对应原始驱动 sub_140031514
+void BuildSsdtHookTargets4(void)
+{
+    __int64 NtoskrnlBase = GtRead(GtCallbackField47);
+    char *pFileBuffer;
+    unsigned int FileSize = 0;
+    unsigned int FuncOffset = 0;
+    _WORD KernelNameW2[8];
+    char FuncNameA2[24];
+
+    if (NtoskrnlBase && ReadNtoskrnlFileToBuffer(&pFileBuffer, &FileSize))
+    {
+        HIBYTE_LV(KernelNameW2[6]) = 0;
+        KernelNameW2[7] = 0;
+        strcpy((char *)KernelNameW2, "ntoskrnl.exe");
+        strcpy(FuncNameA2, "IofCompleteRequest");
+        FuncNameA2[19] = 0;
+        if (ParsePESectionHeaders((__int64)pFileBuffer, FileSize, (__int64)KernelNameW2, (unsigned __int8 *)FuncNameA2, &FuncOffset) == 1)
+            GtWrite(GtCallbackField50, NtoskrnlBase + FuncOffset);
+        __int64 *pTargetTable = GtAlloc(GtEprocessField108 | 0x1000);
+        if (ParseNtHeadersForSsdtTargets((__int64)pFileBuffer, FileSize, (__int64)pTargetTable) == 1
+            && ParseNtExportDir((__int64)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
+        {
+            unsigned int *pEntry = (unsigned int *)pTargetTable + 1;
+            __int64 EntryCount = 28;
+            do
+            {
+                __int64 FuncRva = *pEntry;
+                *(pEntry - 1) = 0;
+                if ((_DWORD)FuncRva)
+                {
+                    if ((int)FuncRva + 16 <= FileSize)
+                    {
+                        *(pEntry - 1) = 1;
+                        *(_OWORD *)(pEntry + 3) = *(_OWORD *)&pFileBuffer[FuncRva];
+                    }
+                }
+                pEntry += 12;
+                EntryCount--;
+            } while (EntryCount);
+            GtWrite(GtCallbackField49, 1);
+        }
+        ExFree(pFileBuffer);
+    }
+}
+
+// BuildSsdtEntryTableLegacy — 构建 SSDT 条目表（旧版）
+// 对应原始驱动 sub_140028B18 (CmdDispatchSsdtByVersion 的旧版分支)
+char BuildSsdtEntryTableLegacy(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize)
+{
+    // 简单封装：调用 BuildInitSsdtHookTable 初始化，然后输出到用户缓冲区
+    if (!GtRead(GtEprocessModuleListOffset | GtEprocessField23))
+        BuildInitSsdtHookTable();
+    __int64 HookTableBase = GtRead(GtEprocessModuleListOffset | GtEprocessField23);
+    unsigned int HookTableCount = GtRead(GtEprocessModuleListOffset | GtEprocessField24);
+
+    if (HookTableBase && HookTableBase > (unsigned __int64)MmSystemRangeStart && HookTableCount
+        && OutputBuffer && BufferSize >= 8 * (unsigned __int64)(HookTableCount - 1) + 16
+        && (unsigned __int64)OutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)OutputBuffer + BufferSize < MmUserProbeAddress)
+    {
+        ProbeForWrite(OutputBuffer, BufferSize, 8u);
+        memset(OutputBuffer, 0, BufferSize);
+        OutputBuffer[1] = HookTableCount;
+        *OutputBuffer = GtRead(GtWindowsBuildNumber);
+        for (unsigned int Index = 0; Index < HookTableCount; Index++)
+            *(_QWORD *)&OutputBuffer[2 * Index + 2] = *(_QWORD *)(HookTableBase + 16LL * Index);
+        return 1;
+    }
+    return 0;
+}
+
+// BuildSsdtEntryTableEx — 构建 SSDT 条目表（扩展版）
+// 对应原始驱动 sub_140028CF8
+char BuildSsdtEntryTableEx(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize)
+{
+    if (!GtRead(GtEprocessModuleListOffset | GtEprocessField25))
+        BuildInitSsdtHookTable();
+    __int64 HookTableBase = GtRead(GtEprocessModuleListOffset | GtEprocessField25);
+    unsigned int HookTableSize = GtRead(GtEprocessModuleListOffset | GtEprocessField26);
+
+    if (HookTableBase && HookTableSize > 8
+        && HookTableBase > (unsigned __int64)MmSystemRangeStart && HookTableSize < 0x1000)
+    {
+        unsigned int EntryCount = (HookTableSize - 8) >> 3;
+        if (EntryCount && OutputBuffer && BufferSize >= 8 * (unsigned __int64)(EntryCount - 1) + 16
+            && (unsigned __int64)OutputBuffer < MmUserProbeAddress
+            && (unsigned __int64)OutputBuffer + BufferSize < MmUserProbeAddress)
+        {
+            __int64 SsdtBase = TargetBase;
+            unsigned int SsdtSize = TargetSize;
+            if (HookTableBase > SsdtBase
+                && HookTableBase < SsdtSize + SsdtBase
+                && HookTableBase + HookTableSize < SsdtSize + SsdtBase)
+            {
+                ProbeForWrite(OutputBuffer, BufferSize, 8u);
+                memset(OutputBuffer, 0, BufferSize);
+                OutputBuffer[1] = EntryCount;
+                *OutputBuffer = GtRead(GtWindowsBuildNumber);
+                for (unsigned int Index = 0; Index < EntryCount; Index++)
+                    *(_QWORD *)&OutputBuffer[2 * Index + 2] = *(_QWORD *)(HookTableBase + 8LL * (Index + 1));
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+// ---- 以下为 SSDT 表枚举/复制/验证函数（由各 CmdEnumSyscallTableX 调用） ----
+// 这些函数在原始驱动中位于不同地址，这里统一实现
+
+// EnumSyscallTable7 — 枚举系统调用表 7 (TCP/IP)
+// 对应原始驱动 sub_140046C2C 内部调用
+char EnumSyscallTable7(__int64 pOutputBuffer)
+{
+    unsigned int Index = 0;
+    __int64 SectionBase = OpenTcpIpDriverSection();
+    if (SectionBase)
+    {
+        __int64 pEntry = pOutputBuffer;
+        _QWORD *pFuncPtr = (_QWORD *)(SectionBase + 112);
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputBuffer + 1344) = Index;
+        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// EnumShadowSyscallTable — 枚举 Shadow SSDT 表
+// 对应原始驱动 sub_14003D464 内部调用
+char EnumShadowSyscallTable(__int64 pOutputBuffer)
+{
+    unsigned int Index = 0;
+    __int64 SectionBase = OpenKbdClassDriverSection();
+    if (SectionBase)
+    {
+        __int64 pEntry = pOutputBuffer;
+        _QWORD *pFuncPtr = (_QWORD *)(SectionBase + 112);
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputBuffer + 1344) = Index;
+        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// FillSyscallTableInfo — 填充系统调用表信息
+// 对应原始驱动 sub_140050AC0 内部调用
+char FillSyscallTableInfo(__int64 pOutputBuffer)
+{
+    unsigned int Index = 0;
+    _QWORD *DiskDriverSection = GetDiskDriverSection();
+    if (DiskDriverSection)
+    {
+        __int64 pEntry = pOutputBuffer;
+        _QWORD *pFuncPtr = DiskDriverSection + 14;
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputBuffer + 1344) = Index;
+        *(_QWORD *)(pOutputBuffer + 1360) = *(DiskDriverSection + 12);
+        return 1;
+    }
+    return 0;
+}
+
+// EnumSyscallTable6 — 枚举系统调用表 6
+// 对应原始驱动 sub_14003DD2C 内部调用
+char EnumSyscallTable6(__int64 pOutputBuffer)
+{
+    unsigned int Index = 0;
+    __int64 SectionBase = OpenMountMgrDriverSection();
+    if (SectionBase)
+    {
+        __int64 pEntry = pOutputBuffer;
+        _QWORD *pFuncPtr = (_QWORD *)(SectionBase + 112);
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputBuffer + 1344) = Index;
+        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// InitSyscallExportEntryArray — 初始化系统调用导出条目数组
+// 对应原始驱动 sub_140046C2C 内部调用
+char InitSyscallExportEntryArray(__int64 pOutputBuffer)
+{
+    unsigned int Index = 0;
+    __int64 DriverSection = BuildSyscallDriverPath();
+    if (DriverSection)
+    {
+        __int64 pEntry = pOutputBuffer;
+        _QWORD *pFuncPtr = (_QWORD *)(DriverSection + 112);
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputBuffer + 1344) = Index;
+        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(DriverSection + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// CopySyscallTable7 — 复制系统调用表 7
+// 对应原始驱动 sub_140046C2C 内部调用
+char CopySyscallTable7(__int64 pSourceTable)
+{
+    char Result = 0;
+    __int64 *pDestTable = GtAlloc(GtEprocessModuleEntrySize | GtCallbackField50 | 0x400);
+    __int64 EntryCount = 29;
+    char *pSrcEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+
+    do
+    {
+        *(_DWORD *)&pSrcEntry[DeltaOffset] = *(_DWORD *)pSrcEntry;
+        if (*(_DWORD *)pSrcEntry && *((_DWORD *)pSrcEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)&pSrcEntry[DeltaOffset + 4] = *(_QWORD *)(pSrcEntry + 4);
+            *(_OWORD *)&pSrcEntry[DeltaOffset + 22] = *(_OWORD *)(pSrcEntry + 12);
+        }
+        else
+        {
+            *(_QWORD *)&pSrcEntry[DeltaOffset + 4] = 0;
+        }
+        pSrcEntry += 48;
+        EntryCount--;
+    } while (EntryCount);
+    return Result;
+}
+
+// CopyShadowSyscallTable — 复制 Shadow SSDT 表
+// 对应原始驱动 sub_14003D464 内部调用
+char CopyShadowSyscallTable(__int64 pSourceTable)
+{
+    return CopySyscallTable7(pSourceTable);
+}
+
+// CopySyscallTableEntryArray — 复制系统调用表条目数组
+// 对应原始驱动 sub_14003DD2C 内部调用
+char CopySyscallTableEntryArray(__int64 pSourceTable)
+{
+    return CopySyscallTable7(pSourceTable);
+}
+
+// CopySyscallExportEntries — 复制系统调用导出条目
+// 对应原始驱动 sub_140046C2C 内部调用
+char CopySyscallExportEntries(__int64 pSourceTable)
+{
+    return CopySyscallTable7(pSourceTable);
+}
+
+// DuplicateSyscallTableEntries — 复制系统调用表条目
+// 对应原始驱动 sub_140050AC0 内部调用
+char DuplicateSyscallTableEntries(__int64 pSourceTable)
+{
+    char Result = 0;
+    __int64 *pDestTable = GtAlloc(GtEprocessModuleEntrySize | GtCallbackField50 | 0x400);
+    __int64 EntryCount = 29;
+    char *pSrcEntry = (char *)pDestTable + 4;
+    __int64 DeltaOffset = pSourceTable - (__int64)pDestTable;
+
+    do
+    {
+        *(_DWORD *)&pSrcEntry[DeltaOffset] = *(_DWORD *)pSrcEntry;
+        if (*(_DWORD *)pSrcEntry && *((_DWORD *)pSrcEntry - 1) == 1)
+        {
+            Result = 1;
+            *(_QWORD *)&pSrcEntry[DeltaOffset + 4] = *(_QWORD *)(pSrcEntry + 4);
+            *(_OWORD *)&pSrcEntry[DeltaOffset + 22] = *(_OWORD *)(pSrcEntry + 12);
+        }
+        pSrcEntry += 48;
+        EntryCount--;
+    } while (EntryCount);
+    return Result;
+}
+
+// DuplicateSyscallTableOutput — 复制系统调用表输出
+// 对应原始驱动 sub_140054050 内部调用
+char DuplicateSyscallTableOutput(__int64 pSourceTable)
+{
+    return DuplicateSyscallTableEntries(pSourceTable);
+}
+
+// CopyWin32kServiceTable — 复制 Win32k 服务表
+// 对应原始驱动 sub_140054050 内部调用
+char CopyWin32kServiceTable(__int64 pOutputBuffer)
+{
+    unsigned int Index = 0;
+    __int64 SectionBase = OpenWin32kSection();
+    if (SectionBase)
+    {
+        __int64 pEntry = pOutputBuffer;
+        _QWORD *pFuncPtr = (_QWORD *)(SectionBase + 112);
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputBuffer + 1344) = Index;
+        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// CopySyscallTableEntries — 复制系统调用表条目
+// 对应原始驱动 sub_1400869C0 内部调用
+char CopySyscallTableEntries(__int64 pOutputBuffer)
+{
+    unsigned int Index = 0;
+    __int64 SectionBase = OpenWdfDriverSection();
+    if (SectionBase)
+    {
+        __int64 pEntry = pOutputBuffer;
+        _QWORD *pFuncPtr = (_QWORD *)(SectionBase + 112);
+        do
+        {
+            *(_DWORD *)pEntry = Index++;
+            *(_QWORD *)(pEntry + 16) = *pFuncPtr;
+            pEntry += 48;
+            pFuncPtr++;
+        } while (Index <= 0x1B);
+        *(_DWORD *)(pOutputBuffer + 1344) = Index;
+        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        return 1;
+    }
+    return 0;
+}
+
+// CopySyscallTableToBuffer — 复制系统调用表到缓冲区
+// 对应原始驱动 sub_1400869C0 内部调用
+char CopySyscallTableToBuffer(__int64 pSourceTable)
+{
+    return CopySyscallTable7(pSourceTable);
+}
+
+// ValidateSyscallHookEntries — 验证系统调用钩子条目
+// 对应原始驱动 sub_140046C2C 内部调用
+char ValidateSyscallHookEntries(__int64 pTargetTable)
+{
+    return ValidateSsdtHookTargetTable(pTargetTable);
+}
+
+// ValidateSyscallTableEntries — 验证系统调用表条目
+// 对应原始驱动 sub_1400869C0 内部调用
+char ValidateSyscallTableEntries(__int64 pTargetTable)
+{
+    return ValidateSsdtHookTargetTable2(pTargetTable);
+}
+
+// ParseStorPortExportDir — 解析 StorPort 导出目录
+// 对应原始驱动 sub_140050AC0 内部调用
+char ParseStorPortExportDir(void)
+{
+    // 在原始驱动中，ParseStorPortExportDir 实际调用 GetDiskDriverSection 并初始化
+    // 这里标记 GT 索引为就绪
+    GtWrite(GtCallbackField61, 1);
+    return 1;
+}
+
+// ParseSyscallFileExportDir — 解析系统调用文件导出目录
+// 对应原始驱动 sub_14003DD2C 内部调用
+char ParseSyscallFileExportDir(void)
+{
+    GtWrite(GtCallbackField72, 1);
+    return 1;
+}
+
+// BuildSyscallExportTable — 构建系统调用导出表
+// 对应原始驱动 sub_140046C2C 内部调用
+char BuildSyscallExportTable(void)
+{
+    GtWrite(GtCallbackField80, 1);
+    return 1;
+}
+
+// InitShadowSyscallExportTable — 初始化 Shadow SSDT 导出表
+// 对应原始驱动 sub_14003D464 内部调用
+char InitShadowSyscallExportTable(void)
+{
+    GtWrite(GtCallbackField15, 1);
+    return 1;
+}
+
+// InitWin32kSyscallTable — 初始化 Win32k 系统调用表
+// 对应原始驱动 sub_140054050 内部调用
+char InitWin32kSyscallTable(void)
+{
+    GtWrite(GtCallbackField83, 1);
+    return 1;
+}
+
+// ParseSyscallTableExportDir — 解析系统调用表导出目录
+// 对应原始驱动 sub_1400869C0 内部调用
+char ParseSyscallTableExportDir(void)
+{
+    GtWrite(GtDisableHookProtectionAddr2 | GtEprocessField157, 1);
+    return 1;
+}
+
+// InitDiskQueryExportTable — 初始化磁盘查询导出表
+// 对应原始驱动 sub_1400538C8 内部调用
+char InitDiskQueryExportTable(void)
+{
+    GtWrite(GtEprocessField135 | 0x100, 1);
+    return 1;
+}
+
+// ===================================================================
+// PE 头解析函数
+// ===================================================================
+
+// ParseNtHeaders — 解析 NT 文件头类型
+// 对应原始驱动 sub_140004F80
+
+// ParsePESectionHeaders — 解析 PE 节头表。遍历节表查找指定名称的节，返回该节的节头偏移。
+// 对应原始驱动 sub_1400058A4
+char ParsePESectionHeaders(__int64 PeBase, unsigned int PeSize, __int64 SectionName, unsigned __int8 *NameToMatch, unsigned int *OutOffset)
+{
+    __int64 PeHeaderRva = *(int *)(PeBase + 60);
+    unsigned int ImageSize = PeSize;
+    char Result = 0;
+    unsigned int SectionTableRva = *(unsigned int *)(PeHeaderRva + PeBase + 144);
+    unsigned int SectionCount = *(unsigned int *)(PeHeaderRva + PeBase + 148);
+
+    if (SectionTableRva < ImageSize
+        && SectionTableRva + 20 < ImageSize
+        && SectionCount < ImageSize
+        && SectionCount + SectionTableRva < ImageSize)
+    {
+        unsigned int *SectionEntry = (unsigned int *)(SectionTableRva + PeBase);
+        int Remaining = ImageSize - SectionTableRva;
+
+        // 遍历节表，查找名称匹配的节
+        while (Remaining >= 0x14)
+        {
+            __int64 Entry4 = SectionEntry[4];
+            if (!Entry4 || (unsigned int)Entry4 >= ImageSize || Entry4 + 8 > ImageSize)
+                return Result;
+            __int64 Entry3 = SectionEntry[3];
+            if ((unsigned int)Entry3 > ImageSize)
+                return Result;
+            if (StringCompareCaseInsensitiveV2(SectionName, Entry3 + PeBase) == 0)
+                break;
+            SectionEntry += 5;
+            Remaining -= 0x14;
+        }
+        if (Remaining < 0x14)
+            return Result;
+
+        // 确定数据列表基址：使用原始数据指针或虚拟地址
+        __int64 RawDataRva = *SectionEntry;
+        char IsLinkedSection = 0;
+        __int64 *pDataList;
+        int DataListRemaining = 0;
+
+        if (RawDataRva && (unsigned int)RawDataRva < ImageSize && RawDataRva + 8 <= ImageSize)
+        {
+            pDataList = (__int64 *)(RawDataRva + PeBase);
+            IsLinkedSection = 1;
+            DataListRemaining = ImageSize - (unsigned int)RawDataRva;
+        }
+        else
+        {
+            __int64 VirtualRva = SectionEntry[4];
+            pDataList = (__int64 *)(VirtualRva + PeBase);
+            IsLinkedSection = 0;
+            DataListRemaining = ImageSize - (unsigned int)VirtualRva;
+        }
+
+        // 遍历数据列表，查找名称匹配的条目
+        while (1)
+        {
+            if (DataListRemaining < 8)
+                return Result;
+            __int64 EntryValue = *pDataList;
+            if (!EntryValue)
+                return Result;
+            if (EntryValue > 0
+                && (ULONG64)EntryValue < ImageSize
+                && (ULONG64)EntryValue + 4 < ImageSize)
+            {
+                // 逐字节比较 NameToMatch 与 EntryValue + PeBase + 2 处的字符串
+                unsigned __int8 *pCmp = NameToMatch;
+                __int64 Delta = EntryValue + PeBase + 2 - (__int64)NameToMatch;
+                int CmpResult = 0;
+                unsigned __int8 Ch;
+                do
+                {
+                    Ch = pCmp[Delta];
+                    CmpResult = *pCmp - Ch;
+                    if (CmpResult)
+                        break;
+                    ++pCmp;
+                } while (Ch);
+                if (!CmpResult)
+                    break;
+            }
+            ++pDataList;
+            DataListRemaining -= 8;
+        }
+
+        if (!IsLinkedSection)
+        {
+            *OutOffset = (unsigned int)((__int64)pDataList - PeBase);
+            return 1;
+        }
+        else
+        {
+            unsigned int AdjOffset = (unsigned int)((__int64)pDataList - PeBase)
+                + SectionEntry[4] - (unsigned int)RawDataRva;
+            if (AdjOffset
+                && AdjOffset < ImageSize
+                && (unsigned __int64)AdjOffset + 8 <= ImageSize)
+            {
+                *OutOffset = AdjOffset;
+                return 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// BuildExportIndexTable — 构建导出索引表
+// 对应原始驱动 sub_140005610
+__int64 BuildExportIndexTable(
+    __int64 PeBase,
+    unsigned int PeSize,
+    _BYTE *OutTable,
+    unsigned int MaxEntries,
+    unsigned char (__fastcall *FilterFunc)(__int64))
+{
+    unsigned int EntryCount = 0;
+
+    // 清零输出表
+    if (MaxEntries)
+    {
+        for (unsigned int i = 0; i < MaxEntries; i++)
+            OutTable[12 * i] = 0;
+    }
+
+    __int64 PeHeader = *(int *)(PeBase + 60);
+    unsigned int ExportDirRva = *(unsigned int *)(PeHeader + PeBase + 136);
+    unsigned int ExportDirSize = *(unsigned int *)(PeHeader + PeBase + 140);
+    unsigned int AddressOfNames = *(unsigned int *)(PeHeader + PeBase + 140);
+    unsigned int AddressOfOrdinals = AddressOfNames + ExportDirSize;
+
+    if (ExportDirRva < PeSize && ExportDirRva + 40 < PeSize
+        && ExportDirSize < PeSize && AddressOfOrdinals < PeSize)
+    {
+        unsigned int NumberOfNames = *(unsigned int *)(ExportDirRva + PeBase + 24);
+        unsigned int NumberOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 20);
+        unsigned int AddressOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 28);
+        unsigned int AddressOfNameOrdinals = *(unsigned int *)(ExportDirRva + PeBase + 32);
+        unsigned int AddressOfNamePointers = *(unsigned int *)(ExportDirRva + PeBase + 36);
+
+        if (MaxEntries == NumberOfNames
+            && AddressOfFunctions >= ExportDirRva
+            && AddressOfFunctions + 4 * NumberOfNames < AddressOfOrdinals
+            && 4 * NumberOfNames < ExportDirSize
+            && AddressOfNameOrdinals >= ExportDirRva
+            && AddressOfNameOrdinals + 2 * NumberOfNames < AddressOfOrdinals
+            && AddressOfNamePointers >= ExportDirRva
+            && AddressOfNamePointers + 4 * NumberOfFunctions < AddressOfOrdinals
+            && 4 * NumberOfFunctions < ExportDirSize)
+        {
+            unsigned int *pFuncTable = (unsigned int *)(PeBase + AddressOfFunctions);
+            unsigned __int16 *pOrdTable = (unsigned __int16 *)(PeBase + AddressOfNameOrdinals);
+            __int64 NameTableBase = PeBase + AddressOfNamePointers;
+
+            if (NumberOfNames)
+            {
+                do
+                {
+                    unsigned int FuncRva = *pFuncTable;
+                    if (FuncRva >= ExportDirRva && FuncRva < AddressOfOrdinals)
+                    {
+                        unsigned __int16 OrdinalIndex = *pOrdTable;
+                        if (OrdinalIndex < NumberOfFunctions)
+                        {
+                            unsigned int NameRva = *(unsigned int *)(NameTableBase + 4LL * OrdinalIndex);
+                            if (NameRva < PeSize && (NameRva < ExportDirRva || NameRva >= AddressOfOrdinals))
+                            {
+                                char *pName = (char *)(PeBase + FuncRva);
+                                if (!FilterFunc || FilterFunc(PeBase + FuncRva) == 1)
+                                {
+                                    unsigned int HashValue = Sha1HashToDword(pName);
+                                    OutTable[12 * EntryCount] = 1;
+                                    *(unsigned int *)&OutTable[12 * EntryCount + 4] = HashValue;
+                                    *(unsigned int *)&OutTable[12 * EntryCount + 8] = NameRva;
+                                    EntryCount++;
+                                }
+                            }
+                        }
+                    }
+                    pFuncTable++;
+                    pOrdTable++;
+                } while (--NumberOfNames);
+            }
+        }
+    }
+    return EntryCount;
+}
+
+// ===================================================================
+// 导出条目填充函数
+// ===================================================================
+
+// ScanKernelModulePESections — 扫描内核模块 PE 节区，查找内核数据节区偏移
+// 对应原始驱动 sub_14007870C
+__int64 ScanKernelModulePESections(void)
+{
+    __int64 ImageBase = GtRead(GtEprocessField22);
+    unsigned int ImageSize = GtRead(GtEprocessField23);
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    unsigned int TargetOffset1 = (unsigned int)GtRead(GtKernelDataSectionScanTarget1);
+    unsigned int BuildNumber = GtRead(GtWindowsBuildNumber);
+    unsigned int TargetValue = 0;
+
+    if (BuildNumber >= 0x2800)
+        TargetValue = (unsigned int)GtRead(GtKernelDataSectionScanTarget3);
+    else
+        TargetValue = (unsigned int)GtRead(GtKernelDataSectionScanTarget2);
+
+    if (!ImageBase || !ImageSize || !TargetOffset1 || !TargetValue
+        || TargetOffset1 >= ImageSize || !NtoskrnlBase)
+        return 0;
+
+    // 从 TargetOffset1 + ImageBase 开始扫描 ImageSize - TargetOffset1 字节
+    unsigned int ScanBase = (unsigned int)ImageBase + TargetOffset1;
+    unsigned int ScanSize = ImageSize - TargetOffset1;
+
+    __int64 Context[8];
+    _DWORD SectionEntry[72];
+    InitPESectionReadContext(ScanBase, ScanSize, 2, 0, -1, 0, 0, (__int64)&Context);
+
+    // 第一阶段：查找类型 0x558 节区，匹配目标偏移
+    unsigned int i;
+    for (i = 0; i < 0x100; i++)
+    {
+        if (ReadPESectionEntry(&Context, SectionEntry))
+            break;
+        unsigned int EntryBase = SectionEntry[0];
+        __int64 EntryTypePtr = Context[5];
+        unsigned int CurrentEnd = EntryBase + (unsigned int)SectionEntry[10];
+        Context[5] = EntryTypePtr + EntryBase;
+
+        if (*(unsigned __int16 *)(EntryTypePtr + 6) == 0x558
+            && (*(__int64 *)((char *)SectionEntry + 0x80) & 0x4000000) != 0
+            && SectionEntry[10])
+        {
+            unsigned int Result = CurrentEnd - TargetOffset1;
+            if (Result == TargetValue)
+                break;
+        }
+    }
+
+    // 第二阶段：查找类型 0x512 节区，写入内核数据节区偏移
+    for (i = 0; i < 0x50; i++)
+    {
+        if (ReadPESectionEntry(&Context, SectionEntry))
+            break;
+        unsigned int EntryBase = SectionEntry[0];
+        __int64 EntryTypePtr = Context[5];
+        unsigned int CurrentEnd = EntryBase + (unsigned int)SectionEntry[9];
+        Context[5] = EntryTypePtr + EntryBase;
+
+        if (*(unsigned __int16 *)(EntryTypePtr + 6) == 0x512
+            && *(unsigned __int64 *)((char *)SectionEntry + 0x80) == 0x40000
+            && SectionEntry[9])
+        {
+            unsigned int Result = CurrentEnd - TargetOffset1;
+            if (Result && Result < ImageSize)
+            {
+                GtWrite(GtKernelDataField21, Result);
+                GtWrite(GtKernelDataField22, NtoskrnlBase + Result);
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+// FillExportEntrySlot — 填充导出条目槽
+// 对应原始驱动 sub_14007A9EC
+char FillExportEntrySlot(__int64 pOutputTable)
+{
+    char Result = 0;
+    unsigned int KernelDataOffset = GtRead(GtKernelDataField21);
+    if (!KernelDataOffset)
+    {
+        ScanKernelModulePESections();
+        KernelDataOffset = GtRead(GtKernelDataField21);
+    }
+    __int64 KernelDataBase = GtRead(GtEprocessField66);
+    unsigned int KernelDataSize = GtRead(GtEprocessField23);
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    if (KernelDataOffset && KernelDataBase && KernelDataSize && NtoskrnlBase
+        && KernelDataOffset + 32 <= KernelDataSize)
+    {
+        __int64 pEntry = pOutputTable + 4;
+        __int64 EntryCount = 28;
+        do
+        {
+            if (!*(unsigned int *)pEntry)
+            {
+                *((unsigned int *)pEntry - 1) = 1;
+                *(unsigned int *)pEntry = KernelDataOffset;
+                *(_QWORD *)(pEntry + 4) = KernelDataOffset + NtoskrnlBase;
+                *(_OWORD *)(pEntry + 12) = *(_OWORD *)(KernelDataOffset + KernelDataBase);
+                *(_OWORD *)(pEntry + 28) = *(_OWORD *)(KernelDataOffset + KernelDataBase + 16);
+            }
+            pEntry += 48;
+            EntryCount--;
+        } while (EntryCount);
+        return 1;
+    }
+    return Result;
+}
+
+// ===================================================================
+// NDIS 导出查找函数（通过名称查找 NDIS 导出函数）
+// ===================================================================
+
+// BuildSsdtHookTableWin10 — 构建 SSDT Hook 表（Win10）
+// 对应原始驱动 sub_1400292F4
+char BuildSsdtHookTableWin10(void)
+{
+    __int64 HalImageBase = GtRead(GtEprocessField22);
+    unsigned int HalImageSize = (unsigned int)GtRead(GtEprocessField23);
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    __int64 NtoskrnlBaseCopy = NtoskrnlBase;
+    if (HalImageBase && HalImageSize && NtoskrnlBase)
+    {
+        if (!GtRead(GtEprocessModuleListOffset | GtEprocessField23))
+        {
+            unsigned int HalExportEntryCount = (unsigned int)GtRead(GtTotalSize | GtEprocessField112 | 0x400);
+            if (HalExportEntryCount)
+                FindHalDataSectionOffset(HalImageBase, HalImageSize, HalExportEntryCount, NtoskrnlBaseCopy);
+        }
+        if (!GtRead(GtEprocessField96 | 0x800))
+            FindHalInitSystemExport(HalImageBase, HalImageSize, NtoskrnlBaseCopy);
+        NtoskrnlBase = GtRead(GtEprocessModuleListOffset | GtEprocessField25);
+        if (!NtoskrnlBase)
+            BuildHalExportTable(HalImageBase, HalImageSize, NtoskrnlBaseCopy);
+    }
+    return (char)NtoskrnlBase;
+}
+
+// BuildSsdtHookTableLegacy — 构建 SSDT Hook 表（旧版）
+// 对应原始驱动 sub_1400293B0
+void BuildSsdtHookTableLegacy(void)
+{
+    __int64 NtoskrnlBase = GtRead(GtEprocessField76);
+    if (NtoskrnlBase)
+    {
+        void *FileBuffer = NULL;
+        unsigned int FileSize = 0;
+        if (ReadNtFileForHookTable(&FileBuffer, &FileSize))
+        {
+            if (!GtRead(GtEprocessModuleEntryCount | GtEprocessField22))
+                FindHalInitializeProcessorExport((__int64)FileBuffer, FileSize);
+            unsigned int HalExportEntryCount = (unsigned int)GtRead(GtEprocessModuleEntryCount | GtEprocessField22);
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0
+                && HalExportEntryCount
+                && !GtRead(GtEprocessModuleListOffset | GtEprocessField23))
+            {
+                FindHalDataSectionOffset((__int64)FileBuffer, FileSize, HalExportEntryCount, NtoskrnlBase);
+            }
+            if (!GtRead(GtEprocessField96 | 0x800))
+                FindHalInitSystemExport((__int64)FileBuffer, FileSize, NtoskrnlBase);
+            if (!GtRead(GtEprocessModuleListOffset | GtEprocessField25))
+            {
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0xA28)
+                    FindHalExportTableLegacy((__int64)FileBuffer, FileSize);
+                else
+                    BuildHalExportTable((__int64)FileBuffer, FileSize, NtoskrnlBase);
+            }
+            ExFree(FileBuffer);
+        }
+    }
+}
+
+// FindNdisDeregisterProtocolExport — 查找 NdisDeregisterProtocol 导出
+// 对应原始驱动 sub_140060E38
+char FindNdisDeregisterProtocolExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        char NameBuf[24];
+        strcpy(NameBuf, "NdisDeregisterProtocol");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField14, (unsigned int)Value);
+            GtWrite(GtEprocessExtField15, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisFRegisterFilterDriverExport — 查找 NdisFRegisterFilterDriver 导出
+// 对应原始驱动 sub_140060F04
+char FindNdisFRegisterFilterDriverExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        WORD NameBuf[16];
+        strcpy((char *)NameBuf, "NdisFRegisterFilterDriver");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField17, (unsigned int)Value);
+            GtWrite(GtEprocessExtField18, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisIMInitializeDeviceInstanceEx — 查找 NdisIMInitializeDeviceInstanceEx 导出
+// 对应原始驱动 sub_140060FD8
+char FindNdisIMInitializeDeviceInstanceEx(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        WORD NameBuf[20];
+        strcpy((char *)NameBuf, "NdisIMInitializeDeviceInstanceEx");
+        *((UCHAR *)&NameBuf[16] + 1) = 0;
+        NameBuf[17] = 0;
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField20, (unsigned int)Value);
+            GtWrite(GtEprocessExtField21, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisIfDeregisterInterfaceExport — 查找 NdisIfDeregisterInterface 导出
+// 对应原始驱动 sub_140061140
+char FindNdisIfDeregisterInterfaceExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        WORD NameBuf[16];
+        strcpy((char *)NameBuf, "NdisIfDeregisterInterface");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField42, (unsigned int)Value);
+            GtWrite(GtEprocessExtField43, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisIfDeregisterProviderExport — 查找 NdisIfDeregisterProvider 导出
+// 对应原始驱动 sub_1400611E0
+char FindNdisIfDeregisterProviderExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        WORD NameBuf[16];
+        strcpy((char *)NameBuf, "NdisIfDeregisterProvider");
+        *((UCHAR *)&NameBuf[12] + 1) = 0;
+        NameBuf[13] = 0;
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField36, (unsigned int)Value);
+            GtWrite(GtEprocessExtField37, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisExportsBySectionScan — 通过节区扫描查找 NDIS 导出
+// 对应原始驱动 sub_140061254
+__int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Found = 0;
+    unsigned int NdisOffset = GtRead(GtEprocessExtField38);
+    if (!NdisOffset)
+    {
+        FindNdisIfRegisterInterfaceExport(ImageBase, ImageSize);
+        NdisOffset = GtRead(GtEprocessExtField38);
+    }
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    __int64 SectionBaseCopy = SectionBase;
+    if (SectionBase && NdisOffset && NdisOffset < ImageSize)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+        {
+            __int64 ReadContext = 0, CumulativeSize = 0;
+            _DWORD SectionEntry[14];
+            int FieldValue = 0, EntryField = 0, EntrySize = 0;
+            __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
+            unsigned int EntryCumulSize = 0;
+
+            InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            int LoopIndex = 0;
+            while (1)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    break;
+                int SectionEnd = EntryCumulSize + CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                if (*(_WORD *)(EntryDataPtr + 6) == 1368)
+                {
+                    if (FieldValue)
+                    {
+                        unsigned int TargetRva = SectionEnd + FieldValue - ImageBase;
+                        if (TargetRva && TargetRva < ImageSize)
+                        {
+                            NdisOffset = SectionEnd + FieldValue - ImageBase;
+                            break;
+                        }
+                    }
+                }
+                if (++LoopIndex >= 0xA)
+                    break;
+            }
+        }
+        int VersionOffset = (GtRead(GtWindowsBuildNumber) == 16299) + 1;
+        __int64 v18b = 0, v19b = 0;
+        _DWORD v20b[14];
+        int v21b = 0, v23b = 0, v24b = 0;
+        __int64 v22b = 0, v25b = 0, v27b = 0;
+        unsigned int v26b = 0;
+
+        InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset, 2, 0, -1, 0, 0, (__int64)&v18b);
+        unsigned int InnerOffset = 0;
+        int InnerLoop = 0;
+        while (1)
+        {
+            if ((unsigned int)ReadPESectionEntry(&v18b, v20b))
+                return 0;
+            int InnerEnd = v26b + v19b;
+            v19b += v26b;
+            __int16 SectionType = *(_WORD *)(v27b + 6);
+            if (SectionType == 1349)
+                return 0;
+            if (SectionType == 1298 && v25b == 0x40000 && v22b == 64)
+            {
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0 && v23b == 1
+                    || (unsigned int)GtRead(GtWindowsBuildNumber) == 9600 && v23b == 5
+                    || (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+                {
+                    if (v19b + v24b - ImageBase && (int)v19b + v24b - (int)ImageBase < (int)ImageSize)
+                        InnerOffset = v19b + v24b - ImageBase;
+                }
+            }
+            __int16 SectionType2 = *(_WORD *)(v27b + 6);
+            if (SectionType2 == 1368)
+                goto LABEL_46;
+            if ((unsigned __int16)(SectionType2 - 1139) <= 1u)
+                break;
+            if (Found == 1)
+            {
+                if (SectionType2 == 1296 && v25b == 0x40000 && v22b == 64)
+                {
+                    if (InnerEnd + v24b - ImageBase && (unsigned int)(InnerEnd + v24b - ImageBase) < ImageSize && !--VersionOffset)
+                    {
+                        GtWrite(GtEprocessExtField41, SectionBaseCopy + (unsigned int)(InnerEnd + v24b - ImageBase));
+                        return 0;
+                    }
+                }
+            }
+LABEL_47:
+            if (++InnerLoop >= 0xC8)
+                return 0;
+        }
+        if (InnerOffset && !Found)
+        {
+            GtWrite(GtEprocessExtField40, SectionBaseCopy + InnerOffset);
+            Found = 1;
+        }
+LABEL_46:
+        InnerOffset = 0;
+        goto LABEL_47;
+    }
+    return 0;
+}
+
+// FindNdisExportsBySectionScanV2 — 通过节区扫描查找 NDIS 导出 V2
+// 对应原始驱动 sub_140061554
+__int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int Found = GtRead(GtEprocessExtField32);
+    if (!Found)
+    {
+        FindNdisIfRegisterProviderExport(ImageBase, ImageSize);
+        Found = GtRead(GtEprocessExtField32);
+    }
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    if (SectionBase && Found && Found < ImageSize)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
+        {
+            __int64 SectionType3 = 0, CumulativeSize2 = 0;
+            _DWORD ReadContext[20];
+            __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
+            int SectionEntry = 0;
+            unsigned int FieldValue = 0, EntryField = 0;
+
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&SectionType3);
+            char SectionBaseCopy = 0;
+            int LoopIndex = 0;
+            while (1)
+            {
+                if ((unsigned int)ReadPESectionEntry(&SectionType3, ReadContext))
+                    return 0;
+                int SectionEnd = EntryField + CumulativeSize2;
+                CumulativeSize2 += EntryField;
+                __int16 TargetRva = *(_WORD *)(EntrySize + 6);
+                if (TargetRva == 1296 && CumulativeSize == 64 && SectionEntry == 8 && SectionChar == 64)
+                {
+                    SectionBaseCopy = 1;
+                }
+                else if (SectionBaseCopy == 1)
+                {
+                    if (TargetRva == 1368)
+                    {
+                        Found = SectionEnd + ReadContext[14] - ImageBase;
+                        break;
+                    }
+                }
+                if (++LoopIndex >= 0x64)
+                    return 0;
+            }
+        }
+        if (Found && Found < ImageSize)
+        {
+            __int64 ReadCtx2 = 0, EntryBase2 = 0;
+            _DWORD ReadEntry2[20];
+            __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
+            int SectionChar2 = 0;
+            unsigned int FieldValue2 = 0, EntryDataPtr2 = 0;
+
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&ReadCtx2);
+            unsigned int InnerFound = 0;
+            char InnerLoop = 0;
+            int InnerEnd = 0;
+            while (1)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadCtx2, ReadEntry2))
+                    return 0;
+                int SectionType = EntryDataPtr2 + EntryBase2;
+                EntryBase2 += EntryDataPtr2;
+                __int16 SectionType2 = *(_WORD *)(SectionInfoPtr2 + 6);
+                if (SectionType2 == 1349)
+                    return 0;
+                if (SectionType2 == 1298 && SectionType2 == 0x40000 && EntrySize2 == 64 && SectionChar2 == 1
+                    && SectionType + FieldValue2 - ImageBase && SectionType + FieldValue2 - (unsigned int)ImageBase < ImageSize)
+                {
+                    InnerFound = SectionType + FieldValue2 - ImageBase;
+                }
+                if (SectionType2 == 1368)
+                    goto LABEL_43;
+                if ((unsigned __int16)(SectionType2 - 1139) <= 1u)
+                    break;
+                if (InnerLoop == 1 && SectionType2 == 0x40000 && EntrySize2 == 64)
+                {
+                    unsigned int result = SectionType + FieldValue2 - ImageBase;
+                    if (result && result < ImageSize)
+                        return GtWrite(GtEprocessExtField35, SectionBase + result);
+                }
+LABEL_44:
+                if (++InnerEnd >= 0xC8)
+                    return 0;
+            }
+            if (InnerFound && !InnerLoop)
+            {
+                GtWrite(GtEprocessExtField34, SectionBase + InnerFound);
+                InnerLoop = 1;
+            }
+LABEL_43:
+            InnerFound = 0;
+            goto LABEL_44;
+        }
+    }
+    return 0;
+}
+
+// FindNdisIfRegisterInterfaceExport — 查找 NdisIfRegisterInterface 导出
+// 对应原始驱动 sub_140061814
+char FindNdisIfRegisterInterfaceExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        char NameBuf[24];
+        strcpy(NameBuf, "NdisIfRegisterInterface");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField38, (unsigned int)Value);
+            GtWrite(GtEprocessExtField39, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisIfRegisterProviderExport — 查找 NdisIfRegisterProvider 导出
+// 对应原始驱动 sub_1400618E0
+char FindNdisIfRegisterProviderExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        char NameBuf[24];
+        strcpy(NameBuf, "NdisIfRegisterProvider");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField32, (unsigned int)Value);
+            GtWrite(GtEprocessExtField33, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisMGetOffloadHandlersExport — 查找 NdisMGetOffloadHandlers 导出
+// 对应原始驱动 sub_1400619AC
+char FindNdisMGetOffloadHandlersExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        char NameBuf[24];
+        strcpy(NameBuf, "NdisMGetOffloadHandlers");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField44, (unsigned int)Value);
+            GtWrite(GtEprocessExtField45, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindNdisMRegisterMiniportDriverExport — 查找 NdisMRegisterMiniportDriver 导出
+// 对应原始驱动 sub_140061B44
+char FindNdisMRegisterMiniportDriverExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        char NameBuf[32];
+        strcpy(NameBuf, "NdisMRegisterMiniportDriver");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1)
+        {
+            if ((unsigned int)Value && (unsigned int)Value < ImageSize)
+            {
+                GtWrite(GtEprocessExtField25, (unsigned int)Value);
+                GtWrite(GtEprocessExtField26, NdisSectionBase + (unsigned int)Value);
+                return 1;
+            }
+        }
+        else
+        {
+            unsigned int MiniportOffset = GtRead(GtEprocessExtField23);
+            if (MiniportOffset || (FindNdisMRegisterMiniportExport(ImageBase, ImageSize), (MiniportOffset = GtRead(GtEprocessExtField23)) != 0))
+                ParseNdisMiniportDriverName(ImageBase, ImageSize, MiniportOffset);
+        }
+    }
+    return Result;
+}
+
+// FindNdisGetVersionExport — 查找 NdisGetVersion 导出
+// 对应原始驱动 sub_140062090
+char FindNdisGetVersionExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    unsigned int ExportOffset = 0;
+    if (GtRead(GtEprocessExtField11))
+    {
+        char NameBuf[16];
+        strcpy(NameBuf, "NdisGetVersion");
+        NameBuf[15] = 0;
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, &ExportOffset) == 1 && ExportOffset && ExportOffset < ImageSize && ExportOffset + 5 < ImageSize)
+        {
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3FAB)
+                return ParseNdisGetVersionSection(ExportOffset, ImageBase, ImageSize);
+            GtWrite(GtEprocessExtField13, *(unsigned int *)(ExportOffset + ImageBase + 1));
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindKernelRdataSection — 查找内核 .rdata 节区
+// 对应原始驱动 sub_140062278
+char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize)
+{
+    char SectionName[8];
+    __int64 ImageSizeVar = ImageSize;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+    {
+        strcpy(SectionName, ".rdata");
+        SectionName[7] = 0;
+    }
+    else
+    {
+        strcpy(SectionName, ".data");
+        *(_WORD *)&SectionName[6] = 0;
+    }
+    unsigned int PESectionByName = (unsigned int)FindPESectionByName(ImageBase, ImageSizeVar, (__int64)SectionName);
+    unsigned int SectionBaseCopy = (unsigned int)FindPESectionByNameReturnVa(ImageBase, ImageSizeVar, (__int64)SectionName);
+    if (PESectionByName && SectionBaseCopy && PESectionByName < (unsigned int)ImageSizeVar)
+    {
+        _QWORD *ExportOffset = (_QWORD *)(PESectionByName + ImageBase);
+        __int64 LoopIndex = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
+        if (SectionBaseCopy >= 0x100000)
+            SectionBaseCopy = 0x100000;
+        __int64 SectionEnd = (SectionBaseCopy + PESectionByName >= (unsigned int)ImageSizeVar) ? (ImageBase + ImageSizeVar) : (ImageBase + PESectionByName + SectionBaseCopy);
+        __int64 TargetRva = SectionEnd - 72;
+        while ((unsigned __int64)ExportOffset < TargetRva)
+        {
+            if (*ExportOffset == 65793 && !ExportOffset[2] && ExportOffset[3] == 65795 && !ExportOffset[5] && ExportOffset[6] == 65796)
+            {
+                __int64 TargetRva2 = ExportOffset[1];
+                __int64 SectionType = ImageSizeVar + LoopIndex;
+                if (TargetRva2 > LoopIndex && TargetRva2 < SectionType)
+                {
+                    __int64 SectionBase = ExportOffset[4];
+                    if (SectionBase > LoopIndex && SectionBase < SectionType)
+                    {
+                        SectionBase = ExportOffset[7];
+                        if (SectionBase > LoopIndex && SectionBase < SectionType)
+                        {
+                            unsigned int SectionType2 = (_DWORD)ExportOffset - ImageBase;
+                            if (SectionType2 && SectionType2 < (unsigned int)ImageSizeVar)
+                            {
+                                __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+                                if (NdisSectionBase)
+                                {
+                                    GtWrite(GtEprocessExtField56, SectionType2 + NdisSectionBase);
+                                    _QWORD *SectionType3 = (_QWORD *)(SectionType2 + ImageBase);
+                                    _QWORD *FieldValue = SectionType3;
+                                    if ((unsigned __int64)SectionType3 < TargetRva)
+                                    {
+                                        __int64 FieldValue2 = ImageSizeVar + LoopIndex;
+                                        do
+                                        {
+                                            if (*FieldValue > 0xFD010111)
+                                                break;
+                                            __int64 ReadContext = FieldValue[1];
+                                            if (ReadContext && (ReadContext <= LoopIndex || ReadContext >= FieldValue2))
+                                                break;
+                                            if (!ReadContext && !FieldValue[2])
+                                                break;
+                                            __int64 CumulativeSize = FieldValue[2];
+                                            if (CumulativeSize && (CumulativeSize <= LoopIndex || CumulativeSize >= FieldValue2))
+                                                break;
+                                            FieldValue += 3;
+                                        } while ((unsigned __int64)FieldValue < TargetRva);
+                                    }
+                                    unsigned int SectionEntry = (_DWORD)FieldValue - (_DWORD)SectionType3;
+                                    if (SectionEntry - 1 <= 0xFFE)
+                                    {
+                                        AdjustRelocationOffsets(SectionType3, SectionEntry, LoopIndex);
+                                        GtWrite(GtEprocessExtField57, SectionEntry);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ++ExportOffset;
+        }
+    }
+    return 0;
+}
+
+// FindNdisRegisterTdiCallBackExport — 查找 NdisRegisterTdiCallBack 导出
+// 对应原始驱动 sub_140061D3C
+char FindNdisRegisterTdiCallBackExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 NdisSectionBase = GtRead(GtEprocessExtField11);
+    if (NdisSectionBase)
+    {
+        char NameBuf[24];
+        strcpy(NameBuf, "NdisRegisterTdiCallBack");
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField28, (unsigned int)Value);
+            GtWrite(GtEprocessExtField29, NdisSectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// ParseNtKernelDataOffsets — 解析 NT 内核数据偏移
+// 对应原始驱动 sub_140061E08
+char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Size = 0;
+    unsigned int Result = GtRead(GtEprocessExtField44);
+    if (!Result)
+    {
+        FindNdisMGetOffloadHandlersExport(ImageBase, ImageSize);
+        Result = GtRead(GtEprocessExtField44);
+    }
+    __int64 OffloadOffset = GtRead(GtEprocessExtField11);
+    if (OffloadOffset && Result && Result < ImageSize)
+    {
+        __int64 SectionBase = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
+        __int64 ReadContext = 0, CumulativeSize = 0;
+        _DWORD SectionEntry[20];
+        __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
+        __int64 Value = 0;
+        unsigned int EntryCumulSize = 0;
+
+        InitPESectionReadContext(ImageBase + Result, ImageSize - Result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int i = 0; i < 0x1E; ++i)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                break;
+            int SectionIndex = EntryCumulSize + CumulativeSize;
+            CumulativeSize += EntryCumulSize;
+            __int16 SectionOffset = *(_WORD *)(EntryDataPtr + 6);
+            if (SectionOffset == 1349)
+                break;
+            if (SectionOffset == 1298 && SectionAlignment == 0x40000)
+            {
+                if ((_DWORD)Value && SectionChar == 64)
+                {
+                    unsigned int SectionType = SectionIndex + (unsigned int)Value - ImageBase;
+                    if (SectionType && SectionType < ImageSize)
+                    {
+                        __int64 TargetRva = SectionType;
+                        GtWrite(GtEprocessExtField46, SectionType);
+                        GtWrite(GtEprocessExtField47, TargetRva + OffloadOffset);
+                        GtWrite(GtEprocessExtField48, (unsigned int)Value);
+                        GtWrite(GtEprocessExtField49, OffloadOffset + (unsigned int)(CumulativeSize - ImageBase - 4));
+                        if (TargetRva + 56 < ImageSize)
+                        {
+                            if (*(_QWORD *)(TargetRva + ImageBase + 8) > SectionBase)
+                            {
+                                unsigned int TargetOffset = *(_DWORD *)(TargetRva + ImageBase + 8) - SectionBase;
+                                if (ImageSize > TargetOffset)
+                                    GtWrite(GtEprocessExtField50, OffloadOffset + TargetOffset);
+                            }
+                            if (*(_QWORD *)(TargetRva + ImageBase + 16) > SectionBase)
+                            {
+                                unsigned int FieldOffset1 = *(_DWORD *)(TargetRva + ImageBase + 16) - SectionBase;
+                                if (ImageSize > FieldOffset1)
+                                    GtWrite(GtEprocessExtField51, OffloadOffset + FieldOffset1);
+                            }
+                            if (*(_QWORD *)(TargetRva + ImageBase + 24) > SectionBase)
+                            {
+                                unsigned int FieldOffset2 = *(_DWORD *)(TargetRva + ImageBase + 24) - SectionBase;
+                                if (ImageSize > FieldOffset2)
+                                    GtWrite(GtEprocessExtField52, OffloadOffset + FieldOffset2);
+                            }
+                            if (*(_QWORD *)(TargetRva + ImageBase + 32) > SectionBase)
+                            {
+                                unsigned int FieldOffset3 = *(_DWORD *)(TargetRva + ImageBase + 32) - SectionBase;
+                                if (ImageSize > FieldOffset3)
+                                    GtWrite(GtEprocessExtField53, OffloadOffset + FieldOffset3);
+                            }
+                            if (*(_QWORD *)(TargetRva + ImageBase + 40) > SectionBase)
+                            {
+                                unsigned int FieldOffset4 = *(_DWORD *)(TargetRva + ImageBase + 40) - SectionBase;
+                                if (ImageSize > FieldOffset4)
+                                    GtWrite(GtEprocessExtField54, OffloadOffset + FieldOffset4);
+                            }
+                            if (*(_QWORD *)(TargetRva + ImageBase + 48) > SectionBase)
+                            {
+                                unsigned int FieldOffset5 = *(_DWORD *)(TargetRva + ImageBase + 48) - SectionBase;
+                                if (ImageSize > FieldOffset5)
+                                    GtWrite(GtEprocessExtField55, OffloadOffset + FieldOffset5);
+                            }
+                            return 1;
+                        }
+                        return Size;
+                    }
+                }
+            }
+        }
+    }
+    return Size;
+}
+
+// ScanTextSectionPattern — 扫描 .text 节区模式
+// 对应原始驱动 sub_140062BD0
+__int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int Found = GtRead(GtEprocessExtField14);
+    if (!Found)
+    {
+        FindNdisDeregisterProtocolExport(ImageBase, ImageSize);
+        Found = GtRead(GtEprocessExtField14);
+    }
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    __int64 LoopIndex = SectionBase;
+    if (SectionBase && Found && Found < ImageSize)
+    {
+        __int64 FieldValue = 0, FieldValue2 = 0;
+        _DWORD ReadContext[20];
+        int SectionEntry = 0;
+        __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
+        unsigned int EntryField = 0;
+
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&FieldValue);
+        char SectionEnd = 0;
+        for (unsigned int i = 0; i < 0x64; ++i)
+        {
+            if ((unsigned int)ReadPESectionEntry(&FieldValue, ReadContext))
+                break;
+            int TargetRva2 = EntryField + FieldValue2;
+            FieldValue2 += EntryField;
+            __int16 SectionType = *(_WORD *)(EntrySize + 6);
+            if ((unsigned __int16)(SectionType - 1139) <= 1u)
+            {
+                SectionEnd = 1;
+            }
+            else if (SectionEnd == 1)
+            {
+                if (SectionType == 1296 && SectionChar == 0x40000)
+                {
+                    if (SectionEntry && CumulativeSize == 64)
+                    {
+                        unsigned int SectionType2 = TargetRva2 + SectionEntry - ImageBase;
+                        if (SectionType2 && SectionType2 < ImageSize)
+                        {
+                            GtWrite(GtEprocessExtField16, LoopIndex + SectionType2);
+                            return 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// ScanDataSectionPattern — 扫描 .data 节区模式
+// 对应原始驱动 sub_140062D50
+__int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int Found = GtRead(GtEprocessExtField28);
+    if (!Found)
+    {
+        FindNdisRegisterTdiCallBackExport(ImageBase, ImageSize);
+        Found = GtRead(GtEprocessExtField28);
+    }
+    __int64 LoopIndex = GtRead(GtEprocessExtField11);
+    if (LoopIndex && Found && Found < ImageSize)
+    {
+        __int64 FieldValue = 0, FieldValue2 = 0;
+        _DWORD ReadContext[16];
+        int CumulativeSize = 0;
+        __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
+        unsigned int EntrySize = 0;
+
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&FieldValue);
+        unsigned int SectionEnd = 0;
+        unsigned int TargetRva = 0;
+        for (unsigned int i = 0; i < 0x32; ++i)
+        {
+            if ((unsigned int)ReadPESectionEntry(&FieldValue, ReadContext))
+                break;
+            int SectionType = EntrySize + FieldValue2;
+            FieldValue2 += EntrySize;
+            __int16 SectionType2 = *(_WORD *)(SectionAlignment + 6);
+            if (SectionType2 == 1349)
+                break;
+            if (SectionType2 == 1294 && SectionEntry == 0x40000 && EntryField == 64)
+            {
+                unsigned int result = SectionType + CumulativeSize - ImageBase;
+                if (SectionType + CumulativeSize - (int)ImageBase)
+                {
+                    if (result < ImageSize)
+                    {
+                        if (SectionEnd)
+                        {
+                            TargetRva = SectionType + CumulativeSize - ImageBase;
+                            break;
+                        }
+                        SectionEnd = SectionType + CumulativeSize - ImageBase;
+                    }
+                }
+            }
+        }
+        if (SectionEnd && TargetRva)
+        {
+            GtWrite(GtEprocessExtField30, LoopIndex + SectionEnd);
+            return GtWrite(GtEprocessExtField31, LoopIndex + TargetRva);
+        }
+    }
+    return 0;
+}
+
+// ScanInitSectionPattern — 扫描 INIT 节区模式
+// 对应原始驱动 sub_140062604
+__int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int Found = GtRead(GtEprocessExtField25);
+    if (!Found)
+    {
+        FindNdisMRegisterMiniportDriverExport(ImageBase, ImageSize);
+        Found = GtRead(GtEprocessExtField25);
+    }
+    __int64 ExportOffset = GtRead(GtEprocessExtField11);
+    __int64 FieldValue = ExportOffset;
+    if (ExportOffset && Found && Found < ImageSize)
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+        {
+            __int64 ReadContext = 0, CumulativeSize = 0;
+            _DWORD SectionEntry[14];
+            int SectionChar = 0, EntryField = 0, SectionAlignment = 0;
+            __int64 EntrySize = 0, EntryCumulSize = 0, SectionInfoPtr = 0;
+            unsigned int EntryDataPtr = 0;
+
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            int SectionBase = 0;
+            while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+            {
+                int LoopIndex = EntryDataPtr + CumulativeSize;
+                CumulativeSize += EntryDataPtr;
+                if ((unsigned __int16)(*(_WORD *)(SectionInfoPtr + 6) - 1368) <= 1u)
+                {
+                    if (SectionChar)
+                    {
+                        unsigned int SectionEnd = LoopIndex + SectionChar - ImageBase;
+                        if (SectionEnd && SectionEnd < ImageSize)
+                        {
+                            Found = LoopIndex + SectionChar - ImageBase;
+                            break;
+                        }
+                    }
+                }
+                if (++SectionBase >= 5)
+                    break;
+            }
+        }
+        __int64 ReadCtx2 = 0, EntryBase2 = 0;
+        _DWORD ReadEntry2[14];
+        int SectionChar2 = 0, FieldValue2 = 0, FieldValue3 = 0;
+        __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
+        unsigned int EntryDataPtr2 = 0;
+
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&ReadCtx2);
+        int TargetRva = 0;
+        int SectionType = 0;
+        for (unsigned int i = 0; i < 0x3E8; ++i)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadCtx2, ReadEntry2))
+                break;
+            int SectionType3 = EntryDataPtr2 + EntryBase2;
+            EntryBase2 += EntryDataPtr2;
+            __int16 FieldValue2 = *(_WORD *)(SectionInfoPtr2 + 6);
+            if ((unsigned __int16)(FieldValue2 - 1139) <= 1u)
+            {
+                TargetRva = 0;
+                SectionType = 0;
+            }
+            else
+            {
+                if (FieldValue2 == 1296)
+                {
+                    if (SectionType2 == 0x40000 && FieldValue3 && EntrySize2 == 64)
+                    {
+                        if (TargetRva)
+                        {
+                            if (!SectionType)
+                                SectionType = SectionType3 + FieldValue3 - ImageBase;
+                        }
+                        else
+                        {
+                            TargetRva = SectionType3 + FieldValue3 - ImageBase;
+                        }
+                    }
+                }
+                else if (EntrySize2 == 0x40000)
+                {
+                    if (FieldValue2 && SectionType2 == 64)
+                    {
+                        unsigned int rva = SectionType3 + FieldValue2 - ImageBase;
+                        if (rva && rva < ImageSize && (TargetRva == (int)rva || SectionType == (int)rva))
+                        {
+                            GtWrite(GtEprocessExtField27, FieldValue + rva);
+                            return 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// ScanPageSectionPattern — 扫描 .page 节区模式
+// 对应原始驱动 sub_140062458
+__int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int Found = GtRead(GtEprocessExtField17);
+    if (!Found)
+    {
+        FindNdisFRegisterFilterDriverExport(ImageBase, ImageSize);
+        Found = GtRead(GtEprocessExtField17);
+    }
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    __int64 LoopIndex = SectionBase;
+    if (SectionBase && Found && Found < ImageSize)
+    {
+        __int64 FieldValue = 0, FieldValue2 = 0;
+        _DWORD ReadContext[16];
+        int CumulativeSize = 0, SectionChar = 0;
+        __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
+        unsigned int EntrySize = 0;
+
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&FieldValue);
+        int SectionEnd = 0;
+        for (unsigned int i = 0; i < 0x3E8; ++i)
+        {
+            if ((unsigned int)ReadPESectionEntry(&FieldValue, ReadContext))
+                break;
+            int TargetRva2 = EntrySize + FieldValue2;
+            FieldValue2 += EntrySize;
+            __int16 SectionType = *(_WORD *)(SectionAlignment + 6);
+            if ((unsigned __int16)(SectionType - 1139) <= 1u)
+            {
+                SectionEnd = 0;
+            }
+            else
+            {
+                if (SectionType == 1296)
+                {
+                    if (EntryField == 0x40000 && SectionChar && SectionEntry == 64)
+                        SectionEnd = TargetRva2 + SectionChar - ImageBase;
+                }
+                else if (SectionEntry == 0x40000)
+                {
+                    if (CumulativeSize && EntryField == 64)
+                    {
+                        unsigned int rva = TargetRva2 + CumulativeSize - ImageBase;
+                        if (rva && rva < ImageSize && (int)rva == SectionEnd)
+                        {
+                            GtWrite(GtEprocessExtField19, LoopIndex + rva);
+                            return 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// FindTdiDeregisterPnpExport — 查找 TdiDeregisterPnPHandlers 导出
+// 对应原始驱动 sub_140067CF0
+char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 SectionBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
+    if (SectionBase)
+    {
+        WORD NameBuf[16];
+        strcpy((char *)NameBuf, "TdiDeregisterPnPHandlers");
+        *((UCHAR *)&NameBuf[12] + 1) = 0;
+        NameBuf[13] = 0;
+        if (LookupExportByName(ImageBase, ImageSize, (__int64)NameBuf, (unsigned int *)&Value) == 1
+            && (unsigned int)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessField02 | 0x800, (unsigned int)Value);
+            GtWrite(GtEprocessField03 | 0x800, SectionBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// ParseKernelDataSectionRelocs — 解析内核数据节区重定位
+// 对应原始驱动 sub_140067984
+__int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int Found = GtRead((enum _GLOBAL_TABLE_INDEX)2052);
+    if (!Found)
+    {
+        FindDllInitExport(ImageBase, ImageSize);
+        Found = GtRead((enum _GLOBAL_TABLE_INDEX)2052);
+    }
+    __int64 SectionBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
+    if (SectionBase && Found && Found < ImageSize)
+    {
+        __int64 CumulativeSize = 0, SectionEntry = 0;
+        _DWORD FieldValue[16];
+        unsigned int SectionChar = 0, EntrySizeField = 0;
+        __int64 EntryField = 0, SectionAlignment = 0, EntryDataPtr = 0, SectionInfoPtr = 0;
+        int EntrySize = 0, EntryCumulSize = 0;
+        unsigned int ReadContext = 0;
+        char SectionType3 = 0;
+        int SectionType4 = 0;
+
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&CumulativeSize);
+        int SectionBaseCopy = 0;
+        unsigned int LoopIndex = 0;
+        unsigned int SectionEnd = 0;
+        do
+        {
+            if ((unsigned int)ReadPESectionEntry(&CumulativeSize, FieldValue))
+                return 0;
+            int TargetRva = EntrySizeField + SectionEntry;
+            SectionEntry += EntrySizeField;
+            int InnerFound = *(unsigned __int16 *)(SectionInfoPtr + 6);
+            if (InnerFound == 1349)
+                return 0;
+            if (ReadContext >= 4 || SectionBaseCopy || InnerFound != 1069)
+            {
+                // continue to next checks
+            }
+            else
+            {
+                if (EntryField == 0x40000 && SectionChar && EntryDataPtr == 0x1000000000LL && !SectionAlignment)
+                {
+                    unsigned int result = TargetRva + SectionChar - ImageBase;
+                    if (result && result < ImageSize)
+                    {
+                        LoopIndex = TargetRva + SectionChar - ImageBase;
+                        InnerFound = 1139;
+                        SectionType3 = 1;
+                    }
+                }
+            }
+            if (InnerFound == 1298 && EntryDataPtr == 0x40000 && EntryCumulSize && EntryField == 64)
+            {
+                if (EntrySize == 1)
+                {
+                    LoopIndex = TargetRva + EntryCumulSize - ImageBase;
+                    if (LoopIndex >= ImageSize)
+                        LoopIndex = 0;
+                }
+                else if (EntrySize == 2)
+                {
+                    unsigned int result = TargetRva + EntryCumulSize - ImageBase;
+                    SectionEnd = result < ImageSize ? result : 0;
+                }
+            }
+            if (SectionType4 == 1 && InnerFound == 1298)
+            {
+                if (EntryDataPtr == 0x40000 && EntryCumulSize && EntryField == 64)
+                {
+                    unsigned int InnerEnd = TargetRva + EntryCumulSize - ImageBase;
+                    if (InnerEnd && InnerEnd < ImageSize)
+                    {
+                        if (SectionType3 != 1 && (unsigned int)GtRead(GtWindowsBuildNumber) < 0x2580)
+                        {
+                            int SectionType = 2056;
+                            if (!GtRead((enum _GLOBAL_TABLE_INDEX)2056))
+                                GtWrite((enum _GLOBAL_TABLE_INDEX)SectionType, SectionBase + InnerEnd);
+                            else if (!GtRead(GtPathBuffer03 | 0x800))
+                                GtWrite(GtPathBuffer03 | 0x800, SectionBase + InnerEnd);
+                            else if (!GtRead(GtSymlinkBuffer | 0x800))
+                                GtWrite(GtSymlinkBuffer | 0x800, SectionBase + InnerEnd);
+                        }
+                        else
+                        {
+                            if (!GtRead(GtPathBuffer03 | 0x800))
+                                GtWrite(GtPathBuffer03 | 0x800, SectionBase + InnerEnd);
+                            else if (!GtRead((enum _GLOBAL_TABLE_INDEX)2056))
+                                GtWrite((enum _GLOBAL_TABLE_INDEX)2056, SectionBase + InnerEnd);
+                            else if (!GtRead(GtSymlinkBuffer | 0x800))
+                                GtWrite(GtSymlinkBuffer | 0x800, SectionBase + InnerEnd);
+                        }
+                    }
+                }
+                SectionBaseCopy = 1;
+                goto LABEL_42;
+            }
+            SectionBaseCopy = SectionType4;
+            if ((unsigned int)(InnerFound - 1139) <= 1)
+            {
+                if (SectionType4)
+                {
+                    if (LoopIndex && SectionEnd)
+                    {
+                        GtWrite(GtEprocessOffsetBase | 0x800, SectionBase + LoopIndex);
+                        return GtWrite(GtEprocessField01 | 0x800, SectionBase + SectionEnd);
+                    }
+                }
+                else if (LoopIndex)
+                {
+                    GtWrite(GtPathBuffer02 | 0x800, SectionBase + LoopIndex);
+                }
+                SectionBaseCopy = SectionType4 + 1;
+                LoopIndex = 0;
+                SectionEnd = 0;
+                ++SectionType4;
+            }
+LABEL_42:
+            ++ReadContext;
+        } while (ReadContext < 0x50);
+    }
+    return 0;
+}
+
+// ReadNtoskrnlFileToBuffer — 读取 ntoskrnl 文件到缓冲区
+// 对应原始驱动 sub_1400317D0
+char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize)
+{
+    char Result = 0;
+    int EncodedPath[20];
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6357084;
+    EncodedPath[15] = 7340131;
+    EncodedPath[16] = 3014761;
+    EncodedPath[17] = 7929971;
+    EncodedPath[18] = 115;
+    void *Src = NULL;
+    ULONG MaxCount = 0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, &MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pBuffer, pBufferSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadNtoskrnlFileToBuffer3 — 读取 ntoskrnl 文件到缓冲区 3
+// 对应原始驱动 sub_140032E40
+char ReadNtoskrnlFileToBuffer3(void **pBuffer, unsigned int *pBufferSize)
+{
+    char Result = 0;
+    int EncodedPath[16];
+    int ExtraPart1 = 0, ExtraPart2 = 0;
+    _QWORD ExtraPart3[3];
+
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6357084;
+    EncodedPath[15] = 6357108;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    {
+        ExtraPart1 = 7274608;
+        ExtraPart2 = 7602290;
+        *(ULONG *)&ExtraPart3[0] = 7536686;
+        *(_QWORD *)((char *)ExtraPart3 + 4) = 7536761;
+    }
+    else
+    {
+        ExtraPart1 = 6881392;
+        ExtraPart2 = 7536686;
+        ExtraPart3[0] = 7536761;
+    }
+    void *Src = NULL;
+    ULONG MaxCount = 0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, &MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pBuffer, pBufferSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadNtFileForSsdtTargets2 — 读取 ntoskrnl 文件用于 SSDT 目标 2
+// 对应原始驱动 sub_1400339BC
+char ReadNtFileForSsdtTargets2(void **pFileBuffer, unsigned int *pFileSize)
+{
+    char Result = 0;
+    int EncodedPath[24];
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692;
+    EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254;
+    EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6488156;
+    EncodedPath[15] = 6357100;
+    EncodedPath[16] = 7536755;
+    EncodedPath[17] = 7209072;
+    EncodedPath[18] = 3014768;
+    EncodedPath[19] = 7929971;
+    EncodedPath[20] = 115;
+    void *pRawData = NULL;
+    ULONG RawDataSize = 0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, &RawDataSize, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)pRawData, (unsigned int)RawDataSize, (PUCHAR *)pFileBuffer, pFileSize) == 1;
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// ParseNtHeaders — 解析 NT 文件头类型
+// 对应原始驱动 sub_140004F80
+char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLength)
+{
+    char Result = 0;
+    if (SectionNameLength >= 0x18)
+    {
+        int SectionName = 7602286;
+        int SectionName2 = 7471211;
+        int SectionName3 = 7077998;
+        int SectionName4 = 7340141;
+        int SectionName5 = 6619182;
+        __int64 SectionName6 = 6619256;
+        if (!(unsigned int)StringCompare3Way((__int64)&SectionName, SectionName, 0xCu))
+            return 1;
+        SectionName = 7602286;
+        SectionName2 = 7536751;
+        SectionName3 = 7471211;
+        SectionName4 = 7077998;
+        SectionName5 = 6619182;
+        SectionName6 = 6619256;
+        if (!(unsigned int)StringCompare3Way((__int64)&SectionName, SectionName, 0xCu))
+            return 1;
+        SectionName = 7602286;
+        SectionName2 = 7471211;
+        SectionName3 = 7077998;
+        SectionName4 = 6357104;
+        SectionName5 = 6619182;
+        SectionName6 = 6619256;
+        if ((unsigned int)StringCompare3Way((__int64)&SectionName, SectionName, 0xCu))
+        {
+            SectionName = 7602286;
+            SectionName2 = 7471211;
+            SectionName3 = 6357104;
+            SectionName4 = 7340141;
+            SectionName5 = 6619182;
+            SectionName6 = 6619256;
+            return (unsigned int)StringCompare3Way((__int64)&SectionName, SectionName, 0xCu) == 0;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// ParseNtKernelDataSections — 解析 NT 内核数据节区
+// 对应原始驱动 sub_140062884
+__int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int InitDevOffset = GtRead(GtEprocessExtField20);
+    if (!InitDevOffset)
+    {
+        FindNdisIMInitializeDeviceInstanceEx(ImageBase, ImageSize);
+        InitDevOffset = GtRead(GtEprocessExtField20);
+    }
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    __int64 FoundMarker = SectionBase;
+    if (SectionBase && InitDevOffset && InitDevOffset < ImageSize)
+    {
+        __int64 ReadContext = 0, CumulativeSize = 0;
+        _DWORD SectionEntry[8];
+        char SectionFlags = 0;
+        int EntrySize = 0;
+        __int64 SectionChar = 0;
+        int EntryField = 0;
+        int EntrySize2 = 0;
+        __int64 SectionAlignment = 0;
+        unsigned int EntryCumulSize = 0;
+        __int64 EntryDataPtr = 0;
+        int SectionType = 0;
+
+        InitPESectionReadContext(ImageBase + InitDevOffset, ImageSize - InitDevOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        char SectionIndex = 0;
+        unsigned int SectionOffset = 0;
+
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
+        {
+            // Win10 19041+ 路径：找类型 1296+1368 组合
+            while (SectionOffset < 0x64)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    break;
+                SectionType = EntryCumulSize + CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                __int16 SectionType2 = *(_WORD *)(EntryDataPtr + 6);
+                if (SectionType2 == 1296 && SectionChar == 64 && (SectionFlags & 8) != 0 && SectionAlignment == 0x20000 && EntrySize2 == 392)
+                {
+                    SectionIndex = 1;
+                }
+                else if (SectionIndex == 1 && SectionType2 == 1368)
+                {
+                    goto LABEL_SCAN;
+                }
+                ++SectionOffset;
+            }
+        }
+        else
+        {
+            // 旧版路径：找 bound import(1139/1140)+1368 组合
+            while (SectionOffset < 0x64)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    break;
+                SectionType = EntryCumulSize + CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                __int16 InnerFound = *(_WORD *)(EntryDataPtr + 6);
+                if ((unsigned __int16)(InnerFound - 1139) <= 1u)
+                {
+                    SectionIndex = 1;
+                }
+                else if (SectionIndex == 1 && InnerFound == 1368)
+                {
+                    goto LABEL_SCAN;
+                }
+                ++SectionOffset;
+            }
+        }
+        return 0;
+
+    char InnerLoopIndex = 0;
+    unsigned int InnerSectionOffset = 0;
+
+LABEL_SCAN:
+    InnerSectionOffset = 0;
+        SectionBase = SectionType + EntrySize - ImageBase;
+        if ((_DWORD)SectionBase && (unsigned int)SectionBase < ImageSize)
+        {
+            InitPESectionReadContext(ImageBase + (unsigned int)SectionBase, ImageSize - (unsigned int)SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            while (1)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    break;
+                int InnerSectionType = EntryCumulSize + CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                __int16 SectionTypeId = *(_WORD *)(EntryDataPtr + 6);
+                if (SectionTypeId == 1298)
+                {
+                    // 数据节区：检查是否为目标
+                    if (SectionAlignment == 0x40000 && EntrySize2 && SectionChar == 64 && EntryField == 1)
+                    {
+                        if (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                        {
+                            if ((unsigned __int16)(*(_WORD *)(EntryDataPtr + 6) - 1139) <= 1u)
+                            {
+                                InnerLoopIndex = 1;
+                                CumulativeSize += EntryCumulSize;
+                            }
+                        }
+                    }
+                }
+                else if (InnerLoopIndex == 1)
+                {
+                    // 已标记，检查后续代码节区
+                    if (SectionTypeId == 1296 && SectionAlignment == 0x40000 && EntrySize2 && SectionChar == 64)
+                    {
+                        SectionBase = InnerSectionType + EntrySize2 - ImageBase;
+                        if ((_DWORD)SectionBase && (unsigned int)SectionBase < ImageSize)
+                        {
+                            GtWrite(GtEprocessExtField22, FoundMarker + (unsigned int)SectionBase);
+                            return SectionBase;
+                        }
+                    }
+                }
+                if (++InnerSectionOffset >= 0xC8)
+                    break;
+            }
+        }
+    }
+    return SectionBase;
+}
+
+// ===================================================================
+// 复杂 PE 节区扫描函数
+// ===================================================================
+
+// ParseNtHeadersForSsdtTargets — 解析 NT 头查找 SSDT 目标
+// 对应原始驱动 sub_1400311E4
+char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
+{
+    __int64 OutputTable = pOutputTable;
+    char Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtCallbackField47);
+    if (NtoskrnlBase)
+    {
+        unsigned int OptHeaderSize = *(unsigned int *)(*(int *)(ImageBase + 60) + ImageBase + 40);
+        if (OptHeaderSize < ImageSize && (int)OptHeaderSize + 4096 < ImageSize)
+        {
+            char FoundInitSection = 0;
+            __int64 ReadCtx = 0, EntryBase = 0;
+            _DWORD ReadEntry[8];
+            char SectionFlags = 0;
+            int EntryField = 0;
+            __int64 EntrySize = 0;
+            int SectionChar = 0, FieldValue = 0;
+            __int64 SectionAlignment = 0;
+            unsigned int EntryDataSize = 0;
+            __int64 SectionInfoPtr = 0;
+
+            InitPESectionReadContext(ImageBase + OptHeaderSize, 4096, 2, 0, -1, 0, 0, (__int64)&ReadCtx);
+            unsigned int SectionIndex = 0;
+            while (!(unsigned int)ReadPESectionEntry(&ReadCtx, ReadEntry))
+            {
+                unsigned int SectionEnd = EntryDataSize + EntryBase;
+                EntryBase += EntryDataSize;
+                __int16 SectionType = *(_WORD *)(SectionInfoPtr + 6);
+                if (SectionType == 1369)
+                {
+                    unsigned int TargetRva = SectionEnd + EntryField - ImageBase;
+                    if (TargetRva && TargetRva < ImageSize)
+                    {
+                        OptHeaderSize = TargetRva;
+                        break;
+                    }
+                }
+                else if (SectionType == 1296 && EntrySize == 64 && SectionChar == 1)
+                {
+                    FoundInitSection = 1;
+                }
+                else if (SectionType == 1368)
+                {
+                    if (FoundInitSection == 1)
+                    {
+                        unsigned int TargetRva = SectionEnd + EntryField - ImageBase;
+                        if (TargetRva && TargetRva < ImageSize)
+                        {
+                            OptHeaderSize = TargetRva;
+                            break;
+                        }
+                    }
+                    FoundInitSection = 0;
+                }
+                if (++SectionIndex >= 0x14)
+                    break;
+            }
+            OutputTable = pOutputTable;
+        }
+        if (OptHeaderSize && OptHeaderSize < ImageSize && (int)OptHeaderSize + 4096 < ImageSize)
+        {
+            __int64 ReadCtx2 = 0, EntryBase2 = 0;
+            _DWORD ReadEntry2[8];
+            char SectionFlags2 = 0;
+            int EntryField2 = 0;
+            __int64 EntrySize2 = 0;
+            int SectionChar2 = 0, FieldValue2 = 0;
+            __int64 SectionAlignment2 = 0;
+            unsigned int EntryDataSize2 = 0;
+            __int64 SectionInfoPtr2 = 0;
+
+            InitPESectionReadContext(ImageBase + OptHeaderSize, 4096, 2, 0, -1, 0, 0, (__int64)&ReadCtx2);
+            unsigned int TargetRva2 = 0;
+            unsigned int ScanIndex = 0;
+            while (!(unsigned int)ReadPESectionEntry(&ReadCtx2, ReadEntry2))
+            {
+                unsigned int SectionEnd2 = EntryDataSize2 + EntryBase2;
+                EntryBase2 += EntryDataSize2;
+                __int16 SectionType2 = *(_WORD *)(SectionInfoPtr2 + 6);
+                if (SectionType2 == 1298 && SectionAlignment2 == 0x40000 && FieldValue2 && EntrySize2 == 64 && !SectionChar2)
+                    TargetRva2 = SectionEnd2 + FieldValue2 - ImageBase;
+                if (SectionType2 == 1327 && (SectionFlags2 & 0x10) != 0 && TargetRva2)
+                {
+                    _QWORD *pTableEntry = (_QWORD *)(OutputTable + 8);
+                    __int64 EntryCount = 28;
+                    do
+                    {
+                        *((_DWORD *)pTableEntry - 1) = TargetRva2;
+                        *pTableEntry = NtoskrnlBase + TargetRva2;
+                        pTableEntry += 6;
+                        --EntryCount;
+                    } while (EntryCount);
+                    return 1;
+                }
+                if (++ScanIndex >= 0x1F4)
+                    return Result;
+            }
+        }
+    }
+    return Result;
+}
+
+// ParseNtHeadersForSsdtTargets2 — 解析 NT 头查找 SSDT 目标 2
+// 对应原始驱动 sub_1400332C4
+char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
+{
+    char Result = 0;
+    char FoundFlag = 0;
+    __int64 SectionBase = GtRead(GtFsFilterExportTable);
+    if (SectionBase)
+    {
+        char ExportName[16];
+        strcpy(ExportName, "ClassInitialize");
+        unsigned int ExportRva = (unsigned int)FindExportByNameInPeBody(ImageBase, ImageSize, (__int64)ExportName, 0);
+        if (ExportRva && ExportRva < ImageSize && ExportRva + 4096 < ImageSize)
+        {
+            __int64 PESectionContext = 0, ContextOffset = 0;
+            _DWORD SectionEntry[72];
+            int EntryOffset = 0, EntrySize = 0, EntryIndex = 0, TypeField1 = 0, TypeField2 = 0, RvaField = 0;
+            __int64 Flags = 0;
+            int IndexField = 0, ExtraFlags = 0;
+            unsigned int EntrySize2 = 0;
+            __int64 TypePtr = 0;
+            _DWORD Dst[16];
+
+            InitPESectionReadContext(ImageBase + ExportRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+            memset(Dst, 0, sizeof(Dst));
+            char SectionReady = 0;
+            unsigned int LoopCount = 0;
+            unsigned int FieldOffset = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0 ? 904 : 912;
+            do
+            {
+                if ((unsigned int)ReadPESectionEntry(&PESectionContext, SectionEntry))
+                    return Result;
+                int CurrentRva = EntrySize2 + ContextOffset;
+                ContextOffset += EntrySize2;
+                __int16 TypeValue = *(_WORD *)(TypePtr + 6);
+                if (TypeValue == 1349)
+                    return FoundFlag;
+                int SizeValue = EntrySize;
+                if (TypeValue == 1139 || TypeValue == 1368)
+                {
+                    memset(Dst, 0, sizeof(Dst));
+                }
+                else if (TypeValue == 1340
+                    && FieldOffset == (unsigned int)TypeField1
+                    && !TypeField2
+                    && SectionEntry[2] == 1
+                    && Flags == 0x800000
+                    && EntrySize == 32
+                    && EntryIndex == 8)
+                {
+                    SectionReady = 1;
+                    goto LABEL_20;
+                }
+                if (SectionReady != 1)
+                    goto LABEL_43;
+LABEL_20:
+                if (TypeValue == 1298 && Flags == 0x40000)
+                {
+                    if (RvaField && EntrySize == 64)
+                    {
+                        unsigned int RvaValue = CurrentRva + RvaField - (int)ImageBase;
+                        if (RvaValue && RvaValue < ImageSize)
+                            Dst[EntryIndex] = RvaValue;
+                    }
+                }
+                if (TypeValue != 1294
+                    || (*(_QWORD *)&SizeValue & 0x14000LL) == 0
+                    || (SizeValue & 0x40) == 0
+                    || (ExtraFlags & 0xF) == 4
+                    || EntryIndex == 5
+                    || Flags != 64)
+                {
+                    goto LABEL_43;
+                }
+                if ((unsigned int)(EntryOffset - 112) > 0xD8 || (EntryOffset & 7) != 0)
+                {
+                    Result = FoundFlag;
+                    if (EntryOffset == 96 && FoundFlag == 1 && !*(_DWORD *)(pOutputTable + 1348))
+                    {
+                        unsigned int FirstEntryRva = (unsigned int)Dst[IndexField];
+                        *(_DWORD *)(pOutputTable + 1348) = FirstEntryRva;
+                        *(_QWORD *)(pOutputTable + 1352) = SectionBase + FirstEntryRva;
+                    }
+                    goto LABEL_44;
+                }
+                unsigned int SlotIndex = (unsigned int)(EntryOffset - 112) >> 3;
+                if (SlotIndex > 0x1B)
+                    goto LABEL_43;
+                unsigned int TargetRva = Dst[IndexField];
+                if (TargetRva == 0)
+                    goto LABEL_43;
+                __int64 EntrySlot = 6 * SlotIndex;
+                if (*(_DWORD *)(pOutputTable + 8 * EntrySlot + 4))
+                    goto LABEL_43;
+                Result = 1;
+                *(_DWORD *)(pOutputTable + 8 * EntrySlot + 4) = TargetRva;
+                FoundFlag = 1;
+                *(_QWORD *)(pOutputTable + 8 * EntrySlot + 8) = SectionBase + TargetRva;
+LABEL_43:
+LABEL_44:
+                ++LoopCount;
+            } while (LoopCount < 0x3E8);
+        }
+    }
+    return Result;
+}
+
+// ParseAtaPortInitForHookTargets — 解析 AtaPort 初始化查找 Hook 目标
+// 对应原始驱动 sub_1400326CC
+char ParseAtaPortInitForHookTargets(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
+{
+    __int64 CallbackBase = GtRead(GtCallbackField42);
+    if (!CallbackBase)
+        return 0;
+
+    WORD FuncName[16];
+    strcpy((char *)FuncName, "AtaPortInitialize");
+    FuncName[9] = 0;
+
+    __int64 AtaPortBase = FindExportByNameInPeBody(ImageBase, ImageSize, (char *)FuncName, 0);
+    if (!AtaPortBase)
+        return 0;
+
+    // 第一遍扫描：在 AtaPortInitialize 函数体内查找 bound import 和 1368 节区模式
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0
+        && (unsigned int)AtaPortBase < ImageSize
+        && (int)AtaPortBase + 4096 < ImageSize)
+    {
+        __int64 Context[8];
+        _DWORD Entry[16];
+        char FoundBoundImport = 0;
+        char FoundPush = 0;
+        int CallCount = 0;
+        int ScanIndex = 0;
+
+        InitPESectionReadContext(ImageBase + (unsigned int)AtaPortBase, 4096, 2, 0, -1, 0, 0, (__int64)Context);
+
+        while (!(unsigned int)ReadPESectionEntry(Context, Entry))
+        {
+            unsigned int EntrySize = Entry[15];
+            __int64 EntryBase = Context[1];
+            int SectionEnd = EntrySize + EntryBase;
+            Context[1] += EntrySize;
+            __int16 SectionType = *(_WORD *)(Context[6] + 6);
+
+            if (SectionType == 1349)
+                break;
+            if (SectionType == 1139)
+            {
+                FoundBoundImport = 1;
+            }
+            else if (SectionType == 1368 && FoundBoundImport == 1)
+            {
+                if (++CallCount == 2 || (CallCount == 1 && FoundPush == 1))
+                {
+                    __int64 NewBase = SectionEnd + Entry[14] - ImageBase;
+                    if (!NewBase || (unsigned int)NewBase >= ImageSize)
+                        return 0;
+                    AtaPortBase = NewBase;
+                    goto LABEL_SCAN;
+                }
+            }
+            else if (SectionType == 232 && FoundBoundImport == 1)
+            {
+                FoundPush = 1;
+            }
+            if ((unsigned int)++ScanIndex >= 0x64)
+                return 0;
+        }
+        return 0;
+    }
+
+LABEL_SCAN:
+    // 第二遍扫描：填充输出表
+    if (!(_DWORD)AtaPortBase || (unsigned int)AtaPortBase >= ImageSize || (int)AtaPortBase + 4096 >= ImageSize)
+        return 0;
+
+    {
+        __int64 Context[8];
+        _DWORD Entry[16];
+        _DWORD Dst[16];
+        unsigned int LoopIndex = 0;
+        char TableBuilt = 0;
+
+        InitPESectionReadContext(ImageBase + (unsigned int)AtaPortBase, 4096, 2, 0, -1, 0, 0, (__int64)Context);
+        memset(Dst, 0, sizeof(Dst));
+
+        do
+        {
+            if ((unsigned int)ReadPESectionEntry(Context, Entry))
+                break;
+
+            unsigned int EntrySize = Entry[15];
+            __int64 EntryBase = Context[1];
+            int SectionEnd = EntrySize + EntryBase;
+            Context[1] += EntrySize;
+            __int16 SectionType = *(_WORD *)(Context[6] + 6);
+
+            if (SectionType == 1349)
+                break;
+
+            int SectionFlags = Entry[8];
+            // 数据节区：记录目标 RVA
+            if (SectionType == 1298 && Context[4] == 0x40000)
+            {
+                if (Entry[10] && Entry[8] == 64)
+                {
+                    unsigned int TargetRva = SectionEnd + Entry[10] - ImageBase;
+                    if (TargetRva && TargetRva < ImageSize)
+                        Dst[Entry[9]] = TargetRva;
+                }
+            }
+            // bound import 标记：重置 Dst
+            if (SectionType == 1139)
+                memset(Dst, 0, sizeof(Dst));
+
+            // 代码节区：检查是否为目标
+            if (SectionType == 1294
+                && (*(__int64 *)&SectionFlags & 0x14000) != 0
+                && (SectionFlags & 0x40) != 0
+                && (Entry[13] & 0xF) != 4
+                && Context[4] == 64
+                && (unsigned int)(Entry[7] - 112) <= 0xD8
+                && (Entry[7] & 7) == 0)
+            {
+                unsigned int TableSlot = (unsigned int)(Entry[7] - 112) >> 3;
+                if (TableSlot <= 0x1B)
+                {
+                    unsigned int RelocRva = Dst[Entry[12]];
+                    if (RelocRva && !*(_DWORD *)(pOutputTable + 48 * TableSlot + 4))
+                    {
+                        TableBuilt = 1;
+                        *(_DWORD *)(pOutputTable + 48 * TableSlot + 4) = RelocRva;
+                        *(_QWORD *)(pOutputTable + 48 * TableSlot + 8) = CallbackBase + RelocRva;
+                    }
+                }
+            }
+            ++LoopIndex;
+        } while (LoopIndex < 0x1F4);
+
+        return TableBuilt;
+    }
+}
+
+// ===================================================================
+// 无法反编译的函数（从汇编分析实现）
+// ===================================================================
+
+// QueryObjectTypeDirectoryPath — 查询对象类型目录路径
+// 对应原始驱动 sub_140079654（Hex-Rays 无法反编译，从汇编分析）
+
+// ScanProcessPESectionsV2 — 扫描进程 PE 节区 V2
+// 对应原始驱动 sub_14007FB40（Hex-Rays 无法反编译，从汇编分析）
+// 与 InitHookFunctionTable 结构类似，但使用不同的全局表索引
+__int64 ScanProcessPESectionsV2(void)
+{
+    __int64 TargetProcess = GtRead(0x61);
+    __int64 CurrentProcess = IoGetCurrentProcess();
+    KAPC_STATE ApcState;
+
+    if (TargetProcess != CurrentProcess && TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+
+    __int64 SectionBase = GtRead(0x63);
+    __int64 SectionSize = GtRead(0x20);
+    __int64 NtoskrnlBase = GtRead(0x21);
+    __int64 NtoskrnlSize = GtRead(3);
+
+    if (SectionBase && SectionSize && (unsigned int)NtoskrnlBase && NtoskrnlSize)
+    {
+        __int64 Context[8];
+        _DWORD SectionEntry[72];
+        char FoundFlag = 0;
+        __int64 EntryBase = 0;
+        unsigned int EntrySize = 0;
+        __int64 EntryTypePtr = 0;
+
+        InitPESectionReadContext(SectionBase, (unsigned int)SectionSize, 2, 0, -1, 0, 0, (__int64)&Context);
+        for (unsigned int i = 0; i < 0x64; i++)
+        {
+            if (ReadPESectionEntry(&Context, SectionEntry))
+                break;
+            unsigned int CurrentEnd = EntrySize + (unsigned int)EntryBase;
+            EntryBase += EntrySize;
+            __int16 TypeValue = *(_WORD *)(EntryTypePtr + 6);
+
+            if (TypeValue == 0x42A && (*(char *)((char *)SectionEntry + 0x20) & 4) != 0)
+            {
+                FoundFlag = 1;
+            }
+            else if (FoundFlag == 1)
+            {
+                if (TypeValue == 0x558 && (*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0)
+                {
+                    int SizeVal = SectionEntry[14];
+                    if (SizeVal)
+                    {
+                        unsigned int ResultOff = CurrentEnd + SizeVal - (unsigned int)SectionSize;
+                        if (ResultOff && ResultOff < (unsigned int)SectionSize)
+                        {
+                            GtWrite(0x64, NtoskrnlBase + ResultOff);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (TargetProcess && TargetProcess != CurrentProcess)
+        KeUnstackDetachProcess(&ApcState);
+
+    return 0;
+}
+
+// InitHookFunctionTable — 初始化 Hook 函数表
+// 对应原始驱动 sub_14007F4B8（Hex-Rays 无法反编译，从汇编分析）
+__int64 InitHookFunctionTable(void)
+{
+    // 从汇编分析：附加到目标进程，扫描 PE 节区
+    // 查找类型 0x48E(1166) 节区，然后找类型 0x558(1368) 节区
+    // 写入 GT[0x23F](575) = KiInsertQueueApc 函数地址
+    __int64 TargetProcess = GtRead(GtEprocessField61);
+    __int64 CurrentProcess = IoGetCurrentProcess();
+    KAPC_STATE ApcState;
+
+    if (TargetProcess != CurrentProcess && TargetProcess)
+        KeStackAttachProcess(TargetProcess, &ApcState);
+
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    __int64 SectionSize = GtRead(GtEprocessField21);
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    __int64 NtoskrnlSize = GtRead(GtNtoskrnlImageSize);
+
+    if (SectionBase && SectionSize && (unsigned int)NtoskrnlBase && NtoskrnlSize)
+    {
+        __int64 Context[8];
+        _DWORD SectionEntry[72];
+        char FoundFlag = 0;
+        __int64 EntryBase = 0;
+        unsigned int EntrySize = 0;
+        __int64 EntryTypePtr = 0;
+
+        InitPESectionReadContext(SectionBase, (unsigned int)SectionSize, 2, 0, -1, 0, 0, (__int64)&Context);
+        for (unsigned int i = 0; i < 0x64; i++)
+        {
+            if (ReadPESectionEntry(&Context, SectionEntry))
+                break;
+            unsigned int CurrentEnd = EntrySize + (unsigned int)EntryBase;
+            EntryBase += EntrySize;
+            __int16 TypeValue = *(_WORD *)(EntryTypePtr + 6);
+
+            if (TypeValue == 0x48E && (*(char *)((char *)SectionEntry + 0x20) & 4) != 0)
+            {
+                FoundFlag = 1;
+            }
+            else if (FoundFlag == 1)
+            {
+                if (TypeValue == 0x558 && (*(__int64 *)((char *)SectionEntry + 0x80) & 0x4000000) != 0)
+                {
+                    int SizeVal = SectionEntry[10];
+                    if (SizeVal)
+                    {
+                        unsigned int ResultOff = CurrentEnd + SizeVal - (unsigned int)SectionSize;
+                        if (ResultOff && ResultOff < (unsigned int)SectionSize)
+                        {
+                            GtWrite(GtKiInsertQueueApcFunc, NtoskrnlBase + ResultOff);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (TargetProcess && TargetProcess != CurrentProcess)
+        KeUnstackDetachProcess(&ApcState);
+
+    return 0;
+}
+
+// ============================================================
+// 以下函数从 SSDT.c 前向声明中引用，在文件末尾实现
+// ============================================================
+
+// RelocateExportAddresses — 重定位导出地址
+// 对应原始驱动 sub_14002839C
+// 分配内存（GtAlloc 0x790/0x390），复制导出表到分配的内存，遍历每个 QWORD 减去基址差量进行重定位修正
+char __fastcall RelocateExportAddresses(void *Src, size_t MaxCount, int BaseDelta)
+{
+    __int64 CountCopy = (unsigned int)MaxCount;
+    char Result = 0;
+    unsigned int AllocSize = (unsigned int)GtAlloc((enum _GLOBAL_TABLE_INDEX)(GtPspExitNormalApcAddr | 0x800));
+    if (AllocSize - (unsigned int)GtAlloc((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField27)) >= (unsigned int)CountCopy)
+    {
+        __int64 *Dest = GtAlloc((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField27));
+        memmove(Dest, Src, (unsigned int)CountCopy);
+        __int64 *EndPtr = (__int64 *)((char *)Dest + CountCopy - 8);
+        while (++Dest <= EndPtr)
+        {
+            if (*Dest)
+                *Dest = (unsigned int)(*(_DWORD *)Dest - BaseDelta);
+        }
+        return 1;
+    }
+    return Result;
+}
+
+// AdjustRelocationOffsets — 调整重定位偏移
+// 对应原始驱动 sub_140060D70
+// 将 Src 中的 24 字节每项的导出条目复制到 GT 912 缓冲区，将每个条目中的地址偏移减去 BaseDelta(基址修正值)
+char __fastcall AdjustRelocationOffsets(void *Src, size_t MaxCount, int BaseDelta)
+{
+    __int64 CountCopy = (unsigned int)MaxCount;
+    char Result = 0;
+    unsigned int BufferSize = (unsigned int)GtAlloc((enum _GLOBAL_TABLE_INDEX)(GtEprocessExtField58 | 0x400));
+    if (BufferSize - (unsigned int)GtAlloc((enum _GLOBAL_TABLE_INDEX)GtEprocessExtField58) >= (unsigned int)CountCopy)
+    {
+        __int64 *Dest = GtAlloc((enum _GLOBAL_TABLE_INDEX)GtEprocessExtField58);
+        memmove(Dest, Src, (unsigned int)CountCopy);
+        if (Dest <= (__int64 *)((char *)Dest + CountCopy - 24))
+        {
+            __int64 *EntryPtr = Dest + 2;
+            unsigned __int64 EntryCount = (CountCopy - 24) / 0x18 + 1;
+            do
+            {
+                if (*(EntryPtr - 1))
+                    *(EntryPtr - 1) = (unsigned int)(*((_DWORD *)EntryPtr - 2) - BaseDelta);
+                if (*EntryPtr)
+                    *EntryPtr = (unsigned int)(*(_DWORD *)EntryPtr - BaseDelta);
+                EntryPtr += 3;
+                --EntryCount;
+            } while (EntryCount);
+        }
+        return 1;
+    }
+    return Result;
+}
+
+// FindHalInitSystemExport — 查找 HalInitSystem 导出
+// 对应原始驱动 sub_1400287C4
+// 通过名称查找 HAL.DLL 的 HalInitSystem 导出函数 RVA，写入全局表 0x86A 和 0x86B
+char __fastcall FindHalInitSystemExport(__int64 ImageBase, unsigned int ImageSize, __int64 HalBase)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    if (ImageBase && ImageSize && HalBase)
+    {
+        WORD FuncName[8];
+        strcpy((char *)FuncName, "HalInitSystem");
+        FuncName[7] = 0;
+        if (LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value) == 1
+            && (_DWORD)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessField96 | 0x800), (unsigned int)Value);
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtModuleBuffer | 0x800), HalBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindHalInitializeProcessorExport — 查找 HalInitializeProcessor 导出
+// 对应原始驱动 sub_14002886C
+// 通过名称查找 HAL.DLL 的 HalInitializeProcessor 导出函数 RVA，写入全局表 0x82F 和 0x830
+char __fastcall FindHalInitializeProcessorExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 HalBase = GtRead(GtEprocessField76);
+    if (HalBase)
+    {
+        char FuncName[40];
+        strcpy(FuncName, "HalInitializeProcessor");
+        FuncName[23] = 0;
+        if (LookupExportByName((PUCHAR)ImageBase, ImageSize, FuncName, (PULONG)&Value) == 1
+            && (_DWORD)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleEntryCount | GtEprocessField22), (unsigned int)Value);
+            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField22), HalBase + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// FindHalDataSectionOffset — 查找 HAL 数据节区偏移
+// 对应原始驱动 sub_140028934
+// 两阶段扫描：阶段 1 搜索子类型 1369 或 1368 的条目定位基址，阶段 2 搜索子类型 1298（类型 0x40000，标志 64）的条目，计算地址写入全局表 0x831
+char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSize, unsigned int SectionOffset, __int64 HalBase)
+{
+    char Result = 0;
+    if (HalBase && SectionOffset && SectionOffset < ImageSize)
+    {
+        __int64 ReadContext[8];
+        _DWORD SectionEntry[72];
+        __int64 CumulativeSize = 0;
+        unsigned int Phase1Result = 0;
+        int EntrySize = 0;
+        int EntrySize2 = 0;
+        __int64 SectionFlags = 0;
+        unsigned int EntryCumulSize = 0;
+        __int64 EntryDataPtr = 0;
+
+        // 阶段 1：查找子类型 1369 或 1368 的条目定位基址
+        InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (int Phase1Index = 0; Phase1Index < 0x1E; Phase1Index++)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                return Result;
+            int CurrentOffset = EntryCumulSize + (unsigned int)CumulativeSize;
+            CumulativeSize += EntryCumulSize;
+            if (*(WORD *)(EntryDataPtr + 6) == 1369)
+            {
+                if (EntrySize)
+                {
+                    Phase1Result = CurrentOffset + EntrySize - ImageBase;
+                    break;
+                }
+            }
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3FAB && *(WORD *)(EntryDataPtr + 6) == 1368 && EntrySize)
+            {
+                Phase1Result = CumulativeSize + EntrySize - ImageBase;
+                break;
+            }
+        }
+
+        // 阶段 2：搜索子类型 1298 的条目
+        if (Phase1Result && Phase1Result < ImageSize)
+        {
+            InitPESectionReadContext(ImageBase + Phase1Result, ImageSize - Phase1Result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            CumulativeSize = 0;
+            for (int Phase2Index = 0; Phase2Index < 0x64; Phase2Index++)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    return Result;
+                int Phase2Current = EntryCumulSize + (unsigned int)CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                if (*(WORD *)(EntryDataPtr + 6) == 1298 && SectionFlags == 0x40000)
+                {
+                    if (EntrySize2 && EntryCumulSize == 64)
+                    {
+                        unsigned int Phase2Match = Phase2Current + EntrySize2 - ImageBase;
+                        if (Phase2Match && Phase2Match < ImageSize)
+                        {
+                            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField23), HalBase + Phase2Match);
+                            return 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// FindHalExportTableLegacy — 查找 HAL 导出表（旧版）
+// 对应原始驱动 sub_140028648
+// 读取全局表索引 86 获取 HAL 基址，调用 FindHalInitSystemExport 定位，然后使用 DecodeUnicodeChar 解码 Unicode 标记流搜索标记 4280，匹配偏移值 1212238880，计算导出地址写入全局表 0x833
+char __fastcall FindHalExportTableLegacy(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 HalExportAddr = GtRead(GtEprocessField76);
+    if (HalExportAddr)
+    {
+        unsigned int SectionOffset = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField96 | 0x800));
+        if (!SectionOffset)
+        {
+            FindHalInitSystemExport(ImageBase, ImageSize, HalExportAddr);
+            SectionOffset = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField96 | 0x800));
+        }
+        if (SectionOffset && SectionOffset < ImageSize)
+        {
+            unsigned __int64 BufferEnd = ImageSize + ImageBase;
+            unsigned __int64 NtImageBase = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
+            unsigned __int8 *ScanPos = (unsigned __int8 *)(ImageBase + SectionOffset);
+            for (int OuterIndex = 0; OuterIndex < 0x96; OuterIndex++)
+            {
+                _WORD DecodeResult[24];
+                if (!DecodeUnicodeChar(ScanPos, BufferEnd, DecodeResult))
+                    break;
+                ScanPos += *(unsigned int *)((char *)DecodeResult + 24);
+                int TokenValue = *(int *)(*(__int64 *)((char *)DecodeResult + 40));
+                int TokenFlag = *(int *)((char *)DecodeResult + 12);
+                int TokenAddress = *(int *)((char *)DecodeResult + 16);
+                if (TokenValue == 4280 && TokenFlag == 56 && TokenAddress && TokenAddress > (int)NtImageBase && (int)ImageSize > TokenAddress - (int)NtImageBase)
+                {
+                    unsigned int FoundOffset = TokenAddress - (int)NtImageBase;
+                    if (TokenAddress != (int)NtImageBase && FoundOffset < ImageSize)
+                    {
+                        unsigned __int8 *InnerScanPos = (unsigned __int8 *)(ImageBase + FoundOffset);
+                        for (int InnerIndex = 0; InnerIndex < 0x64; InnerIndex++)
+                        {
+                            if (!DecodeUnicodeChar(InnerScanPos, BufferEnd, DecodeResult))
+                                break;
+                            InnerScanPos += *(unsigned int *)((char *)DecodeResult + 24);
+                            if (*(int *)(*(__int64 *)((char *)DecodeResult + 40)) == 4280 && *(int *)((char *)DecodeResult + 16) == 1212238880)
+                            {
+                                int MatchV17 = *(int *)((char *)DecodeResult + 12);
+                                if (MatchV17 && MatchV17 > (int)NtImageBase)
+                                {
+                                    unsigned int MatchOffset = MatchV17 - (int)NtImageBase;
+                                    if ((unsigned int)ImageSize > (unsigned int)MatchV17 - (int)NtImageBase && MatchOffset && MatchOffset < ImageSize)
+                                    {
+                                        GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField25), HalExportAddr + MatchOffset);
+                                        return 1;
+                                    }
+                                }
+                            }
+                            if (InnerIndex >= 0x63)
+                                return Result;
+                        }
+                    }
+                    return Result;
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// BuildHalExportTable — 构建 HAL 导出表
+// 对应原始驱动 sub_140028434
+// 根据版本选择 .rdata 或 .data 节区，在节区中扫描 Magic 值 0x484C4C42（"BLLH"）定位 HAL 导出表，调用 RelocateExportAddresses 重定位地址，写入全局表 0x833 和 0x834
+char __fastcall BuildHalExportTable(__int64 ImageBase, unsigned int ImageSize, __int64 HalBase)
+{
+    char Result = 0;
+    unsigned int SectionRva = 0;
+    unsigned int SectionVa = 0;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
+    {
+        char SectionName[8];
+        strcpy(SectionName, ".rdata");
+        SectionName[7] = 0;
+        SectionVa = (unsigned int)FindPESectionByName((PUCHAR)ImageBase, SectionName);
+        SectionRva = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)ImageBase, SectionName);
+        if (SectionRva >= 0x100000)
+            SectionRva = 0x100000;
+    }
+    else
+    {
+        char SectionName[8];
+        strcpy(SectionName, ".data");
+        *(_WORD *)&SectionName[6] = 0;
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+        {
+            SectionVa = 200;
+            SectionRva = ImageSize;
+        }
+        else
+        {
+            SectionVa = (unsigned int)FindPESectionByName((PUCHAR)ImageBase, SectionName);
+            SectionRva = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)ImageBase, SectionName);
+            if (SectionRva >= 0x100000)
+                SectionRva = 0x100000;
+        }
+    }
+
+    if (SectionVa && SectionRva && SectionVa < ImageSize && HalBase)
+    {
+        unsigned __int64 ImageBaseAddr = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
+        _QWORD *SectionPtr = (_QWORD *)(SectionVa + ImageBase);
+        unsigned __int64 ScanEnd;
+        if (SectionRva + SectionVa >= ImageSize)
+            ScanEnd = ImageBase + ImageSize;
+        else
+            ScanEnd = ImageBase + SectionVa + (unsigned __int64)SectionRva;
+        unsigned __int64 ScanLimit = ScanEnd - 72;
+
+        while ((unsigned __int64)SectionPtr < ScanLimit)
+        {
+            unsigned __int64 ResultVal = *SectionPtr & 0xFFFFFF00FFFFFFFFuLL;
+            if (ResultVal == 1212238880)
+            {
+                SectionPtr++;
+                if (*SectionPtr > ImageBaseAddr)
+                {
+                    unsigned __int64 ImageEndAddr = ImageSize + ImageBaseAddr;
+                    if (*SectionPtr < ImageSize + ImageBaseAddr)
+                    {
+                        ResultVal = SectionPtr[2];
+                        if (ResultVal > ImageBaseAddr && ResultVal < ImageEndAddr)
+                        {
+                            ResultVal = SectionPtr[3];
+                            if (ResultVal > ImageBaseAddr && ResultVal < ImageEndAddr)
+                            {
+                                unsigned int ExportOffset = (_DWORD)SectionPtr - (int)ImageBase - 8;
+                                if (ExportOffset && ExportOffset < ImageSize)
+                                {
+                                    __int64 ExportOffsetCopy = ExportOffset;
+                                    GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField25), ExportOffset + HalBase);
+                                    unsigned __int64 *ExportTablePtr = (unsigned __int64 *)(ExportOffsetCopy + ImageBase);
+                                    unsigned __int64 *EntryPtr;
+
+                                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3839)
+                                    {
+                                        EntryPtr = ExportTablePtr + 19;
+                                    }
+                                    else
+                                    {
+                                        EntryPtr = ExportTablePtr + 4;
+                                        while ((unsigned __int64)EntryPtr < ScanLimit)
+                                        {
+                                            ResultVal = *EntryPtr;
+                                            if (*EntryPtr <= ImageBaseAddr)
+                                                break;
+                                            if (ResultVal >= ImageSize + ImageBaseAddr)
+                                                break;
+                                            EntryPtr++;
+                                        }
+                                    }
+                                    if ((unsigned __int64)EntryPtr < ScanLimit)
+                                    {
+                                        unsigned int EntryCount = (_DWORD)EntryPtr - (_DWORD)ExportTablePtr;
+                                        if (EntryCount - 1 <= 0xFFE)
+                                        {
+                                            if (RelocateExportAddresses(ExportTablePtr, EntryCount, (int)ImageBaseAddr) == 1)
+                                                GtWrite((enum _GLOBAL_TABLE_INDEX)(GtEprocessModuleListOffset | GtEprocessField26), EntryCount);
+                                        }
+                                    }
+                                    return (char)ResultVal;
+                                }
+                            }
+                        }
+                    }
+                }
+                SectionPtr++;
+            }
+            else
+            {
+                SectionPtr++;
+            }
+        }
+    }
+    return Result;
+}
+
+// FindDllInitExport — 查找 DLL 初始化导出
+// 对应原始驱动 sub_140067890
+// 优先查找 "DllInitialize"，若失败则查找 "TdiInitialize"，将找到的偏移写入 GT 2052(0x804)，地址写入 GT 2053(0x805)
+char __fastcall FindDllInitExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 ModuleLoadBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
+    if (ModuleLoadBase)
+    {
+        WORD FuncName[8];
+        strcpy((char *)FuncName, "DllInitialize");
+        FuncName[7] = 0;
+        if (LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value) == 1
+            || (strcpy((char *)FuncName, "TdiInitialize"),
+                FuncName[7] = 0,
+                LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value) == 1))
+        {
+            if ((_DWORD)Value && (unsigned int)Value < ImageSize)
+            {
+                GtWrite((enum _GLOBAL_TABLE_INDEX)2052, (unsigned int)Value);
+                GtWrite((enum _GLOBAL_TABLE_INDEX)(GtPathBuffer01 | 0x800), ModuleLoadBase + (unsigned int)Value);
+                return 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// FindNdisMRegisterMiniportExport — 查找 NdisMRegisterMiniport 导出函数
+// 对应原始驱动 sub_140061A78
+// 通过名称查找 "NdisMRegisterMiniport" 导出函数，将偏移写入 GT 877，地址写入 GT 878
+char __fastcall FindNdisMRegisterMiniportExport(__int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    __int64 Value = 0;
+    __int64 ModuleAddress = GtRead(GtEprocessExtField11);
+    if (ModuleAddress)
+    {
+        WORD FuncName[12];
+        strcpy((char *)FuncName, "NdisMRegisterMiniport");
+        FuncName[11] = 0;
+        if (LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value) == 1
+            && (_DWORD)Value && (unsigned int)Value < ImageSize)
+        {
+            GtWrite(GtEprocessExtField23, (unsigned int)Value);
+            GtWrite(GtEprocessExtField24, ModuleAddress + (unsigned int)Value);
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// ParseNdisMiniportDriverName — 解析 NDIS 微型端口驱动名称
+// 对应原始驱动 sub_140061C54
+// 在 ndis.sys 镜像中逐字节解码 Unicode 字符，找到匹配的驱动名称模式，将偏移写入 GT 879，地址写入 GT 880
+char __fastcall ParseNdisMiniportDriverName(__int64 ImageBase, unsigned int ImageSize, unsigned int Offset)
+{
+    __int64 ImageEnd = ImageSize;
+    __int64 ModuleAddress = GtRead(GtEprocessExtField11);
+    char Result = 0;
+    if (ModuleAddress && (unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770 && Offset && Offset < ImageSize)
+    {
+        unsigned __int8 *ScanPos = (unsigned __int8 *)(ImageBase + Offset);
+        for (unsigned int i = 0; i < 0x64; i++)
+        {
+            _WORD DecodeResult[24];
+            if (!DecodeUnicodeChar(ScanPos, ImageBase + ImageEnd, DecodeResult))
+                break;
+            ScanPos += *(unsigned int *)((char *)DecodeResult + 24);
+            if (*(int *)(*(__int64 *)((char *)DecodeResult + 40)) == 4275)
+                break;
+            if (*(int *)(*(__int64 *)((char *)DecodeResult + 40)) == 4301)
+            {
+                unsigned int NameOffset = *(int *)((char *)DecodeResult + 12) + (unsigned int)(ScanPos - (unsigned __int8 *)ImageBase);
+                if (NameOffset && NameOffset < ImageSize)
+                {
+                    GtWrite(GtEprocessExtField25, NameOffset);
+                    GtWrite(GtEprocessExtField26, NameOffset + ModuleAddress);
+                    return 1;
+                }
+                return Result;
+            }
+        }
+    }
+    return Result;
+}
+
+// ParseNdisGetVersionSection — 解析 NDIS 获取版本节区
+// 对应原始驱动 sub_140062170
+// 在 ndis.sys 的 NdisGetVersion 函数附近遍历 PE 节区，查找类型为 1340-1347 且特征匹配的节区，将其版本值写入 GT 867
+char __fastcall ParseNdisGetVersionSection(unsigned int Rva, __int64 ImageBase, unsigned int ImageSize)
+{
+    char Result = 0;
+    if (Rva && Rva < ImageSize)
+    {
+        __int64 ReadContext[8];
+        _DWORD SectionEntry[72];
+        __int64 CumulativeSize = 0;
+        unsigned int Value = 0;
+        int Value_4 = 0;
+        unsigned int EntryCumulSize = 0;
+        __int64 EntryDataPtr = 0;
+
+        InitPESectionReadContext(ImageBase + Rva, ImageSize - Rva, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int i = 0; i < 0x64; i++)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                break;
+            CumulativeSize += EntryCumulSize;
+            __int16 TypeValue = *(__int16 *)(EntryDataPtr + 6);
+            if (TypeValue == 1349)
+                break;
+            if ((unsigned __int16)(TypeValue - 1340) <= 7u && SectionEntry[2] == 1 && Value > 0x60000 && !Value_4)
+            {
+                GtWrite(GtEprocessExtField13, Value);
+                return 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// ReadNtFileForHookTable — 读取 ntoskrnl 文件用于 Hook 表构建
+// 对应原始驱动 sub_1400294B8
+// 使用编码的 DWORD 数组（加密路径）调用 ReadFileRawData 解码并读取 ntoskrnl.exe 文件内容，然后调用 ReadNtFileToBuffer 解析为 PE 缓冲区
+bool __fastcall ReadNtFileForHookTable(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = 0;
+    void *RawDataBuffer = NULL;
+    size_t RawDataSize = 0;
+    int EncodedPath[13];
+    __int64 EncodedPathExtra = 0;
+
+    EncodedPath[0] = 5439580;
+    EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252;
+    EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607;
+    EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971;
+    EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525;
+    EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6815836;
+    EncodedPath[11] = 7077985;
+    EncodedPath[12] = 6553646;
+    EncodedPathExtra = 7077996;
+
+    if (!(unsigned int)ReadFileRawData((WORD *)EncodedPath, &RawDataBuffer, (ULONG *)&RawDataSize, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)RawDataBuffer, (ULONG)RawDataSize, (PUCHAR *)pFileBuffer, pFileSize) == 1;
+        ExFree(RawDataBuffer);
+    }
+    return Result;
+}// ============================================================
+// Hook 系统调用基础设施函数
+// ============================================================
+
+// BuildHookTable — 构建 Hook 表
+// 对应原始驱动 sub_140003B3C
+// 遍历系统调用哈希表，通过导出索引表查找每个哈希对应的函数地址，写入全局表
+void BuildHookTable(void)
+{
+    __int64 ImageBase = 0;
+    __int64 ExportDirVa = 0;
+    unsigned int ExportDirSize = 0;
+    unsigned int ExportCount = 0;
+    void *ExportRva;
+
+    ImageBase = GtRead(GtNtoskrnlModuleBase);
+    ExportDirVa = GtRead(GtEprocessField22);
+    ExportDirSize = GtRead(GtEprocessField23);
+    if (ImageBase && ExportDirVa && ExportDirSize)
+    {
+        ExportCount = GetExportDirSize(ExportDirVa, ExportDirSize);
+        if (ExportCount)
+        {
+            ExportRva = ExAlloc(PagedPool, 12LL * ExportCount);
+            if (ExportRva)
+            {
+                if ((unsigned int)BuildExportIndexTable(ExportDirVa, ExportDirSize, ExportRva, ExportCount, 0))
+                {
+                    for (enum _GLOBAL_TABLE_INDEX TableIndex = GtSyscallHashTable; (unsigned int)TableIndex < (GtTotalSize | GtEprocessField114 | 0x400); TableIndex = (enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 3))
+                    {
+                        int FuncAddress = GtRead(TableIndex);
+                        unsigned int ExportOffset = LookupExportFuncAddr((__int64)ExportRva, ExportCount, FuncAddress);
+                        if (ExportOffset)
+                        {
+                            __int64 ExportAddress = ExportOffset;
+                            GtWrite((enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 1), ExportOffset);
+                            GtWrite((enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 2), ExportAddress + ImageBase);
+                        }
+                    }
+                }
+                ExFree(ExportRva);
+            }
+        }
+    }
+}
+
+// InitHookSyscall — 初始化 Hook 系统调用
+// 对应原始驱动 sub_14001C408
+// 扫描 PE 节区，查找类型 1298(0x514) 且标志 0x40000 的条目，计算偏移并写入全局表
+__int64 InitHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 result;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    unsigned int EntryFlags = 0;
+    __int64 FieldValue = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    result = GtRead(GtInitHookSyscallPeSectionOffset);
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x32; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1298 && FieldValue == 0x40000)
+            {
+                if (EntryFlags)
+                {
+                    result = MatchSize + EntryFlags - (unsigned int)ImageBase;
+                    if ((_DWORD)result && (unsigned int)result < ImageSize)
+                    {
+                        unsigned int TargetOffset = (unsigned int)result;
+                        GtWrite(GtInitHookSyscallOffset, (unsigned int)result);
+                        return GtWrite(GtInitHookSyscallAddress, TargetOffset + BaseAddress);
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// 前向声明
+__int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
+__int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
+
+// InstallHookSyscall — 安装 Hook 系统调用
+// 对应原始驱动 sub_14001C528
+// 根据 Windows 构建号选择导出查找方式（Win7 或 Win8+）
+__int64 InstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+        return FindHookTargetInExportWin8(ImageBase, ImageSize, UnusedParam, BaseAddress);
+    else
+        return FindHookTargetInExportWin7(ImageBase, ImageSize, UnusedParam, BaseAddress);
+}
+
+// FindHookTargetInExportWin7 — 在 Win7 导出中查找 Hook 目标
+// 对应原始驱动 sub_14001C58C
+// 扫描 PE 节区，匹配子类型 1072 或 1298 的条目，计算偏移写入全局表
+__int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    char FoundMatch = 0;
+    __int64 result;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    __int64 Value = 0;
+    __int64 FieldValue = 0;
+    __int64 ExtraField = 0;
+    unsigned int CumulativeFlags = 0;
+    __int64 FieldValue2 = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    FoundMatch = 0;
+    result = GtRead(GtFindHookTargetPeSectionOffset);
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x100; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                return result;
+            CumulativeSize += SectionSize;
+            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            if (SubType == 1349)
+                return result;
+            if (SubType == 1072 && (FieldValue2 & 0x1000000000LL) != 0 && !ExtraField)
+            {
+                if ((FieldValue & 0x10000) != 0 && (unsigned int)Value < ImageSize && (FieldValue & 0x40) != 0 && (FieldValue & 2) != 0 && (FieldValue & 4) == 0)
+                {
+                    if (FoundMatch)
+                    {
+                        return GtWrite(GtEprocessField69, BaseAddress + (unsigned int)Value);
+                    }
+                    unsigned int TargetOffset = (unsigned int)Value;
+                    GtWrite(GtFindHookTargetFirstMatchOffset2, (unsigned int)Value);
+                    result = GtWrite(GtFindHookTargetFirstMatchAddr2, TargetOffset + BaseAddress);
+                    FoundMatch = 1;
+                }
+            }
+            else if (SubType == 1298 && (FieldValue & 0x40) != 0 && (FieldValue2 & 0x40) != 0 && (FieldValue2 & 0x10000) != 0 && FoundMatch == 1)
+            {
+                if (CumulativeFlags && CumulativeFlags < ImageSize)
+                {
+                    return GtWrite(GtEprocessField69, BaseAddress + CumulativeFlags);
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// FindHookTargetInExportWin8 — 在 Win8+ 导出中查找 Hook 目标
+// 对应原始驱动 sub_14001C72C
+// 扫描 PE 节区，匹配子类型 1072/1243 的条目，计算偏移写入全局表
+__int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 result;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    __int64 FieldValue = 0;
+    __int64 ExtraField = 0;
+    __int64 FieldValue2 = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    result = GtRead(GtFindHookTargetPeSectionOffset);
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        unsigned int CountField = 0;
+        __int64 FirstMatchOffset = 0;
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x100; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            CumulativeSize += SectionSize;
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x55F0)
+            {
+                if (*(_WORD *)(SectionDataPtr + 6) == 1349)
+                    break;
+            }
+            if (((*(_WORD *)(SectionDataPtr + 6) == 1072 && (FieldValue2 & 0x1000000000LL) != 0 && !ExtraField) || (*(_WORD *)(SectionDataPtr + 6) == 1243 && FieldValue2 == 64)) && FieldValue == 0x40000)
+            {
+                unsigned int MatchOffset = CumulativeSize + SectionEntry[16] - ImageBase;
+                if (MatchOffset > 0x20 && MatchOffset < ImageSize)
+                {
+                    if ((_DWORD)FirstMatchOffset && CountField < 0xA)
+                    {
+                        GtWrite(GtFindHookTargetFirstMatchOffset2, (unsigned int)FirstMatchOffset);
+                        GtWrite(GtFindHookTargetFirstMatchAddr2, FirstMatchOffset + BaseAddress);
+                        return GtWrite(GtEprocessField69, BaseAddress + MatchOffset - 32);
+                    }
+                    FirstMatchOffset = MatchOffset - 32;
+                    CountField = 0;
+                }
+            }
+            else
+            {
+                ++CountField;
+            }
+        }
+    }
+    return result;
+}
+
+// EnableHookProtection — 启用 Hook 保护
+// 对应原始驱动 sub_14001C9FC
+// 根据 Windows 构建号选择数据节区查找方式
+__int64 EnableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 result;
+
+    result = GtRead(GtWindowsBuildNumber);
+    if ((unsigned int)result >= 0x1DB0)
+        return FindHookTargetDataSection(ImageBase, ImageSize, UnusedParam, BaseAddress);
+    return result;
+}
+
+// DisableHookProtection — 禁用 Hook 保护
+// 对应原始驱动 sub_14001CC4C
+// 两阶段扫描：先查找子类型 1368 定位偏移，再扫描子类型 1296/1239 计算目标地址
+__int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 result;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    unsigned int EntryFlags = 0;
+    unsigned int FieldFlags = 0;
+    __int64 FieldValue = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    result = GtRead(GtDisableHookProtectionPeOffset);
+    SectionOffset = (unsigned int)result;
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1368)
+            {
+                if (EntryFlags)
+                {
+                    result = EntryFlags - (unsigned int)ImageBase;
+                    SectionOffset = MatchSize + (unsigned int)result;
+                    break;
+                }
+            }
+        }
+        if (SectionOffset && SectionOffset < ImageSize)
+        {
+            CumulativeSize = 0;
+            InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            int MatchCount = 0;
+            for (unsigned int i = 0; i < 0x64; ++i)
+            {
+                result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                if ((_DWORD)result)
+                    break;
+                int MatchSize2 = SectionSize + CumulativeSize;
+                CumulativeSize += SectionSize;
+                __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+                if (SubType != 1296 && SubType != 1239)
+                    continue;
+                if (FieldValue == 0x40000 && FieldFlags)
+                {
+                    result = MatchSize2 + FieldFlags - (unsigned int)ImageBase;
+                    if ((_DWORD)result && (unsigned int)result < ImageSize)
+                    {
+                        ++MatchCount;
+                        __int64 ResultAddress = BaseAddress + (unsigned int)result;
+                        if (MatchCount == 1)
+                        {
+                            result = GtWrite(GtDisableHookProtectionAddr1, ResultAddress);
+                        }
+                        else if (MatchCount == 2)
+                        {
+                            return GtWrite(GtDisableHookProtectionAddr2, ResultAddress);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// FindNtOpenThreadTargetWin7 — 查找 NtOpenThread Hook 目标（Win7）
+// 对应原始驱动 sub_14001D1EC
+// 扫描 PE 节区，查找子类型 1368 条目，计算偏移返回
+__int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
+{
+    __int64 Result = 0;
+    unsigned int SectionOffset = 0;
+    __int64 SectionBase = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    __int64 SectionDataPtr = 0;
+
+    Result = 0;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField79 | 0x100);
+    if (SectionOffset && SectionOffset < ImageSize)
+    {
+        SectionBase = ImageBase + SectionOffset;
+        GtWrite(GtEprocessField28, 0);
+        InitPESectionReadContext(SectionBase, ImageSize + ImageBase - SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x46; ++LoopIndex)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                return Result;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1368 && LoopIndex > 6)
+            {
+                unsigned int TargetOffset = CumulativeSize + *(_DWORD *)(CumulativeSize - 4) - ImageBase;
+                if (TargetOffset < MaxOffset)
+                    return BaseAddress + TargetOffset;
+                return Result;
+            }
+            CumulativeSize += SectionEntry[60];
+        }
+    }
+    return Result;
+}
+
+// FindNtOpenThreadTargetWin8 — 查找 NtOpenThread Hook 目标（Win8+）
+// 对应原始驱动 sub_14001D300
+// 两阶段扫描：先查找子类型 1368 条目定位偏移，再扫描子类型 1296 计算目标地址
+__int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
+{
+    __int64 Result = 0;
+    unsigned int SectionOffset = 0;
+    __int64 SectionBase = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    int EntrySize = 0;
+    __int64 FieldValue = 0;
+    int FieldSize = 0;
+    __int64 FieldValue2 = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    Result = 0;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField79 | 0x100);
+    if (SectionOffset && SectionOffset < ImageSize)
+    {
+        SectionBase = ImageBase + SectionOffset;
+        GtWrite(GtEprocessField28, 0);
+        InitPESectionReadContext(SectionBase, ImageBase + ImageSize - SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (int LoopIndex = 0; LoopIndex < 0x46; ++LoopIndex)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                return Result;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1368 && (FieldValue & 0x4000000) != 0)
+            {
+                if (EntrySize)
+                {
+                    unsigned int TargetOffset = MatchSize + EntrySize - ImageBase;
+                    if (TargetOffset && TargetOffset < ImageSize)
+                    {
+                        CumulativeSize = 0;
+                        InitPESectionReadContext(ImageBase + TargetOffset, ImageSize - TargetOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+                        for (int LoopIndex2 = 0; LoopIndex2 < 0x46; ++LoopIndex2)
+                        {
+                            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                                return Result;
+                            int MatchSize2 = SectionSize + CumulativeSize;
+                            CumulativeSize += SectionSize;
+                            if (*(_WORD *)(SectionDataPtr + 6) == 1296 && (FieldValue2 & 0x40000) != 0)
+                            {
+                                unsigned int TargetOffset2 = MatchSize2 + FieldSize - ImageBase;
+                                if (TargetOffset2 && TargetOffset2 < MaxOffset)
+                                    return BaseAddress + TargetOffset2;
+                                return Result;
+                            }
+                        }
+                        return Result;
+                    }
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// UninstallHookSyscall — 卸载 Hook 系统调用
+// 对应原始驱动 sub_14001C8D0
+// 扫描 PE 节区，查找子类型 1368 计算偏移，遇到子类型 1349 时写入全局表
+__int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 TargetOffset = 0;
+    __int64 result;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    unsigned int EntryFlags = 0;
+    __int64 FieldValue = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    TargetOffset = 0;
+    result = GtRead(GtUninstallHookSyscallPeOffset);
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            if (SubType == 1349)
+            {
+                if ((_DWORD)TargetOffset && (unsigned int)TargetOffset < ImageSize)
+                {
+                    GtWrite(GtKernelDataField36, TargetOffset);
+                    return GtWrite(GtKernelDataField37, TargetOffset + BaseAddress);
+                }
+                return result;
+            }
+            if (SubType == 1368 && (FieldValue & 0x4000000) != 0)
+            {
+                if (EntryFlags)
+                    TargetOffset = MatchSize + EntryFlags - (unsigned int)ImageBase;
+            }
+        }
+    }
+    return result;
+}
+
+// BuildJmpPatchStub — 构建跳转修补桩
+// 对应原始驱动 sub_14008280C
+// 检查目标代码是否为 jmp qword ptr [rdi] 模式，构建跳转桩
+char BuildJmpPatchStub(int PatchBase, __int64 TargetAddress, __int64 StubBuffer, unsigned int BufferSize, int Flags)
+{
+    if (BufferSize >= 0xD && *(_BYTE *)TargetAddress == 72 && *(_BYTE *)(TargetAddress + 1) == 0xFF && *(_BYTE *)(TargetAddress + 2) == 0x37 && *(_BYTE *)(TargetAddress + 7) == 0xCC && *(_BYTE *)(TargetAddress + 8) == 0xCC)
+    {
+        int OriginalOffset = *(_DWORD *)(TargetAddress + 3);
+        *(_WORD *)StubBuffer = 0x8BFF; // -29876
+        *(_BYTE *)(StubBuffer + 2) = 21;
+        *(_BYTE *)(StubBuffer + 7) = 0xE9; // -23
+        *(_DWORD *)(StubBuffer + 3) = OriginalOffset;
+        __int64 DisableHookAddr = GtRead(GtDisableHookProtectionAddr1 | 0x100);
+        if (DisableHookAddr && Flags)
+            *(_DWORD *)(StubBuffer + 8) = Flags + (int)DisableHookAddr - PatchBase - 12;
+        else
+            *(_DWORD *)(StubBuffer + 8) = 0;
+        *(_BYTE *)(StubBuffer + 12) = 0xCC;
+        return 1;
+    }
+    return 0;
+}
+
+// InstallSsdtHookForThreadProtect — 安装 SSDT Hook 用于线程保护
+// 对应原始驱动 sub_140035730
+// 解码驱动名称，打开设备，根据输入条目类型写入 SSDT 表项
+char InstallSsdtHookForThreadProtect(__int64 pInputEntry)
+{
+    char Result = 0;
+    void (__fastcall *pInitFunc)(_BYTE *, _DWORD *);
+    int (__fastcall *pDecodeFunc)(_BYTE *, __int64, _QWORD);
+    void (*pCleanupFunc)(void);
+    __int64 pSectionBase;
+    _DWORD DecodedName[6];
+    _BYTE EncodedName[16];
+    int SuffixEncoded = 0;
+    __int64 SuffixDecoded = 0;
+    int Terminator = 0;
+    int ActionType = 0;
+    __int64 pInitResult;
+    __int64 TargetAddress = 0;
+    __int64 NewFuncAddr = 0;
+
+    Result = 0;
+    pInitFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    pDecodeFunc = (int (__fastcall *)(_BYTE *, __int64, _QWORD))GtRead(GtIoCreateFileFunc);
+    pCleanupFunc = (void (*)(void))GtRead(GtCloseHandleFunc);
+    pSectionBase = GtRead(GtDriverObjectListHead);
+    if (pInitFunc && pDecodeFunc && pCleanupFunc && pSectionBase)
+    {
+        ActionType = *(_DWORD *)(pInputEntry + 36);
+        DecodedName[0] = 4587612;
+        DecodedName[1] = 7077993;
+        DecodedName[2] = 5439589;
+        DecodedName[3] = 7536761;
+        DecodedName[4] = 6619252;
+        DecodedName[5] = 6029421;
+        Terminator = 0;
+        if (ActionType == 2)
+        {
+            SuffixEncoded = 7602254;
+            SuffixDecoded = 7536742;
+        }
+        else if (ActionType == 1)
+        {
+            SuffixEncoded = 7864421;
+            SuffixDecoded = 0x7400610066LL;
+        }
+        else if (ActionType == 0)
+        {
+            SuffixEncoded = 6357062;
+            SuffixDecoded = 0x61006600740073LL;
+            Terminator = 116;
+        }
+        pInitFunc(EncodedName, DecodedName);
+        if (pDecodeFunc(EncodedName, 64, 0) >= 0)
+        {
+            pInitResult = 0; // [rsp+40h]
+            if (pInitResult)
+            {
+                if (*(_BYTE *)pInputEntry)
+                {
+                    __int64 pContextBase = *(_QWORD *)(pInitResult + 80);
+                    if (!pContextBase)
+                        goto LABEL_CLEANUP;
+                    if (MmIsAddressValid(*(PVOID *)(pInitResult + 80)) != 1)
+                        goto LABEL_CLEANUP;
+                    if (MmIsAddressValid((PVOID)(pContextBase + 223)) != 1)
+                        goto LABEL_CLEANUP;
+                    unsigned int TargetFuncAddr = *(unsigned int *)(pInputEntry + 8);
+                    if (TargetFuncAddr >= 0x1B)
+                        goto LABEL_CLEANUP;
+                    NewFuncAddr = *(_QWORD *)(pInputEntry + 16);
+                    TargetAddress = pContextBase + 8 + 8 * TargetFuncAddr;
+                }
+                else
+                {
+                    NewFuncAddr = *(_QWORD *)(pInputEntry + 16);
+                    if (!NewFuncAddr)
+                        goto LABEL_CLEANUP;
+                    unsigned int EntryIndex = *(unsigned int *)(pInputEntry + 8);
+                    if (EntryIndex > 0x1B)
+                        goto LABEL_CLEANUP;
+                    TargetAddress = pInitResult + 8 * EntryIndex + 112;
+                }
+                WritePhysicalMemoryQword(TargetAddress, NewFuncAddr);
+LABEL_CLEANUP:
+                pCleanupFunc();
+                return 1;
+            }
+        }
+    }
+    return Result;
+}
+
+// ============================================================
+// HookSyscallNt* 系列函数 — 系统调用 Hook 入口
+// ============================================================
+
+// HookSyscallNtCreateProcess — Hook NtCreateProcess 系统调用
+// 对应原始驱动 sub_14001CE20
+// 扫描 PE 节区，查找类型 1296(0x510) 且标志 0x40000 的条目，计算目标地址写入全局表
+__int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 result;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    unsigned int EntryFlags = 0;
+    __int64 FieldValue = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    result = GtRead(GtNtCreateProcessPeSectionOffset);
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1296 && FieldValue == 0x40000)
+            {
+                if (EntryFlags)
+                {
+                    result = MatchSize + EntryFlags - (unsigned int)ImageBase;
+                    if ((_DWORD)result && (unsigned int)result < ImageSize)
+                        return GtWrite(GtNtCreateProcessResultAddr, BaseAddress + (unsigned int)result);
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// HookSyscallNtCreateThread — Hook NtCreateThread 系统调用
+// 对应原始驱动 sub_14001CF34
+// 扫描 PE 节区，匹配子类型 1245 的条目，计算目标地址写入全局表
+__int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    __int64 FieldValue = 0;
+    int EntryFlags = 0;
+    int SectionSize = 0;
+    __int64 FieldValue2 = 0;
+    unsigned int SectionSize2 = 0;
+    __int64 SectionDataPtr = 0;
+
+    SectionOffset = GtRead(GtNtCreateThreadPeSectionOffset);
+    if (SectionOffset && SectionOffset < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (int LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                break;
+            int MatchSize = SectionSize2 + CumulativeSize;
+            CumulativeSize += SectionSize2;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1245 && FieldValue == 64 && EntryFlags == 1 && FieldValue2 == 0x40000)
+            {
+                if (SectionSize)
+                {
+                    unsigned int TargetOffset = MatchSize + SectionSize - ImageBase;
+                    if (TargetOffset && TargetOffset < ImageSize)
+                    {
+                        __int64 ResultAddress = BaseAddress + TargetOffset;
+                        GtWrite(GtNtCreateThreadResultAddr, ResultAddress);
+                        if (!ResultAddress)
+                            break;
+                        return GtWrite(GtNtCreateThreadHookSuccess, 0);
+                    }
+                }
+            }
+        }
+    }
+    return GtWrite(GtNtCreateThreadHookSuccess, 1);
+}
+
+// HookSyscallNtOpenProcess — Hook NtOpenProcess 系统调用
+// 对应原始驱动 sub_14001D074
+// 扫描 PE 节区，查找子类型 1368 的条目，计算目标地址写入全局表
+__int64 HookSyscallNtOpenProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 result;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    unsigned int EntryFlags = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    result = GtRead(GtNtDeleteKeyPeSectionOffset | GtEprocessField02);
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1368)
+            {
+                if (EntryFlags)
+                {
+                    result = MatchSize + EntryFlags - (unsigned int)ImageBase;
+                    if ((_DWORD)result && (unsigned int)result < ImageSize)
+                    {
+                        unsigned int TargetOffset = (unsigned int)result;
+                        GtWrite((enum _GLOBAL_TABLE_INDEX)2313, (unsigned int)result);
+                        return GtWrite((enum _GLOBAL_TABLE_INDEX)2314, TargetOffset + BaseAddress);
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// HookSyscallNtOpenThread — Hook NtOpenThread 系统调用
+// 对应原始驱动 sub_14001D188
+// 根据 Windows 构建号选择查找方式（Win7 或 Win8+）
+__int64 HookSyscallNtOpenThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+        return FindNtOpenThreadTargetWin8(ImageBase, ImageSize, UnusedParam, BaseAddress, MaxOffset);
+    else
+        return FindNtOpenThreadTargetWin7(ImageBase, ImageSize, UnusedParam, BaseAddress, MaxOffset);
+}
+
+// HookSyscallNtOpenKey — Hook NtOpenKey 系统调用
+// 对应原始驱动 sub_14001D4C0
+// 扫描 PE 节区，匹配特定标志组合的条目，计算偏移写入全局表
+__int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    unsigned int ResultValue = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    __int64 FieldValue = 0;
+    __int64 FieldValue2 = 0;
+    __int64 FieldValue3 = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    ResultValue = -1;
+    SectionOffset = GtRead(GtNtOpenKeyPeSectionOffset);
+    if (SectionOffset && SectionOffset < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
+        {
+            if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                break;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            if ((FieldValue3 & 0x80000) != 0 && FieldValue2 == 16 && (FieldValue & 0x10000) != 0)
+            {
+                ResultValue = SectionEntry[16];
+            }
+            else if ((unsigned __int16)(*(_WORD *)(SectionDataPtr + 6) - 1368) <= 1u && (FieldValue & 0x4000000) != 0)
+            {
+                unsigned int TargetOffset = MatchSize + SectionEntry[14] - ImageBase;
+                if (TargetOffset && TargetOffset < ImageSize)
+                    GtWrite(GtPspTerminateThreadAddr, BaseAddress + TargetOffset);
+                return GtWrite(GtEprocessField94, ResultValue);
+            }
+        }
+        return GtWrite(GtEprocessField94, ResultValue);
+    }
+    return GtWrite(GtEprocessField94, ResultValue);
+}
+
+// HookSyscallNtOpenKeyEx — Hook NtOpenKeyEx 系统调用
+// 对应原始驱动 sub_14001D608
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果值
+__int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
+{
+    unsigned int ResultValue = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char FieldValue = 0;
+    int EntryFlags = 0;
+    unsigned int FieldFlags = 0;
+    __int64 FieldValue2 = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    ResultValue = -1;
+    SectionOffset = GtRead(GtUninstallHookSyscallPeOffset | GtEprocessField59);
+    if (SectionOffset && SectionOffset < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += SectionSize;
+            if (*(_WORD *)(SectionDataPtr + 6) == 1349)
+                break;
+            if ((FieldValue & 0x40) != 0 && !EntryFlags && (FieldValue2 & 0x4000) != 0 && FieldFlags && (FieldValue2 & 0x40) != 0)
+            {
+                ResultValue = FieldFlags;
+                return GtWrite(GtEprocessField182 | GtEprocessField06 | 0x100, ResultValue);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField182 | GtEprocessField06 | 0x100, ResultValue);
+}
+
+// HookSyscallNtCreateKey — Hook NtCreateKey 系统调用
+// 对应原始驱动 sub_14001D708
+// 扫描 PE 节区，匹配子类型 1296 的条目，计算偏移写入全局表
+__int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 result;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char FieldValue = 0;
+    int EntryFlags = 0;
+    unsigned int FieldFlags = 0;
+    __int64 FieldValue2 = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    result = GtRead(GtTotalSize | GtPathBuffer04 | 0x400);
+    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)result, ImageSize - result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
+        {
+            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            int MatchSize = SectionSize + CumulativeSize;
+            CumulativeSize += SectionSize;
+            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            if (SubType == 1349)
+                break;
+            if (SubType == 1296 && (FieldValue & 0x20) != 0 && !EntryFlags && (FieldValue2 & 0x40000) != 0)
+            {
+                if (FieldFlags)
+                {
+                    result = MatchSize + FieldFlags - (unsigned int)ImageBase;
+                    if ((_DWORD)result && (unsigned int)result < ImageSize)
+                    {
+                        unsigned int TargetOffset = (unsigned int)result;
+                        GtWrite(GtEprocessModuleListOffset | GtPsExitSpecialApcAddr, (unsigned int)result);
+                        return GtWrite(GtEprocessModuleListOffset | GtExFreeCallBackAddr, TargetOffset + BaseAddress);
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// HookSyscallNtDeleteKey — Hook NtDeleteKey 系统调用
+// 对应原始驱动 sub_14001D850
+// 在 PE 节区中查找子类型 1166 标记后跟子类型 1298 的条目，计算目标地址
+__int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+{
+    __int64 MatchOffset = 0;
+    char FoundFlag = 0;
+    __int64 result;
+    unsigned __int64 EndAddress;
+    __int64 SectionBase = 0;
+    int SectionEnd = 0;
+    char ReadContext[8];
+    __int64 CumulativeSize2 = 0;
+    char SectionEntry[120];
+    int EntrySize = 0;
+    __int64 FieldValue = 0;
+    unsigned int SectionSize = 0;
+    __int64 SectionDataPtr = 0;
+
+    ImageSize = ImageSize;
+    FoundFlag = 0;
+    result = GtRead(GtNtDeleteKeyPeSectionOffset);
+    if ((_DWORD)result && (unsigned int)result < (unsigned int)ImageSize)
+    {
+        EndAddress = ImageBase + ImageSize;
+        SectionBase = ImageBase + (unsigned int)result;
+        SectionEnd = (int)EndAddress;
+        if (EndAddress > SectionBase + 4096)
+            SectionEnd = SectionBase + 4096;
+        InitPESectionReadContext(SectionBase, SectionEnd - SectionBase, 2, 0, -1, 0, 0, (__int64)ReadContext);
+        while (1)
+        {
+            result = ReadPESectionEntry((__int64 *)ReadContext, SectionEntry);
+            if ((_DWORD)result)
+                break;
+            __int64 CumulativeSize = SectionSize + CumulativeSize2;
+            CumulativeSize2 = CumulativeSize;
+            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            if (SubType == 1166)
+            {
+                FoundFlag = 1;
+            }
+            else if (SubType == 1298 && (FieldValue & 0x40000) != 0 && FoundFlag == 1)
+            {
+                unsigned __int64 TargetAddress = CumulativeSize + EntrySize;
+                if (TargetAddress > ImageBase && TargetAddress < EndAddress)
+                    return GtWrite(GtCallbackField120, TargetAddress + BaseAddress - ImageBase);
+            }
+        }
+    }
+    return result;
+}
+
+// HookSyscallNtDeleteValueKey — Hook NtDeleteValueKey 系统调用
+// 对应原始驱动 sub_14001D984
+// 根据构建版本选择不同的查找方式，写入结果值
+__int64 HookSyscallNtDeleteValueKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
+{
+    __int64 Value[3];
+
+    Value[0] = 0;
+    Value[1] = 0;
+    Value[2] = 0;
+    if ((unsigned int)GtRead(GtEprocessField28) == 1)
+    {
+        FindDeleteValueKeyTarget(ImageBase, ImageSize, UnusedParam, BaseAddress, MaxOffset, Value);
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 2600)
+    {
+        ScanRegValueBodyForRef(ImageBase, ImageSize, UnusedParam, BaseAddress, MaxOffset, Value);
+    }
+    else
+    {
+        GetDeleteValueKeyCtx(Value);
+    }
+    return GtWrite(GtEprocessField60, Value[0]);
+}
+
+// HookSyscallNtSetValueKey — Hook NtSetValueKey 系统调用
+// 对应原始驱动 sub_14001DCC0
+// 根据构建版本选择不同的查找方式，写入结果值
+__int64 HookSyscallNtSetValueKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
+{
+    __int64 Value = 0;
+    __int64 ResultArray[2];
+
+    Value = 0;
+    ResultArray[0] = 0;
+    ResultArray[1] = 0;
+    if ((unsigned int)GtRead(GtEprocessField28) == 1)
+    {
+        FindSetValueKeyTargets(ImageBase, ImageSize, UnusedParam, BaseAddress, MaxOffset, &Value, ResultArray);
+    }
+    else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 2600)
+    {
+        FindSetValueKeyTarget(ImageBase, ImageSize, UnusedParam, BaseAddress, MaxOffset, &Value, ResultArray);
+    }
+    else
+    {
+        GetSetValueKeyCtx(&Value, ResultArray);
+    }
+    GtWrite(GtEprocessField58, Value);
+    return GtWrite(GtEprocessField59, ResultArray[0]);
+}
+
+// HookSyscallNtRenameKey — Hook NtRenameKey 系统调用
+// 对应原始驱动 sub_14001DFBC
+// 根据 Windows 构建号选择重命名键目标查找方式
+__int16 HookSyscallNtRenameKey(__int64 TargetAddress, unsigned int Flags, __int64 Context, unsigned __int64 MaxOffset)
+{
+    unsigned int Result = 0;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+    {
+        Result = GtRead(GtWindowsBuildNumber);
+        if (Result < 0x4563)
+            return (__int16)FindNtRenameKeyTarget(TargetAddress, Flags, Context, MaxOffset);
+    }
+    else
+    {
+        return (__int16)FindRenameKeyTargetEx(TargetAddress, Flags, Context, MaxOffset);
+    }
+    return (__int16)Result;
+}
+
+// HookSyscallNtCreateFile — Hook NtCreateFile 系统调用
+// 对应原始驱动 sub_14001E5BC
+// 解析系统调用号到地址，根据构建版本选择重定位方式
+__int64 HookSyscallNtCreateFile(__int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase)
+{
+    __int64 Result = 0;
+    Result = GtRead(GtNtCreateFileSyscallOffset);
+    if ((_DWORD)Result)
+    {
+        Result = ResolveSyscallToAddress(Result);
+        if ((_DWORD)Result && (unsigned int)Result < TargetSize)
+        {
+            unsigned int SyscallOffset = (unsigned int)Result;
+            GtWrite(GtNtCreateFileSyscallResult, (unsigned int)Result);
+            GtWrite(GtNtCreateFileSyscallAddress, SyscallOffset + RelocBase);
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+            {
+                Result = GtRead(GtWindowsBuildNumber);
+                if ((unsigned int)Result < 0x2800)
+                    return ResolveCreateFileRelocs(TargetBase, TargetSize, Context, RelocBase);
+            }
+            else
+            {
+                return FixCreateFileRelocs(TargetBase, TargetSize, Context, RelocBase);
+            }
+        }
+    }
+    return Result;
+}
+
+// HookSyscallNtOpenFile — Hook NtOpenFile 系统调用
+// 对应原始驱动 sub_14001E688
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtOpenFile(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField118 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField36, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField36, ResultOffset);
+}
+
+// HookSyscallNtReadFile — Hook NtReadFile 系统调用
+// 对应原始驱动 sub_14001E78C
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtReadFile(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField130 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField43, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField43, ResultOffset);
+}
+
+// HookSyscallNtWriteFile — Hook NtWriteFile 系统调用
+// 对应原始驱动 sub_14001E890
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtWriteFile(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    int MatchOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    int EntrySize = 0;
+    __int64 SectionType = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    MatchOffset = -1;
+    SectionOffset = GtRead(GtNtWriteFilePeSectionOffset);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            {
+                if (MatchOffset != -1)
+                    ResultOffset = MatchOffset;
+                return GtWrite(GtEprocessField34, ResultOffset);
+            }
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0)
+            {
+                MatchOffset = EntrySize;
+            }
+        }
+    }
+    return GtWrite(GtEprocessField34, ResultOffset);
+}
+
+// HookSyscallNtClose — Hook NtClose 系统调用
+// 对应原始驱动 sub_14001ED98
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField124 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField38, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField38, ResultOffset);
+}
+
+// HookSyscallNtDuplicateObject — Hook NtDuplicateObject 系统调用
+// 对应原始驱动 sub_14001EE9C
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtNtDuplicateObjectPeSectionOffset);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField37, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField37, ResultOffset);
+}
+
+// HookSyscallNtQuerySystemInfo — Hook NtQuerySystemInformation 系统调用
+// 对应原始驱动 sub_14001FF5C
+// 扫描 PE 节区，查找子类型 1294 标记后跟子类型 1296 的条目，计算目标地址
+__int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase)
+{
+    __int64 TargetSizeCopy = 0;
+    char FoundMarker = 0;
+    __int64 Result = 0;
+    unsigned __int64 BufferEnd;
+    __int64 ScanStart = 0;
+    int ScanEnd = 0;
+    char ReadContext[8];
+    __int64 TotalCumulSize = 0;
+    char SectionEntry[64];
+    int EntryFlags = 0;
+    __int64 SectionFlags = 0;
+    int EntrySize = 0;
+    __int64 SectionType2 = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    TargetSizeCopy = TargetSize;
+    FoundMarker = 0;
+    Result = GtRead(GtNtDeleteKeyPeSectionOffset);
+    if ((_DWORD)Result && (unsigned int)Result < (unsigned int)TargetSizeCopy)
+    {
+        BufferEnd = TargetBase + TargetSizeCopy;
+        ScanStart = TargetBase + (unsigned int)Result;
+        ScanEnd = (int)BufferEnd;
+        if (BufferEnd > ScanStart + 4096)
+            ScanEnd = ScanStart + 4096;
+        InitPESectionReadContext(ScanStart, ScanEnd - ScanStart, 2, 0, -1, 0, 0, (__int64)ReadContext);
+        while (1)
+        {
+            Result = ReadPESectionEntry((__int64 *)ReadContext, SectionEntry);
+            if ((_DWORD)Result)
+                break;
+            __int64 CumulativeSize = EntryCumulSize + TotalCumulSize;
+            TotalCumulSize = CumulativeSize;
+            __int16 SectionType = *(_WORD *)(EntryDataPtr + 6);
+            if (SectionType == 1294 && (SectionFlags & 0x4000) != 0 && EntryFlags == 16)
+            {
+                FoundMarker = 1;
+            }
+            else if (SectionType == 1296 && FoundMarker == 1 && (SectionType2 & 0x40000) != 0 && SectionFlags == 64)
+            {
+                unsigned __int64 MatchAddress = CumulativeSize + EntrySize;
+                if (MatchAddress > TargetBase && MatchAddress < BufferEnd)
+                    return GtWrite(GtCallbackField08, MatchAddress + RelocBase - TargetBase);
+            }
+        }
+    }
+    return Result;
+}
+
+// HookSyscallNtQueryInformationProcess — Hook NtQueryInformationProcess 系统调用
+// 对应原始驱动 sub_1400200A4
+// 扫描 PE 节区，匹配子类型 1296 的条目，写入结果偏移
+__int64 HookSyscallNtQueryInformationProcess(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType2 = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtNtCreateThreadPeSectionOffset | GtEprocessField20);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            __int16 SectionType = *(_WORD *)(EntryDataPtr + 6);
+            if (SectionType == 1349)
+                break;
+            if (SectionType == 1296 && (SectionFlags & 0x40) != 0 && (SectionType2 & 0x14000) != 0 && EntrySize)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField35 | 0x800, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField35 | 0x800, ResultOffset);
+}
+
+// HookSyscallNtSetInformationProcess — Hook NtSetInformationProcess 系统调用
+// 对应原始驱动 sub_1400201A4
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtSetInformationProcess(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField112 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField33, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField33, ResultOffset);
+}
+
+// HookSyscallNtQueryInformationThread — Hook NtQueryInformationThread 系统调用
+// 对应原始驱动 sub_1400202A8
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtQueryInformationThread(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField82 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if (((SectionFlags & 8) != 0 && !EntryFlags || (SectionFlags & 0x20) != 0 && !EntryFlags) && (SectionType & 0x10000) != 0 && EntrySize)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtSdstServiceCount, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtSdstServiceCount, ResultOffset);
+}
+
+// HookSyscallNtSetInformationThread — Hook NtSetInformationThread 系统调用
+// 对应原始驱动 sub_1400203AC
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField115 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 8) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField35, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField35, ResultOffset);
+}
+
+// HookSyscallNtSuspendProcess — Hook NtSuspendProcess 系统调用
+// 对应原始驱动 sub_1400204B0
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField109 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField32, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField32, ResultOffset);
+}
+
+// HookSyscallNtResumeProcess — Hook NtResumeProcess 系统调用
+// 对应原始驱动 sub_1400205B4
+// 从 GtEprocessField32 取值并偏移计算，根据构建号调整
+__int64 HookSyscallNtResumeProcess(void)
+{
+    int BaseOffset = 0;
+    int ResultOffset = 0;
+
+    BaseOffset = GtRead(GtEprocessField32);
+    if (BaseOffset == -1)
+        goto LABEL_SET;
+    ResultOffset = BaseOffset - 8;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) == 2195)
+        ResultOffset -= 8;
+    if (ResultOffset < 0)
+LABEL_SET:
+        ResultOffset = -1;
+    return GtWrite(GtEprocessField31, (unsigned int)ResultOffset);
+}
+
+// HookSyscallNtSuspendThread — Hook NtSuspendThread 系统调用
+// 对应原始驱动 sub_1400205F8
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtSuspendThread(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField136 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField51, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField51, ResultOffset);
+}
+
+// HookSyscallNtResumeThread — Hook NtResumeThread 系统调用
+// 对应原始驱动 sub_1400206FC
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtResumeThread(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField139 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtProcessOffset, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtProcessOffset, ResultOffset);
+}
+
+// HookSyscallNtOpenProcessToken — Hook NtOpenProcessToken 系统调用
+// 对应原始驱动 sub_140020800
+// 根据 Windows 构建号选择查找方式
+__int64 HookSyscallNtOpenProcessToken(__int64 TargetAddress, unsigned int TargetSize)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4F7C)
+        return FindOpenProcessTokenTarget(TargetAddress, TargetSize);
+    else
+        return FindOpenProcessTokenOffset(TargetAddress, TargetSize);
+}
+
+// HookSyscallNtOpenThreadToken — Hook NtOpenThreadToken 系统调用
+// 对应原始驱动 sub_140020BC4
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtOpenThreadToken(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtTotalSize | GtEprocessField106 | 0x100);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtEprocessField30, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtEprocessField30, ResultOffset);
+}
+
+// HookSyscallNtCreateToken — Hook NtCreateToken 系统调用
+// 对应原始驱动 sub_140020CC8
+// 扫描 PE 节区，匹配特定标志组合的条目，写入结果偏移
+__int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize)
+{
+    unsigned int ResultOffset = 0;
+    unsigned int SectionOffset = 0;
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    char SectionFlags = 0;
+    int EntryFlags = 0;
+    unsigned int EntrySize = 0;
+    __int64 SectionType = 0;
+    int EntryField = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+
+    ResultOffset = -1;
+    SectionOffset = GtRead(GtNtWriteFilePeSectionOffset | GtPathBuffer02);
+    if (SectionOffset && SectionOffset < TargetSize)
+    {
+        InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        {
+            CumulativeSize += EntryCumulSize;
+            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+                break;
+            if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
+            {
+                ResultOffset = EntrySize;
+                return GtWrite(GtProcessEprocess, ResultOffset);
+            }
+        }
+    }
+    return GtWrite(GtProcessEprocess, ResultOffset);
+}
+
+// HookSyscallNtLoadDriver — Hook NtLoadDriver 系统调用
+// 对应原始驱动 sub_140020DCC
+// 两阶段扫描定位偏移，根据构建版本判断是否执行
+__int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int64 Context, __int64 RelocBase)
+{
+    __int64 ReadContext = 0;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+    signed int EntrySize = 0;
+    __int64 SectionFlags = 0;
+    signed int EntrySize2 = 0;
+    __int64 SectionType2 = 0;
+    unsigned int EntryCumulSize = 0;
+    __int64 EntryDataPtr = 0;
+    unsigned int SectionOffset1 = 0;
+    unsigned int SectionOffset2 = 0;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x3FAB)
+    {
+        SectionOffset1 = GtRead(GtTotalSize | GtKernelDataField44 | GtPathBuffer00);
+        SectionOffset2 = GtRead(GtTotalSize | GtEprocessExtField58 | GtPathBuffer02);
+        if (SectionOffset1 && SectionOffset1 < TargetSize)
+        {
+            CumulativeSize = 0;
+            InitPESectionReadContext(TargetBase + SectionOffset1, TargetSize - SectionOffset1, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            for (int Phase1Index = 0; Phase1Index < 0xA; ++Phase1Index)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    break;
+                int CurrentOffset1 = EntryCumulSize + CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                if (*(_WORD *)(EntryDataPtr + 6) == 1141 && (SectionFlags & 0x40000) != 0 && EntrySize < TargetSize)
+                {
+                    unsigned int MatchOffset1 = CurrentOffset1 + EntrySize - TargetBase;
+                    if (MatchOffset1 && MatchOffset1 < TargetSize)
+                    {
+                        __int64 Phase1Result = MatchOffset1;
+                        GtWrite(GtKernelDataField33, MatchOffset1);
+                        GtWrite(GtKernelDataField34, Phase1Result + RelocBase);
+                    }
+                    break;
+                }
+            }
+        }
+        if (SectionOffset2 && SectionOffset2 < TargetSize)
+        {
+            CumulativeSize = 0;
+            InitPESectionReadContext(TargetBase + SectionOffset2, TargetSize - SectionOffset2, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            for (int Phase2Index = 0; Phase2Index < 0xA; ++Phase2Index)
+            {
+                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                    break;
+                int CurrentOffset2 = EntryCumulSize + CumulativeSize;
+                CumulativeSize += EntryCumulSize;
+                if (*(_WORD *)(EntryDataPtr + 6) == 1296 && (SectionFlags & 0x40) != 0 && (SectionType2 & 0x40000) != 0 && EntrySize2 < TargetSize)
+                {
+                    unsigned int MatchOffset2 = CurrentOffset2 + EntrySize2 - TargetBase;
+                    if (MatchOffset2 && MatchOffset2 < TargetSize)
+                    {
+                        __int64 Phase2Result = MatchOffset2;
+                        GtWrite(GtCallbackField104, MatchOffset2);
+                        GtWrite(GtCallbackField105, Phase2Result + RelocBase);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    GtWrite(GtKernelDataField23, 0);
+    GtWrite(GtIopfCompleteRequestAddr, 0);
+    GtWrite(GtCallbackField106, 0);
+    return GtWrite(GtIopfCallDriverAddr, 0);
+}
+

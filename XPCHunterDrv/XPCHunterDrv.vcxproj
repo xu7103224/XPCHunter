@@ -46,8 +46,8 @@
   </ImportGroup>
   <PropertyGroup>
     <_ProjectFileVersion>16.0.0.0</_ProjectFileVersion>
-    <OutDir>$(SolutionDir)build\bin\$(Configuration)\$(Platform)\</OutDir>
-    <IntDir>$(SolutionDir)build\obj\$(Configuration)\$(Platform)\</IntDir>
+    <OutDir>$(SolutionDir)..\build\bin\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)..\build\obj\$(Configuration)\$(Platform)\</IntDir>
     <TargetName>XPCHunterDrv</TargetName>
     <TargetExt>.sys</TargetExt>
     <LinkIncremental>false</LinkIncremental>
@@ -147,30 +147,42 @@
   <ItemGroup>
     <ClCompile Include="src\DriverEntry.c" />
     <ClCompile Include="src\GlobalTable.c" />
-    <ClCompile Include="src\IoctlDispatch.c" />
-    <ClCompile Include="src\SSDT.c" />
-    <ClCompile Include="src\ProcessMgmt.c" />
-    <ClCompile Include="src\ThreadMgmt.c" />
-    <ClCompile Include="src\Registry.c" />
-    <ClCompile Include="src\Minifilter.c" />
-    <ClCompile Include="src\MemoryOps.c" />
-    <ClCompile Include="src\Crypto.c" />
-    <ClCompile Include="src\Protocol.c" />
-    <ClCompile Include="src\ObjectMgmt.c" />
-    <ClCompile Include="src\ModuleMgmt.c" />
-    <ClCompile Include="src\HandleMgmt.c" />
-    <ClCompile Include="src\SystemInfo.c" />
-    <ClCompile Include="src\PEDecoder.c" />
-    <ClCompile Include="src\DecodeTables.c" />
-    <ClCompile Include="src\Utility.c" />
-	    <ClCompile Include="src\Utf8Decoder.c" />
-		    <ClCompile Include="src\ContextMgmt.c" />
-		    <ClCompile Include="src\QueryDriver.c" />
-		    <ClCompile Include="src\MemoryCleanup.c" />
-		    <ClCompile Include="src\MissingFuncs.c" />
+    <ClCompile Include="src\framework\MemoryOps.c" />
+    <ClCompile Include="src\framework\MemoryCleanup.c" />
+    <ClCompile Include="src\framework\Utility.c" />
+    <ClCompile Include="src\framework\Utf8Decoder.c" />
+    <ClCompile Include="src\framework\PEDecoder.c" />
+    <ClCompile Include="src\framework\DecodeTables.c" />
+    <ClCompile Include="src\framework\Crypto.c" />
+    <ClCompile Include="src\kernel\ProcessMgmt.c" />
+    <ClCompile Include="src\kernel\ThreadMgmt.c" />
+    <ClCompile Include="src\kernel\ObjectMgmt.c" />
+    <ClCompile Include="src\kernel\HandleMgmt.c" />
+    <ClCompile Include="src\kernel\ModuleMgmt.c" />
+    <ClCompile Include="src\kernel\Registry.c" />
+    <ClCompile Include="src\kernel\Minifilter.c" />
+    <ClCompile Include="src\kernel\ContextMgmt.c" />
+    <ClCompile Include="src\services\IoctlDispatch.c" />
+    <ClCompile Include="src\services\Operation.c" />
+    <ClCompile Include="src\services\TailHelpers.c" />
+    <ClCompile Include="src\services\SSDT.c" />
+    <ClCompile Include="src\services\SsdtHook.c" />
+    <ClCompile Include="src\services\SyscallTable.c" />
+    <ClCompile Include="src\services\Protocol.c" />
+    <ClCompile Include="src\services\QueryDriver.c" />
+    <ClCompile Include="src\features\SystemInfo.c" />
+    <ClCompile Include="src\features\PeParse.c" />
+    <ClCompile Include="src\features\ServiceTable.c" />
+    <ClCompile Include="src\features\DiskQuery.c" />
+    <ClCompile Include="src\features\ModuleEnum.c" />
+    <ClCompile Include="src\features\Callback.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\XPCHunterDrv.h" />
+    <ClInclude Include="inc\xpc_basic.h" />
+    <ClInclude Include="inc\xpc_gt_enum.h" />
+    <ClInclude Include="inc\xpc_ioctl.h" />
+    <ClInclude Include="inc\xpc_structs.h" />
   </ItemGroup>
   <ItemGroup>
     <Inf Exclude="@(Inf)" Include="*.inf" />

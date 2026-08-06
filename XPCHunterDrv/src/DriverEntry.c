@@ -2,7 +2,7 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 // 对应原始驱动地址范围 0x140080ED4-0x14008265A
 
-#include "..\inc\XPCHunterDrv.h"
+#include "XPCHunterDrv.h"
 
 // 前向声明
 extern volatile PVOID g_Pointer;

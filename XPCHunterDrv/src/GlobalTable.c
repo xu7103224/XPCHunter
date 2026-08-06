@@ -2,7 +2,7 @@
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 // 全局表是驱动核心数据存储，16384 个 64 位条目，用于存储所有运行时数据
 
-#include "..\inc\XPCHunterDrv.h"
+#include "XPCHunterDrv.h"
 
 // 全局表 g_GlobalTable：16384 个 64 位条目
 // 对应原始驱动中的 qword_1400A84F0
