@@ -14,15 +14,11 @@ extern char OpenDeviceTarget(__int64 EncodedPath, __int64 *pDeviceHandle, __int6
 extern __int64 GetDeviceObjectFromContext(__int64 DeviceHandle);
 extern char GetDiskDriverInfo(char State, void *pBuffer, __int64 *pFuncTable);
 extern char SetDiskDriverInfo(char State, char Flags, void *pBuffer);
-extern char FindPeSectionByType0x510(__int64 Base, unsigned int Size, int SectionType, unsigned int SectionFlags);
 extern char FindPeSectionByTypeRsrc(__int64 Buffer, unsigned int Size, __int64 Address);
 extern char FindPatchThreadWindowsExport(__int64 FileBuffer, unsigned int FileSize);
-extern void QueryProcessModuleFilePath(__int64 ProcessId, __int64 Address, _WORD *pBuffer, unsigned int MaxLen);
 extern __int64 ResolveKernelModuleIndexAddress(int ModuleId, int GtIndex);
 extern __int64 ResolveAndStoreKernelModuleAddress(int ModuleId, int GtIndex);
 extern __int64 ReadIoPortDataForProcess(__int64 CpuIndex, __int64 IoPortContext);
-extern char BuildFsFilterDriverPath1(void);
-extern char BuildFsFilterDriverPath2(void);
 extern __int64 ReadWriteKernelMemory(void);
 
 // =======================================================================

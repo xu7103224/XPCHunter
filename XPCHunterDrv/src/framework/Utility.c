@@ -1082,8 +1082,6 @@ __int64 __fastcall ProcessDiskSectorData(
     unsigned int AllocSize;
     __int64 Handle;
     int Status;
-    int ResultFlag;
-    __int64 var_68;
     __int64 var_70;
     __int64 var_80;
     __int64 var_98;
@@ -1131,7 +1129,6 @@ __int64 __fastcall ProcessDiskSectorData(
 
     // 构建 IRP 相关结构并调用
     {
-        __int64 IrpStack[4];
         __int64 IrpCreateParams[4];
 
         // 第一个 IRP 创建尝试

@@ -18,32 +18,8 @@ wchar_t *wmemcpy(wchar_t *dest, const wchar_t *src, size_t count)
     return (wchar_t *)memcpy(dest, src, count * sizeof(wchar_t));
 }
 
-// 前向声明：Nt* 系统服务函数（ntoskrnl.exe 导出，通过 ntoskrnl.lib 链接）
-extern NTSTATUS NTAPI NtFsControlFile(
-    HANDLE FileHandle,
-    HANDLE Event,
-    PIO_APC_ROUTINE ApcRoutine,
-    PVOID ApcContext,
-    PIO_STATUS_BLOCK IoStatusBlock,
-    ULONG FsControlCode,
-    PVOID InputBuffer,
-    ULONG InputBufferLength,
-    PVOID OutputBuffer,
-    ULONG OutputBufferLength
-);
-
-extern NTSTATUS NTAPI NtDeviceIoControlFile(
-    HANDLE FileHandle,
-    HANDLE Event,
-    PIO_APC_ROUTINE ApcRoutine,
-    PVOID ApcContext,
-    PIO_STATUS_BLOCK IoStatusBlock,
-    ULONG IoControlCode,
-    PVOID InputBuffer,
-    ULONG InputBufferLength,
-    PVOID OutputBuffer,
-    ULONG OutputBufferLength
-);
+// NtFsControlFile / NtDeviceIoControlFile 已由 WDK 头文件(ntifs.h)声明，
+// 通过 ntoskrnl.lib 链接，此处不再重复声明以避免 C4273 dll 链接不一致。
 
 // 前向声明（仅保留未在头文件中声明的本地函数）
 NTSTATUS IrpReadCompletionRoutine(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
@@ -146,7 +122,7 @@ __int64 IrpFileSystemControl(void *FileHandle, struct _IRP *FsctlBuffer, ULONG B
         return Status;
 
     Status = -1073741823;
-    if (!GetDeviceObjectFromFileObject((__int64)Object, &DeviceObjectForFile, FileDeviceObject))
+    if (!GetDeviceObjectFromFileObject((__int64)Object, &DeviceObjectForFile, (ULONG64 *)FileDeviceObject))
         goto Cleanup;
 
     Status = -1073741670;
@@ -185,12 +161,12 @@ __int64 IrpFileSystemControl(void *FileHandle, struct _IRP *FsctlBuffer, ULONG B
     StackLocation[-1].Parameters.Create.Options = FsControlCode;
 
     if (FsControlCode == 10)
-        StackLocation[-1].Parameters.SetFile.ReplaceIfExists = FsctlBuffer->Type;
+        StackLocation[-1].Parameters.SetFile.ReplaceIfExists = (BOOLEAN)FsctlBuffer->Type;
 
-    IrpMonitorContext = GetIrpMonitorContext(DeviceObject, IRP_MJ_FILE_SYSTEM_CONTROL, &BufferArray, &pCallDriver);
+    IrpMonitorContext = GetIrpMonitorContext(DeviceObject, IRP_MJ_FILE_SYSTEM_CONTROL, &BufferArray, (_QWORD *)&pCallDriver);
     VolumeChangeLock = AcquireVolumeChangeLock(DeviceObject);
     DiskFunctionState = SwapDiskIrpFunctionPointer();
-    CallResult = AllocateIrpStackAndCallDriver(pCallDriver, DeviceObject, (ULONG_PTR)Irp);
+    CallResult = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObject, (ULONG_PTR)Irp);
     ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObject, IRP_MJ_FILE_SYSTEM_CONTROL, &BufferArray);
 
     if (CallResult == STATUS_PENDING)
@@ -264,7 +240,7 @@ __int64 IrpReadFileWithOffset(
     if (!Irp)
         goto Cleanup;
 
-    Status = IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)WaitForLock, 1, &BufferMdl);
+    Status = (int)IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)WaitForLock, 1, (_DWORD *)&BufferMdl);
     if (Status < 0)
     {
         IoFreeIrp(Irp);
@@ -300,10 +276,10 @@ __int64 IrpReadFileWithOffset(
     if (UseSecondary == 1)
         CurrentStackLocation[-1].Flags |= 2;
 
-    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, IRP_MJ_READ, &BufferArray, &pCallDriver);
+    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, IRP_MJ_READ, &BufferArray, (_QWORD *)&pCallDriver);
     VolumeChangeLock = AcquireVolumeChangeLock(DeviceObjectCopy);
     DiskFunctionState = SwapDiskIrpFunctionPointer();
-    Status = AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
+    Status = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
     ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObjectCopy, IRP_MJ_READ, &BufferArray);
 
     if (Status == STATUS_PENDING)
@@ -350,7 +326,7 @@ __int64 IrpReadFile(void *FileHandle, struct _IRP *AssociatedIrp, ULONG Length, 
     if (!Status)
     {
         Status = -1073741823;
-        if (GetDeviceObjectFromFileObject((__int64)Object, &DeviceObjectForFile, FileDeviceObject))
+        if (GetDeviceObjectFromFileObject((__int64)Object, &DeviceObjectForFile, (ULONG64 *)FileDeviceObject))
         {
             Status = -1073741670;
             Irp = IoAllocateIrp(*(UCHAR *)(DeviceObjectForFile + 76), 0);
@@ -378,10 +354,10 @@ __int64 IrpReadFile(void *FileHandle, struct _IRP *AssociatedIrp, ULONG Length, 
                 StackLocation[-1].Parameters.Read.Length = Length;
                 StackLocation[-1].Parameters.Create.Options = CreateOptions;
                 StackLocation[-1].FileObject = FileObject;
-                IrpMonitorContext = GetIrpMonitorContext(DeviceObject, IRP_MJ_QUERY_INFORMATION, &BufferArray, &pCallDriver);
+                IrpMonitorContext = GetIrpMonitorContext(DeviceObject, IRP_MJ_QUERY_INFORMATION, &BufferArray, (_QWORD *)&pCallDriver);
                 VolumeChangeLock = AcquireVolumeChangeLock(DeviceObject);
                 DiskFunctionState = SwapDiskIrpFunctionPointer();
-                CallResult = AllocateIrpStackAndCallDriver(pCallDriver, DeviceObject, (ULONG_PTR)Irp);
+                CallResult = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObject, (ULONG_PTR)Irp);
                 ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObject, IRP_MJ_QUERY_INFORMATION, &BufferArray);
                 if (CallResult == 259)
                     KeWaitForSingleObject(&Event, Executive, 0, 0, 0);
@@ -442,7 +418,7 @@ __int64 IrpWriteFile(
     }
 
     Status = -1073741823;
-    if (!GetDeviceObjectFromFileObject((__int64)Object, &DeviceObjectForFile, FileDeviceObject))
+    if (!GetDeviceObjectFromFileObject((__int64)Object, &DeviceObjectForFile, (ULONG64 *)FileDeviceObject))
     {
         ObfDereferenceObject(FileObject);
         return (ULONG)Status;
@@ -457,7 +433,7 @@ __int64 IrpWriteFile(
         return (ULONG)Status;
     }
 
-    Status = IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)Timeout, 1, &BufferMdl);
+    Status = (int)IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)Timeout, 1, (_DWORD *)&BufferMdl);
     if (Status < 0)
     {
         IoFreeIrp(Irp);
@@ -488,10 +464,10 @@ __int64 IrpWriteFile(
     StackLocation[-1].FileObject = FileObjectPtr;
     StackLocation[-1].Parameters.Read.ByteOffset = *ByteOffset;
 
-    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, IRP_MJ_WRITE, &BufferArray, &pCallDriver);
+    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, IRP_MJ_WRITE, &BufferArray, (_QWORD *)&pCallDriver);
     VolumeChangeLock = AcquireVolumeChangeLock(DeviceObjectCopy);
     DiskFunctionState = SwapDiskIrpFunctionPointer();
-    CallResult = AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
+    CallResult = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
     ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObjectCopy, IRP_MJ_WRITE, &BufferArray);
 
     if (CallResult == STATUS_PENDING)
@@ -543,10 +519,10 @@ __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, 
     *((WORD *)CdbBuffer + 8) = 0;
     *ContextBuffer = 88;
     *((UCHAR *)ContextBuffer + 2) = 0;
-    *((_QWORD *)ContextBuffer + 3) = Buffer;
+    *((_QWORD *)ContextBuffer + 3) = (_QWORD)Buffer;
     *((_DWORD *)ContextBuffer + 4) = SectorCount * SectorSize;
     *(WORD *)((char *)ContextBuffer + 9) = 2560;
-    *((_QWORD *)ContextBuffer + 4) = CdbBuffer;
+    *((_QWORD *)ContextBuffer + 4) = (_QWORD)CdbBuffer;
     *((UCHAR *)ContextBuffer + 11) = 18;
     *((_DWORD *)ContextBuffer + 3) = 256;
 
@@ -587,7 +563,7 @@ __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, 
     CurrentStackLocation[-1].CompletionRoutine = (PIO_COMPLETION_ROUTINE)CompleteIrpAndCleanupMdl;
     CurrentStackLocation[-1].Context = ContextBuffer;
     CurrentStackLocation[-1].Control = 0xE0;
-    *((_QWORD *)ContextBuffer + 6) = Irp;
+    *((_QWORD *)ContextBuffer + 6) = (_QWORD)Irp;
     Irp->MdlAddress = Mdl;
     Irp->Flags = 1;
     Irp->RequestorMode = KernelMode;
@@ -603,7 +579,7 @@ __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, 
     StackLocationAddr = (__int64)&Irp->Tail.Overlay.CurrentStackLocation[-1];
     *(UCHAR *)StackLocationAddr = IRP_MJ_INTERNAL_DEVICE_CONTROL;
     *(_QWORD *)(StackLocationAddr + 40) = *DeviceInfo;
-    *(_QWORD *)(StackLocationAddr + 8) = ContextBuffer;
+    *(_QWORD *)(StackLocationAddr + 8) = (_QWORD)ContextBuffer;
     Irp->CurrentLocation--;
     Irp->Tail.Overlay.CurrentStackLocation = (struct _IO_STACK_LOCATION *)StackLocationAddr;
 
@@ -615,7 +591,7 @@ __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, 
     __writecr8(0);
     *(_QWORD *)(DeviceInfo[1] + 96) = OldDeviceProcedure;
 
-    Status = SendDeviceProcedure(*DeviceInfo, Irp);
+    Status = (int)SendDeviceProcedure(*DeviceInfo, Irp);
     if (Status == STATUS_PENDING)
     {
         KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
@@ -678,7 +654,7 @@ __int64 CreateFileWithPath(
     if (Disposition > 5)
         return (ULONG)Status;
 
-    StringLength = GetStringLength(FilePath);
+    StringLength = (ULONG)GetStringLength(FilePath);
     if ((CreateOptions & 0x2000) != 0)
     {
         RootDirHandle = NULL;
@@ -696,7 +672,7 @@ __int64 CreateFileWithPath(
                         LastChar[1] = 0;
                     else
                         *LastChar = 0;
-                    DirCreateStatus = CreateFileWithPath(ParentPathCopy, NULL, (void **)&RootDirHandle,
+                    DirCreateStatus = (int)CreateFileWithPath(ParentPathCopy, NULL, (void **)&RootDirHandle,
                         0x80, 0x80, 1, 1, 0x20);
                     ParentHandle = DirCreateStatus ? 0 : RootDirHandle;
                     RootDirHandle = ParentHandle;
@@ -764,13 +740,13 @@ __int64 CreateFileWithPath(
         encPath[2] = 6619252; encPath[3] = 5374061;
         encPath[4] = 7274607; encPath[5] = 116;
 
-        PrefixLength = GetStringLength(encPath);
+        PrefixLength = (ULONG)GetStringLength((_WORD *)encPath);
         if ((StringLength > PrefixLength &&
-             StringCompare3Way((__int64)FilePath, (WORD *)encPath, PrefixLength) == 0) ||
+             StringCompare3Way((__int64)FilePath, (unsigned __int16 *)encPath, PrefixLength) == 0) ||
             (FilePath[1] == L':' && FilePath[2] == L'\\'))
         {
             Status = -1073741823;
-            if (OpenDriveDeviceObject((WCHAR *)FilePath, &DeviceObjectHandle, &SourceString))
+            if (OpenDriveDeviceObject((WCHAR *)FilePath, &DeviceObjectHandle, (_QWORD *)&SourceString))
             {
                 if (*FilePath == L'\\')
                 {
@@ -782,7 +758,7 @@ __int64 CreateFileWithPath(
                         AllocatedPath = SymbolicPath;
                     else
                     {
-                        PathLen = GetStringLength(SymbolicPath);
+                        PathLen = (int)GetStringLength(SymbolicPath);
                         PathSuffix = &FilePath[(ULONG)PrefixLength];
                         AllocatedPath = SymbolicPath;
                         WStringConcat(SymbolicPath, PathSuffix, 259 - PathLen);
@@ -798,14 +774,14 @@ __int64 CreateFileWithPath(
                 if (FilePathForCreate)
                 {
                     RtlInitUnicodeString(&DestinationString, FilePathForCreate);
-                    Status = CreateFileObject((__int64)&DestinationString, DesiredAccess,
-                        FileAttributes, ShareAccessMask, Disposition, CreateOptions,
-                        (struct _DEVICE_OBJECT *)SourceString, DeviceObjectHandle, &Object);
+                    Status = (int)CreateFileObject((__int64)&DestinationString, DesiredAccess,
+                        FileAttributes, (USHORT)ShareAccessMask, Disposition, CreateOptions,
+                        (struct _DEVICE_OBJECT *)SourceString, DeviceObjectHandle, (_QWORD *)&Object);
                     if (!Status)
                     {
                         Status = ObOpenObjectByPointer(Object, 0x200, NULL,
                             DesiredAccess | 0x100000, (POBJECT_TYPE)IoFileObjectType,
-                            NULL, FileHandle);
+                            KernelMode, FileHandle);
                         if (Status >= 0) Status = 0;
                         ObfDereferenceObject(Object);
                     }
@@ -849,7 +825,7 @@ bool QueryFileInfoByHandle(__int64 Process, __int64 FileHandle, __int64 InfoBuff
     {
         SavedPrevMode = *((UCHAR *)CurrentThread + ObjAttributes);
         *((UCHAR *)CurrentThread + ObjAttributes) = 0;
-        QueryResult = QueryFileFunc(QueryInfoResult, &FilePathOut, &InfoOut, 0x8000);
+        QueryResult = (int)QueryFileFunc(QueryInfoResult, &FilePathOut, &InfoOut, 0x8000);
         *((UCHAR *)CurrentThread + ObjAttributes) = SavedPrevMode;
         Result = QueryResult >= 0;
         BufferSize(QueryInfoResult);
@@ -988,7 +964,7 @@ PWSTR ResolveSymbolicLinkPath(void)
             *(WORD *)0xFFFFF78000000034 == 0x005C)    // "\"
         {
             // Copy drive letter from KUSER_SHARED_DATA (0x103 chars = 259)
-            WStringCopyN((WORD *)Buffer, (WORD *)0xFFFFF78000000030, 0x103);
+            WStringCopyN((WORD *)Buffer, (__int64)0xFFFFF78000000030, 0x103);
             Buffer[0x103] = 0;
             Result = Buffer;
             return Result;
@@ -1007,7 +983,7 @@ PWSTR ResolveSymbolicLinkPath(void)
     if (Status >= 0)
     {
         LinkTarget.Buffer = Buffer;
-        LinkTarget.MaximumLength = 0x2080000;
+        LinkTarget.MaximumLength = (USHORT)0x2080000;
         Status = ZwQuerySymbolicLinkObject(LinkHandle, &LinkTarget, NULL);
 
         if (Status >= 0)
@@ -1017,7 +993,7 @@ PWSTR ResolveSymbolicLinkPath(void)
             PWSTR LastSlash = WStringFindLastChar((WORD *)Buffer, L'\\');
             if (LastSlash && LastSlash[1] != 0)
             {
-                ULONG Len = GetStringLength((WORD *)LastSlash) + 1;
+                ULONG Len = (ULONG)GetStringLength((WORD *)LastSlash) + 1;
                 memmove(Buffer, LastSlash, Len * 2);
                 Result = Buffer;
                 ZwClose(LinkHandle);
@@ -1101,11 +1077,11 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
     void *AllocBuffer;
     IO_STATUS_BLOCK IoStatusBlock;
 
-    Status = CreateFileWithPath(FilePath, 0, &Handle, 0x100020, 0x80, 1, 1, 0x20);
+    Status = (ULONG)CreateFileWithPath(FilePath, 0, &Handle, 0x100020, 0x80, 1, 1, 0x20);
     if (Status != 0)
         return Status;
 
-    Status = CmdQueryFileStandardInfo(Handle, FileInfo);
+    Status = (ULONG)CmdQueryFileStandardInfo(Handle, (_QWORD *)FileInfo);
     if (Status != 0)
     {
         ZwClose(Handle);
@@ -1113,7 +1089,7 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
     }
 
     FileSize = FileInfo[0];
-    Status = QueryDiskFsControlInfo(FilePath, 0, &FsctlBuffer, &FsctlBufferSize);
+    Status = (ULONG)QueryDiskFsControlInfo(FilePath, 0, &FsctlBuffer, &FsctlBufferSize);
     if (Status >= 0)
     {
         if (FsctlBufferSize >= FileSize &&
@@ -1134,7 +1110,7 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
         return STATUS_UNSUCCESSFUL;
     }
 
-    Status = IrpWriteFile(Handle, 0, FileSize, AllocBuffer, (LARGE_INTEGER *)1, &IoStatusBlock);
+    Status = (ULONG)IrpWriteFile(Handle, 0, FileSize, AllocBuffer, (LARGE_INTEGER *)1, &IoStatusBlock);
     if (Status != 0)
     {
         ExFree(AllocBuffer);
@@ -1161,11 +1137,11 @@ __int64 ReadNtFilePartial(WORD *FilePath, void *Buffer, ULONG Size, char Require
     ULONG64 FsctlBufferSize;
     IO_STATUS_BLOCK IoStatusBlock;
 
-    Status = CreateFileWithPath(FilePath, 0, &Handle, 0x100020, 0x80, 1, 1, 0x20);
+    Status = (NTSTATUS)CreateFileWithPath(FilePath, 0, &Handle, 0x100020, 0x80, 1, 1, 0x20);
     if (Status < 0)
         return Status;
 
-    Status = CmdQueryFileStandardInfo(Handle, &FileSize);
+    Status = (NTSTATUS)CmdQueryFileStandardInfo(Handle, &FileSize);
     if (Status >= 0)
     {
         if (FileSize < Size)
@@ -1174,7 +1150,7 @@ __int64 ReadNtFilePartial(WORD *FilePath, void *Buffer, ULONG Size, char Require
         }
         else
         {
-            Status = QueryDiskFsControlInfo(FilePath, Size, (char **)&Src, &FsctlBufferSize);
+            Status = (NTSTATUS)QueryDiskFsControlInfo(FilePath, Size, (char **)&Src, &FsctlBufferSize);
             if (Status >= 0)
             {
                 if (FsctlBufferSize < Size ||
@@ -1192,7 +1168,7 @@ __int64 ReadNtFilePartial(WORD *FilePath, void *Buffer, ULONG Size, char Require
 
             if (Status < 0)
             {
-                Status = IrpWriteFile(Handle, 0, Size, Buffer, (LARGE_INTEGER *)1, &IoStatusBlock);
+                Status = (NTSTATUS)IrpWriteFile(Handle, 0, Size, Buffer, (LARGE_INTEGER *)1, &IoStatusBlock);
             }
         }
     }
@@ -1629,28 +1605,28 @@ char CheckAddressInModuleRange(__int64 TargetAddress)
     {
         unsigned __int64 ModuleList = CheckRound ? *(_QWORD *)(TargetAddress + 24) : *(_QWORD *)(TargetAddress + 16);
         unsigned __int64 ModuleCount = GtRead(GtCallbackField40);
-        unsigned int Index = GtRead(GtCallbackField41);
+        unsigned int Index = (unsigned int)GtRead(GtCallbackField41);
         if (ModuleCount)
         {
             if (Index && Index < ModuleCount && ModuleCount <= ModuleList && ModuleList < ModuleCount + Index)
                 break;
         }
         unsigned __int64 ModuleBase = GtRead(GtCallbackField57);
-        unsigned int ModuleSize = GtRead(GtCallbackField58);
+        unsigned int ModuleSize = (unsigned int)GtRead(GtCallbackField58);
         if (ModuleBase)
         {
             if (ModuleSize && ModuleSize < ModuleBase && ModuleBase <= ModuleList && ModuleList < ModuleBase + ModuleSize)
                 break;
         }
         unsigned __int64 RangeBase3 = GtRead(GtCallbackField59);
-        unsigned int RangeSize3 = GtRead(GtCallbackField60);
+        unsigned int RangeSize3 = (unsigned int)GtRead(GtCallbackField60);
         if (RangeBase3)
         {
             if (RangeSize3 && RangeSize3 < RangeBase3 && RangeBase3 <= ModuleList && ModuleList < RangeBase3 + RangeSize3)
                 break;
         }
         unsigned __int64 RangeBase4 = GtRead(GtCallbackField42);
-        unsigned int RangeSize4 = GtRead(GtCallbackField43);
+        unsigned int RangeSize4 = (unsigned int)GtRead(GtCallbackField43);
         if (RangeBase4)
         {
             if (RangeSize4 && RangeSize4 < RangeBase4 && RangeBase4 <= ModuleList && ModuleList < RangeBase4 + RangeSize4)
@@ -1669,7 +1645,7 @@ __int64 QueryDiskFsControlInfoEx(void *FileHandle, __int64 InputHeader, unsigned
     unsigned __int64 SavedTransferOffset = 0;
     int IoStatus = -1073741823;
     unsigned __int64 TransferOffset = 0;
-    unsigned int EventObj = GtRead(GtSdstServiceCount);
+    unsigned int EventObj = (unsigned int)GtRead(GtSdstServiceCount);
     __int64 ThreadByteIndex = EventObj;
     HANDLE Handle = 0;
 
@@ -1678,7 +1654,7 @@ __int64 QueryDiskFsControlInfoEx(void *FileHandle, __int64 InputHeader, unsigned
         if (TotalBytes)
         {
             __int64 PhysicalDiskInfo = 0;
-            IoStatus = QueryPhysicalDiskInfo(FileHandle, &PhysicalDiskInfo, &Handle);
+            IoStatus = (int)QueryPhysicalDiskInfo(FileHandle, &PhysicalDiskInfo, &Handle);
             if (IoStatus >= 0)
             {
                 IoStatus = -1073741823;
@@ -1726,7 +1702,7 @@ __int64 QueryDiskFsControlInfoEx(void *FileHandle, __int64 InputHeader, unsigned
 
                                     if (IoStatus >= 0)
                                     {
-                                        IoStatus = SendDeviceIoControlIrp(DeviceInfo, 3, WriteBuffer, BlockOffset / SectorSize, DesiredAccess / SectorSize, SectorSize);
+                                        IoStatus = (int)SendDeviceIoControlIrp(DeviceInfo, 3, WriteBuffer, (int)(BlockOffset / SectorSize), DesiredAccess / SectorSize, SectorSize);
                                         if (IoStatus < 0)
                                             break;
                                         RemainingBytes = DesiredAccess;
@@ -1903,7 +1879,7 @@ __int64 AllocateIrpStackAndCallDriver(__int64 (*pCallDriver)(__int64, ULONG_PTR,
         KeBugCheckEx(0x35, Irp, 0, 0, 0); // BUGCODE_ID_DRIVER
 
     unsigned __int8 *StackLocation = (unsigned __int8 *)(*(_QWORD *)(Irp + 184) - 72);
-    *(_QWORD *)(Irp + 184) = StackLocation;
+    *(_QWORD *)(Irp + 184) = (_QWORD)StackLocation;
     *((_QWORD *)StackLocation + 5) = DeviceObject;
 
     if (pCallDriver)
@@ -2075,7 +2051,7 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     int DesiredAccessLevel = 576;
 
     PVOID Object;
-    int Result = ObCreateObject(0, (__int64)IoFileObjectType, (__int64)&AccessMode, 0, 0, ObjectSize, 0, 0, (__int64)&Object);
+    int Result = ObCreateObject((KPROCESSOR_MODE)0, (POBJECT_TYPE)IoFileObjectType, (POBJECT_ATTRIBUTES)&AccessMode, (KPROCESSOR_MODE)0, 0, ObjectSize, 0, 0, (PVOID *)&Object);
     if (Result < 0)
         return (ULONG)Result;
 
@@ -2086,12 +2062,12 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     *((_DWORD *)Object + 20) = 2;
     *((_WORD *)Object + 44) = *(_WORD *)UnicodeString;
     *((_WORD *)Object + 45) = *(_WORD *)(UnicodeString + 2);
-    *((_QWORD *)Object + 12) = ExAllocatePool(NonPagedPool, *(unsigned __int16 *)(UnicodeString + 2));
+    *((_QWORD *)Object + 12) = (_QWORD)ExAllocatePool(NonPagedPool, *(unsigned __int16 *)(UnicodeString + 2));
 
     if (BuildNumber >= 0x1770)
     {
-        *((_QWORD *)Object + 24) = (char *)Object + 192;
-        *((_QWORD *)Object + 25) = (char *)Object + 192;
+        *((_QWORD *)Object + 24) = (_QWORD)((char *)Object + 192);
+        *((_QWORD *)Object + 25) = (_QWORD)((char *)Object + 192);
     }
 
     _QWORD *InfoSize = Object;
@@ -2115,13 +2091,13 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     _BYTE AccessState[160];
     memset(AccessState, 0, sizeof(AccessState));
 
-    if (SeCreateAccessState((__int64)AccessState, (__int64)Dst, DesiredAccess, (__int64)FileObjectGenericMapping))
+    if (SeCreateAccessState((PACCESS_STATE)AccessState, (PACCESS_STATE)Dst, DesiredAccess, FileObjectGenericMapping))
         goto LABEL_15;
 
     CCHAR StackSize = DeviceObject->StackSize;
     _QWORD AccessStatePtr[2];
     AccessStatePtr[0] = 0;
-    AccessStatePtr[1] = AccessState;
+    AccessStatePtr[1] = (_QWORD)AccessState;
     unsigned int AccessStateData = DesiredAccess;
 
     PIRP Irp = IoAllocateIrp(StackSize, 0);
@@ -2172,10 +2148,10 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     _OWORD MonitorContext;
     memset(&MonitorContext, 0, sizeof(MonitorContext));
     __int64 (*pCallDriver)(__int64, ULONG_PTR, __int64) = NULL;
-    char IrpMonitorContext = GetIrpMonitorContext((__int64)DeviceObject, 0, &MonitorContext, &pCallDriver);
+    char IrpMonitorContext = GetIrpMonitorContext((__int64)DeviceObject, 0, &MonitorContext, (_QWORD *)&pCallDriver);
     char VolumeChangeLock = AcquireVolumeChangeLock((__int64)DeviceObject);
     char SwapDiskFuncRet = SwapDiskIrpFunctionPointer();
-    int Status = AllocateIrpStackAndCallDriver(pCallDriver, (__int64)DeviceObject, (ULONG_PTR)Irp);
+    int Status = (int)AllocateIrpStackAndCallDriver(pCallDriver, (__int64)DeviceObject, (ULONG_PTR)Irp);
     ReleaseIrpMonitorContext(IrpMonitorContext, (__int64)DeviceObject, 0, &MonitorContext);
 
     if (Status == 259)
@@ -2205,7 +2181,7 @@ LABEL_15:
         _InterlockedIncrement((volatile signed __int32 *)(ObjectRelatedPtr + 28));
         OutFileObject = Object;
     }
-    *pFileObject = OutFileObject;
+    *pFileObject = (_QWORD)OutFileObject;
     return 0;
 }
 
@@ -2215,7 +2191,7 @@ LABEL_15:
 __int64 QueryDiskFsControlInfo(__int16 *FilePath, __int64 Size, char **OutBuffer, __int64 *OutBufferSize)
 {
     int DiskFsControlInfo = -1073741823;
-    unsigned int SavedThreadByte = GtRead(GtSdstServiceCount);
+    unsigned int SavedThreadByte = (unsigned int)GtRead(GtSdstServiceCount);
     __int64 SavedThreadByteVal = SavedThreadByte;
     void *BufferSize = NULL;
     HANDLE FileHandle;
@@ -2257,16 +2233,16 @@ __int64 QueryDiskFsControlInfo(__int16 *FilePath, __int64 Size, char **OutBuffer
 
         ExFree(BufferSize);
         BufferSize = NULL;
-        SavedThreadByte = SavedThreadByteVal;
+        SavedThreadByte = (unsigned int)SavedThreadByteVal;
         OutputBufferLength *= 2;
     }
 
-    SavedThreadByte = SavedThreadByteVal;
+    SavedThreadByte = (unsigned int)SavedThreadByteVal;
 LABEL_9:
     if (DiskFsControlInfo >= 0)
     {
         HANDLE Handle;
-        DiskFsControlInfo = OpenPhysicalDiskDevice(FilePath, FileHandle, &Handle);
+        DiskFsControlInfo = (int)OpenPhysicalDiskDevice(FilePath, FileHandle, &Handle);
         if (DiskFsControlInfo >= 0)
         {
             struct _KTHREAD *DiskThread = KeGetCurrentThread();
@@ -2311,7 +2287,7 @@ LABEL_9:
                     memset(DataBuffer, 0, ZeroSize);
                     memset(&DataBuffer[TotalZoneSize], 0, 0x100);
 
-                    DiskFsControlInfo = QueryDiskFsControlInfoEx(Handle, (__int64)BufferSize, SectorSize, PartitionCount, TotalZoneSize, DataBuffer);
+                    DiskFsControlInfo = (int)QueryDiskFsControlInfoEx(Handle, (__int64)BufferSize, SectorSize, PartitionCount, TotalZoneSize, DataBuffer);
                     if (DiskFsControlInfo < 0)
                     {
                         ExFree(DataBuffer);
@@ -2361,7 +2337,7 @@ __int64 CmdQueryFileStandardInfo(void *FileHandle, _QWORD *pStandardInfo)
     __int64 StandardInfo = 0;
     ULONG Status;
 
-    Status = IrpReadFile(FileHandle, (struct _IRP *)IrpBuffer, 0x18, 5);
+    Status = (ULONG)IrpReadFile(FileHandle, (struct _IRP *)IrpBuffer, 0x18, 5);
     if (!Status)
         *pStandardInfo = StandardInfo;
     return Status;
@@ -2415,7 +2391,7 @@ __int64 __fastcall SendDeviceIoControlWithRetry(__int64 Handle, unsigned int IoC
 
     if (NtFsControlFunc && CloseHandleFunc && HandleValue)
     {
-        Result = NtFsControlFunc(Handle, IoControlCode, *HandleValue, (__int64)Flags, OutputHandle, IoStatusBlock);
+        Result = (unsigned int)NtFsControlFunc(Handle, IoControlCode, *HandleValue, (__int64)Flags, OutputHandle, IoStatusBlock);
         if (!Result && **OutputHandle != 0x6B423432)
         {
             Result = -1073741816;
@@ -2514,12 +2490,12 @@ __int64 __fastcall AllocBufferAndQuerySystemInfo(
         if (WorkBuffer)
         {
             size_t MaxCount = 0;
-            Result = QueryFunc(Arg2, Arg3, HIDWORD(Arg4), WorkBuffer, BufferSize, &MaxCount, Arg4, WorkBuffer);
+            Result = (int)QueryFunc(Arg2, Arg3, HIDWORD(Arg4), WorkBuffer, (_DWORD)BufferSize, &MaxCount, Arg4, WorkBuffer);
             if (Result >= 0)
             {
-                *(_DWORD *)ReturnSize = MaxCount;
+                *(_DWORD *)ReturnSize = (DWORD)MaxCount;
                 if ((unsigned int)BufferSize > MaxCount)
-                    ResultSize = MaxCount;
+                    ResultSize = (unsigned int)MaxCount;
                 memmove(OutputBuffer, WorkBuffer, ResultSize);
             }
             if (PoolBuffer)
@@ -2528,7 +2504,7 @@ __int64 __fastcall AllocBufferAndQuerySystemInfo(
     }
     else
     {
-        Result = (unsigned int)QueryFunc(Arg2, Arg3, HIDWORD(Arg4), OutputBuffer, BufferSize, ReturnSize, Arg4, 0);
+        Result = (int)QueryFunc(Arg2, Arg3, HIDWORD(Arg4), OutputBuffer, (_DWORD)BufferSize, ReturnSize, Arg4, 0);
     }
     return (unsigned int)Result;
 }
@@ -2545,7 +2521,7 @@ bool __fastcall SendCreateFileIoControl(__int64 Handle, __int16 *FilePath)
     if (BuildNumber >= 0x42EE)
         return 0;
 
-    unsigned int ServiceCount = GtRead(GtSdstServiceCount);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
     __int64 (__fastcall *NtFsControlFunc)(__int64, __int64, _QWORD, _QWORD, _DWORD **, unsigned int *) =
         (__int64 (__fastcall *)(__int64, __int64, _QWORD, _QWORD, _DWORD **, unsigned int *))GtRead(GtNtFsControlFileFunc);
     void (*CloseHandleFunc)(_DWORD *) = (void (*)(_DWORD *))GtRead(GtCloseHandleFunc);
@@ -2621,7 +2597,7 @@ bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int Comman
     if (CommandType > 5)
         return Result;
 
-    unsigned int ServiceCount = GtRead(GtSdstServiceCount);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
     __int64 (__fastcall *NtFsControlFunc)(__int64, __int64, _QWORD, _QWORD, int *, _BYTE *) =
         (__int64 (__fastcall *)(__int64, __int64, _QWORD, _QWORD, int *, _BYTE *))GtRead(GtNtFsControlFileFunc);
     void (*CloseHandleFunc)(void) = (void (*)(void))GtRead(GtCloseHandleFunc);
@@ -2755,7 +2731,7 @@ bool __fastcall SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING Uni
     Result = 0;
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
         return Result;
-    ServiceCount = GtRead(GtSdstServiceCount);
+    ServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
     pBuffer = (int (*)(__int64, __int64, __int64))GtRead(GtNtFsControlFileFunc);
     CloseHandleFunc = (void (*)(_QWORD))GtRead(GtCloseHandleFunc);
     SavedCloseHandleFunc = CloseHandleFunc;
@@ -2765,7 +2741,7 @@ bool __fastcall SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING Uni
     pIoControl = (__int64 *)IoControlPtr;
     if (ServiceCount != -1 && pBuffer && CloseHandleFunc && IoControlFuncPtr && IoControlPtr)
     {
-        WindowsBuildNumber = GtRead(GtWindowsBuildNumber);
+        WindowsBuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
         IoControlCode = *pIoControl;
         pIoStatus = &ReturnStatus;
         if (WindowsBuildNumber < 0x1770)
@@ -2792,8 +2768,8 @@ bool __fastcall SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING Uni
                 {
                     IoStatusValue = ReturnStatus;
                     GtRead(GtWindowsBuildNumber);
-                    pOutputSize = (__int64 *)OutputSize;
-                    IoControlResult = IoControlFunc(DeviceHandle, UnicodeString, CommandType, OutputBuffer, pOutputSize, Handle, (IoStatusValue & 4) != 0);
+                    pOutputSize = (__int64 *)(ULONG_PTR)OutputSize;
+                    IoControlResult = (int)IoControlFunc(DeviceHandle, (unsigned __int16 *)UnicodeString, CommandType, OutputBuffer, pOutputSize, Handle, (IoStatusValue & 4) != 0);
                 }
                 else
                 {
@@ -2870,7 +2846,7 @@ __int64 CmdSendRenameFileIrp(void *FileHandle, const void *RenameBuffer, unsigne
         IrpBuffer->Flags = BufferSize - 2;
         *((char *)&IrpBuffer->Type) = 1;  // LOBYTE(IrpBuffer->Type)
         memmove(&IrpBuffer->Flags + 1, RenameBuffer, BufferSize - 2);
-        Status = IrpFileSystemControl(FileHandle, IrpBuffer, BufferSize + 24, 0xAu);
+        Status = (unsigned int)IrpFileSystemControl(FileHandle, IrpBuffer, BufferSize + 24, 0xAu);
         ExFree(IrpBuffer);
         return Status;
     }
@@ -2896,7 +2872,7 @@ bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
     EncodedPath[16] = 3014763; EncodedPath[18] = 115;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, FileBuffer, FileSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)FileBuffer, (PULONG)FileSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -2921,7 +2897,7 @@ bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
     EncodedPathEnd = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, FileBuffer, FileSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)FileBuffer, (PULONG)FileSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -2935,7 +2911,7 @@ char DispatchDiskIrpWithHookInit(void *DeviceObject, int Direction, void *Buffer
         goto BuildHooks;
     __int64 Result = SendDeviceIoControlIrp(pBuffer, Direction, Buffer, SectorOffset, SectorIndex, SectorSize);
     if ((int)Result >= 0)
-        return Result;
+        return (char)Result;
 BuildHooks:
     if (!(unsigned int)GtRead(GtCallbackField37))
         BuildSsdtHookTargets2();
@@ -2945,7 +2921,7 @@ BuildHooks:
         BuildSsdtHookTargets4();
     if (!(unsigned int)GtRead(GtCallbackField61))
         ParseStorPortExportDir();
-    return SendIrpToDiskDevice(DeviceObject, Direction, Buffer, SectorOffset, SectorIndex, SectorSize);
+    return (char)SendIrpToDiskDevice(DeviceObject, Direction, Buffer, SectorOffset, SectorIndex, SectorSize);
 }
 
 // SendCdbCommandToDevice — 发送 CDB 命令到设备
@@ -2972,7 +2948,7 @@ char __fastcall SendCdbCommandToDevice(__int64 VirtualAddress)
 }
 
 // SendDiskDeviceInternalIrp — 发送磁盘设备内部 IRP
-bool __fastcall SendDiskDeviceInternalIrp(__int64 DeviceObject, struct _IRP *Irp)
+char SendDiskDeviceInternalIrp(__int64 DeviceObject, struct _IRP *Irp)
 {
     bool Result;
     PIRP pIrp;
@@ -3023,7 +2999,7 @@ bool OpenSectionWithIoControl(__int64 DeviceHandle)
     __int64 HookContext;
 
     Result = 0;
-    ServiceCount = GtRead(GtSdstServiceCount);
+    ServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
     FsControlFileFunc = (unsigned int (__fastcall *)(__int64, __int64, _QWORD, _QWORD, _DWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
     CloseHandleFunc = (void (__fastcall *)(_DWORD *))GtRead(GtCloseHandleFunc);
     OpenSectionFunc = (__int64 (__fastcall *)(_DWORD *))GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField117 | 0x100));
@@ -3032,8 +3008,8 @@ bool OpenSectionWithIoControl(__int64 DeviceHandle)
     if (ServiceCount != -1 && FsControlFileFunc && CloseHandleFunc && OpenSectionFunc && IoControlPtr)
     {
         IoControlResult = (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0
-           ? SendDeviceIoControlWithRetry(DeviceHandle, 0x10000u, 0, &pSectionHandle, 0)
-           : FsControlFileFunc(DeviceHandle, 0x10000, *pIoControl, 0, &pSectionHandle, 0);
+           ? (int)SendDeviceIoControlWithRetry(DeviceHandle, 0x10000u, 0, &pSectionHandle, 0)
+           : (int)FsControlFileFunc(DeviceHandle, 0x10000, *pIoControl, 0, &pSectionHandle, 0);
         if (IoControlResult >= 0)
         {
             CurrentThread = KeGetCurrentThread();
@@ -3041,7 +3017,7 @@ bool OpenSectionWithIoControl(__int64 DeviceHandle)
             SavedServiceFlag = *((_BYTE *)CurrentThread + ServiceCount);
             *((_BYTE *)CurrentThread + ServiceCountCopy) = 0;
             pHookResult = (_QWORD *)DispatchHookSwapByVersion((__int64)pSectionHandle, &HookContext);
-            OpenSectionResult = OpenSectionFunc(pSectionHandle);
+            OpenSectionResult = (int)OpenSectionFunc(pSectionHandle);
             if (pHookResult)
                 *pHookResult = HookContext;
             *((_BYTE *)CurrentThread + ServiceCountCopy) = SavedServiceFlag;
@@ -3082,7 +3058,7 @@ char SendFsctlWithHookSwap(
     __int64 SwapBuffer[10];
 
     Result = 0;
-    ServiceCount = GtRead(GtSdstServiceCount);
+    ServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
     IoControlFunc = (__int64 (__fastcall *)(__int64, _QWORD, __int64, __int64, int, __int64, _QWORD))GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField121 | 0x100));
     CloseHandleFunc = (void (__fastcall *)(_DWORD *))GtRead(GtCloseHandleFunc);
     if (ServiceCount != -1 && IoControlFunc)
@@ -3109,9 +3085,9 @@ char SendFsctlWithHookSwap(
             }
         }
         if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200)
-            IoControlStatus = IoControlFunc(DeviceHandle, IoControlCode, InputBuffer, OutputBuffer, OutputSize, Flags, 0);
+            IoControlStatus = (int)IoControlFunc(DeviceHandle, IoControlCode, InputBuffer, OutputBuffer, OutputSize, Flags, 0);
         else
-            IoControlStatus = ((__int64 (__fastcall *)(__int64, _QWORD, __int64, _QWORD, __int64, int, __int64, _QWORD))IoControlFunc)(
+            IoControlStatus = (int)((__int64 (__fastcall *)(__int64, _QWORD, __int64, _QWORD, __int64, int, __int64, _QWORD))IoControlFunc)(
                       DeviceHandle, IoControlCode, InputBuffer, InputSize, OutputBuffer, OutputSize, Flags, 0);
         IoControlResult = IoControlStatus;
         if (pSectionHandle)
@@ -3170,7 +3146,7 @@ __int64 CdbCommandCompletionCallback(void *Irp)
         }
         else
         {
-            ThreadFlagOffset = GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
+            ThreadFlagOffset = (unsigned int)GtRead(GtFltPeSectionAddr1 | GtEprocessField86);
             Result = BuildNumber;
             if ((_DWORD)Result == 7601)
             {
@@ -3212,10 +3188,10 @@ __int64 CdbCommandCompletionCallback(void *Irp)
 }
 
 // RxTdiRequestCompletion — RxTDI 请求完成回调：IRP 完成例程，设置事件对象通知等待者
-__int64 __fastcall RxTdiRequestCompletion(__int64 DeviceObject, __int64 Irp, struct _KEVENT *pEvent)
+__int64 __fastcall RxTdiRequestCompletion(void *DeviceObject, void *Irp, void *Context)
 {
-    if (pEvent)
-        KeSetEvent(pEvent, 0, 0);
+    if (Context)
+        KeSetEvent((struct _KEVENT *)Context, 0, 0);
     return 0xC0000016LL;
 }
 
@@ -3253,7 +3229,7 @@ __int64 ReadSystemDllAndInitSession(void)
     EncodedBuffer[18] = 0x0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedBuffer, &Src, (ULONG *)&MaxCount, 1))
     {
-        if (ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, &pPeFileBuffer, &PeFileSize) == 1)
+        if (ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)&pPeFileBuffer, (PULONG)&PeFileSize) == 1)
             Result = 1;
         else
             Result = 0;
@@ -3261,7 +3237,7 @@ __int64 ReadSystemDllAndInitSession(void)
         if (Result == 1)
         {
             SessionTableBase = GtRead((GLOBAL_TABLE_INDEX)0x91B);
-            SessionTableSize = GtRead((GLOBAL_TABLE_INDEX)0x91C);
+            SessionTableSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x91C);
             if (pPeFileBuffer && PeFileSize && SessionTableBase && SessionTableSize > 0x1001)
             {
                 if (ComparePeHeaders(SessionTableBase, SessionTableSize, (__int64)pPeFileBuffer, PeFileSize) == 1)
@@ -3293,7 +3269,6 @@ __int64 ReadSystemDllAndInitSession(void)
 void InitIrpBufferWithCdb(__int64 Buffer, __int64 Address, unsigned int Flags, __int64 CompletionRoutine, unsigned int BlockSize, unsigned int BlockCount, unsigned int CdbFlags, unsigned int CdbParam)
 {
     __int64 (__fastcall *pInitFunc)(__int64, __int64, __int64, __int64, __int64, __int64, char, __int64);
-    __int64 Result;
 
     pInitFunc = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64, char, __int64))GtRead(GtNtWriteFilePeSectionOffset | GtEprocessField54);
     if (pInitFunc && Flags == 2)
@@ -3371,13 +3346,11 @@ char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
     int CurrentOffset;
     __int16 SectionType;
     int NextOffset;
-    int EntryField;
     __int64 InfoBuffer;
     __int64 ReadContext;
     __int64 CumulativeSize;
     _DWORD SectionEntry[20];
     unsigned int EntrySize;
-    __int64 SectionFlags;
     __int64 FieldValue;
     unsigned int EntryCumulSize;
     __int64 EntryDataPtr;
@@ -3394,12 +3367,12 @@ char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
     SectionOffset1 = 0;
     SectionOffset2 = 0;
 
-    if (LookupExportByName(PeBase, PeSize, (__int64)ExportName, &SectionOffset1) != 1 || !SectionOffset1 || SectionOffset1 >= PeSize || SectionOffset1 + 4096 >= PeSize)
+    if (LookupExportByName((PUCHAR)PeBase, PeSize, (PCHAR)ExportName, (PULONG)&SectionOffset1) != 1 || !SectionOffset1 || SectionOffset1 >= PeSize || SectionOffset1 + 4096 >= PeSize)
         return Result;
 
     InitPESectionReadContext(PeBase + SectionOffset1, 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
     EntryIndex = 0;
-    while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
     {
         CurrentOffset = EntryCumulSize + (int)CumulativeSize;
         CumulativeSize += EntryCumulSize;
@@ -3408,13 +3381,13 @@ char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
         {
             if (!SectionOffset1)
             {
-                SectionOffset1 = CurrentOffset + EntrySize - PeBase;
+                SectionOffset1 = (unsigned int)(CurrentOffset + EntrySize - PeBase);
                 goto LABEL_CHECK;
             }
         }
         else if (SectionType == 1296 && FieldValue == 0x40000 && EntrySize && InfoBuffer == 64 && !SectionOffset2)
         {
-            SectionOffset2 = CurrentOffset + EntrySize - PeBase;
+            SectionOffset2 = (unsigned int)(CurrentOffset + EntrySize - PeBase);
         }
 
 LABEL_CHECK:
@@ -3435,11 +3408,11 @@ LABEL_CHECK:
         *((unsigned char *)&ExportName[10] + 1) = 0;
         ExportName[11] = 0;
 
-        if (LookupExportByName(PeBase, PeSize, (__int64)ExportName, &SectionOffset1) == 1 && SectionOffset1 && SectionOffset1 < PeSize && SectionOffset1 + 4096 < PeSize)
+        if (LookupExportByName((PUCHAR)PeBase, PeSize, (PCHAR)ExportName, (PULONG)&SectionOffset1) == 1 && SectionOffset1 && SectionOffset1 < PeSize && SectionOffset1 + 4096 < PeSize)
         {
             InitPESectionReadContext(PeBase + SectionOffset1, 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
             EntryIndex = 0;
-            while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
             {
                 CurrentOffset = EntryCumulSize + (int)CumulativeSize;
                 CumulativeSize += EntryCumulSize;
@@ -3447,7 +3420,7 @@ LABEL_CHECK:
                 {
                     if (EntrySize && InfoBuffer == 32 && SectionEntry[2] == 1)
                     {
-                        NextOffset = CurrentOffset + EntrySize - PeBase;
+                        NextOffset = (int)(CurrentOffset + EntrySize - PeBase);
                         if (NextOffset && (unsigned int)NextOffset < PeSize)
                         {
                             GtWrite(GtDisableHookProtectionAddr2 | GtPathBuffer03 | 0x100, NtoskrnlBase + NextOffset);

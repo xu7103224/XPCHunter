@@ -45,9 +45,9 @@ extern unsigned int QueryNdisDriverObject(__int64 OutputBuffer, unsigned int Max
 extern unsigned int QueryPnpManagerDriverObject(__int64 OutputBuffer, unsigned int MaxEntries);
 extern void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
 extern char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
-extern __int64 ResolveKernelModuleBasePair(__int64 Address, __int64 Size, _QWORD *pResult, __int64 Flags);
+extern __int64 ResolveKernelModuleBasePair(__int64 CpuNumber, ULONG_PTR *pMsrPair);
 extern char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
-extern __int64 ValidateAndClearProcessContext(__int64 Process, __int64 Flags, __int64 Context, __int64 Result);
+extern __int64 ValidateAndClearProcessContext(int CurrentProcessor, __int64 pContext);
 extern void ValidateObjectTypeEntries(__int64 OutputBuffer);
 extern void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize);
 
@@ -87,270 +87,270 @@ __int64 InitCommandHandlerTable(void)
     RtlZeroMemory(Table, 0x8D8);
 
     // 按索引顺序填充命令处理函数表
-    Table[0] = CmdReadProcessMemory;
-    Table[1] = CmdResetProcessContext;
-    Table[2] = CmdQueryProcessInfo;
-    Table[3] = NULL;
-    Table[4] = CmdGetModuleCount;
-    Table[5] = CmdEnumKernelDrivers;
-    Table[6] = CmdEnumHandles;
-    Table[7] = CmdCheckProcessAccess;
-    Table[8] = CmdProcessOperation;
-    Table[9] = CmdMiniFilterStreamHandle;
-    Table[10] = CmdEnumThreads;
-    Table[11] = CmdReadProcessMemoryBlock;
-    Table[12] = CmdQueryModuleInfo;
-    Table[13] = CmdModuleOperation;
-    Table[14] = CmdEnumRegistry;
-    Table[15] = CmdRegistryOperation;
-    Table[16] = CmdRegistryProtect;
-    Table[17] = CmdEnumServices;
-    Table[18] = CmdEnumServiceTable;
-    Table[19] = CmdEnumObjects;
-    Table[20] = CmdObjectOperation;
-    Table[21] = CmdEnumKernelInfo;
-    Table[22] = CmdQueryMemoryInfo;
-    Table[23] = CmdReadProcessMemoryEx;
-    Table[24] = CmdDeviceIoControl;
-    Table[25] = CmdVirtualMemoryOp;
-    Table[26] = CmdProcessMonitor;
-    Table[27] = CmdEnumThreadsEx;
-    Table[28] = CmdEnumKernelModules;
-    Table[29] = CmdThreadOperation;
-    Table[30] = CmdThreadMonitor;
-    Table[31] = CmdKernelObjectMonitor;
-    Table[32] = CmdHandleMonitor;
-    Table[33] = CmdProtectStatus;
-    Table[34] = CmdQuerySsdtInfo;
-    Table[35] = CmdEnumKernelDriver;
-    Table[36] = CmdDriverLoadUnload;
-    Table[37] = CmdReadPhysicalMemory;
-    Table[38] = CmdIoPortOperation;
-    Table[39] = CmdKernelMemoryOperation;
-    Table[40] = CmdProcessMemoryOperation;
-    Table[41] = CmdEnumProcessModules;
-    Table[42] = CmdKernelMemoryOpDispatch;
-    Table[43] = CmdProcessMemoryOpDispatch;
-    Table[44] = CmdMemoryQueryOp;
-    Table[45] = CmdQuerySystemInfo;
-    Table[46] = CmdDriverProtectStatus;
-    Table[47] = CmdDriverProtectOp;
-    Table[48] = CmdThreadProtectStatus;
-    Table[49] = InitRegFilter;
-    Table[50] = InitRegNotify;
-    Table[51] = InitRegCallback;
-    Table[52] = CmdEnumProcessHandles;
-    Table[53] = CmdQueryProcessInfoEx;
-    Table[54] = CmdEnumObjectAllTypes;
-    Table[55] = CmdObjectOperationDispatch;
-    Table[56] = CmdDeviceIoControlEx;
-    Table[57] = CmdFsctlOperation;
-    Table[58] = CmdReadProcessMemoryStr;
-    Table[59] = CmdWriteProcessMemoryEx;
-    Table[60] = CmdDeviceIoControlSimple;
-    Table[61] = CmdDeviceIoControlWithBuffer;
-    Table[62] = CmdDeviceIoControlWithString;
-    Table[63] = CmdOpenSectionObject;
-    Table[64] = CmdCreateFile;
-    Table[65] = CmdEnumHandlesByPid;
-    Table[66] = CmdCreateFileWithPath;
-    Table[67] = CmdCloseHandle;
-    Table[68] = CmdQueryFileInfo;
-    Table[69] = CmdOpenFileHandle;
-    Table[70] = CmdReadFileSize;
-    Table[71] = CmdWriteFile;
-    Table[72] = CmdReadFile;
-    Table[73] = CmdReadDirectory;
-    Table[74] = CmdEnumDirectory;
-    Table[75] = CmdEnableObjectCallback;
-    Table[76] = CmdRenameFile;
-    Table[77] = CmdCopyFile;
-    Table[78] = CmdOpenFileForEnum;
-    Table[79] = CmdDeleteFile;
-    Table[80] = CmdSetFileAttributes;
-    Table[81] = CmdCheckFileExist;
-    Table[82] = CmdPowerCallbackUnregister;
-    Table[83] = CmdShutdownCallbackUnregister;
-    Table[84] = CmdPowerCallbackRoutine;
-    Table[85] = CmdRegNotifyCallback;
-    Table[86] = CmdDisableThreadProtect;
-    Table[87] = CmdEnableThreadProtect;
-    Table[88] = CmdQuerySystemInfoEx;
-    Table[89] = CmdCallbackControl;
-    Table[90] = CmdReadCpuMsr;
-    Table[91] = CmdReadCpuId;
-    Table[92] = CmdReadCpuBaseAddr;
-    Table[93] = CmdReadCpuInfoEx;
-    Table[94] = CmdReadCpuBaseAddrEx;
-    Table[95] = CmdStubAlwaysTrue;
-    Table[96] = CmdGetKernelBaseLegacy;
-    Table[97] = NULL;
-    Table[98] = NULL;
-    Table[99] = MiniFilterGenerateFileName;
-    Table[100] = MiniFilterFormatFileName;
-    Table[101] = MiniFilterFormatFileNameEx;
-    Table[102] = MiniFilterFormatFileNameWithContext;
-    Table[103] = MiniFilterFormatFileNameWithPath;
-    Table[104] = MiniFilterFormatFileNameWithPathEx;
+    Table[0] = (PCOMMAND_HANDLER)CmdReadProcessMemory;
+    Table[1] = (PCOMMAND_HANDLER)CmdResetProcessContext;
+    Table[2] = (PCOMMAND_HANDLER)CmdQueryProcessInfo;
+    Table[3] = (PCOMMAND_HANDLER)NULL;
+    Table[4] = (PCOMMAND_HANDLER)CmdGetModuleCount;
+    Table[5] = (PCOMMAND_HANDLER)CmdEnumKernelDrivers;
+    Table[6] = (PCOMMAND_HANDLER)CmdEnumHandles;
+    Table[7] = (PCOMMAND_HANDLER)CmdCheckProcessAccess;
+    Table[8] = (PCOMMAND_HANDLER)CmdProcessOperation;
+    Table[9] = (PCOMMAND_HANDLER)CmdMiniFilterStreamHandle;
+    Table[10] = (PCOMMAND_HANDLER)CmdEnumThreads;
+    Table[11] = (PCOMMAND_HANDLER)CmdReadProcessMemoryBlock;
+    Table[12] = (PCOMMAND_HANDLER)CmdQueryModuleInfo;
+    Table[13] = (PCOMMAND_HANDLER)CmdModuleOperation;
+    Table[14] = (PCOMMAND_HANDLER)CmdEnumRegistry;
+    Table[15] = (PCOMMAND_HANDLER)CmdRegistryOperation;
+    Table[16] = (PCOMMAND_HANDLER)CmdRegistryProtect;
+    Table[17] = (PCOMMAND_HANDLER)CmdEnumServices;
+    Table[18] = (PCOMMAND_HANDLER)CmdEnumServiceTable;
+    Table[19] = (PCOMMAND_HANDLER)CmdEnumObjects;
+    Table[20] = (PCOMMAND_HANDLER)CmdObjectOperation;
+    Table[21] = (PCOMMAND_HANDLER)CmdEnumKernelInfo;
+    Table[22] = (PCOMMAND_HANDLER)CmdQueryMemoryInfo;
+    Table[23] = (PCOMMAND_HANDLER)CmdReadProcessMemoryEx;
+    Table[24] = (PCOMMAND_HANDLER)CmdDeviceIoControl;
+    Table[25] = (PCOMMAND_HANDLER)CmdVirtualMemoryOp;
+    Table[26] = (PCOMMAND_HANDLER)CmdProcessMonitor;
+    Table[27] = (PCOMMAND_HANDLER)CmdEnumThreadsEx;
+    Table[28] = (PCOMMAND_HANDLER)CmdEnumKernelModules;
+    Table[29] = (PCOMMAND_HANDLER)CmdThreadOperation;
+    Table[30] = (PCOMMAND_HANDLER)CmdThreadMonitor;
+    Table[31] = (PCOMMAND_HANDLER)CmdKernelObjectMonitor;
+    Table[32] = (PCOMMAND_HANDLER)CmdHandleMonitor;
+    Table[33] = (PCOMMAND_HANDLER)CmdProtectStatus;
+    Table[34] = (PCOMMAND_HANDLER)CmdQuerySsdtInfo;
+    Table[35] = (PCOMMAND_HANDLER)CmdEnumKernelDriver;
+    Table[36] = (PCOMMAND_HANDLER)CmdDriverLoadUnload;
+    Table[37] = (PCOMMAND_HANDLER)CmdReadPhysicalMemory;
+    Table[38] = (PCOMMAND_HANDLER)CmdIoPortOperation;
+    Table[39] = (PCOMMAND_HANDLER)CmdKernelMemoryOperation;
+    Table[40] = (PCOMMAND_HANDLER)CmdProcessMemoryOperation;
+    Table[41] = (PCOMMAND_HANDLER)CmdEnumProcessModules;
+    Table[42] = (PCOMMAND_HANDLER)CmdKernelMemoryOpDispatch;
+    Table[43] = (PCOMMAND_HANDLER)CmdProcessMemoryOpDispatch;
+    Table[44] = (PCOMMAND_HANDLER)CmdMemoryQueryOp;
+    Table[45] = (PCOMMAND_HANDLER)CmdQuerySystemInfo;
+    Table[46] = (PCOMMAND_HANDLER)CmdDriverProtectStatus;
+    Table[47] = (PCOMMAND_HANDLER)CmdDriverProtectOp;
+    Table[48] = (PCOMMAND_HANDLER)CmdThreadProtectStatus;
+    Table[49] = (PCOMMAND_HANDLER)InitRegFilter;
+    Table[50] = (PCOMMAND_HANDLER)InitRegNotify;
+    Table[51] = (PCOMMAND_HANDLER)InitRegCallback;
+    Table[52] = (PCOMMAND_HANDLER)CmdEnumProcessHandles;
+    Table[53] = (PCOMMAND_HANDLER)CmdQueryProcessInfoEx;
+    Table[54] = (PCOMMAND_HANDLER)CmdEnumObjectAllTypes;
+    Table[55] = (PCOMMAND_HANDLER)CmdObjectOperationDispatch;
+    Table[56] = (PCOMMAND_HANDLER)CmdDeviceIoControlEx;
+    Table[57] = (PCOMMAND_HANDLER)CmdFsctlOperation;
+    Table[58] = (PCOMMAND_HANDLER)CmdReadProcessMemoryStr;
+    Table[59] = (PCOMMAND_HANDLER)CmdWriteProcessMemoryEx;
+    Table[60] = (PCOMMAND_HANDLER)CmdDeviceIoControlSimple;
+    Table[61] = (PCOMMAND_HANDLER)CmdDeviceIoControlWithBuffer;
+    Table[62] = (PCOMMAND_HANDLER)CmdDeviceIoControlWithString;
+    Table[63] = (PCOMMAND_HANDLER)CmdOpenSectionObject;
+    Table[64] = (PCOMMAND_HANDLER)CmdCreateFile;
+    Table[65] = (PCOMMAND_HANDLER)CmdEnumHandlesByPid;
+    Table[66] = (PCOMMAND_HANDLER)CmdCreateFileWithPath;
+    Table[67] = (PCOMMAND_HANDLER)CmdCloseHandle;
+    Table[68] = (PCOMMAND_HANDLER)CmdQueryFileInfo;
+    Table[69] = (PCOMMAND_HANDLER)CmdOpenFileHandle;
+    Table[70] = (PCOMMAND_HANDLER)CmdReadFileSize;
+    Table[71] = (PCOMMAND_HANDLER)CmdWriteFile;
+    Table[72] = (PCOMMAND_HANDLER)CmdReadFile;
+    Table[73] = (PCOMMAND_HANDLER)CmdReadDirectory;
+    Table[74] = (PCOMMAND_HANDLER)CmdEnumDirectory;
+    Table[75] = (PCOMMAND_HANDLER)CmdEnableObjectCallback;
+    Table[76] = (PCOMMAND_HANDLER)CmdRenameFile;
+    Table[77] = (PCOMMAND_HANDLER)CmdCopyFile;
+    Table[78] = (PCOMMAND_HANDLER)CmdOpenFileForEnum;
+    Table[79] = (PCOMMAND_HANDLER)CmdDeleteFile;
+    Table[80] = (PCOMMAND_HANDLER)CmdSetFileAttributes;
+    Table[81] = (PCOMMAND_HANDLER)CmdCheckFileExist;
+    Table[82] = (PCOMMAND_HANDLER)CmdPowerCallbackUnregister;
+    Table[83] = (PCOMMAND_HANDLER)CmdShutdownCallbackUnregister;
+    Table[84] = (PCOMMAND_HANDLER)CmdPowerCallbackRoutine;
+    Table[85] = (PCOMMAND_HANDLER)CmdRegNotifyCallback;
+    Table[86] = (PCOMMAND_HANDLER)CmdDisableThreadProtect;
+    Table[87] = (PCOMMAND_HANDLER)CmdEnableThreadProtect;
+    Table[88] = (PCOMMAND_HANDLER)CmdQuerySystemInfoEx;
+    Table[89] = (PCOMMAND_HANDLER)CmdCallbackControl;
+    Table[90] = (PCOMMAND_HANDLER)CmdReadCpuMsr;
+    Table[91] = (PCOMMAND_HANDLER)CmdReadCpuId;
+    Table[92] = (PCOMMAND_HANDLER)CmdReadCpuBaseAddr;
+    Table[93] = (PCOMMAND_HANDLER)CmdReadCpuInfoEx;
+    Table[94] = (PCOMMAND_HANDLER)CmdReadCpuBaseAddrEx;
+    Table[95] = (PCOMMAND_HANDLER)CmdStubAlwaysTrue;
+    Table[96] = (PCOMMAND_HANDLER)CmdGetKernelBaseLegacy;
+    Table[97] = (PCOMMAND_HANDLER)NULL;
+    Table[98] = (PCOMMAND_HANDLER)NULL;
+    Table[99] = (PCOMMAND_HANDLER)MiniFilterGenerateFileName;
+    Table[100] = (PCOMMAND_HANDLER)MiniFilterFormatFileName;
+    Table[101] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameEx;
+    Table[102] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithContext;
+    Table[103] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithPath;
+    Table[104] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithPathEx;
     // 105-110: NULL (memset 0x30 = 48 bytes = 6 entries)
     RtlZeroMemory(&Table[105], 0x30);
-    Table[111] = MiniFilterCommPortSend;
-    Table[112] = MiniFilterCommPortRecv;
-    Table[113] = MiniFilterCommPortReply;
+    Table[111] = (PCOMMAND_HANDLER)MiniFilterCommPortSend;
+    Table[112] = (PCOMMAND_HANDLER)MiniFilterCommPortRecv;
+    Table[113] = (PCOMMAND_HANDLER)MiniFilterCommPortReply;
     // 114-119: NULL (memset 0x30 = 48 bytes = 6 entries)
     RtlZeroMemory(&Table[114], 0x30);
-    Table[120] = CmdQueryProcessNameByPid;
-    Table[121] = NULL;
-    Table[122] = NULL;
-    Table[123] = NULL;
-    Table[124] = MiniFilterCommPortConnect;
-    Table[125] = MiniFilterCommPortDisconnect;
-    Table[126] = MiniFilterCommPortCleanup;
-    Table[127] = CmdEnumObjectDirectory;
-    Table[128] = CmdCloseProcessHandle;
-    Table[129] = CmdEnumObjectHandles;
-    Table[130] = CmdTerminateProcessByEProcess;
+    Table[120] = (PCOMMAND_HANDLER)CmdQueryProcessNameByPid;
+    Table[121] = (PCOMMAND_HANDLER)NULL;
+    Table[122] = (PCOMMAND_HANDLER)NULL;
+    Table[123] = (PCOMMAND_HANDLER)NULL;
+    Table[124] = (PCOMMAND_HANDLER)MiniFilterCommPortConnect;
+    Table[125] = (PCOMMAND_HANDLER)MiniFilterCommPortDisconnect;
+    Table[126] = (PCOMMAND_HANDLER)MiniFilterCommPortCleanup;
+    Table[127] = (PCOMMAND_HANDLER)CmdEnumObjectDirectory;
+    Table[128] = (PCOMMAND_HANDLER)CmdCloseProcessHandle;
+    Table[129] = (PCOMMAND_HANDLER)CmdEnumObjectHandles;
+    Table[130] = (PCOMMAND_HANDLER)CmdTerminateProcessByEProcess;
     // 131-138: NULL (memset 0x40 = 64 bytes = 8 entries)
     RtlZeroMemory(&Table[131], 0x40);
-    Table[139] = CmdQueryObjectInfo;
-    Table[140] = CmdEnumSyscallEntries;
-    Table[141] = CmdInstallSystemHook;
-    Table[142] = CmdEnumShadowSyscallEntries;
-    Table[143] = CmdInstallShadowHook;
-    Table[144] = CmdEnumSyscallTable2;
-    Table[145] = CmdInstallSyscallHook2;
-    Table[146] = CmdEnumSyscallTable3;
-    Table[147] = CmdInstallSyscallHook3;
-    Table[148] = CmdEnumSyscallTable4;
-    Table[149] = CmdInstallSyscallHook4;
-    Table[150] = CmdEnumSyscallTable5;
-    Table[151] = CmdInstallSyscallHook5;
-    Table[152] = CmdEnumSyscallTable6;
-    Table[153] = CmdInstallSyscallHook6;
-    Table[154] = CmdEnumSyscallTable7;
-    Table[155] = CmdInstallSyscallHook7;
-    Table[156] = CmdEnumSyscallTable8;
-    Table[157] = CmdInstallSyscallHook8;
-    Table[158] = MiniFilterPreRename;
-    Table[159] = MiniFilterPreVolumeMount;
-    Table[160] = CmdEnumSyscallTable9;
-    Table[161] = CmdInstallSyscallHook9;
-    Table[162] = CmdEnumGdiObjects;
-    Table[163] = CmdCheckProcessHideDetect;
-    Table[164] = CmdFixProcessEProcess;
-    Table[165] = NULL;
-    Table[166] = NULL;
-    Table[167] = MiniFilterClientContext;
-    Table[168] = MiniFilterServerContext;
-    Table[169] = MiniFilterContextCleanup;
-    Table[170] = CmdDiskReadSector;
-    Table[171] = CmdDiskOperationDispatch;
-    Table[172] = CmdDiskSectorReadWrite;
-    Table[173] = MiniFilterAcquireForSectionSync;
-    Table[174] = MiniFilterReleaseForCcFlush;
-    Table[175] = MiniFilterNotifyRoutineEx;
-    Table[176] = MiniFilterActiveRoutine;
-    Table[177] = MiniFilterNotifyRoutineEx2;
-    Table[178] = EnableProcessProtect;
-    Table[179] = DisableProcessProtect;
-    Table[180] = CmdEnumObjectTypes;
-    Table[181] = CmdEnumKernelObjectTable;
-    Table[182] = CmdWriteKernelObjectField;
-    Table[183] = CmdProcessCallbackRoutine;
-    Table[184] = CmdInitProcessCallback;
+    Table[139] = (PCOMMAND_HANDLER)CmdQueryObjectInfo;
+    Table[140] = (PCOMMAND_HANDLER)CmdEnumSyscallEntries;
+    Table[141] = (PCOMMAND_HANDLER)CmdInstallSystemHook;
+    Table[142] = (PCOMMAND_HANDLER)CmdEnumShadowSyscallEntries;
+    Table[143] = (PCOMMAND_HANDLER)CmdInstallShadowHook;
+    Table[144] = (PCOMMAND_HANDLER)CmdEnumSyscallTable2;
+    Table[145] = (PCOMMAND_HANDLER)CmdInstallSyscallHook2;
+    Table[146] = (PCOMMAND_HANDLER)CmdEnumSyscallTable3;
+    Table[147] = (PCOMMAND_HANDLER)CmdInstallSyscallHook3;
+    Table[148] = (PCOMMAND_HANDLER)CmdEnumSyscallTable4;
+    Table[149] = (PCOMMAND_HANDLER)CmdInstallSyscallHook4;
+    Table[150] = (PCOMMAND_HANDLER)CmdEnumSyscallTable5;
+    Table[151] = (PCOMMAND_HANDLER)CmdInstallSyscallHook5;
+    Table[152] = (PCOMMAND_HANDLER)CmdEnumSyscallTable6;
+    Table[153] = (PCOMMAND_HANDLER)CmdInstallSyscallHook6;
+    Table[154] = (PCOMMAND_HANDLER)CmdEnumSyscallTable7;
+    Table[155] = (PCOMMAND_HANDLER)CmdInstallSyscallHook7;
+    Table[156] = (PCOMMAND_HANDLER)CmdEnumSyscallTable8;
+    Table[157] = (PCOMMAND_HANDLER)CmdInstallSyscallHook8;
+    Table[158] = (PCOMMAND_HANDLER)MiniFilterPreRename;
+    Table[159] = (PCOMMAND_HANDLER)MiniFilterPreVolumeMount;
+    Table[160] = (PCOMMAND_HANDLER)CmdEnumSyscallTable9;
+    Table[161] = (PCOMMAND_HANDLER)CmdInstallSyscallHook9;
+    Table[162] = (PCOMMAND_HANDLER)CmdEnumGdiObjects;
+    Table[163] = (PCOMMAND_HANDLER)CmdCheckProcessHideDetect;
+    Table[164] = (PCOMMAND_HANDLER)CmdFixProcessEProcess;
+    Table[165] = (PCOMMAND_HANDLER)NULL;
+    Table[166] = (PCOMMAND_HANDLER)NULL;
+    Table[167] = (PCOMMAND_HANDLER)MiniFilterClientContext;
+    Table[168] = (PCOMMAND_HANDLER)MiniFilterServerContext;
+    Table[169] = (PCOMMAND_HANDLER)MiniFilterContextCleanup;
+    Table[170] = (PCOMMAND_HANDLER)CmdDiskReadSector;
+    Table[171] = (PCOMMAND_HANDLER)CmdDiskOperationDispatch;
+    Table[172] = (PCOMMAND_HANDLER)CmdDiskSectorReadWrite;
+    Table[173] = (PCOMMAND_HANDLER)MiniFilterAcquireForSectionSync;
+    Table[174] = (PCOMMAND_HANDLER)MiniFilterReleaseForCcFlush;
+    Table[175] = (PCOMMAND_HANDLER)MiniFilterNotifyRoutineEx;
+    Table[176] = (PCOMMAND_HANDLER)MiniFilterActiveRoutine;
+    Table[177] = (PCOMMAND_HANDLER)MiniFilterNotifyRoutineEx2;
+    Table[178] = (PCOMMAND_HANDLER)EnableProcessProtect;
+    Table[179] = (PCOMMAND_HANDLER)DisableProcessProtect;
+    Table[180] = (PCOMMAND_HANDLER)CmdEnumObjectTypes;
+    Table[181] = (PCOMMAND_HANDLER)CmdEnumKernelObjectTable;
+    Table[182] = (PCOMMAND_HANDLER)CmdWriteKernelObjectField;
+    Table[183] = (PCOMMAND_HANDLER)CmdProcessCallbackRoutine;
+    Table[184] = (PCOMMAND_HANDLER)CmdInitProcessCallback;
     // 185-190: NULL (memset 0x30 = 48 bytes = 6 entries)
     RtlZeroMemory(&Table[185], 0x30);
-    Table[191] = MiniFilterInstanceSetup;
-    Table[192] = MiniFilterInstanceQuery;
-    Table[193] = CmdEnumProcessListEx;
-    Table[194] = CmdEnumProcessListWin7;
-    Table[195] = CmdEnumProcessListWin8;
-    Table[196] = CmdEnumProcessListWin10;
-    Table[197] = CmdEnumKernelHandleTable;
-    Table[198] = CmdGetSsdtTableInfo;
-    Table[199] = CmdRestoreSsdtTable;
-    Table[200] = CmdEnumObjectTypeInfo;
-    Table[201] = CmdLookupObjectTypeByAddr;
-    Table[202] = CmdQuerySsdtDetails;
-    Table[203] = CmdSetSsdtEntry;
-    Table[204] = CmdReadExportDirectory;
-    Table[205] = CmdUpdateExportEntry;
-    Table[206] = CmdRestoreExportTable;
-    Table[207] = CmdInitSsdtTable;
-    Table[208] = CmdEnumKernelModules;
-    Table[209] = MiniFilterAcquireForModWrite;
-    Table[210] = MiniFilterPostFastIo;
-    Table[211] = CmdCopyKernelArrayToUserBuffer;
-    Table[212] = CmdEnumKernelMemoryContext;
-    Table[213] = InvokeRegisteredCallbackWithUserData;
-    Table[214] = CmdCopyKernelDualArrayToUserBuffer;
-    Table[215] = CmdReadKernelMemoryToUserBuffer;
-    Table[216] = CmdInitKernelMemoryContext;
-    Table[217] = CmdReadKernelMemoryRange;
-    Table[218] = CmdReadKernelMemoryRangeSize;
-    Table[219] = CmdWriteKernelMemoryRange;
-    Table[220] = CmdEnumKernelMemoryDetail;
-    Table[221] = CmdCallKernelMemoryFunction;
-    Table[222] = CmdEnumObjectTypeDirectory;
-    Table[223] = CmdEnumObjectTypeTable;
-    Table[224] = CmdEnumObjectTypeDetail;
-    Table[225] = CmdReadSsdtEntryTable;
-    Table[226] = CmdReadSsdtEntryTableEx;
-    Table[227] = CmdDispatchSsdtByVersion;
-    Table[228] = CmdFixSsdtEntryAddress;
-    Table[229] = CmdEnumSsdtEntryTable;
-    Table[230] = CmdReadMsrValue;
-    Table[231] = CmdWriteMsrValue;
-    Table[232] = CmdEnumProcessorInfo;
-    Table[233] = CmdSetProcessorField;
-    Table[234] = CmdInitFileSystemCallback;
-    Table[235] = MiniFilterPreAcquire;
-    Table[236] = MiniFilterPreRelease;
-    Table[237] = MiniFilterPreDelete;
-    Table[238] = MiniFilterPreFlush;
-    Table[239] = MiniFilterPreHardLink;
-    Table[240] = MiniFilterPreShutdown;
-    Table[241] = InitMiniFilterDriver;
-    Table[242] = MiniFilterPreFastIo;
-    Table[243] = CmdInitFileSystemFilter;
-    Table[244] = CmdFileSystemFilterCallback;
-    Table[245] = CmdCallSystemRoutine;
-    Table[246] = CmdResetDriverState;
-    Table[247] = CmdEnumHookInfo;
-    Table[248] = CmdCheckBytePattern;
-    Table[249] = CmdGetHookEntryInfo;
-    Table[250] = CmdQueryHookStatus;
-    Table[251] = CmdEnumHookDetail;
-    Table[252] = CmdInitObjectCallback;
-    Table[253] = CmdEnumProcessContextWin7;
-    Table[254] = CmdSetProcessContextWin7;
-    Table[255] = CmdEnumProcessContextWin8;
-    Table[256] = CmdSetProcessContextWin8;
-    Table[257] = CmdReadKernelBase;
-    Table[258] = CmdClearKernelBase;
-    Table[259] = CmdEnumKernelModuleInfoEx;
-    Table[260] = CmdSetKernelModuleInfo;
-    Table[261] = CmdEnumProcessContextWin10;
-    Table[262] = CmdSetProcessContextWin10;
-    Table[263] = CmdEnumRegistryContext;
-    Table[264] = CmdSetRegistryContext;
-    Table[265] = CmdEnumFileSystemContext;
-    Table[266] = CmdSetFileSystemContext;
-    Table[267] = CmdEnumUSBPortSyscallTable;
-    Table[268] = CmdInstallUSBPortSyscallHook;
-    Table[269] = CmdEnumObjectContext;
-    Table[270] = CmdSetObjectContext;
-    Table[271] = CmdEnumProcessProtectContext;
-    Table[272] = CmdSetProcessProtectContext;
-    Table[273] = CmdEnumCallbackContext;
-    Table[274] = CmdSetCallbackContext;
-    Table[275] = CmdEnumThreadContextWin10;
-    Table[276] = CmdSetThreadContextWin10;
-    Table[277] = CmdDisableObjectProtect;
-    Table[278] = CmdEnableObjectProtect;
-    Table[279] = CmdKernelNotifyRoutine;
-    Table[280] = CmdKernelNotifyRoutineEx;
-    Table[281] = CmdRestoreDriverDispatch;
+    Table[191] = (PCOMMAND_HANDLER)MiniFilterInstanceSetup;
+    Table[192] = (PCOMMAND_HANDLER)MiniFilterInstanceQuery;
+    Table[193] = (PCOMMAND_HANDLER)CmdEnumProcessListEx;
+    Table[194] = (PCOMMAND_HANDLER)CmdEnumProcessListWin7;
+    Table[195] = (PCOMMAND_HANDLER)CmdEnumProcessListWin8;
+    Table[196] = (PCOMMAND_HANDLER)CmdEnumProcessListWin10;
+    Table[197] = (PCOMMAND_HANDLER)CmdEnumKernelHandleTable;
+    Table[198] = (PCOMMAND_HANDLER)CmdGetSsdtTableInfo;
+    Table[199] = (PCOMMAND_HANDLER)CmdRestoreSsdtTable;
+    Table[200] = (PCOMMAND_HANDLER)CmdEnumObjectTypeInfo;
+    Table[201] = (PCOMMAND_HANDLER)CmdLookupObjectTypeByAddr;
+    Table[202] = (PCOMMAND_HANDLER)CmdQuerySsdtDetails;
+    Table[203] = (PCOMMAND_HANDLER)CmdSetSsdtEntry;
+    Table[204] = (PCOMMAND_HANDLER)CmdReadExportDirectory;
+    Table[205] = (PCOMMAND_HANDLER)CmdUpdateExportEntry;
+    Table[206] = (PCOMMAND_HANDLER)CmdRestoreExportTable;
+    Table[207] = (PCOMMAND_HANDLER)CmdInitSsdtTable;
+    Table[208] = (PCOMMAND_HANDLER)CmdEnumKernelModules;
+    Table[209] = (PCOMMAND_HANDLER)MiniFilterAcquireForModWrite;
+    Table[210] = (PCOMMAND_HANDLER)MiniFilterPostFastIo;
+    Table[211] = (PCOMMAND_HANDLER)CmdCopyKernelArrayToUserBuffer;
+    Table[212] = (PCOMMAND_HANDLER)CmdEnumKernelMemoryContext;
+    Table[213] = (PCOMMAND_HANDLER)InvokeRegisteredCallbackWithUserData;
+    Table[214] = (PCOMMAND_HANDLER)CmdCopyKernelDualArrayToUserBuffer;
+    Table[215] = (PCOMMAND_HANDLER)CmdReadKernelMemoryToUserBuffer;
+    Table[216] = (PCOMMAND_HANDLER)CmdInitKernelMemoryContext;
+    Table[217] = (PCOMMAND_HANDLER)CmdReadKernelMemoryRange;
+    Table[218] = (PCOMMAND_HANDLER)CmdReadKernelMemoryRangeSize;
+    Table[219] = (PCOMMAND_HANDLER)CmdWriteKernelMemoryRange;
+    Table[220] = (PCOMMAND_HANDLER)CmdEnumKernelMemoryDetail;
+    Table[221] = (PCOMMAND_HANDLER)CmdCallKernelMemoryFunction;
+    Table[222] = (PCOMMAND_HANDLER)CmdEnumObjectTypeDirectory;
+    Table[223] = (PCOMMAND_HANDLER)CmdEnumObjectTypeTable;
+    Table[224] = (PCOMMAND_HANDLER)CmdEnumObjectTypeDetail;
+    Table[225] = (PCOMMAND_HANDLER)CmdReadSsdtEntryTable;
+    Table[226] = (PCOMMAND_HANDLER)CmdReadSsdtEntryTableEx;
+    Table[227] = (PCOMMAND_HANDLER)CmdDispatchSsdtByVersion;
+    Table[228] = (PCOMMAND_HANDLER)CmdFixSsdtEntryAddress;
+    Table[229] = (PCOMMAND_HANDLER)CmdEnumSsdtEntryTable;
+    Table[230] = (PCOMMAND_HANDLER)CmdReadMsrValue;
+    Table[231] = (PCOMMAND_HANDLER)CmdWriteMsrValue;
+    Table[232] = (PCOMMAND_HANDLER)CmdEnumProcessorInfo;
+    Table[233] = (PCOMMAND_HANDLER)CmdSetProcessorField;
+    Table[234] = (PCOMMAND_HANDLER)CmdInitFileSystemCallback;
+    Table[235] = (PCOMMAND_HANDLER)MiniFilterPreAcquire;
+    Table[236] = (PCOMMAND_HANDLER)MiniFilterPreRelease;
+    Table[237] = (PCOMMAND_HANDLER)MiniFilterPreDelete;
+    Table[238] = (PCOMMAND_HANDLER)MiniFilterPreFlush;
+    Table[239] = (PCOMMAND_HANDLER)MiniFilterPreHardLink;
+    Table[240] = (PCOMMAND_HANDLER)MiniFilterPreShutdown;
+    Table[241] = (PCOMMAND_HANDLER)InitMiniFilterDriver;
+    Table[242] = (PCOMMAND_HANDLER)MiniFilterPreFastIo;
+    Table[243] = (PCOMMAND_HANDLER)CmdInitFileSystemFilter;
+    Table[244] = (PCOMMAND_HANDLER)CmdFileSystemFilterCallback;
+    Table[245] = (PCOMMAND_HANDLER)CmdCallSystemRoutine;
+    Table[246] = (PCOMMAND_HANDLER)CmdResetDriverState;
+    Table[247] = (PCOMMAND_HANDLER)CmdEnumHookInfo;
+    Table[248] = (PCOMMAND_HANDLER)CmdCheckBytePattern;
+    Table[249] = (PCOMMAND_HANDLER)CmdGetHookEntryInfo;
+    Table[250] = (PCOMMAND_HANDLER)CmdQueryHookStatus;
+    Table[251] = (PCOMMAND_HANDLER)CmdEnumHookDetail;
+    Table[252] = (PCOMMAND_HANDLER)CmdInitObjectCallback;
+    Table[253] = (PCOMMAND_HANDLER)CmdEnumProcessContextWin7;
+    Table[254] = (PCOMMAND_HANDLER)CmdSetProcessContextWin7;
+    Table[255] = (PCOMMAND_HANDLER)CmdEnumProcessContextWin8;
+    Table[256] = (PCOMMAND_HANDLER)CmdSetProcessContextWin8;
+    Table[257] = (PCOMMAND_HANDLER)CmdReadKernelBase;
+    Table[258] = (PCOMMAND_HANDLER)CmdClearKernelBase;
+    Table[259] = (PCOMMAND_HANDLER)CmdEnumKernelModuleInfoEx;
+    Table[260] = (PCOMMAND_HANDLER)CmdSetKernelModuleInfo;
+    Table[261] = (PCOMMAND_HANDLER)CmdEnumProcessContextWin10;
+    Table[262] = (PCOMMAND_HANDLER)CmdSetProcessContextWin10;
+    Table[263] = (PCOMMAND_HANDLER)CmdEnumRegistryContext;
+    Table[264] = (PCOMMAND_HANDLER)CmdSetRegistryContext;
+    Table[265] = (PCOMMAND_HANDLER)CmdEnumFileSystemContext;
+    Table[266] = (PCOMMAND_HANDLER)CmdSetFileSystemContext;
+    Table[267] = (PCOMMAND_HANDLER)CmdEnumUSBPortSyscallTable;
+    Table[268] = (PCOMMAND_HANDLER)CmdInstallUSBPortSyscallHook;
+    Table[269] = (PCOMMAND_HANDLER)CmdEnumObjectContext;
+    Table[270] = (PCOMMAND_HANDLER)CmdSetObjectContext;
+    Table[271] = (PCOMMAND_HANDLER)CmdEnumProcessProtectContext;
+    Table[272] = (PCOMMAND_HANDLER)CmdSetProcessProtectContext;
+    Table[273] = (PCOMMAND_HANDLER)CmdEnumCallbackContext;
+    Table[274] = (PCOMMAND_HANDLER)CmdSetCallbackContext;
+    Table[275] = (PCOMMAND_HANDLER)CmdEnumThreadContextWin10;
+    Table[276] = (PCOMMAND_HANDLER)CmdSetThreadContextWin10;
+    Table[277] = (PCOMMAND_HANDLER)CmdDisableObjectProtect;
+    Table[278] = (PCOMMAND_HANDLER)CmdEnableObjectProtect;
+    Table[279] = (PCOMMAND_HANDLER)CmdKernelNotifyRoutine;
+    Table[280] = (PCOMMAND_HANDLER)CmdKernelNotifyRoutineEx;
+    Table[281] = (PCOMMAND_HANDLER)CmdRestoreDriverDispatch;
 
     return (__int64)CmdRestoreDriverDispatch;
 }
@@ -419,7 +419,7 @@ __int64 CmdGetModuleCount(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutpu
     if (pOutputBuffer && (ULONG64)pOutputBuffer < MmUserProbeAddress && (ULONG64)(pOutputBuffer + 1) < MmUserProbeAddress && OutputSize == 4)
     {
         ProbeForWrite(pOutputBuffer, 4, 4);
-        *pOutputBuffer = GtRead(GtWindowsBuildNumber);
+        *pOutputBuffer = (_DWORD)GtRead(GtWindowsBuildNumber);
         return 1;
     }
     return 0;
@@ -574,7 +574,7 @@ __int64 CmdReadProcessMemoryBlock(__int64 InputBuffer, __int64 InputSize, _DWORD
         }
         if (ValidateProcessObject(TargetProcess, 0) == 1)
         {
-            AllocBuffer = ExAlloc(PagedPool, BufferSize);
+            AllocBuffer = ExAlloc(PagedPool, (ULONG)BufferSize);
             TempBuffer = AllocBuffer;
             if (AllocBuffer)
             {
@@ -698,7 +698,7 @@ __int64 CmdKernelObjectMonitor(__int64 InputBuffer, __int64 InputSize, _DWORD *p
         }
         pCurrentThreadFunc = (__int64 (*)(void))GtRead(GtUninstallHookSyscallPeOffset | GtEprocessField75);
         if (pCurrentThreadFunc && ValidateKernelObject((ULONG64)TargetThread, 0, 0, 0) == 1 && TargetThread != (char *)pCurrentThreadFunc())
-            Inited = InitObjectAndQueryName(TargetThread, 1);
+            Inited = (bool)InitObjectAndQueryName((__int64)TargetThread, 1);
         if (Status2 >= 0)
             ObfDereferenceObject(Thread);
     }
@@ -735,7 +735,7 @@ __int64 CmdHandleMonitor(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutput
         }
         pCurrentThreadFunc = (__int64 (*)(void))GtRead(GtUninstallHookSyscallPeOffset | GtEprocessField75);
         if (pCurrentThreadFunc && ValidateKernelObject((ULONG64)TargetThread, 0, 0, 0) == 1 && TargetThread != (char *)pCurrentThreadFunc())
-            Inited = InitObjectAndQueryName(TargetThread, 0);
+            Inited = (bool)InitObjectAndQueryName((__int64)TargetThread, 0);
         if (Status2 >= 0)
             ObfDereferenceObject(Thread);
     }
@@ -873,7 +873,7 @@ __int64 CmdDriverLoadUnload(__int64 InputBuffer, __int64 InputSize, _DWORD *pOut
     int ServiceCount = (int)GtRead(GtEprocessField57);
     if (ServiceTable && ServiceCount)
     {
-        if ((unsigned int)OutputSize >= 48 * (ServiceCount - 1) + 56
+        if ((unsigned int)OutputSize >= (unsigned int)(48 * (ServiceCount - 1) + 56)
             && (ULONG64)pOutputBuffer < MmUserProbeAddress
             && (ULONG64)pOutputBuffer + OutputSize < MmUserProbeAddress)
         {
@@ -882,7 +882,7 @@ __int64 CmdDriverLoadUnload(__int64 InputBuffer, __int64 InputSize, _DWORD *pOut
 
             ProbeForWrite(pOutputBuffer, OutputSize, 1u);
             memset(pOutputBuffer, 0, OutputSize);
-            if (ReadNtOsKrnlFile(&FileBuffer, &FileSize))
+            if (ReadNtOsKrnlFile((__int64 *)&FileBuffer, (__int64 *)&FileSize))
             {
                 if (ReadServiceTableEntries((__int64)pOutputBuffer, OutputSize, FileBuffer, FileSize) == 1)
                 {
@@ -922,14 +922,14 @@ __int64 DeviceIoControlOperation(char *pInputBuffer, int InputSize, unsigned int
 __int64 DeviceIoControlSimpleOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithBufferOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithStringOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 DisableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 DisableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DisableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskReadSectorOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskSectorReadWriteOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 EnableObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 EnableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 EnableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _WORD *pOutputBuffer, int OutputSize);
 __int64 EnumDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 EnumFileSystemContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
 __int64 EnumHookDetailOperation(char *pInputBuffer, int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
@@ -970,7 +970,7 @@ __int64 GetKernelBaseLegacyOperation(__int64 InputBuffer, __int64 InputSize, _DW
 __int64 InitFileSystemCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitFileSystemFilterOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitKernelMemoryContextOperation(void);
-__int64 InitObjectCallbackOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 InitObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InstallUSBPortSyscallHookOperation(char *Address, int InputSize);
 __int64 KernelNotifyRoutineOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 KernelNotifyRoutineExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
@@ -1031,28 +1031,28 @@ __int64 WriteProcessMemoryExOperation(char *pInputBuffer, int InputSize, unsigne
 // 对应原始驱动 sub_14000F0F4
 __int64 CmdInitObjectCallback(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return InitObjectCallbackOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)InitObjectCallbackOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessContextWin7 — Win7 枚举进程上下文命令处理
 // 对应原始驱动 sub_14003A140
 __int64 CmdEnumProcessContextWin7(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessContextWin7Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessContextWin7Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetProcessContextWin7 — Win7 设置进程上下文命令处理
 // 对应原始驱动 sub_14003A3AC
 __int64 CmdSetProcessContextWin7(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetProcessContextWin7Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetProcessContextWin7Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessContextWin8 — Win8 枚举进程上下文命令处理
 // 对应原始驱动 sub_140039934
 __int64 CmdEnumProcessContextWin8(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessContextWin8Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessContextWin8Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 
@@ -1060,28 +1060,28 @@ __int64 CmdEnumProcessContextWin8(__int64 InputBuffer, __int64 InputSize, _DWORD
 // 对应原始驱动 sub_1400352BC
 __int64 CmdReadPhysicalMemory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadPhysicalMemoryOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadPhysicalMemoryOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdIoPortOperation — IO 端口操作命令处理
 // 对应原始驱动 sub_14003888C
 __int64 CmdIoPortOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return IoPortOperationDispatch(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)IoPortOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdKernelMemoryOperation — 内核内存操作命令处理
 // 对应原始驱动 sub_140041094
 __int64 CmdKernelMemoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return KernelMemoryOperationDispatch(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)KernelMemoryOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdProcessMemoryOperation — 进程内存操作命令处理
 // 对应原始驱动 sub_140043FC0
 __int64 CmdProcessMemoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ProcessMemoryOperationDispatch(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ProcessMemoryOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessModules — 枚举进程模块命令处理
@@ -1100,7 +1100,7 @@ __int64 CmdKernelMemoryOpDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD
 
         ProbeForRead(pInputBuffer, 0x10u, 4u);
         pTargetPtr = (_QWORD *)*((_QWORD *)pInputBuffer + 1);
-        if (pTargetPtr > MmSystemRangeStart)
+        if ((ULONG64)pTargetPtr > (ULONG64)MmSystemRangeStart)
         {
             int CommandCode = *pInputBuffer;
             if (CommandCode > 6)
@@ -1138,7 +1138,7 @@ __int64 CmdProcessMemoryOpDispatch(__int64 InputBuffer, __int64 InputSize, _DWOR
 
         ProbeForRead(pInputBuffer, 0x10u, 4u);
         pTargetPointer = (_QWORD *)*((_QWORD *)pInputBuffer + 1);
-        if (pTargetPointer > MmSystemRangeStart)
+        if ((ULONG64)pTargetPointer > (ULONG64)MmSystemRangeStart)
         {
             switch (*pInputBuffer)
             {
@@ -1170,7 +1170,7 @@ __int64 CmdMemoryQueryOp(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutput
 
         ProbeForRead(pInputBuffer, 0x10u, 4u);
         pTargetPointer = pInputBuffer[1];
-        if (pTargetPointer > MmSystemRangeStart)
+        if ((ULONG64)pTargetPointer > (ULONG64)MmSystemRangeStart)
         {
             if (*(_DWORD *)pInputBuffer == 1)
                 return RemoveFromModuleLinkedList(pTargetPointer, 0);
@@ -1221,7 +1221,7 @@ __int64 CmdDriverProtectStatus(__int64 InputBuffer, __int64 InputSize, _DWORD *p
                     Result = 1;
                     WritePhysicalMemoryDword(
                         *pServiceTable + 4LL * *Address,
-                        *(_DWORD *)(*pServiceTable + 4LL * *Address) & 0xF | (16 * *((_QWORD *)Address + 18) - 16 * *pServiceTable));
+                        (ULONG)(*(_DWORD *)(*pServiceTable + 4LL * *Address) & 0xF | (16 * *((_QWORD *)Address + 18) - 16 * *pServiceTable)));
                 }
             }
             if (*((_BYTE *)Address + 161) == 1)
@@ -1232,7 +1232,7 @@ __int64 CmdDriverProtectStatus(__int64 InputBuffer, __int64 InputSize, _DWORD *p
                 if (DataBufferSize && DataBuffer)
                 {
                     __int64 DataOffset = Address[34];
-                    if ((int)DataOffset + 16 <= DataBufferSize)
+                    if ((int)DataOffset + 16 <= (int)DataBufferSize)
                     {
                         _OWORD PatchedData = *(_OWORD *)(DataOffset + DataBuffer);
                         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
@@ -1240,7 +1240,7 @@ __int64 CmdDriverProtectStatus(__int64 InputBuffer, __int64 InputSize, _DWORD *p
                             int HashTableIndex[3];
                             _OWORD JumpPatchData;
                             if (LookupDriverHashTable((__int64)(Address + 1), HashTableIndex) == 1
-                                && BuildJmpPatchStub(*((_QWORD *)Address + 18), DataBuffer + Address[34], (__int64)&JumpPatchData, 0x10u, HashTableIndex[0]) == 1)
+                                && BuildJmpPatchStub((int)*((_QWORD *)Address + 18), DataBuffer + Address[34], (__int64)&JumpPatchData, 0x10u, HashTableIndex[0]) == 1)
                             {
                                 PatchedData = JumpPatchData;
                             }
@@ -1273,8 +1273,8 @@ __int64 CmdDriverProtectOp(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
             if (Address[24] == 1)
                 WritePhysicalMemoryDword(
                     *(_QWORD *)(ServiceTable + 32) + 4LL * *(unsigned int *)Address,
-                    *(_DWORD *)(*(_QWORD *)(ServiceTable + 32) + 4LL * *(unsigned int *)Address) & 0xF
-                    | (16 * *((_QWORD *)Address + 1) - 16 * *(_QWORD *)(ServiceTable + 32)));
+                    (ULONG)(*(_DWORD *)(*(_QWORD *)(ServiceTable + 32) + 4LL * *(unsigned int *)Address) & 0xF
+                    | (16 * *((_QWORD *)Address + 1) - 16 * *(_QWORD *)(ServiceTable + 32))));
             if (Address[25] == 1)
             {
                 Result2 = 0;
@@ -1373,7 +1373,7 @@ __int64 CmdEnumProcessHandles(__int64 Address, int InputSize, _DWORD *OutputBuff
         SystemInfo = (unsigned int *)AllocExBufferAndQuerySystemInfo(0x10u);
         if (SystemInfo)
         {
-            *OutputBuffer = EnumProcessHandleInfo(&ProcessData, SystemInfo, OutputBuffer + 2, (OutputBufferSize - 8) / 0x250);
+            *OutputBuffer = (_DWORD)EnumProcessHandleInfo((_QWORD *)&ProcessData, SystemInfo, (_OWORD *)(OutputBuffer + 2), (OutputBufferSize - 8) / 0x250);
             ExFree(SystemInfo);
             Result = *OutputBuffer != 0;
         }
@@ -1472,41 +1472,41 @@ __int64 CmdEnumObjectAllTypes(__int64 OutputBuffer, __int64 OutputSize, char *Us
             DeviceCount = EnumDeviceObjects(UserBuffer, (unsigned int)MaxEntries);
             DevicePtr = &UserBuffer[2104 * DeviceCount];
             MaxEntries = MaxEntries - DeviceCount;
-            DriverObjectDevice = QueryDriverObjectDevice((__int64)DevicePtr, MaxEntries);
+            DriverObjectDevice = QueryDriverObjectDevice((__int64)DevicePtr, (int)MaxEntries);
             TotalCount = DriverObjectDevice + DeviceCount;
             DevicePtr2 = (__int64)&DevicePtr[2104 * DriverObjectDevice];
             MaxEntries = MaxEntries - DriverObjectDevice;
-            FileSystemDriverObject = QueryFileSystemDriverObject(DevicePtr2, MaxEntries);
+            FileSystemDriverObject = QueryFileSystemDriverObject(DevicePtr2, (int)MaxEntries);
             TotalCount2 = FileSystemDriverObject + TotalCount;
             DevicePtr3 = 2104LL * FileSystemDriverObject + DevicePtr2;
             MaxEntries = MaxEntries - FileSystemDriverObject;
-            FileSysCount = EnumFileSystemDeviceObjects(DevicePtr3, MaxEntries);
+            FileSysCount = EnumFileSystemDeviceObjects(DevicePtr3, (int)MaxEntries);
             TotalCount3 = FileSysCount + TotalCount2;
             DevicePtr4 = 2104LL * FileSysCount + DevicePtr3;
             MaxEntries = MaxEntries - FileSysCount;
-            KbdClassCount = BuildDriverPathKbdClass(DevicePtr4, MaxEntries);
+            KbdClassCount = BuildDriverPathKbdClass(DevicePtr4, (int)MaxEntries);
             TotalCount4 = KbdClassCount + TotalCount3;
             DevicePtr5 = 2104LL * KbdClassCount + DevicePtr4;
             MaxEntries = MaxEntries - KbdClassCount;
-            I8042prtCount = BuildDriverPathI8042prt(DevicePtr5, MaxEntries);
+            I8042prtCount = BuildDriverPathI8042prt(DevicePtr5, (int)MaxEntries);
             TotalCount5 = I8042prtCount + TotalCount4;
             DevicePtr6 = 2104LL * I8042prtCount + DevicePtr5;
-            RemainingCount = MaxEntries - I8042prtCount;
+            RemainingCount = (int)MaxEntries - (int)I8042prtCount;
             TcpipDriverObject = (unsigned int)QueryTcpipDriverObject(DevicePtr6, RemainingCount);
             if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
             {
                 DevicePtr7 = 2104 * TcpipDriverObject + DevicePtr6;
-                RemainingCount2 = RemainingCount - TcpipDriverObject;
+                RemainingCount2 = RemainingCount - (int)TcpipDriverObject;
                 VolmgrDriverObject = QueryVolmgrDriverObject(DevicePtr7, RemainingCount2);
-                TotalCount5 += VolmgrDriverObject + TcpipDriverObject;
+                TotalCount5 += (int)VolmgrDriverObject + (int)TcpipDriverObject;
                 DevicePtr6 = 2104LL * VolmgrDriverObject + DevicePtr7;
                 RemainingCount = RemainingCount2 - VolmgrDriverObject;
                 TcpipDriverObject = QueryTdxDriverObject(DevicePtr6, RemainingCount);
             }
             DevicePtr8 = 2104LL * (unsigned int)TcpipDriverObject + DevicePtr6;
-            RemainingCount3 = RemainingCount - TcpipDriverObject;
+            RemainingCount3 = RemainingCount - (int)TcpipDriverObject;
             MouClassCount = BuildDriverPathMouClass(DevicePtr8, RemainingCount3);
-            TotalCount6 = MouClassCount + TcpipDriverObject + TotalCount5;
+            TotalCount6 = (int)MouClassCount + (int)TcpipDriverObject + TotalCount5;
             DevicePtr9 = 2104LL * MouClassCount + DevicePtr8;
             RemainingCount4 = RemainingCount3 - MouClassCount;
             NdisDriverObject = QueryNdisDriverObject(DevicePtr9, RemainingCount4);
@@ -1525,63 +1525,63 @@ __int64 CmdEnumObjectAllTypes(__int64 OutputBuffer, __int64 OutputSize, char *Us
 // 对应原始驱动 sub_140009AD8
 __int64 CmdObjectOperationDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ObjectOperationDispatcher(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ObjectOperationDispatcher)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDeviceIoControlEx — 设备 IO 控制扩展命令处理
 // 对应原始驱动 sub_140074EF8
 __int64 CmdDeviceIoControlEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DeviceIoControlExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DeviceIoControlExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdFsctlOperation — 文件系统控制操作命令处理
 // 对应原始驱动 sub_140073DF4
 __int64 CmdFsctlOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return FileSystemControlOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)FileSystemControlOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadProcessMemoryStr — 读取进程内存字符串命令处理
 // 对应原始驱动 sub_140074418
 __int64 CmdReadProcessMemoryStr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadProcessMemoryString(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadProcessMemoryString)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdWriteProcessMemoryEx — 写入进程内存扩展命令处理
 // 对应原始驱动 sub_1400749A0
 __int64 CmdWriteProcessMemoryEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return WriteProcessMemoryExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)WriteProcessMemoryExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDeviceIoControlSimple — 简单设备 IO 控制命令处理
 // 对应原始驱动 sub_1400751D4
 __int64 CmdDeviceIoControlSimple(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DeviceIoControlSimpleOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DeviceIoControlSimpleOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDeviceIoControlWithBuffer — 带缓冲设备 IO 控制命令处理
 // 对应原始驱动 sub_1400753A4
 __int64 CmdDeviceIoControlWithBuffer(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DeviceIoControlWithBufferOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DeviceIoControlWithBufferOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDeviceIoControlWithString — 带字符串设备 IO 控制命令处理
 // 对应原始驱动 sub_14007562C
 __int64 CmdDeviceIoControlWithString(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DeviceIoControlWithStringOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DeviceIoControlWithStringOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdOpenSectionObject — 打开节区对象命令处理
 // 对应原始驱动 sub_140074128
 __int64 CmdOpenSectionObject(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return OpenSectionObjectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)OpenSectionObjectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCreateFile — 创建文件命令处理
@@ -1594,203 +1594,203 @@ __int64 CmdOpenSectionObject(__int64 InputBuffer, __int64 InputSize, _DWORD *pOu
 // 对应原始驱动 sub_14002D2EC
 __int64 CmdCreateFileWithPath(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CreateFileWithPathOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CreateFileWithPathOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCloseHandle — 关闭句柄命令处理
 // 对应原始驱动 sub_14002C430
 __int64 CmdCloseHandle(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CloseHandleOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CloseHandleOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdQueryFileInfo — 查询文件信息命令处理
 // 对应原始驱动 sub_14002D12C
 __int64 CmdQueryFileInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return QueryFileInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)QueryFileInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdOpenFileHandle — 打开文件句柄命令处理
 // 对应原始驱动 sub_14002D070
 __int64 CmdOpenFileHandle(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return OpenFileHandleOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)OpenFileHandleOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadFileSize — 读取文件大小命令处理
 // 对应原始驱动 sub_14002D858
 __int64 CmdReadFileSize(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadFileSizeOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadFileSizeOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdWriteFile — 写入文件命令处理
 // 对应原始驱动 sub_14002D418
 __int64 CmdWriteFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return WriteFileOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)WriteFileOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadFile — 读取文件命令处理
 // 对应原始驱动 sub_14002D8F0
 __int64 CmdReadFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadFileOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadFileOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadDirectory — 读取目录命令处理
 // 对应原始驱动 sub_14002CD7C
 __int64 CmdReadDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadDirectoryOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadDirectoryOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumDirectory — 枚举目录命令处理
 // 对应原始驱动 sub_14002C96C
 __int64 CmdEnumDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumDirectoryOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumDirectoryOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // EnableObjectCallback — 启用对象回调
 // 对应原始驱动 sub_1400819C4
 __int64 CmdEnableObjectCallback(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnableObjectCallbackOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnableObjectCallbackOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdRenameFile — 重命名文件命令处理
 // 对应原始驱动 sub_14002D52C
 __int64 CmdRenameFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return RenameFileOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)RenameFileOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCopyFile — 复制文件命令处理
 // 对应原始驱动 sub_14002C528
 __int64 CmdCopyFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CopyFileOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CopyFileOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdOpenFileForEnum — 打开文件供枚举命令处理
 // 对应原始驱动 sub_14002C840
 __int64 CmdOpenFileForEnum(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return OpenFileForEnumOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)OpenFileForEnumOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDeleteFile — 删除文件命令处理
 // 对应原始驱动 sub_14002CEDC
 __int64 CmdDeleteFile(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DeleteFileOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DeleteFileOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetFileAttributes — 设置文件属性命令处理
 // 对应原始驱动 sub_14002D6D8
 __int64 CmdSetFileAttributes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetFileAttributesOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetFileAttributesOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCheckFileExist — 检查文件存在命令处理
 // 对应原始驱动 sub_14002CC50
 __int64 CmdCheckFileExist(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CheckFileExistOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CheckFileExistOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // PowerCallbackUnregister — 注销电源回调
 // 对应原始驱动 sub_140081A34
 __int64 CmdPowerCallbackUnregister(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return PowerCallbackUnregisterOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)PowerCallbackUnregisterOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // ShutdownCallbackUnregister — 注销关机回调
 // 对应原始驱动 sub_140081A42
 __int64 CmdShutdownCallbackUnregister(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ShutdownCallbackUnregisterOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ShutdownCallbackUnregisterOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // PowerCallbackRoutine — 电源回调例程
 // 对应原始驱动 sub_140081A50
 __int64 CmdPowerCallbackRoutine(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return PowerCallbackRoutineOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)PowerCallbackRoutineOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // RegNotifyCallback — 注册表通知回调
 // 对应原始驱动 sub_140081A5E
 __int64 CmdRegNotifyCallback(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return RegNotifyCallbackOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)RegNotifyCallbackOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // DisableThreadProtect — 禁用线程保护
 // 对应原始驱动 sub_140081A6C
 __int64 CmdDisableThreadProtect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DisableThreadProtectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DisableThreadProtectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // EnableThreadProtect — 启用线程保护
 // 对应原始驱动 sub_140081A7A
 __int64 CmdEnableThreadProtect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnableThreadProtectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnableThreadProtectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdQuerySystemInfoEx — 查询系统信息扩展命令处理
 // 对应原始驱动 sub_14006EC24
 __int64 CmdQuerySystemInfoEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return QuerySystemInfoExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)QuerySystemInfoExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCallbackControl — 回调控制命令处理
 // 对应原始驱动 sub_140070190
 __int64 CmdCallbackControl(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CallbackControlOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CallbackControlOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadCpuMsr — 读取 CPU MSR 命令处理
 // 对应原始驱动 sub_14002A358
 __int64 CmdReadCpuMsr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadCpuMsrOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadCpuMsrOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadCpuId — 读取 CPU ID 命令处理
 // 对应原始驱动 sub_14002B304
 __int64 CmdReadCpuId(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadCpuIdOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadCpuIdOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadCpuBaseAddr — 读取 CPU 基地址命令处理
 // 对应原始驱动 sub_14002A45C
 __int64 CmdReadCpuBaseAddr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadCpuBaseAddrOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadCpuBaseAddrOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadCpuInfoEx — 读取 CPU 信息扩展命令处理
 // 对应原始驱动 sub_14002B36C
 __int64 CmdReadCpuInfoEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadCpuInfoExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadCpuInfoExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadCpuBaseAddrEx — 读取 CPU 基地址扩展命令处理
 // 对应原始驱动 sub_14002B944
 __int64 CmdReadCpuBaseAddrEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadCpuBaseAddrExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadCpuBaseAddrExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdStubAlwaysTrue — 固定返回 1 的桩函数
@@ -1804,21 +1804,21 @@ __int64 CmdStubAlwaysTrue(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutpu
 // 对应原始驱动 sub_14002B8DC
 __int64 CmdGetKernelBaseLegacy(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return GetKernelBaseLegacyOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)GetKernelBaseLegacyOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdQueryProcessNameByPid — 按 PID 查询进程名命令处理
 // 对应原始驱动 sub_140084E14
 __int64 CmdQueryProcessNameByPid(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return QueryProcessNameByPidOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)QueryProcessNameByPidOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumObjectDirectory — 枚举对象目录命令处理
 // 对应原始驱动 sub_140084618
 __int64 CmdEnumObjectDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectDirectoryOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectDirectoryOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCloseProcessHandle — 关闭进程句柄命令处理
@@ -1831,14 +1831,14 @@ __int64 CmdEnumObjectDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *p
 // 对应原始驱动 sub_1400543FC
 __int64 CmdTerminateProcessByEProcess(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return TerminateProcessByEProcessOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)TerminateProcessByEProcessOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdQueryObjectInfo — 查询对象信息命令处理
 // 对应原始驱动 sub_140083A84
 __int64 CmdQueryObjectInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return QueryObjectInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)QueryObjectInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumSyscallEntries — 枚举系统调用条目命令处理
@@ -1902,63 +1902,63 @@ __int64 CmdQueryObjectInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
 // 对应原始驱动 sub_1400331FC
 __int64 CmdCheckProcessHideDetect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CheckProcessHideDetectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CheckProcessHideDetectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdFixProcessEProcess — 修复进程 EPROCESS 命令处理
 // 对应原始驱动 sub_140033C68
 __int64 CmdFixProcessEProcess(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return FixProcessEProcessOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)FixProcessEProcessOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDiskReadSector — 磁盘读取扇区命令处理
 // 对应原始驱动 sub_14007B854
 __int64 CmdDiskReadSector(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DiskReadSectorOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DiskReadSectorOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDiskOperationDispatch — 磁盘操作分发
 // 对应原始驱动 sub_14007C980
 __int64 CmdDiskOperationDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DiskOperationDispatcher(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DiskOperationDispatcher)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdDiskSectorReadWrite — 磁盘扇区读写命令处理
 // 对应原始驱动 sub_14007B72C
 __int64 CmdDiskSectorReadWrite(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DiskSectorReadWriteOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DiskSectorReadWriteOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumObjectTypes — 枚举对象类型命令处理
 // 对应原始驱动 sub_14007EDC8
 __int64 CmdEnumObjectTypes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectTypeInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectTypeInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumKernelObjectTable — 枚举内核对象表命令处理
 // 对应原始驱动 sub_140029964
 __int64 CmdEnumKernelObjectTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumKernelObjectTableOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumKernelObjectTableOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdWriteKernelObjectField — 写入内核对象字段命令处理
 // 对应原始驱动 sub_140029C74
 __int64 CmdWriteKernelObjectField(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return WriteKernelObjectFieldOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)WriteKernelObjectFieldOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // ProcessCallbackRoutine — 进程回调例程
 // 对应原始驱动 sub_140081A88
 __int64 CmdProcessCallbackRoutine(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ProcessCallbackRoutine(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ProcessCallbackRoutine)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // InitProcessCallback — 初始化进程回调
@@ -1972,35 +1972,35 @@ __int64 CmdInitProcessCallback(__int64 InputBuffer, __int64 InputSize, _DWORD *p
 // 对应原始驱动 sub_140062ED8
 __int64 CmdEnumProcessListEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessListExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessListExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessListWin7 — Win7 枚举进程列表命令处理
 // 对应原始驱动 sub_14005A5E8
 __int64 CmdEnumProcessListWin7(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessListWin7Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessListWin7Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessListWin8 — Win8 枚举进程列表命令处理
 // 对应原始驱动 sub_14005C6B0
 __int64 CmdEnumProcessListWin8(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessListWin8Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessListWin8Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessListWin10 — Win10 枚举进程列表命令处理
 // 对应原始驱动 sub_14005E354
 __int64 CmdEnumProcessListWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessListWin10Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessListWin10Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumKernelHandleTable — 枚举内核句柄表命令处理
 // 对应原始驱动 sub_140067278
 __int64 CmdEnumKernelHandleTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumKernelHandleTableOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumKernelHandleTableOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdGetSsdtTableInfo — 获取 SSDT 表信息命令处理
@@ -2013,14 +2013,14 @@ __int64 CmdEnumKernelHandleTable(__int64 InputBuffer, __int64 InputSize, _DWORD 
 // 对应原始驱动 sub_14007EDC8
 __int64 CmdEnumObjectTypeInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectTypeInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectTypeInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdLookupObjectTypeByAddr — 按地址查找对象类型命令处理
 // 对应原始驱动 sub_14007ECCC
 __int64 CmdLookupObjectTypeByAddr(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return LookupObjectTypeByAddrOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)LookupObjectTypeByAddrOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdQuerySsdtDetails — 查询 SSDT 详情命令处理
@@ -2045,14 +2045,14 @@ __int64 CmdLookupObjectTypeByAddr(__int64 InputBuffer, __int64 InputSize, _DWORD
 // 对应原始驱动 sub_140071F6C
 __int64 CmdCopyKernelArrayToUserBuffer(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CopyKernelArrayToUserBufferOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CopyKernelArrayToUserBufferOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumKernelMemoryContext — 枚举内核内存上下文
 // 对应原始驱动 sub_140071FCC
 __int64 CmdEnumKernelMemoryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumKernelMemoryContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumKernelMemoryContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // InvokeRegisteredCallbackWithUserData — 调用注册的回调
@@ -2063,35 +2063,35 @@ __int64 CmdEnumKernelMemoryContext(__int64 InputBuffer, __int64 InputSize, _DWOR
 // 对应原始驱动 sub_1400720B0
 __int64 CmdCopyKernelDualArrayToUserBuffer(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CopyKernelDualArrayToUserBufferOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CopyKernelDualArrayToUserBufferOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadKernelMemoryToUserBuffer — 读取内核内存到用户缓冲区
 // 对应原始驱动 sub_1400721B0
 __int64 CmdReadKernelMemoryToUserBuffer(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadKernelMemoryToUserBufferOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadKernelMemoryToUserBufferOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdInitKernelMemoryContext — 初始化内核内存上下文命令处理
 // 对应原始驱动 sub_1400681DC
 __int64 CmdInitKernelMemoryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return InitKernelMemoryContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)InitKernelMemoryContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadKernelMemoryRange — 读取内核内存范围命令处理
 // 对应原始驱动 sub_14006BBB8
 __int64 CmdReadKernelMemoryRange(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadKernelMemoryRangeOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadKernelMemoryRangeOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadKernelMemoryRangeSize — 读取内核内存范围大小命令处理
 // 对应原始驱动 sub_14006BA98
 __int64 CmdReadKernelMemoryRangeSize(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadKernelMemoryRangeSizeOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadKernelMemoryRangeSizeOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdWriteKernelMemoryRange — 写入内核内存范围命令处理
@@ -2101,7 +2101,7 @@ __int64 CmdReadKernelMemoryRangeSize(__int64 InputBuffer, __int64 InputSize, _DW
 // 对应原始驱动 sub_14006B708
 __int64 CmdEnumKernelMemoryDetail(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumKernelMemoryDetailOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumKernelMemoryDetailOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCallKernelMemoryFunction — 调用内核内存函数命令处理
@@ -2111,21 +2111,21 @@ __int64 CmdEnumKernelMemoryDetail(__int64 InputBuffer, __int64 InputSize, _DWORD
 // 对应原始驱动 sub_14006AC54
 __int64 CmdEnumObjectTypeDirectory(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectTypeDirectoryOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectTypeDirectoryOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumObjectTypeTable — 枚举对象类型表命令处理
 // 对应原始驱动 sub_14006B0AC
 __int64 CmdEnumObjectTypeTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectTypeTableOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectTypeTableOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumObjectTypeDetail — 枚举对象类型详情命令处理
 // 对应原始驱动 sub_14006B49C
 __int64 CmdEnumObjectTypeDetail(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectTypeDetailOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectTypeDetailOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadSsdtEntryTable — 读取 SSDT 条目表命令处理
@@ -2147,343 +2147,343 @@ __int64 CmdEnumObjectTypeDetail(__int64 InputBuffer, __int64 InputSize, _DWORD *
 // 对应原始驱动 sub_140030268
 __int64 CmdReadMsrValue(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadMsrValueOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadMsrValueOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdWriteMsrValue — 写入 MSR 值命令处理
 // 对应原始驱动 sub_140030F8C
 __int64 CmdWriteMsrValue(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return WriteMsrValueOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)WriteMsrValueOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessorInfo — 枚举处理器信息命令处理
 // 对应原始驱动 sub_14002FDD4
 __int64 CmdEnumProcessorInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessorInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessorInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetProcessorField — 设置处理器字段命令处理
 // 对应原始驱动 sub_140030420
 __int64 CmdSetProcessorField(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetProcessorFieldOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetProcessorFieldOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // InitFileSystemCallback — 初始化文件系统回调
 // 对应原始驱动 sub_14000D704
 __int64 CmdInitFileSystemCallback(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return InitFileSystemCallbackOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)InitFileSystemCallbackOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // InitFileSystemFilter — 初始化文件系统过滤器
 // 对应原始驱动 sub_14000EB40
 __int64 CmdInitFileSystemFilter(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return InitFileSystemFilterOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)InitFileSystemFilterOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // FileSystemFilterCallback — 文件系统过滤回调
 // 对应原始驱动 sub_14000DAF0
 __int64 CmdFileSystemFilterCallback(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return FileSystemFilterCallbackOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)FileSystemFilterCallbackOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCallSystemRoutine — 调用系统例程命令处理
 // 对应原始驱动 sub_1400776D8
 __int64 CmdCallSystemRoutine(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CallSystemRoutineOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CallSystemRoutineOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdResetDriverState — 重置驱动状态命令处理
 // 对应原始驱动 sub_140077758
 __int64 CmdResetDriverState(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ResetDriverStateOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ResetDriverStateOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumHookInfo — 枚举钩子信息命令处理
 // 对应原始驱动 sub_140086AB0
 __int64 CmdEnumHookInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumHookInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumHookInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdCheckBytePattern — 检查字节模式命令处理
 // 对应原始驱动 sub_140086FD0
 __int64 CmdCheckBytePattern(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CheckBytePatternOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)CheckBytePatternOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdGetHookEntryInfo — 获取钩子条目信息命令处理
 // 对应原始驱动 sub_140086CD4
 __int64 CmdGetHookEntryInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return GetHookEntryInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)GetHookEntryInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdQueryHookStatus — 查询钩子状态命令处理
 // 对应原始驱动 sub_140087074
 __int64 CmdQueryHookStatus(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return QueryHookStatusOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)QueryHookStatusOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumHookDetail — 枚举钩子详情命令处理
 // 对应原始驱动 sub_140087DCC
 __int64 CmdEnumHookDetail(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumHookDetailOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumHookDetailOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // // CmdSetProcessContextWin8 — Win8 设置进程上下文命令处理
 // 对应原始驱动 sub_140039C48
 __int64 CmdSetProcessContextWin8(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetProcessContextWin8Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetProcessContextWin8Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadKernelBase — 读取内核基址命令处理
 // 对应原始驱动 sub_14002BA3C
 __int64 CmdReadKernelBase(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ReadKernelBaseOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ReadKernelBaseOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdClearKernelBase — 清除内核基址命令处理
 // 对应原始驱动 sub_14002BB1C
 __int64 CmdClearKernelBase(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ClearKernelBaseOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ClearKernelBaseOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumKernelModuleInfoEx — 枚举内核模块信息扩展命令处理
 // 对应原始驱动 sub_14002BE50
 __int64 CmdEnumKernelModuleInfoEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumKernelModuleInfoExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumKernelModuleInfoExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetKernelModuleInfo — 设置内核模块信息命令处理
 // 对应原始驱动 sub_14002BF90
 __int64 CmdSetKernelModuleInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetKernelModuleInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetKernelModuleInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessContextWin10 — Win10 枚举进程上下文命令处理
 // 对应原始驱动 sub_140032180
 __int64 CmdEnumProcessContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessContextWin10Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessContextWin10Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetProcessContextWin10 — Win10 设置进程上下文命令处理
 // 对应原始驱动 sub_140032480
 __int64 CmdSetProcessContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetProcessContextWin10Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetProcessContextWin10Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumRegistryContext — 枚举注册表上下文命令处理
 // 对应原始驱动 sub_1400460B8
 __int64 CmdEnumRegistryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumRegistryContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumRegistryContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetRegistryContext — 设置注册表上下文命令处理
 // 对应原始驱动 sub_14004630C
 __int64 CmdSetRegistryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetRegistryContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetRegistryContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumFileSystemContext — 枚举文件系统上下文命令处理
 // 对应原始驱动 sub_14003E71C
 __int64 CmdEnumFileSystemContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumFileSystemContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumFileSystemContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetFileSystemContext — 设置文件系统上下文命令处理
 // 对应原始驱动 sub_14003E970
 __int64 CmdSetFileSystemContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetFileSystemContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetFileSystemContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumUSBPortSyscallTable — 枚举 USB 端口系统调用表命令处理
 // 对应原始驱动 sub_140055A60
 __int64 CmdEnumUSBPortSyscallTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumUSBPortSyscallTableOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumUSBPortSyscallTableOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdInstallUSBPortSyscallHook — 安装 USB 端口系统调用钩子命令处理
 // 对应原始驱动 sub_140055CBC
 __int64 CmdInstallUSBPortSyscallHook(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return InstallUSBPortSyscallHookOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)InstallUSBPortSyscallHookOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumObjectContext — 枚举对象上下文命令处理
 // 对应原始驱动 sub_140037BD8
 __int64 CmdEnumObjectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetObjectContext — 设置对象上下文命令处理
 // 对应原始驱动 sub_140037E54
 __int64 CmdSetObjectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetObjectContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetObjectContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumProcessProtectContext — 枚举进程保护上下文命令处理
 // 对应原始驱动 sub_1400474D8
 __int64 CmdEnumProcessProtectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumProcessProtectContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumProcessProtectContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetProcessProtectContext — 设置进程保护上下文命令处理
 // 对应原始驱动 sub_140047734
 __int64 CmdSetProcessProtectContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetProcessProtectContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetProcessProtectContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumCallbackContext — 枚举回调上下文命令处理
 // 对应原始驱动 sub_14003602C
 __int64 CmdEnumCallbackContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumCallbackContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumCallbackContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetCallbackContext — 设置回调上下文命令处理
 // 对应原始驱动 sub_1400362C8
 __int64 CmdSetCallbackContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetCallbackContextOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetCallbackContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumThreadContextWin10 — Win10 枚举线程上下文命令处理
 // 对应原始驱动 sub_140057214
 __int64 CmdEnumThreadContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumThreadContextWin10Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumThreadContextWin10Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdSetThreadContextWin10 — Win10 设置线程上下文命令处理
 // 对应原始驱动 sub_140057470
 __int64 CmdSetThreadContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return SetThreadContextWin10Operation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)SetThreadContextWin10Operation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // DisableObjectProtect — 禁用对象保护
 // 对应原始驱动 sub_140081A6C
 __int64 CmdDisableObjectProtect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DisableObjectProtectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DisableObjectProtectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // EnableObjectProtect — 启用对象保护
 // 对应原始驱动 sub_140081A7A
 __int64 CmdEnableObjectProtect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnableObjectProtectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnableObjectProtectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // KernelNotifyRoutine — 内核通知例程
 // 对应原始驱动 sub_140081BA0
 __int64 CmdKernelNotifyRoutine(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return KernelNotifyRoutineOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)KernelNotifyRoutineOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // KernelNotifyRoutineEx — 内核通知例程扩展
 // 对应原始驱动 sub_140081C00
 __int64 CmdKernelNotifyRoutineEx(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return KernelNotifyRoutineExOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)KernelNotifyRoutineExOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdRestoreDriverDispatch — 恢复驱动分发命令处理
 // 对应原始驱动 sub_140081280
 __int64 CmdRestoreDriverDispatch(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return RestoreDriverDispatchOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)RestoreDriverDispatchOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumRegistry — 枚举注册表命令处理
 // 对应原始驱动 sub_14007E1E0
 __int64 CmdEnumRegistry(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumRegistryOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumRegistryOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdRegistryOperation — 注册表操作命令处理
 // 对应原始驱动 sub_14007EA14
 __int64 CmdRegistryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return RegistryOperationDispatch(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)RegistryOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdRegistryProtect — 注册表保护命令处理
 // 对应原始驱动 sub_14007E498
 __int64 CmdRegistryProtect(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return RegistryProtectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)RegistryProtectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumServices — 枚举服务命令处理
 // 对应原始驱动 sub_1400561BC
 __int64 CmdEnumServices(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumServicesOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumServicesOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumServiceTable — 枚举服务表命令处理
 // 对应原始驱动 sub_140055DEC
 __int64 CmdEnumServiceTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumServiceTableOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumServiceTableOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumObjects — 枚举对象命令处理
 // 对应原始驱动 sub_140036CF8
 __int64 CmdEnumObjects(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumObjectsOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumObjectsOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdObjectOperation — 对象操作命令处理
 // 对应原始驱动 sub_1400363F8
 __int64 CmdObjectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ObjectOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ObjectOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdEnumKernelInfo — 枚举内核信息命令处理
 // 对应原始驱动 sub_140088720
 __int64 CmdEnumKernelInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return EnumKernelInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)EnumKernelInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdQueryMemoryInfo — 查询内存信息命令处理
 // 对应原始驱动 sub_140084F34
 __int64 CmdQueryMemoryInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return QueryMemoryInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)QueryMemoryInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdReadProcessMemoryEx — 读取进程内存扩展命令处理
@@ -2493,7 +2493,7 @@ __int64 CmdQueryMemoryInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
 // 对应原始驱动 sub_140070F74
 __int64 CmdDeviceIoControl(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return DeviceIoControlOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)DeviceIoControlOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdVirtualMemoryOp — 虚拟内存操作命令处理
@@ -2509,14 +2509,14 @@ __int64 CmdDeviceIoControl(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
 // 对应原始驱动 sub_140057D40
 __int64 CmdQueryModuleInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return QueryModuleInfoOperation(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)QueryModuleInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // CmdModuleOperation — 模块操作命令处理
 // 对应原始驱动 sub_140058890
 __int64 CmdModuleOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ModuleOperationDispatch(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    return ((PCOMMAND_HANDLER)ModuleOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
 // MiniFilterStreamHandle — Minifilter 流句柄

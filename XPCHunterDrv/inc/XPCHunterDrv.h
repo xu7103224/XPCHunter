@@ -394,7 +394,7 @@ char DisableObjectProtectEx(_DWORD *OutputBuffer, unsigned int BufferSize);
 __int64 DisableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 char DisableProcessProtect(_OWORD *Address, int InputSize);
 char DisableThreadProtect(unsigned int *Address, int ContextSize);
-__int64 DiskOperationDispatcher(void);
+__int64 DiskOperationDispatcher(void *Address, unsigned int Length);
 __int64 DispatchFreeProcessMemory(char *VirtualAddress);
 __int64 __fastcall DispatchHookSwapByVersion(__int64 Handle, __int64 *OriginalValue);
 __int64 DispatchInstructionDecode( ULONG64 BufferPos, ULONG64 BufferEnd, ULONG64 TableEntry, ULONG64 DecodeCtx);
@@ -611,7 +611,7 @@ __int64 InitObjectAndQueryName(__int64 VirtualAddress, int Flags);
 char InitObjectCallback(__int64 UnusedParam, __int64 UnusedParam2, _DWORD *OutputBuffer, unsigned int OutputBufferSize);
 __int64 InitObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitObjectTypeTable(_QWORD InputName);
-void InitPESectionReadContext(PUCHAR Base, ULONG Size, INT Mode, LONG64 Param5, INT ExtraField, LONG64 Param6, LONG64 Param7, PUCHAR Context);
+void InitPESectionReadContext(__int64 Base, ULONG Size, INT Mode, LONG64 Param5, INT ExtraField, LONG64 Param6, LONG64 Param7, __int64 Context);
 
 __int64 InitPhysicalMemoryContextTable(int DeviceIndex, __int64 pOutputTable);
 char InitPowerCallback(__int64 InputBuffer, ULONG64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
@@ -727,7 +727,7 @@ NTSTATUS MiniFilterServerContext(void);
 NTSTATUS MiniFilterStreamHandle(void);
 char MiniFilterStreamHandleEx(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 StreamHandle, __int64 BaseOffset);
 __int64 ModuleOperation(__int64 *pInputBuffer, unsigned int InputSize);
-__int64 ModuleOperationDispatch(void *InputBuffer, int BufferSize);
+__int64 ModuleOperationDispatch(void *Address, unsigned int InputSize);
 void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
 void NormalizeRelativePath(WORD *Path);
 void NotifyVolumeDeviceChange(char EventType, __int64 DeviceObject);
@@ -767,7 +767,7 @@ char PrepareFileForPageTableScan(char *VirtualAddress, char Flags);
 char ProcessCallbackRoutine(__int64 Reserved, __int64 Reserved2, _DWORD *OutputBuffer, unsigned int BufferSize);
 __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize);
 __int64 ProcessOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 ProcessOperationWithAttach(void);
+__int64 ProcessOperationWithAttach(struct _KPROCESS *TargetProcess);
 char QueryDeviceObjectInfo(__int64 DeviceObject, __int64 *pDeviceInfo);
 char QueryDevicePathFromSymbolicLink(__int64 SymLink, void **pPathBuffer, _DWORD *pPathLength);
 __int64 QueryDiskFsControlInfo(__int16 *FilePath, __int64 Size, char **OutBuffer, __int64 *OutBufferSize);
@@ -822,7 +822,7 @@ char ReadProcessMemoryBlock(PRKPROCESS PROCESS, void *Dst, size_t Size);
 __int64 ReadProcessMemoryString(void *Process, void *Address, char *Buffer, unsigned int Length);
 __int64 ReadKernelMemoryViaSwap(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize);
 __int64 ReadKernelMemoryViaSwapEx(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize);
-__int64 ReadProcessMemoryWithAttach(void);
+__int64 ReadProcessMemoryWithAttach(__int64 ProcessHandle);
 __int64 ReadServiceTableEntries(__int64 OutputBuffer, __int64 UnusedParam, char *PeFileData, unsigned int PeFileSize);
 char ReadSystemDriverFile(_QWORD *OutBuffer, unsigned int *OutSize);
 unsigned __int64 ReadDebugRegisters(unsigned __int64 *pDebugRegisters);
@@ -981,7 +981,7 @@ char CheckBootSectorErrors(__int64, unsigned int);
 __int64 __fastcall ProcessDiskSectorData(__int64 ObjectHandle, __int64 arg2, __int64 arg3, unsigned int arg4);
 
 // 进程枚举与对象类型验证
-char EnumerateProcessList(__int64 Process, __int64 Buffer, unsigned int BufferSize);
+bool EnumerateProcessList(struct _KPROCESS *Process, __int64 OutputBuffer, unsigned int BufferSize);
 _QWORD *ValidateObjectTypeList(_QWORD *TypeEntryCheck);
 
 // 系统信息查询辅助
@@ -1234,3 +1234,108 @@ void ParseNtExportSectionsV4(void);
 __int64 ParseNtExportSectionsV2(void);
 __int64 ParseNtExportSectionsWin10(void);
 void ReadIdtr(void *pIdtr);
+
+// ============================================================
+// 跨文件函数声明（消除 C4013 未声明警告）
+// ============================================================
+void *AllocProcessInfoBuffer(void);
+void BuildCallbackContextHookTargets(void);
+_WORD *BuildDriversPath(void);
+__int64 BuildFsFilterDriverPath1();
+__int64 BuildFsFilterDriverPath2();
+void BuildSsdtHookTargets2(void);
+void BuildSsdtHookTargets3(void);
+void BuildSsdtHookTargets4(void);
+_WORD *BuildSystem32Path(void);
+bool CallRegisteredCallback(__int64 Address);
+__int64 CheckProcessAccess(void);
+LONG CleanupMiniFilter(void);
+bool CompareInt16Equal(__int16 Value1, __int16 Value2);
+char DispatchProcessHandleTableEnum(
+    __int64 OutputBuffer, unsigned int BufferSize,
+    void (__fastcall *Callback)(__int64, __int64, ULONG64, __int64),
+    __int64 Context);
+__int64 EnumFileSystemCallbackEntries(void);
+bool EnumProcessInformationWorker(char *InputBuffer, __int64 OutputBuffer, unsigned int BufferSize);
+char EnumProcessPeExportData();
+char EnumProcessPeExportDataByIndex();
+char EnumProcessPeExportDataEx();
+__int64 (__fastcall *__fastcall EnumerateDriverObjectsEx(unsigned int *pOutputBuffer, unsigned int OutputSize))(_QWORD);
+__int64 EnumerateKernelModules(unsigned int *pOutputBuffer, unsigned int OutputSize);
+char EnumerateProcessCallbackContext(void);
+char FillExportEntrySlot(__int64 pOutputTable);
+char FindPatchThreadWindowsExport(__int64 FileBuffer, unsigned int FileSize);
+__int64 FindPeSectionByType0x510(__int64 FileBuffer, int FileSize, int BaseAddress, unsigned int MaxSize);
+char FindSsdtServiceTableV1(void);
+char FindSsdtServiceTableV2(void);
+char FindSsdtServiceTableV3(void);
+__int64 FindSystemRootEntry(_DWORD *ThreadInfoTable);
+bool GetDeviceObjectFromFileObject(ULONG64 FileObject, ULONG64 *pDeviceObject, ULONG64 *pFileDeviceObject);
+_QWORD *GetDiskDriverSection(void);
+unsigned __int64 GetKernelVirtualAddressRange(__int64 DriverObject, unsigned __int64 *pStartAddress, unsigned __int64 *pEndAddress);
+__int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset);
+__int16 HookSyscallNtRenameKey(__int64 TargetAddress, unsigned int Flags, __int64 Context, unsigned __int64 MaxOffset);
+__int64 InitCallbackFunctions(void);
+char InitDiskQueryExportTable(void);
+void InitKernelDataSectionTable(void);
+char InitKernelObjectHeader(char *VirtualAddress);
+_QWORD *InitKernelRoutineTable(void);
+char InitObjectCallbackFiles(int ObjectName);
+WORD *InitSystemPath(void);
+void InitTdiExportAndRelocTable(void);
+__int64 MiniFilterTeardownRoutine(void *NameBuffer, size_t BufferSize, char IsAddOperation);
+__int64 OpenDeviceObjectForEnum(__int64 DeviceContext);
+bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int TargetSize, _OWORD *pRelocOffsets);
+char ParseStorPortExportDir(void);
+char ParseSyscallTableExportDir(void);
+bool QueryFileInfoByHandle(__int64 Process, __int64 FileHandle, __int64 InfoBuffer);
+__int64 QueryObjectTypeDirectoryPath(void);
+char QueryProcessModuleFilePath(__int64 Process, __int64 ModuleBase, _WORD *pOutputBuffer, int BufferSize);
+char ReadModifyWriteDiskSector(int UseProcessDiskData, unsigned int SectorIndex);
+ULONG64 ReadMsr(ULONG MsrIndex);
+char ReadNtFileForProcessContext(_QWORD *OutBuffer, unsigned int *OutSize);
+char __fastcall ReadRawFileToBuffer(_QWORD *pFileBuffer, unsigned int *pFileSize);
+__int64 ReadWriteKernelMemory(void);
+UCHAR ReferenceObjectSafe(__int64 Object);
+char RemoveDeviceObject(__int64 DriverObject);
+char RemoveHarddiskVolume1Device(__int64 DriverObject);
+char RemovePnpManagerDriverObject(__int64 DriverObject);
+char RemoveTdxDriverObject(__int64 DriverObject);
+__int64 ResolveContextMemoryBlocks(__int64 pContextTable, unsigned int EntryCount);
+__int64 ResolvePESectionOffset(void);
+char ResolveSyscallNumbers(void);
+ULONG64 RotateLeft64Impl(ULONG64 Value, int Count);
+char ScanKernelPeExportData();
+char ScanKernelPeExportSection();
+bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char UsePESection);
+__int64 ScanProcessPESectionsV2(void);
+bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize);
+void Sha1FinalTransform(PSHA1_CONTEXT Context, __int64 DigestOut);
+void Sha1InitContext(PSHA1_CONTEXT Context);
+void Sha1Update(PSHA1_CONTEXT Context, PUCHAR Input, ULONG Length);
+char ValidateProcessContext(unsigned int *OutputBuffer, unsigned int BufferSize);
+bool ValidateProcessObjectBasic(char *VirtualAddress);
+char ValidateSsdtHookTargetTable(__int64 pTargetTable);
+char ValidateSsdtHookTargetTable2(__int64 pTargetTable);
+char __fastcall ValidateWin32kBaseDriverImage(__int64 DiskBuffer, unsigned int DiskSize);
+_WORD *WStringConcat(_WORD *Dest, __int16 *Src, unsigned int MaxLen);
+__int16 *WStringFindChar(__int16 *String, __int16 Char);
+_WORD *WStringFindLastChar(_WORD *String, __int16 Char);
+char WriteDiskSectorsWithMbr(int UseProcessDiskData, unsigned int SectorOffset);
+
+// 未文档化 NT 内核 API（不存在于 WDK 头文件）
+NTSTATUS ObCreateObject(
+    KPROCESSOR_MODE PreviousMode,
+    POBJECT_TYPE ObjectType,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    KPROCESSOR_MODE ObjectMode,
+    ULONG Attributes,
+    ULONG ObjectSize,
+    PVOID PagedPoolQuota,
+    PVOID NonPagedPoolQuota,
+    PVOID *Object);
+NTSTATUS SeCreateAccessState(
+    PACCESS_STATE AccessState,
+    PACCESS_STATE PreviousState,
+    ACCESS_MASK DesiredAccess,
+    PGENERIC_MAPPING GenericMapping);

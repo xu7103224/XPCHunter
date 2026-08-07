@@ -30,13 +30,20 @@ typedef struct _MD5_CONTEXT {
 } MD5_CONTEXT, *PMD5_CONTEXT;
 
 // ============================================================
+// SHA1 上下文
+// ============================================================
+typedef struct _SHA1_CONTEXT {
+    ULONG State[5];                 // 0x00: 状态 (A,B,C,D,E)
+    ULONG Count[2];                 // 0x14: 位计数
+    UCHAR Buffer[64];               // 0x1C: 数据缓冲区
+} SHA1_CONTEXT, *PSHA1_CONTEXT;
+
+// ============================================================
 // 回调函数类型定义
 // ============================================================
-typedef
-NTSTATUS
-(*PCOMMAND_HANDLER)(
-    ULONG64 Param1,
-    ULONG Param2,
-    ULONG64 Param3,
-    ULONG Param4
+typedef __int64 (*PCOMMAND_HANDLER)(
+    __int64 InputBuffer,
+    __int64 InputSize,
+    _DWORD *pOutputBuffer,
+    int OutputSize
     );

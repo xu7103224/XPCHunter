@@ -544,7 +544,6 @@ __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, 
     char Success;
     __int64 (*GetProcessNameFunc)(PEPROCESS);
     __int64 StartAddr;
-    int Status;
     PEPROCESS Process;
     void *ImagePath;
     int ThreadIndex;
@@ -947,7 +946,6 @@ ULONG64 EnumerateThreadListEntries(
     unsigned int ThreadEntry;
     unsigned int *ThreadId;
     __int64 ThreadIdValue;
-    unsigned int EntrySizeTemp;
     ULONG64 Field13;
     _OWORD Field14;
     __int64 Field15;
@@ -1513,7 +1511,6 @@ void EnumerateVadIterativeV2(_QWORD *VirtualAddress, __int64 Buffer, int BufferE
     if (!VirtualAddress)
         return;
 
-    _QWORD *Stack[0x12C];
     int StackDepth = -1;
     _QWORD *CurrentNode = VirtualAddress;
     int Depth = -1;
@@ -1600,7 +1597,6 @@ void EnumerateVadIterativeV3(_QWORD *VirtualAddress, __int64 Buffer, int BufferE
     if (!VirtualAddress)
         return;
 
-    _QWORD *Stack[0x12C];
     int StackDepth = -1;
     _QWORD *CurrentNode = VirtualAddress;
     int Depth = -1;
@@ -1687,7 +1683,6 @@ void EnumerateVadIterativeV4(_QWORD *VirtualAddress, __int64 Buffer, int BufferE
     if (!VirtualAddress)
         return;
 
-    _QWORD *Stack[0x12C];
     int StackDepth = -1;
     _QWORD *CurrentNode = VirtualAddress;
     int Depth = -1;
@@ -1772,7 +1767,6 @@ void EnumerateFileMappingSectionIterativeV1(_QWORD *VirtualAddress, __int64 Buff
     if (!VirtualAddress)
         return;
 
-    _QWORD *Stack[0x12C];
     int StackDepth = -1;
     _QWORD *CurrentNode = VirtualAddress;
     int Depth = -1;
@@ -1857,7 +1851,6 @@ void EnumerateVadIterativeV1(_QWORD *VirtualAddress, __int64 Buffer, int MaxSize
     if (!VirtualAddress)
         return;
 
-    _QWORD *Stack[0x12C];
     int StackDepth = -1;
     _QWORD *CurrentNode = VirtualAddress;
     int Depth = -1;

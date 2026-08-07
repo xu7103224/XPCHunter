@@ -45,9 +45,9 @@ extern unsigned int QueryNdisDriverObject(__int64 OutputBuffer, unsigned int Max
 extern unsigned int QueryPnpManagerDriverObject(__int64 OutputBuffer, unsigned int MaxEntries);
 extern void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
 extern char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
-extern __int64 ResolveKernelModuleBasePair(__int64 Address, __int64 Size, _QWORD *pResult, __int64 Flags);
+extern __int64 ResolveKernelModuleBasePair(__int64 CpuNumber, ULONG_PTR *pMsrPair);
 extern char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
-extern __int64 ValidateAndClearProcessContext(__int64 Process, __int64 Flags, __int64 Context, __int64 Result);
+extern __int64 ValidateAndClearProcessContext(int CurrentProcessor, __int64 pContext);
 extern void ValidateObjectTypeEntries(__int64 OutputBuffer);
 extern void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize);
 
@@ -101,14 +101,14 @@ __int64 DeviceIoControlOperation(char *pInputBuffer, int InputSize, unsigned int
 __int64 DeviceIoControlSimpleOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithBufferOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithStringOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 DisableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 DisableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DisableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskReadSectorOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskSectorReadWriteOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 EnableObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 EnableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 EnableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
+__int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _WORD *pOutputBuffer, int OutputSize);
 __int64 EnumDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 EnumFileSystemContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
 __int64 EnumHookDetailOperation(char *pInputBuffer, int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
@@ -149,7 +149,7 @@ __int64 GetKernelBaseLegacyOperation(__int64 InputBuffer, __int64 InputSize, _DW
 __int64 InitFileSystemCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitFileSystemFilterOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitKernelMemoryContextOperation(void);
-__int64 InitObjectCallbackOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 InitObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InstallUSBPortSyscallHookOperation(char *Address, int InputSize);
 __int64 KernelNotifyRoutineOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 KernelNotifyRoutineExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
@@ -255,7 +255,7 @@ __int64 ResolveKernelModuleIndexAddress(int ModuleId, int GtIndex)
     {
         if (ModuleIndex > 1 && ModuleIndex < MaxSectionOffset)
         {
-            SyscallAddr = ResolveSyscallToAddress(ModuleIndex);
+            SyscallAddr = (unsigned int)ResolveSyscallToAddress(ModuleIndex);
             if (SyscallAddr && SyscallAddr < ImageSize)
             {
                 FinalAddr = SyscallAddr;
@@ -294,7 +294,7 @@ char CmdEnumFileSystemCallback()
     if (BuildNumber == 2600 ||
         BuildNumber == 3790)
     {
-        return EnumFileSystemCallbackEntries();
+        return (char)EnumFileSystemCallbackEntries();
     }
 
     if (BuildNumber >= 0x1770 &&
@@ -355,7 +355,7 @@ __int64 CmdSetModuleInfoInternal(__int64 InputBuffer)
     ((void (__fastcall *)(UNICODE_STRING *, _WORD *))RtlInitUnicodeString)(&ObjAttr, DevicePath);
 
     // 调用 CreateFile 打开设备，返回设备句柄和节句柄
-    Status = ((__int64 (__fastcall *)(UNICODE_STRING *, ULONG, HANDLE *, HANDLE *))CreateFileFunc)(
+    Status = (int)((__int64 (__fastcall *)(UNICODE_STRING *, ULONG, HANDLE *, HANDLE *))CreateFileFunc)(
         &ObjAttr, 0x1F0000, &DeviceHandle, &SectionHandle);
 
     if (Status >= 0)
@@ -364,7 +364,7 @@ __int64 CmdSetModuleInfoInternal(__int64 InputBuffer)
 
         // 调用 IrpFsControlFunc 创建 IRP（返回 IRP 指针，非 NTSTATUS）
         Irp = ((__int64 (__fastcall *)(ULONG, PVOID, HANDLE, ULONG, ULONG, UCHAR, PKEVENT, PIO_STATUS_BLOCK))IrpFsControlFunc)(
-            0x128030, InputBuffer, SectionHandle, 0x10, 0, 0, &EventObj, &IoStatusBlock);
+            0x128030, (PVOID)InputBuffer, SectionHandle, 0x10, 0, 0, &EventObj, &IoStatusBlock);
 
         if (Irp)
         {
@@ -374,7 +374,7 @@ __int64 CmdSetModuleInfoInternal(__int64 InputBuffer)
             if (IoctlResult == 0x103) // STATUS_PENDING
             {
                 // 等待事件完成
-                Status = ((__int64 (__fastcall *)(PKEVENT, ULONG, ULONG, ULONG, ULONG))KeWaitForSingleObjectFunc)(
+                Status = (int)((__int64 (__fastcall *)(PKEVENT, ULONG, ULONG, ULONG, ULONG))KeWaitForSingleObjectFunc)(
                     &EventObj, 0, 0, 0, 0);
                 if (Status >= 0)
                     IoctlResult = IoStatusBlock.Status;
@@ -444,8 +444,8 @@ __int64 IoPortOperationDispatch(void *InputBuffer, int BufferSize)
                     memset(pIoPortContext, 0, 0x3800u);
                     ProbeForWrite(InputBuffer, OutBufferSize, 1u);
                     *(unsigned int *)InputBuffer = 0;
-                    IoPortContext[0] = pContextBuffer;
-                    IoPortContext[1] = InputBuffer;
+                    IoPortContext[0] = (_QWORD)pContextBuffer;
+                    IoPortContext[1] = (_QWORD)InputBuffer;
                     ForEachProcessor((__int64 (*)(__int64, __int64))ReadIoPortDataForProcess, (__int64)IoPortContext);
                     Result = *(unsigned int *)InputBuffer != 0;
                     ExFree(pContextBuffer);
@@ -502,7 +502,7 @@ int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, voi
         ObfDereferenceObject(Object);
         return (unsigned int)Status;
     }
-    Status = IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)Timeout, 0, &BufferMdl);
+    Status = (int)IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)Timeout, 0, (_DWORD *)&BufferMdl);
     if (Status < 0)
     {
         IoFreeIrp(Irp);
@@ -513,7 +513,7 @@ int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, voi
     CurrentStackLocation = Irp->Tail.Overlay.CurrentStackLocation;
     CurrentStackLocation[-1].Control = -32;
     CurrentStackLocation[-1].CompletionRoutine = (PIO_COMPLETION_ROUTINE)IrpReadCompletionRoutine;
-    CurrentStackLocation[-1].Context = (PVOID)(unsigned int)BufferMdl;
+    CurrentStackLocation[-1].Context = (PVOID)(ULONG_PTR)(unsigned int)BufferMdl;
     Irp->Flags |= 0x200u;
     Irp->RequestorMode = 0;
     Irp->UserIosb = IoStatusBlock;
@@ -528,10 +528,10 @@ int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, voi
     StackLocation[-1].Parameters.Read.Length = Length;
     StackLocation[-1].FileObject = FileObjectPtr;
     StackLocation[-1].Parameters.Read.ByteOffset = *ByteOffset;
-    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, 4u, &BufferArray, &pCallDriver);
+    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, 4u, &BufferArray, (_QWORD *)&pCallDriver);
     VolumeChangeLock = AcquireVolumeChangeLock(DeviceObjectCopy);
     DiskFunctionState = SwapDiskIrpFunctionPointer();
-    CallResult = AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
+    CallResult = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
     ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObjectCopy, 4u, &BufferArray);
     if (CallResult == 259)
         KeWaitForSingleObject(&Event, Executive, 0, 0, 0);
@@ -641,7 +641,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
 
     OutputSize = BufferSize;
-    IsWin7 = GtRead(GtEprocessField28);
+    IsWin7 = (int)GtRead(GtEprocessField28);
     pSsdt1Table = (__int64 *)GtRead(GtEprocessField80);
     if (!pSsdt1Table)
     {
@@ -727,13 +727,13 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
     {
         ProbeForWrite(InputBuffer, OutputSize, 1u);
         memset(InputBuffer, 0, OutputSize);
-        RemainingSize = OutputSize - 40;
+        RemainingSize = (unsigned int)(OutputSize - 40);
         if ((unsigned int)(OutputSize - 40) >= 0x28)
         {
             pOutput = (_DWORD *)InputBuffer;
             *(_DWORD *)InputBuffer = 1;
             *((_DWORD *)InputBuffer + 4) = 0;
-            RemainingSize = OutputSize - 64;
+            RemainingSize = (unsigned int)(OutputSize - 64);
             pOutput += 6;
             if (pSsdt1Table && Ssdt1End)
             {
@@ -856,7 +856,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                             pEntry = *(_QWORD **)pCallbackListSaved;
                             while (pEntry != (_QWORD *)pListStart)
                             {
-                                if (pEntry <= MmSystemRangeStart)
+                                if ((const PVOID)pEntry <= MmSystemRangeStart)
                                     break;
                                 if ((unsigned int)++EntryCount > 0x10000
                                     || MmIsAddressValid(pEntry) != 1
@@ -868,7 +868,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                 {
                                     RemainingSize4 -= 16;
                                     pOutput7 += 4;
-                                    *(_QWORD *)&pOutput6[4 * pOutput6[4] + 6] = pEntry;
+                                    *(_QWORD *)&pOutput6[4 * pOutput6[4] + 6] = (_QWORD)pEntry;
                                     *(_QWORD *)&pOutput6[4 * pOutput6[4]++ + 8] = pEntry[5];
                                 }
                                 pEntry = (_QWORD *)*pEntry;
@@ -892,7 +892,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                 pEnumList = (_QWORD *)*pEnumList;
                                 if (pEnumList == pEnumListSaved5)
                                     break;
-                                if (pEnumList <= MmSystemRangeStart)
+                                if ((const PVOID)pEnumList <= MmSystemRangeStart)
                                     break;
                                 if (MmIsAddressValid(pEnumList) != 1)
                                     break;
@@ -902,7 +902,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                 {
                                     RemainingSize5 -= 16;
                                     pOutput9 += 4;
-                                    *(_QWORD *)&pOutput8[4 * pOutput8[4] + 6] = pEnumList;
+                                    *(_QWORD *)&pOutput8[4 * pOutput8[4] + 6] = (_QWORD)pEnumList;
                                     *(_QWORD *)&pOutput8[4 * pOutput8[4]++ + 8] = pEnumList[2];
                                 }
                             }
@@ -923,7 +923,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                     pEnumList2 = (_QWORD *)*pEnumList2;
                                     if (pEnumList2 == pEnumListSaved4)
                                         break;
-                                    if (pEnumList2 <= MmSystemRangeStart)
+                                    if ((const PVOID)pEnumList2 <= MmSystemRangeStart)
                                         break;
                                     if (MmIsAddressValid(pEnumList2) != 1)
                                         break;
@@ -933,7 +933,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                     {
                                         RemainingSize6 -= 16;
                                         pOutput11 += 4;
-                                        *(_QWORD *)&pOutput10[4 * pOutput10[4] + 6] = pEnumList2;
+                                        *(_QWORD *)&pOutput10[4 * pOutput10[4] + 6] = (_QWORD)pEnumList2;
                                         *(_QWORD *)&pOutput10[4 * pOutput10[4]++ + 8] = pEnumList2[2];
                                     }
                                 }
@@ -952,7 +952,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                             pEnumList3 = (_QWORD *)*pEnumList3;
                                             if (pEnumList3 == pOldEnumList)
                                                 break;
-                                            if (pEnumList3 <= MmSystemRangeStart)
+                                            if ((const PVOID)pEnumList3 <= MmSystemRangeStart)
                                                 break;
                                             if (MmIsAddressValid(pEnumList3) != 1)
                                                 break;
@@ -962,7 +962,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                             {
                                                 RemainingSize6 -= 16;
                                                 pOutput11 += 4;
-                                                *(_QWORD *)&pOutput10[4 * pOutput10[4] + 6] = pEnumList3;
+                                                *(_QWORD *)&pOutput10[4 * pOutput10[4] + 6] = (_QWORD)pEnumList3;
                                                 *(_QWORD *)&pOutput10[4 * pOutput10[4]++ + 8] = pEnumList3[2];
                                             }
                                         }
@@ -985,7 +985,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                         pEnumList4 = (_QWORD *)*pEnumList4;
                                         if (!pEnumList4)
                                             break;
-                                        if (pEnumList4 <= MmSystemRangeStart)
+                                        if ((const PVOID)pEnumList4 <= MmSystemRangeStart)
                                             break;
                                         if (MmIsAddressValid(pEnumList4) != 1)
                                             break;
@@ -995,7 +995,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                         {
                                             RemainingSize7 -= 16;
                                             pOutput13 += 4;
-                                            *(_QWORD *)&pOutput12[4 * pOutput12[4] + 6] = pEnumList4;
+                                            *(_QWORD *)&pOutput12[4 * pOutput12[4] + 6] = (_QWORD)pEnumList4;
                                             *(_QWORD *)&pOutput12[4 * pOutput12[4]++ + 8] = pEnumList4[1];
                                         }
                                     }
@@ -1041,7 +1041,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                 pEnumList5 = (_QWORD *)*pEnumList5;
                                                 if (pEnumList5 == pEnumList1)
                                                     break;
-                                                if (pEnumList5 <= MmSystemRangeStart)
+                                                if ((const PVOID)pEnumList5 <= MmSystemRangeStart)
                                                     break;
                                                 if (MmIsAddressValid(pEnumList5) != 1)
                                                     break;
@@ -1052,7 +1052,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                 {
                                                     RemainingSize9 -= 16;
                                                     pOutput18 += 4;
-                                                    *(_QWORD *)&pOutput17[4 * pOutput17[4] + 6] = pEprocess;
+                                                    *(_QWORD *)&pOutput17[4 * pOutput17[4] + 6] = (_QWORD)pEprocess;
                                                     *(_QWORD *)&pOutput17[4 * pOutput17[4]++ + 8] = GetProcessDeviceMap(pEprocess);
                                                 }
                                             }
@@ -1073,7 +1073,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                     pEnumList6 = (_QWORD *)*pEnumList6;
                                                     if (pEnumList6 == pEnumListSaved2)
                                                         break;
-                                                    if (pEnumList6 <= MmSystemRangeStart)
+                                                    if ((const PVOID)pEnumList6 <= MmSystemRangeStart)
                                                         break;
                                                     if (MmIsAddressValid(pEnumList6) != 1)
                                                         break;
@@ -1084,7 +1084,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                     {
                                                         RemainingSize10 -= 16;
                                                         pOutput20 += 4;
-                                                        *(_QWORD *)&pOutput19[4 * pOutput19[4] + 6] = pEprocess2;
+                                                        *(_QWORD *)&pOutput19[4 * pOutput19[4] + 6] = (_QWORD)pEprocess2;
                                                         *(_QWORD *)&pOutput19[4 * pOutput19[4]++ + 8] = GetProcessDeviceMap(pEprocess2);
                                                     }
                                                 }
@@ -1105,7 +1105,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                         SubEntryCount = 0;
                                                         for (i = *(_QWORD **)pProcessEntry; i != (_QWORD *)pProcessEntry; i = (_QWORD *)*i)
                                                         {
-                                                            if (i <= MmSystemRangeStart)
+                                                            if ((const PVOID)i <= MmSystemRangeStart)
                                                                 break;
                                                             if (MmIsAddressValid(i) != 1)
                                                                 break;
@@ -1116,7 +1116,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                             {
                                                                 RemainingSize11 -= 16;
                                                                 pOutput21 += 4;
-                                                                *(_QWORD *)&pOutputSaved[4 * pOutputSaved[4] + 6] = i;
+                                                                *(_QWORD *)&pOutputSaved[4 * pOutputSaved[4] + 6] = (_QWORD)i;
                                                                 *(_QWORD *)&pOutputSaved[4 * pOutputSaved[4]++ + 8] = DeviceMap;
                                                             }
                                                         }
@@ -1141,7 +1141,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                                 pEnumList7 = (_QWORD *)*pEnumList7;
                                                                 if (pEnumList7 == pEnumListSaved3)
                                                                     break;
-                                                                if (pEnumList7 <= MmSystemRangeStart)
+                                                                if ((const PVOID)pEnumList7 <= MmSystemRangeStart)
                                                                     break;
                                                                 if (MmIsAddressValid(pEnumList7) != 1)
                                                                     break;
@@ -1152,7 +1152,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                                 {
                                                                     RemainingSize12 -= 16;
                                                                     pOutput23 += 4;
-                                                                    *(_QWORD *)&pOutput22[4 * pOutput22[4] + 6] = pEnumList7;
+                                                                    *(_QWORD *)&pOutput22[4 * pOutput22[4] + 6] = (_QWORD)pEnumList7;
                                                                     *(_QWORD *)&pOutput22[4 * pOutput22[4]++ + 8] = FileSystemEntry;
                                                                 }
                                                             }
@@ -1393,13 +1393,13 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
     {
         ProbeForWrite(InputBuffer, RemainingSize, 1u);
         memset(InputBuffer, 0, RemainingSize);
-        RemainingSize2 = RemainingSize - 40;
+        RemainingSize2 = (unsigned int)(RemainingSize - 40);
         if ((unsigned int)(RemainingSize - 40) >= 0x28)
         {
             pType1Header = (_DWORD *)InputBuffer;
             *(_DWORD *)InputBuffer = 1;
             *((_DWORD *)InputBuffer + 4) = 0;
-            RemainingSize2 = RemainingSize - 64;
+            RemainingSize2 = (unsigned int)(RemainingSize - 64);
             InputBuffer = (_DWORD *)InputBuffer + 6;
             if (pModuleBaseTable)
             {
@@ -1438,7 +1438,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                 Type2Count = 0;
                 for (i = (_QWORD *)*pType2ListHead; i != pType2ListHead; i = (_QWORD *)*i)
                 {
-                    if (i <= MmSystemRangeStart)
+                    if ((const PVOID)i <= MmSystemRangeStart)
                         break;
                     if ((unsigned int)++Type2Count > 0x10000 || MmIsAddressValid(i) != 1 || MmIsAddressValid((char *)i + 71) != 1)
                         break;
@@ -1446,7 +1446,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                     {
                         RemainingSize3 -= 16;
                         pType2Entry += 4;
-                        *(_QWORD *)&pType2Header[4 * pType2Header[4] + 6] = i;
+                        *(_QWORD *)&pType2Header[4 * pType2Header[4] + 6] = (_QWORD)i;
                         *(_QWORD *)&pType2Header[4 * pType2Header[4]++ + 8] = i[3];
                     }
                 }
@@ -1468,7 +1468,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                         pType3ListHead = (_QWORD *)*pType3ListHead;
                         if (pType3ListHead == pProcessObjListHead)
                             break;
-                        if (pType3ListHead <= MmSystemRangeStart)
+                        if ((const PVOID)pType3ListHead <= MmSystemRangeStart)
                             break;
                         if ((unsigned int)++Type3Count > 0x10000
                             || MmIsAddressValid(pType3ListHead) != 1
@@ -1480,7 +1480,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                         {
                             RemainingSize4 -= 16;
                             pType3Entry += 4;
-                            *(_QWORD *)&pType3Header[4 * pType3Header[4] + 6] = pType3ListHead;
+                            *(_QWORD *)&pType3Header[4 * pType3Header[4] + 6] = (_QWORD)pType3ListHead;
                             if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3839)
                                 DataTypeValue = pType3ListHead[10];
                             else
@@ -1492,7 +1492,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                 if (RemainingSize4 >= 0x28)
                 {
                     pType4Header = pType3Entry;
-                    pType4HeaderPtr = pType3Entry;
+                    pType4HeaderPtr = (_QWORD *)pType3Entry;
                     *pType3Entry = 4;
                     pType4HeaderDwords = pType3Entry + 4;
                     pType3Entry[4] = 0;
@@ -1507,7 +1507,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                             pType4Node = (_QWORD *)*pWin11ListPtr;
                             while (pType4Node != pWin11ListHead)
                             {
-                                if (pType4Node <= MmSystemRangeStart)
+                                if ((const PVOID)pType4Node <= MmSystemRangeStart)
                                     break;
                                 if ((unsigned int)++Type4Count > 0x10000)
                                     break;
@@ -1518,7 +1518,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                 {
                                     break;
                                 }
-                                pType4HeaderPtr[2 * (unsigned int)*pType4HeaderDwords + 3] = pType4NodePtr;
+                                pType4HeaderPtr[2 * (unsigned int)*pType4HeaderDwords + 3] = (_QWORD)pType4NodePtr;
                                 pType4HeaderPtr[2 * (unsigned int)(*pType4HeaderDwords)++ + 4] = pType4NodePtr[3];
                                 RemainingSize5 -= 16;
                                 pType4Entry += 4;
@@ -1575,7 +1575,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                         pType5Node = (_QWORD *)pType5ListHead[2];
                                         while (pType5Node != pType5Sentinel)
                                         {
-                                            if (pType5Node <= MmSystemRangeStart)
+                                            if ((const PVOID)pType5Node <= MmSystemRangeStart)
                                                 break;
                                             if ((unsigned int)++Type5Count > 0x10000
                                                 || MmIsAddressValid(pType5Node) != 1
@@ -1587,7 +1587,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                             {
                                                 RemainingSize6 -= 16;
                                                 pType5Entry += 4;
-                                                *(_QWORD *)&pType5Header[4 * pType5Header[4] + 6] = pType5Node;
+                                                *(_QWORD *)&pType5Header[4 * pType5Header[4] + 6] = (_QWORD)pType5Node;
                                                 *(_QWORD *)&pType5Header[4 * pType5Header[4]++ + 8] = pType5Node[3];
                                             }
                                             pType5Node = (_QWORD *)*pType5Node;
@@ -1613,7 +1613,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                     pType6ListHead = (_QWORD *)*pType6ListHead;
                                     if (pType6ListHead == pProcessMemListHead)
                                         break;
-                                    if (pType6ListHead <= MmSystemRangeStart)
+                                    if ((const PVOID)pType6ListHead <= MmSystemRangeStart)
                                         break;
                                     if ((unsigned int)++Type6Count > 0x10000
                                         || MmIsAddressValid(pType6ListHead) != 1
@@ -1625,7 +1625,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                     {
                                         RemainingSize7 -= 16;
                                         pType6Entry += 4;
-                                        *(_QWORD *)&pType6Header[4 * pType6Header[4] + 6] = pType6ListHead;
+                                        *(_QWORD *)&pType6Header[4 * pType6Header[4] + 6] = (_QWORD)pType6ListHead;
                                         *(_QWORD *)&pType6Header[4 * pType6Header[4]++ + 8] = pType6ListHead[2];
                                     }
                                 }
@@ -1646,7 +1646,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                         pType7ListHead = (_QWORD *)*pType7ListHead;
                                         if (pType7ListHead == pKernelDataListHead)
                                             break;
-                                        if (pType7ListHead <= MmSystemRangeStart)
+                                        if ((const PVOID)pType7ListHead <= MmSystemRangeStart)
                                             break;
                                         if ((unsigned int)++Type7Count > 0x10000
                                             || MmIsAddressValid(pType7ListHead) != 1
@@ -1658,7 +1658,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                         {
                                             RemainingSize8 -= 16;
                                             pType7Entry += 4;
-                                            *(_QWORD *)&pType7Header[4 * pType7Header[4] + 6] = pType7ListHead;
+                                            *(_QWORD *)&pType7Header[4 * pType7Header[4] + 6] = (_QWORD)pType7ListHead;
                                             *(_QWORD *)&pType7Header[4 * pType7Header[4]++ + 8] = pType7ListHead[2];
                                         }
                                     }
@@ -1681,7 +1681,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                 break;
                                             if (!pType8ListHead)
                                                 break;
-                                            if (pType8ListHead <= MmSystemRangeStart)
+                                            if ((const PVOID)pType8ListHead <= MmSystemRangeStart)
                                                 break;
                                             if ((unsigned int)++Type8Count > 0x10000
                                                 || MmIsAddressValid(pType8ListHead) != 1
@@ -1693,7 +1693,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                             {
                                                 RemainingSize9 -= 16;
                                                 pType8Entry += 4;
-                                                *(_QWORD *)&pType8Header[4 * pType8Header[4] + 6] = pType8ListHead;
+                                                *(_QWORD *)&pType8Header[4 * pType8Header[4] + 6] = (_QWORD)pType8ListHead;
                                                 *(_QWORD *)&pType8Header[4 * pType8Header[4]++ + 8] = pType8ListHead[1];
                                             }
                                         }
@@ -1713,7 +1713,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                 pType9Node = (_QWORD *)*pRelocBaseListHead;
                                                 while (pType9Node != pType9ListHead)
                                                 {
-                                                    if (pType9Node <= MmSystemRangeStart)
+                                                    if ((const PVOID)pType9Node <= MmSystemRangeStart)
                                                         break;
                                                     if ((unsigned int)(++Result) > 0x10000)
                                                         break;
@@ -1727,7 +1727,7 @@ __int64 ProcessMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                                     {
                                                         RemainingSize10 -= 16;
                                                         pType9Entry += 4;
-                                                        *(_QWORD *)&pType9Header[4 * pType9Header[4] + 6] = pType9EntryPtr;
+                                                        *(_QWORD *)&pType9Header[4 * pType9Header[4] + 6] = (_QWORD)pType9EntryPtr;
                                                         *(_QWORD *)&pType9Header[4 * pType9Header[4]++ + 8] = pType9EntryPtr[3];
                                                     }
                                                     pType9Node = (_QWORD *)*pType9Node;
@@ -1816,7 +1816,7 @@ _DWORD *SendIoControlWithUnicodeString(__int64 Context)
                                 goto LABEL_23;
                         }
                         pPathBufferCopy[BackslashIndex] = 0;
-                        UnicodeLen = 2 * BackslashIndex + 2;
+                        UnicodeLen = (unsigned int)(2 * BackslashIndex + 2);
                         if (UnicodeLen < 2)
                         {
                             pPathBuffer2 = 0;
@@ -1836,15 +1836,15 @@ _DWORD *SendIoControlWithUnicodeString(__int64 Context)
                         if (!pZwCreateFileFunc(&FileHandle, 0x80000000LL, &IoStatusBlock))
                         {
                             if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
-                                Result2 = SendDeviceIoControlWithRetry(FileHandle, 1u, 0, &pResultData2, 0);
+                                Result2 = (int)SendDeviceIoControlWithRetry(FileHandle, 1u, 0, &pResultData2, 0);
                             else
-                                Result2 = pZwCreateFile(FileHandle, 1, *pServiceTable, 0, &pResultData2, 0, 1, Result4, pPathBuffer2, pAllocBuffer);
+                                Result2 = (int)pZwCreateFile(FileHandle, 1, *pServiceTable, 0, (_QWORD)&pResultData2, 0, 1, Result4, (_QWORD)pPathBuffer2, (_QWORD)pAllocBuffer);
                             Result3 = Result2;
                             pResultData = pResultData2;
                             if (Result3 < 0)
                                 pResultData = 0;
                             pResultData2 = pResultData;
-                            pExFree((void *)FileHandle);
+                            pExFree((_QWORD)FileHandle);
                         }
                     }
                 }
@@ -1906,14 +1906,14 @@ __int64 ParseNtSectionsForSsdtTable(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(PUCHAR)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)(PUCHAR)&SectionContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0xC8)
@@ -2056,7 +2056,7 @@ char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char 
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (Op1 == 1)
             {
@@ -2083,7 +2083,7 @@ char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char 
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (Op1 == 1)
             {
@@ -2108,7 +2108,7 @@ char ReadCallbackType3(char **TargetObject, unsigned __int64 ContextValue, char 
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (Op1 == 1)
             {
@@ -2133,7 +2133,7 @@ char CallbackType1Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (LoByte == 1)
             {
@@ -2158,7 +2158,7 @@ char CallbackType2Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (LoByte == 1)
             {
@@ -2183,7 +2183,7 @@ char CallbackType3Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (LoByte == 1)
             {
@@ -2208,7 +2208,7 @@ char CallbackType4Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (LoByte == 1)
             {
@@ -2233,7 +2233,7 @@ char CallbackType5Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
     if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
     {
         __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (LoByte == 1)
             {
@@ -2282,16 +2282,15 @@ void ValidateObjectTypeEntries(__int64 pContextTable)
     __int64 GroupIndex;
     __int64 EntryIndex;
     __int64 pEntry;
-    __int64 CurrentValue;
     __int64 SavedValue;
     __int64 GroupBase;
     __int64 pDataBuffer;
     unsigned int BufferSize;
     __int64 Result;
-    __int64 EntryCount;
+    __int64 EntryCount = 0;
 
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    NtoskrnlSize = GtRead(GtNtoskrnlImageSize);
+    NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
     GroupBase = pContextTable + 32;
     Result = 17;
     GroupIndex = 17;
@@ -2322,7 +2321,7 @@ LABEL_CONTINUE:
     } while (GroupIndex);
 
     pDataBuffer = GtRead(GtEprocessField66);
-    BufferSize = GtRead(GtEprocessField23);
+    BufferSize = (unsigned int)GtRead(GtEprocessField23);
     if (pDataBuffer && BufferSize && NtoskrnlBase)
     {
         _BYTE *pFlagEntry = (_BYTE *)(pContextTable + 40);
@@ -2385,10 +2384,10 @@ LABEL_CONTINUE:
 // 对应原始驱动 sub_140037D80
 void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize)
 {
-    if (!OutputBuffer || OutputBuffer < (unsigned __int64)MmUserProbeAddress || OutputSize < 8)
+    if (!OutputBuffer || (unsigned __int64)OutputBuffer < (unsigned __int64)MmUserProbeAddress || OutputSize < 8)
         return;
     __int64 ObjectDirectory = GtRead(GtObjectDirectoryTable);
-    if (!ObjectDirectory || ObjectDirectory < (unsigned __int64)MmSystemRangeStart)
+    if (!ObjectDirectory || (unsigned __int64)ObjectDirectory < (unsigned __int64)MmSystemRangeStart)
         return;
     if (MmIsAddressValid((void *)ObjectDirectory) != 1)
         return;
@@ -2404,11 +2403,11 @@ void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputS
 __int64 ReadServiceTableEntries(__int64 OutputBuffer, __int64 TableParam, char *PeFileData, unsigned int PeFileSize)
 {
     unsigned int Index = 0;
-    unsigned int ServiceCount = GtRead(GtEprocessField57);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtEprocessField57);
     if (ServiceCount)
     {
         _DWORD *pServiceTable = (_DWORD *)GtRead(GtIrpBufferSize);
-        if (pServiceTable || (ParseServiceTable(PeFileData, PeFileSize), pServiceTable = (_DWORD *)GtRead(GtIrpBufferSize), ServiceCount = GtRead(GtEprocessField57), pServiceTable))
+        if (pServiceTable || (ParseServiceTable(PeFileData, PeFileSize), pServiceTable = (_DWORD *)GtRead(GtIrpBufferSize), ServiceCount = (unsigned int)GtRead(GtEprocessField57), pServiceTable))
         {
             _DWORD *pOutputEntry = (_DWORD *)(OutputBuffer + 8);
             if (ServiceCount)
@@ -2442,7 +2441,7 @@ __int64 RemoveFromObjectTypeList(PVOID *pTargetObject)
         int IterationCount = 0;
         while (pCurrent != (PVOID *)pListHeadCopy)
         {
-            if (pCurrent <= MmSystemRangeStart)
+            if ((const PVOID)pCurrent <= MmSystemRangeStart)
                 break;
             if (MmIsAddressValid(pCurrent) != 1)
                 break;
@@ -2484,7 +2483,7 @@ __int64 RemoveFromObjectTypeListEx(PVOID *pTargetPointer)
                 int IterationCount = 0;
                 while (pCurrentNode != (PVOID *)pCurrentListHead)
                 {
-                    if (pCurrentNode <= MmSystemRangeStart)
+                    if ((const PVOID)pCurrentNode <= MmSystemRangeStart)
                         break;
                     if (MmIsAddressValid(pCurrentNode) != 1)
                         break;
@@ -2541,7 +2540,7 @@ __int64 RemoveObjectFromTypeList(PVOID pTargetObject)
             int IterationCount = 0;
             while (pCurrentNode != (PVOID *)pListHead)
             {
-                if (pCurrentNode <= MmSystemRangeStart)
+                if ((const PVOID)pCurrentNode <= MmSystemRangeStart)
                     break;
                 if (MmIsAddressValid(pCurrentNode) != 1)
                     break;
@@ -2579,7 +2578,7 @@ __int64 RemoveObjectFromTypeList(PVOID pTargetObject)
 __int64 RemoveKernelObjectEntry(__int64 TargetAddress)
 {
     char Result = 0;
-    int IsWin7 = GtRead(GtEprocessField28);
+    int IsWin7 = (int)GtRead(GtEprocessField28);
     _QWORD *pSsdtTable = (_QWORD *)GtRead(GtEprocessField78);
     __int64 SsdtTableEnd = GtRead(GtEprocessField79);
     _DWORD *pCounter = (_DWORD *)SsdtTableEnd;
@@ -2643,9 +2642,9 @@ __int64 ReleaseProcessMemoryBlock(_QWORD *pTargetEntry)
     _QWORD **pSentinel = pProcessMemListHead;
     if (pProcessMemListHead && MmIsAddressValid(pProcessMemListHead) == 1)
     {
-        for (_QWORD *pCurrentNode = *pSentinel; pCurrentNode != pSentinel; pCurrentNode = (_QWORD *)*pCurrentNode)
+        for (_QWORD *pCurrentNode = *pSentinel; pCurrentNode != (_QWORD *)pSentinel; pCurrentNode = (_QWORD *)*pCurrentNode)
         {
-            if (pCurrentNode <= MmSystemRangeStart)
+            if ((const PVOID)pCurrentNode <= MmSystemRangeStart)
                 break;
             if (MmIsAddressValid(pCurrentNode) != 1)
                 break;
@@ -2657,8 +2656,8 @@ __int64 ReleaseProcessMemoryBlock(_QWORD *pTargetEntry)
                 {
                     _QWORD *pPrevEntry = (_QWORD *)*pCurrentNode;
                     _QWORD *pNextEntry = (_QWORD *)pCurrentNode[1];
-                    pPrevEntry[1] = pNextEntry;
-                    *pNextEntry = pPrevEntry;
+                    pPrevEntry[1] = (_QWORD)pNextEntry;
+                    *pNextEntry = (_QWORD)pPrevEntry;
                     ExFreePoolWithTag(pTargetEntry, 0x72546F49u);
                     return 1;
                 }
@@ -2708,7 +2707,7 @@ char PatchFsFilterDriverIndex(__int64 PatchEntry, char Is64Bit)
 // 对应原始驱动 sub_1400310B4
 __int64 QuerySsdHookByProcessInfo(void *Src, size_t MaxCount, _DWORD *Address, int OutputSize)
 {
-    unsigned int MaxCountCopy = MaxCount;
+    unsigned int MaxCountCopy = (unsigned int)MaxCount;
     char Result = 0;
     _BYTE Dst[304];
     if (Src)
@@ -2745,10 +2744,10 @@ __int64 QuerySsdHookByProcessInfo(void *Src, size_t MaxCount, _DWORD *Address, i
 __int64 EnumServiceTableWin10(__int64 *pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(__int64 *) = (__int64 (__fastcall *)(__int64 *))GtRead(GtObjectTypeCheckFlag);
-    unsigned int EprocessOffset = GtRead(GtProcessEprocess);
-    unsigned int CreateTimeOffset = GtRead(GtProcessCreateTime);
+    unsigned int EprocessOffset = (unsigned int)GtRead(GtProcessEprocess);
+    unsigned int CreateTimeOffset = (unsigned int)GtRead(GtProcessCreateTime);
     __int64 result = GtRead(GtProcessOffset);
-    unsigned int ProcessOffset = result;
+    unsigned int ProcessOffset = (unsigned int)result;
     if (pCheckFunc && EprocessOffset != -1 && CreateTimeOffset && (_DWORD)result != -1 && pServiceTable)
     {
         result = pCheckFunc(pServiceTable);
@@ -2802,12 +2801,12 @@ __int64 EnumServiceTableWin10(__int64 *pServiceTable, __int64 OutputBuffer, _DWO
 __int64 EnumServiceTableWin8(_QWORD **pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(_QWORD **) = (__int64 (__fastcall *)(_QWORD **))GtRead(GtObjectTypeCheckFlag);
-    unsigned int EprocessOffset = GtRead(GtProcessEprocess);
+    unsigned int EprocessOffset = (unsigned int)GtRead(GtProcessEprocess);
     unsigned int EprocessOffsetVal = EprocessOffset;
-    unsigned int CreateTimeOffset = GtRead(GtProcessCreateTime);
+    unsigned int CreateTimeOffset = (unsigned int)GtRead(GtProcessCreateTime);
     unsigned int CreateTimeOffsetVal = CreateTimeOffset;
     __int64 result = GtRead(GtProcessOffset);
-    unsigned int ProcessOffsetVal = result;
+    unsigned int ProcessOffsetVal = (unsigned int)result;
     if (pCheckFunc && EprocessOffset != -1 && CreateTimeOffset && (_DWORD)result != -1 && pServiceTable)
     {
         result = pCheckFunc(pServiceTable);
@@ -2835,15 +2834,15 @@ __int64 EnumServiceTableWin8(_QWORD **pServiceTable, __int64 OutputBuffer, _DWOR
                             if ((_BYTE)result)
                             {
                                 --MaxEntries;
-                                *(_QWORD *)(pOutputEntry + 8) = pServiceNode[10];
+                                *(_QWORD *)(pOutputEntry + 8) = (_QWORD)pServiceNode[10];
                                 int ServiceFlags = *((_DWORD *)pServiceNode + 17);
-                                *(_QWORD *)(pOutputEntry - 8) = pServiceNode;
+                                *(_QWORD *)(pOutputEntry - 8) = (_QWORD)pServiceNode;
                                 *(_DWORD *)pOutputEntry = ServiceFlags;
                                 pOutputEntry += 48;
-                                *(_QWORD *)(pOutputEntry - 16) = *(_QWORD **)((char *)ppContextEntry + CreateTimeOffsetVal);
+                                *(_QWORD *)(pOutputEntry - 16) = (_QWORD)*(_QWORD **)((char *)ppContextEntry + CreateTimeOffsetVal);
                                 result = ProcessOffsetVal;
-                                *(_QWORD *)(pOutputEntry - 32) = *(_QWORD **)((char *)ppContextEntry + EprocessOffsetVal);
-                                *(_QWORD *)(pOutputEntry - 24) = *(_QWORD **)((char *)ppContextEntry + ProcessOffsetVal);
+                                *(_QWORD *)(pOutputEntry - 32) = (_QWORD)*(_QWORD **)((char *)ppContextEntry + EprocessOffsetVal);
+                                *(_QWORD *)(pOutputEntry - 24) = (_QWORD)*(_QWORD **)((char *)ppContextEntry + ProcessOffsetVal);
                                 ++*pEntryCount;
                             }
                         }
@@ -2862,10 +2861,10 @@ __int64 EnumServiceTableWin8(_QWORD **pServiceTable, __int64 OutputBuffer, _DWOR
 __int64 EnumServiceTableWin7(__int64 *pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(__int64 *) = (__int64 (__fastcall *)(__int64 *))GtRead(GtObjectTypeCheckFlag);
-    unsigned int EprocessOffset = GtRead(GtProcessEprocess);
-    unsigned int CreateTimeOffset = GtRead(GtProcessCreateTime);
+    unsigned int EprocessOffset = (unsigned int)GtRead(GtProcessEprocess);
+    unsigned int CreateTimeOffset = (unsigned int)GtRead(GtProcessCreateTime);
     __int64 result = GtRead(GtProcessOffset);
-    unsigned int ProcessOffset = result;
+    unsigned int ProcessOffset = (unsigned int)result;
     if (pCheckFunc && EprocessOffset != -1 && CreateTimeOffset && (_DWORD)result != -1 && pServiceTable)
     {
         result = pCheckFunc(pServiceTable);
@@ -2919,12 +2918,12 @@ __int64 EnumServiceTableWin7(__int64 *pServiceTable, __int64 OutputBuffer, _DWOR
 __int64 EnumServiceTableWin1020H1(_QWORD **pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(_QWORD **) = (__int64 (__fastcall *)(_QWORD **))GtRead(GtObjectTypeCheckFlag);
-    unsigned int EprocessOffset = GtRead(GtProcessEprocess);
+    unsigned int EprocessOffset = (unsigned int)GtRead(GtProcessEprocess);
     unsigned int EprocessOffsetVal = EprocessOffset;
-    unsigned int CreateTimeOffset = GtRead(GtProcessCreateTime);
+    unsigned int CreateTimeOffset = (unsigned int)GtRead(GtProcessCreateTime);
     unsigned int CreateTimeOffsetVal = CreateTimeOffset;
     __int64 result = GtRead(GtProcessOffset);
-    unsigned int ProcessOffsetVal = result;
+    unsigned int ProcessOffsetVal = (unsigned int)result;
     if (pCheckFunc && EprocessOffset != -1 && CreateTimeOffset && (_DWORD)result != -1 && pServiceTable)
     {
         result = pCheckFunc(pServiceTable);
@@ -2971,15 +2970,15 @@ LABEL_22:
                                 if ((_BYTE)result)
                                 {
                                     --MaxEntries;
-                                    *(_QWORD *)(pOutputEntry + 8) = pServiceNode[4];
+                                    *(_QWORD *)(pOutputEntry + 8) = (_QWORD)pServiceNode[4];
                                     int ServiceFlags = *((_DWORD *)pServiceNode + 10);
-                                    *(_QWORD *)(pOutputEntry - 8) = pServiceNode;
+                                    *(_QWORD *)(pOutputEntry - 8) = (_QWORD)pServiceNode;
                                     *(_DWORD *)pOutputEntry = ServiceFlags;
                                     pOutputEntry += 48;
-                                    *(_QWORD *)(pOutputEntry - 16) = *(_QWORD **)((char *)ppContextEntry + CreateTimeOffsetVal);
+                                    *(_QWORD *)(pOutputEntry - 16) = (_QWORD)*(_QWORD **)((char *)ppContextEntry + CreateTimeOffsetVal);
                                     result = ProcessOffsetVal;
-                                    *(_QWORD *)(pOutputEntry - 32) = *(_QWORD **)((char *)ppContextEntry + EprocessOffsetVal);
-                                    *(_QWORD *)(pOutputEntry - 24) = *(_QWORD **)((char *)ppContextEntry + ProcessOffsetVal);
+                                    *(_QWORD *)(pOutputEntry - 32) = (_QWORD)*(_QWORD **)((char *)ppContextEntry + EprocessOffsetVal);
+                                    *(_QWORD *)(pOutputEntry - 24) = (_QWORD)*(_QWORD **)((char *)ppContextEntry + ProcessOffsetVal);
                                     ++*pEntryCount;
                                 }
                             }
@@ -3024,7 +3023,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     if (!BasePtr)
         return 0;
 
-    if (ReadNtOsKrnlFile(&PeFileBuffer, &PeFileSize) != 1)
+    if (ReadNtOsKrnlFile(&PeFileBuffer, (__int64 *)&PeFileSize) != 1)
         return 0;
 
     ExportDirSize = *(unsigned int *)(PeFileBuffer + 0x3C);
@@ -3033,7 +3032,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
         goto cleanup;
 
     // Phase1: 搜索 Type 0x559 节区
-    InitPESectionReadContext((PUCHAR)PeFileBuffer + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    InitPESectionReadContext((__int64)(PUCHAR)PeFileBuffer + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)(PUCHAR)&EntryBuffer);
     EntryCount = 0;
     while (EntryCount < 0x1E)
     {
@@ -3058,7 +3057,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     if (EntryCount < 0x1E)
     {
         int FirstOffset = EntryCount;
-        InitPESectionReadContext((PUCHAR)PeFileBuffer + FirstOffset, PeFileSize - FirstOffset, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+        InitPESectionReadContext((__int64)(PUCHAR)PeFileBuffer + FirstOffset, PeFileSize - FirstOffset, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)(PUCHAR)&EntryBuffer);
         EntryCount = 0;
         while (EntryCount < 0x1E)
         {
@@ -3116,15 +3115,15 @@ __int64 __fastcall EnumObjectDirectoryEntries(unsigned __int16 *DirectoryPath, _
     void *pNameBuffer;
 
     EntryCount = 0;
-    RootPathType = GtRead(GtEprocessField86);
+    RootPathType = (int)GtRead(GtEprocessField86);
     if (!RootPathType)
     {
         BuildSystemRootPath();
-        RootPathType = GtRead(GtEprocessField86);
+        RootPathType = (int)GtRead(GtEprocessField86);
     }
     if (RootPathType)
     {
-        StringLength = GetStringLength(DirectoryPath);
+        StringLength = (unsigned int)GetStringLength(DirectoryPath);
         CurrentEntry = (unsigned __int16 *)(SystemInfo + 2);
         LoopIndex = 0;
         PathLength = StringLength;
@@ -3150,7 +3149,7 @@ __int64 __fastcall EnumObjectDirectoryEntries(unsigned __int16 *DirectoryPath, _
                         if (pObjectBody)
                         {
                             if (MmIsAddressValid(pObjectBody) == 1
-                                && QueryObjectNameInfo(ObjectAddress, DirectoryPath, PathLength, &pNameBuffer, &ImagePathLen) == 1)
+                                && QueryObjectNameInfo(ObjectAddress, DirectoryPath, PathLength, (_QWORD *)&pNameBuffer, (_DWORD *)&ImagePathLen) == 1)
                             {
                                 WStringCopyN((_WORD *)(OutputPos - 520), (__int64)pNameBuffer, 0x104);
                                 *(_WORD *)(OutputPos - 520 + 518) = 0;
@@ -3249,19 +3248,19 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
         && !(unsigned int)GtRead(Gt87B | GtEprocessField118)
         && ReadWin32kFullDriverFile((__int64 *)&Win32kFileBuffer, &Win32kFileSize) == 1)
     {
-        SsdtOffset = GtRead(GtSsdtTableOffset);
+        SsdtOffset = (unsigned int)GtRead(GtSsdtTableOffset);
         if (!SsdtOffset)
         {
             FindPatchThreadWindowsExport((__int64)Win32kFileBuffer, Win32kFileSize);
-            SsdtOffset = GtRead(GtSsdtTableOffset);
+            SsdtOffset = (unsigned int)GtRead(GtSsdtTableOffset);
         }
         if (SsdtOffset && SsdtOffset < Win32kFileSize)
-            FindPeSectionByType0x510((__int64)Win32kFileBuffer + SsdtOffset, (_DWORD)Win32kFileBuffer + Win32kFileSize, (int)Win32kFileBuffer, Win32kFileSize);
+            FindPeSectionByType0x510((__int64)Win32kFileBuffer + SsdtOffset, (_DWORD)(ULONG_PTR)Win32kFileBuffer + Win32kFileSize, (int)(ULONG_PTR)Win32kFileBuffer, Win32kFileSize);
         ExFree(Win32kFileBuffer);
     }
-    Win32kBaseOffset = GtRead(GtSsdtTableOffset | GtDriverObject);
-    FwpsBaseOffset = GtRead(GtFwpsDispatchTableBase | GtEprocessField06 | 0x100);
-    PteBase = GtRead(GtPteBase);
+    Win32kBaseOffset = (unsigned int)GtRead(GtSsdtTableOffset | GtDriverObject);
+    FwpsBaseOffset = (unsigned int)GtRead(GtFwpsDispatchTableBase | GtEprocessField06 | 0x100);
+    PteBase = (unsigned int)GtRead(GtPteBase);
     PteBaseCopy = PteBase;
     if (Win32kBaseOffset)
     {
@@ -3270,7 +3269,7 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
             if (PteBase)
             {
                 NtoskrnlFileBase = GtRead(GtNtoskrnlFileBase);
-                Win32kFieldOffset = GtRead(Gt821 | GtEprocessField188 | GtEprocessField06);
+                Win32kFieldOffset = (int)GtRead(Gt821 | GtEprocessField188 | GtEprocessField06);
                 if (NtoskrnlFileBase)
                 {
                     if (Win32kFieldOffset)
@@ -3297,9 +3296,9 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
                                                 if (HandleTableBase)
                                                 {
                                                     MaxEntryCount = *pSsdtTable;
-                                                    Win32kFileBuffer = (void *)MaxEntryCount;
+                                                    Win32kFileBuffer = (void *)(ULONG_PTR)MaxEntryCount;
                                                     EprocessOffset = GtRead(GtProcessEprocess);
-                                                    EprocessOffsetVal = EprocessOffset;
+                                                    EprocessOffsetVal = (int)EprocessOffset;
                                                     EprocessOffsetVal2 = EprocessOffset;
                                                     CreateTimeOffset = GtRead(GtProcessCreateTime);
                                                     CreateTimeOffsetVal = CreateTimeOffset;
@@ -3333,7 +3332,7 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
                                                                             break;
                                                                     LABEL_63:
                                                                         LoopCounter = ++LoopIndex;
-                                                                        MaxEntryCount = (unsigned int)Win32kFileBuffer;
+                                                                        MaxEntryCount = (unsigned int)(ULONG_PTR)Win32kFileBuffer;
                                                                     }
                                                                     pModuleInfo = 0;
                                                                     pModuleInfoPtr = 0;
@@ -3375,7 +3374,7 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
                                                                                         ModuleInfoField = *((_DWORD *)pModuleInfo + 12);
                                                                                         pFilePath = (char *)pModuleInfo[7];
                                                                                         pFilePathBuffer = pFilePath;
-                                                                                        Win32kFileSize = (*((unsigned int **)pModuleInfo + 17));
+                                                                                        Win32kFileSize = (unsigned int)(ULONG_PTR)(*((unsigned int **)pModuleInfo + 17));
                                                                                         pNameString = pNameArray[47];
                                                                                         NameOffset = 0;
                                                                                         NameOffsetVal = 0;
@@ -3392,7 +3391,7 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
                                                                                         *(_QWORD *)pEntryOutput = ModuleBase;
                                                                                         pEntryOutput[2] = ModuleInfoField;
                                                                                         pProcessIdStr = (char *)ProcessId;
-                                                                                        *((_QWORD *)pEntryOutput + 3) = ProcessId;
+                                                                                        *((_QWORD *)pEntryOutput + 3) = (_QWORD)ProcessId;
                                                                                         *((_QWORD *)pEntryOutput + 4) = ProcessCreateTime;
                                                                                         *((_QWORD *)pEntryOutput + 5) = FullPath;
                                                                                         pEntryOutput[12] = Win32kFileSize;
@@ -3450,13 +3449,13 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
 __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
 {
     __int64 Result = 0;
-    if (!OutputBuffer || OutputBuffer < (unsigned __int64)MmUserProbeAddress || BufferSize < 8)
+    if (!OutputBuffer || (unsigned __int64)OutputBuffer < (unsigned __int64)MmUserProbeAddress || BufferSize < 8)
         return Result;
     if (MmIsAddressValid((void *)OutputBuffer) != 1)
         return Result;
     __int64 ServiceTableBase = GtRead(GtSsdtServiceTable);
     unsigned int ServiceCount = (unsigned int)GtRead(GtSsdtServiceCount);
-    if (!ServiceTableBase || !ServiceCount || ServiceTableBase < (unsigned __int64)MmSystemRangeStart)
+    if (!ServiceTableBase || !ServiceCount || (unsigned __int64)ServiceTableBase < (unsigned __int64)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid((void *)ServiceTableBase) != 1)
         return Result;
@@ -3465,7 +3464,7 @@ __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
     for (unsigned int i = 0; i < ServiceCount && i < BufferSize / 16; ++i)
     {
         __int64 FuncAddr = pTable[i];
-        if (!FuncAddr || FuncAddr < (unsigned __int64)MmSystemRangeStart)
+        if (!FuncAddr || (unsigned __int64)FuncAddr < (unsigned __int64)MmSystemRangeStart)
             continue;
         if (MmIsAddressValid((void *)FuncAddr) != 1)
             continue;
@@ -3565,7 +3564,7 @@ __int64 QueryProcessModuleInfo(volatile void **Address, int InputSize, _DWORD *p
         return Result;
     if ((unsigned __int64)pOutputBuffer >= MmUserProbeAddress)
         return Result;
-    PVOID ModuleAddr = *Address;
+    PVOID ModuleAddr = (PVOID)*Address;
     if (!ModuleAddr || ModuleAddr < (PVOID)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid(ModuleAddr) != 1)
@@ -3582,7 +3581,7 @@ __int64 QueryProcessModuleInfo(volatile void **Address, int InputSize, _DWORD *p
 __int64 QuerySyscallHookStatus(__int64 SyscallAddress)
 {
     char Result = 0;
-    if (!SyscallAddress || SyscallAddress < (unsigned __int64)MmSystemRangeStart)
+    if (!SyscallAddress || (unsigned __int64)SyscallAddress < (unsigned __int64)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid((void *)SyscallAddress) != 1)
         return Result;
@@ -3635,7 +3634,7 @@ char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray)
     memset(Dst, 0, sizeof(Dst));
     ReadDebugRegisters(Dst);
     CurrentFiber = (char *)GetCurrentFiber();
-    FiberOffset = GtRead(GtFwpsDispatchTableBase | GtEprocessField104);
+    FiberOffset = (int)GtRead(GtFwpsDispatchTableBase | GtEprocessField104);
     if (CurrentFiber && FiberOffset)
     {
         FiberContext[0] = *(_OWORD *)&CurrentFiber[FiberOffset];
@@ -3698,14 +3697,14 @@ char ResolveDriverModuleNames(ULONG *DriverInfoBuffer)
 {
     char Result = 0;
     __int64 ModuleNameBuffer = GtRead(GtEprocessField66);
-    unsigned int ModuleNameSize = GtRead(GtEprocessField23);
+    unsigned int ModuleNameSize = (unsigned int)GtRead(GtEprocessField23);
     if (ModuleNameSize && ModuleNameBuffer)
     {
         for (unsigned int i = 0; i < *DriverInfoBuffer; ++i)
         {
             char *pEntry = (char *)DriverInfoBuffer + 168LL * i;
             __int64 NameOffset = *(ULONG *)(pEntry + 0x90);
-            if ((int)NameOffset + 16 <= ModuleNameSize)
+            if ((unsigned int)((int)NameOffset + 16) <= ModuleNameSize)
             {
                 if ((unsigned int)MemoryCompare(*(__int64 *)(pEntry + 0x98), (char *)(ModuleNameBuffer + NameOffset), 0x10u))
                 {
@@ -3715,7 +3714,7 @@ char ResolveDriverModuleNames(ULONG *DriverInfoBuffer)
                         int LoopCount;
                         _BYTE NameBuffer[16];
                         if (LookupDriverHashTable((__int64)(pEntry + 0x0C), &LoopCount) == 1
-                            && BuildJmpPatchStub(*(__int64 *)(pEntry + 0x98), ModuleNameBuffer + *(ULONG *)(pEntry + 0x90), (__int64)NameBuffer, 0x10u, LoopCount) == 1
+                            && BuildJmpPatchStub((int)*(__int64 *)(pEntry + 0x98), ModuleNameBuffer + *(ULONG *)(pEntry + 0x90), (__int64)NameBuffer, 0x10u, LoopCount) == 1
                             && ComparePeModuleSignature(pEntry + 0x98, (__int64)NameBuffer, 0x10u) == 1)
                         {
                             pEntry[0xA9] = 0;
@@ -3754,8 +3753,8 @@ __int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, ULO
     __int64 Result = 0;
     __int64 Count = EntryCount;
     unsigned __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    unsigned int NtoskrnlSize = GtRead(GtNtoskrnlImageSize);
-    unsigned int OffsetValue2 = GtRead(GtKernelDataField21);
+    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
+    unsigned int OffsetValue2 = (unsigned int)GtRead(GtKernelDataField21);
     __int64 OffsetBase = 0;
 
     switch (ContextType)
@@ -3788,7 +3787,7 @@ __int64 ResolvePhysicalMemoryContext(__int64 pContextTable, int ContextType, ULO
                     if (!NtoskrnlBase || !NtoskrnlSize)
                         goto LABEL_NEXT;
                     __int64 AddressValue = *(__int64 *)pCurrentEntry;
-                    if (!AddressValue || (AddressValue < NtoskrnlBase + NtoskrnlSize && AddressValue >= NtoskrnlBase))
+                    if (!AddressValue || ((unsigned __int64)AddressValue < NtoskrnlBase + NtoskrnlSize && (unsigned __int64)AddressValue >= NtoskrnlBase))
                         goto LABEL_NEXT;
                     goto LABEL_MODIFIED;
                 }

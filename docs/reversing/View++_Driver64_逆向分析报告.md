@@ -1078,4 +1078,69 @@ AES 加密密钥扩展使用运行时生成的查找表，位于地址 0x1400A40
 | 结构体分析 | 完成 | FLT_REGISTRATION (0x14008D600), UTF-8 解码表 (0x140094000) |
 | 指令解码器分析 | 完成 | 60+ 个指令解码函数已分析（DecodeOpcode* 系列），覆盖 x86/x64 指令解码 |
 | 文档输出 | 完成 | 本文档为最终版本 |
+
+---
+
+## 11. 源码组织（重构后）
+
+逆向复刻完成后，源码已按子系统重组为四层目录结构（仅移动函数，未修改任何逻辑，`.sys` 保持 470,016 字节不变）。各子系统对应的源码文件映射如下：
+
+### 11.1 framework/ — 基础框架（内存/缓冲区/工具/PE/加解密）
+
+| 源文件 | 对应逆向子系统 |
+|---|---|
+| MemoryOps.c | 内存读写、GtRead/GtWrite 封装 |
+| MemoryCleanup.c | 内存清理与缓冲释放 |
+| Utility.c | 字节交换、字符串、通用工具函数 |
+| Utf8Decoder.c | UTF-8 解码表 |
+| PEDecoder.c | PE 文件解析 |
+| DecodeTables.c | 指令解码查找表 |
+| Crypto.c | AES/MD5/SHA1 加解密 |
+
+### 11.2 kernel/ — 内核对象操作
+
+| 源文件 | 对应逆向子系统 |
+|---|---|
+| ProcessMgmt.c | 进程管理（第 3.10 节对象枚举） |
+| ThreadMgmt.c | 线程管理 |
+| ObjectMgmt.c | 对象管理、对象类型枚举 |
+| HandleMgmt.c | 句柄管理 |
+| ModuleMgmt.c | 模块管理（第 3.14 节） |
+| Registry.c | 注册表保护（第 3.12 节） |
+| Minifilter.c | 文件系统 Minifilter（第 3.6 节） |
+| ContextMgmt.c | 上下文管理与保护 |
+
+### 11.3 services/ — 服务层（IOCTL 分发/SSDT/协议）
+
+| 源文件 | 对应逆向子系统 |
+|---|---|
+| IoctlDispatch.c | IOCTL 分发 + InitCommandHandlerTable + 命令分发表（第 3.3/3.13 节） |
+| Operation.c | Cmd* 命令处理函数（220+ 个） |
+| SSDT.c | SSDT Hook 引擎核心（第 3.5 节） |
+| SsdtHook.c | SSDT Hook 表构建/安装/卸除 |
+| SyscallTable.c | syscall 表枚举/复制 |
+| Protocol.c | 通信协议（第 5 节） |
+| QueryDriver.c | 驱动查询 |
+| TailHelpers.c | 尾部辅助函数 |
+
+### 11.4 features/ — 功能层（系统信息/PE 解析/服务表/磁盘/模块枚举/回调）
+
+| 源文件 | 对应逆向子系统 |
+|---|---|
+| SystemInfo.c | 系统信息查询 |
+| PeParse.c | PE 节区解析 |
+| ServiceTable.c | 服务表解析 |
+| DiskQuery.c | 磁盘扇区查询 |
+| ModuleEnum.c | 模块链表演示枚举 |
+| Callback.c | 回调例程（通知/电源/关机） |
+
+### 11.5 头文件
+
+| 头文件 | 内容 |
+|---|---|
+| XPCHunterDrv.h | 伞形头：include 子头 + 全部函数声明（~826 条） |
+| xpc_basic.h | 基础类型/宏/字节交换 |
+| xpc_gt_enum.h | GLOBAL_TABLE_INDEX 枚举 + GT 别名 |
+| xpc_ioctl.h | 设备名/IRP 常量/IOCTL 码/CMD opcode |
+| xpc_structs.h | 结构体定义（IRP_INPUT_HEADER、MD5_CONTEXT、PCOMMAND_HANDLER） |
 | IDA 数据库保存 | 已保存 | 多次保存，包含所有命名和注释 |

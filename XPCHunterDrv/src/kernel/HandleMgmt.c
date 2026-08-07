@@ -1288,7 +1288,6 @@ void EnumProcessHandleTable(void)
     __int64 r14;
     int esi;
     int ecx;
-    int r13d;
     _WORD DecodeBuffer[24];
     KAPC_STATE ApcState;
 

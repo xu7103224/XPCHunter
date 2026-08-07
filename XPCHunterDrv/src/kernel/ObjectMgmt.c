@@ -50,9 +50,9 @@ char EnableObjectProtect(_OWORD *Address, int BufferSize)
         return 0;
 
     EntryCount = 0;
-    for (CurrentEntry = *ListHead; CurrentEntry != ListHead; CurrentEntry = (_QWORD *)*CurrentEntry)
+    for (CurrentEntry = *ListHead; CurrentEntry != (_QWORD *)ListHead; CurrentEntry = (_QWORD *)*CurrentEntry)
     {
-        if ((ULONG64)CurrentEntry <= MmSystemRangeStart)
+        if ((ULONG64)CurrentEntry <= (ULONG64)MmSystemRangeStart)
             break;
         if (MmIsAddressValid(CurrentEntry) != 1)
             break;
@@ -187,7 +187,7 @@ char __fastcall WalkObjectTypeList(_QWORD **NodeStack, int MaxDepth, _DWORD *Out
                                     {
                                         do
                                         {
-                                            if (HandlerEntry <= MmSystemRangeStart
+                                            if ((ULONG64)HandlerEntry <= (ULONG64)MmSystemRangeStart
                                                 || ObjIndex >= 0x1000
                                                 || EntryOffset >= MaxBufferSize
                                                 || CheckMemoryValid(HandlerEntry) != 1
@@ -195,11 +195,11 @@ char __fastcall WalkObjectTypeList(_QWORD **NodeStack, int MaxDepth, _DWORD *Out
                                             {
                                                 break;
                                             }
-                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 6] = ObjectHeader;
-                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 4] = HandlerEntry;
-                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 2] = HandlerEntry[3];
+                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 6] = (_QWORD)ObjectHeader;
+                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 4] = (_QWORD)HandlerEntry;
+                                            *(_QWORD *)&OutputBuffer[30 * *OutputBuffer + 2] = (_QWORD)HandlerEntry[3];
                                             LOWORD_LV(OutputBuffer[30 * *OutputBuffer + 8]) = 0;
-                                            if (ResolveObjectHeaderPointer((__int64)ObjectHeader, &NameInfo) == 1)
+                                            if (ResolveObjectHeaderPointer((__int64)ObjectHeader, (_QWORD *)&NameInfo) == 1)
                                             {
                                                 NameLength = *NameInfo;
                                                 NameBuffer = (char *)*((_QWORD *)NameInfo + 1);
@@ -298,7 +298,6 @@ char InitObjectCallback(__int64 UnusedParam, __int64 UnusedParam2, _DWORD *Outpu
     _QWORD *TypeInfo2;
     int TypeFlags;
     __int64 IsProtected;
-    int SavedProcessIndex;
     unsigned int SavedRemainingSize;
     unsigned int QueryResultSize;
     __int64 SavedMaxTypeIndex;
@@ -320,7 +319,6 @@ char InitObjectCallback(__int64 UnusedParam, __int64 UnusedParam2, _DWORD *Outpu
     int EprocessOffset;
     int (__fastcall *QueryObjectNameFunc)(ULONG64, WORD *, ULONG64, unsigned int *);
     __int64 ObjectListOffsetVal;
-    _QWORD *SavedTypeEntry;
     void **ProcessEntrySaved;
     _DWORD *OutputTable;
     ULONG64 NameBufferSize;
@@ -387,7 +385,7 @@ char InitObjectCallback(__int64 UnusedParam, __int64 UnusedParam2, _DWORD *Outpu
         goto Cleanup;
 
     AllocBuffer[4] = 0;
-    if (EnumerateProcessList(NULL, (__int64)AllocBuffer, 0x44610) != 1)
+    if (EnumerateProcessList((__int64)NULL, (__int64)AllocBuffer, 0x44610) != 1)
         goto CleanupFree;
 
     ProcessCount = ProcessListBuffer[4];
@@ -427,8 +425,8 @@ Label26:
             TypeListIndex = 0;
 
             for (CurrentTypeEntry = *ObjectTypeListPtr;
-                 CurrentTypeEntry > (ULONG64)MmSystemRangeStart &&
-                 CurrentTypeEntry != ObjectTypeListPtr &&
+                 (ULONG64)CurrentTypeEntry > (ULONG64)MmSystemRangeStart &&
+                 CurrentTypeEntry != (_QWORD *)ObjectTypeListPtr &&
                  SavedRemainingSize >= 0x40 &&
                  TypeListIndex <= 0x1000;
                  CurrentTypeEntry = (_QWORD *)*CurrentTypeEntry)
@@ -442,7 +440,7 @@ Label26:
                 TypeInfo = TypeEntry;
                 TypeInfoSaved = TypeEntry;
 
-                if (TypeEntry <= (ULONG64)MmSystemRangeStart ||
+                if ((ULONG64)TypeEntry <= (ULONG64)MmSystemRangeStart ||
                     CheckMemoryValid(TypeEntry) != 1 ||
                     CheckMemoryValid((char *)TypeInfo + 87) != 1)
                     continue;
@@ -610,7 +608,7 @@ char QueryObjectNameInfo(ULONG64 ObjectAddress, WORD *TargetName, ULONG NameLeng
         if (TempNamePtr == TempBuffer + 2)
         {
             *((WORD *)TempNamePtr + (*(WORD *)TempBuffer >> 1)) = 0;
-            StringLength = GetStringLength((WORD *)TempBuffer[1]);
+            StringLength = (ULONG)GetStringLength((WORD *)TempBuffer[1]);
             MatchedLength = StringLength;
 
             if (StringLength <= NameLength &&
@@ -631,7 +629,7 @@ char QueryObjectNameInfo(ULONG64 ObjectAddress, WORD *TargetName, ULONG NameLeng
                     memset(AllocBuffer, 0, ResultSize);
                     memmove(AllocBuffer, *(const void **)(ObjectAddress + 96), (ULONG)NameInfoStatus);
                     *OutBuffer = (__int64)AllocBuffer;
-                    *OutSize = NameInfoStatus;
+                    *OutSize = (_DWORD)NameInfoStatus;
 Done:
                     IsCopied = 1;
                 }
@@ -768,7 +766,7 @@ char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize)
     WORD ObjectNameStatus;
     PVOID P = NULL;
 
-    *OutBuffer = NULL;
+    *OutBuffer = (_QWORD)NULL;
     ObjectTypeCheck = (UCHAR (*)(void))GtRead(GtObjectTypeCheckFlag);
     ResultFunc = (int (__fastcall *)(_QWORD, WORD *))GtRead(16910);
     ObjectAddr = (int (__fastcall *)(ULONG64, ULONG64, ULONG64, ULONG64))GtRead(16742);
@@ -793,7 +791,7 @@ char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize)
 
     NameLen = *(WORD *)(Object + 88);
     if (P && ObjectTypeCheck() == 1) { NamePtr = 1; SavedNamePtr = 1; MaxLen = ObjectNameStatus + NameLen; }
-    else { NamePtr = 0; SavedNamePtr = 0; MaxLen = NameLen + 2 * GetStringLength((WORD *)0x14008CA70); }
+    else { NamePtr = 0; SavedNamePtr = 0; MaxLen = NameLen + 2 * (int)GetStringLength((WORD *)0x14008CA70); }
 
     Length = MaxLen + 0x10000;
     SIZE_T UnicodeStr = (ULONG)(MaxLen + 0x10000) + 2;
@@ -802,7 +800,7 @@ char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize)
 
     memset(ResultBuffer, 0, UnicodeStr);
     if (NamePtr == 1) { BufferSize = ObjectNameStatus; StringLen = ObjectNameStatus; }
-    else { StringLength = GetStringLength((WORD *)0x14008CA70); BufferSize = 2 * StringLength; StringLen = BufferSize; }
+    else { StringLength = (int)GetStringLength((WORD *)0x14008CA70); BufferSize = 2 * (ULONG)StringLength; StringLen = BufferSize; }
 
     memmove(ResultBuffer, (NamePtr == 1) ? (void *)P : (void *)0x14008CA70, StringLen);
     HasExtendedName = 0;
@@ -821,7 +819,7 @@ char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize)
                 if (Buffer == &RetryCount[1])
                 {
                     *(&Buffer->Name.Length + (RetryCount->Name.Length >> 1)) = 0;
-                    FirstNameLen = GetStringLength(RetryCount->Name.Buffer);
+                    FirstNameLen = (int)GetStringLength(RetryCount->Name.Buffer);
                     ReturnLength = 0;
                     SavedFirstNameLen = FirstNameLen;
                     if (QueryObjectNameByType((PVOID)Object, NULL, 0, &ReturnLength) == -1073741820 && ReturnLength && ReturnLength < UnicodeStr)
@@ -833,13 +831,13 @@ char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize)
                             if (SecondNameInfo == &RetryCount[1])
                             {
                                 *(&SecondNameInfo->Name.Length + (RetryCount->Name.Length >> 1)) = 0;
-                                SecondNameLen = GetStringLength(RetryCount->Name.Buffer);
-                                if (SecondNameLen > (ULONG)SavedFirstNameLen)
+                                SecondNameLen = (int)GetStringLength(RetryCount->Name.Buffer);
+                                if ((unsigned int)SecondNameLen > (ULONG)SavedFirstNameLen)
                                 {
                                     CurrentNameLen = (ULONG)SavedFirstNameLen;
                                     WStringCopy((WORD *)&ResultBuffer[(ULONG)BufferSize], (WORD *)&RetryCount->Name.Buffer[(ULONG)SavedFirstNameLen]);
                                     HasExtendedName = 1;
-                                    BufferSize = (ULONG)BufferSize + 2 * GetStringLength(&RetryCount->Name.Buffer[CurrentNameLen]);
+                                    BufferSize = (ULONG)BufferSize + 2 * (ULONG)GetStringLength(&RetryCount->Name.Buffer[CurrentNameLen]);
                                 }
                             }
                         }
@@ -960,7 +958,7 @@ CheckBuffer:
                 CurrentEntry = *(_QWORD *)(CurrentEntry + 64);
             } while (CurrentChainEntry);
         }
-        else { HasError = ReturnLength; goto CheckResult; }
+        else { HasError = (char)ReturnLength; goto CheckResult; }
 
 CheckResult:
         if (HasError) return -1073741823;
@@ -1002,7 +1000,7 @@ __int64 CmdEnumGdiObjects(__int64 DeviceObject, __int64 Irp, _DWORD *OutputBuffe
     ProbeForWrite(OutputBuffer, BufferSize, 1);
     memset(OutputBuffer, 0, (ULONG)BufferSize64);
     *OutputBuffer = 0;
-    EntryCount[0] = (BufferSize64 - 544) / 0x218 + 1;
+    EntryCount[0] = (_DWORD)((BufferSize64 - 544) / 0x218 + 1);
 
     EnumGdiObjectEntries(OutputBuffer, EntryCount);
     if (EntryCount[0])
@@ -1064,7 +1062,6 @@ __int64 (*EnumKernelObjectDirectory(__int64 ObjectPath, unsigned int Offset, uns
     void (__fastcall *InitUnicodeFunc)(_BYTE *, __int64);
     __int64 (__fastcall *CreateFileFunc)(_BYTE *, __int64, ULONG64);
     __int64 DriverListHead;
-    void (*CloseFunc)(void);
     __int64 (*CloseHandleFunc)(void);
     __int64 CurrentDriver, DirEntryPtr, ObjectEntryPtr, SecondaryListPtr, ChildEntryPtr;
     __int64 FileObjectHandle = 0;
@@ -1166,7 +1163,7 @@ char CopyObjectEntryToBuffer(__int64 Entry, unsigned int Type, unsigned int Flag
     {
         if (Type == 1)
         {
-            if (ResolveObjectHeaderPointer(Entry, &ResolvedHeader) == 1)
+            if (ResolveObjectHeaderPointer(Entry, (_QWORD *)&ResolvedHeader) == 1)
             {
                 NameLength = *ResolvedHeader;
                 NamePtr = (char *)*((__int64 *)ResolvedHeader + 1);
@@ -2149,14 +2146,9 @@ __int64 QueryObjectTypeDirectoryPath(void)
     __int64 Handle;
     _BYTE ObjAttr[0x30];
     __int64 DeviceObj;
-    __int64 NextDevice;
     __int64 CurrentDevice;
     int ReturnLength;
     _BYTE *NameBuffer;
-    int NameBufferSize;
-    WORD *NameStr;
-    WORD *LastChar;
-    int NameLen;
 
     RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, int *))GtRead(0x421D);
     IoCreateFileFunc = (__int64 (*)(_BYTE *, __int64, __int64 *, _BYTE *, _QWORD, _QWORD, _QWORD))GtRead(0x421A);
@@ -2342,7 +2334,6 @@ __int64 (*ReadVolumeDataToBuffer(
     __int64 (__fastcall *DeviceIoControlFunc)(_QWORD *, __int64, int *);
     int (__fastcall *NtFsControlFileFunc)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD);
     void (__fastcall *CloseHandleFunc)(_QWORD *);
-    __int64 (__fastcall *ExFreePoolFunc)(_QWORD);
     __int64 (__fastcall *Result)(_QWORD);
     __int64 (__fastcall *SavedExFreeFunc)(_QWORD);
     _QWORD **HashTable;
@@ -4178,7 +4169,6 @@ char __fastcall InitObjectCallbackEntries(__int64 TableBase)
     __int64 AltRegisterCallbackFunc;
     __int64 SystemRootType;
     __int64 PrevModeOffset;
-    __int64 ObjectInfo;
     __int64 RefObjHeader;
     char *pEntry;
     __int64 ObjHeaderOutput;

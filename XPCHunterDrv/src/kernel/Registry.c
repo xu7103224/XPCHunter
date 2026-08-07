@@ -599,8 +599,6 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
     int EntryField;
     __int64 SectionFlags;
     __int64 Value;
-    unsigned int EntrySize;
-    __int64 SectionType2;
     unsigned int EntryCumulSize;
     __int64 EntryDataPtr;
 

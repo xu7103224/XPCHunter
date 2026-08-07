@@ -4,12 +4,7 @@
 
 #include "XPCHunterDrv.h"
 
-// SHA1 上下文
-typedef struct _SHA1_CONTEXT {
-    ULONG State[5];
-    ULONG Count[2];
-    UCHAR Buffer[64];
-} SHA1_CONTEXT, *PSHA1_CONTEXT;
+// SHA1 上下文定义在 xpc_structs.h
 
 // AES 上下文
 typedef struct _AES_CONTEXT {
@@ -113,7 +108,7 @@ void InitMd5Context(PMD5_CONTEXT Context)
 void Md5Transform(ULONG State[4], PUCHAR Block)
 {
     ULONG a = State[0], b = State[1], c = State[2], d = State[3];
-    ULONG x[16], i, j;
+    ULONG x[16], i;
 
     for (i = 0; i < 16; i++)
         x[i] = ((ULONG)Block[i * 4]) | (((ULONG)Block[i * 4 + 1]) << 8) |
@@ -409,7 +404,6 @@ __int64 AesInitKeySchedule(void)
     int SboxVal;
     UCHAR ByteVal;
     ULONG TeVal;
-    ULONG RconVal;
     ULONG TdVal;
 
     // 生成 Log/Exp 表（GF(2^8) 乘法群，生成元 0x03）
@@ -554,7 +548,6 @@ __int64 AesKeyExpansion(int *KeySchedule, int *Key, int KeySize)
     ULONG Count;
     ULONG Tmp;
     int *pInv;
-    ULONG *pInvSrc;
     ULONG B0, B1, B2, B3;
     ULONG InvMixCol;
 
@@ -937,7 +930,6 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
     char HexByte;
     unsigned int j;
     MD5_CONTEXT Md5Ctx;
-    unsigned char *pDecoded;
     unsigned char AesKey[16];
     unsigned char KeySchedule[0xC0];
     unsigned char Decrypted[0x84];

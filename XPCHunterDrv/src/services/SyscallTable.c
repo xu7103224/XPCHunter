@@ -100,7 +100,7 @@ char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize);
 char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize);
 char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize);
 char ReadNtoskrnlFileToBuffer3(void **pBuffer, unsigned int *pBufferSize);
-char ReadNtFileForSsdtTargets2(void **pFileBuffer, unsigned int *pFileSize);
+bool ReadNtFileForSsdtTargets2(_QWORD *pFileBuffer, unsigned int *pFileSize);
 char BuildSsdtHookTableWin10(void);
 void BuildSsdtHookTableLegacy(void);
 char FillExportEntrySlot(__int64 pOutputTable);
@@ -136,7 +136,7 @@ __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset)
 __int64 ParseServiceTable(char *Src, size_t MaxCount)
 {
     unsigned int ServiceCount;
-    ServiceCount = MaxCount;
+    ServiceCount = (unsigned int)MaxCount;
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3839)
         return ParseServiceTableWin8(Src, ServiceCount);
     return ParseServiceTableWin7(Src, ServiceCount);
@@ -187,7 +187,7 @@ __int64 RemoveServiceEntryFromList(ULONG_PTR *pListHead, __int64 TargetAddress)
     Result = 0;
     CheckValidFunc = (unsigned __int8 (__fastcall *)(_QWORD))GtRead(GtObjectTypeCheckFlag);
     CheckValidFunc2 = CheckValidFunc;
-    if (CheckValidFunc && pListHead && CheckValidFunc(pListHead))
+    if (CheckValidFunc && pListHead && CheckValidFunc((_QWORD)pListHead))
     {
         for (i = 0; *pListHead && CheckValidFunc2(*pListHead) && i <= 0x10000; ++i)
         {
@@ -296,7 +296,7 @@ __int64 RemoveServiceTableNodeWin7(ULONG_PTR *pListHead, __int64 TargetAddress)
     Result = 0;
     CheckValidFunc = (unsigned __int8 (__fastcall *)(_QWORD))GtRead(GtObjectTypeCheckFlag);
     CheckValidFunc2 = CheckValidFunc;
-    if (CheckValidFunc && pListHead && CheckValidFunc(pListHead))
+    if (CheckValidFunc && pListHead && CheckValidFunc((_QWORD)pListHead))
     {
         for (i = 0; *pListHead && CheckValidFunc2(*pListHead) && i <= 0x10000; ++i)
         {
@@ -346,8 +346,8 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
 {
     unsigned int DefaultResult = 0x1000000;
     __int64 NtoskrnlDataBase = GtRead(GtEprocessField22);
-    unsigned int Result = GtRead(GtEprocessField23);
-    unsigned int SectionCount = GtRead(TypeIndex);
+    unsigned int Result = (unsigned int)GtRead(GtEprocessField23);
+    unsigned int SectionCount = (unsigned int)GtRead(TypeIndex);
     __int64 SectionChar;
     __int64 AccumulatedOffset;
     _DWORD ReadEntry[70];
@@ -359,7 +359,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
         InitPESectionReadContext(SectionCount + NtoskrnlDataBase, Result - SectionCount, 2, 0, -1, 0, 0, (__int64)&SectionChar);
         for (i = 0; i < 0x10; i++)
         {
-            if ((unsigned int)ReadPESectionEntry(&SectionChar, ReadEntry))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionChar, ReadEntry))
                 break;
             AccumulatedOffset += ReadEntry[60];
             if (*(_WORD *)(SectionInfoPtr + 6) == 1340 && (*(_QWORD *)&ReadEntry[34] & 0x800000LL) != 0 && !ReadEntry[29])
@@ -376,11 +376,11 @@ char __fastcall VerifyServiceTableDriverFile(__int64 DiskBuffer, unsigned int Di
     unsigned int KernelSize;
 
     KernelBase = GtRead(GtKernelModuleBase);
-    KernelSize = GtRead(GtEprocessField71);
+    KernelSize = (unsigned int)GtRead(GtEprocessField71);
     if (KernelBase && KernelSize && DiskBuffer && DiskSize && KernelSize > 0x1000)
     {
         if (ComparePeHeaders(KernelBase, KernelSize, DiskBuffer, DiskSize) == 1)
-            return GtWrite(GtCallbackField53, 1);
+            return (char)GtWrite(GtCallbackField53, 1);
     }
     return 0;
 }
@@ -395,36 +395,36 @@ __int64 ResolveKernelModuleFunctionAddrs(void)
     unsigned int SyscallIndex;
 
     NtoskrnlDataBase = GtRead(GtEprocessField22);
-    NtoskrnlDataSize = GtRead(GtEprocessField23);
+    NtoskrnlDataSize = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    Win32kEntryCount = GtRead(GtWin32kServiceEntryCount);
+    Win32kEntryCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
     if (NtoskrnlDataBase && NtoskrnlDataSize && NtoskrnlBase && Win32kEntryCount)
     {
-        SyscallIndex = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | GtEprocessField06 | 0x100));
+        SyscallIndex = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField189 | GtEprocessField06 | 0x100));
         if (SyscallIndex && SyscallIndex < Win32kEntryCount)
         {
-            SyscallIndex = ResolveSyscallToAddress(SyscallIndex);
+            SyscallIndex = (unsigned int)ResolveSyscallToAddress(SyscallIndex);
             if (SyscallIndex && SyscallIndex < NtoskrnlDataSize)
                 GtWrite((enum _GLOBAL_TABLE_INDEX)(GtNtQuerySystemInformationFunc | GtEprocessField55), NtoskrnlBase + SyscallIndex);
         }
-        SyscallIndex = GtRead((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | GtEprocessField06 | 0x100));
+        SyscallIndex = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | GtEprocessField06 | 0x100));
         if (SyscallIndex && SyscallIndex < Win32kEntryCount)
         {
-            SyscallIndex = ResolveSyscallToAddress(SyscallIndex);
+            SyscallIndex = (unsigned int)ResolveSyscallToAddress(SyscallIndex);
             if (SyscallIndex && SyscallIndex < NtoskrnlDataSize)
                 GtWrite((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | GtEprocessField10 | 0x100), NtoskrnlBase + SyscallIndex);
         }
-        SyscallIndex = GtRead((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | GtEprocessField07 | 0x100));
+        SyscallIndex = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtSubsystemConfigBase | GtEprocessField07 | 0x100));
         if (SyscallIndex && SyscallIndex < Win32kEntryCount)
         {
-            SyscallIndex = ResolveSyscallToAddress(SyscallIndex);
+            SyscallIndex = (unsigned int)ResolveSyscallToAddress(SyscallIndex);
             if (SyscallIndex && SyscallIndex < NtoskrnlDataSize)
                 GtWrite((enum _GLOBAL_TABLE_INDEX)(GtKiFastCallEntryAddr | GtEprocessField06), NtoskrnlBase + SyscallIndex);
         }
-        SyscallIndex = GtRead((enum _GLOBAL_TABLE_INDEX)(GtNtQuerySystemInformationFunc | GtEprocessField54));
+        SyscallIndex = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtNtQuerySystemInformationFunc | GtEprocessField54));
         if (SyscallIndex && SyscallIndex < Win32kEntryCount)
         {
-            SyscallIndex = ResolveSyscallToAddress(SyscallIndex);
+            SyscallIndex = (unsigned int)ResolveSyscallToAddress(SyscallIndex);
             if (SyscallIndex && SyscallIndex < NtoskrnlDataSize)
                 return GtWrite((enum _GLOBAL_TABLE_INDEX)(GtNtQuerySystemInformationFunc | GtEprocessField58), NtoskrnlBase + SyscallIndex);
         }
@@ -533,7 +533,7 @@ __int64 ResolveServiceTableBase(void)
         result = GtRead(GtCallbackField53);
         if (!(_DWORD)result)
         {
-            TableIndex = GtRead(GtCallbackField55);
+            TableIndex = (unsigned int)GtRead(GtCallbackField55);
             return GtWrite(GtCallbackField56, KernelBase + *(unsigned int *)(ServiceTableBase + 4LL * TableIndex));
         }
     }
@@ -564,7 +564,7 @@ __int64 RestoreSyscallHookByIndex(char TableType, unsigned int HookIndex)
     {
         if (!(unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr1 | GtEprocessField150)))
             ParseSyscallTableExportDir();
-        TableEntryCount = GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr1 | GtEprocessField150));
+        TableEntryCount = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr1 | GtEprocessField150));
         SyscallTable = GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField151));
         AllocIndex = (enum _GLOBAL_TABLE_INDEX)(GtEprocessField154 | 0x2100);
     }
@@ -572,7 +572,7 @@ __int64 RestoreSyscallHookByIndex(char TableType, unsigned int HookIndex)
     {
         if (!(unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField152)))
             ParseSyscallTableExportDir();
-        TableEntryCount = GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField152));
+        TableEntryCount = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField152));
         SyscallTable = GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField154));
         AllocIndex = (enum _GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs5 | GtEprocessField22 | 0x2500);
     }
@@ -611,7 +611,6 @@ __int64 LookupDriverHashTable(__int64 DriverName, _DWORD *pExportIndex)
     unsigned int (__fastcall *RtlUnicodeToAnsiFunc)(unsigned __int16 *, char *, __int64);
     __int64 FreeStringFuncPtr;
     void (__fastcall *FreeStringFunc)(unsigned __int16 *);
-    __int64 AllocFlag;
     __int64 ExportIndexTable;
     unsigned int ExportTableSize;
     unsigned int ExportTableSizeCopy;
@@ -647,11 +646,11 @@ __int64 LookupDriverHashTable(__int64 DriverName, _DWORD *pExportIndex)
                     BuildNtExportIndexTable();
                     ExportIndexTable = GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtDriverObject | 0x100));
                 }
-                ExportTableSize = GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtNtoskrnlImageSize | 0x100));
+                ExportTableSize = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtNtoskrnlImageSize | 0x100));
                 ExportTableSizeCopy = ExportTableSize;
                 if (ExportIndexTable && ExportTableSize)
                 {
-                    HashValue = Sha1HashToDword(AnsiBuffer);
+                    HashValue = (int)Sha1HashToDword(AnsiBuffer);
                     LoopIndex = 0;
                     HashValueCopy = HashValue;
                     pCurrentEntry = ExportIndexTable;
@@ -749,7 +748,7 @@ __int64 ScanWin32kPatternLegacy(__int64 OutputBuffer, unsigned int EntryCount)
     Result = 0;
     EntryCountCopy = EntryCount;
     KernelBase = GtRead(GtEprocessField22);
-    KernelSize = GtRead(GtEprocessField23);
+    KernelSize = (int)GtRead(GtEprocessField23);
     if (KernelBase && KernelSize)
     {
         ExportDirRva = *(_QWORD *)(*(int *)(KernelBase + 60) + KernelBase + 48);
@@ -771,7 +770,7 @@ __int64 ScanWin32kPatternLegacy(__int64 OutputBuffer, unsigned int EntryCount)
                     SyscallNumber = *pSyscallTable;
                     pSyscallTable += 2;
                     RvaOffset = (unsigned int)(SyscallNumber - ExportDirRva);
-                    *((_DWORD *)pCurrentEntry - 2) = RvaOffset;
+                    *((_DWORD *)pCurrentEntry - 2) = (_DWORD)RvaOffset;
                     *pCurrentEntry = NtoskrnlBase + RvaOffset;
                     pCurrentEntry += 11;
                     --RemainingCount;
@@ -1024,15 +1023,15 @@ void BuildNtExportIndexTable(void)
     unsigned int FileSize;
     void *pFileBuffer;
 
-    if (GtRead(GtDisableHookProtectionAddr1 | 0x100) && ReadRawFileToBuffer(&pFileBuffer, &FileSize))
+    if (GtRead(GtDisableHookProtectionAddr1 | 0x100) && ReadRawFileToBuffer((_QWORD *)&pFileBuffer, &FileSize))
     {
-        ExportDirSize = GetExportDirSize((__int64)pFileBuffer, FileSize);
+        ExportDirSize = (unsigned int)GetExportDirSize((__int64)pFileBuffer, FileSize);
         if (ExportDirSize)
         {
             pIndexTable = ExAlloc(PagedPool, 12LL * ExportDirSize);
             if (pIndexTable)
             {
-                TableEntryCount = BuildExportIndexTable((__int64)pFileBuffer, FileSize, pIndexTable, ExportDirSize, (unsigned __int8 (__fastcall *)(__int64))CheckStringPrefixNt);
+                TableEntryCount = (unsigned int)BuildExportIndexTable((__int64)pFileBuffer, FileSize, pIndexTable, ExportDirSize, (unsigned __int8 (__fastcall *)(__int64))CheckStringPrefixNt);
                 if (TableEntryCount)
                 {
                     GtWrite(GtDisableHookProtectionAddr2 | GtDriverObject | 0x100, (__int64)pIndexTable);
@@ -1056,7 +1055,7 @@ void ReadNtOsKrnlAndParseServiceTable(void)
     size_t MaxCount;
     void *Src;
 
-    if (ReadNtOsKrnlFile(&Src, (unsigned int *)&MaxCount))
+    if (ReadNtOsKrnlFile((__int64 *)&Src, (__int64 *)&MaxCount))
     {
         ParseServiceTable((char *)Src, (unsigned int)MaxCount);
         ExFree(Src);
@@ -1091,7 +1090,7 @@ __int64 ReadNtOsKrnlFile(__int64 *pBuffer, __int64 *pSize)
     EncodedPath[13] = 3014763; EncodedPath[15] = 115;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pBuffer, pSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pBuffer, (PULONG)pSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -1116,7 +1115,7 @@ char ReadWin32kFullDriverFile(__int64 *pBuffer, unsigned int *pSize)
     EncodedPath[17] = 115;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        if (ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pBuffer, pSize) == 1)
+        if (ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pBuffer, (PULONG)pSize) == 1)
         {
             ValidateWin32kFullDriverImage(*pBuffer, *pSize);
             Result = 1;
@@ -1133,11 +1132,11 @@ __int64 ValidateWin32kFullDriverImage(__int64 DiskBuffer, unsigned int DiskSize)
     __int64 NtoskrnlBase;
     unsigned int NtoskrnlSize;
 
-    Result = GtRead(GtNtCreateThreadHookSuccess | GtEprocessField06);
+    Result = (unsigned int)GtRead(GtNtCreateThreadHookSuccess | GtEprocessField06);
     if (!Result)
     {
         NtoskrnlBase = GtRead(GtNtoskrnlFileBase);
-        Result = GtRead(GtDisableHookProtectionAddr1 | GtEprocessField182 | GtEprocessField22);
+        Result = (unsigned int)GtRead(GtDisableHookProtectionAddr1 | GtEprocessField182 | GtEprocessField22);
         NtoskrnlSize = Result;
         if (NtoskrnlBase && Result && DiskBuffer && DiskSize && Result > 0x1000)
         {
@@ -1187,7 +1186,7 @@ char FindSsdtServiceTableV1(void)
                 ResolveSsdtNtOffset(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
         }
         else
-            FindSsdtTableAddresses((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+            FindSsdtTableAddresses((__int64)pScanPos, (int)SectionEnd, &Value, &SsdtOffsetOut);
         if (Value)
         {
             SsdtOffset = SsdtOffsetOut;
@@ -1237,9 +1236,9 @@ char FindSsdtServiceTableV2(void)
         if ((unsigned int)GtRead(GtEprocessField28) == 1)
             FindSsdtSignatureInNtFile(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
         else if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
-            ResolveSsdtTablePointerEx((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+            ResolveSsdtTablePointerEx((__int64)pScanPos, (int)SectionEnd, &Value, &SsdtOffsetOut);
         else
-            ResolveSsdtTablePointer((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+            ResolveSsdtTablePointer((__int64)pScanPos, (int)SectionEnd, &Value, &SsdtOffsetOut);
         if (Value)
         {
             SsdtOffset = SsdtOffsetOut;
@@ -1294,7 +1293,7 @@ char FindSsdtServiceTableV3(void)
         if (ExportDirType == 1)
             FindSsdtSignatureInNtFile(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
         else
-            ResolveSsdtTablePointer((__int64)pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
+            ResolveSsdtTablePointer((__int64)pScanPos, (int)SectionEnd, &Value, &SsdtOffsetOut);
         if (Value)
         {
             SsdtOffset = SsdtOffsetOut;
@@ -1336,12 +1335,12 @@ bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int Target
     RelocOut3 = pRelocOffsets[2];
     RelocOut4 = pRelocOffsets[3];
     MatchCount = 0;
-    InitPESectionReadContext(SectionBase, TargetSize + SectionOffset - SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    InitPESectionReadContext(SectionBase, (ULONG)(TargetSize + SectionOffset - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
     for (LoopIndex = 0; LoopIndex < 5; ++LoopIndex)
     {
-        if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
-        CurrentOffset = EntryDataPtr + CumulSize;
+        CurrentOffset = (int)(EntryDataPtr + CumulSize);
         CumulSize += EntryDataPtr;
         if (*(_WORD *)(FieldPtr + 6) == 1298 && SectionType == 0x40000 && EntryCumulSize && EntryFlags == 64)
         {
@@ -1405,14 +1404,14 @@ __int64 ParseNtSectionsForShadowSsdt(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0xA)
@@ -1621,7 +1620,7 @@ char __fastcall ResolveSsdtNtOffset(
                 && *pTokenType == 4274
                 && CharOffset > 0
                 && CharOffset > (int)FuncAddress
-                && CharOffset - (int)FuncAddress < NtImageSize)
+                && (unsigned int)(CharOffset - (int)FuncAddress) < NtImageSize)
             {
                 *pSsdtTable = NtoskrnlImageBase + (unsigned int)(CharOffset - (int)FuncAddress);
             }
@@ -1677,14 +1676,14 @@ bool __fastcall FindSsdtTableAddresses(
     if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
     {
         InitPESectionReadContext(
-            (PUCHAR)pSectionData,
+            (__int64)pSectionData,
             SectionEnd - (int)pSectionData,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)ReadContext);
+            (__int64)ReadContext);
 
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionInfo))
@@ -1702,14 +1701,14 @@ bool __fastcall FindSsdtTableAddresses(
                         FieldIndex = 0;
                         FieldAddress = 0;
                         InitPESectionReadContext(
-                            (PUCHAR)(NtImageBase + (unsigned int)(ComputedOffset + SubSectionAddress - (int)NtImageBase)),
+                            (__int64)(NtImageBase + (unsigned int)(ComputedOffset + SubSectionAddress - (int)NtImageBase)),
                             SectionEnd - (ComputedOffset + SubSectionAddress),
                             2,
                             0,
                             -1,
                             0,
                             0,
-                            (PUCHAR)ReadContext);
+                            (__int64)ReadContext);
 
                         FieldCount = 0;
                         while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionInfo))
@@ -1801,17 +1800,17 @@ char __fastcall ResolveSsdtTablePointer(
     if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
     {
         InitPESectionReadContext(
-            (PUCHAR)pSectionData,
+            (__int64)pSectionData,
             SectionEnd - (int)pSectionData,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionReadContext);
+            (__int64)&SectionReadContext);
 
         SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry(&SectionReadContext, SectionEntry))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
         {
             pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
             SectionFileOffset = FieldFileOffset;
@@ -1906,17 +1905,17 @@ char __fastcall ResolveSsdtTablePointerEx(
     if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
     {
         InitPESectionReadContext(
-            (PUCHAR)pSectionData,
+            (__int64)pSectionData,
             SectionEnd - (int)pSectionData,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionReadContext);
+            (__int64)&SectionReadContext);
 
         SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry(&SectionReadContext, SectionEntry))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
         {
             pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
             ComputedOffset = SectionEntrySize + (int)RootOffsetAccum;
@@ -1930,17 +1929,17 @@ char __fastcall ResolveSsdtTablePointerEx(
                     if (SubSectionRva && SubSectionRva < NtImageSize)
                     {
                         InitPESectionReadContext(
-                            (PUCHAR)(NtImageBase + (unsigned int)(ComputedOffset + SubSectionFieldCount - (int)NtImageBase)),
+                            (__int64)(NtImageBase + (unsigned int)(ComputedOffset + SubSectionFieldCount - (int)NtImageBase)),
                             SectionEnd - (ComputedOffset + SubSectionFieldCount),
                             2,
                             0,
                             -1,
                             0,
                             0,
-                            (PUCHAR)&SectionReadContext);
+                            (__int64)&SectionReadContext);
 
                         FieldIndex = 0;
-                        while (!(unsigned int)ReadPESectionEntry(&SectionReadContext, SectionEntry))
+                        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
                         {
                             pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
                             SectionFileOffset = FieldFileOffset;
@@ -2011,7 +2010,7 @@ __int64 FindWin32kServiceTable(__int64 PeBase, unsigned int PeSize)
     strcpy((char *)FuncNameBuffer, "W32pServiceTable");
     HIBYTE_LV(FuncNameBuffer[8]) = 0;
     FuncNameBuffer[9] = 0;
-    if (LookupExportByName(PeBase, PeSize, (__int64)FuncNameBuffer, &ExportOffset) == 1 && ExportOffset)
+    if (LookupExportByName((PUCHAR)PeBase, PeSize, (PCHAR)FuncNameBuffer, &ExportOffset) == 1 && ExportOffset)
         return ExportOffset;
     return Result;
 }
@@ -2066,9 +2065,9 @@ char ParseServiceTableExportEntry(void *Src, size_t MaxCount, __int64 ServiceInd
         {
             memmove(pBuffer, Src, (unsigned int)FileSize);
             memset(&pBuffer[FileSize], 0, 0x100u);
-            if (ParseNtExportDir((__int64)pBuffer, FileSize, KernelBase, 0) == 1)
+            if (ParseNtExportDir((PUCHAR)pBuffer, (ULONG)FileSize, KernelBase, 0) == 1)
             {
-                unsigned int ExportIndex = GtRead(201 | GtEprocessField22);
+                unsigned int ExportIndex = (unsigned int)GtRead(201 | GtEprocessField22);
                 __int64 *pDest = GtAlloc(GtObjectTypeField04);
                 __int64 SrcOffset = *(unsigned int *)(ServiceIndex + 4LL * ExportIndex);
                 *(_OWORD *)pDest = *(_OWORD *)&pBuffer[SrcOffset];
@@ -2090,7 +2089,7 @@ char ParseServiceTableExportEntry(void *Src, size_t MaxCount, __int64 ServiceInd
 char ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize)
 {
     char Result = 0;
-    if (!PeBase || !PeSize || PeBase < (unsigned __int64)MmSystemRangeStart)
+    if (!PeBase || !PeSize || (unsigned __int64)PeBase < (unsigned __int64)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid((void *)PeBase) != 1)
         return Result;
@@ -2118,7 +2117,7 @@ __int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSiz
     if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
         goto done;
 
-    InitPESectionReadContext((PUCHAR)TargetAddress + PeScanBaseOffset, TargetSize - PeScanBaseOffset, 3, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 3, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
     while (1)
     {
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
@@ -2190,7 +2189,7 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
     if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
         goto done2;
 
-    InitPESectionReadContext((PUCHAR)TargetAddress + PeScanBaseOffset, TargetSize - PeScanBaseOffset, 3, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 3, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
     PhaseCount = 0;
     PhaseMarker = 0;
 
@@ -2224,7 +2223,7 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
                 if (Offset && (unsigned int)Offset < TargetSize)
                 {
                     // 切换到第二阶段：重新初始化上下文
-                    InitPESectionReadContext((PUCHAR)TargetAddress + Offset, TargetSize - Offset, 3, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+                    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + Offset), TargetSize - Offset, 3, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
                     PhaseCount = 0;
                     PhaseMarker = 0;
                     continue;

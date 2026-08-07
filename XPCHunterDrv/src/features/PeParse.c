@@ -14,15 +14,11 @@ extern char OpenDeviceTarget(__int64 EncodedPath, __int64 *pDeviceHandle, __int6
 extern __int64 GetDeviceObjectFromContext(__int64 DeviceHandle);
 extern char GetDiskDriverInfo(char State, void *pBuffer, __int64 *pFuncTable);
 extern char SetDiskDriverInfo(char State, char Flags, void *pBuffer);
-extern char FindPeSectionByType0x510(__int64 Base, unsigned int Size, int SectionType, unsigned int SectionFlags);
 extern char FindPeSectionByTypeRsrc(__int64 Buffer, unsigned int Size, __int64 Address);
 extern char FindPatchThreadWindowsExport(__int64 FileBuffer, unsigned int FileSize);
-extern void QueryProcessModuleFilePath(__int64 ProcessId, __int64 Address, _WORD *pBuffer, unsigned int MaxLen);
 extern __int64 ResolveKernelModuleIndexAddress(int ModuleId, int GtIndex);
 extern __int64 ResolveAndStoreKernelModuleAddress(int ModuleId, int GtIndex);
 extern __int64 ReadIoPortDataForProcess(__int64 CpuIndex, __int64 IoPortContext);
-extern char BuildFsFilterDriverPath1(void);
-extern char BuildFsFilterDriverPath2(void);
 extern __int64 ReadWriteKernelMemory(void);
 
 // =======================================================================
@@ -55,17 +51,17 @@ __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, _
     result = GtRead(GtFindHookTargetDataPeOffset);
     if ((_DWORD)result && (unsigned int)result < ModuleSize)
     {
-        EndAddress = ModuleBase + ModuleSize;
+        EndAddress = (int)(ModuleBase + ModuleSize);
         SectionBase = ModuleBase + (unsigned int)result;
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
         {
-            InitPESectionReadContext(SectionBase, EndAddress - SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            InitPESectionReadContext((__int64)SectionBase, (ULONG)(EndAddress - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
             SectionIndex = 0;
             while (1)
             {
-                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                     goto LABEL_13;
-                MatchSize = SectionSize + CumulativeSize;
+                MatchSize = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
                 if (*(_WORD *)(SectionDataPtr + 6) == 1368)
                 {
@@ -75,18 +71,18 @@ __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, _
                 if ((unsigned int)++SectionIndex >= 7)
                     goto LABEL_13;
             }
-            TargetOffset = MatchSize + EntryCharacteristics - ModuleBase;
+            TargetOffset = (unsigned int)(MatchSize + EntryCharacteristics - ModuleBase);
             if (TargetOffset && TargetOffset < ModuleSize)
                 SectionBase = ModuleBase + TargetOffset;
         }
 LABEL_13:
-        InitPESectionReadContext(SectionBase, EndAddress - SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        InitPESectionReadContext((__int64)SectionBase, (ULONG)(EndAddress - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (LoopIndex = 0; LoopIndex < 0xC8; ++LoopIndex)
         {
-            result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)result)
                 return result;
-            MatchSize2 = SectionSize + CumulativeSize;
+            MatchSize2 = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
             SubType = *(_WORD *)(SectionDataPtr + 6);
             result = EntryFlags;
@@ -147,7 +143,7 @@ char FindExportInFileByName(__int64 PeBase, unsigned int PeSize, __int64 OutEntr
     {
         strcpy((char *)FuncNameBuffer, "ClassSpinDownPowerHandler");
         FuncNameBuffer[13] = 0;
-        ExportByNameInPeBody = FindExportByNameInPeBody(PeBase, PeSize, (__int64)FuncNameBuffer, 0);
+        ExportByNameInPeBody = (unsigned int)FindExportByNameInPeBody((PUCHAR)PeBase, PeSize, (PCHAR)FuncNameBuffer, 0);
         if (ExportByNameInPeBody)
         {
             if (ExportByNameInPeBody < PeSize)
@@ -189,9 +185,9 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
     unsigned int EntryCumulSize;
     __int64 EntryDataPtr;
 
-    Target1 = GtRead(GtNtWriteFilePeSectionOffset | GtObjectTypeField08);
-    Target2 = GtRead(GtTotalSize | GtObjectTypeField18);
-    Target3 = GtRead(GtTotalSize | GtEprocessField187 | 0x100);
+    Target1 = (int)GtRead(GtNtWriteFilePeSectionOffset | GtObjectTypeField08);
+    Target2 = (int)GtRead(GtTotalSize | GtObjectTypeField18);
+    Target3 = (int)GtRead(GtTotalSize | GtEprocessField187 | 0x100);
     Result = GtRead(GtNtCreateFileSyscallResult);
     if (Target1 && Target2 && Target3 && (_DWORD)Result && (unsigned int)Result < TargetSize)
     {
@@ -206,10 +202,10 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
             (__int64)&ReadContext);
         for (LoopIndex1 = 0; LoopIndex1 < 0x3E8; ++LoopIndex1)
         {
-            Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)Result)
                 break;
-            Offset1 = EntryCumulSize + CumulativeSize;
+            Offset1 = (int)(EntryCumulSize + CumulativeSize);
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(EntryDataPtr + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
             {
@@ -228,10 +224,10 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
         {
             for (i = 0; i < 0x3E8; ++i)
             {
-                Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
-                Offset2 = EntryCumulSize + CumulativeSize;
+                Offset2 = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
                 if (*(_WORD *)(EntryDataPtr + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
                 {
@@ -251,10 +247,10 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
         {
             for (LoopIndex2 = 0; LoopIndex2 < 0x64; ++LoopIndex2)
             {
-                Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
-                Offset3 = EntryCumulSize + CumulativeSize;
+                Offset3 = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
                 if (*(_WORD *)(EntryDataPtr + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
                 {
@@ -274,7 +270,7 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
         {
             for (j = 0; j < 0x1E; ++j)
             {
-                Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
                 CumulativeSize += EntryCumulSize;
@@ -287,10 +283,10 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                     SecondRelocOffset = 0;
                     for (LoopIndex3 = 0; LoopIndex3 < 0x1E; ++LoopIndex3)
                     {
-                        Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                        Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                         if ((_DWORD)Result)
                             break;
-                        CurrentOffset = EntryCumulSize + CumulativeSize;
+                        CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
                         CumulativeSize += EntryCumulSize;
                         if (SectionType == 0x40000)
                         {
@@ -300,13 +296,13 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                                 {
                                     if ((SectionFlags & 0x40) != 0 && FirstRelocOffset)
                                     {
-                                        SecondRelocOffset = CurrentOffset + SectionSize - (unsigned int)TargetBase;
+                                        SecondRelocOffset = (unsigned int)(CurrentOffset + SectionSize - (unsigned int)TargetBase);
                                         break;
                                     }
                                 }
                                 else
                                 {
-                                    FirstRelocOffset = CurrentOffset + SectionSize - (unsigned int)TargetBase;
+                                    FirstRelocOffset = (unsigned int)(CurrentOffset + SectionSize - (unsigned int)TargetBase);
                                 }
                             }
                         }
@@ -334,7 +330,6 @@ __int64 ParseNtExportFunctions(void)
     __int64 MiscInfo;
     unsigned int EntrySize;
     __int64 CumulativeSize;
-    int MiscInfo2;
     __int64 Result;
     int Phase1Offset;
     unsigned int Phase1Count;
@@ -361,11 +356,11 @@ __int64 ParseNtExportFunctions(void)
     DataDirRva = (unsigned int)GtRead(0x21);
     if (!NtoskrnlBase || !ImageBase || !ImageSize || !DataDirRva)
         return Result;
-    PeFileData = *(__int64 *)(ImageBase + 0x28);
+    PeFileData = *(__int64 *)(ULONG_PTR)(ImageBase + 0x28);
     if (!PeFileData || (unsigned int)PeFileData >= DataDirRva)
         return Result;
     PeContext = 0;
-    InitPESectionReadContext((char *)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, &PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, (LONG64)&PeContext, -1, 0, 0, 0);
     HasDiscardable = 0;
     HasCodeSection = 0;
     Found418 = 0;
@@ -375,7 +370,7 @@ __int64 ParseNtExportFunctions(void)
     Phase1Count = 0;
     while (Phase1Count < 0xC8)
     {
-        if (ReadPESectionEntry(&PeContext, EntryBuffer))
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             return Result;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
@@ -411,10 +406,10 @@ __int64 ParseNtExportFunctions(void)
     LoopIndex = 0;
     SavedEntryCount = 0;
     PeContext = 0;
-    InitPESectionReadContext((char *)(ImageSize + Phase1Offset), DataDirRva + ImageSize - (ImageSize + Phase1Offset), 2, &PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(ImageSize + Phase1Offset), DataDirRva + ImageSize - (ImageSize + Phase1Offset), 2, (LONG64)&PeContext, -1, 0, 0, 0);
     while (LoopIndex < 0x1F4)
     {
-        if (ReadPESectionEntry(&PeContext, EntryBuffer))
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             return Result;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
@@ -518,7 +513,7 @@ __int64 ParseNtExportFunctions(void)
                         if (SectionType < 0x10)
                         {
                             Dst[SectionType] = EntrySize - (int)ImageSize + (int)CumulativeSize;
-                            if (ReadPESectionEntry(&PeContext, EntryBuffer))
+                            if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                                 return Result;
                             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
                             CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
@@ -602,7 +597,7 @@ __int64 ParseNtExportFunctions(void)
                                 {
                                     if (CurrentCumulative > CheckAddr || CurrentCumulative + 0x100 <= CheckAddr)
                                     {
-                                        if (ParseNtDataSectionRelocs(Dst, NtoskrnlBase, ImageSize, DataDirRva))
+                                        if (ParseNtDataSectionRelocs((__int64)Dst, (int)NtoskrnlBase, (int)ImageSize, (_OWORD *)(ULONG_PTR)DataDirRva))
                                             HasCodeSection = 0;
                                     }
                                 }
@@ -659,18 +654,18 @@ __int64 ParseNtExportFunctionsV2(void)
     ImageSize = (unsigned int)GtRead(0x21);
     if (!NtoskrnlBase || !ImageBase || !DataDirRva || !ImageSize)
         return Result;
-    PeFileData = *(__int64 *)(ImageBase + 0x28);
+    PeFileData = *(__int64 *)(ULONG_PTR)(ImageBase + 0x28);
     if (!PeFileData || (unsigned int)PeFileData >= ImageSize)
         return Result;
     PeContext = 0;
-    InitPESectionReadContext((char *)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, &PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, (LONG64)&PeContext, -1, 0, 0, 0);
     HasDiscardable = 0;
     Phase1Offset = 0;
     Phase1Type = 0;
     Phase1Count = 0;
     while (Phase1Count < 0xC8)
     {
-        if (ReadPESectionEntry(&PeContext, EntryBuffer))
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
@@ -704,7 +699,7 @@ __int64 ParseNtExportFunctionsV2(void)
                 SectionType = *(int *)&EntryBuffer[0x18];
                 if (SectionType == 1)
                 {
-                    if (*(int *)&EntryBuffer[0x10] == 1 && Phase1Type && Phase1Type + 10 > Phase1Count)
+                    if (*(int *)&EntryBuffer[0x10] == 1 && Phase1Type && Phase1Type + 10 > (int)Phase1Count)
                         break;
                 }
             }
@@ -716,14 +711,14 @@ __int64 ParseNtExportFunctionsV2(void)
     memset(Dst, 0, sizeof(Dst));
     Phase1Count = 0;
     PeContext = 0;
-    InitPESectionReadContext((char *)(DataDirRva + Phase1Offset), ImageSize + DataDirRva - (DataDirRva + Phase1Offset), 2, &PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(DataDirRva + Phase1Offset), ImageSize + DataDirRva - (DataDirRva + Phase1Offset), 2, (LONG64)&PeContext, -1, 0, 0, 0);
     HasCodeSection = 0;
     HasDiscardable = 0;
     LoopIndex = 0;
     SavedEntryCount = 0;
     while (LoopIndex < 0x1F4)
     {
-        if (ReadPESectionEntry(&PeContext, EntryBuffer))
+        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             return Result;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
@@ -798,7 +793,7 @@ __int64 ParseNtExportFunctionsV2(void)
                             if (SectionType < 0x10)
                             {
                                 Dst[SectionType] = EntrySize - (int)DataDirRva + (int)CumulativeSize;
-                                if (ReadPESectionEntry(&PeContext, EntryBuffer))
+                                if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                                     return Result;
                                 SectionSize = *(unsigned int *)&EntryBuffer[0x38];
                                 CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
@@ -909,7 +904,6 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
     unsigned int SectionRva;
     char TableBuilt;
     __int64 FileSize;
-    __int64 NtoskrnlBase;
     unsigned int OptHeaderSize;
     char FoundInitSection;
     int SectionIndex;
@@ -968,16 +962,16 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
         if ((unsigned int)OptHeaderSize < (unsigned int)FileSize)
         {
             FoundInitSection = 0;
-            InitPESectionReadContext(PeBase + OptHeaderSize, FileSize - OptHeaderSize, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            InitPESectionReadContext((__int64)(PeBase + OptHeaderSize), (ULONG)(FileSize - OptHeaderSize), 2, 0, -1, 0, 0, (__int64)&ReadContext);
             SectionIndex = 0;
-            while (!(unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             {
-                SectionEnd = SectionSize + CumulativeSize;
+                SectionEnd = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
                 SectionType = *(_WORD *)(SectionDataPtr2 + 6);
                 if (SectionType == 1369)
                 {
-                    TargetRva = SectionEnd + FieldValue - PeBase;
+                    TargetRva = (unsigned int)(SectionEnd + FieldValue - PeBase);
                     if (TargetRva && TargetRva < (unsigned int)FileSize)
                         goto LABEL_8;
                 }
@@ -989,7 +983,7 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
                 {
                     if (FoundInitSection == 1)
                     {
-                        TargetRva = SectionEnd + FieldValue - PeBase;
+                        TargetRva = (unsigned int)(SectionEnd + FieldValue - PeBase);
                         if (TargetRva && TargetRva < (unsigned int)FileSize)
                         {
 LABEL_8:
@@ -1006,8 +1000,8 @@ LABEL_8:
         if (OptHeaderSize && (unsigned int)OptHeaderSize < (unsigned int)FileSize)
         {
             InitPESectionReadContext(
-                PeBase + (unsigned int)OptHeaderSize,
-                FileSize - OptHeaderSize,
+                (__int64)(PeBase + (unsigned int)OptHeaderSize),
+                (ULONG)(FileSize - OptHeaderSize),
                 2, 0, -1, 0, 0,
                 (__int64)&ReadContext);
             memset(Dst, 0, sizeof(Dst));
@@ -1016,18 +1010,18 @@ LABEL_8:
             FoundRelocSection = 0;
             for (LoopIndex = 0; LoopIndex < 0x1F4; ++LoopIndex)
             {
-                if ((unsigned int)ReadPESectionEntry(&ReadContext, SectionEntry))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                     break;
-                SectionEnd2 = SectionSize + CumulativeSize;
+                SectionEnd2 = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
                 SectionType2 = *(_WORD *)(SectionDataPtr2 + 6);
                 if (SectionType2 == 1298 && SectionDataPtr == 0x40000 && FieldValueB && SectionCharacteristics == 64)
                 {
-                    RelocRva = SectionEnd2 + FieldValueB - PeBase;
+                    RelocRva = (unsigned int)(SectionEnd2 + FieldValueB - PeBase);
                     if (RelocRva && RelocRva < (unsigned int)FileSize && SectionEntryIndex < 0x10)
                     {
                         SectionRva = RelocRva2;
-                        RelocRva2 = SectionEnd2 + FieldValueB - PeBase;
+                        RelocRva2 = (unsigned int)(SectionEnd2 + FieldValueB - PeBase);
                         Dst[SectionEntryIndex] = RelocRva;
                     }
                 }
@@ -1055,7 +1049,7 @@ LABEL_8:
                                                 FieldRva = (unsigned int)*pFieldSrc - (unsigned int)ImageNtHeader;
                                                 if ((unsigned int)FileSize > (unsigned int)FieldRva)
                                                 {
-                                                    *((_DWORD *)pTargetEntry - 1) = FieldRva;
+                                                    *((_DWORD *)pTargetEntry - 1) = (DWORD)FieldRva;
                                                     *pTargetEntry = NtoskrnlBase2 + FieldRva;
                                                 }
                                             }
@@ -1154,7 +1148,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     LoopIndex = 0;
     strcpy((char *)FuncNameBuffer, "DllInitialize");
     FuncNameBuffer[1] = 0;
-    ExportByNameInPeBody = FindExportByNameInPeBody((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer, 0);
+    ExportByNameInPeBody = (unsigned int)FindExportByNameInPeBody((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer, 0);
     ExportOffset = ExportByNameInPeBody;
     if (!ExportByNameInPeBody)
         return;
@@ -1162,8 +1156,8 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
         return;
 
     FuncNameBuffer[0] = 1414090313;  // "INIT" as DWORD
-    PESectionByName = FindPESectionByName((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer);
-    PESectionByNameReturnVa = FindPESectionByNameReturnVa((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer);
+    PESectionByName = (unsigned int)FindPESectionByName((PUCHAR)PeBuffer, (PCHAR)FuncNameBuffer);
+    PESectionByNameReturnVa = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)PeBuffer, (PCHAR)FuncNameBuffer);
     if (!PESectionByName || !PESectionByNameReturnVa)
         return;
     if (PESectionByName >= PeSize || PESectionByNameReturnVa >= PeSize)
@@ -1173,7 +1167,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     if (SectionEnd >= PeSize)
         return;
 
-    InitPESectionReadContext((PUCHAR)(PeBuffer + ExportOffset), 4096, 2, 0, -1, 0, 0, (PUCHAR)&ReadContext);
+    InitPESectionReadContext((__int64)(PeBuffer + ExportOffset), 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
     {
         SectionEnd2 = SectionSize + (int)CumulativeSize;
@@ -1182,7 +1176,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
         {
             if (FieldValue)
             {
-                TargetRva = SectionEnd2 + FieldValue - PeBuffer;
+                TargetRva = (unsigned int)(SectionEnd2 + FieldValue - PeBuffer);
                 if (TargetRva && TargetRva < PeSize && (PESectionByName > TargetRva || TargetRva >= SectionEnd))
                 {
                     ExportOffset = TargetRva;
@@ -1194,9 +1188,9 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
             break;
     }
 
-    if ((unsigned int)ExportOffset < PeSize && (int)ExportOffset + 4096 < PeSize)
+    if ((unsigned int)ExportOffset < PeSize && (int)ExportOffset + 4096 < (int)PeSize)
     {
-        InitPESectionReadContext((PUCHAR)(PeBuffer + (unsigned int)ExportOffset), 4096, 2, 0, -1, 0, 0, (PUCHAR)&ReadContext);
+        InitPESectionReadContext((__int64)(PeBuffer + (unsigned int)ExportOffset), 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         memset(Dst, 0, sizeof(Dst));
         LoopIndex2 = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
@@ -1208,7 +1202,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
             {
                 if (FieldValue4 && SectionCharacteristics == 64)
                 {
-                    RelocRva = SectionEnd3 + FieldValue4 - PeBuffer;
+                    RelocRva = (unsigned int)(SectionEnd3 + FieldValue4 - PeBuffer);
                     if (RelocRva && RelocRva < PeSize)
                         Dst[FieldValue3] = RelocRva;
                 }
@@ -1217,7 +1211,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
             {
                 if (FieldValue2 && SectionFlags == 64 && EntryCount < 0x10)
                 {
-                    EntryIndex = SectionEnd3 + FieldValue2 - PeBuffer;
+                    EntryIndex = (unsigned int)(SectionEnd3 + FieldValue2 - PeBuffer);
                     if (EntryIndex && EntryIndex < PeSize)
                     {
                         SectionEnd4 = Dst[EntryCount];
@@ -1259,9 +1253,9 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
     unsigned int EntryCumulSize;
     __int64 EntryDataPtr;
 
-    SectionOffset = GtRead(GtNtCreateFileSyscallResult);
+    SectionOffset = (unsigned int)GtRead(GtNtCreateFileSyscallResult);
     Result = GtRead(GtNtWriteFilePeSectionOffset | GtObjectTypeField08);
-    TargetOffset = Result;
+    TargetOffset = (int)Result;
     if (SectionOffset && SectionOffset < TargetSize && (_DWORD)Result && (unsigned int)Result < TargetSize)
     {
         InitPESectionReadContext(
@@ -1278,10 +1272,10 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
         LoopIndex = 0;
         while (1)
         {
-            Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+            Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)Result)
                 return Result;
-            CurrentOffset = EntryCumulSize + CumulativeSize;
+            CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(EntryDataPtr + 6) != 1368 || (SectionFlags & 0x4000000) == 0 || !EntrySize)
             {
@@ -1303,8 +1297,8 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
                     if ((_DWORD)Result && (unsigned int)Result < TargetSize)
                     {
                         InitPESectionReadContext(
-                            TargetBase + (unsigned int)Result,
-                            TargetSize - Result,
+                            (__int64)(TargetBase + (unsigned int)Result),
+                            (ULONG)(TargetSize - Result),
                             2,
                             0,
                             -1,
@@ -1322,14 +1316,14 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
                             InnerLoopIndex = 0;
                             while (1)
                             {
-                                Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                                Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                                 if ((_DWORD)Result)
                                     break;
-                                InnerCurrentOffset = EntryCumulSize + CumulativeSize;
+                                InnerCurrentOffset = (int)(EntryCumulSize + CumulativeSize);
                                 CumulativeSize += EntryCumulSize;
                                 if (SectionTypeInner == 0x40000 && (Result = EntrySizeInner) != 0)
                                 {
-                                    InnerRelocOffset = InnerCurrentOffset + EntrySizeInner - TargetBase;
+                                    InnerRelocOffset = (unsigned int)(InnerCurrentOffset + EntrySizeInner - TargetBase);
                                 }
                                 else if (EntryField1 == 8)
                                 {

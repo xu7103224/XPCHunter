@@ -114,31 +114,39 @@ XPCHunter/
 ├── samples/                    # 原始样本
 │   └── PCHunter_2024.09.02/
 │       └── View++_Driver64.sys
-├── XPCHunterDrv/
+├── build/
+│   └── build.bat               # 编译脚本（两步法：msbuild 编译 + link 链接）
+│                               # 产物输出到 build/bin、build/obj
+├── tools/                      # 辅助脚本（历史构建/重命名工具）
+├── XPCHunterDrv/               # 仅源码（不含 build/日志）
 │   ├── XPCHunterDrv.vcxproj    # VS2019 项目文件 (PlatformToolset=v142)
-│   ├── build/
-│   │   └── build.bat           # 编译脚本（两步法：msbuild 编译 + link 链接）
-│   ├── inc/
-│   │   └── XPCHunterDrv.h      # 主头文件
-│   └── src/
+│   ├── XPCHunterDrv.sln
+│   ├── inc/                    # 头文件
+│   │   ├── XPCHunterDrv.h      # 伞形头：include 子头 + 全部函数声明
+│   │   ├── xpc_basic.h         # 基础类型/宏
+│   │   ├── xpc_gt_enum.h       # GLOBAL_TABLE_INDEX 枚举 + GT 别名
+│   │   ├── xpc_ioctl.h         # 设备名/IRP 常量/IOCTL 码/CMD opcode
+│   │   └── xpc_structs.h       # 结构体定义
+│   └── src/                    # 四层组织
 │       ├── DriverEntry.c       # 驱动入口
 │       ├── GlobalTable.c       # 全局表
-│       ├── IoctlDispatch.c     # IOCTL 分发
-│       ├── SSDT.c              # SSDT Hook 引擎
-│       ├── ProcessMgmt.c       # 进程管理
-│       ├── ThreadMgmt.c        # 线程管理
-│       ├── Registry.c          # 注册表保护
-│       ├── Minifilter.c        # 文件系统 Minifilter
-│       ├── MemoryOps.c         # 内存操作
-│       ├── Crypto.c            # 加密/解密
-│       ├── Protocol.c          # 协议处理
-│       ├── ObjectMgmt.c        # 对象管理
-│       ├── ModuleMgmt.c        # 模块管理
-│       ├── HandleMgmt.c        # 句柄管理
-│       └── SystemInfo.c        # 系统信息
+│       ├── framework/          # 基础框架：内存/缓冲区/工具/PE/加解密
+│       │   └── MemoryOps.c, MemoryCleanup.c, Utility.c, Utf8Decoder.c,
+│       │       PEDecoder.c, DecodeTables.c, Crypto.c
+│       ├── kernel/             # 内核对象操作
+│       │   └── ProcessMgmt.c, ThreadMgmt.c, ObjectMgmt.c, HandleMgmt.c,
+│       │       ModuleMgmt.c, Registry.c, Minifilter.c, ContextMgmt.c
+│       ├── services/           # 服务层：IOCTL 分发/SSDT/协议
+│       │   └── IoctlDispatch.c, Operation.c, SSDT.c, SsdtHook.c,
+│       │       SyscallTable.c, Protocol.c, QueryDriver.c, TailHelpers.c
+│       └── features/           # 功能层：系统信息/PE 解析/服务表/磁盘/模块枚举/回调
+│           └── SystemInfo.c, PeParse.c, ServiceTable.c, DiskQuery.c,
+│               ModuleEnum.c, Callback.c
 ├── docs/
-│   └── reversing/
-│       └── View++_Driver64_逆向分析报告.md
+│   ├── reversing/
+│   │   └── View++_Driver64_逆向分析报告.md
+│   └── build/
+│       └── 编译说明.md          # 编译环境与步骤
 └── CLAUDE.md
 ```
 
@@ -158,9 +166,11 @@ REM 第一步：设置环境
 call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
 
 REM 第二步：msbuild 编译（/t:ClCompile 仅编译）
-msbuild XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64 /t:ClCompile
+REM 在仓库根执行，项目文件位于 XPCHunterDrv\ 子目录
+msbuild XPCHunterDrv\XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64 /t:ClCompile
 
 REM 第三步：手动链接（msbuild 在 v142 下不自动链接驱动）
+REM 产物输出到仓库根 build\bin、build\obj（vcxproj 的 OutDir/IntDir 为 $(SolutionDir)..\build\...）
 link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /fixed:no /driver /merge:.data=.text /manifest:no ^
     /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\km\x64" ^
     /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\km\x64\crt" ^
@@ -172,17 +182,21 @@ link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /f
     BufferOverflowK.lib bufferoverflowfastfailk.lib
 ```
 
-**快速编译（使用 build.bat）：**
+**快速编译（使用 build.bat，在仓库根执行）：**
 ```bat
-cd XPCHunterDrv
+cd E:\Work\Dev\Windows\wmprotected\APK\XPCHunter
 build\build.bat              # Release x64
 build\build.bat Debug x64    # Debug x64
 build\build.bat Clean        # 清理
 ```
 
-**注意：** 不能直接调用 `msbuild XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64` 完成全部编译，因为 `v142` 工具集在未安装完整 WDK 的情况下无法自动完成驱动链接步骤。必须两步走：msbuild 编译 → 手动 link 链接。
+**注意：** 不能直接调用 `msbuild XPCHunterDrv\XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64` 完成全部编译，因为 `v142` 工具集在未安装完整 WDK 的情况下无法自动完成驱动链接步骤。必须两步走：msbuild 编译 → 手动 link 链接。
 
-### 4.5 MissingFuncs.c 维护规则
+### 4.5 新增源文件维护规则
+- 新增 `.c` 文件后，必须同步在 `XPCHunterDrv.vcxproj` 的 `<ClCompile>` 列表中添加对应条目
+- 新增跨文件调用的函数，必须在 `inc/XPCHunterDrv.h`（伞形头）中添加 `extern` 声明
+- 函数声明与定义签名必须逐字一致，避免 C4028 形参不匹配警告
+- 删除源文件后，需执行 `build\build.bat Clean` 清理残留 `.obj`，防止 LNK2005 重复符号
 - MissingFuncs.c 存放暂未从 IDA 逆向实现的函数存根
 - 所有函数签名必须与 XPCHunterDrv.h 中的声明完全一致
 - 已实现真实逻辑的函数保持在文件头部

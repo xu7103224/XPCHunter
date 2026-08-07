@@ -33,8 +33,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     void *RegistryPathCopyPtr;
     wchar_t *BackslashPos;
     const wchar_t *DriverNameStart;
-    __int64 DevNameIdx, SymNameIdx, NameLength;
-    WCHAR CurrentChar, SymlinkChar;
+    __int64 DevNameIdx, SymNameIdx;
     struct _UNICODE_STRING DestStr, SymStr;
     PDEVICE_OBJECT DeviceObject;
 
@@ -219,10 +218,10 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         if (Opcode < CMD_OPCODE_COUNT && g_CommandHandlerTable[Opcode])
         {
             Status = g_CommandHandlerTable[Opcode](
-                InputHeader->Param3,
-                InputHeader->Param4,
-                InputHeader->Param5,
-                InputHeader->ChecksumLow
+                (__int64)InputHeader->Param3,
+                (__int64)InputHeader->Param4,
+                (_DWORD *)InputHeader->Param5,
+                (int)InputHeader->ChecksumLow
             );
         }
         else

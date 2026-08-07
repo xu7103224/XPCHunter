@@ -83,14 +83,14 @@ __int64 ClassifyPESectionType(PUCHAR Context);
 // 对应原始驱动 sub_14008A7E4
 // ============================================================
 void InitPESectionReadContext(
-    PUCHAR Base,
+    __int64 Base,
     ULONG Size,
     INT Mode,
     LONG64 Param5,
     INT ExtraField,
     LONG64 Param6,
     LONG64 Param7,
-    PUCHAR Context)
+    __int64 Context)
 {
     SET_Q(Context, DEC_CTX_BUFFER_BASE, Base);
     SET_D(Context, DEC_CTX_MODE, Mode);
@@ -2043,7 +2043,6 @@ __int64 DecodeImmediateOperandSize(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR D
     ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_MODE) >> 8) & 3;
     ULONG TotalSize = 0;
     ULONG DecodedSize = 0;
-    ULONG Size;
 
     if (pSize)
         *pSize = 0;

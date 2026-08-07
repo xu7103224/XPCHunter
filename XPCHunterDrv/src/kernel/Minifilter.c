@@ -790,10 +790,8 @@ __int64 MiniFilterPreAcquire(__int64 Unknown1, __int64 Unknown2, unsigned int *O
     ULONG StructSize;
     unsigned int *OutputEntry;
     ULONG64 CurrentEntry;
-    ULONG LoopIndex;
     ULONG64 ContextBlock;
     _QWORD *SubListHead, *SubListHeadCopy, *SubListEntry;
-    ULONG SubLoopIndex;
     _QWORD *SubContextBlock, *NameArray;
     ULONG NameIndex;
     __int64 EntryTypeCount;
@@ -1470,7 +1468,7 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
     __int64 *pTargetTable = GtAlloc(0x1F76);
     char ReadContext[0x198];
     _DWORD SectionEntry[0x48];
-    ULONG CumulativeSize, SectionIndex, SectionSize, FieldValue;
+    ULONG CumulativeSize, SectionIndex, FieldValue;
     ULONG CurrentExecOffset = 0, DataSectionOffset = 0, TargetRva = 0;
     ULONG TargetRva2 = 0, RelocRva = 0, i, Dst[0x10];
     __int64 SectionDataPtr;
@@ -1478,10 +1476,8 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
     BOOLEAN FoundInitFlag = FALSE, DataSectionWritten = FALSE;
     BOOLEAN TableBuilt = FALSE, FoundRelocSection = FALSE;
     ULONG RelocRva2 = 0, EntryIndex, RelocBaseRva;
-    __int64 FieldAddr, FieldOffset, TableSlot;
-    __int64 *pTargetEntry;
-    PUCHAR pFieldSrc;
-    ULONG FieldRva, EntryCount;
+    __int64 FieldAddr, TableSlot;
+    ULONG FieldRva;
     ULONG Counter60 = 0, LastDataOfs = 0, RelocTableIndex = 0;
     ULONG FmdiDataOfs = 0, FuncEntryEdi = 0, FuncEntryEsi = 0;
     ULONG FuncEntryCount = 0, FuncEntryEdi2 = 0, FuncEntryEsi2 = 0;
@@ -2490,7 +2486,6 @@ void ParseMiniFilterRegSections(void)
     __int64 SectionTarget3;
     ULONG CumulativeSize;
     _DWORD PeSectionEntry[14];
-    ULONG FieldValue;
     __int64 SectionDataPtr;
     __int64 ReadContext;
     __int64 SectionFlags;
@@ -2499,7 +2494,6 @@ void ParseMiniFilterRegSections(void)
     ULONG SectionIndex;
     ULONG MatchCount;
     ULONG FoundCount;
-    ULONG Phase2MatchCount;
     char Phase1Done;
     ULONG SavedValue1, SavedValue2, SavedValue3, SavedValue4;
     ULONG CalculatedOffset;
@@ -2944,9 +2938,7 @@ __int64 EnumFileSystemCallbackEntries(void)
     int SectionIndex;
     int FieldIndex;
     int ComputedRva;
-    unsigned int SectionEntrySize;
     __int64 RootOffsetAccum;
-    __int64 UnusedVar;
     __int64 SectionDataPtr;
     int ModeField;
     int ModeField2;
@@ -2959,7 +2951,6 @@ __int64 EnumFileSystemCallbackEntries(void)
     __int64 SectionEntry[8];
     char ReadContext[8];
     struct _KAPC_STATE ApcState;
-    __int64 StackCookie;
 
     Result = 0;
     TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);

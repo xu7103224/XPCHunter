@@ -1157,7 +1157,6 @@ char ReadNtFileToBuffer(PUCHAR Src, ULONG MaxCount, PUCHAR *OutBuffer, PULONG Ou
     PIMAGE_DOS_HEADER DosHeader;
     PIMAGE_NT_HEADERS NtHeaders;
     PIMAGE_SECTION_HEADER SectionHeader;
-    PIMAGE_SECTION_HEADER LastSection;
     ULONG SectionAlignment, SizeOfImage, SizeOfHeaders;
     ULONG AlignedImageSize;
     ULONG i;
@@ -1310,7 +1309,6 @@ char ParseNtExportDir(PUCHAR ImageBase, ULONG ExportDirSize, ULONG64 ImageBaseUn
     ULONG Offset;
     ULONG_PTR Delta;
     ULONG VirtualAddress;
-    ULONG SizeOfImage;
     ULONG EndOffset;
 
     UNREFERENCED_PARAMETER(ImageBaseUnused);
@@ -2299,7 +2297,6 @@ __int64 CmdQuerySsdtDetails(__int64 InputBuffer, __int64 InputSize, _QWORD *pOut
     int ServiceTableCount = 0;
     unsigned int *ServiceTableLimit;
     __int64 ServiceTableArray[6];
-    __int64 ServiceTableCounts[6];
 
     if (!(unsigned int)GtRead(GtEprocessExtField46))
         InitKernelDataSectionTable();
@@ -2361,7 +2358,6 @@ __int64 CmdSetSsdtEntry(_DWORD *pInputBuffer, int InputSize)
     int ServiceTableCount = 0;
     unsigned __int64 ServiceTableLimit;
     __int64 ServiceTableArray[6];
-    __int64 ServiceTableCounts[6];
     unsigned __int64 TargetAddress;
     __int64 NewValue = 0;
 

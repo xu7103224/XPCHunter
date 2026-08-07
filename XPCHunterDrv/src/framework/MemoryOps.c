@@ -319,7 +319,6 @@ bool ReadWriteVirtualMemory(__int64 Process, __int64 SrcAddr, __int64 DstAddr, u
     __int64 FreeFuncAddr;
     void (__fastcall *pFreeFunc)(_QWORD);
     struct _KTHREAD *CurrentThread;
-    __int64 BufferSize;
     char SavedByte;
     int CallResult;
     _BYTE ObjectAttrBuffer[8];
@@ -343,7 +342,7 @@ bool ReadWriteVirtualMemory(__int64 Process, __int64 SrcAddr, __int64 DstAddr, u
     {
         SavedByte = *((UCHAR *)CurrentThread + ServiceCount);
         *((UCHAR *)CurrentThread + ServiceCount) = 0;
-        CallResult = pOpenProcessFunc(HandleBuffer[0], &SrcAddrLocal, &DstAddrLocal, CopySize, ObjectAttrBuffer);
+        CallResult = (int)pOpenProcessFunc(HandleBuffer[0], &SrcAddrLocal, &DstAddrLocal, CopySize, ObjectAttrBuffer);
         *((UCHAR *)CurrentThread + ServiceCount) = SavedByte;
         Result = CallResult >= 0;
         pFreeFunc(HandleBuffer[0]);
@@ -382,7 +381,7 @@ __int64 CmdVirtualMemoryOp(_OWORD *Address, int InputSize)
     if (!pQueryFunc) { if (LookupStatus >= 0) pQueryFunc = TargetProcess; }
 
     if (ValidateProcessObject(pQueryFunc, NULL) == 1 && MemoryArgs.qword[1])
-        Result = ReadWriteVirtualMemory((__int64)pQueryFunc, MemoryArgs.qword[0], MemoryArgs.qword[1], OperationData);
+        Result = ReadWriteVirtualMemory((__int64)pQueryFunc, MemoryArgs.qword[0], MemoryArgs.qword[1], (unsigned int)OperationData);
 
     if (Process) ObfDereferenceObject(Process);
     return Result;
@@ -600,7 +599,7 @@ void EnumerateVadWithBufferV1(_QWORD *VirtualAddress, _DWORD *OutputBuffer, unsi
 void EnumVadMemoryRegions(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     ULONG EntryIndex = *OutputBuffer;
-    if (544 * (int)EntryIndex + 552 > BufferSize) return;
+    if ((ULONG)(544 * (int)EntryIndex + 552) > BufferSize) return;
 
     __int64 *pVadRoot = *(__int64 **)(VadNode + 72);
     if (!pVadRoot) return;
@@ -631,9 +630,9 @@ void EnumVadMemoryRegions(__int64 VadNode, _DWORD *OutputBuffer, unsigned int Bu
 
     if (FindThreadEntry(OutputBuffer, StartAddr << 12, &ThreadIndex, (__int64)pFileObject) == 1)
     {
-        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)pFileObject, Src, &NameLen) == 1)
+        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)pFileObject, (_QWORD *)Src, &NameLen) == 1)
         {
-            __int64 EntryIndex = EntryIndex;
+            __int64 EntryIndex = *OutputBuffer;
             __int64 BufferOffset = 136 * EntryIndex;
             LOBYTE_LV(OutputBuffer[BufferOffset + 2]) = 1;
             NameLength = NameLen;
@@ -650,15 +649,15 @@ void EnumVadMemoryRegions(__int64 VadNode, _DWORD *OutputBuffer, unsigned int Bu
             ExFree(Src[0]);
         }
     }
-    else if (QueryObjectNameString((ULONG64)pFileObject, Src, &NameLen) == 1)
+    else if (QueryObjectNameString((ULONG64)pFileObject, (_QWORD *)Src, &NameLen) == 1)
     {
         __int64 BufferOffset2 = 136 * ThreadIndex;
         HIWORD_LV(OutputBuffer[BufferOffset2 + 137]) = 0;
-        ULONG StringLen = GetStringLength(&OutputBuffer[BufferOffset2 + 10]);
+        ULONG StringLen = (ULONG)GetStringLength((_WORD *)&OutputBuffer[BufferOffset2 + 10]);
         if (2 * StringLen != NameLen ||
             StringCompare3Way((__int64)&OutputBuffer[BufferOffset2 + 10], (WORD *)Src[0], NameLen >> 1))
         {
-            StringLength = GetStringLength(&OutputBuffer[BufferOffset2 + 10]);
+            StringLength = (ULONG)GetStringLength((_WORD *)&OutputBuffer[BufferOffset2 + 10]);
             if (NameLen > 2 * (ULONG64)StringLength)
             {
                 LOBYTE_LV(OutputBuffer[BufferOffset2 + 2]) = 1;
@@ -764,7 +763,7 @@ char WriteProcessMemoryValue(_QWORD *InputParams)
     if ((ULONG)InputParams[6] >= (ULONG)GtRead(GtWin32kServiceCount))
         return 0;
 
-    IsWin32k = CheckProtectedEntry(*InputParams);
+    IsWin32k = (char)CheckProtectedEntry(*InputParams);
     ProcessRefed = ReferenceObjectSafe(*InputParams);
     KeStackAttachProcess((PRKPROCESS)*InputParams, &ApcState);
 
@@ -846,8 +845,8 @@ char ReadFileIntoBuffer(__int64 SrcAddress, unsigned int BufferSize, char *DstBu
     if (IsSameProcess)
     {
 LABEL_13:
-        DiskSectorsWithAlloc = ReadDiskSectorsWithAlloc((__int64)&ApcState);
-        DiskReadDone = DiskSectorsWithAlloc;
+        DiskSectorsWithAlloc = (char)ReadDiskSectorsWithAlloc((__int64)&ApcState);
+        DiskReadDone = (char)DiskSectorsWithAlloc;
         goto LABEL_15;
     }
 
@@ -907,7 +906,7 @@ LABEL_15:
                     {
                         MapPhysPagesFunc(MappedPage);
                         Flags = 0;
-                        MappedVa = MapMemoryFunc(MappedPage, 0, 1, 0, Flags, 16);
+                        MappedVa = ((__int64 (__fastcall *)(__int64, ULONG64, __int64, __int64, __int64, int))MapMemoryFunc)(MappedPage, 0, 1, 0, Flags, 16);
                         MappedAddr = MappedVa;
                         if (MappedVa)
                         {
@@ -1148,15 +1147,15 @@ __int64 ResolveModuleBaseAddress(void)
     __int64 CallbackField06;
 
     Field22 = GtRead(GtEprocessField22);
-    Field23 = GtRead(GtEprocessField23);
+    Field23 = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    ServiceEntryCount = GtRead(GtWin32kServiceEntryCount);
+    ServiceEntryCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
     CallbackField06 = GtRead(GtCallbackField06);
     if (Field22 && Field23 && NtoskrnlBase && (_DWORD)CallbackField06)
     {
         if ((unsigned int)CallbackField06 < ServiceEntryCount)
         {
-            CallbackField06 = ResolveSyscallToAddress(CallbackField06);
+            CallbackField06 = ResolveSyscallToAddress((unsigned int)CallbackField06);
             if ((_DWORD)CallbackField06)
             {
                 if ((unsigned int)CallbackField06 < Field23)
@@ -1336,7 +1335,7 @@ __int64 (__fastcall *QueryProcessVirtualizationEx(void))(__int64)
         char QueryFlags = 0;
         __int64 ReturnHandle;
         result = (__int64 (__fastcall *)(__int64))pQueryFunc(CurrentProcess, 512, 0, 0x80000000LL, *pBuffer, QueryFlags, &ReturnHandle);
-        if ((int)result >= 0)
+        if ((int)(__int64)result >= 0)
         {
             __int16 *SystemInfo = (__int16 *)AllocExBufferAndQuerySystemInfo(0x10u);
             if (SystemInfo)
@@ -1383,7 +1382,7 @@ __int64 ReadDiskSectorsWithAlloc(__int64 BufferSize)
 
     if (pCreateFunc && CloseObjectTypeFunc && pValidateFunc && pCloseFunc)
     {
-        unsigned int Result = GtRead(GtCallbackField52);
+        unsigned int Result = (unsigned int)GtRead(GtCallbackField52);
         if (!Result)
         {
             unsigned int DiskSectors = ReadDiskSectors();
@@ -1423,9 +1422,9 @@ __int64 ReleaseDiskBuffer(__int64 DiskObject)
 __int64 ResolveModuleEnumBase(void)
 {
     __int64 NtImageBase = GtRead(GtEprocessField22);
-    unsigned int NtImageSize = GtRead(GtEprocessField23);
+    unsigned int NtImageSize = (unsigned int)GtRead(GtEprocessField23);
     __int64 NtoskrnlModuleBase = GtRead(GtNtoskrnlModuleBase);
-    unsigned int KernelBase = GtRead(GtKernelDataField01);
+    unsigned int KernelBase = (unsigned int)GtRead(GtKernelDataField01);
     __int64 result = GtRead(GtWin32kServiceEntryCount);
 
     if (NtImageBase && NtImageSize && NtoskrnlModuleBase && KernelBase && KernelBase < (unsigned int)result)
@@ -1448,9 +1447,9 @@ __int64 ResolveSyscallToAddress(unsigned int SyscallNumber)
 {
     __int64 TargetSyscall = SyscallNumber;
     unsigned int NotResolved = 0;
-    unsigned int ServiceCount = GtRead(GtWin32kServiceEntryCount);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
     __int64 ServiceTableBase = GtRead(GtEprocessField24);
-    unsigned int NtImageSize = GtRead(GtEprocessField23);
+    unsigned int NtImageSize = (unsigned int)GtRead(GtEprocessField23);
     unsigned int SizeLimit = NtImageSize;
 
     if (ServiceCount && (_DWORD)TargetSyscall && (unsigned int)TargetSyscall < ServiceCount && ServiceTableBase && NtImageSize)
@@ -1460,7 +1459,7 @@ __int64 ResolveSyscallToAddress(unsigned int SyscallNumber)
         {
             unsigned __int64 EntryValue = *(_QWORD *)(SyscallTable + 8 * TargetSyscall);
             unsigned __int64 ServiceLimit = *(_QWORD *)(ServiceTableBase + 48);
-            if (EntryValue > ServiceLimit && (int)EntryValue - (int)ServiceLimit < SizeLimit && EntryValue == ServiceLimit + (unsigned int)(EntryValue - ServiceLimit))
+            if (EntryValue > ServiceLimit && (unsigned int)((int)EntryValue - (int)ServiceLimit) < SizeLimit && EntryValue == ServiceLimit + (unsigned int)(EntryValue - ServiceLimit))
                 return (unsigned int)(EntryValue - ServiceLimit);
         }
     }
@@ -1493,7 +1492,7 @@ unsigned int ReadDiskSectors(void)
 
     pNtFsControlFunc = (int (__fastcall *)(HANDLE, ULONG, PVOID, ULONG, PVOID, ULONG, PIO_STATUS_BLOCK))GtRead(GtNtFsControlFileFunc);
     CloseHandleFunc = GtRead(GtCloseHandleFunc);
-    BuildNumber = GtRead(GtNtBuildNumber);
+    BuildNumber = (ULONG)GtRead(GtNtBuildNumber);
 
     if (!pNtFsControlFunc || !CloseHandleFunc)
         return 0;
@@ -1602,16 +1601,16 @@ char ResolveSyscallNumbers(void)
 char ResolveSyscallNumberTable(void)
 {
     char Result = 0;
-    unsigned int KernelImageSize = GtRead(GtEprocessField23);
+    unsigned int KernelImageSize = (unsigned int)GtRead(GtEprocessField23);
     unsigned __int64 KernelImageBase = GtRead(GtEprocessField22);
-    unsigned int ServiceCount = GtRead(GtWin32kServiceEntryCount);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
 
     if (!KernelImageBase || !KernelImageSize)
         return 0;
 
     // 查找 PE 节区
-    unsigned int SectionType1 = FindKernelPESectionByType(0x41D1);
-    unsigned int SectionType2 = FindKernelPESectionByType(0x41D4);
+    unsigned int SectionType1 = (unsigned int)FindKernelPESectionByType(0x41D1);
+    unsigned int SectionType2 = (unsigned int)FindKernelPESectionByType(0x41D4);
 
     if (!SectionType1 || SectionType1 >= ServiceCount || !SectionType2 || SectionType2 >= ServiceCount)
         return 0;
@@ -1627,16 +1626,16 @@ char ResolveSyscallNumberTable(void)
     char Name1[] = "NtAdjustPrivilegesToken";
     char Name2[] = "NtLocalAllocVirtualMemory";
 
-    if (LookupExportByName(KernelImageBase, KernelImageSize, Name1, &AdjustPrivAddr) != 1)
+    if (LookupExportByName((PUCHAR)KernelImageBase, (ULONG)KernelImageSize, Name1, &AdjustPrivAddr) != 1)
         return 0;
-    if (LookupExportByName(KernelImageBase, KernelImageSize, Name2, &AllocVirAddr) != 1)
+    if (LookupExportByName((PUCHAR)KernelImageBase, (ULONG)KernelImageSize, Name2, &AllocVirAddr) != 1)
         return 0;
 
     // 确保两个地址不重叠 — 如果 SectionType2 比 SectionType1 小，交换
     unsigned int StartSection = SectionType1;
     unsigned int EndSection = SectionType2;
-    unsigned int StartAddr = AdjustPrivAddr + ExportDirRva;
-    unsigned int EndAddr = AllocVirAddr + ExportDirRva;
+    unsigned int StartAddr = (unsigned int)(AdjustPrivAddr + ExportDirRva);
+    unsigned int EndAddr = (unsigned int)(AllocVirAddr + ExportDirRva);
 
     if (EndSection < StartSection)
     {
@@ -1654,8 +1653,8 @@ char ResolveSyscallNumberTable(void)
     // 查找 .rdata 节区
     char SectionName[] = ".rdata";
     SectionName[7] = 0;
-    unsigned int RdataOffset = FindPESectionByName(KernelImageBase, KernelImageSize, SectionName);
-    unsigned int RdataVa = FindPESectionByNameReturnVa(KernelImageBase, KernelImageSize, SectionName);
+    unsigned int RdataOffset = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByName)(KernelImageBase, KernelImageSize, SectionName);
+    unsigned int RdataVa = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByNameReturnVa)(KernelImageBase, KernelImageSize, SectionName);
 
     if (!RdataOffset || RdataOffset >= KernelImageSize || !RdataVa || RdataVa >= KernelImageSize)
         return 0;
@@ -1712,15 +1711,15 @@ char ResolveSyscallNumberTable(void)
 char FindSyscallNumbers(void)
 {
     char Result = 0;
-    unsigned int ServiceCount = GtRead(GtWin32kServiceEntryCount);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
     unsigned __int64 KernelImageBase = GtRead(GtEprocessField22);
-    unsigned int KernelImageSize = GtRead(GtEprocessField23);
+    unsigned int KernelImageSize = (unsigned int)GtRead(GtEprocessField23);
 
     if (!KernelImageBase || !KernelImageSize)
         return 0;
 
-    unsigned int SectionType1 = FindKernelPESectionByType(0x41D1);
-    unsigned int SectionType2 = FindKernelPESectionByType(0x41D2);
+    unsigned int SectionType1 = (unsigned int)FindKernelPESectionByType(0x41D1);
+    unsigned int SectionType2 = (unsigned int)FindKernelPESectionByType(0x41D2);
 
     if (!SectionType1 || SectionType1 >= ServiceCount || !SectionType2 || SectionType2 >= ServiceCount)
         return 0;
@@ -1733,9 +1732,9 @@ char FindSyscallNumbers(void)
     unsigned int AdjustPrivAddr = 0;
     unsigned int AllocVirAddr = 0;
 
-    if (LookupExportByName(KernelImageBase, KernelImageSize, Name1, &AdjustPrivAddr) != 1)
+    if (LookupExportByName((PUCHAR)KernelImageBase, (ULONG)KernelImageSize, Name1, &AdjustPrivAddr) != 1)
         return 0;
-    if (LookupExportByName(KernelImageBase, KernelImageSize, Name2, &AllocVirAddr) != 1)
+    if (LookupExportByName((PUCHAR)KernelImageBase, (ULONG)KernelImageSize, Name2, &AllocVirAddr) != 1)
         return 0;
 
     // 确保两个地址不重叠
@@ -1755,8 +1754,8 @@ char FindSyscallNumbers(void)
     // 查找 .rdata 节区
     char SectionName[] = ".rdata";
     SectionName[7] = 0;
-    unsigned int RdataOffset = FindPESectionByName(KernelImageBase, KernelImageSize, SectionName);
-    unsigned int RdataVa = FindPESectionByNameReturnVa(KernelImageBase, KernelImageSize, SectionName);
+    unsigned int RdataOffset = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByName)(KernelImageBase, KernelImageSize, SectionName);
+    unsigned int RdataVa = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByNameReturnVa)(KernelImageBase, KernelImageSize, SectionName);
 
     if (!RdataOffset || RdataOffset >= KernelImageSize || !RdataVa || RdataVa >= KernelImageSize)
         return 0;
@@ -1769,8 +1768,8 @@ char FindSyscallNumbers(void)
     unsigned __int64 RdataEnd = KernelImageBase + RdataOffset + RdataVa;
 
     unsigned int *ScanPtr = RdataBase;
-    unsigned int AdjustWithBase = AdjustPrivAddr + ExportDirRva;
-    unsigned int AllocWithBase = AllocVirAddr + ExportDirRva;
+    unsigned int AdjustWithBase = (unsigned int)(AdjustPrivAddr + ExportDirRva);
+    unsigned int AllocWithBase = (unsigned int)(AllocVirAddr + ExportDirRva);
 
     while ((unsigned __int64)ScanPtr < RdataEnd)
     {
@@ -1815,11 +1814,11 @@ void ClearPageTableEntryFlags(char *VirtualAddress)
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB1)
     {
         Mask = 16;
-        Offset1 = GtRead(GtEprocessField94);
+        Offset1 = (int)GtRead(GtEprocessField94);
     }
     else
     {
-        Offset1 = GtRead((GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr1 | GtEprocessField86));
+        Offset1 = (int)GtRead((GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr1 | GtEprocessField86));
         if ((unsigned int)GtRead(GtWindowsBuildNumber) == 7601) Mask = 0x2000;
         else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200) Mask = 4096;
         else
@@ -1829,10 +1828,10 @@ void ClearPageTableEntryFlags(char *VirtualAddress)
         }
     }
     Offset2 = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0 ? 64 : 32;
-    FlagOffset = GtRead(GtEprocessField53);
-    FieldOffset = GtRead(GtEprocessField94);
-    TypeOffset = GtRead(GtEprocessField95);
-    ObjTypeCount = GtRead(GtObjectTypeCount);
+    FlagOffset = (int)GtRead(GtEprocessField53);
+    FieldOffset = (int)GtRead(GtEprocessField94);
+    TypeOffset = (int)GtRead(GtEprocessField95);
+    ObjTypeCount = (int)GtRead(GtObjectTypeCount);
     if (Offset1 != -1 && FlagOffset && FieldOffset != -1 && TypeOffset && ObjTypeCount)
     {
         if (MmIsAddressValid(VirtualAddress) && MmIsAddressValid(&VirtualAddress[ObjTypeCount - 1]))
@@ -1867,11 +1866,11 @@ void ClearProcessPageTableFlags(struct _KPROCESS *Process)
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB1)
     {
         FlagMask = 16;
-        PteOffset = GtRead(GtEprocessField94);
+        PteOffset = (unsigned int)GtRead(GtEprocessField94);
     }
     else
     {
-        PteOffset = GtRead((GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr1 | GtEprocessField86));
+        PteOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr1 | GtEprocessField86));
         if ((unsigned int)GtRead(GtWindowsBuildNumber) == 7601) FlagMask = 0x2000;
         else if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200) FlagMask = 4096;
         else
@@ -1881,11 +1880,11 @@ void ClearProcessPageTableFlags(struct _KPROCESS *Process)
         }
     }
     PageSize = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0 ? 64 : 32;
-    PdeOffset = GtRead(GtEprocessField41);
-    PteOffset2 = GtRead(GtEprocessField48);
-    PdeOffset2 = GtRead(GtEprocessField94);
-    TableOffset = GtRead(GtEprocessField53);
-    TableOffset2 = GtRead(GtEprocessField95);
+    PdeOffset = (int)GtRead(GtEprocessField41);
+    PteOffset2 = (unsigned int)GtRead(GtEprocessField48);
+    PdeOffset2 = (unsigned int)GtRead(GtEprocessField94);
+    TableOffset = (int)GtRead(GtEprocessField53);
+    TableOffset2 = (int)GtRead(GtEprocessField95);
     if (PdeOffset && PteOffset2 && PteOffset != -1 && PdeOffset2 != -1 && TableOffset && TableOffset2)
     {
         if (ValidateProcessObject(Process, 0) == 1)
@@ -1900,7 +1899,7 @@ void ClearProcessPageTableFlags(struct _KPROCESS *Process)
                 {
                     do
                     {
-                        if (pCurrentEntry == pTableEntry)
+                        if ((PVOID *)pCurrentEntry == pTableEntry)
                             break;
                         if (EntryCount > 0x10000)
                             break;
@@ -1914,7 +1913,7 @@ void ClearProcessPageTableFlags(struct _KPROCESS *Process)
                         *(_DWORD *)(PdeOffset2 + ObjectAddr) &= ~PageSize & 0xFFFFFFFE;
                         pCurrentEntry = (_QWORD *)*pCurrentEntry;
                     }
-                    while (pCurrentEntry > MmSystemRangeStart);
+                    while ((unsigned __int64)pCurrentEntry > (unsigned __int64)MmSystemRangeStart);
                 }
             }
             if (RefCount == 1)
@@ -1984,14 +1983,14 @@ __int64 ReadWriteKernelMemory(void)
     RtlZeroMemory(SectionEntry, sizeof(SectionEntry));
 
     InitPESectionReadContext(
-        (PUCHAR)(PeFileBase + (ULONG_PTR)PeFileOffset),
+        (__int64)(PeFileBase + (ULONG_PTR)PeFileOffset),
         PeFileSize - PeFileOffset,
         2,              // Mode: 64-bit PE
         0,              // a4
         -1,             // a5
         0,              // a6
         0,              // a7
-        SectionContext);
+        (__int64)SectionContext);
 
     // 遍历 PE 节区，最多 0xC8 个
     for (SectionIndex = 0; SectionIndex < 0xC8; SectionIndex++)
