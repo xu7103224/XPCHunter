@@ -222,9 +222,12 @@ BOOLEAN CheckVmxEnabled(void)
 
 // WritePtrToAddress — 写入指针到指定地址
 // 对应原始驱动 sub_140001580
-void WritePtrToAddress(void)
+// 原始函数体为 *pTarget = result（result 未初始化），且无任何调用者（死代码）
+__int64 __fastcall WritePtrToAddress(_QWORD *pTarget)
 {
-    // 空函数：仅用于占位
+    __int64 result; // rax
+    *pTarget = result;
+    return result;
 }
 
 // DisableCr0WriteProtect — 禁用 CR0 写保护
@@ -252,13 +255,13 @@ _WORD *BuildSystem32Path(void)
     EncodedSuffix[4] = 92;
     EncodedSuffix[5] = 0;
 
-    ULONG PathLen = GetStringLength(pPath);
-    if (PathLen + GetStringLength(EncodedSuffix) > 258)
+    ULONG PathLen = (ULONG)GetStringLength(pPath);
+    if (PathLen + GetStringLength((_WORD *)EncodedSuffix) > 258)
     {
         ExFree(pPath);
         return NULL;
     }
-    WStringConcat(pPath, (WORD *)EncodedSuffix, 0x104);
+    WStringConcat(pPath, (__int16 *)EncodedSuffix, 0x104);
     return pPath;
 }
 
@@ -277,13 +280,13 @@ _WORD *BuildDriversPath(void)
     EncodedSuffix[3] = 7536754;
     EncodedSuffix[4] = L'\\';
 
-    ULONG PathLength = GetStringLength(pPathBuffer);
-    if (PathLength >= 259 - GetStringLength(EncodedSuffix))
+    ULONG PathLength = (ULONG)GetStringLength(pPathBuffer);
+    if (PathLength >= 259 - GetStringLength((_WORD *)EncodedSuffix))
     {
         ExFree(pDriversPath);
         return NULL;
     }
-    WStringConcat(pDriversPath, (WORD *)EncodedSuffix, 0x104);
+    WStringConcat(pDriversPath, (__int16 *)EncodedSuffix, 0x104);
     return pDriversPath;
 }
 
@@ -347,12 +350,62 @@ WORD *InitSystemPath(void)
         WORD *pTempBuffer = ExAlloc(PagedPool, 0x20A);
         if (!pTempBuffer) { ExFree(pSystemRoot); return NULL; }
 
-        // CreateFile, query volume, map view...
-        // (Simplified - full implementation requires multiple ZwCreateFile / NtFsControlFile calls)
+        // 通过卷设备查询系统根路径（对应原驱动 fallback 分支）
+        int (__fastcall *pCreateSectionFunc)(__int64 *, __int64, int *, _BYTE *, __int64, int, int, int, int, __int64, int, int, __int64, int) =
+            (int (__fastcall *)(__int64 *, __int64, int *, _BYTE *, __int64, int, int, int, int, __int64, int, int, __int64, int))pCreateFileFunc;
 
-        // Full implementation omitted for brevity - follows same pattern as original
-        // For the 1:1 replication, this would use CreateFileFunc1/NtFsControlFile/CloseHandle
+        _BYTE ObjectAttr[16] = {0};
+        __int64 FileHandle = 0;
+        __int64 VolumeHandle = 0;
+        __int64 SectionHandle = 0;
+        int SectionSize = 48;
+        int AlignInfo = 0;
+        WORD DosDeviceNameLength = 0;
+        PVOID pDosDeviceName = NULL; // 由 pQueryVolumeFunc 填充的 DOS 设备名
 
+        // 设置文件信息的 5 参形式（第 5 参输出卷句柄）
+        int (__fastcall *pSetInfo5Func)(__int64, __int64, _QWORD, _QWORD, _QWORD *) =
+            (int (__fastcall *)(__int64, __int64, _QWORD, _QWORD, _QWORD *))pSetInfoFunc;
+
+        // 创建文件/卷对象
+        if (pCreateSectionFunc &&
+            pCreateSectionFunc(&FileHandle, 0x100000, &SectionSize, ObjectAttr, 0, 0, 3, 1, 33, 0, 0, 0, 0, 256) >= 0)
+        {
+            // 设置文件信息，获取卷句柄
+            if (pSetInfo5Func(FileHandle, 1, *pDriverList, 0, &VolumeHandle) >= 0)
+            {
+                __int64 VolumeDev = *(_QWORD *)(VolumeHandle + 8);
+                if (VolumeDev && OpenMountPointManagerDevice(VolumeDev) == 1 &&
+                    pQueryVolumeFunc(VolumeDev, &DosDeviceNameLength) >= 0 &&
+                    pDosDeviceName && pValidateFunc() == 1)
+                {
+                    // 校验名称长度与对齐
+                    if ((WORD)(DosDeviceNameLength - 1) <= 0x206 && (DosDeviceNameLength & 1) == 0 &&
+                        pMapViewFunc(&SectionHandle, 1, &AlignInfo) >= 0)
+                    {
+                        // 通过查询节区名获得卷路径
+                        SectionSize = 34078720; // 0x2080000
+                        if (pQueryNameFunc(SectionHandle, &SectionSize, 0) >= 0)
+                        {
+                            pTempBuffer[(unsigned __int16)SectionSize >> 1] = 0;
+                            __int16 *pLastSlash = WStringFindLastChar(pTempBuffer, L'\\');
+                            if (pLastSlash && pLastSlash[1])
+                            {
+                                // 拼接 DOS 设备名 + 卷路径
+                                memmove(pSystemRoot, pDosDeviceName, DosDeviceNameLength);
+                                WStringConcat(&pSystemRoot[DosDeviceNameLength >> 1], pLastSlash,
+                                             260 - (DosDeviceNameLength >> 1));
+                                pResult = pSystemRoot;
+                            }
+                        }
+                    }
+                    pCloseFunc(SectionHandle);
+                }
+                ExFreePoolWithTag(pDosDeviceName, 0);
+                pCloseFunc2(VolumeHandle);
+            }
+            pCloseFunc(FileHandle);
+        }
         ExFree(pTempBuffer);
         if (!pResult) { ExFree(pSystemRoot); return NULL; }
     }
@@ -367,7 +420,7 @@ void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass)
 {
     void *Buffer = NULL;
     __int64 (__fastcall *pQueryFunc)(_QWORD, PVOID, _QWORD, _QWORD) = (__int64 (__fastcall *)(_QWORD, PVOID, _QWORD, _QWORD))GtRead(GtTotalSize | GtNtQuerySystemInformationFunc | GtEprocessField58);
-    unsigned int ServiceCountOffset = GtRead(GtSdstServiceCount);
+    unsigned int ServiceCountOffset = (unsigned int)GtRead(GtSdstServiceCount);
     unsigned int ThreadOffset = ServiceCountOffset;
 
     if (pQueryFunc && ServiceCountOffset != -1)
@@ -496,10 +549,122 @@ __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
 
 // ===== Functions moved from MissingFuncs.c =====
 
-// ForEachProcessor — 对每个处理器核心执行回调函数（简化实现）
+// ForEachProcessor — 对每个处理器核心执行回调函数
+// 对应原始驱动 sub_1400780B4
+// 逐处理器设置亲和性并调用回调，支持新旧两种 API（Win10 组亲和性 / 旧版处理器掩码）
 __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 CallbackContext)
 {
-    return pCallbackFunc(0, CallbackContext);
+    char IsInitialized;
+    unsigned int ObjectTableCode;
+    __int64 (*pGetAffinity)(_QWORD, __int16 *);
+    void (*pSetAffinity)(__int64 *, _BYTE *);
+    __int64 pRestoreAffinity;
+    __int64 (*pRestoreAffinityFunc)(_BYTE *);
+    unsigned int ProcessorIndex;
+    __int64 result;
+    char CallbackResult;
+    __int64 (*pGetActiveProc)(void);
+    void (*pSetAffinityLegacy)(__int64);
+    __int64 pRestoreAffinityLegacy;
+    __int64 (*pRestoreAffinityFuncLegacy)(void);
+    __int64 ActiveProcessorMask;
+    unsigned int i;
+    __int64 BitMask;
+    unsigned int RemainingMask;
+    __int64 ProcessorMask;
+    char CallbackResultLegacy;
+    __int16 AffinityGroup;
+    __int64 CallbackFunc;
+    __int64 ContextCopy;
+    __int64 AffinityMask;
+    __int16 OldAffinity;
+    _BYTE OldAffinityState[16];
+
+    ContextCopy = CallbackContext;
+    CallbackFunc = (__int64)pCallbackFunc;
+    IsInitialized = 0;
+    ObjectTableCode = GetObjectTableCode();
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+    {
+        pGetAffinity = (__int64 (*)(_QWORD, __int16 *))GtRead((GLOBAL_TABLE_INDEX)0x4402);
+        pSetAffinity = (void (*)(__int64 *, _BYTE *))GtRead((GLOBAL_TABLE_INDEX)0x4405);
+        pRestoreAffinity = GtRead((GLOBAL_TABLE_INDEX)0x4408);
+        pRestoreAffinityFunc = (__int64 (*)(_BYTE *))pRestoreAffinity;
+        if (pGetAffinity)
+        {
+            if (pSetAffinity)
+            {
+                if (pRestoreAffinity)
+                {
+                    ProcessorIndex = 0;
+                    if (ObjectTableCode)
+                    {
+                        while (1)
+                        {
+                            result = pGetAffinity(ProcessorIndex, &AffinityGroup);
+                            if ((int)result >= 0)
+                            {
+                                OldAffinity = AffinityGroup;
+                                AffinityMask = 1LL << OldAffinity;
+                                pSetAffinity(&AffinityMask, OldAffinityState);
+                                IsInitialized = 1;
+                                CallbackResult = (char)((__int64 (*)(_QWORD, __int64))CallbackFunc)(ProcessorIndex, ContextCopy);
+                                result = pRestoreAffinityFunc(OldAffinityState);
+                                if (!CallbackResult)
+                                    return result;
+                            }
+                            if (++ProcessorIndex >= ObjectTableCode)
+                                goto LABEL_20;
+                        }
+                    }
+                }
+            }
+        }
+        return ((__int64 (*)(_QWORD, __int64))CallbackFunc)(0, ContextCopy);
+    }
+
+    pGetActiveProc = (__int64 (*)(void))GtRead((GLOBAL_TABLE_INDEX)0x403E);
+    pSetAffinityLegacy = (void (*)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x402C);
+    pRestoreAffinityLegacy = GtRead((GLOBAL_TABLE_INDEX)0x402F);
+    pRestoreAffinityFuncLegacy = (__int64 (*)(void))pRestoreAffinityLegacy;
+    if (!pGetActiveProc || !pSetAffinityLegacy || !pRestoreAffinityLegacy)
+        return ((__int64 (*)(_QWORD, __int64))CallbackFunc)(0, ContextCopy);
+
+    result = pGetActiveProc();
+    ActiveProcessorMask = result;
+    if (!result)
+    {
+        for (i = 0; i < ObjectTableCode; ActiveProcessorMask += BitMask)
+            BitMask = 1LL << i++;
+    }
+    RemainingMask = 0;
+    ProcessorMask = 1;
+    if (!ActiveProcessorMask)
+        return ((__int64 (*)(_QWORD, __int64))CallbackFunc)(0, ContextCopy);
+
+    while (1)
+    {
+        if ((ProcessorMask & ActiveProcessorMask) != 0)
+        {
+            ActiveProcessorMask &= ~ProcessorMask;
+            pSetAffinityLegacy(ProcessorMask);
+            IsInitialized = 1;
+            CallbackResultLegacy = (char)((__int64 (*)(_QWORD, __int64))CallbackFunc)(RemainingMask, ContextCopy);
+            result = pRestoreAffinityFuncLegacy();
+            if (!CallbackResultLegacy)
+                break;
+        }
+        ++RemainingMask;
+        ProcessorMask *= 2;
+        if (!ActiveProcessorMask)
+        {
+LABEL_20:
+            if (IsInitialized)
+                return result;
+            return ((__int64 (*)(_QWORD, __int64))CallbackFunc)(0, ContextCopy);
+        }
+    }
+    return result;
 }
 
 // InitUnicodeStringBuffer — 初始化 Unicode 字符串缓冲区
@@ -626,7 +791,7 @@ void InitDriverModuleParsing(void)
     ReleaseMutexFunc = GtRead(GtExReleaseFastMutex);
     if (ReleaseMutexFunc)
     {
-        if (ReadWdfLoaderModule(&FileBuffer, &FileBufferSize))
+        if (ReadWdfLoaderModule((_QWORD *)&FileBuffer, &FileBufferSize))
         {
             ParseDriverInitSection((__int64)FileBuffer, FileBufferSize, ReleaseMutexFunc);
             ExFree(FileBuffer);
@@ -682,7 +847,7 @@ char BuildDevicePath(char *Buffer, unsigned int BufferSize)
     PathBuffer[5] = 0x63;   // L'c'
     PathBuffer[6] = 0x65;   // L'e'
     PathBuffer[7] = 0;
-    NameByteLen = GetStringLength(PathBuffer) * 2;
+    NameByteLen = (unsigned int)(GetStringLength(PathBuffer) * 2);
     // 查询系统对象信息
     pInfoBuffer = (_DWORD *)AllocExBufferAndQuerySystemInfo(0x10);
     if (!pInfoBuffer)

@@ -83,6 +83,7 @@ __int64 CheckFilePathFilter(__int64 FilePath, unsigned int FilePathLength);
 BOOLEAN CheckMemoryValid(void *Address);
 char CheckObjectTypeFlag(__int64 ObjectHeader);
 char CheckObjectTypeFlagWrapper(__int64 ObjectHeader);
+char *ValidateAddressWithSize(char *VirtualAddress);
 __int64 CheckProcessJobObject(__int64 ProcessHandle);
 __int64 CheckProcessObjectFlag(__int64 ProcessObject);
 char CheckProcessProtection(__int64 ProcessObject, _DWORD *OutProtectionType);
@@ -405,6 +406,11 @@ __int64 __fastcall DispatchIoControlByBuildNumber( __int64 (__fastcall *HandlerF
     __int64 Arg3,
     unsigned __int8 Arg4,
     unsigned int Arg5);
+__int64 __fastcall DispatchIoControlForServer2022(
+    __int64 (__fastcall *IoControlFunc)(__int64, _QWORD, __int64, _QWORD, __int64, char),
+    __int64 DeviceHandle, unsigned int IoControlCode, __int64 InputBuffer,
+    unsigned int Arg5, __int64 Arg6, char Arg7);
+char __fastcall SendIoControlWithVersionCheck(__int64 DeviceHandle, unsigned int IoControlCode, __int64 InputBuffer);
 __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress);
 __int64 DispatchParseNtExportFunctions(void);
 __int64 DispatchWin32kPatternMatching(__int64 Buffer, unsigned int BufferSize);
@@ -536,6 +542,7 @@ char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *p
 __int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult);
 __int64 GetSsdtFunctionBase2(void);
 __int64 GetSsdtFunctionBase4(void);
+__int64 GetObjectTableCode(void);
 __int64 GetStringLength(_WORD *String);
 __int64 GetWin7Sp1EprocessOffset(void);
 __int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize);
@@ -664,6 +671,7 @@ char LookupExportByName(PUCHAR PeBase, ULONG PeSize, PCHAR FuncName, PULONG OutR
 __int64 LookupExportFuncAddr(__int64 ExportIndexTable, unsigned int EntryCount, int HashValue);
 __int64 *LookupModuleByName(const char *ModuleName, __int64 *OutBaseAddress);
 __int64 LookupMsrTableEntry(void);
+char EnumObjectTypeDirectory(_QWORD **DirectoryStack, int MaxDepth, __int64 OutputBuffer, unsigned int OutputSize);
 char MatchObjectTypeEntry(__int64 Target, __int64 TableBase);
 __int64 MatchObjectTypeFilterCallback(_QWORD *ObjectEntry, _QWORD *Context, __int64 TypeFilter);
 __int64 MatchObjectTypeFilterCallbackV2(_QWORD *ObjectEntry, _QWORD *Context, __int64 TypeFilter);
@@ -1006,7 +1014,7 @@ __int64 WriteProcessContextEntry(__int64 pInputEntry);
 __int64 WriteProcessContextEntryWin7(ULONG *pInputEntry);
 char WriteProcessMemoryBuffer(_QWORD *InputParams);
 char WriteProcessMemoryValue(_QWORD *InputParams);
-void WritePtrToAddress(void);
+__int64 __fastcall WritePtrToAddress(_QWORD *pTarget);
 __int64 WriteThreadContextEntryWin10(ULONG *pInputEntry);
 __int64 ZeroProcessMemoryPages(PRKPROCESS PROCESS);
 
@@ -1106,7 +1114,7 @@ void BuildNtExportIndexTable(void);
 __int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, void *Buffer, int SectorCount, int BlockSize, int BlockCount);
 __int64 CdbCommandCompletionCallback(void *Irp);
 __int64 __fastcall RxTdiRequestCompletion(void *DeviceObject, void *Irp, void *Context);
-__int64 FindObjectOperationExportWin10(__int64 ImageBase, int ImageSize);
+__int64 FindObjectOperationExportWin10(__int64 ImageBase, unsigned int ImageSize);
 __int64 ReadSystemDllAndInitSession(void);
 void InitIrpBufferWithCdb(__int64 Buffer, __int64 Address, unsigned int Flags, __int64 CompletionRoutine, unsigned int BlockSize, unsigned int BlockCount, unsigned int CdbFlags, unsigned int CdbParam);
 __int64 EnumObjectLinkedListSingle(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *pCount, int MaxEntries);

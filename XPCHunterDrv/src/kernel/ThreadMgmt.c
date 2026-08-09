@@ -629,7 +629,32 @@ void DecryptAndCompareStrings(__int64 Process, unsigned int *OutputBuffer, unsig
     int ProcessType = MatchSystemProcessName(Process);
     if (!ProcessType) return;
 
-    // Encoded whitelist entries (simplified)
+    // 编码的白名单文件名数组（每 DWORD 编码 2 个宽字符，小端）
+    _DWORD v47[7]    = {6881399, 7077998, 6750319, 7209071, 6619182, 6619256, 0}; // "winlogon.exe"
+    _DWORD v43[9]    = {6422647, 7143525, 5701724, 7209065, 6750285, 7602285, 3014738, 7077988, 108}; // "wbem\\WinMgmtR.dll"
+    _DWORD v27[6]    = {7405684, 6619253, 7929970, 6553646, 7077996, 0}; // "tquery.dll"
+    _DWORD v45[6]    = {7471216, 6684783, 7733363, 3014755, 7077988, 108}; // "profsvc.dll"
+    _DWORD v46[6]    = {6619255, 7602294, 7340129, 3014761, 7077988, 108}; // "wevtapi.dll"
+    _DWORD v29[6]    = {6881399, 6815854, 7602292, 3014768, 7077988, 108}; // "winhttp.dll"
+    _DWORD v28[6]    = {6619241, 7471206, 7143521, 3014757, 7077988, 108}; // "ieframe.dll"
+    _DWORD v38[7]    = {7143529, 6750305, 7471205, 7536741, 6553646, 7077996, 0}; // "imageres.dll"
+    _DWORD v42[9]    = {7471204, 7733353, 7471205, 6029427, 7667820, 6684769, 3014771, 7929971, 115}; // "drivers\\luafs.sys"
+    wchar_t Str1[20] = L"drivers\\fltmgr.sys";
+    _DWORD v37[7]    = {6553697, 7536756, 6815843, 7143525, 3014753, 7077988, 108}; // "adtschema.dll"
+    _DWORD v18[4]    = {6881379, 6553646, 7077996, 0}; // "ci.dll"
+    _DWORD v39[7]    = {6488179, 6619240, 7536740, 6488182, 6553646, 7077996, 0}; // "schedsvc.dll"
+    _DWORD v32[7]    = {6619251, 7733362, 6488169, 7536741, 6619182, 6619256, 0}; // "services.exe"
+    _DWORD v24[4]    = {7667831, 7667809, 7209061, 3014759}; // "wuaueng."
+    _DWORD v26[6]    = {6881399, 7536750, 7602273, 6619182, 6619256, 0}; // "winsat.exe"
+    wchar_t v19[12]  = L"pshed.dll";
+    wchar_t v20[12]  = L"qmgr.dll";
+    _DWORD v22[4]    = {6422644, 7536755, 6488182, 6553646}; // "tbssvc.d"
+    wchar_t v21[12]  = L"gpsvc.dll";
+    _DWORD v30[4]    = {6881380, 7536749, 7274602, 3014754}; // "dimsjob."
+    _DWORD v40[5]    = {6619251, 7667828, 6357104, 6881392, 6553646}; // "setupapi.d"
+    _DWORD v35[5]    = {6357106, 6357091, 6619239, 7602286, 6619182}; // "racagent.e"
+    _DWORD v33[5]    = {7340140, 7536747, 7602277, 7340149, 6619182}; // "lpksetup.e"
+
     WORD *pStr1 = BuildSystem32Path();
     if (!pStr1) return;
 
@@ -643,29 +668,68 @@ void DecryptAndCompareStrings(__int64 Process, unsigned int *OutputBuffer, unsig
             __int64 Offset = 136 * Index;
             if (*((WORD *)&OutputBuffer[Offset + 8] + PathLen) == L'\\')
             {
-                // For each process type, check against whitelisted DLLs
                 const wchar_t *FileName = (const wchar_t *)&OutputBuffer[Offset + 8] + PathLen + 1;
 
-                // The following encoded string comparisons are from the original driver
-                // Full 1:1 replication requires all encoded DLL name arrays
-                // Simplified: mark as identified by path prefix
-                BOOLEAN IsWhitelisted = FALSE;
-
-                // (Full list of ~25 encoded DLL names from original driver omitted for length)
-                // Each compares against encoded strings matching known system files
-
-                if (IsWhitelisted)
+                // 按进程类型匹配白名单
+                if (ProcessType == 1)
                 {
-                    (*OutputBuffer)--;
-                    if (Index != (ULONG)(EntryCount - 1))
+                    // 任一白名单名匹配则移除；若全部不匹配，仅当 v33 匹配 "lpksetup.e" 时才移除
+                    if (WStringCompareCaseInsensitive((__int64)v47, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v43, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v27, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v45, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v46, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v42, (__int64)FileName) &&
+                        _wcsicmp(Str1, FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v37, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v18, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v39, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v32, (__int64)FileName) &&
+                        WStringCompareCaseInsensitive((__int64)v24, (__int64)FileName) &&
+                        _wcsicmp((const wchar_t *)v26, FileName) &&
+                        _wcsicmp(v19, FileName) &&
+                        _wcsicmp(v20, FileName) &&
+                        _wcsicmp((const wchar_t *)v22, FileName) &&
+                        _wcsicmp(v21, FileName) &&
+                        _wcsicmp((const wchar_t *)v30, FileName) &&
+                        _wcsicmp((const wchar_t *)v40, FileName) &&
+                        _wcsicmp((const wchar_t *)v35, FileName))
                     {
-                        __int64 NextOffset = 136 * (Index + 1);
-                        memmove(Dst, &OutputBuffer[NextOffset], 544 * (EntryCount - Index - 1));
+                        // 全部不匹配：仅当 v33 也匹配时移除，否则保留
+                        if (_wcsicmp((const wchar_t *)v33, FileName))
+                            goto NotWhitelisted;
                     }
-                    Index--;
+                    /* 任一匹配则继续移除 */
                 }
+                else if (ProcessType == 2)
+                {
+                    if (WStringCompareCaseInsensitive((__int64)v29, (__int64)FileName))
+                        goto NotWhitelisted;
+                }
+                else if (ProcessType == 3)
+                {
+                    if (WStringCompareCaseInsensitive((__int64)v28, (__int64)FileName))
+                        goto NotWhitelisted;
+                }
+                else if (ProcessType == 4)
+                {
+                    if (WStringCompareCaseInsensitive((__int64)v38, (__int64)FileName))
+                        goto NotWhitelisted;
+                }
+                else
+                    goto NotWhitelisted;
+
+                // 匹配白名单，从枚举结果中移除该条目
+                (*OutputBuffer)--;
+                if (Index != (ULONG)(EntryCount - 1))
+                {
+                    __int64 NextOffset = 136 * (Index + 1);
+                    memmove(Dst, &OutputBuffer[NextOffset], 544 * (EntryCount - Index - 1));
+                }
+                Index--;
             }
         }
+    NotWhitelisted:
         Index++;
     }
 
@@ -1376,13 +1440,25 @@ void EnumerateFileMappingSectionEx(__int64 VadNode, _DWORD *OutputBuffer, unsign
     }
 }
 
-// EnumerateFileMappingSectionStub — 枚举文件映射节区(存根版)
-// 对应原始驱动 sub_14004EDC0
-// V3 VAD 遍历使用的文件映射枚举函数，与 V2 的 Ex 版本逻辑相同但供不同 VAD 版本使用
+// EnumerateFileMappingSectionStub — 枚举文件映射节区(存根验证版)
+// 对应原始驱动 sub_14004C3A4
+// V3 VAD 遍历使用的文件映射枚举存根：仅验证文件映射上下文中的文件对象指针有效性，不做实际枚举
 void EnumerateFileMappingSectionStub(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
-    // 内部调用 EnumerateFileMappingSectionEx 实现相同逻辑
-    EnumerateFileMappingSectionEx(VadNode, OutputBuffer, BufferSize);
+    if (544 * *OutputBuffer + 552 <= BufferSize)
+    {
+        __int64 *FileObjectPtr = *(__int64 **)(VadNode + 72);
+        if (FileObjectPtr)
+        {
+            if (MmIsAddressValid(*(PVOID *)(VadNode + 72)) == 1 &&
+                MmIsAddressValid((char *)FileObjectPtr + 55) == 1)
+            {
+                __int64 FileObject = *FileObjectPtr;
+                if (FileObject)
+                    MmIsAddressValid((PVOID)FileObject);
+            }
+        }
+    }
 }
 
 // EnumerateFileMappingSectionByIndex — 按索引枚举文件映射节区

@@ -652,7 +652,7 @@ char EnableDeviceObjectProtection(void)
 {
     char Result = 0;
     __int64 DeviceObject = GtRead(GtDriverObject);
-    if (!DeviceObject || DeviceObject < (unsigned __int64)MmSystemRangeStart)
+    if (!DeviceObject || (ULONG64)DeviceObject < (unsigned __int64)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid((void *)DeviceObject) != 1)
         return Result;
@@ -678,6 +678,23 @@ char CheckObjectTypeFlag(__int64 ObjectHeader)
 char CheckObjectTypeFlagWrapper(__int64 ObjectHeader)
 {
     return CheckObjectTypeFlag(ObjectHeader);
+}
+
+// ValidateAddressWithSize — 验证地址是否可访问并返回偏移后的地址
+// 对应原始驱动 sub_1400798F8
+// 读取 GT 854(EPROCESS 扩展偏移起始)，验证虚拟地址及其偏移后的地址有效后返回偏移地址
+char *ValidateAddressWithSize(char *VirtualAddress)
+{
+    char *Result = 0;
+    int BaseOffset = (int)GtRead(GtEprocessExtBase);
+    if (BaseOffset && VirtualAddress &&
+        MmIsAddressValid(VirtualAddress) == 1)
+    {
+        char *AdjustedAddress = &VirtualAddress[BaseOffset];
+        if (MmIsAddressValid(AdjustedAddress) == 1)
+            return AdjustedAddress;
+    }
+    return Result;
 }
 
 // ReadObjectNameFromCallback — 从回调读取对象名称
@@ -1080,10 +1097,10 @@ __int64 (*EnumKernelObjectDirectory(__int64 ObjectPath, unsigned int Offset, uns
 
     InitUnicodeFunc(UnicodeString, ObjectPath);
     CloseHandleFunc = (__int64 (*)(void))CreateFileFunc(UnicodeString, 64, 0);
-    if ((int)CloseHandleFunc < 0 || !FileObjectHandle) return CloseHandleFunc;
+    if ((int)(__int64)CloseHandleFunc < 0 || !FileObjectHandle) return CloseHandleFunc;
 
     CurrentDriver = *(__int64 *)(FileObjectHandle + 8);
-    if (!CurrentDriver) return (__int64 (*)())SavedCloseFunc();
+    if (!CurrentDriver) return (__int64 (*)(void))SavedCloseFunc();
 
     do
     {
@@ -1135,7 +1152,7 @@ NextNode:
         CurrentDriver = *(__int64 *)(CurrentDriver + 16);
     } while (CurrentDriver);
 
-    return (__int64 (*)())SavedCloseFunc();
+    return (__int64 (*)(void))SavedCloseFunc();
 }
 
 // CopyObjectEntryToBuffer — 复制对象条目到缓冲区
@@ -1200,7 +1217,7 @@ char CopyObjectEntryToBuffer(__int64 Entry, unsigned int Type, unsigned int Flag
             NameBuffer2 = (WORD *)(Entry + 40);
         }
         *(__int64 *)&OutputBuffer[Result + 2] = NameInfoAddr;
-        EntrySize = 2 * GetStringLength(NameBuffer2);
+        EntrySize = (ULONG)(2 * GetStringLength(NameBuffer2));
         if (EntrySize > 0x208) EntrySize = 520;
         if (EntrySize <= 2) goto Increment;
         CopySize = EntrySize;
@@ -1392,12 +1409,12 @@ char OpenMountPointManagerDevice(_QWORD ObjectBody)
     ULONG BuildNumber;
     ULONG ObjectTypeIndex;
     void (__fastcall *RtlInitUnicodeStringFunc)(_BYTE *, int *);
-    __int64 (__fastcall *CreateFileFunc)(_QWORD *, __int64, _QWORD, _QWORD, _QWORD **, _QWORD);
+    __int64 (__fastcall *CreateFileFunc)(_QWORD *, __int64, _QWORD, _QWORD *, _QWORD **, _QWORD);
     void (__fastcall *CloseHandleFunc)(_QWORD);
     __int64 (__fastcall *DeviceIoControlFunc)(_QWORD *, __int64, int *);
-    int (__fastcall *QueryDeviceChildFunc)(_QWORD, _QWORD *);
-    int (__fastcall *NtFsControlFileFunc)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD);
-    int (__fastcall *UnknownFunc)(_QWORD, ULONG, _QWORD, _QWORD *);
+    int (__fastcall *QueryDeviceChildFunc)(_QWORD *, _QWORD *);
+    int (__fastcall *NtFsControlFileFunc)(_QWORD *, __int64, _QWORD, _QWORD, _QWORD *, _QWORD);
+    int (__fastcall *UnknownFunc)(_QWORD *, ULONG, _QWORD, _QWORD *);
     _DWORD EncodedPath[13];
     _BYTE ObjectNameBuffer[16];
     _BYTE ObjectAttributes[48];
@@ -1423,12 +1440,12 @@ char OpenMountPointManagerDevice(_QWORD ObjectBody)
     }
 
     RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, int *))GtRead(GtRtlInitUnicodeStringFunc);
-    CreateFileFunc = (__int64 (__fastcall *)(_QWORD *, __int64, _QWORD, _QWORD, _QWORD **, _QWORD))GtRead(GtCreateFileFunc2);
+    CreateFileFunc = (__int64 (__fastcall *)(_QWORD *, __int64, _QWORD, _QWORD *, _QWORD **, _QWORD))GtRead(GtCreateFileFunc2);
     CloseHandleFunc = (void (__fastcall *)(_QWORD))GtRead(GtCloseHandleFunc);
     DeviceIoControlFunc = (__int64 (__fastcall *)(_QWORD *, __int64, int *))GtRead(GtDeviceIoControlFunc);
-    QueryDeviceChildFunc = (int (__fastcall *)(_QWORD, _QWORD *))GtRead(0x4199);
-    NtFsControlFileFunc = (int (__fastcall *)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
-    UnknownFunc = (int (__fastcall *)(_QWORD, ULONG, _QWORD, _QWORD *))GtRead(0x4340);
+    QueryDeviceChildFunc = (int (__fastcall *)(_QWORD *, _QWORD *))GtRead(0x4199);
+    NtFsControlFileFunc = (int (__fastcall *)(_QWORD *, __int64, _QWORD, _QWORD, _QWORD *, _QWORD))GtRead(GtNtFsControlFileFunc);
+    UnknownFunc = (int (__fastcall *)(_QWORD *, ULONG, _QWORD, _QWORD *))GtRead(0x4340);
 
     if (!RtlInitUnicodeStringFunc || !CreateFileFunc || !CloseHandleFunc ||
         !DeviceIoControlFunc || !QueryDeviceChildFunc || !NtFsControlFileFunc || !UnknownFunc)
@@ -1725,7 +1742,7 @@ __int64 MatchObjectTypeFilterCallbackV2(_QWORD *ObjectEntry, _QWORD *Context, __
     Result = 0;
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x1772)
     {
-        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer02) != CheckObjectTypeFlagWrapper(Context))
+        if ((unsigned __int8)GtRead(GtDisableHookProtectionAddr2 | GtPathBuffer02) != CheckObjectTypeFlagWrapper((__int64)Context))
             return Result;
         EntryPtr = (__int64)Context + 48;
     }
@@ -1775,7 +1792,7 @@ __int64 QueryObjectNameByType(PVOID Object, POBJECT_NAME_INFORMATION ObjectNameI
 
     if (ObjectTypeByAddress == *FileObjectType &&
         (*((_DWORD *)Object + 29) || *((_DWORD *)Object + 28)))
-        NameResult = QueryObjectNameWithRetry((__int64)Object, ObjectNameInfo, Length, ReturnLength);
+        NameResult = (unsigned int)QueryObjectNameWithRetry((__int64)Object, ObjectNameInfo, Length, ReturnLength);
     else
         NameResult = ObQueryNameString(Object, ObjectNameInfo, Length, ReturnLength);
 
@@ -1807,7 +1824,7 @@ char EnableObjectCallback(PVOID ObjectName, SIZE_T Length)
         LastCharIndex = (unsigned __int64)(LengthAligned - 2) >> 1;
         if (*((WORD *)ObjectName + LastCharIndex))
             *((WORD *)ObjectName + LastCharIndex) = 0;
-        return InitObjectCallbackFiles((int)ObjectName);
+        return InitObjectCallbackFiles((int)(ULONG_PTR)ObjectName);
     }
     return Result;
 }
@@ -1958,7 +1975,7 @@ void EnumDriverPeImageEntries(unsigned int *OutputBuffer, _DWORD *pCount)
         Index = 0;
         if (*DriverBuffer)
         {
-            EntryPtr = DriverBuffer + 11;
+            EntryPtr = (WORD *)(DriverBuffer + 11);
             do
             {
                 if (!*pCount)
@@ -2033,7 +2050,7 @@ char EnumObjectTypeList(unsigned int *pOutputBuffer, unsigned int OutputSize)
             EntryCount = *pOutputBuffer;
             pListHead = *pTypeList;
             pOutputEntry = &pOutputBuffer[138 * EntryCount + 2];
-            CurrentOffset = 552 * EntryCount + 560;
+            CurrentOffset = (unsigned int)(552 * EntryCount + 560);
             pOutputEntryCopy = pOutputEntry;
             pTypeListCopy = pTypeList;
             IterationCount = 0;
@@ -2128,6 +2145,138 @@ __int64 QueryObjectTypeByAddress(__int64 Object)
     return Result;
 }
 
+// EnumObjectTypeDirectory — 枚举对象类型目录(递归深度优先遍历)
+// 对应原始驱动 sub_14006FA64
+// 从根对象目录开始 DFS 遍历，遍历 37 个哈希桶。对每个条目检查对象类型标志匹配
+// (>0x1772/Win8+ 通过 CheckObjectTypeFlagWrapper，否则直接比较类型指针)，
+// 匹配的条目递归入栈继续遍历；不匹配的条目通过 MatchObjectTypeEntry 过滤后，
+// 输出 144 字节/项的完整信息(索引号在 OutputBuffer+3544 处)。最大遍历 0x100000 个条目。
+char EnumObjectTypeDirectory(_QWORD **DirectoryStack, int MaxDepth, __int64 OutputBuffer, unsigned int OutputSize)
+{
+    unsigned char (__fastcall *CheckTypeFunc)(__int64);
+    _QWORD *TargetDirectory;
+    int DepthCounter;
+    _QWORD *StackPointer;
+    unsigned int StackIndex;
+    __int64 StackDepth;
+    unsigned int BucketIndex;
+    unsigned int TypeFlag;
+    __int64 TypeFlagCopy;
+
+    CheckTypeFunc = (unsigned __int8 (__fastcall *)(__int64))GtRead(GtObjectTypeCheckFlag);
+    if (!CheckTypeFunc)
+        return 1;
+    if (MaxDepth <= 1)
+        return 1;
+
+    TargetDirectory = *DirectoryStack;
+    StackPointer = *DirectoryStack;
+    StackIndex = 0;
+    if (!*DirectoryStack)
+        return 1;
+
+    DepthCounter = -1;
+    StackDepth = -1;
+    do
+    {
+        if (CheckMemoryValid(TargetDirectory) != 1 || StackIndex >= 0x100000)
+            break;
+
+        // 计算当前条目写入偏移(144 字节/项，数据区起始于 OutputBuffer+3704)
+        unsigned int EntryLimit = (unsigned int)(144 * *(_DWORD *)(OutputBuffer + 3544) + 3704);
+        unsigned int BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
+        if (BuildNumber > 0x1772)
+            TypeFlag = (unsigned __int8)CheckObjectTypeFlagWrapper((__int64)(TargetDirectory - 6));
+        else
+            TypeFlag = *(unsigned int *)(TargetDirectory - 4);
+        TypeFlagCopy = TypeFlag;
+
+        BucketIndex = 0;
+        do
+        {
+            if (EntryLimit >= OutputSize)
+                break;
+
+            _QWORD *BucketEntry = (_QWORD *)*TargetDirectory;
+            unsigned int EntryIndex = 0;
+            if (*TargetDirectory)
+            {
+                do
+                {
+                    if (EntryLimit >= OutputSize || EntryIndex >= 0x10000)
+                        break;
+                    _QWORD *ObjectEntry = (_QWORD *)BucketEntry[1];
+                    unsigned int ObjectFlag = (unsigned int)GtRead(GtWindowsBuildNumber) > 0x1772
+                        ? (unsigned __int8)CheckObjectTypeFlagWrapper((__int64)(ObjectEntry - 6))
+                        : *(unsigned int *)(ObjectEntry - 4);
+
+                    if (ObjectFlag == TypeFlag)
+                    {
+                        // 类型匹配：递归入栈继续遍历
+                        if (DepthCounter < MaxDepth - 1)
+                        {
+                            ++DepthCounter;
+                            DirectoryStack[++StackDepth] = ObjectEntry;
+                        }
+                    }
+                    else if (!MatchObjectTypeEntry((__int64)ObjectEntry, OutputBuffer))
+                    {
+                        // 不匹配：写入 144 字节的对象类型条目
+                        unsigned int EntryBase = (unsigned int)(144 * *(unsigned int *)(OutputBuffer + 3544));
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3560) = (_QWORD)ObjectEntry;
+                        *(_WORD *)(OutputBuffer + EntryBase + 3568) = 0;
+
+                        char *NamePtr = ValidateAddressWithSize((char *)ObjectEntry);
+                        if (NamePtr && *(_WORD *)NamePtr > 1u &&
+                            CheckTypeFunc(*((_QWORD *)NamePtr + 1)) &&
+                            CheckTypeFunc(*((_QWORD *)NamePtr + 1) - 1 + *(unsigned __int16 *)NamePtr))
+                        {
+                            unsigned int NameLen = *(unsigned __int16 *)NamePtr;
+                            if (NameLen > 0x40)
+                                NameLen = 64;
+                            memmove((void *)(OutputBuffer + EntryBase + 3568),
+                                    *((const void **)NamePtr + 1), NameLen);
+                            *(_WORD *)(OutputBuffer + 2 * ((NameLen >> 1) + 72 * *(unsigned int *)(OutputBuffer + 3544)) + 3568) = 0;
+                        }
+
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3640) = ReadObjectHeaderName((PVOID ***)ObjectEntry, 1);
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3648) = ReadObjectHeaderQuota((PVOID ***)ObjectEntry, 1);
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3656) = QueryKernelMemoryByAddress((PVOID ***)ObjectEntry, 1);
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3664) = ReadObjectHeaderCreateInfo((PVOID ***)ObjectEntry, 1);
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3672) = ReadObjectHeaderHandle((PVOID ***)ObjectEntry, 1);
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3680) = ReadObjectBodyOffset((PVOID ***)ObjectEntry, 1);
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3688) = ReadObjectTypeOffset((PVOID ***)ObjectEntry, 1);
+                        *(_QWORD *)(OutputBuffer + EntryBase + 3696) = ReadObjectHeaderType((PVOID ***)ObjectEntry, 1);
+                        (*(unsigned int *)(OutputBuffer + 3544))++;
+                        TypeFlag = (unsigned int)TypeFlagCopy;
+                    }
+                    BucketEntry = (_QWORD *)*BucketEntry;
+                    EntryIndex = (unsigned int)(EntryIndex + 1);
+                    EntryLimit = (unsigned int)(144 * *(_DWORD *)(OutputBuffer + 3544) + 3704);
+                } while (BucketEntry);
+                TargetDirectory = StackPointer;
+            }
+
+            EntryLimit = (unsigned int)(144 * *(_DWORD *)(OutputBuffer + 3544) + 3704);
+            ++BucketIndex;
+            ++TargetDirectory;
+            EntryLimit = (unsigned int)(144 * *(_DWORD *)(OutputBuffer + 3544) + 3704);
+        } while (BucketIndex < 0x25);
+
+        if (StackDepth < 0)
+            break;
+        TargetDirectory = DirectoryStack[StackDepth];
+        --DepthCounter;
+        --StackDepth;
+        StackPointer = TargetDirectory;
+        if (EntryLimit >= OutputSize)
+            break;
+        StackIndex = (unsigned int)(StackIndex + 1);
+    } while (TargetDirectory);
+
+    return 1;
+}
+
 // QueryObjectTypeDirectoryPath — 查询对象类型目录路径
 // 对应原始驱动 sub_140079654
 // 通过 GT 16925/16982/16931 中的函数指针，打开对象目录设备并发送 FSCTL，
@@ -2138,7 +2287,7 @@ __int64 QueryObjectTypeDirectoryPath(void)
     __int64 Result = 0;
     void (__fastcall *RtlInitUnicodeStringFunc)(_BYTE *, int *);
     __int64 (*IoCreateFileFunc)(_BYTE *, __int64, __int64 *, _BYTE *, _QWORD, _QWORD, _QWORD);
-    int (*NtFsControlFileFunc)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD);
+    int (*NtFsControlFileFunc)(_QWORD, _BYTE *, unsigned int, int *);
     void (*CloseHandleFunc)(_QWORD *);
     void (*ExFreePoolFunc)(_QWORD);
     _DWORD EncodedPath[6];
@@ -2148,11 +2297,10 @@ __int64 QueryObjectTypeDirectoryPath(void)
     __int64 DeviceObj;
     __int64 CurrentDevice;
     int ReturnLength;
-    _BYTE *NameBuffer;
 
     RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, int *))GtRead(0x421D);
     IoCreateFileFunc = (__int64 (*)(_BYTE *, __int64, __int64 *, _BYTE *, _QWORD, _QWORD, _QWORD))GtRead(0x421A);
-    NtFsControlFileFunc = (int (*)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD))GtRead(0x4220);
+    NtFsControlFileFunc = (int (*)(_QWORD, _BYTE *, unsigned int, int *))GtRead(0x4220);
     CloseHandleFunc = (void (*)(_QWORD *))GtRead(0x4223);
     ExFreePoolFunc = (void (*)(_QWORD))GtRead(0x4223);
 
@@ -2173,7 +2321,7 @@ __int64 QueryObjectTypeDirectoryPath(void)
     *(_DWORD *)(ObjAttr + 8) = 48;
     *(_QWORD *)(ObjAttr + 16) = 0;
     *(_DWORD *)(ObjAttr + 24) = 576;
-    *(_QWORD *)(ObjAttr + 28) = ObjectNameBuf;
+    *(_QWORD *)(ObjAttr + 28) = (_QWORD)ObjectNameBuf;
     *(_QWORD *)(ObjAttr + 36) = 0;
 
     if ((int)IoCreateFileFunc(ObjectNameBuf, 64, &Handle, ObjAttr, 0, 0, 0) >= 0)
@@ -2187,18 +2335,53 @@ __int64 QueryObjectTypeDirectoryPath(void)
                 // Check if type index == 7 (Directory object type) and flag 0x40 set
                 if (*(_DWORD *)(CurrentDevice + 0x48) == 7 && (*(_DWORD *)(CurrentDevice + 0x30) & 0x40) != 0)
                 {
-                    // Query object name
+                    // 第一次 FSCTL 查询所需缓冲区大小（预期返回 STATUS_BUFFER_TOO_SMALL）
                     ReturnLength = 0;
-                    if (NtFsControlFileFunc(CurrentDevice, 0, 0, 0, &NameBuffer, 0) == 0xC0000004 && ReturnLength)
+                    if (NtFsControlFileFunc(CurrentDevice, 0, 0, &ReturnLength) == 0xC0000004 && ReturnLength)
                     {
-                        // ... simplified - actual implementation would query name buffer
+                        // 分配返回长度 + 0x100 的缓冲区
+                        unsigned int AllocSize = ReturnLength + 0x100;
+                        _BYTE *QueryBuffer = (_BYTE *)ExAlloc(0, AllocSize);
+                        if (QueryBuffer)
+                        {
+                            // 第二次 FSCTL 实际读取对象目录名
+                            if (NtFsControlFileFunc(CurrentDevice, QueryBuffer, ReturnLength, &ReturnLength) == 0)
+                            {
+                                // 校验缓冲区布局：第 1 个 QWORD 为字符串指针，指向数据区起始
+                                _QWORD *pNamePtr = (_QWORD *)QueryBuffer;
+                                if (pNamePtr[1] == (__int64)(QueryBuffer + 0x10))
+                                {
+                                    WORD NameLen = *(WORD *)QueryBuffer;
+                                    if ((unsigned int)(NameLen + 0x10) < AllocSize)
+                                    {
+                                        // 末尾补零终止
+                                        *(WORD *)(pNamePtr[1] + NameLen) = 0;
+                                        // 查找最后一个 '\'，其后的名称应为 "DR0"（D/R 忽略大小写，0 精确匹配）
+                                        _WORD *pLastSlash = WStringFindLastChar((_WORD *)pNamePtr[1], L'\\');
+                                        if (pLastSlash && GetStringLength(pLastSlash + 1) == 3)
+                                        {
+                                            if (((pLastSlash[1] - L'D') & 0xFFDF) == 0 &&
+                                                ((pLastSlash[2] - L'R') & 0xFFDF) == 0 &&
+                                                pLastSlash[3] == L'0')
+                                            {
+                                                Result = CurrentDevice; // 匹配到 "\DR0" 对象目录
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            ExFree(QueryBuffer);
+                            if (Result)
+                                break;
+                        }
                     }
                 }
                 CurrentDevice = *(_QWORD *)(CurrentDevice + 0x10);
             }
         }
-        CloseHandleFunc(Handle);
+        CloseHandleFunc((_QWORD *)Handle);
     }
+
     return Result;
 }
 
@@ -2296,7 +2479,7 @@ char TraverseHashTableWithCallback(
                             }
                             else
                             {
-                                Result = Callback(NextEntry - 6, NextEntry - 6, Context);
+                                Result = (char)Callback(NextEntry - 6, NextEntry - 6, Context);
                             }
                         }
                         if (Result == 1)
@@ -2348,14 +2531,14 @@ __int64 (*ReadVolumeDataToBuffer(
     int PathChar;
     _QWORD *FileObject;
 
-    RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, int *))GtRead(GtRtlInitUnicodeStringFunc);
+    RtlInitUnicodeStringFunc = (__int64 (__fastcall *)(_BYTE *, int *))GtRead(GtRtlInitUnicodeStringFunc);
     DeviceIoControlFunc = (__int64 (__fastcall *)(_QWORD *, __int64, int *))GtRead(GtDeviceIoControlFunc);
     NtFsControlFileFunc = (int (__fastcall *)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
     CloseHandleFunc = (void (__fastcall *)(_QWORD *))GtRead(GtCloseHandleFunc);
-    IoArgs[1] = CloseHandleFunc;
+    IoArgs[1] = (_QWORD)CloseHandleFunc;
     Result = (__int64 (__fastcall *)(_QWORD))GtRead(GtExFreePoolFunc);
     SavedExFreeFunc = Result;
-    IoArgs[2] = Result;
+    IoArgs[2] = (_QWORD)Result;
 
     if (!RtlInitUnicodeStringFunc || !DeviceIoControlFunc || !NtFsControlFileFunc || !CloseHandleFunc || !Result)
         return Result;
@@ -2369,13 +2552,13 @@ __int64 (*ReadVolumeDataToBuffer(
     memset(&SecurityDescriptor, 0, sizeof(SecurityDescriptor));
 
     Result = (__int64 (__fastcall *)(_QWORD))DeviceIoControlFunc(IoArgs, 1, &AccessMode);
-    if ((int)Result >= 0)
+    if ((int)(__int64)Result >= 0)
     {
         if (NtFsControlFileFunc(IoArgs[0], 983055, 0, 0, &FileObject, 0) >= 0)
         {
             HashTable = (_QWORD **)ExAlloc(PagedPool, 0x100000);
             HashTablePtr = HashTable;
-            IoArgs[3] = HashTable;
+            IoArgs[3] = (_QWORD)HashTable;
             if (HashTable)
             {
                 *HashTable = FileObject;
@@ -2442,7 +2625,7 @@ bool ValidateKernelModuleAddressRange(__int64 LdrEntry)
                 }
                 else
                 {
-                    unsigned int RangeSize = MaxAddr - MinAddr;
+                    unsigned __int64 RangeSize = MaxAddr - MinAddr;
                     if (!*(_DWORD *)(LdrEntry + 32))
                         return RangeSize > 0x1E00000;
                     if (RangeSize > *(unsigned int *)(LdrEntry + 32))
@@ -2452,7 +2635,7 @@ bool ValidateKernelModuleAddressRange(__int64 LdrEntry)
             else
             {
                 unsigned int ImageSize = *(unsigned int *)(LdrEntry + 32);
-                unsigned int RangeSize = MaxAddr - MinAddr;
+                unsigned __int64 RangeSize = MaxAddr - MinAddr;
                 if (!ImageSize)
                     return RangeSize > 0x1E00000;
                 if (RangeSize > ImageSize)
@@ -2526,16 +2709,16 @@ __int64 CmdEnumObjectsEx(__int64 Context, unsigned int InputSize, _DWORD *pOutpu
     {
         ProbeForWrite(pOutputBuffer, BufferSize, 1u);
         *(_DWORD *)pOutputBuffer = 0;
-        MaxEntries = (BufferSize - 64) / 0x38 + 1;
+        MaxEntries = (int)((BufferSize - 64) / 0x38 + 1);
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0xECE)
         {
             if ((unsigned int)GtRead(GtWindowsBuildNumber) == 3790)
-                EnumObjectLinkedListWin7(pObjectTable, pOutputBuffer + 1, (_DWORD *)pOutputBuffer, MaxEntries);
+                EnumObjectLinkedListWin7(pObjectTable, (_QWORD *)(pOutputBuffer + 1), (_DWORD *)pOutputBuffer, MaxEntries);
             else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x585D)
-                EnumObjectLinkedListWin8(pObjectTable, pOutputBuffer + 1, (_DWORD *)pOutputBuffer, MaxEntries);
+                EnumObjectLinkedListWin8(pObjectTable, (_QWORD *)(pOutputBuffer + 1), (_DWORD *)pOutputBuffer, MaxEntries);
         }
         else
-            EnumObjectLinkedListSingle(pObjectTable, (__int64)(pOutputBuffer + 1), (_DWORD *)pOutputBuffer, MaxEntries);
+            EnumObjectLinkedListSingle(pObjectTable, (_QWORD *)(pOutputBuffer + 1), (_DWORD *)pOutputBuffer, MaxEntries);
         return *(_DWORD *)pOutputBuffer != 0;
     }
     return 0;
@@ -2603,7 +2786,7 @@ char CmdObjectOperationByHandle(__int64 *pInputBuffer, int InputSize)
 // DispatchObjectOperationInit — 分发对象操作初始化
 char DispatchObjectOperationInit(__int64 ImageBase, unsigned int ImageSize)
 {
-    unsigned int Result = GtRead(GtWindowsBuildNumber);
+    unsigned int Result = (unsigned int)GtRead(GtWindowsBuildNumber);
     if (Result >= 0x2800)
     {
         if (ImageBase && ImageSize)
@@ -2664,11 +2847,11 @@ __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, int ImageSi
     MaxOffset = ImageSize - SectionBase;
     PrevOffset = 0;
     CurrentOffset = 0;
-    InitPESectionReadContext(ImageBase, ImageSize - ImageBase, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+    InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)&PESectionContext);
     ScanCount = 0;
-    while (!(unsigned int)ReadPESectionEntry(&PESectionContext, SectionEntry))
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
     {
-        CurrentRva = EntrySize2 + ContextOffset;
+        CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
         TypeValue = *(_WORD *)(TypePtr + 6);
         if (TypeValue == 1349)
@@ -2723,15 +2906,15 @@ __int64 __fastcall FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSiz
         GtIndex2 = GtEprocessField71;
     }
     BaseOffset = BaseOffset1;
-    BaseOffset2 = GtRead(GtIndex2);
+    BaseOffset2 = (int)GtRead(GtIndex2);
     if (BaseOffset && BaseOffset2)
     {
-        InitPESectionReadContext(ImageBase, ImageSize - ImageBase, 2, 0, -1, 0, 0, (__int64)PESectionContext);
+        InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)PESectionContext);
         for (LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
         {
-            if ((unsigned int)ReadPESectionEntry((__int64 *)PESectionContext, SectionEntry))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)PESectionContext, (PULONG)SectionEntry))
                 break;
-            CurrentRva = EntrySize2 + ContextOffset;
+            CurrentRva = (int)(EntrySize2 + ContextOffset);
             ContextOffset += EntrySize2;
             TypeValue = *(_WORD *)(TypePtr + 6);
             if (TypeValue == 1349)
@@ -2779,7 +2962,7 @@ __int64 EnumProcessAndInitObjects(__int64 Process, char Flags)
     __int64 ProcessCopy;
 
     Result = 0;
-    ObjectTableOffset = GtRead(GtEprocessField30);
+    ObjectTableOffset = (unsigned int)GtRead(GtEprocessField30);
     if (ObjectTableOffset != -1)
     {
         ProcessCopy = Process;
@@ -2799,7 +2982,7 @@ __int64 EnumProcessAndInitObjects(__int64 Process, char Flags)
                     LoopCount = EntryCount;
                     do
                     {
-                        InitObjectAndQueryName(*CurrentEntry, Flags);
+                        InitObjectAndQueryName((__int64)*CurrentEntry, Flags);
                         CurrentEntry += 7;
                         --LoopCount;
                     }
@@ -2831,7 +3014,7 @@ void ParseObjectContextExportDir(void)
     if (ExportDirSize && ReadNtoskrnlForObjectContext(&pFileBuffer, &FileSize))
     {
         if (ParseNtExportSections((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1
-            && ParseNtExportDir((__int64)pFileBuffer, FileSize, ExportDirSize, 0) == 1)
+            && ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, ExportDirSize, 0) == 1)
         {
             pEntryIndex = (unsigned int *)pExportTable + 1;
             EntryRemaining = 29;
@@ -2839,7 +3022,7 @@ void ParseObjectContextExportDir(void)
             {
                 NameRva = *pEntryIndex;
                 *(pEntryIndex - 1) = 0;
-                if ((_DWORD)NameRva && (int)NameRva + 16 <= FileSize)
+                if ((_DWORD)NameRva && (unsigned int)((int)NameRva + 16) <= FileSize)
                 {
                     *(pEntryIndex - 1) = 1;
                     *(_OWORD *)(pEntryIndex + 3) = *(_OWORD *)&pFileBuffer[NameRva];
@@ -2875,8 +3058,8 @@ __int64 EnumerateProcessObjectTable(__int64 Process, __int64 OutputInfo)
     __int64 ProcessRef;
 
     Result = 0;
-    ProcessHandleTableOffset = GtRead(GtEprocessField30);
-    ProtectionBitmap = GtRead((enum _GLOBAL_TABLE_INDEX)(GtKiFastCallEntryAddr | GtEprocessField08));
+    ProcessHandleTableOffset = (unsigned int)GtRead(GtEprocessField30);
+    ProtectionBitmap = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)(GtKiFastCallEntryAddr | GtEprocessField08));
     ProtectionBitmapCopy = ProtectionBitmap;
     if (ProcessHandleTableOffset != -1 && ProtectionBitmap)
     {
@@ -2894,7 +3077,7 @@ __int64 EnumerateProcessObjectTable(__int64 Process, __int64 OutputInfo)
                 *(_WORD *)OutputInfo = 0;
                 if (EntryCount)
                 {
-                    CurrentEntry = BufferPtr + 8;
+                    CurrentEntry = (_QWORD *)(BufferPtr + 8);
                     LoopCount = EntryCount;
                     do
                     {
@@ -2952,7 +3135,7 @@ __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
         while (EntryFieldCount);
     }
     HalExportTable = GtRead(GtEprocessField66);
-    HalExportCount = GtRead(GtEprocessField23);
+    HalExportCount = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
     NtoskrnlBaseCopy = NtoskrnlBase;
     if (HalExportTable && HalExportCount && NtoskrnlBase)
@@ -3037,7 +3220,7 @@ char __fastcall ModifyObjectHeaderFlagsByVersion(__int64 ObjectHeader, char SetF
     unsigned int HeaderOffsetBase;
 
     Result = 0;
-    HeaderOffsetBase = GtRead((enum _GLOBAL_TABLE_INDEX)2312);
+    HeaderOffsetBase = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)2312);
     if (HeaderOffsetBase)
     {
         Result = 1;
@@ -3095,14 +3278,14 @@ __int64 __fastcall FindObjectOperationExportWin10(__int64 NtoskrnlBase, unsigned
     *((unsigned char *)&ExportNameBuf[10] + 1) = 0;
     ExportNameBuf[11] = 0;
     strcpy((char *)ExportNameBuf, "NtUserRegisterHotKey");
-    Success = GtRead(GtNtCreateThreadHookSuccess | GtEprocessField07);
+    Success = (char)GtRead(GtNtCreateThreadHookSuccess | GtEprocessField07);
     if (!Success)
     {
-        Success = LookupExportByName(NtoskrnlBase, ImageSize, (__int64)ExportNameBuf, (unsigned int *)&Value);
+        Success = LookupExportByName((PUCHAR)NtoskrnlBase, (ULONG)ImageSize, (PCHAR)ExportNameBuf, (PULONG)&Value);
         if (Success == 1)
         {
             if ((_DWORD)Value && (unsigned int)Value < ImageSize)
-                Success = GtWrite(GtCallbackField21, (unsigned int)Value);
+                Success = (char)GtWrite(GtCallbackField21, (unsigned int)Value);
         }
     }
     return Success;
@@ -3122,8 +3305,8 @@ __int64 EnumObjectLinkedListSingle(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD
     _QWORD *pEntry;
 
     pCallbackFunc = (__int64 (__fastcall *)(_QWORD ***))GtRead(GtObjectTypeCheckFlag);
-    EprocessOffset = GtRead(GtProcessEprocess);
-    HandleTableOffset = GtRead(GtProcessCreateTime);
+    EprocessOffset = (unsigned int)GtRead(GtProcessEprocess);
+    HandleTableOffset = (unsigned int)GtRead(GtProcessCreateTime);
     Result = GtRead(GtProcessOffset);
     GrantedAccessOffset = Result;
     if (pCallbackFunc && EprocessOffset != -1 && HandleTableOffset && (unsigned int)Result != -1 && pObjectTable)
@@ -3149,9 +3332,9 @@ __int64 EnumObjectLinkedListSingle(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD
                             Result = pCallbackFunc((_QWORD ***)pEntry);
                             if ((_BYTE)Result)
                             {
-                                *((_QWORD *)pOutputEntry - 2) = pBucket;
+                                *((_QWORD *)pOutputEntry - 2) = (_QWORD)pBucket;
                                 --MaxEntries;
-                                *((_QWORD *)pOutputEntry - 1) = pBucket[1];
+                                *((_QWORD *)pOutputEntry - 1) = (_QWORD)pBucket[1];
                                 *pOutputEntry = *((_DWORD *)pBucket + 6);
                                 pOutputEntry += 14;
                                 *(pOutputEntry - 13) = *((_DWORD *)pBucket + 4);
@@ -3195,12 +3378,12 @@ __int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionB
     Result = 0;
     MaxOffset = ImageSize - SectionBase;
     FoundOffsetTmp = 0;
-    InitPESectionReadContext(ImageBase, ImageSize - ImageBase, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+    InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)&PESectionContext);
     for (LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
     {
-        if ((unsigned int)ReadPESectionEntry(&PESectionContext, SectionEntry))
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
             break;
-        CurrentRva = EntrySize2 + ContextOffset;
+        CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
         TypeValue = *(_WORD *)(TypePtr + 6);
         if (TypeValue == 1349)
@@ -3242,11 +3425,11 @@ __int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int Section
     FoundOffset = 0;
     MaxOffset = ImageSize - SectionBase;
     FoundFlag = 0;
-    InitPESectionReadContext(ImageBase, ImageSize - ImageBase, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+    InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)&PESectionContext);
     ScanCount = 0;
-    while (!(unsigned int)ReadPESectionEntry(&PESectionContext, SectionEntry))
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
     {
-        CurrentRva = EntrySize2 + ContextOffset;
+        CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
         TypeValue = *(_WORD *)(TypePtr + 6);
         if ((unsigned __int16)(TypeValue - 1340) > 7u)
@@ -3295,13 +3478,13 @@ __int64 EnumObjectLinkedListWin8(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
     pTableCopy = pObjectTable;
     pTable = pObjectTable;
     pCallbackFunc = (__int64 (__fastcall *)(_QWORD ***))GtRead(GtObjectTypeCheckFlag);
-    EprocessOffset = GtRead(GtProcessEprocess);
+    EprocessOffset = (unsigned int)GtRead(GtProcessEprocess);
     EprocessOffsetVal = EprocessOffset;
-    HandleTableOffset = GtRead(GtProcessCreateTime);
+    HandleTableOffset = (unsigned int)GtRead(GtProcessCreateTime);
     HandleTableOffsetVal = HandleTableOffset;
     Result = (_DWORD *)GtRead(GtProcessOffset);
-    GrantedAccessOffsetVal = (unsigned int)Result;
-    if (pCallbackFunc && EprocessOffset != -1 && HandleTableOffset && (unsigned int)Result != -1 && pTable)
+    GrantedAccessOffsetVal = (unsigned int)(__int64)Result;
+    if (pCallbackFunc && EprocessOffset != -1 && HandleTableOffset && (unsigned int)(__int64)Result != -1 && pTable)
     {
         Result = (_DWORD *)pCallbackFunc((_QWORD ***)pTable);
         if ((_BYTE)Result)
@@ -3327,9 +3510,9 @@ __int64 EnumObjectLinkedListWin8(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
                                 Result = (_DWORD *)pCallbackFunc((_QWORD ***)pEntry);
                                 if ((_BYTE)Result)
                                 {
-                                    *pOutput = pBucket;
+                                    *pOutput = (_QWORD)pBucket;
                                     --MaxEntries;
-                                    pOutput[1] = pBucket[2];
+                                    pOutput[1] = (_QWORD)pBucket[2];
                                     pOutput += 7;
                                     *((_DWORD *)pOutput - 10) = *((_DWORD *)pBucket + 8);
                                     *((_DWORD *)pOutput - 9) = *((unsigned __int16 *)pBucket + 12);
@@ -3356,7 +3539,7 @@ __int64 EnumObjectLinkedListWin8(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
             while (MaxBuckets);
         }
     }
-    return Result;
+    return (__int64)Result;
 }
 
 // EnumObjectLinkedListWin7 — 枚举对象链表（Win7）：遍历 127 个桶，每个桶中通过 Next 指针（+4 即 bucket[4]）遍历链表，输出 7 个 QWORD 条目
@@ -3380,13 +3563,13 @@ __int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
     pTableCopy = pObjectTable;
     pTable = pObjectTable;
     pCallbackFunc = (__int64 (__fastcall *)(_QWORD ***))GtRead(GtObjectTypeCheckFlag);
-    EprocessOffset = GtRead(GtProcessEprocess);
+    EprocessOffset = (unsigned int)GtRead(GtProcessEprocess);
     EprocessOffsetVal = EprocessOffset;
-    HandleTableOffset = GtRead(GtProcessCreateTime);
+    HandleTableOffset = (unsigned int)GtRead(GtProcessCreateTime);
     HandleTableOffsetVal = HandleTableOffset;
     Result = (_DWORD *)GtRead(GtProcessOffset);
-    GrantedAccessOffsetVal = (unsigned int)Result;
-    if (pCallbackFunc && EprocessOffset != -1 && HandleTableOffset && (unsigned int)Result != -1 && pTable)
+    GrantedAccessOffsetVal = (unsigned int)(__int64)Result;
+    if (pCallbackFunc && EprocessOffset != -1 && HandleTableOffset && (unsigned int)(__int64)Result != -1 && pTable)
     {
         Result = (_DWORD *)pCallbackFunc((_QWORD ***)pTable);
         if ((_BYTE)Result)
@@ -3412,9 +3595,9 @@ __int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
                                 Result = (_DWORD *)pCallbackFunc((_QWORD ***)pEntry);
                                 if ((_BYTE)Result)
                                 {
-                                    *pOutput = pBucket;
+                                    *pOutput = (_QWORD)pBucket;
                                     --MaxEntries;
-                                    pOutput[1] = pBucket[1];
+                                    pOutput[1] = (_QWORD)pBucket[1];
                                     pOutput += 7;
                                     *((_DWORD *)pOutput - 10) = *((_DWORD *)pBucket + 6);
                                     *((_DWORD *)pOutput - 9) = *((_DWORD *)pBucket + 4);
@@ -3441,7 +3624,7 @@ __int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
             while (MaxBuckets);
         }
     }
-    return Result;
+    return (__int64)Result;
 }
 
 // ParseNtExportSections — 解析 NT 导出节区（对象上下文版本）：从 GT 获取节区基址，通过遍历节区条目查找 Type 1298/1294 填充函数表
@@ -3485,16 +3668,16 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
         if ((unsigned int)PeOffset < PeSize)
         {
             IsTargetSection = 0;
-            InitPESectionReadContext(PeBase + *(unsigned int *)(PeOffset + PeBase + 40), PeSize - *(unsigned int *)(PeOffset + PeBase + 40), 2, 0, -1, 0, 0, (__int64)&SectionContext);
+            InitPESectionReadContext(PeBase + *(unsigned int *)(PeOffset + PeBase + 40), (ULONG)(PeSize - *(unsigned int *)(PeOffset + PeBase + 40)), 2, 0, -1, 0, 0, (__int64)&SectionContext);
             SectionIndex = 0;
-            while (!(unsigned int)ReadPESectionEntry(&SectionContext, SectionEntry))
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             {
-                ComputedOffset = SectionFileOffset + AccumulatedOffset;
+                ComputedOffset = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
                 SectionType = *(_WORD *)(pSectionEntryBase + 6);
                 if (SectionType == 1369)
                 {
-                    SectionRva = ComputedOffset + SectionDataSize - PeBase;
+                    SectionRva = (unsigned int)(ComputedOffset + SectionDataSize - PeBase);
                     if (SectionRva && SectionRva < PeSize)
                         goto LABEL_FOUND_SECTION;
                 }
@@ -3506,7 +3689,7 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
                 {
                     if (IsTargetSection == 1)
                     {
-                        SectionRva = ComputedOffset + SectionDataSize - PeBase;
+                        SectionRva = (unsigned int)(ComputedOffset + SectionDataSize - PeBase);
                         if (SectionRva && SectionRva < PeSize)
                         {
 LABEL_FOUND_SECTION:
@@ -3522,23 +3705,23 @@ LABEL_FOUND_SECTION:
         }
         if ((unsigned int)PeOffset < PeSize)
         {
-            InitPESectionReadContext(PeBase + (unsigned int)PeOffset, PeSize - (unsigned int)PeOffset, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+            InitPESectionReadContext(PeBase + (unsigned int)PeOffset, (ULONG)(PeSize - (unsigned int)PeOffset), 2, 0, -1, 0, 0, (__int64)&SectionContext);
             memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
             for (EntryIndex = 0; EntryIndex < 0x1F4; ++EntryIndex)
             {
-                if ((unsigned int)ReadPESectionEntry(&SectionContext, SectionEntry))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                     break;
-                ComputedOffset2 = SectionFileOffset + AccumulatedOffset;
+                ComputedOffset2 = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
                 SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
                 if (SectionType2 == 1349)
                     break;
-                SectionFlags = SectionCharacteristics;
+                SectionFlags = (int)SectionCharacteristics;
                 if (SectionType2 == 1298 && SectionAlignment == 0x40000)
                 {
                     if (FieldMisc && SectionCharacteristics == 64)
                     {
-                        SectionRva2 = ComputedOffset2 + FieldMisc - PeBase;
+                        SectionRva2 = (unsigned int)(ComputedOffset2 + FieldMisc - PeBase);
                         if (SectionRva2 && SectionRva2 < PeSize)
                             SectionOffsetTable[SlotIndex2] = SectionRva2;
                     }
@@ -3614,13 +3797,13 @@ __int64 ResolveSyscallAddressesInProcess(void)
     if (TargetProcess)
         KeStackAttachProcess(TargetProcess, &ApcState);
     ExportTable = GtRead(GtEprocessField22);
-    ExportCount = GtRead(GtEprocessField23);
+    ExportCount = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    SyscallCount = GtRead(GtWin32kServiceEntryCount);
-    SyscallIndex = GtRead(GtObjectTypeField19);
+    SyscallCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
+    SyscallIndex = (unsigned int)GtRead(GtObjectTypeField19);
     if (ExportTable && ExportCount && NtoskrnlBase && SyscallIndex && SyscallIndex < SyscallCount)
     {
-        ResolvedRva = ResolveSyscallToAddress(SyscallIndex);
+        ResolvedRva = (unsigned int)ResolveSyscallToAddress(SyscallIndex);
         if (ResolvedRva && ResolvedRva < ExportCount)
         {
             ResolvedAddress = NtoskrnlBase + ResolvedRva;
@@ -3812,7 +3995,7 @@ __int64 OpenDeviceObjectForEnum(__int64 DeviceContext)
     ULONG OaAttributes;              // OBJECT_ATTRIBUTES.Attributes
     _OWORD IoStatusBlockBuf;         // IO_STATUS_BLOCK 缓冲区
     ULONG PathBuffer[4];             // 设备路径缓冲区
-    ULONG InitResult;                // InitSystemPath 返回结果
+    __int64 InitResult;              // InitSystemPath 返回结果
     BOOLEAN IsMatch;                 // 是否找到匹配
 
     // 读取函数指针
@@ -3840,7 +4023,7 @@ __int64 OpenDeviceObjectForEnum(__int64 DeviceContext)
     PathBuffer[3] = 0x5C;       // L"\\"   (0x005C='\\')
 
     // 获取系统根路径（如 L"C:\\Windows"），提取驱动器号
-    InitResult = (ULONG)InitSystemPath();
+    InitResult = (__int64)InitSystemPath();
     if (!InitResult)
     {
         return FALSE;
@@ -3936,7 +4119,7 @@ char __fastcall DisableObjectCallbackWithFallback(__int16 *DeviceId, _QWORD *Con
 {
     char result;
 
-    result = DisableObjectCallback(DeviceId, Context);
+    result = (char)DisableObjectCallback(DeviceId, Context);
     if (!result)
         return DisableObjectCallbackViaDevice(DeviceId, Context);
     return result;
@@ -4009,7 +4192,7 @@ char __fastcall DisableObjectCallbackViaDevice(__int16 *DevicePath, _QWORD *pRes
     Success = 0;
     StringAllocRoutine = (void (*)(_BYTE *, __int16 *))GtRead(GtRtlInitUnicodeStringFunc);
     FsIoControlRoutine = (NTSTATUS (*)(HANDLE, _QWORD, _QWORD, _QWORD, _BYTE *, _QWORD *, unsigned int, int, char, _BYTE *, char))GtRead(GtFsIoControlRoutine);
-    PrevModeOffset = GtRead(GtPrevModeOffset);
+    PrevModeOffset = (unsigned int)GtRead(GtPrevModeOffset);
     PrevModeOffsetVal = PrevModeOffset;
     if (StringAllocRoutine)
     {
@@ -4017,7 +4200,7 @@ char __fastcall DisableObjectCallbackViaDevice(__int16 *DevicePath, _QWORD *pRes
         {
             if (PrevModeOffset != -1)
             {
-                StringLen = GetStringLength(DevicePath);
+                StringLen = (unsigned int)GetStringLength(DevicePath);
                 PathLen = StringLen;
                 if (StringLen > 3)
                 {
@@ -4140,7 +4323,7 @@ char RestoreObjectPreCallbackHooks(void)
         SavedCallback3 = GtRead(GtSavedObPreCallback3);
         WritePhysicalMemoryQword(ObCallbackAddr3, SavedCallback3);
     }
-    return ObCallbackAddr3Tmp;
+    return (char)ObCallbackAddr3Tmp;
 }
 
 // InitObjectCallbackEntries — 初始化对象回调条目

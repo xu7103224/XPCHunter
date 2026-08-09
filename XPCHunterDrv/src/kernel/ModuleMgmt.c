@@ -2033,50 +2033,64 @@ __int64 ParseNtExportAuxData(
     *pBytesWritten = 0;
     unsigned int ResultCount = 0;
 
-    unsigned int ModuleType = (unsigned int)GtRead(0x2B3);
-    unsigned int ModuleType2 = (unsigned int)GtRead(0x339);
-    __int64 ModuleBase = GtRead(0x2AA);
-    __int64 ModuleBase2 = GtRead(0x33C);
+    // 两个待处理的模块类型与模块基址（全局表索引），按迭代索引取用
+    unsigned int ModuleTypeArray[2];
+    ModuleTypeArray[0] = (unsigned int)GtRead(0x2B3);
+    ModuleTypeArray[1] = (unsigned int)GtRead(0x339);
 
-    // Encoded strings for comparison
-    _DWORD EncodedCompare1 = 0x666F4970; // "pIof" (completion routines)
-    _DWORD EncodedCompare2 = 0x6C6C6143; // "Call"
-    _DWORD EncodedCompare3 = 0x76697244; // "Dri" (Driver)
-    _DWORD EncodedCompare4 = 0x7265;      // "er"
-    _DWORD EncodedCompare5 = 0x706D6F43; // "Com" (Complete)
-    _DWORD EncodedCompare6 = 0x6574656C; // "lete"
-    _DWORD EncodedCompare7 = 0x75716552; // "Requ" (Request)
-    _DWORD EncodedCompare8 = 0x747365;   // "est"
+    ULONG64 ModuleBaseArray[2];
+    ModuleBaseArray[0] = GtRead(0x2AA);
+    ModuleBaseArray[1] = GtRead(0x33C);
 
-    __int64 *pCompareArray = (__int64 *)&EncodedCompare1;
-    __int64 *pCompareArray2 = (__int64 *)&EncodedCompare5;
+    // 两个待比对字符串："pIofCompleteRequest" 与 "pIofCallDriver"（小端 dword 编码）
+    char CompareString1[20]; // "pIofCompleteRequest\0"
+    *(_DWORD *)&CompareString1[0]  = 0x666F4970; // "pIof"
+    *(_DWORD *)&CompareString1[4]  = 0x706D6F43; // "Comp"
+    *(_DWORD *)&CompareString1[8]  = 0x6574656C; // "lete"
+    *(_DWORD *)&CompareString1[12] = 0x75716552; // "Requ"
+    *(_WORD  *)&CompareString1[16] = 0x747365;   // "est"
+    CompareString1[18] = 0;
 
-    __int64 SearchEnd = NtImageDelta + ImageSize;
-    __int64 OutputLimit = OutputEntry;
-    unsigned int *pModuleType = &ModuleType;
+    char CompareString2[20]; // "pIofCallDriver\0"
+    *(_DWORD *)&CompareString2[0]  = 0x666F4970; // "pIof"
+    *(_DWORD *)&CompareString2[4]  = 0x6C6C6143; // "Call"
+    *(_DWORD *)&CompareString2[8]  = 0x76697244; // "Driv"
+    *(_WORD  *)&CompareString2[12] = 0x7265;     // "er"
+    CompareString2[14] = 0;
+
+    char *pCompareString[2];
+    pCompareString[0] = CompareString1;
+    pCompareString[1] = CompareString2;
+
+    __int64 SearchEnd = ImageBase + ImageSize;
+    __int64 pOutputPtr = OutputEntry + 8;
     unsigned int Index = 0;
 
-    __int64 pOutputBase = OutputEntry;
-    __int64 pOutputPtr = OutputEntry + 8;
-
-    while (OutputEntrySize >= 0x25E)
+    for (Index = 0; Index < 2; Index++)
     {
-        if (!ModuleType || ModuleType >= ImageSize)
-            break;
+        if (OutputEntrySize < 0x25E)
+            continue;
 
-        if (*(ULONG64 *)(ImageBase + ModuleType) == ModuleBase2)
-            break;
+        unsigned int ModuleType = ModuleTypeArray[Index];
+        if (!ModuleType || ModuleType >= ImageSize)
+            continue;
+
+        if (*(ULONG64 *)(ImageBase + ModuleType) == ModuleBaseArray[Index])
+            continue;
 
         if (*(ULONG64 *)(ImageBase + ModuleType) == 0)
-            break;
+            continue;
 
         if (ValidateZeroPage(ImageBase + ModuleType, SearchEnd))
-            break;
+            continue;
 
         if (OutputEntrySize < 0x26C)
-            break;
+        {
+            OutputEntrySize = 1; // 空间不足，下一轮条件使循环退出
+            continue;
+        }
 
-        // Calculate offset from NtImageDelta
+        // 计算相对 NtImageDelta 的偏移
         __int64 Delta = ImageBase + ModuleType - NtImageDelta;
         *(_QWORD *)(pOutputPtr - 8) = Delta + NtImageBase;
         *(_QWORD *)pOutputPtr = *(ULONG64 *)(ImageBase + ModuleType);
@@ -2094,22 +2108,21 @@ __int64 ParseNtExportAuxData(
 
         *(UCHAR *)(pOutputPtr + 0x210) = 0;
 
-        // Try to match with module name from compare table
-        __int64 ModuleName = 0;
-        // ... (name matching logic omitted for brevity)
+        // 复制对应比对的字符串（"pIofCompleteRequest" / "pIofCallDriver"）
+        if (pCompareString[Index])
+        {
+            StringCopy((_BYTE *)(pOutputPtr + 0x210), (__int64)pCompareString[Index], 0x40);
+            *(UCHAR *)(pOutputPtr + 0x24F) = 0;
+        }
 
         *(_DWORD *)(pOutputPtr + 0x250) = 8;
-        *(ULONG64 *)(pOutputPtr + 0x254) = *(ULONG64 *)(pCompareArray + Index);
+        *(ULONG64 *)(pOutputPtr + 0x254) = ModuleBaseArray[Index];
         *(ULONG64 *)(pOutputPtr + 0x25C) = *(ULONG64 *)(ImageBase + ModuleType);
 
         *pBytesWritten += 0x26C;
         ResultCount++;
         pOutputPtr += 0x26C;
         OutputEntrySize -= 0x26C;
-        ModuleType += 4;
-        Index++;
-        if (Index >= 2)
-            break;
     }
 
     return ResultCount;

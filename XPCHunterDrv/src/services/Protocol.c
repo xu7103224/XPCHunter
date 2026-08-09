@@ -2416,26 +2416,124 @@ __int64 __fastcall DispatchHookSwapByVersion(__int64 Handle, __int64 *OriginalVa
 // =========================================================================
 // SwapKernelObjectPointerPreWin10 — 交换内核对象指针（Win10之前版本）
 // 对应原始驱动 sub_140071F68
+// 根据系统版本和标志位，替换对象头中指定偏移处的函数指针以安装 Hook
 // =========================================================================
 __int64 __fastcall SwapKernelObjectPointerPreWin10(__int64 Handle, __int64 *OriginalValue)
 {
-    // 简化实现 — 读取原始指针值
-    // 完整实现需要从对象管理器中提取句柄表条目
-    if (OriginalValue)
-        *OriginalValue = 0;
-    return 0;
+    __int64 Result;          // rbx
+    __int64 CallbackAlt1;    // rbp
+    __int64 CallbackAlt2;    // rsi
+    __int64 CallbackPrimary; // rdi
+    __int64 CallbackAlt3;    // r13
+    __int64 ObjectHeader;    // r9
+    __int64 FunctionPtrSlot; // r10
+    __int64 *pFunctionPtr;   // rdi
+    char FlagByte;           // si
+    bool FlagCleared;        // zf
+
+    Result = 0;
+    CallbackAlt1 = GtRead(GtCallbackField98);
+    CallbackAlt2 = GtRead(GtCallbackField100);
+    CallbackPrimary = GtRead(GtCallbackField94);
+    CallbackAlt3 = GtRead(GtCallbackField96);
+    if (CallbackAlt1 || CallbackAlt2 || CallbackPrimary && CallbackAlt3)
+    {
+        ObjectHeader = *(_QWORD *)(Handle + 8);
+        if (ObjectHeader)
+        {
+            FunctionPtrSlot = *(_QWORD *)((unsigned int)GtRead(GtCallbackField91) + ObjectHeader);
+            if (FunctionPtrSlot)
+            {
+                pFunctionPtr = (__int64 *)(FunctionPtrSlot + 8);
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0xA28
+                    && (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0
+                    && *(_QWORD *)(FunctionPtrSlot + 16))
+                {
+                    if (CallbackPrimary && *pFunctionPtr != CallbackPrimary)
+                    {
+                        *OriginalValue = *pFunctionPtr;
+                        *pFunctionPtr = CallbackPrimary;
+                        return FunctionPtrSlot + 8;
+                    }
+                }
+                else
+                {
+                    FlagByte = *(_BYTE *)((unsigned int)GtRead(GtCallbackField92) + FunctionPtrSlot);
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
+                        FlagCleared = (FlagByte & 1) == 0;
+                    else
+                        FlagCleared = FlagByte == 0;
+                    if (FlagCleared)
+                    {
+                        if (CallbackAlt2 && *pFunctionPtr != CallbackAlt2)
+                        {
+                            *OriginalValue = *pFunctionPtr;
+                            *pFunctionPtr = CallbackAlt2;
+                            return FunctionPtrSlot + 8;
+                        }
+                    }
+                    else if (CallbackAlt1 && *pFunctionPtr != CallbackAlt1)
+                    {
+                        *OriginalValue = *pFunctionPtr;
+                        *pFunctionPtr = CallbackAlt1;
+                        return FunctionPtrSlot + 8;
+                    }
+                }
+            }
+        }
+    }
+    return Result;
 }
 
 // =========================================================================
 // SwapKernelObjectPointerWin10 — 交换内核对象指针（Win10版本）
 // 对应原始驱动 sub_1400720BC
+// 根据标志位替换对象头中指定偏移处的函数指针以安装 Hook
 // =========================================================================
 __int64 __fastcall SwapKernelObjectPointerWin10(__int64 Handle, __int64 *OriginalValue)
 {
-    // 简化实现 — 读取原始指针值
-    if (OriginalValue)
-        *OriginalValue = 0;
-    return 0;
+    __int64 Result;          // rbx
+    __int64 CallbackAlt2;    // rbp
+    __int64 ObjectTypeIdx;   // rdi
+    __int64 CallbackPrimary; // rsi
+    __int64 CallbackAlt3;    // r14
+    __int64 ObjectHeader;    // r9
+    __int64 FunctionPtrSlot; // r10
+    __int64 *pFunctionPtr;   // rdi
+
+    Result = 0;
+    CallbackAlt2 = GtRead(GtCallbackField100);
+    ObjectTypeIdx = GtRead(GtObjectTypeIdxMatched);
+    CallbackPrimary = GtRead(GtCallbackField98);
+    CallbackAlt3 = GtRead(GtObjectTypeIdxNotMatched);
+    if (CallbackAlt2 && ObjectTypeIdx || CallbackPrimary && CallbackAlt3)
+    {
+        ObjectHeader = *(_QWORD *)(Handle + 8);
+        if (ObjectHeader)
+        {
+            FunctionPtrSlot = *(_QWORD *)((unsigned int)GtRead(GtCallbackField91) + ObjectHeader);
+            if (FunctionPtrSlot)
+            {
+                pFunctionPtr = (__int64 *)(FunctionPtrSlot + 8);
+                if ((*(_BYTE *)((unsigned int)GtRead(GtCallbackField92) + FunctionPtrSlot) & 1) != 0)
+                {
+                    if (CallbackPrimary && *pFunctionPtr != CallbackPrimary)
+                    {
+                        *OriginalValue = *pFunctionPtr;
+                        *pFunctionPtr = CallbackPrimary;
+                        return FunctionPtrSlot + 8;
+                    }
+                }
+                else if (CallbackAlt2 && *pFunctionPtr != CallbackAlt2)
+                {
+                    *OriginalValue = *pFunctionPtr;
+                    *pFunctionPtr = CallbackAlt2;
+                    return FunctionPtrSlot + 8;
+                }
+            }
+        }
+    }
+    return Result;
 }
 
 // =========================================================================
@@ -2453,6 +2551,91 @@ __int64 __fastcall DispatchIoControlByBuildNumber(
         return HandlerFunc(Arg2, Arg3);
     else
         return ((__int64 (__fastcall *)(__int64, _QWORD, _QWORD, __int64))HandlerFunc)(Arg2, Arg4, Arg5, Arg3);
+}
+
+// =========================================================================
+// DispatchIoControlForServer2022 — 根据构建号分发 Server 2022 的 IO 控制命令
+// 对应原始驱动 sub_140075FA4
+// 构建号 >= 0x4F7C 时使用 6 参数调用；否则使用 5 参数调用
+// =========================================================================
+__int64 __fastcall DispatchIoControlForServer2022(
+    __int64 (__fastcall *IoControlFunc)(__int64, _QWORD, __int64, _QWORD, __int64, char),
+    __int64 DeviceHandle,
+    unsigned int IoControlCode,
+    __int64 InputBuffer,
+    unsigned int Arg5,
+    __int64 Arg6,
+    char Arg7)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4F7C)
+        return IoControlFunc(DeviceHandle, IoControlCode, InputBuffer, Arg5, Arg6, Arg7);
+    else
+        return ((__int64 (__fastcall *)(__int64, _QWORD, __int64, _QWORD, __int64))IoControlFunc)(
+            DeviceHandle, IoControlCode, InputBuffer, Arg5, Arg6);
+}
+
+// =========================================================================
+// SendIoControlWithVersionCheck — 发送带版本检查的 IO 控制命令
+// 对应原始驱动 sub_1400734EC
+// 根据 Windows 版本选择不同的 IO 控制路径，并处理 Hook 交换
+// =========================================================================
+char __fastcall SendIoControlWithVersionCheck(__int64 DeviceHandle, unsigned int IoControlCode, __int64 InputBuffer)
+{
+    char Result;                       // bl
+    unsigned int ServiceCount;         // edi
+    __int64 IoControlFunc;             // rax
+    __int64 CloseHandleFunc;           // rax
+    struct _KTHREAD *CurrentThread;    // r13
+    char SavedServiceFlag;             // cl
+    _DWORD *pSectionHandle;            // rdi
+    _QWORD *pHookResult;               // rsi
+    __int64 HookContext;               // r15
+    __int64 *pSwapResult;              // r14
+    void (__fastcall *pCloseHandle)(_DWORD *); // [rsp+48h]
+    __int64 SwapKey;                   // [rsp+50h] BYREF
+    __int64 ServiceCountCopy;          // [rsp+58h]
+    char SavedFlagCopy;                // [rsp+B8h]
+    int IoControlResult;               // ebp
+
+    Result = 0;
+    ServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
+    IoControlFunc = GtRead(GtEprocessField122 | 0x100);
+    if (ServiceCount != -1 && IoControlFunc)
+    {
+        CloseHandleFunc = GtRead(GtCloseHandleFunc);
+        CurrentThread = KeGetCurrentThread();
+        pCloseHandle = (void (__fastcall *)(_DWORD *))CloseHandleFunc;
+        SavedServiceFlag = *((_BYTE *)CurrentThread + ServiceCount);
+        ServiceCountCopy = ServiceCount;
+        *((_BYTE *)CurrentThread + ServiceCount) = 0;
+        SavedFlagCopy = SavedServiceFlag;
+        pSectionHandle = 0;
+        pHookResult = 0;
+        HookContext = 0;
+        pSwapResult = SwapKernelMemoryPointer(&SwapKey);
+        if (pCloseHandle)
+        {
+            pSectionHandle = SendIoControlWithUnicodeString(InputBuffer);
+            if (pSectionHandle)
+            {
+                pHookResult = (_QWORD *)DispatchHookSwapByVersion((__int64)pSectionHandle, &HookContext);
+            }
+        }
+        IoControlResult = (int)DispatchIoControlForServer2022(
+            (__int64 (__fastcall *)(__int64, _QWORD, __int64, _QWORD, __int64, char))IoControlFunc,
+            DeviceHandle, IoControlCode, InputBuffer, 0, 0, 0);
+        if (pSectionHandle)
+        {
+            if (pHookResult)
+                *pHookResult = HookContext;
+            pCloseHandle(pSectionHandle);
+        }
+        if (pSwapResult)
+            *pSwapResult = SwapKey;
+        *((_BYTE *)CurrentThread + ServiceCountCopy) = SavedFlagCopy;
+        return IoControlResult >= 0;
+    }
+    return Result;
 }
 
 // =========================================================================

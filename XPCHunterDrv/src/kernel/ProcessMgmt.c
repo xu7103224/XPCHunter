@@ -6,7 +6,6 @@
 // Forward declarations
 bool IsProcessObjectTerminated(char *VirtualAddress);
 bool ReadUser32DllFile(_QWORD *FileBuffer, unsigned int *FileSize, char Is64Bit);
-__int64 ParseNtRelocationTable(PUCHAR ImageBase);
 ULONG64 ParseNtRelocationTableEx(PRKPROCESS Process, char IsWin32kFlag, _QWORD *OutImageBase, _QWORD *OutImageSize, void **OutDataBuffer);
 WORD *InitSystemPath(void);
 __int16 *WStringCopy(__int16 *Dest, __int16 *Src);
@@ -18,9 +17,9 @@ char ReturnFalseStub(void);
 char ValidateEnumerationResult(__int64 ObjectEntry, __int64 Context, __int64 Result);
 
 // 本文件后向引用前向声明
-ULONG64 FindModuleInLoaderList(_QWORD **ListHead, _QWORD *TargetName);
+ULONG64 FindModuleInLoaderList(_QWORD **ModuleListHead, unsigned int EntryOffset);
 __int64 FindWin32kServiceTableByPattern(__int64 ImageBase, unsigned int ImageSize, unsigned int ExportOffset);
-ULONG64 FindUser32ModuleInList(unsigned int *ListHead, int Depth);
+ULONG64 FindUser32ModuleInList(unsigned int *ModuleListHead, unsigned int EntryOffset);
 __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSize);
 
 extern POBJECT_TYPE MmSectionObjectType;
@@ -1667,29 +1666,40 @@ char IsProcessThreadInList(__int64 Process, __int64 Thread, __int64 ListHead, ch
 // 分配缓冲区，读取 GT 索引获取函数指针，遍历内核地址空间填充进程条目
 char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned int BufferSize)
 {
-    char Result;
-    void *Buffer;
-    ULONG64 ServiceTableFunc;
-    ULONG64 ServiceTableSize;
-    ULONG64 KernelBase;
-    ULONG64 ModuleCount;
-    ULONG64 ProcessEntry;
-    ULONG64 BuildNumber;
-    ULONG64 ProcessIndex;
-    ULONG64 EntryCount;
-    ULONG64 MaxCount;
-    __int64 ImageSize;
-    __int64 ImageBase;
-    unsigned int NamePtr;
-    int NameLen;
-    __int64 SessionId;
-    __int64 ExitStatus;
-    __int64 CreateTime;
-    __int64 Dst[8];
-    ULONG64 Environment;
-    __int64 WindowTitle;
+    char Result;                       // var_CF：是否找到并填充条目
+    char SecondPageFlag;               // var_D0 / bl
+    unsigned char SavedPrevMode;       // bl：KTHREAD 原 PreviousMode
+    void *Buffer;                      // r13：0x3000 缓冲区
+    ULONG64 ServiceTableFunc;          // r12：0x41DE 查询函数
+    ULONG64 ServiceTableSize;          // var_B8：0x41E4 取值函数
+    ULONG64 KernelBase;                // var_A8：0x41E1
+    ULONG64 EntryStrideVal;            // rdi：0x27 偏移 / 步进
+    ULONG64 ProcessEntry;              // r14：0x41DB 检查函数
+    ULONG64 BuildNumber;               // rbx：GT 3
+    ULONG64 ProcessIndex;              // rsi：GT 2
+    ULONG64 EntryCount;                // r15：0x4B
+    ULONG64 MaxCount;                  // var_88：0x4169
+    __int64 Dst[8];                    // Dst
+    __int64 ScanStart;                 // Src：当前扫描地址
+    __int64 ScanEnd;                   // var_90：扫描结束地址
+    __int64 *pStepCount;               // var_A0：步进乘积
+    int RemCounter2;                   // var_B0：0xFD0 - EntryCount
+    int EntryStride;                   // var_AC：(EntryCount+0x30)&~7
+    int CurSize;                       // var_C0
+    int CopySize;                      // ebx：复制大小
+    int InnerIndex;                    // esi：内层循环索引
+    int InnerLimit;                    // edi：内层循环上限
+    __int64 Offset;                    // rbx：取值函数返回的偏移
+    __int64 ObjectContext;             // var_80：ValidateKernelObject 输出
+    __int64 QueryCount;                // rdi：服务查询返回的条目数
+    __int64 RangeValue;                // 步进范围
+    int *pDstInt;                      // 访问 Dst 的 int 字段
+    char *pCurrentThread;              // 当前线程指针
+    __int64 (*pGetOffsetFunc)(__int64);        // ServiceTableSize 函数指针
+    __int64 (*pQueryFunc)(__int64, __int64, __int64, __int64); // ServiceTableFunc 函数指针
+    __int64 (*pCheckFunc)(__int64);            // ProcessEntry 函数指针
 
-    // 分配 0x3000 字节缓冲区
+    Result = 0;
     Buffer = ExAlloc((POOL_TYPE)1, 0x3000);
     if (!Buffer)
         return 0;
@@ -1700,7 +1710,7 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
     ServiceTableFunc = GtRead((GLOBAL_TABLE_INDEX)0x41DE);
     ServiceTableSize = GtRead((GLOBAL_TABLE_INDEX)0x41E4);
     KernelBase = GtRead((GLOBAL_TABLE_INDEX)0x41E1);
-    ModuleCount = GtRead((GLOBAL_TABLE_INDEX)0x27);
+    EntryStrideVal = GtRead((GLOBAL_TABLE_INDEX)0x27);
     ProcessEntry = GtRead((GLOBAL_TABLE_INDEX)0x41DB);
     BuildNumber = GtRead((GLOBAL_TABLE_INDEX)3);
     ProcessIndex = GtRead((GLOBAL_TABLE_INDEX)2);
@@ -1708,7 +1718,8 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
     MaxCount = GtRead((GLOBAL_TABLE_INDEX)0x4169);
 
     // 验证所有必要指针
-    if (!BuildNumber || !ProcessIndex || !EntryCount || !MaxCount || !ProcessEntry || !ServiceTableFunc || !ServiceTableSize || !KernelBase || ModuleCount == -1)
+    if (!BuildNumber || !ProcessIndex || !EntryCount || !MaxCount || !ProcessEntry
+        || !ServiceTableFunc || !ServiceTableSize || !KernelBase || EntryStrideVal == -1)
     {
         ExFree(Buffer);
         return 0;
@@ -1717,32 +1728,138 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
     // 初始化结构
     memset(&Dst, 0, 0x40);
 
-    // 设置当前线程 PreviousMode
-    ImageSize = (__int64)KeGetCurrentThread();
-    ImageBase = ModuleCount;
-    NamePtr = *(unsigned __int8 *)(ImageSize + ModuleCount);
-    *(unsigned __int8 *)(ImageSize + ImageBase) = 0;
+    // 设置当前线程 PreviousMode（偏移为 GT 0x27）
+    pCurrentThread = (char *)KeGetCurrentThread();
+    SavedPrevMode = *(unsigned __int8 *)(pCurrentThread + EntryStrideVal);
+    *(unsigned __int8 *)(pCurrentThread + EntryStrideVal) = 0;
 
-    // 调用枚举函数
-    NameLen = (int)((__int64(__fastcall *)(__int64, __int64, __int64, __int64))ServiceTableFunc)(
-        (__int64)&Dst, 0, 0x40, 0);
-    *(unsigned __int8 *)(ImageSize + ImageBase) = (unsigned __int8)NamePtr;
+    // 调用查询函数，返回条目数
+    pQueryFunc = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64))ServiceTableFunc;
+    QueryCount = pQueryFunc((__int64)&Dst, 0, 0x40, 0);
+    *(unsigned __int8 *)(pCurrentThread + EntryStrideVal) = SavedPrevMode;
 
-    // 获取内核地址范围
-    GetKernelVirtualAddressRange((__int64)&Dst, &Environment, &WindowTitle);
+    // 计算步进范围：构建号 >= 0x4F7C 用 Dst[4]，否则取 Dst[2]/Dst[4] 较大者
+    pDstInt = (int *)&Dst;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4F7C)
+        RangeValue = (int)pDstInt[4];
+    else
+    {
+        int MaxVal = pDstInt[2];
+        if (pDstInt[4] > MaxVal)
+            MaxVal = pDstInt[4];
+        RangeValue = MaxVal;
+    }
+    pStepCount = (__int64 *)(QueryCount * RangeValue);
 
-    // 计算步进
-    NamePtr = (unsigned int)(EntryCount + 0x30) & 0xFFFFFFF8;
+    // 初始化剩余计数
+    RemCounter2 = 0xFD0 - (int)EntryCount;
 
-    // 遍历地址空间 — 简化版本
-    // 汇编完整实现需要深入分析，当前为骨架
-    SessionId = 0;
-    ExitStatus = 0;
-    CreateTime = 0;
-    Result = 0;
+    // 获取内核地址扫描范围
+    GetKernelVirtualAddressRange((__int64)&Dst, &ScanStart, (unsigned __int64 *)&ScanEnd);
 
-    // 主循环
-    // ...
+    // 计算条目步进
+    EntryStride = ((int)EntryCount + 0x30) & 0xFFFFFFF8;
+
+    SecondPageFlag = 0;
+    ScanStart = *(unsigned __int64 *)&ScanStart;
+
+    // 主循环：遍历 [ScanStart, ScanEnd)，每次步进 0x1000
+    for (; ScanStart < ScanEnd; ScanStart += 0x1000)
+    {
+        __int64 SecondPage;
+        char NewSecondFlag;
+        char FirstOk;
+
+        // 第一页检查（SecondPageFlag 为 0 时才执行）
+        if (SecondPageFlag == 0)
+        {
+            FirstOk = 0;
+            pCheckFunc = (__int64 (__fastcall *)(__int64))ProcessEntry;
+            pGetOffsetFunc = (__int64 (__fastcall *)(__int64))ServiceTableSize;
+            if (pCheckFunc(ScanStart) == 1
+                && CallRegisteredCallback(ScanStart) == 1)
+            {
+                Offset = pGetOffsetFunc(ScanStart);
+                if (Offset != 0 && Offset < (__int64)pStepCount
+                    && CmdStubAlwaysTrue(ProcessEntry, Offset, NULL, 0) == 1
+                    && ValidateEnumerationResult(KernelBase, ScanStart, Offset) == 1)
+                    FirstOk = 1;
+            }
+            if (!FirstOk)
+                continue;  // 第一页不匹配，前进一步
+        }
+
+        // 第二页检查（ScanStart + 0x1000）
+        SecondPage = ScanStart + 0x1000;
+        NewSecondFlag = 0;
+        CurSize = RemCounter2;
+        CopySize = 0x1000;
+        pCheckFunc = (__int64 (__fastcall *)(__int64))ProcessEntry;
+        pGetOffsetFunc = (__int64 (__fastcall *)(__int64))ServiceTableSize;
+        if (pCheckFunc(SecondPage) == 1
+            && CallRegisteredCallback(SecondPage) == 1)
+        {
+            Offset = pGetOffsetFunc(SecondPage);
+            if (Offset != 0 && Offset < (__int64)pStepCount
+                && CmdStubAlwaysTrue(ProcessEntry, Offset, NULL, 0) == 1
+                && ValidateEnumerationResult(KernelBase, SecondPage, Offset) == 1)
+            {
+                NewSecondFlag = 1;
+                CurSize = RemCounter2 + 0x1000;
+                CopySize = 0x2000;
+            }
+        }
+        SecondPageFlag = NewSecondFlag;
+
+        // 复制页到缓冲区（检查 ScanStart 与尾部地址）
+        pCheckFunc = (__int64 (__fastcall *)(__int64))ProcessEntry;
+        if (pCheckFunc(ScanStart) == 1
+            && pCheckFunc(ScanStart - 1 + CopySize) == 1)
+        {
+            memmove(Buffer, (void *)ScanStart, (unsigned int)CopySize);
+            InnerLimit = CurSize;
+            InnerIndex = 0;
+
+            // 内层循环：逐条目填充
+            do
+            {
+                __int64 EntryPtr = (__int64)Buffer + InnerIndex;
+                char Match = 0;
+
+                // 对象类型过滤
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+                {
+                    if (CheckObjectTypeFlag(EntryPtr) == (char)GtRead((GLOBAL_TABLE_INDEX)0x81C))
+                        Match = 1;
+                }
+                else
+                {
+                    if (*(__int64 *)(EntryPtr + 16) == *(__int64 *)MaxCount)
+                        Match = 1;
+                }
+
+                if (Match)
+                {
+                    __int64 AltAddr = ScanStart + 0x30 + InnerIndex;
+                    __int64 EntryObj = EntryPtr + 0x30;
+                    if (ValidateKernelObject(EntryObj, AltAddr, 0, &ObjectContext) == 1)
+                    {
+                        pCheckFunc = (__int64 (__fastcall *)(__int64))ProcessEntry;
+                        if (pCheckFunc(AltAddr) == 1
+                            && (Process == 0 || ObjectContext == Process))
+                        {
+                            FillProcessInformationEntry(
+                                (char *)EntryObj, (char *)AltAddr, InfoBuffer, BufferSize, 1, 1, 0);
+                            Result = 1;
+                        }
+                    }
+                }
+
+                InnerIndex += EntryStride;
+                InnerIndex += 8;
+            } while (InnerIndex <= InnerLimit);
+        }
+    }
 
     ExFree(Buffer);
     return Result;
@@ -2124,35 +2241,85 @@ char QueryObjectNameLegacy(_QWORD *Object, _QWORD *NameBuffer, _DWORD *NameLengt
 }
 
 // FindModuleInLoaderList — 在 PEB 加载器链表中查找模块
-// 对应原始驱动 sub_140046BFC
-// 遍历 PEB 加载器链表，查找指定名称的模块条目
+// 对应原始驱动 sub_140007290
+// 遍历 PEB 加载器链表，查找名称为 "user32.dll" 的模块条目
 // 返回模块基址，0 表示未找到
-ULONG64 FindModuleInLoaderList(_QWORD **ListHead, _QWORD *TargetName)
+ULONG64 FindModuleInLoaderList(_QWORD **ModuleListHead, unsigned int EntryOffset)
 {
-    ULONG64 Result = 0;
+    unsigned int Offset;
+    ULONG64 Result;
+    _WORD *PathBuffer;
+    int EntryCount;
+    _QWORD *CurrentEntry;
+    ULONG64 ModuleEntry;
+    __int64 NameLength;
+    const void *ImageNamePtr;
+    unsigned __int64 NameLength2;
+    _WORD *LastChar;
+    _DWORD TargetName[4];
+    __int64 TargetNameCont;
 
-    if (!ListHead)
-        return Result;
-
-    // 简化实现 — 完整实现需要比较模块名称字符串
-    // 当前为占位符，返回 0 表示未找到
+    Offset = EntryOffset;
+    Result = 0;
+    PathBuffer = ExAlloc(PagedPool, 0x1000u);
+    if (PathBuffer)
+    {
+        // 目标名称 "user32.dll"（宽字符编码）
+        TargetName[0] = 7536757;
+        TargetName[1] = 7471205;
+        TargetName[2] = 3276851;
+        TargetName[3] = 6553646;
+        TargetNameCont = 7077996;
+        EntryCount = 0;
+        CurrentEntry = *ModuleListHead;
+        while (CurrentEntry != (_QWORD *)ModuleListHead)
+        {
+            if ((unsigned int)++EntryCount > 0x1000)
+                break;
+            ModuleEntry = (ULONG64)CurrentEntry - Offset;
+            if (ModuleEntry >= MmUserProbeAddress || ModuleEntry + 136 >= MmUserProbeAddress)
+                break;
+            if (*(_QWORD *)(ModuleEntry + 48))
+            {
+                NameLength = *(unsigned __int16 *)(ModuleEntry + 72);
+                if ((unsigned int)NameLength > 0x1FE)
+                    NameLength = 510;
+                if ((unsigned int)NameLength > 2)
+                {
+                    ImageNamePtr = *(const void **)(ModuleEntry + 80);
+                    if ((unsigned __int64)ImageNamePtr < MmUserProbeAddress)
+                    {
+                        if (ImageNamePtr)
+                        {
+                            NameLength2 = (unsigned int)NameLength;
+                            if ((unsigned __int64)ImageNamePtr + NameLength < MmUserProbeAddress)
+                            {
+                                memmove(PathBuffer, ImageNamePtr, (unsigned int)NameLength);
+                                PathBuffer[NameLength2 >> 1] = 0;
+                                LastChar = WStringFindLastChar(PathBuffer, 92);
+                                if (LastChar)
+                                {
+                                    if (!(unsigned int)WStringCompareCaseInsensitive((__int64)(LastChar + 1), (__int64)TargetName))
+                                    {
+                                        Result = *(_QWORD *)(ModuleEntry + 48);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            CurrentEntry = (_QWORD *)*CurrentEntry;
+            Offset = EntryOffset;
+        }
+        ExFree(PathBuffer);
+    }
     return Result;
 }
 
-// ParseNtRelocationTable — 解析 NT 重定位表
-// 对应原始驱动 sub_140032A30
-// 解析 PE 重定位表 (.reloc 节)，返回重定位基址
-// 声明在头文件: __int64 ParseNtRelocationTable(PUCHAR ImageBase);
-__int64 ParseNtRelocationTable(PUCHAR ImageBase)
-{
-    __int64 Result = 0;
-    if (!ImageBase)
-        return Result;
-
-    // 解析 PE 重定位表需要完整实现
-    // 当前为占位符
-    return Result;
-}
+// 注：原始 sub_140032A30 实为 ParseAtaPortInitForHookTargets，
+// 真正的 ParseNtRelocationTable 位于 sub_1400068AC，已由 ParseNtRelocationTableEx 实现。
 
 // FindWin32kServiceTableByPattern — 通过模式扫描查找 Win32k 服务表
 // 对应原始驱动 sub_14002B980
@@ -2216,17 +2383,80 @@ __int64 FindWin32kServiceTableByPattern(__int64 ImageBase, unsigned int ImageSiz
 }
 
 // FindUser32ModuleInList — 在 PEB 模块链表中查找 user32 模块
-// 对应原始驱动 sub_140046D2C
+// 对应原始驱动 sub_140007420
 // 遍历 PEB 模块链表，查找 user32.dll 条目
 // 返回模块条目指针，0 表示未找到
-ULONG64 FindUser32ModuleInList(unsigned int *ListHead, int Depth)
+ULONG64 FindUser32ModuleInList(unsigned int *ModuleListHead, unsigned int EntryOffset)
 {
-    ULONG64 Result = 0;
-    if (!ListHead)
-        return Result;
+    unsigned int Offset;
+    ULONG64 Result;
+    _WORD *PathBuffer;
+    int EntryCount;
+    unsigned int *CurrentEntry;
+    ULONG64 ModuleEntry;
+    __int64 NameLength;
+    ULONG64 ImageNamePtr;
+    unsigned __int64 NameLength2;
+    _WORD *LastChar;
+    _DWORD TargetName[4];
+    __int64 TargetNameCont;
 
-    // 简化实现 — 完整实现需要比较模块名称字符串
-    // 当前为占位符，返回 0 表示未找到
+    Offset = EntryOffset;
+    Result = 0;
+    PathBuffer = ExAlloc(PagedPool, 0x1000u);
+    if (PathBuffer)
+    {
+        // 目标名称 "user32.dll"（宽字符编码）
+        TargetName[0] = 7536757;
+        TargetName[1] = 7471205;
+        TargetName[2] = 3276851;
+        TargetName[3] = 6553646;
+        TargetNameCont = 7077996;
+        EntryCount = 0;
+        CurrentEntry = (unsigned int *)(ULONG_PTR)*ModuleListHead;
+        while (CurrentEntry != ModuleListHead)
+        {
+            if ((unsigned int)++EntryCount > 0x1000)
+                break;
+            ModuleEntry = (ULONG64)CurrentEntry - Offset;
+            if (ModuleEntry >= MmUserProbeAddress || ModuleEntry + 72 >= MmUserProbeAddress)
+                break;
+            if (*(_DWORD *)(ModuleEntry + 24))
+            {
+                NameLength = *(unsigned __int16 *)(ModuleEntry + 36);
+                if ((unsigned int)NameLength > 0x1FE)
+                    NameLength = 510;
+                if ((unsigned int)NameLength > 2)
+                {
+                    ImageNamePtr = *(unsigned int *)(ModuleEntry + 40);
+                    if (ImageNamePtr < MmUserProbeAddress)
+                    {
+                        if ((_DWORD)ImageNamePtr)
+                        {
+                            NameLength2 = (unsigned int)NameLength;
+                            if (ImageNamePtr + NameLength < MmUserProbeAddress)
+                            {
+                                memmove(PathBuffer, (const void *)ImageNamePtr, (unsigned int)NameLength);
+                                PathBuffer[NameLength2 >> 1] = 0;
+                                LastChar = WStringFindLastChar(PathBuffer, 92);
+                                if (LastChar)
+                                {
+                                    if (!(unsigned int)WStringCompareCaseInsensitive((__int64)(LastChar + 1), (__int64)TargetName))
+                                    {
+                                        Result = *(unsigned int *)(ModuleEntry + 24);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            CurrentEntry = (unsigned int *)(ULONG_PTR)*CurrentEntry;
+            Offset = EntryOffset;
+        }
+        ExFree(PathBuffer);
+    }
     return Result;
 }
 

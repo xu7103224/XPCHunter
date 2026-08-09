@@ -3829,8 +3829,104 @@ __int64 EnableObjectProtectOperation(char *pInputBuffer, int InputSize, unsigned
 }
 __int64 DeviceIoControlExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
-    // NOTE: 完整实现较复杂，使用桩函数暂时代替
-    return 0;
+    // 对应原始驱动 CmdDeviceIoControlEx (sub_140074EF8)
+    // 扩展版设备 IO 控制命令处理：支持 Unicode 字符串参数和 Hook 交换机制
+    unsigned int ThreadFlagOffset;       // ebx
+    unsigned int ThreadFlagOffsetCopy;   // [rsp+E0h]
+    struct _KTHREAD *CurrentThread;      // rsi
+    char SavedFlag;                      // bl
+    __int64 IoControlFunc;               // rdi
+    unsigned int (__fastcall *pIoControlFunc)(volatile void *, _QWORD, int *);
+    unsigned int (__fastcall *pAltIoControlFunc)(volatile void *, _QWORD, int *);
+    void (__fastcall *pCloseHandle)(_DWORD *);
+    unsigned __int64 PathLength;         // rcx
+    unsigned int StringByteLength;       // Address[1]
+    volatile void *pStringData;          // rcx
+    _DWORD *pIoResult;                   // r15
+    _QWORD *pSwapResult;                 // r12
+    __int64 OldValue;                    // [rsp+28h] BYREF
+    __int64 *pSwapBuffer;                // [rsp+40h]
+    __int64 SwapKey;                     // [rsp+50h] BYREF
+    char Result;                         // si
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    char UnicodeBuffer[16];              // 内联 UNICODE_STRING (Length/MaxLength/Buffer)
+
+    pSwapResult = 0;
+    Result = 0;
+    if (pInputBuffer && InputSize == 16 && pOutputBuffer && OutputSize == 8
+        && (unsigned __int64)pInputBuffer < MmUserProbeAddress
+        && (unsigned __int64)(pInputBuffer + 4) < MmUserProbeAddress
+        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
+        && (unsigned __int64)pOutputBuffer + 8 < MmUserProbeAddress)
+    {
+        ProbeForRead(pInputBuffer, 0x10u, 1u);
+        ProbeForWrite(pOutputBuffer, 8u, 8u);
+        StringByteLength = *((unsigned int *)pInputBuffer + 1);
+        if (StringByteLength > 2 && (StringByteLength & 1) == 0)
+        {
+            pStringData = (volatile void *)*((_QWORD *)pInputBuffer + 1);
+            if (pStringData)
+            {
+                if ((unsigned __int64)pStringData < MmUserProbeAddress
+                    && (unsigned __int64)pStringData + StringByteLength < MmUserProbeAddress)
+                {
+                    ProbeForRead((void *)pStringData, StringByteLength, 1u);
+                    IoControlFunc = GtRead(GtEprocessField100 | 0x100);
+                    pIoControlFunc = (unsigned int (__fastcall *)(volatile void *, _QWORD, int *))IoControlFunc;
+                    PathLength = ((unsigned __int64)StringByteLength - 2) >> 1;
+                    if (*(_WORD *)((char *)pStringData + 2 * PathLength))
+                        *(_WORD *)((char *)pStringData + 2 * PathLength) = 0;
+                    InitUnicodeStringBuffer((__int64)UnicodeBuffer, (__int64)pStringData, StringByteLength);
+                    ObjectAttributes.Length = 48;
+                    ObjectAttributes.RootDirectory = NULL;
+                    ObjectAttributes.Attributes = 576;
+                    ObjectAttributes.ObjectName = (PUNICODE_STRING)UnicodeBuffer;
+                    ObjectAttributes.SecurityDescriptor = NULL;
+                    ObjectAttributes.SecurityQualityOfService = NULL;
+                    Result = (char)SendIoControlWithVersionCheck(
+                        (__int64)pOutputBuffer, *(unsigned int *)pInputBuffer, (__int64)&ObjectAttributes);
+                    if (!Result)
+                    {
+                        ThreadFlagOffset = (unsigned int)GtRead(GtSdstServiceCount);
+                        ThreadFlagOffsetCopy = ThreadFlagOffset;
+                        pCloseHandle = (void (__fastcall *)(_DWORD *))GtRead(GtCloseHandleFunc);
+                        if (!IoControlFunc || ThreadFlagOffset == -1)
+                        {
+                            pAltIoControlFunc = (unsigned int (__fastcall *)(volatile void *, _QWORD, int *))GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField195 | GtTotalSize | GtEprocessField22));
+                            if (pAltIoControlFunc)
+                                return pAltIoControlFunc(pOutputBuffer, *(unsigned int *)pInputBuffer, (int *)&ObjectAttributes) == 0;
+                        }
+                        else
+                        {
+                            CurrentThread = KeGetCurrentThread();
+                            pSwapBuffer = SwapKernelMemoryPointer(&SwapKey);
+                            pIoResult = 0;
+                            OldValue = 0;
+                            if (pCloseHandle)
+                            {
+                                pIoResult = SendIoControlWithUnicodeString((__int64)&ObjectAttributes);
+                                if (pIoResult)
+                                    pSwapResult = (_QWORD *)DispatchHookSwapByVersion((__int64)pIoResult, &OldValue);
+                            }
+                            SavedFlag = *((_BYTE *)CurrentThread + ThreadFlagOffset);
+                            *((_BYTE *)CurrentThread + ThreadFlagOffsetCopy) = 0;
+                            Result = (char)(pIoControlFunc(pOutputBuffer, *(unsigned int *)pInputBuffer, (int *)&ObjectAttributes) == 0);
+                            *((_BYTE *)CurrentThread + ThreadFlagOffsetCopy) = SavedFlag;
+                            if (pIoResult)
+                            {
+                                if (pSwapResult)
+                                    *pSwapResult = OldValue;
+                                pCloseHandle(pIoResult);
+                            }
+                            if (pSwapBuffer)
+                                *pSwapBuffer = SwapKey;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Result;
 }
 __int64 DeviceIoControlSimpleOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize)
 {

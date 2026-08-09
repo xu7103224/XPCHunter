@@ -2380,19 +2380,65 @@ LABEL_CONTINUE:
 }
 
 // QueryObjectDirectoryAndEnumerate — 查询对象目录并枚举
-// 从 GT 获取对象目录表，遍历目录条目枚举对象名称和句柄，写入输出缓冲区
-// 对应原始驱动 sub_140037D80
+// 对应原始驱动 sub_14006FE60
+// 打开 \ObjectTypes 目录，分配 0x100000 字节缓冲区，调用 EnumObjectTypeDirectory
+// 遍历对象目录(深度 0x20000)，将枚举结果写入输出缓冲区，最后释放资源
 void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize)
 {
-    if (!OutputBuffer || (unsigned __int64)OutputBuffer < (unsigned __int64)MmUserProbeAddress || OutputSize < 8)
+    void (__fastcall *RtlInitUnicodeStringFunc)(_BYTE *, _DWORD *);
+    int (__fastcall *DeviceIoControlFunc)(_QWORD *, __int64, int *);
+    int (__fastcall *NtFsControlFileFunc)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD);
+    void (__fastcall *CloseHandleFunc)(_QWORD);
+    void (__fastcall *ExFreePoolFunc)(_QWORD);
+    _QWORD *Handle;
+    _QWORD *DeviceHandle;
+    _BYTE ObjectNameBuffer[16];
+    _BYTE ObjectAttributes[48];
+    _DWORD EncodedPath[7];
+
+    RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
+    DeviceIoControlFunc = (int (__fastcall *)(_QWORD *, __int64, int *))GtRead(GtDeviceIoControlFunc);
+    NtFsControlFileFunc = (int (__fastcall *)(_QWORD, __int64, _QWORD, _QWORD, _QWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
+    CloseHandleFunc = (void (__fastcall *)(_QWORD))GtRead(GtCloseHandleFunc);
+    ExFreePoolFunc = (void (__fastcall *)(_QWORD))GtRead(GtExFreePoolFunc);
+
+    if (!RtlInitUnicodeStringFunc || !DeviceIoControlFunc || !NtFsControlFileFunc || !CloseHandleFunc || !ExFreePoolFunc)
         return;
-    __int64 ObjectDirectory = GtRead(GtObjectDirectoryTable);
-    if (!ObjectDirectory || (unsigned __int64)ObjectDirectory < (unsigned __int64)MmSystemRangeStart)
-        return;
-    if (MmIsAddressValid((void *)ObjectDirectory) != 1)
-        return;
-    *(_QWORD *)OutputBuffer = ObjectDirectory;
-    *(_DWORD *)(OutputBuffer + 8) = 0; // EntryCount placeholder
+
+    // 编码 "\ObjectTypes" 路径 (7 个 DWORD = 26 个宽字符)
+    EncodedPath[0] = 0x4F005C;
+    EncodedPath[1] = 0x6A0062;
+    EncodedPath[2] = 0x630065;
+    EncodedPath[3] = 0x540074;
+    EncodedPath[4] = 0x700079;
+    EncodedPath[5] = 0x730065;
+    EncodedPath[6] = 0;
+
+    RtlInitUnicodeStringFunc(ObjectNameBuffer, EncodedPath);
+
+    // 设置 OBJECT_ATTRIBUTES (Length=48, Attributes=576=0x240, ObjectName=ObjectNameBuffer)
+    *(int *)(ObjectAttributes + 0) = 48;                                   // Length
+    *(_QWORD *)(ObjectAttributes + 8) = 0;                                 // RootDirectory
+    *(_QWORD *)(ObjectAttributes + 16) = (_QWORD)ObjectNameBuffer;         // ObjectName
+    *(int *)(ObjectAttributes + 24) = 576;                                 // Attributes
+    *(_QWORD *)(ObjectAttributes + 28) = 0;                                // SecurityDescriptor
+    *(_QWORD *)(ObjectAttributes + 36) = 0;                                // SecurityQualityOfService
+
+    if (DeviceIoControlFunc(&Handle, 1, (int *)&ObjectAttributes[0]) >= 0)
+    {
+        if (NtFsControlFileFunc(Handle[0], 0xF000F, 0, 0, &DeviceHandle, 0) >= 0)
+        {
+            _QWORD **Buffer = (_QWORD **)ExAlloc(PagedPool, 0x100000u);
+            if (Buffer)
+            {
+                *Buffer = DeviceHandle;
+                EnumObjectTypeDirectory(Buffer, 0x20000, OutputBuffer, OutputSize);
+                ExFree(Buffer);
+            }
+            CloseHandleFunc((_QWORD)DeviceHandle);
+        }
+        ExFreePoolFunc(Handle[0]);
+    }
 }
 
 
