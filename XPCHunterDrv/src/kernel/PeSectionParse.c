@@ -41,11 +41,11 @@ __int64 FindPESectionByOffset(unsigned int SectionOffset);
 __int64 ParseNtSectionsForModuleList1(void)
 {
     __int64 KernelBase = GtRead(0x20);
-    unsigned int KernelSize = GtRead(0x21);
+    unsigned int KernelSize = (unsigned int)GtRead(0x21);
     __int64 NtImageBase = GtRead(3);
     __int64 SectionOffset = GtRead(0x4420);
-    unsigned int MatchOffset = GtRead(0x4477);
-    unsigned int AltMatchOffset = GtRead(0x4414);
+    unsigned int MatchOffset = (unsigned int)GtRead(0x4477);
+    unsigned int AltMatchOffset = (unsigned int)GtRead(0x4414);
 
     if (!KernelBase || !KernelSize || !NtImageBase || !SectionOffset || !MatchOffset || !AltMatchOffset)
         return 0;
@@ -65,7 +65,7 @@ __int64 ParseNtSectionsForModuleList1(void)
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x64; SectionIndex++)
     {
-        if (ReadPESectionEntry(&ReadContext, SectionEntry))
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
 
         unsigned int SectionSize = *(unsigned int *)((char *)SectionEntry + 0x60);
@@ -106,11 +106,11 @@ __int64 ParseNtSectionsForModuleList1(void)
 __int64 ParseNtSectionsForModuleList2(void)
 {
     __int64 KernelBase = GtRead(0x20);
-    unsigned int KernelSize = GtRead(0x21);
+    unsigned int KernelSize = (unsigned int)GtRead(0x21);
     __int64 NtImageBase = GtRead(3);
     __int64 SectionOffset = GtRead(0x4420);
-    unsigned int MatchOffset = GtRead(0x4477);
-    unsigned int AltMatchOffset = GtRead(0x4417);
+    unsigned int MatchOffset = (unsigned int)GtRead(0x4477);
+    unsigned int AltMatchOffset = (unsigned int)GtRead(0x4417);
 
     if (!KernelBase || !KernelSize || !NtImageBase || !SectionOffset || !MatchOffset || !AltMatchOffset)
         return 0;
@@ -130,7 +130,7 @@ __int64 ParseNtSectionsForModuleList2(void)
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x64; SectionIndex++)
     {
-        if (ReadPESectionEntry(&ReadContext, SectionEntry))
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
 
         unsigned int SectionSize = *(unsigned int *)((char *)SectionEntry + 0x60);
@@ -205,19 +205,19 @@ void ScanProcessPESections(void)
         FoundOffset = 0;
         FoundOffset2 = 0;
         FoundOffset3 = 0;
-        InitPESectionReadContext(SectionBase + BaseAddr, FileSize, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+        InitPESectionReadContext(SectionBase + BaseAddr, (ULONG)FileSize, 2, 0, -1, 0, 0, (__int64)&SectionContext);
         LoopCount = 0;
-        while (!(unsigned int)ReadPESectionEntry(&SectionContext, SectionEntry))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
         {
             if (*(_WORD *)(pSectionEntryBase + 6) == 0x512)
             {
                 if ((AccumulatedOffset & 0x40000) != 0)
                 {
-                    FoundOffset = SectionFileOffset + AccumulatedOffset;
+                    FoundOffset = (int)(SectionFileOffset + AccumulatedOffset);
                     FoundOffset2 = *(unsigned int *)(pSectionEntryBase - 0x60);
                     if (FoundOffset2)
                     {
-                        FoundOffset2 = FoundOffset2 - BaseAddr + AccumulatedOffset;
+                        FoundOffset2 = (int)(FoundOffset2 - BaseAddr + AccumulatedOffset);
                         if (FoundOffset2)
                         {
                             if (FoundOffset2 < FileSize)
@@ -233,7 +233,7 @@ void ScanProcessPESections(void)
                     FoundOffset2 = *(unsigned int *)(pSectionEntryBase - 0x28);
                     if (FoundOffset2)
                     {
-                        FoundOffset2 = FoundOffset2 - BaseAddr + AccumulatedOffset;
+                        FoundOffset2 = (int)(FoundOffset2 - BaseAddr + AccumulatedOffset);
                         if (SignatureOffset == FoundOffset2)
                             break;
                     }
@@ -275,7 +275,7 @@ __int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray)
     __int64 SectionAddr;
     __int64 SectionAddrEnd;
 
-    SectionCount = GtRead(GtWin32kServiceCount);
+    SectionCount = (unsigned int)GtRead(GtWin32kServiceCount);
     SectionCountCopy = SectionCount;
     if (SectionCount)
     {
@@ -303,7 +303,7 @@ __int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray)
             KeStackAttachProcess(PROCESS, &ApcState);
             SectionAddr = *(__int64 *)&SectionHeader3;
             SectionAddrEnd = SectionAddr + 15;
-            if ((unsigned __int64)SectionAddr < MmUserProbeAddress && SectionAddrEnd < MmUserProbeAddress)
+            if ((unsigned __int64)SectionAddr < MmUserProbeAddress && (unsigned __int64)SectionAddrEnd < MmUserProbeAddress)
             {
                 if ((unsigned int)MemoryCompare(*(__int64 *)&SectionHeader3, (char *)&SectionHeader4 + 2, 0x10u))
                 {
@@ -349,12 +349,12 @@ __int64 ResolvePESectionOffset(void)
     MaxSize = (unsigned int)GtRead(GtEprocessField23);
     ServiceCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    KernelPESectionByType = FindKernelPESectionByType((enum _GLOBAL_TABLE_INDEX)(GtUninstallHookSyscallPeOffset | GtEprocessField188));
+    KernelPESectionByType = (unsigned int)FindKernelPESectionByType((enum _GLOBAL_TABLE_INDEX)(GtUninstallHookSyscallPeOffset | GtEprocessField188));
     if (BaseOffset && MaxSize && ServiceCount && NtoskrnlBase)
     {
         if (KernelPESectionByType < ServiceCount)
         {
-            SyscallIndex = ResolveSyscallToAddress(KernelPESectionByType);
+            SyscallIndex = (unsigned int)ResolveSyscallToAddress(KernelPESectionByType);
             SyscallOffset = SyscallIndex;
             if (SyscallIndex && SyscallIndex < MaxSize)
             {
@@ -391,14 +391,14 @@ __int64 FindPeSectionByTypeRsrc(
     ResultOffset = 0;
 
     InitPESectionReadContext(
-        (PUCHAR)FileBuffer,
+        (__int64)FileBuffer,
         FileSize - (int)FileBuffer,
         2,
         0,
         -1,
         0,
         0,
-        (PUCHAR)&ReadContext);
+        (__int64)&ReadContext);
 
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
@@ -453,14 +453,14 @@ __int64 FindPeSectionByType0x510(
     GtWrite(GtFwpsDispatchTableCount, 0);
 
     InitPESectionReadContext(
-        (PUCHAR)FileBuffer,
+        (__int64)FileBuffer,
         FileSize - (int)FileBuffer,
         2,
         0,
         -1,
         0,
         0,
-        (PUCHAR)&ReadContext);
+        (__int64)&ReadContext);
 
     for (SectionIndex = 0; SectionIndex < 0x1E; ++SectionIndex)
     {
@@ -542,14 +542,14 @@ __int64 ParseNtSectionsForProcessMemory(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
@@ -632,14 +632,14 @@ __int64 ParseNtSectionsForModuleBase(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
@@ -731,14 +731,14 @@ __int64 ParseNtSectionsForRelocBase(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         TrackedOffset = 0;
         SectionIndex = 0;
@@ -838,14 +838,14 @@ __int64 ParseProcessMemSections(void)
     // 第一阶段：扫描最多 6 个节区，查找 Type 0x558(1368) 的有效偏移
     SectionContext = 0;
     InitPESectionReadContext(
-        (PUCHAR)(NtImageBase + BaseOffset),
+        (__int64)(NtImageBase + BaseOffset),
         NtImageSize - BaseOffset,
         2,
         0,
         -1,
         0,
         0,
-        (PUCHAR)&SectionContext);
+        (__int64)&SectionContext);
 
     Phase1Offset = 0;
     SectionIndex = 0;
@@ -892,14 +892,14 @@ __int64 ParseProcessMemSections(void)
         // Win10 1511+：验证 Type 0x510(1296) 和 Type 0x50E(1294) 的匹配偏移
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + Phase1Offset),
+            (__int64)(NtImageBase + Phase1Offset),
             NtImageSize - Phase1Offset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
@@ -949,14 +949,14 @@ __int64 ParseProcessMemSections(void)
         // < Win10 1511：查找 Type 0x50E(1294) 且 FieldCount==3 的节区
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + Phase1Offset),
+            (__int64)(NtImageBase + Phase1Offset),
             NtImageSize - Phase1Offset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
@@ -1043,14 +1043,14 @@ __int64 FindKernelDataSectionOffsetEx(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         TargetOffset = 0;
         SectionIndex = 0;
@@ -1136,14 +1136,14 @@ __int64 FindKernelDataSectionOffsetV2(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         FoundOffset = 0;
         FoundCount = 0;
@@ -1231,14 +1231,14 @@ __int64 FindKernelDataSectionOffsetV3(void)
     {
         SectionContext = 0;
         InitPESectionReadContext(
-            (PUCHAR)(NtImageBase + BaseOffset),
+            (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)&SectionContext);
+            (__int64)&SectionContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
@@ -1322,10 +1322,10 @@ __int64 FindPESectionByOffset(unsigned int SectionOffset)
         RtlZeroMemory(Context, sizeof(Context));
         pCumulativeSize = (__int64 *)&Context[8];
         InitPESectionReadContext(
-            (PUCHAR)((ULONG64)SectionOffset + BaseOffset),
-            MaxSize - SectionOffset,
+            (__int64)((ULONG64)SectionOffset + BaseOffset),
+            (ULONG)(MaxSize - SectionOffset),
             2, 0, -1, 0, 0,
-            Context);
+            (__int64)Context);
 
         for (i = 0; i < 0x14; i++)
         {
@@ -1392,7 +1392,7 @@ __int64 FindKernelDataSectionOffsetWin7(void)
     if (!ExportDirSize || ExportDirSize >= PeFileSize)
         return 0;
 
-    InitPESectionReadContext((PUCHAR)PeFileBase + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + ExportDirSize), PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
     EntryCount = 0;
     Phase1Found = 0;
     while (EntryCount < 0x64)
@@ -1462,7 +1462,7 @@ __int64 FindKernelDataSectionOffsetWin10(void)
     if (!PeFileBase || !NtoskrnlBase || !PeScanBase3 || !PeFileSize)
         return 0;
 
-    InitPESectionReadContext((PUCHAR)PeFileBase, PeFileSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    InitPESectionReadContext((__int64)(PUCHAR)PeFileBase, PeFileSize, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
     EntryCount = 0;
     Offset1 = 0;
     Offset2 = 0;
@@ -1538,7 +1538,7 @@ __int64 FindKernelDataSectionPair(void)
     if (!PeFileBase || !NtoskrnlBase || !PeScanBase3 || !PeFileSize)
         return 0;
 
-    InitPESectionReadContext((PUCHAR)PeFileBase, PeFileSize, 2, (LONG64)&PeContext, -1, 0, 0, (PUCHAR)&EntryBuffer);
+    InitPESectionReadContext((__int64)(PUCHAR)PeFileBase, PeFileSize, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
     EntryCount = 0;
     Offset1 = 0;
     Offset2 = 0;
@@ -1617,7 +1617,7 @@ __int64 FindPESectionByIndex(unsigned int SectionIndex)
 char FindHalInitPatternOffsets(__int64 FileBuffer, unsigned int FileSize)
 {
     char Result = 0;
-    if (!FileBuffer || !FileSize || FileBuffer < (unsigned __int64)MmSystemRangeStart)
+    if (!FileBuffer || !FileSize || (unsigned __int64)FileBuffer < (unsigned __int64)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid((void *)FileBuffer) != 1)
         return Result;
@@ -1649,8 +1649,8 @@ __int64 FindKernelDataSectionOffsetWin8(void)
     if (NtImageBase && NtImageSize && NtoskrnlImageBase && (_DWORD)Result &&
         (unsigned int)Result < NtImageSize)
     {
-        InitPESectionReadContext((PUCHAR)NtImageBase + (unsigned int)Result,
-            NtImageSize - (unsigned int)Result, 2, 0, -1, 0, 0, (PUCHAR)&SectionContext);
+        InitPESectionReadContext((__int64)((PUCHAR)NtImageBase + (unsigned int)Result),
+            NtImageSize - (unsigned int)Result, 2, 0, -1, 0, 0, (__int64)&SectionContext);
         SectionOffset = 0;
         AccumulatedOffset = 0;
         for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
@@ -1660,7 +1660,7 @@ __int64 FindKernelDataSectionOffsetWin8(void)
                 break;
             ComputedOffset = SectionEntry[0xF0 >> 2] + AccumulatedOffset;
             AccumulatedOffset += SectionEntry[0xF0 >> 2];
-            SectionType = *(unsigned short *)(SectionEntry[0x118 >> 2] + 6);
+            SectionType = *(unsigned short *)((ULONG_PTR)SectionEntry[0x118 >> 2] + 6);
             RawDataSize = SectionEntry[0x78 >> 2];
             SectionCharacteristics = SectionEntry[0x88 >> 2];
             if (SectionType == 1296 && SectionCharacteristics == 0x40000 && RawDataSize)
