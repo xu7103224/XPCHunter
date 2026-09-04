@@ -2269,3 +2269,108 @@ done2:
     return Result;
 }
 
+
+// ParseSyscallTableDataSection — 解析系统调用表数据节区
+// 在 PE 文件中查找 ".data" 节，扫描其中的系统调用表描述符并填充数据到全局表
+// 对应原始驱动 sub_140085C64
+char __fastcall ParseSyscallTableDataSection(__int64 FileBuffer, unsigned int FileSize, __int64 Context)
+{
+    unsigned __int64 ImageBase;
+    char Result = 0;
+    int SectionName[2];
+    unsigned int SectionOffset;
+    unsigned int SectionVa;
+    _QWORD *pScan;
+    _QWORD *pEnd;
+    unsigned __int64 EntryCount;
+    _QWORD *pAlloc;
+    __int64 *pEntry;
+    _DWORD *pDst;
+    unsigned __int64 LoopCount;
+    unsigned __int64 ValidCount;
+    _QWORD *pCur;
+
+    ImageBase = *(_QWORD *)(*(int *)(FileBuffer + 60) + FileBuffer + 48);
+    SectionName[0] = 0x7461642E;  // ".dat"
+    SectionName[1] = 0x61;         // "a" → ".data"
+    SectionOffset = (unsigned int)FindPESectionByName((PUCHAR)FileBuffer, (PCHAR)SectionName);
+    SectionVa = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)FileBuffer, (PCHAR)SectionName);
+    if (SectionOffset && SectionVa && SectionOffset < FileSize && SectionVa < FileSize && SectionVa + SectionOffset < FileSize)
+    {
+        pScan = (_QWORD *)(SectionOffset + FileBuffer);
+        pEnd = (_QWORD *)(FileBuffer + SectionOffset + SectionVa - 8);
+        while ((unsigned __int64)pScan < (unsigned __int64)pEnd)
+        {
+            EntryCount = (unsigned __int64)(*(_QWORD *)pScan >> 32);
+            if (EntryCount - 0x180 <= 0x80)
+            {
+                int OffsetVal;
+                ValidCount = 0;
+                pCur = pScan + 1;
+                if (EntryCount != 0)
+                {
+                    do
+                    {
+                        if ((unsigned __int64)pCur >= (unsigned __int64)pEnd)
+                            break;
+                        if (*pCur <= (unsigned __int64)ImageBase)
+                            break;
+                        if (FileSize < (unsigned int)(*(_DWORD *)pCur - (unsigned int)ImageBase))
+                            break;
+                        ++ValidCount;
+                        ++pCur;
+                    } while (ValidCount < EntryCount);
+                }
+                if (ValidCount >= EntryCount)
+                {
+                    OffsetVal = (int)((unsigned __int64)pScan - (unsigned __int64)FileBuffer) + 8;
+                    if (GtRead((GLOBAL_TABLE_INDEX)0x8B7))
+                    {
+                        // 已初始化的分支：写入 0x8BA-0x8BC，分配 0x2DB0
+                        GtWrite((GLOBAL_TABLE_INDEX)0x8BA, EntryCount);
+                        GtWrite((GLOBAL_TABLE_INDEX)0x8BB, (unsigned int)OffsetVal);
+                        GtWrite((GLOBAL_TABLE_INDEX)0x8BC, Context + OffsetVal);
+                        pAlloc = GtAlloc((GLOBAL_TABLE_INDEX)0x2DB0);
+                        pEntry = (__int64 *)(OffsetVal + FileBuffer);
+                        LoopCount = EntryCount;
+                        pDst = (_DWORD *)pAlloc + 1;
+                        if (LoopCount)
+                        {
+                            do
+                            {
+                                *pDst = (int)(*(_DWORD *)pEntry) - (unsigned int)ImageBase;
+                                pEntry++;
+                                pDst += 12;
+                                --LoopCount;
+                            } while (LoopCount);
+                        }
+                    }
+                    else
+                    {
+                        // 未初始化分支：写入 0x8B7-0x8B9，分配 0x21A4
+                        GtWrite((GLOBAL_TABLE_INDEX)0x8B7, EntryCount);
+                        GtWrite((GLOBAL_TABLE_INDEX)0x8B8, (unsigned int)OffsetVal);
+                        GtWrite((GLOBAL_TABLE_INDEX)0x8B9, Context + OffsetVal);
+                        pAlloc = GtAlloc((GLOBAL_TABLE_INDEX)0x21A4);
+                        pEntry = (__int64 *)(OffsetVal + FileBuffer);
+                        LoopCount = EntryCount;
+                        pDst = (_DWORD *)pAlloc + 1;
+                        if (LoopCount)
+                        {
+                            do
+                            {
+                                *pDst = (int)(*(_DWORD *)pEntry) - (unsigned int)ImageBase;
+                                pEntry++;
+                                pDst += 12;
+                                --LoopCount;
+                            } while (LoopCount);
+                        }
+                    }
+                    Result = 1;
+                }
+            }
+            ++pScan;
+        }
+    }
+    return Result;
+}

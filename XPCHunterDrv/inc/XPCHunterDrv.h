@@ -1336,6 +1336,7 @@ __int64 OpenDeviceObjectForEnum(__int64 DeviceContext);
 bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int TargetSize, _OWORD *pRelocOffsets);
 char ParseStorPortExportDir(void);
 char ParseSyscallTableExportDir(void);
+char __fastcall ParseSyscallTableDataSection(__int64 FileBuffer, unsigned int FileSize, __int64 Context);
 bool QueryFileInfoByHandle(__int64 Process, __int64 FileHandle, __int64 InfoBuffer);
 __int64 QueryObjectTypeDirectoryPath(void);
 char QueryProcessModuleFilePath(__int64 Process, __int64 ModuleBase, _WORD *pOutputBuffer, int BufferSize);
