@@ -325,3 +325,264 @@ __int64 OpenWdfDriverSection(void)
     EncodedPath[8] = 0;       EncodedPath[9] = 0;
     return OpenFileSection((__int64)EncodedPath);
 }
+
+// ReadNtoskrnlNlsFile — 读取 ntoskrnl NLS 文件
+// 对应原始驱动 sub_14001BF1C
+bool ReadNtoskrnlNlsFile(_QWORD *OutBuffer, unsigned int *OutSize)
+{
+    bool Result = 0;
+    size_t FileSize;
+    void *FileBuffer;
+    int EncodedPath[24];
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6684764; EncodedPath[15] = 7340151;
+    EncodedPath[16] = 6488171; EncodedPath[17] = 7209068;
+    EncodedPath[18] = 3014772; EncodedPath[19] = 7929971;
+    EncodedPath[20] = 115; EncodedPath[21] = 0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &FileBuffer, (ULONG *)&FileSize, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)FileBuffer, (unsigned int)FileSize, OutBuffer, OutSize) == 1;
+        ExFree(FileBuffer);
+    }
+    return Result;
+}
+
+// ReadWin32kDriverFile — 读取 win32k.sys 驱动文件
+// 对应原始驱动 sub_140054158
+bool ReadWin32kDriverFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = 0;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[17];
+    __int64 v9;
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7602268; EncodedPath[15] = 7864420;
+    EncodedPath[16] = 7536686;
+    v9 = 7536761;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pFileBuffer, pFileSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadWdfLibraryModule — 读取 WDF 库模块
+// 对应原始驱动 sub_140086EA4
+bool ReadWdfLibraryModule(_QWORD *OutBuffer, unsigned int *OutSize)
+{
+    bool Result = 0;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[24];
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7798876; EncodedPath[15] = 6684772;
+    EncodedPath[16] = 3211312; EncodedPath[17] = 3145776;
+    EncodedPath[18] = 3014704; EncodedPath[19] = 7929971;
+    EncodedPath[20] = 115; EncodedPath[21] = 0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadDiskPortDriverFile — 读取磁盘端口驱动文件 (storport.sys)
+// 对应原始驱动 sub_140050BC0
+bool ReadDiskPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
+{
+    bool Result = 0;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[15];
+    int v9, v10, v11, v12, v13, v14;
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7536732;
+    v11 = 7471215; v12 = 3014772; v13 = 7929971; v14 = 115;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    {
+        v9 = 7274612; v10 = 7340146;
+    }
+    else
+    {
+        v9 = 7536739; v10 = 7340137;
+    }
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadKbdClassSysFile — 读取 kbdclass.sys 文件
+// 对应原始驱动 sub_14003D554
+bool ReadKbdClassSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = 0;
+    size_t RawDataSize;
+    void *pRawData;
+    int EncodedPath[24];
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7012444; EncodedPath[15] = 6553698;
+    EncodedPath[16] = 7077987; EncodedPath[17] = 7536737;
+    EncodedPath[18] = 3014771; EncodedPath[19] = 7929971;
+    EncodedPath[20] = 115; EncodedPath[21] = 0;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)pRawData, (unsigned int)RawDataSize, pFileBuffer, pFileSize) == 1;
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// ReadIpsecSysFile — 读取 ipsec.sys 文件
+// 对应原始驱动 sub_14003A248
+bool ReadIpsecSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = 0;
+    size_t RawDataSize;
+    void *pRawData;
+    int EncodedPath[18];
+    __int64 ExtraValue;
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 6881372; EncodedPath[15] = 7536752;
+    EncodedPath[16] = 6488165; EncodedPath[17] = 7536686;
+    ExtraValue = 7536761;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)pRawData, (unsigned int)RawDataSize, pFileBuffer, pFileSize) == 1;
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// ReadNetioDriverFile — 读取 netio.sys 驱动文件
+// 对应原始驱动 sub_14006C22C
+bool ReadNetioDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
+{
+    bool Result = 0;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[18];
+    __int64 v9;
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7209052; EncodedPath[15] = 7602277;
+    EncodedPath[16] = 7274601; EncodedPath[17] = 7536686;
+    v9 = 7536761;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadUSBPortDriverFile — 读取 USB 端口驱动文件 (usbport.sys)
+// 对应原始驱动 sub_140055B50
+bool ReadUSBPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
+{
+    bool Result = 0;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[19];
+    __int64 v9;
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7667804; EncodedPath[15] = 6422643;
+    EncodedPath[16] = 7274608; EncodedPath[17] = 7602290;
+    EncodedPath[18] = 7536686;
+    v9 = 7536761;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
+
+// ReadVolumeSysFile — 读取卷驱动文件 (volume.sys)
+// 对应原始驱动 sub_140057304
+bool ReadVolumeSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = 0;
+    size_t MaxCount;
+    void *Src;
+    int EncodedPath[19];
+    __int64 v9;
+
+    EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
+    EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
+    EncodedPath[4] = 7274607; EncodedPath[5] = 6029428;
+    EncodedPath[6] = 7929971; EncodedPath[7] = 7602291;
+    EncodedPath[8] = 7143525; EncodedPath[9] = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7733340; EncodedPath[15] = 7077999;
+    EncodedPath[16] = 7209075; EncodedPath[17] = 7340129;
+    EncodedPath[18] = 7536686;
+    v9 = 7536761;
+    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pFileBuffer, pFileSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
+}
