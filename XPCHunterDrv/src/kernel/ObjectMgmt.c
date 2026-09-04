@@ -4554,3 +4554,24 @@ NEXT_ENTRY:
     return 1;
 }
 
+// DispatchObjectTypeQuery — 分发对象类型查询
+// 调用对象类型结构中的查询函数，完成后调用完成通知回调
+// 对应原始驱动 sub_140083A84
+__int64 (__fastcall *__fastcall DispatchObjectTypeQuery(__int64 ObjectTypeEntry))(_QWORD)
+{
+    __int64 (__fastcall *NotifyFunc)(_QWORD);
+    __int64 (__fastcall *result)(_QWORD);
+
+    result = (__int64 (__fastcall *)(_QWORD))GtRead(GtNtWriteFilePeSectionOffset | GtEprocessField42);
+    NotifyFunc = result;
+    if (ObjectTypeEntry)
+    {
+        result = *(__int64 (__fastcall **)(_QWORD))(ObjectTypeEntry + 104);
+        if (result)
+            result = (__int64 (__fastcall *)(_QWORD))result(ObjectTypeEntry);
+    }
+    if (NotifyFunc)
+        return (__int64 (__fastcall *)(_QWORD))NotifyFunc(0);
+    return result;
+}
+

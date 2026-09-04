@@ -2765,3 +2765,283 @@ __int64 CmdEnumSsdtEntryTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pO
     }
     return 0;
 }
+
+// DispatchFindExportTableOffset — 查找导出表偏移分发函数
+// 构建号 > 0x23F0 时调用 FindExportTableOffsetV2，否则调用 V1
+// 对应原始驱动 sub_140046444
+char __fastcall DispatchFindExportTableOffset(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
+{
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
+        return FindExportTableOffsetV2(ImageBase, ImageSize, pOutputTable);
+    else
+        return FindExportTableOffsetV1(ImageBase, ImageSize, pOutputTable);
+}
+
+// FindExportTableOffsetV1 — 查找导出表偏移 V1 版本
+// 两阶段 PE 节区扫描：先找 Type 1369 标记获取节区偏移，再找 Type 1298 导出节区，检查 Type 1327 确认，填充 28 项导出表
+// 对应原始驱动 sub_140046490
+char __fastcall FindExportTableOffsetV1(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
+{
+    __int64 PeOffset = *(int *)(ImageBase + 60);
+    char Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtCallbackField78);
+    __int64 SectionDirRva;
+    int SectionIndex;
+    int ComputedOffset;
+    unsigned int SectionRva;
+    unsigned int ExportDirRva;
+    int EntryIndex;
+    int ComputedOffset2;
+    __int16 SectionType;
+    _QWORD *pExportSlot;
+    __int64 EntryCount;
+    char SectionContext[0x198];
+    __int64 AccumulatedOffset = 0;
+    _DWORD SectionEntry[8];
+    char SectionFlags;
+    int SectionDataSize;
+    __int64 SectionCharacteristics;
+    int FieldFlags;
+    int RawDataSize;
+    __int64 SectionAlignment;
+    unsigned int SectionFileOffset;
+    __int64 pSectionEntryBase;
+
+    if (NtoskrnlBase)
+    {
+        SectionDirRva = *(unsigned int *)(PeOffset + ImageBase + 40);
+        if ((unsigned int)SectionDirRva < ImageSize)
+        {
+            if ((unsigned int)SectionDirRva + 4096 < ImageSize)
+            {
+                InitPESectionReadContext(ImageBase + SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)SectionContext);
+                SectionIndex = 0;
+                while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
+                {
+                    ComputedOffset = SectionFileOffset + (int)AccumulatedOffset;
+                    AccumulatedOffset += SectionFileOffset;
+                    if (*(_WORD *)(pSectionEntryBase + 6) == 1369)
+                    {
+                        if (SectionDataSize)
+                        {
+                            SectionRva = ComputedOffset + SectionDataSize - (unsigned int)ImageBase;
+                            if (SectionRva && SectionRva < ImageSize)
+                            {
+                                LODWORD_LV(SectionDirRva) = ComputedOffset + SectionDataSize - (unsigned int)ImageBase;
+                                break;
+                            }
+                        }
+                    }
+                    if ((unsigned int)++SectionIndex >= 0x1E)
+                        break;
+                }
+            }
+            if ((unsigned int)SectionDirRva < ImageSize && (unsigned int)SectionDirRva + 4096 < ImageSize)
+            {
+                InitPESectionReadContext(ImageBase + (unsigned int)SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)SectionContext);
+                ExportDirRva = 0;
+                EntryIndex = 0;
+                while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
+                {
+                    ComputedOffset2 = SectionFileOffset + (int)AccumulatedOffset;
+                    AccumulatedOffset += SectionFileOffset;
+                    SectionType = *(_WORD *)(pSectionEntryBase + 6);
+                    if (SectionType == 1298 && SectionAlignment == 0x40000 && RawDataSize && SectionCharacteristics == 64 && !FieldFlags)
+                    {
+                        ExportDirRva = ComputedOffset2 + RawDataSize - (unsigned int)ImageBase;
+                        if (ExportDirRva >= ImageSize)
+                            ExportDirRva = 0;
+                    }
+                    else if (SectionType == 1327 && (SectionFlags & 0x10) != 0 && ExportDirRva)
+                    {
+                        pExportSlot = (_QWORD *)(pOutputTable + 8);
+                        EntryCount = 28;
+                        do
+                        {
+                            *((_DWORD *)pExportSlot - 1) = ExportDirRva;
+                            *pExportSlot = NtoskrnlBase + ExportDirRva;
+                            pExportSlot += 6;
+                            --EntryCount;
+                        } while (EntryCount);
+                        return 1;
+                    }
+                    if ((unsigned int)++EntryIndex >= 0x1F4)
+                        return Result;
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// FindExportTableOffsetV2 — 查找导出表偏移 V2 版本（Win10+）
+// 三阶段 PE 节区扫描：Phase1 找 Type 1369/1296/1368 组合标记，Phase2 找 Type 1298 数据节区偏移，Phase3 扫描最多 0x96 项填充 28 项导出表
+// 对应原始驱动 sub_1400466BC
+char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
+{
+    __int64 PeOffset = *(int *)(ImageBase + 60);
+    char Result = 0;
+    __int64 NtoskrnlBase = GtRead(GtCallbackField78);
+    __int64 SectionDirRva;
+    char IsTargetSection;
+    int SectionIndex;
+    int ComputedOffset;
+    __int16 SectionType;
+    unsigned int SectionRva;
+    char IsDataSection;
+    int EntryIndex;
+    int ComputedOffset2;
+    __int16 SectionType2;
+    unsigned int SectionRva2;
+    unsigned int InitSectionCount;
+    int ScanIndex;
+    int ComputedOffset3;
+    __int16 SectionType3;
+    unsigned int ExportDirRva;
+    __int64 EntryCount;
+    _QWORD *pExportSlot;
+    char SectionContext[0x198];
+    __int64 AccumulatedOffset = 0;
+    _DWORD SectionEntry[14];
+    int SectionDataSize;
+    __int64 SectionCharacteristics;
+    int FieldFlags;
+    int RawDataSize;
+    __int64 SectionAlignment;
+    unsigned int SectionFileOffset;
+    __int64 pSectionEntryBase;
+
+    if (NtoskrnlBase)
+    {
+        SectionDirRva = *(unsigned int *)(PeOffset + ImageBase + 40);
+        if ((unsigned int)SectionDirRva < ImageSize)
+        {
+            if ((unsigned int)SectionDirRva + 4096 < ImageSize)
+            {
+                IsTargetSection = 0;
+                InitPESectionReadContext(ImageBase + SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)SectionContext);
+                SectionIndex = 0;
+                while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
+                {
+                    ComputedOffset = SectionFileOffset + (int)AccumulatedOffset;
+                    AccumulatedOffset += SectionFileOffset;
+                    SectionType = *(_WORD *)(pSectionEntryBase + 6);
+                    if (SectionType == 1369)
+                    {
+                        SectionRva = ComputedOffset + SectionDataSize - (unsigned int)ImageBase;
+                        if (SectionRva && SectionRva < ImageSize)
+                        {
+                            LODWORD_LV(SectionDirRva) = SectionRva;
+                            break;
+                        }
+                    }
+                    else if (SectionType == 1296 && SectionCharacteristics == 64 && FieldFlags == 1)
+                    {
+                        IsTargetSection = 1;
+                    }
+                    else if (SectionType == 1368)
+                    {
+                        if (IsTargetSection == 1)
+                        {
+                            SectionRva = ComputedOffset + SectionDataSize - (unsigned int)ImageBase;
+                            if (SectionRva && SectionRva < ImageSize)
+                            {
+                                LODWORD_LV(SectionDirRva) = SectionRva;
+                                break;
+                            }
+                        }
+                        IsTargetSection = 0;
+                    }
+                    if ((unsigned int)++SectionIndex >= 0x14)
+                        break;
+                }
+            }
+            if ((unsigned int)SectionDirRva < ImageSize)
+            {
+                if ((unsigned int)SectionDirRva + 4096 < ImageSize)
+                {
+                    IsDataSection = 0;
+                    InitPESectionReadContext(ImageBase + (unsigned int)SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)SectionContext);
+                    EntryIndex = 0;
+                    while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
+                    {
+                        ComputedOffset2 = SectionFileOffset + (int)AccumulatedOffset;
+                        AccumulatedOffset += SectionFileOffset;
+                        SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+                        if (SectionType2 == 1298 && SectionAlignment == 0x40000 && RawDataSize && SectionCharacteristics == 64)
+                            IsDataSection = 1;
+                        if (SectionType2 == 1368)
+                        {
+                            if (SectionDataSize && IsDataSection == 1)
+                            {
+                                SectionRva2 = ComputedOffset2 + SectionDataSize - (unsigned int)ImageBase;
+                                if (SectionRva2 && SectionRva2 < ImageSize)
+                                {
+                                    LODWORD_LV(SectionDirRva) = ComputedOffset2 + SectionDataSize - (unsigned int)ImageBase;
+                                    break;
+                                }
+                            }
+                        }
+                        if ((unsigned int)++EntryIndex >= 0x14)
+                            break;
+                    }
+                }
+                if ((unsigned int)SectionDirRva < ImageSize && (unsigned int)SectionDirRva + 4096 < ImageSize)
+                {
+                    InitPESectionReadContext(ImageBase + (unsigned int)SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)SectionContext);
+                    InitSectionCount = 0;
+                    ScanIndex = 0;
+                    while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
+                    {
+                        ComputedOffset3 = SectionFileOffset + (int)AccumulatedOffset;
+                        AccumulatedOffset += SectionFileOffset;
+                        SectionType3 = *(_WORD *)(pSectionEntryBase + 6);
+                        if ((unsigned __int16)(SectionType3 - 1139) <= 1u)
+                        {
+                            ++InitSectionCount;
+                        }
+                        else if (InitSectionCount >= 3 && SectionType3 == 1298 && SectionAlignment == 0x40000)
+                        {
+                            if (RawDataSize && SectionCharacteristics == 64)
+                            {
+                                ExportDirRva = ComputedOffset3 + RawDataSize - (unsigned int)ImageBase;
+                                if (ExportDirRva && ExportDirRva < ImageSize)
+                                {
+                                    EntryCount = 28;
+                                    pExportSlot = (_QWORD *)(pOutputTable + 8);
+                                    do
+                                    {
+                                        *((_DWORD *)pExportSlot - 1) = ExportDirRva;
+                                        *pExportSlot = NtoskrnlBase + ExportDirRva;
+                                        pExportSlot += 6;
+                                        --EntryCount;
+                                    } while (EntryCount);
+                                    return 1;
+                                }
+                            }
+                        }
+                        if ((unsigned int)++ScanIndex >= 0x96)
+                            return Result;
+                    }
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// DispatchStorPortIoControl — 分发 StorPort IO 控制
+// 将 StorPort 函数表通过原子 16 字节交换写入全局表分配的缓冲区
+// 对应原始驱动 sub_14007CFDC
+char __fastcall DispatchStorPortIoControl(_OWORD *FunctionTable)
+{
+    char Result = 0;
+    __int64 *pBuffer;
+
+    if ((unsigned int)GtRead(GtCallbackField49))
+    {
+        pBuffer = GtAlloc(GtEprocessField108 | 0x1000);
+        return AtomicExchange16Bytes((__int64)(pBuffer + 90), FunctionTable);
+    }
+    return Result;
+}

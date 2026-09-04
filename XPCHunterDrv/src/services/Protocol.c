@@ -3618,3 +3618,109 @@ LABEL_CHECK:
     }
     return Result;
 }
+// SendIoControlWithQuotaBuffer — 发送带配额缓冲区的 IO 控制命令
+// 构建号 >= 0x42EE 时使用配额池分配中间缓冲区，否则直接调用处理函数
+// 对应原始驱动 sub_140075A9C
+__int64 __fastcall SendIoControlWithQuotaBuffer(
+    __int64 (__fastcall *HandlerFunc)(__int64, __int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *),
+    __int64 Arg2,
+    __int64 Arg3,
+    unsigned int Arg4,
+    unsigned int Arg5,
+    _BYTE *Dst,
+    SIZE_T NumberOfBytes,
+    size_t *pOutSize)
+{
+    unsigned int v11 = (unsigned int)NumberOfBytes;
+    int v12 = -1073741823;
+    _BYTE *PoolWithQuotaTag;
+    unsigned int v14;
+    size_t MaxCount;
+    __int64 v18 = Arg3;
+    _BYTE P[64];
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+    {
+        if ((unsigned int)NumberOfBytes > 0x40)
+            PoolWithQuotaTag = ExAllocatePoolWithQuotaTag((POOL_TYPE)9, (unsigned int)NumberOfBytes, 0x42424D43u);
+        else
+            PoolWithQuotaTag = P;
+        if (PoolWithQuotaTag)
+        {
+            v12 = (int)HandlerFunc(Arg2, v18, Arg4, Arg5, PoolWithQuotaTag, (_DWORD)NumberOfBytes, &MaxCount);
+            if (v12 >= 0)
+            {
+                v14 = (unsigned int)MaxCount;
+                *(_DWORD *)pOutSize = (unsigned int)MaxCount;
+                if ((unsigned int)NumberOfBytes > v14)
+                    v11 = v14;
+                memmove(Dst, PoolWithQuotaTag, v11);
+            }
+            if (PoolWithQuotaTag != P)
+                ExFreePoolWithTag(PoolWithQuotaTag, 0x42424D43u);
+        }
+    }
+    else
+    {
+        return (unsigned int)HandlerFunc(Arg2, Arg3, Arg4, Arg5, Dst, (_DWORD)NumberOfBytes, pOutSize);
+    }
+    return (unsigned int)v12;
+}
+
+// SendIoControlWithQuotaBufferEx — 扩展版发送带配额缓冲区的 IO 控制命令
+// 构建号 >= 0x42EE 时使用配额池分配中间缓冲区，否则直接调用处理函数
+// 对应原始驱动 sub_140075C24
+__int64 __fastcall SendIoControlWithQuotaBufferEx(
+    __int64 (__fastcall *HandlerFunc)(__int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *),
+    __int64 Arg2,
+    unsigned int Arg3,
+    int Arg4,
+    _BYTE *Dst,
+    SIZE_T NumberOfBytes,
+    size_t *pOutSize)
+{
+    unsigned int v10 = (unsigned int)NumberOfBytes;
+    int v11 = -1073741823;
+    _BYTE *PoolWithQuotaTag;
+    unsigned int v13;
+    __int64 v15;
+    _BYTE *v16;
+    size_t MaxCount;
+    _BYTE P[64];
+
+    v15 = (unsigned int)-1073741823 | ((unsigned __int64)(unsigned int)Arg4 << 32);
+    v10 = (unsigned int)NumberOfBytes;
+    v11 = -1073741823;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+    {
+        if ((unsigned int)NumberOfBytes > 0x40)
+        {
+            PoolWithQuotaTag = ExAllocatePoolWithQuotaTag((POOL_TYPE)9, (unsigned int)NumberOfBytes, 0x42424D43u);
+            v16 = PoolWithQuotaTag;
+        }
+        else
+        {
+            PoolWithQuotaTag = P;
+            v16 = P;
+        }
+        if (PoolWithQuotaTag)
+        {
+            v11 = (int)HandlerFunc(Arg2, Arg3, HIDWORD(v15), PoolWithQuotaTag, (_DWORD)NumberOfBytes, &MaxCount, v15, v16);
+            if (v11 >= 0)
+            {
+                v13 = (unsigned int)MaxCount;
+                *(_DWORD *)pOutSize = (unsigned int)MaxCount;
+                if ((unsigned int)NumberOfBytes > v13)
+                    v10 = v13;
+                memmove(Dst, PoolWithQuotaTag, v10);
+            }
+            if (PoolWithQuotaTag != P)
+                ExFreePoolWithTag(PoolWithQuotaTag, 0x42424D43u);
+        }
+    }
+    else
+    {
+        return (unsigned int)HandlerFunc(Arg2, Arg3, HIDWORD(v15), Dst, (_DWORD)NumberOfBytes, pOutSize, v15, 0);
+    }
+    return (unsigned int)v11;
+}

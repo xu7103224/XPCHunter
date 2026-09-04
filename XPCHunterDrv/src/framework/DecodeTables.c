@@ -2642,3 +2642,60 @@ const ULONG g_PeDataTypeSizeTable[8] = {
 const ULONG g_PeDataTypeSubTypeTable[4] = {
     6, 7, 6, 7,
 };
+
+// FinalizeDataType — 最终确定数据类型
+// 设置数据类型的完成标志(bit31)，根据系统位数(32/64位)设置对应的地址宽度标志，标记为类型6
+// 对应原始驱动 sub_14008AE44
+__int64 __fastcall FinalizeDataType(__int64 Context)
+{
+    __int64 DataEntry = *(_QWORD *)(Context + 24);
+    __int64 Flags;
+    int WidthType = *(_DWORD *)(*(_QWORD *)(Context + 32) + 4LL);
+    __int64 NewFlags;
+
+    *(_QWORD *)(DataEntry + 32) |= 0x80000000uLL;
+    Flags = *(_QWORD *)(DataEntry + 32);
+    if (WidthType == 1)
+        NewFlags = Flags | 0x20;
+    else if (WidthType == 2)
+        NewFlags = Flags | 0x40;
+    else
+        NewFlags = Flags | 0x10;
+    *(_DWORD *)(DataEntry + 40) = 6;
+    *(_QWORD *)(DataEntry + 32) = NewFlags;
+    return 0;
+}
+
+// GetDataElementSize — 获取数据元素大小
+// 根据数据类型(1/2/其他)返回对应的元素字节大小(4/8/2)，对特殊编码格式返回6或4字节，附带缓冲区边界检查
+// 对应原始驱动 sub_14008AB54
+__int64 __fastcall GetDataElementSize(__int64 Context)
+{
+    int WidthType = *(_DWORD *)(*(_QWORD *)(Context + 32) + 4LL);
+    __int64 result;
+    unsigned int v4;
+
+    if (WidthType == 1)
+    {
+        result = 4;
+        if ((**(_BYTE **)(Context + 24) & 0x1F) == 6)
+            result = 6;
+    }
+    else
+    {
+        v4 = 2;
+        if (WidthType == 2)
+        {
+            result = 8;
+        }
+        else
+        {
+            if ((**(_BYTE **)(Context + 24) & 0x1F) == 6)
+                v4 = 4;
+            result = v4;
+        }
+    }
+    if ((unsigned __int64)(*(_QWORD *)Context + (int)result) > *(_QWORD *)(Context + 8))
+        return 0xFFFFFFFFLL;
+    return result;
+}
