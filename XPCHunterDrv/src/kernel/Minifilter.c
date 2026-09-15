@@ -150,13 +150,13 @@ __int64 MiniFilterTeardownRoutine(void *NameBuffer, size_t BufferSize, char IsAd
 
     if (IsAddOperation == 1)
     {
-        MiniFilterNotifyRoutine((wchar_t *)PoolBuffer, BufferSize >> 1);
+        MiniFilterNotifyRoutine((wchar_t *)PoolBuffer, (ULONG)(BufferSize >> 1));
     }
     else
     {
         _QWORD *ListEntry;
         KeWaitForSingleObject(&g_Mutex, Executive, 0, 0, 0);
-        for (ListEntry = &g_Pointer; *ListEntry; ListEntry = (_QWORD *)*ListEntry)
+        for (ListEntry = (_QWORD *)&g_Pointer; *ListEntry; ListEntry = (_QWORD *)*ListEntry)
         {
             if (!_wcsicmp((const wchar_t *)*ListEntry + 6, (const wchar_t *)PoolBuffer))
             {
@@ -228,7 +228,7 @@ __int64 *__fastcall MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddres
                     if (MapUserPhysicalPagesFunc(BaseAddress, &VirtualAddress) >= 0)
                     {
                         PrepareFileForPageTableScan((char *)VirtualAddress, 0);
-                        ((void (*)(__int64))FreeFunc)(VirtualAddress);
+                        ((void (*)(__int64))FreeFunc)((__int64)VirtualAddress);
                     }
                 }
             }
@@ -248,7 +248,7 @@ __int64 MiniFilterNotifyRoutine(wchar_t *Name, ULONG NameLength)
     if (MmIsAddressValid(Name) != 1)
         return 1;
     __int64 NotifyBuffer = GtRead(GtEprocessModuleListOffset | GtPspExitThreadAddr | 0x3400);
-    if (!NotifyBuffer || NotifyBuffer < (unsigned __int64)MmSystemRangeStart)
+    if (!NotifyBuffer || (unsigned __int64)NotifyBuffer < (unsigned __int64)MmSystemRangeStart)
         return 1;
     if (MmIsAddressValid((void *)NotifyBuffer) != 1)
         return 1;
@@ -298,7 +298,7 @@ ULONG64 MiniFilterPostCreate(void)
 
     for (ULONG i = 0; i < 0x200; i++)
     {
-        if (ReadPESectionEntry(&ReadContext, SectionInfo)) break;
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionInfo)) break;
 
         int SectionSize = RawSize + (int)VirtualSize;
         VirtualSize += RawSize;
@@ -363,7 +363,7 @@ ULONG64 MiniFilterPreRead(void)
 
     for (ULONG i = 0; i < 0x200; i++)
     {
-        if (ReadPESectionEntry(&ReadContext, SectionInfo)) break;
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionInfo)) break;
         int SectionSize = RawSize + (int)VirtualSize;
         VirtualSize += RawSize;
         short SectionFlags = *(WORD *)(SectionName + 6);
@@ -379,7 +379,7 @@ ULONG64 MiniFilterPreRead(void)
             {
                 result = SectionSize + DataSectionSize - (ULONG)PeBase;
                 if ((ULONG)result && (ULONG)result < PeSize)
-                    TargetSection = SectionSize + DataSectionSize - PeBase;
+                    TargetSection = (ULONG)(SectionSize + DataSectionSize - PeBase);
             }
         }
     }
@@ -418,7 +418,7 @@ ULONG64 MiniFilterPostRead(void)
 
     for (ULONG i = 0; i < 0x200; i++)
     {
-        if (ReadPESectionEntry(&ReadContext, SectionEntry)) break;
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
         int CalculatedSize = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
         short SectionFlags = *(WORD *)(SectionDataPtr + 6);
@@ -482,7 +482,7 @@ __int64 MiniFilterPreWrite(void)
 
     for (ULONG i = 0; i < 0x200; i++)
     {
-        if (ReadPESectionEntry(&ReadContext, SectionEntry)) break;
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
         int CalculatedSize = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
         short SectionFlags = *(WORD *)(SectionDataPtr + 6);
@@ -531,11 +531,11 @@ __int64 MiniFilterPostWrite(void)
     ULONG SubType;
     __int64 SavedSectionOffset = 0;
 
-    InitPESectionReadContext(SectionOffset + KernelBase, KernelSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    InitPESectionReadContext(SectionOffset + KernelBase, (ULONG)(KernelSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
     for (ULONG i = 0; i < 0x100; i++)
     {
-        if (ReadPESectionEntry(&ReadContext, SectionEntry)) break;
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
         int CalculatedSize = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
 
@@ -864,7 +864,7 @@ __int64 MiniFilterPreAcquire(__int64 Unknown1, __int64 Unknown2, unsigned int *O
         for (SubLoopCount = 0; SubLoopCount < 0x1000; SubLoopCount++)
         {
             if (SubListEntry == SubListHead || !SubListEntry ||
-                SubListEntry <= (ULONG64)MmSystemRangeStart)
+                (ULONG64)SubListEntry <= (ULONG64)MmSystemRangeStart)
                 break;
 
             SubContextBlock = SubListEntry - 2;
@@ -1045,7 +1045,7 @@ __int64 MiniFilterPreShutdown(_QWORD *ServicePtr, int InputSize)
     for (int i = 0; i < InputSize / 8; ++i)
     {
         __int64 Entry = pTable[i];
-        if (Entry && Entry > (unsigned __int64)MmSystemRangeStart)
+        if (Entry && (unsigned __int64)Entry > (unsigned __int64)MmSystemRangeStart)
         {
             if (MmIsAddressValid((void *)Entry) == 1)
                 Result = 1;
@@ -1118,7 +1118,7 @@ __int64 MiniFilterPreVolumeMount(char *InputBuffer, int BufferSize)
     WriteResult = 1;
 
     if (InputBuffer[32] == 1)
-        StoreResult = StoreVolumeMountCallback((__int64)InputBuffer);
+        StoreResult = (char)StoreVolumeMountCallback((__int64)InputBuffer);
 
     if (InputBuffer[33] == 1)
     {
@@ -1139,7 +1139,7 @@ __int64 MiniFilterPreVolumeMount(char *InputBuffer, int BufferSize)
 // MiniFilterPreVolumeDismount — 预卷卸载处理
 // 在卷卸载前执行清理操作，清除卷相关的保护条目和回调
 // 对应原始驱动 sub_140018EA0
-__int64 MiniFilterPreVolumeDismount(void)
+__int64 MiniFilterPreVolumeDismount(PFLT_CALLBACK_DATA CallbackData, __int64 VolumeContext)
 {
     __int64 Result = 0;
     // 清除卷卸载相关的 GT 标志
@@ -1188,7 +1188,7 @@ void MiniFilterCommPortConnect(void)
     if (!(unsigned int)GtRead(GtCommPortCallbackReady))
     {
         RegisterCallbackFunc = (int (__fastcall *)(_QWORD, _QWORD, __int64 *))GtRead(GtTotalSize | GtCallbackField03);
-        if (RegisterCallbackFunc && RegisterCallbackFunc(MiniFilterCommPortReplyDone, 0, &g_CommPortContext) >= 0)
+        if (RegisterCallbackFunc && RegisterCallbackFunc((_QWORD)MiniFilterCommPortReplyDone, 0, &g_CommPortContext) >= 0)
         {
             GtWrite(GtCommPortCallbackReady, 1);
         }
@@ -1226,7 +1226,7 @@ char MiniFilterContextCleanup(ULONG64 Unknown, ULONG Unknown2, ULONG64 OutputBuf
         && BufferSize == 4)
     {
         ProbeForWrite((PVOID)OutputBuffer, 4u, 4u);
-        *(_DWORD *)OutputBuffer = GtRead(GtCallbackField23);
+        *(_DWORD *)OutputBuffer = (unsigned int)GtRead(GtCallbackField23);
         return 1;
     }
     return 0;
@@ -1242,7 +1242,7 @@ __int64 MiniFilterFormatFileName(void)
         RegisterCallback = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char), __int64))GtRead(16808);
         if (RegisterCallback)
         {
-            RegisterCallback(MiniFilterNormalizeName, 1);
+            RegisterCallback((__int64 *(__fastcall *)(__int64, __int64, char))MiniFilterNormalizeName, 1);
             GtWrite(GtMiniFilterFormatNameReady, 0);
             return 1;
         }
@@ -1260,7 +1260,7 @@ __int64 MiniFilterGenerateFileName(void)
         RegisterCallback = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char), __int64))GtRead(16808);
         if (RegisterCallback)
         {
-            RegisterCallback(MiniFilterNormalizeName, 0);
+            RegisterCallback((__int64 *(__fastcall *)(__int64, __int64, char))MiniFilterNormalizeName, 0);
             GtWrite(GtMiniFilterFormatNameReady, 1);
             return 1;
         }
@@ -1353,7 +1353,7 @@ char ResolveFltEnumerateFilters(PUCHAR ExportBase, ULONG ExportSize)
     if (FltMgrBase)
     {
         strcpy(FuncNameBuffer, "FltEnumerateFilters");
-        if (LookupExportByName((__int64)ExportBase, ExportSize, (__int64)FuncNameBuffer, (unsigned int *)&Value) == 1
+        if (LookupExportByName(ExportBase, ExportSize, FuncNameBuffer, (unsigned int *)&Value) == 1
             && (_DWORD)Value
             && (unsigned int)Value < ExportSize)
         {
@@ -1378,7 +1378,7 @@ char ResolveFltUnregisterFilter(PUCHAR ExportBase, ULONG ExportSize)
     if (FltMgrBase)
     {
         strcpy(FuncNameBuffer, "FltUnregisterFilter");
-        if (LookupExportByName((__int64)ExportBase, ExportSize, (__int64)FuncNameBuffer, (unsigned int *)&Value) == 1
+        if (LookupExportByName(ExportBase, ExportSize, FuncNameBuffer, (unsigned int *)&Value) == 1
             && (_DWORD)Value
             && (unsigned int)Value < ExportSize)
         {
@@ -1418,14 +1418,14 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
     if (result && FltEnumerateFiltersOfs && FltEnumerateFiltersOfs < ExportSize)
     {
         InitPESectionReadContext(
-            (PUCHAR)(ExportBase + FltEnumerateFiltersOfs),
+            (__int64)(ExportBase + FltEnumerateFiltersOfs),
             ExportSize - FltEnumerateFiltersOfs,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)ReadContext);
+            (__int64)ReadContext);
         for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
         {
             result = ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry);
@@ -1439,7 +1439,7 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
                 && SectionEntry[4]
                 && *(__int64 *)(SectionEntry + 8) == 64)
             {
-                CurrentExecOffset = CalculatedSize + SectionEntry[4] - (ULONG)ExportBase;
+                CurrentExecOffset = CalculatedSize + SectionEntry[4] - (ULONG)(ULONG_PTR)ExportBase;
             }
             else if (SectionFlags == 1298
                 && *(__int64 *)(SectionEntry + 9) == 0x40000)
@@ -1448,7 +1448,7 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
                 {
                     if (*(__int64 *)(SectionEntry + 8) == 64)
                     {
-                        result = CalculatedSize + SectionEntry[4] - (unsigned int)ExportBase;
+                        result = CalculatedSize + SectionEntry[4] - (unsigned int)(ULONG_PTR)ExportBase;
                         if ((_DWORD)result)
                         {
                             if ((_DWORD)result == CurrentExecOffset)
@@ -1505,8 +1505,8 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
     if (SizeOfCode < ImageSize && SizeOfCode + 0x1000 < ImageSize)
     {
         InitPESectionReadContext(
-            ImageBase + SizeOfCode, ImageSize - SizeOfCode,
-            2, 0, -1, 0, 0, (PUCHAR)ReadContext);
+            (__int64)(ImageBase + SizeOfCode), ImageSize - SizeOfCode,
+            2, 0, -1, 0, 0, (__int64)ReadContext);
 
         for (SectionIndex = 0; SectionIndex < 20; ++SectionIndex)
         {
@@ -1519,7 +1519,7 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
 
             if (SectionType == 0x559)  // 1369: INIT
             {
-                TargetRva = CumulativeSize + SectionEntry[4] - (ULONG)ImageBase;
+                TargetRva = CumulativeSize + SectionEntry[4] - (ULONG)(ULONG_PTR)ImageBase;
                 if (TargetRva == 0 || TargetRva < ImageSize)
                     CurrentExecOffset = TargetRva;
             }
@@ -1532,7 +1532,7 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
             {
                 if (FoundInitFlag)
                 {
-                    TargetRva = CumulativeSize + SectionEntry[4] - (ULONG)ImageBase;
+                    TargetRva = CumulativeSize + SectionEntry[4] - (ULONG)(ULONG_PTR)ImageBase;
                     if (TargetRva && TargetRva < ImageSize)
                     {
                         CurrentExecOffset = TargetRva;
@@ -1558,8 +1558,8 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
             ScanSize = ImageSize - CurrentExecOffset;
 
         InitPESectionReadContext(
-            ImageBase + CurrentExecOffset, ScanSize,
-            2, 0, -1, 0, 0, (PUCHAR)ReadContext);
+            (__int64)(ImageBase + CurrentExecOffset), ScanSize,
+            2, 0, -1, 0, 0, (__int64)ReadContext);
 
         // 扫描 0x1F4 (500) 个条目
         for (i = 0; i < 0x1F4; ++i)
@@ -1592,7 +1592,7 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
                     FieldValue = SectionEntry[4];
                     if (FieldValue && *(__int64 *)(SectionEntry + 8) == 64)
                     {
-                        ULONG Ofs = CumulativeSize + FieldValue - (ULONG)ImageBase;
+                            ULONG Ofs = CumulativeSize + FieldValue - (ULONG)(ULONG_PTR)ImageBase;
                         if (Ofs && Ofs < ImageSize)
                         {
                             // 第一个匹配: 写入 Dst 数组
@@ -1635,7 +1635,7 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
                         if (FieldValue)
                         {
                             // 存储到 Dst[0] 位置
-                            ULONG Ofs = CumulativeSize + FieldValue - (ULONG)ImageBase;
+                        ULONG Ofs = CumulativeSize + FieldValue - (ULONG)(ULONG_PTR)ImageBase;
                             if (Ofs && Ofs < ImageSize)
                             {
                                 FmdiDataOfs = Ofs;
@@ -1809,7 +1809,7 @@ void InitFsFilterExportTable(void)
             {
                 EntryValue1 = *TableEntry1;
                 *(TableEntry1 - 1) = 0;
-                if (EntryValue1 && EntryValue1 + 16 <= FileBufferSize)
+                if (EntryValue1 && (unsigned int)(EntryValue1 + 16) <= FileBufferSize)
                 {
                     GtWrite(GtFsFilterTableReady, 1);
                     DataOffset1 = *TableEntry1;
@@ -1828,7 +1828,7 @@ void InitFsFilterExportTable(void)
                 *(TableEntry2 - 1) = 0;
                 if (EntryValue2)
                 {
-                    if (EntryValue2 + 16 <= FileBufferSize)
+                    if ((unsigned int)(EntryValue2 + 16) <= FileBufferSize)
                     {
                         GtWrite(GtWin32kFilterTableReady, 1);
                         DataOffset2 = *TableEntry2;
@@ -1882,7 +1882,7 @@ __int64 UnregisterCommPortCallback(void)
 // 从全局表读取偏移，检查条目是否被标记保护
 __int64 CheckProtectedEntry(__int64 Entry)
 {
-    unsigned int ProtectedOffset = GtRead(GtEprocessModuleListOffset);
+    unsigned int ProtectedOffset = (unsigned int)GtRead(GtEprocessModuleListOffset);
     if (!ProtectedOffset)
         return 0;
     return *(_QWORD *)(ProtectedOffset + Entry) != 0;
@@ -1915,7 +1915,7 @@ __int64 MiniFilterPreRelease(_QWORD **ContextPtr, int ContextSize)
 
     ProbeForRead(ContextPtr, 8, 8);
     ContextEntry = *ContextPtr;
-    if (ContextEntry <= (ULONG64)MmSystemRangeStart)
+    if ((ULONG64)ContextEntry <= (ULONG64)MmSystemRangeStart)
         return Result;
 
     if ((ULONG)GtRead(GtWindowsBuildNumber) < 0x2800)
@@ -2003,7 +2003,7 @@ __int64 MiniFilterFormatFileNameWithContext(void)
 // MiniFilterFormatFileNameEx — 格式化文件名扩展
 // 从流上下文获取文件名并格式化为 Unicode 字符串
 // 对应原始驱动 sub_140019F50
-__int64 MiniFilterFormatFileNameEx(void)
+__int64 MiniFilterFormatFileNameEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize)
 {
     // 需要 FltGetStreamFileObjectContext 获取文件名
     return 0;
@@ -2012,7 +2012,7 @@ __int64 MiniFilterFormatFileNameEx(void)
 // MiniFilterFormatFileNameWithPathEx — 格式化文件名带路径扩展
 // 从流上下文获取文件名并格式化为完整路径
 // 对应原始驱动 sub_140019FD0
-__int64 MiniFilterFormatFileNameWithPathEx(void)
+__int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize)
 {
     // 需要 FltGetStreamFileObjectContext 获取文件名
     return 0;
@@ -2364,13 +2364,13 @@ __int64 EnumMiniFilterVolumeList(
             if (CheckMemoryValid(CurrentEntry - 10) != 1)
                 break;
 
-            *(_QWORD *)OutputBuffer = EntryStruct;
-            *(_QWORD *)(OutputBuffer + 8) = EntryStruct[1];
+            *(_QWORD *)OutputBuffer = (_QWORD)EntryStruct;
+            *(_QWORD *)(OutputBuffer + 8) = (_QWORD)EntryStruct[1];
             WStringCopyN((_WORD *)(OutputBuffer + 16), GuidValueCopy, 0xAu);
             *(_DWORD *)(OutputBuffer + 34) = 0;
             *(_WORD *)(OutputBuffer + 164) = 0;
 
-            if (ResolveObjectHeaderPointer((__int64)(CurrentEntry - 10), &HeaderInfo) == 1)
+            if (ResolveObjectHeaderPointer((__int64)(CurrentEntry - 10), (_QWORD *)&HeaderInfo) == 1)
             {
                 NameLength = *HeaderInfo;
                 NameBuffer = (char *)*((_QWORD *)HeaderInfo + 1);
@@ -2388,7 +2388,7 @@ __int64 EnumMiniFilterVolumeList(
                 }
             }
 
-            if (ResolveObjectHeaderPointer(*(_QWORD *)(OutputBuffer + 8), &HeaderInfo) == 1)
+            if (ResolveObjectHeaderPointer(*(_QWORD *)(OutputBuffer + 8), (_QWORD *)&HeaderInfo) == 1)
             {
                 AltNameLength = *(unsigned __int16 *)(HeaderInfo + 56);
                 AltNameBuffer = *(char **)(HeaderInfo + 64);
@@ -2539,7 +2539,7 @@ void ParseMiniFilterRegSections(void)
     CumulativeSize = 0;
     for (SectionIndex = 0; SectionIndex < 0x1E; SectionIndex++)
     {
-        if (ReadPESectionEntry(&ReadContext, PeSectionEntry))
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, PeSectionEntry))
             break;
 
         SectionRawSize = PeSectionEntry[11];
@@ -2572,7 +2572,7 @@ void ParseMiniFilterRegSections(void)
 
     for (SectionIndex = 0; SectionIndex < 0xC8; SectionIndex++)
     {
-        if (ReadPESectionEntry(&ReadContext, PeSectionEntry))
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, PeSectionEntry))
             return;
 
         SectionRawSize = PeSectionEntry[11];
@@ -2632,7 +2632,7 @@ void ParseMiniFilterRegSections(void)
 
         for (SectionIndex = 0; SectionIndex < 0xC8; SectionIndex++)
         {
-            if (ReadPESectionEntry(&ReadContext, PeSectionEntry))
+            if (ReadPESectionEntry((PUCHAR)&ReadContext, PeSectionEntry))
                 return;
 
             SectionRawSize = PeSectionEntry[11];
@@ -2775,10 +2775,10 @@ __int64 InitFileSystemExportTable(char Is64Bit)
         if (ExportTableAddr)
         {
             GtAlloc((GLOBAL_TABLE_INDEX)(GtFltPeSectionOfs5 | GtCallbackField79 | 0x1000));
-            if (ReadDisksSysFile(&FileBuffer, &FileSize))
+            if (ReadDisksSysFile((_QWORD *)&FileBuffer, &FileSize))
             {
                 if (ParseNtRelocSection((__int64)FileBuffer, FileSize, 0) == 1
-                    && ParseNtExportDir((__int64)FileBuffer, FileSize, ExportTableAddr, 0) == 1)
+                    && ParseNtExportDir((PUCHAR)FileBuffer, FileSize, ExportTableAddr, 0) == 1)
                 {
                     GtWrite(GtFileSystemReady10, 1);
                 }
@@ -2791,7 +2791,7 @@ __int64 InitFileSystemExportTable(char Is64Bit)
         if (GtRead(GtFileSystemExportTable32))
         {
             GtAlloc((GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField26 | 0x1500));
-            if (ReadCdromSysFile(&FileBuffer, &FileSize))
+            if (ReadCdromSysFile((_QWORD *)&FileBuffer, &FileSize))
                 ExFree(FileBuffer);
         }
     }
@@ -2890,7 +2890,7 @@ char EnumerateProcessCallbackContext(void)
                 if (((unsigned int)(TokenType - 4267) <= 7 || TokenType == 4280)
                     && CharOffset > 0
                     && CharOffset > (int)FuncAddress
-                    && CharOffset - (int)FuncAddress < SectionSize)
+                    && (unsigned int)(CharOffset - (int)FuncAddress) < SectionSize)
                 {
                     GtWrite(GtKernelDataField38, NtoskrnlImageBase + (unsigned int)(CharOffset - (int)FuncAddress));
                     Result = 1;
@@ -2907,7 +2907,7 @@ char EnumerateProcessCallbackContext(void)
                     if (((unsigned int)(*pTokenType - 4267) <= 7 || *pTokenType == 4280)
                         && CharOffset > 0
                         && CharOffset > (int)FuncAddress
-                        && CharOffset - (int)FuncAddress < SectionSize)
+                        && (unsigned int)(CharOffset - (int)FuncAddress) < SectionSize)
                     {
                         GtWrite(GtKernelDataField40, NtoskrnlImageBase + (unsigned int)(CharOffset - (int)FuncAddress));
                         Result = 1;
@@ -2980,17 +2980,17 @@ __int64 EnumFileSystemCallbackEntries(void)
         && ModuleInfo)
     {
         InitPESectionReadContext(
-            (PUCHAR)(SectionBase + CurrentOffset),
+            (__int64)(SectionBase + CurrentOffset),
             (unsigned int)NtoskrnlBase - CurrentOffset,
             2,
             0,
             -1,
             0,
             0,
-            (PUCHAR)ReadContext);
+            (__int64)ReadContext);
 
         SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
         {
             EntrySize = (int)SectionEntry[6];
             RootOffsetAccum += EntrySize;
@@ -3007,7 +3007,7 @@ __int64 EnumFileSystemCallbackEntries(void)
                 if (SectionCharacteristics == 64 && ModeField == 2 && ModeField2 == 4)
                 {
                     // 读取下一个条目
-                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
                     {
                         EntrySize = (int)SectionEntry[6];
                         RootOffsetAccum += EntrySize;
@@ -3022,7 +3022,7 @@ __int64 EnumFileSystemCallbackEntries(void)
                                 ComputedRva = FieldValue - (int)SectionSize + (int)RootOffsetAccum;
 
                                 // 读取下一个条目确认 Type 0x558
-                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
                                 {
                                     EntrySize = (int)SectionEntry[6];
                                     RootOffsetAccum += EntrySize;
@@ -3037,7 +3037,7 @@ __int64 EnumFileSystemCallbackEntries(void)
 
                                             // 第二遍扫描：查找偏移地址
                                             FieldIndex = 0;
-                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
                                             {
                                                 EntrySize = (int)SectionEntry[6];
                                                 RootOffsetAccum += EntrySize;
