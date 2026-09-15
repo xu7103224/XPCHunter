@@ -788,7 +788,7 @@ char EnumerateDriverObjects(unsigned int *pOutputBuffer, unsigned int OutputSize
     pTypeListCopy = pTypeList;
     pOutputEntry = &pOutputBuffer[138 * *pOutputBuffer + 2];
 
-    if (*pTypeList == (_QWORD)pTypeList)
+    if (*pTypeList == (_QWORD *)pTypeList)
         return Result;
 
     do
@@ -2048,7 +2048,7 @@ __int64 ParseNtExportAuxData(
     *(_DWORD *)&CompareString1[4]  = 0x706D6F43; // "Comp"
     *(_DWORD *)&CompareString1[8]  = 0x6574656C; // "lete"
     *(_DWORD *)&CompareString1[12] = 0x75716552; // "Requ"
-    *(_WORD  *)&CompareString1[16] = 0x747365;   // "est"
+    *(_DWORD *)&CompareString1[16] = 0x747365;   // "est"
     CompareString1[18] = 0;
 
     char CompareString2[20]; // "pIofCallDriver\0"
@@ -3254,7 +3254,7 @@ char __fastcall ReadModuleFileToBuffer(
         void *pFileBuffer;
         ULONG FileSize;
 
-        if (ReadNtFileToBuffer((PUCHAR)pRawData, RawSize, &pFileBuffer, &FileSize) != 1)
+        if (ReadNtFileToBuffer((PUCHAR)pRawData, RawSize, (PUCHAR *)&pFileBuffer, &FileSize) != 1)
         {
             ExFree(pRawData);
             return 0;
@@ -3476,7 +3476,7 @@ __int64 __fastcall ResolveKernelModuleIndex(
         if (TargetProcess)
             KeStackAttachProcess(TargetProcess, &ApcState);
         CopyBase = GtRead(GtEprocessField22);
-        CopySize = GtRead(GtEprocessField23);
+        CopySize = (unsigned int)GtRead(GtEprocessField23);
         ModuleBase = GtRead(GtNtoskrnlModuleBase);
         KernelPESectionByType = (unsigned int)FindKernelPESectionByType(SectionType);
         MaxSectionCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);

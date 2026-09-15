@@ -238,7 +238,7 @@ __int64 __fastcall DecodeUtf8Sequence(
         DecodeTable = (unsigned int *)DecodeTable1;
     }
 
-    *(_QWORD *)(OutputStruct + 32) = CurrentPtr;
+    *(_QWORD *)(OutputStruct + 32) = (_QWORD)CurrentPtr;
     unsigned int *TableEntry = &DecodeTable[2 * CurrentByte];
     unsigned int EntryValue = *TableEntry;
 
@@ -279,7 +279,7 @@ __int64 __fastcall DecodeUtf8Sequence(
 
     if (*TableEntry)
     {
-        *(_QWORD *)(OutputStruct + 40) = TableEntry;
+        *(_QWORD *)(OutputStruct + 40) = (_QWORD)TableEntry;
         unsigned char CharByte = *((unsigned char *)TableEntry + 7);
         if (CharByte)
             *(_BYTE *)OutputStruct = CharByte;

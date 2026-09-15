@@ -98,7 +98,7 @@ BOOLEAN CopySectionString(__int64 OutputBuffer, __int64 DeviceEntry, __int64 Dri
     // Object name
     *(_WORD *)(OutputBuffer + 1064) = 0;
     unsigned __int16 *VisualPathPtr;
-    if (ResolveObjectHeaderPointer(DeviceEntry, &VisualPathPtr) == 1)
+    if (ResolveObjectHeaderPointer(DeviceEntry, (_QWORD *)&VisualPathPtr) == 1)
     {
         void *ObjNameBuffer = (void *)*((_QWORD *)VisualPathPtr + 1);
         __int64 ObjNameChars = *VisualPathPtr >> 1;
@@ -117,7 +117,7 @@ BOOLEAN CopySectionString(__int64 OutputBuffer, __int64 DeviceEntry, __int64 Dri
     // File path
     *(_WORD *)(OutputBuffer + 1584) = 0;
     __int64 FileObjPtr = *(_QWORD *)(DeviceObjEntry + 40);
-    if (FileObjPtr > (unsigned __int64)MmSystemRangeStart
+    if ((unsigned __int64)FileObjPtr > (unsigned __int64)MmSystemRangeStart
         && *(_QWORD *)(FileObjPtr + 96)
         && *(_QWORD *)(FileObjPtr + 80))
     {
@@ -188,15 +188,15 @@ __int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
     PathBuffer[3] = 0x5C;       // L"\\"
 
     // 获取系统根路径，提取驱动器号
-    InitResult = (ULONG)InitSystemPath();
+    InitResult = (ULONG)(ULONG_PTR)InitSystemPath();
     if (!InitResult)
     {
         return 0;
     }
 
     // 替换路径中的驱动器号
-    ((WORD *)PathBuffer)[4] = *(WORD *)InitResult;
-    ExFree((void *)InitResult);
+    ((WORD *)PathBuffer)[4] = *(WORD *)(ULONG_PTR)InitResult;
+    ExFree((void *)(ULONG_PTR)InitResult);
 
     // 初始化 Unicode 字符串
     RtlInitUnicodeStringFunc((_BYTE *)&ResultInfo, (_DWORD *)PathBuffer);

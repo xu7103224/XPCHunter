@@ -57,7 +57,7 @@ char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, 
             IsSuccess = CallbackResult2;
             return IsSuccess >= 0;
         }
-        CallbackResult = InvokeCallbackWithZeroArg(
+        CallbackResult = (int)InvokeCallbackWithZeroArg(
             (__int64)PROCESS,
             CallbackContext,
             0,
@@ -65,7 +65,7 @@ char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, 
     }
     else
     {
-        CallbackResult = InvokeNullCallback(
+        CallbackResult = (int)InvokeNullCallback(
             (__int64)PROCESS,
             CallbackContext,
             0,
@@ -148,7 +148,7 @@ __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
                     {
                         if (ReadSize < (unsigned __int64)MmSystemRangeStart
                             && *InputBuffer >= MmSystemRangeStart
-                            && (char *)*InputBuffer + ReadSize >= MmSystemRangeStart
+                            && (ULONG64)((char *)*InputBuffer + ReadSize) >= (ULONG64)MmSystemRangeStart
                             && (unsigned __int64)TargetBuffer < MmUserProbeAddress
                             && (unsigned __int64)TargetBuffer + ReadSize < MmUserProbeAddress)
                         {
@@ -166,7 +166,7 @@ __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
                                 while (BytesCopied < (unsigned int)RemainingSize)
                                 {
                                     if ((unsigned int)RemainingSize - BytesCopied < PageRemainder)
-                                        PageRemainder = RemainingSize - BytesCopied;
+                                        PageRemainder = (unsigned int)(RemainingSize - BytesCopied);
                                     PageSuccess = 0;
                                     CopySuccess = 0;
                                     if (CheckMemoryValid((void *)CurrentAddress) == 1)

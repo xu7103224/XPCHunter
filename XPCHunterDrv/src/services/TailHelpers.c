@@ -2424,7 +2424,7 @@ void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputS
     *(_QWORD *)(ObjectAttributes + 28) = 0;                                // SecurityDescriptor
     *(_QWORD *)(ObjectAttributes + 36) = 0;                                // SecurityQualityOfService
 
-    if (DeviceIoControlFunc(&Handle, 1, (int *)&ObjectAttributes[0]) >= 0)
+    if (DeviceIoControlFunc((_QWORD *)&Handle, 1, (int *)&ObjectAttributes[0]) >= 0)
     {
         if (NtFsControlFileFunc(Handle[0], 0xF000F, 0, 0, &DeviceHandle, 0) >= 0)
         {

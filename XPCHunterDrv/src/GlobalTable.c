@@ -29,7 +29,7 @@ WCHAR g_SymlinkNameBuffer[256];     // 符号链接名称缓冲区
 // 对应原始驱动 sub_140029EEC
 __int64* GtAlloc(GLOBAL_TABLE_INDEX Index)
 {
-    return &g_GlobalTable[Index];
+    return (__int64 *)(ULONG_PTR)&g_GlobalTable[Index];
 }
 
 // GtRead — 读取全局表指定索引的 64 位值

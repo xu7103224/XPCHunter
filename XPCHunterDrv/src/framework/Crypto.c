@@ -85,10 +85,11 @@ static __forceinline void ByteReverse(ULONG *Buffer, ULONG Count)
 {
     ULONG i;
     for (i = 0; i < Count; i++)
-        Buffer[i] = ByteSwap64(Buffer[i]); // 实际应为 RtlUlongByteSwap
+        Buffer[i] = (ULONG)ByteSwap64(Buffer[i]); // 实际应为 RtlUlongByteSwap
 }
 
 // 简化实现 — 实际复刻中需使用 RtlUlongByteSwap
+#undef RtlUlongByteSwap
 #define RtlUlongByteSwap(x) _byteswap_ulong(x)
 
 // InitMd5Context — 初始化 MD5 上下文
@@ -294,7 +295,7 @@ __int64 Sha1HashToDword(char *String)
     ULONG Digest[5];
 
     Sha1InitContext(&Context);
-    Sha1Update(&Context, (PUCHAR)String, StringLength(String));
+    Sha1Update(&Context, (PUCHAR)String, (ULONG)StringLength(String));
     Sha1FinalTransform(&Context, (__int64)Digest);
     return Digest[0];
 }
@@ -304,8 +305,8 @@ __int64 Sha1HashToDword(char *String)
 __int64 DecryptInputBuffer(PUCHAR Buffer)
 {
     // 简单的 XOR 解密
-    ULONG Key = GtRead(GtEncryptionKey);
-    UCHAR KeyByte = GtRead(GtEncryptionKeyByte);
+    ULONG Key = (ULONG)GtRead(GtEncryptionKey);
+    UCHAR KeyByte = (UCHAR)GtRead(GtEncryptionKeyByte);
     ULONG i;
 
     for (i = 0; i < IRP_INPUT_BUFFER_SIZE; i++)
