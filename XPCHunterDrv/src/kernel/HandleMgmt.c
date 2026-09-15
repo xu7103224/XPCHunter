@@ -110,7 +110,7 @@ char EnumerateProcessHandleTable(_DWORD *OutputBuffer, unsigned int BufferSize)
         {
             GrantedAccess = *ObjectPtr;
             HandleAttr = 0;
-            if (GrantedAccess != ObjectPtr)
+            if (GrantedAccess != (_QWORD *)ObjectPtr)
             {
                 do
                 {
@@ -126,7 +126,7 @@ char EnumerateProcessHandleTable(_DWORD *OutputBuffer, unsigned int BufferSize)
                     }
                     GrantedAccess = (_QWORD *)*GrantedAccess;
                     HandleAttr++;
-                } while (GrantedAccess != ObjectPtr);
+                } while (GrantedAccess != (_QWORD *)ObjectPtr);
                 HandleValue = (_QWORD ***)TableListPtr;
                 ObjectType = TypeCounter;
             }
@@ -167,7 +167,7 @@ char EnumerateProcessHandleTable(_DWORD *OutputBuffer, unsigned int BufferSize)
             }
             ObjectName += 2;
             TypeIndex += 2;
-            EntryCountCopy = --EntryOffset;
+            EntryCountCopy = (ULONG)(--EntryOffset);
             SecondTableList = (__int64)ObjectName;
         } while (EntryOffset);
     }
@@ -222,7 +222,7 @@ __int64 EnumHandlesByType(WORD *TargetName, ULONG NameLen, _DWORD *TypeTable, _D
 
                 if (GetProcessImagePath(NULL, *((HANDLE *)OutputBuffer + 130), &ImagePathBuffer, &ImagePathLength, 0) == 1)
                 {
-                    WStringCopyN(OutputBuffer, (__int64)ImagePathBuffer, 0x104);
+                    WStringCopyN((WORD *)OutputBuffer, (__int64)ImagePathBuffer, 0x104);
                     *((WORD *)OutputBuffer + 259) = 0;
                 }
                 else if ((ULONG64)(*((__int64 *)OutputBuffer + 130) - 1) <= 7)
@@ -273,9 +273,9 @@ __int64 CmdEnumHandlesByPid(volatile void *Address, SIZE_T Length, char *OutputB
     SystemInfo = AllocExBufferAndQuerySystemInfo(0x10);
     if (SystemInfo)
     {
-        *(ULONG *)OutputBuffer = EnumHandlesByType(
+        *(ULONG *)OutputBuffer = (ULONG)EnumHandlesByType(
             (WORD *)Address, EntryIndex - 1, SystemInfo,
-            (_DWORD *)OutputBuffer + 2, (BufferSize - 8) / 0x420);
+            (_DWORD *)OutputBuffer + 2, (int)((BufferSize - 8) / 0x420));
         ExFree(SystemInfo);
         return 1;
     }
@@ -394,17 +394,17 @@ __int64 CmdCloseProcessHandle(__int64 UnusedArg1, __int64 UnusedArg2, _DWORD *pO
 char CmdCloseProcessHandleEx(__int64 InputBuffer)
 {
     char Result = 0;
-    if (!InputBuffer || InputBuffer < (unsigned __int64)MmUserProbeAddress)
+    if (!InputBuffer || (unsigned __int64)InputBuffer < (unsigned __int64)MmUserProbeAddress)
         return Result;
     if (MmIsAddressValid((void *)InputBuffer) != 1)
         return Result;
     _DWORD *pInput = (_DWORD *)InputBuffer;
     unsigned int ProcessId = pInput[0];
-    HANDLE Handle = (HANDLE)pInput[1];
+    HANDLE Handle = (HANDLE)(ULONG_PTR)pInput[1];
     if (!ProcessId || !Handle)
         return Result;
     PEPROCESS Process = NULL;
-    NTSTATUS Status = PsLookupProcessByProcessId((HANDLE)ProcessId, &Process);
+    NTSTATUS Status = PsLookupProcessByProcessId((HANDLE)(ULONG_PTR)ProcessId, &Process);
     if (NT_SUCCESS(Status) && Process)
     {
         Status = ZwClose(Handle);
@@ -523,7 +523,7 @@ char GetProcessVirtualizationContext(_DWORD *OutputBuffer, unsigned int BufferSi
     if (!CheckFunc(PageTable)) return Field14;
 
     PageEntry = (ULONG)*OutputBuffer;
-    if (552 * (int)PageEntry + 560 >= BufferSize) return Field14;
+    if ((unsigned int)(552 * (int)PageEntry + 560) >= BufferSize) return Field14;
 
     PageEntry = 138 * PageEntry;
     *(__int64 *)&OutputBuffer[(int)PageEntry + 10] = PageTable;
@@ -559,9 +559,9 @@ char EnumerateSessionProcesses(unsigned int *OutputBuffer, unsigned int BufferSi
     if ((unsigned int)GtRead(GtEprocessField61)
         || (QueryProcessVirtualization(), (unsigned int)GtRead(GtEprocessField61)))
     {
-        SessionId = GtRead(GtEprocessField62);
+        SessionId = (char)GtRead(GtEprocessField62);
         CsrssProcessEntry = FindCsrssProcessEntry(OutputBuffer);
-        CsrssTimestamp = CsrssProcessEntry;
+        CsrssTimestamp = (__int16)CsrssProcessEntry;
         if (CsrssProcessEntry)
         {
             SystemInfo = (struct _KPROCESS **)AllocExBufferAndQuerySystemInfo(0x10);
@@ -726,7 +726,7 @@ _QWORD *EnumObjectHandleTable(unsigned int *OutputBuffer, unsigned int MaxEntrie
                 && (_QWORD *)Entry[6] == Entry + 19
                 && *((_BYTE *)Entry + 240) == 1)
             {
-                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = Entry;
+                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = (_QWORD)Entry;
                 OutputBuffer[14 * *OutputBuffer + 4] = *((_DWORD *)Entry + 15);
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 6] = Entry[3];
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 8] = 0;
@@ -763,7 +763,7 @@ _QWORD *EnumObjectHandleTable(unsigned int *OutputBuffer, unsigned int MaxEntrie
                 ObjectHeader = Entry[6];
                 if (!ObjectHeader || !*(_QWORD *)(ObjectHeader + 24))
                     goto Next;
-                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = Entry;
+                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = (_QWORD)Entry;
                 OutputBuffer[14 * *OutputBuffer + 4] = *((_DWORD *)Entry + 15);
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 6] = Entry[3];
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 8] = *(_QWORD *)(ObjectHeader + 24);
@@ -845,7 +845,7 @@ _QWORD *EnumerateObjectHandles(unsigned int *OutputBuffer, unsigned int MaxEntri
                 && (_QWORD *)Entry[6] == Entry + 19
                 && *((_BYTE *)Entry + 240) == 1)
             {
-                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = Entry;
+                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = (_QWORD)Entry;
                 OutputBuffer[14 * *OutputBuffer + 4] = *((_DWORD *)Entry + 15);
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 6] = Entry[3];
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 8] = 0;
@@ -882,7 +882,7 @@ _QWORD *EnumerateObjectHandles(unsigned int *OutputBuffer, unsigned int MaxEntri
                 ObjectHeader = Entry[6];
                 if (!ObjectHeader || !*(_QWORD *)(ObjectHeader + 24))
                     goto Next;
-                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = Entry;
+                *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = (_QWORD)Entry;
                 OutputBuffer[14 * *OutputBuffer + 4] = *((_DWORD *)Entry + 15);
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 6] = Entry[3];
                 *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 8] = *(_QWORD *)(ObjectHeader + 24);
@@ -935,7 +935,7 @@ __int64 EnumObjectHandlesWin8Plus(unsigned int *OutputBuffer, unsigned int MaxEn
 
     if (CheckFunc && TableBase && TableCount && TableOffset)
     {
-        ObjectTableCode = GetObjectTableCode();
+        ObjectTableCode = (unsigned int)GetObjectTableCode();
         if (TableCount > ObjectTableCode)
             TableCount = ObjectTableCode;
         StepSize = (ULONG)GtRead(GtWindowsBuildNumber) < 0x4A61 ? 256 : 512;
@@ -952,7 +952,7 @@ __int64 EnumObjectHandlesWin8Plus(unsigned int *OutputBuffer, unsigned int MaxEn
                     do
                     {
                         Entry = *TablePtr;
-                        for (i = 0; Entry != TablePtr; ++i)
+                        for (i = 0; (_QWORD *)Entry != (_QWORD *)TablePtr; ++i)
                         {
                             if (*OutputBuffer >= MaxEntries)
                                 break;
@@ -968,7 +968,7 @@ __int64 EnumObjectHandlesWin8Plus(unsigned int *OutputBuffer, unsigned int MaxEn
                             {
                                 if (*(_QWORD *)(Decoded + 24))
                                 {
-                                    *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = Entry;
+                                    *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 2] = (_QWORD)Entry;
                                     OutputBuffer[14 * *OutputBuffer + 4] = *((_DWORD *)Entry + 15);
                                     *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 6] = Entry[3];
                                     *(_QWORD *)&OutputBuffer[14 * *OutputBuffer + 8] = *(_QWORD *)(Decoded + 24);
@@ -1039,7 +1039,7 @@ char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsi
         HandleValue = *((_QWORD *)HandleEntry + 1);
         if (BuildNumber >= 0x1770)
             HandleValue &= 0xFFFFFFFFFFFFFFF0ULL;
-        if (HandleValue > (unsigned __int64)MmSystemRangeStart && MmIsAddressValid((PVOID)HandleValue) == 1)
+        if ((unsigned __int64)HandleValue > (unsigned __int64)MmSystemRangeStart && MmIsAddressValid((PVOID)HandleValue) == 1)
         {
             ObjectHeader = (_QWORD *)(HandleValue - 48);
             if (ObjectHeader)
@@ -1076,7 +1076,7 @@ char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsi
                                 __int64 ServiceCountBak = ServiceCount;
                                 char SavedFlag = *((_BYTE *)CurrentThread + ServiceCount);
                                 *((_BYTE *)CurrentThread + ServiceCount) = 0;
-                                int QueryResult = ((__int64 (__fastcall *)(__int64, __int64, _BYTE *, __int64, char *))AttachProcessFunc)(HandleValue2, 3, OutputBuffer2, BufferSize2, IoctlReturnBuf);
+                                int QueryResult = (int)((__int64 (__fastcall *)(__int64, __int64, _BYTE *, __int64, char *))AttachProcessFunc)(HandleValue2, 3, OutputBuffer2, BufferSize2, IoctlReturnBuf);
                                 *((_BYTE *)CurrentThread + ServiceCountBak) = SavedFlag;
                                 QueryResult = QueryResult >= 0;
                             }
@@ -1292,7 +1292,7 @@ void EnumProcessHandleTable(void)
     KAPC_STATE ApcState;
 
     TargetProcess = GtRead(0x61);
-    CurrentProc = IoGetCurrentProcess();
+    CurrentProc = (__int64)IoGetCurrentProcess();
     if (TargetProcess == CurrentProc)
         TargetProcess = 0;
 
@@ -1314,7 +1314,7 @@ void EnumProcessHandleTable(void)
         // First loop: find matching entries
         while (1)
         {
-            if (!DecodeUnicodeChar(rbx, r14, DecodeBuffer))
+            if (!DecodeUnicodeChar((unsigned __int8 *)rbx, r14, DecodeBuffer))
                 break;
             rbx += *(unsigned int *)((char *)DecodeBuffer + 24);
             __int64 TableEntry = *(__int64 *)((char *)DecodeBuffer + 40);
@@ -1333,7 +1333,7 @@ void EnumProcessHandleTable(void)
         esi = 0;
         while (1)
         {
-            if (!DecodeUnicodeChar(rbx, r14, DecodeBuffer))
+            if (!DecodeUnicodeChar((unsigned __int8 *)rbx, r14, DecodeBuffer))
                 break;
             rbx += *(unsigned int *)((char *)DecodeBuffer + 24);
             __int64 TableEntry = *(__int64 *)((char *)DecodeBuffer + 40);
@@ -1344,7 +1344,7 @@ void EnumProcessHandleTable(void)
                     Value = 0x80;
                 if (*(int *)((char *)DecodeBuffer + 16) == 0x1FF)
                     r12d = 1;
-                if (!DecodeUnicodeChar(rbx, r14, DecodeBuffer))
+                if (!DecodeUnicodeChar((unsigned __int8 *)rbx, r14, DecodeBuffer))
                     break;
                 if (r12d)
                 {
@@ -1360,7 +1360,7 @@ void EnumProcessHandleTable(void)
                 {
                     if (*(int *)TableEntry != 0x1270)
                         goto Next;
-                    if (!DecodeUnicodeChar(rbx, r14, DecodeBuffer))
+                    if (!DecodeUnicodeChar((unsigned __int8 *)rbx, r14, DecodeBuffer))
                         break;
                     if (*(int *)TableEntry != 0x1037)
                         goto Next;
@@ -1370,7 +1370,7 @@ void EnumProcessHandleTable(void)
                     Diff -= (int)r13;
                     Diff -= 0xC;
 WriteGt:
-                    if (Diff && Diff < r15d)
+                    if (Diff && (unsigned int)Diff < r15d)
                     {
                         GtWrite(0x299, rbx + Diff);
                         GtWrite(0x29A, Value);
@@ -1406,8 +1406,8 @@ void ResolveSyscallTableEntry(void)
         KeStackAttachProcess(TargetProcess, &ApcState);
 
     __int64 KernelBase = GtRead(GtEprocessField22);
-    unsigned int KernelSize = GtRead(GtEprocessField23);
-    unsigned int ServiceCount = GtRead(GtWin32kServiceEntryCount);
+    unsigned int KernelSize = (unsigned int)GtRead(GtEprocessField23);
+    unsigned int ServiceCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
     __int64 NtosBase = GtRead(GtNtoskrnlModuleBase);
     __int64 SyscallTable = GtRead(GtEprocessField88);
 
@@ -1428,7 +1428,7 @@ void ResolveSyscallTableEntry(void)
             if (SyscallNum && SyscallNum < ServiceCount)
             {
                 unsigned __int64 SyscallAddr = *(_QWORD *)(SyscallTable + 8 * SyscallNum);
-                if (SyscallAddr > PeExportDir)
+                if (SyscallAddr > (unsigned __int64)PeExportDir)
                 {
                     unsigned int Offset = (unsigned int)(SyscallAddr - PeExportDir);
                     if (Offset < KernelSize && SyscallAddr == PeExportDir + Offset)
@@ -1456,11 +1456,11 @@ void ResolveSyscallNumberFromKernel(void)
     KAPC_STATE ApcState;
     int LoopCount = 0;
 
-    unsigned int KernelDataField12 = GtRead(GtKernelDataField12);
+    unsigned int KernelDataField12 = (unsigned int)GtRead(GtKernelDataField12);
     if (!KernelDataField12)
     {
         ResolveSyscallTableEntry();
-        KernelDataField12 = GtRead(GtKernelDataField12);
+        KernelDataField12 = (unsigned int)GtRead(GtKernelDataField12);
     }
 
     if (!KernelDataField12)
@@ -1472,9 +1472,9 @@ void ResolveSyscallNumberFromKernel(void)
         KeStackAttachProcess(TargetProcess, &ApcState);
 
     __int64 KernelBase = GtRead(GtEprocessField22);
-    unsigned int KernelSize = GtRead(GtEprocessField23);
+    unsigned int KernelSize = (unsigned int)GtRead(GtEprocessField23);
     __int64 NtosBase = GtRead(GtNtoskrnlModuleBase);
-    unsigned int TotalSizeOr = GtRead(GtTotalSize | GtEprocessField187 | 0x100);
+    unsigned int TotalSizeOr = (unsigned int)GtRead(GtTotalSize | GtEprocessField187 | 0x100);
 
     if (KernelBase && KernelSize && NtosBase && TotalSizeOr && KernelDataField12 < KernelSize)
     {
@@ -1581,7 +1581,7 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
     memset(NtBuf, 0, 0x40);
     CurrentThread = (__int64)KeGetCurrentThread();
     FieldOffset = FieldOffset4166;
-    CallbackFunc = pCallbackFunc;
+    CallbackFunc = (__int64)pCallbackFunc;
     BufferPtr = (__int64)Buffer;
     char SavedFlag = *(_BYTE *)(CurrentThread + ServiceCount);
     *(_BYTE *)(CurrentThread + ServiceCount) = 0;
@@ -1601,7 +1601,7 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
     StepSize = 0xFD0 - (int)FieldOffset;
     StepSize2 = StepSize;
 
-    GetKernelVirtualAddressRange(&Src, Dst, &EndAddr, &ScanSize);
+    GetKernelVirtualAddressRange((__int64)&Src, (unsigned __int64 *)Dst, (unsigned __int64 *)&EndAddr);
 
     StepSizeReg = StepSize;
     RangeSize = 0x1000;
@@ -1617,12 +1617,12 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
             StepSize = StepSizeReg;
 
             if (CheckTypeFunc(ScanAddr) == 1
-                && CallRegisteredCallback(ScanAddr, 0) == 1)
+                && CallRegisteredCallback(ScanAddr) == 1)
             {
                 __int64 Offset = GetOffsetFunc(ScanAddr);
                 if (Offset && Offset < ScanSize
-                    && CmdStubAlwaysTrue(CheckTypeFunc, Offset, NULL, 0) == 1
-                    && ValidateFunc(ValidateFunc, ScanAddr, Offset) == 1)
+                    && CmdStubAlwaysTrue((__int64)CheckTypeFunc, Offset, NULL, 0) == 1
+                    && ValidateFunc((__int64)ValidateFunc, ScanAddr, Offset) == 1)
                 {
                     ValidatedFlag = 1;
                     StepSize = StepSizeReg + 0x1000;
@@ -1631,12 +1631,12 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
             }
 
             if (CheckTypeFunc(CurrentAddr) == 1
-                && CallRegisteredCallback(CurrentAddr, 0) == 1)
+                && CallRegisteredCallback(CurrentAddr) == 1)
             {
                 __int64 Offset = GetOffsetFunc(CurrentAddr);
                 if (Offset && Offset < ScanSize
-                    && CmdStubAlwaysTrue(CheckTypeFunc, Offset, NULL, 0) == 1
-                    && ValidateFunc(ValidateFunc, CurrentAddr, Offset) == 1)
+                    && CmdStubAlwaysTrue((__int64)CheckTypeFunc, Offset, NULL, 0) == 1
+                    && ValidateFunc((__int64)ValidateFunc, CurrentAddr, Offset) == 1)
                 {
                     ValidatedFlag = 1;
                     StepSize = StepSize2 + 0x1000;
@@ -1656,7 +1656,7 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
 
                 // Inner loop: scan through buffer entries
                 unsigned int InnerIndex = 0;
-                while (InnerIndex <= (unsigned int)pCallbackFunc)
+                while (InnerIndex <= (unsigned int)(ULONG_PTR)pCallbackFunc)
                 {
                     StepSizeReg = 0;
                     char *EntryBuf = Buffer + InnerIndex;
@@ -1693,12 +1693,12 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
         else
         {
             if (CheckTypeFunc(CurrentAddr) == 1
-                && CallRegisteredCallback(CurrentAddr, 0) == 1)
+                && CallRegisteredCallback(CurrentAddr) == 1)
             {
                 __int64 Offset = GetOffsetFunc(CurrentAddr);
                 if (Offset && Offset < ScanSize
-                    && CmdStubAlwaysTrue(CheckTypeFunc, Offset, NULL, 0) == 1
-                    && ValidateFunc(ValidateFunc, CurrentAddr, Offset) == 1)
+                    && CmdStubAlwaysTrue((__int64)CheckTypeFunc, Offset, NULL, 0) == 1
+                    && ValidateFunc((__int64)ValidateFunc, CurrentAddr, Offset) == 1)
                 {
                     ValidatedFlag = 1;
                 }
@@ -1738,7 +1738,7 @@ unsigned __int64 FindCsrssProcessEntry(unsigned int *OutputBuffer)
         Remaining = Count;
         do
         {
-            LastChar = WStringFindLastChar(Entry, 92);
+            LastChar = WStringFindLastChar((WORD *)Entry, 92);
             if (LastChar)
                 NamePtr = (__int64)(LastChar + 1);
             else
@@ -1780,7 +1780,7 @@ char GetProcessVirtualizationContextFallback(_DWORD *OutputBuffer, unsigned int 
     __int64 FieldValue;
     unsigned int FieldOffset;
 
-    CurrentFiber = KeGetCurrentThread();
+    CurrentFiber = (_QWORD *)KeGetCurrentThread();
     if (CurrentFiber)
     {
         FiberValue = CurrentFiber[3];
@@ -1799,7 +1799,7 @@ char GetProcessVirtualizationContextFallback(_DWORD *OutputBuffer, unsigned int 
                 if (CheckFunc2(PageTableEntry) == 1)
                 {
                     OutputCount = *OutputBuffer;
-                    if (552 * (int)OutputCount + 560 < BufferSize)
+                    if ((unsigned int)(552 * (int)OutputCount + 560) < BufferSize)
                     {
                         EntryIndex = 138 * OutputCount;
                         *(_QWORD *)&OutputBuffer[EntryIndex + 10] = PageTableEntry;
@@ -1915,8 +1915,8 @@ void DecodeObjectPointerFromHandleEntry(
 // 读取 GT 中当前进程 EPROCESS 和进程 ID 偏移，通过 GetProcessFromHandleEntry 获取进程地址
 bool ValidateHandleEntry(__int64 HandleTableEntry)
 {
-    unsigned int Field30 = GtRead(GtEprocessField30);
-    unsigned int Field38 = GtRead(GtEprocessField38);
+    unsigned int Field30 = (unsigned int)GtRead(GtEprocessField30);
+    unsigned int Field38 = (unsigned int)GtRead(GtEprocessField38);
 
     if (Field30 && Field38 != -1)
     {
@@ -1940,7 +1940,7 @@ unsigned __int64 DecodeObjectHandleEntry(__int64 HandleEntry)
     if (Key1 && Key2)
     {
         __int64 Key2Value = *Key2;
-        __int64 RotatedValue = RotateLeft64Impl(*Key1, *Key1 ^ *(_QWORD *)(HandleEntry + 48));
+        __int64 RotatedValue = RotateLeft64Impl(*Key1, (int)(*Key1 ^ *(_QWORD *)(HandleEntry + 48)));
         return Key2Value ^ ByteSwap64(HandleEntry ^ RotatedValue);
     }
     return Result;
