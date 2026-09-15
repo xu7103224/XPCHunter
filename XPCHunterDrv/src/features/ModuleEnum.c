@@ -46,7 +46,7 @@ char RemoveFromModuleLinkedList(PVOID *pTargetEntry, char ListType)
         IterationCount = 0;
         while (pCurrentNode != (PVOID *)pSentinel)
         {
-            if (pCurrentNode <= MmSystemRangeStart)
+            if ((ULONG64)pCurrentNode <= (ULONG64)MmSystemRangeStart)
                 break;
             if (MmIsAddressValid(pCurrentNode) != 1)
                 break;
@@ -88,7 +88,7 @@ char RemoveObjectFromLinkedList(_QWORD *pObjectTable, __int64 TargetHandle)
     Success = 0;
     pValidateFunc = (unsigned __int8 (__fastcall *)(_QWORD))GtRead(GtObjectTypeCheckFlag);
     ValidateFunc = pValidateFunc;
-    if (pValidateFunc && pObjectTable && pValidateFunc(pObjectTable))
+    if (pValidateFunc && pObjectTable && pValidateFunc((__int64)pObjectTable))
     {
         for (BucketIndex = 0; BucketIndex < 0x7F; ++BucketIndex)
         {
@@ -132,7 +132,7 @@ char RemoveObjectFromLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle
     Success = 0;
     pValidateFunc = (unsigned __int8 (__fastcall *)(_QWORD))GtRead(GtObjectTypeCheckFlag);
     ValidateFunc = pValidateFunc;
-    if (pValidateFunc && pObjectTable && pValidateFunc(pObjectTable))
+    if (pValidateFunc && pObjectTable && pValidateFunc((__int64)pObjectTable))
     {
         for (BucketIndex = 0; BucketIndex < 0x7F; ++BucketIndex)
         {
@@ -174,7 +174,7 @@ char RemoveObjectSingleLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHand
     Success = 0;
     pValidateFunc = (unsigned __int8 (__fastcall *)(_QWORD))GtRead(GtObjectTypeCheckFlag);
     ValidateFunc = pValidateFunc;
-    if (pValidateFunc && pObjectTable && pValidateFunc(pObjectTable))
+    if (pValidateFunc && pObjectTable && pValidateFunc((__int64)pObjectTable))
     {
         for (EntryIndex = 0; *pObjectTable && ValidateFunc(*pObjectTable) && EntryIndex <= 0x10000; ++EntryIndex)
         {
@@ -230,9 +230,9 @@ char EnumKernelModules(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutp
         InitKernelDataSectionTable();
         pModuleListHead = (_QWORD *)GtRead(GtEprocessExtField41);
     }
-    BuildNumber = GtRead(GtEprocessExtField13);
+    BuildNumber = (unsigned int)GtRead(GtEprocessExtField13);
     if (pModuleListHead
-        && pModuleListHead > MmSystemRangeStart
+        && (ULONG64)pModuleListHead > (ULONG64)MmSystemRangeStart
         && BuildNumber >= 0x60000
         && pOutputBuffer
         && (unsigned int)RemainingSize >= 0x278
@@ -300,7 +300,7 @@ char EnumKernelModules(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutp
                             memmove(&((_DWORD *)pOutputBuffer)[156 * OutputIndex3 + 24], (const void *)(EntryOffset3 + 10), NameLength3);
                         }
                         ++*(_DWORD *)pOutputBuffer;
-                        LODWORD_LV(MaxCount) = MaxCount - 1;
+                        LODWORD_LV(MaxCount) = (ULONG)(MaxCount - 1);
                         EntryOffset5 = *(_QWORD *)(EntryOffset3 + 1232);
                         if ((_QWORD *)EntryOffset5 == pModuleListHead)
                             break;
@@ -360,7 +360,7 @@ char EnumKernelModules(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutp
                             memmove(&((_DWORD *)pOutputBuffer)[156 * OutputIndex2 + 24], (const void *)(EntryOffset3 + 10), NameLength2);
                         }
                         ++*(_DWORD *)pOutputBuffer;
-                        LODWORD_LV(MaxCount) = MaxCount - 1;
+                        LODWORD_LV(MaxCount) = (ULONG)(MaxCount - 1);
                         EntryOffset4 = *(_QWORD *)(EntryOffset3 + 1232);
                         if ((_QWORD *)EntryOffset4 == pModuleListHead)
                             break;
@@ -422,7 +422,7 @@ char EnumKernelModules(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutp
                         memmove(&((_DWORD *)pOutputBuffer)[156 * OutputIndex + 24], (const void *)(EntryOffset + 158), NameLength);
                     }
                     ++*(_DWORD *)pOutputBuffer;
-                    LODWORD_LV(MaxCount) = MaxCount - 1;
+                    LODWORD_LV(MaxCount) = (ULONG)(MaxCount - 1);
                     EntryOffset2 = *(_QWORD *)(EntryOffset + 8);
                     if ((_QWORD *)EntryOffset2 == pModuleListHead)
                         break;
