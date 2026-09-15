@@ -207,7 +207,7 @@ void RegisterMiniFilterRegistry(void)
         ObjectAttributes.Attributes = 576;
         if (ZwCreateKey(&KeyHandle, 0xF003F, &ObjectAttributes, 0, 0, 0, 0) >= 0)
             ZwClose(KeyHandle);
-        StringLength = GetStringLength((_WORD *)RegPathBuffer);
+        StringLength = (unsigned int)GetStringLength((_WORD *)RegPathBuffer);
         if (StringLength)
         {
             if (StringLength + 200 >= StringLength)
@@ -410,7 +410,7 @@ __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
     CurrentFiber = (char *)j_GetCurrentFiber();
     *pContext = 0;
     Offset = GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField130 | 0x100));
-    if ((_DWORD)Offset && CurrentFiber) *pContext = &CurrentFiber[(unsigned int)Offset];
+    if ((_DWORD)Offset && CurrentFiber) *pContext = (_QWORD)&CurrentFiber[(unsigned int)Offset];
     return Offset;
 }
 
@@ -428,7 +428,7 @@ __int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult)
     FiberBaseCopy = FiberBase;
     ContextOffset = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField129 | 0x100));
     if ((_DWORD)ContextOffset && FiberBaseCopy)
-        *pContext = &FiberBaseCopy[(unsigned int)ContextOffset];
+        *pContext = (_QWORD)&FiberBaseCopy[(unsigned int)ContextOffset];
     return ContextOffset;
 }
 
@@ -437,14 +437,14 @@ __int64 FindDeleteValueKeyTarget(__int64 Buffer, unsigned int BufferSize, __int6
 {
     *pResult = 0;
     __int64 Offset = GtRead((GLOBAL_TABLE_INDEX)(GtNtWriteFilePeSectionOffset | GtEprocessField08));
-    if ((_DWORD)Offset && (unsigned int)Offset < BufferSize && (int)Offset + 4106 < BufferSize)
+    if ((_DWORD)Offset && (unsigned int)Offset < BufferSize && (unsigned int)((int)Offset + 4106) < BufferSize)
     {
         unsigned __int64 ScanPos = Buffer + (unsigned int)Offset;
         unsigned __int64 EndAddress = Buffer + BufferSize;
         unsigned __int64 ScanEnd = ScanPos + 4096;
         while (ScanPos < ScanEnd)
         {
-            unsigned int Decoded = DecodeUtf8Buffer((unsigned __int8 *)ScanPos, EndAddress);
+            unsigned int Decoded = (unsigned int)DecodeUtf8Buffer((unsigned __int8 *)ScanPos, EndAddress);
             if (!Decoded)
                 break;
             if (Decoded == 7 && (*(_DWORD *)ScanPos & 0xFFFFFF) == 0xCD048D && *(_BYTE *)(ScanPos + 7) == 57)
@@ -489,7 +489,7 @@ __int64 FindSetValueKeyTargets(
     *pResult2 = 0;
     ImageSize = BufferSize;
     result = GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField142 | 0x100));
-    if ((_DWORD)result && (unsigned int)result < (unsigned int)ImageSize && (int)result + 4126 < (unsigned int)ImageSize)
+    if ((_DWORD)result && (unsigned int)result < (unsigned int)ImageSize && (unsigned int)((int)result + 4126) < (unsigned int)ImageSize)
     {
         ScanPos = Buffer + (unsigned int)result;
         EndAddress = Buffer + ImageSize;
@@ -551,7 +551,7 @@ __int64 FindSetValueKeyTarget(
     DecodedSize = GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtNtQuerySystemInformationFunc | GtPathBuffer00));
     if ((_DWORD)DecodedSize
         && (unsigned int)DecodedSize < (unsigned int)BufferSizeCopy
-        && (int)DecodedSize + 4106 < (unsigned int)BufferSizeCopy)
+        && (unsigned int)((int)DecodedSize + 4106) < (unsigned int)BufferSizeCopy)
     {
         ScanPos = Buffer + (unsigned int)DecodedSize;
         BufferEnd = Buffer + BufferSizeCopy;
@@ -604,21 +604,21 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
 
     FoundMarker = 0;
     FoundMatch = 0;
-    SectionOffset = GtRead(GtNtCreateProcessPeSectionOffset);
+    SectionOffset = (unsigned int)GtRead(GtNtCreateProcessPeSectionOffset);
     if (SectionOffset && SectionOffset < TargetSize)
     {
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (i = 0; i < 0x3E8; ++i)
         {
-            SectionOffset = ReadPESectionEntry(&ReadContext, SectionEntry);
+            SectionOffset = (unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if (SectionOffset)
                 return (__int16)SectionOffset;
-            CurrentOffset = EntryCumulSize + CumulativeSize;
+            CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
             CumulativeSize += EntryCumulSize;
             SectionType = *(_WORD *)(EntryDataPtr + 6);
             if ((unsigned __int16)(SectionType - 1340) <= 7u)
             {
-                if (SectionFlags == 0x2000000 && Value > MaxOffset)
+                if (SectionFlags == 0x2000000 && (unsigned __int64)Value > MaxOffset)
                 {
                     GtWrite((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtDriverObject), Value);
                     FoundMarker = 1;
@@ -630,10 +630,10 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
             {
                 if (EntryField)
                 {
-                    MatchOffset = CurrentOffset + EntryField - TargetBase;
+                    MatchOffset = (unsigned int)(CurrentOffset + EntryField - TargetBase);
                     if (MatchOffset < TargetSize)
                     {
-                        SectionOffset = ReadPESectionEntry(&ReadContext, SectionEntry);
+                        SectionOffset = (unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                         if (!SectionOffset)
                         {
                             CumulativeSize += EntryCumulSize;
@@ -641,16 +641,16 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
                             {
                                 if (SectionEntry[14])
                                 {
-                                    SectionOffset = ReadPESectionEntry(&ReadContext, SectionEntry);
+                                    SectionOffset = (unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                                     if (!SectionOffset)
                                     {
-                                        FinalOffset = EntryCumulSize + CumulativeSize;
+                                        FinalOffset = (int)(EntryCumulSize + CumulativeSize);
                                         CumulativeSize += EntryCumulSize;
                                         if (*(_WORD *)(EntryDataPtr + 6) == 1072)
                                         {
                                             if (EntryField && SectionFlags == 0x40000 && !Value)
                                             {
-                                                SectionOffset = FinalOffset + EntryField - TargetBase;
+                                                SectionOffset = (unsigned int)(FinalOffset + EntryField - TargetBase);
                                                 if (SectionOffset && SectionOffset < TargetSize)
                                                 {
                                                     GtWrite((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtNtoskrnlImageSize), MaxOffset + SectionOffset);
@@ -705,22 +705,22 @@ __int64 FindRenameKeyTargetEx(
         Result = GtRead(GtIndex);
         if ((_DWORD)Result && (unsigned int)Result < TargetSize)
         {
-            InitPESectionReadContext(TargetBase + (unsigned int)Result, TargetSize - Result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            InitPESectionReadContext(TargetBase + (unsigned int)Result, (ULONG)(TargetSize - Result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
             for (i = 0; i < 0x3E8; ++i)
             {
-                Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
-                CurrentOffset = EntryCumulSize + CumulativeSize;
+                CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
                 if (*(_WORD *)(EntryDataPtr + 6) == 1245 && SectionFlags == 0x40000)
                 {
                     if (EntrySize)
                     {
-                        MatchOffset = CurrentOffset + EntrySize - TargetBase;
+                        MatchOffset = (unsigned int)(CurrentOffset + EntrySize - TargetBase);
                         if (MatchOffset < TargetSize)
                         {
-                            Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                            Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                             if (!(_DWORD)Result)
                             {
                                 CumulativeSize += EntryCumulSize;
@@ -728,10 +728,10 @@ __int64 FindRenameKeyTargetEx(
                                 {
                                     if (SectionEntry[14])
                                     {
-                                        Result = ReadPESectionEntry(&ReadContext, SectionEntry);
+                                        Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                                         if (!(_DWORD)Result)
                                         {
-                                            FinalOffset = EntryCumulSize + CumulativeSize;
+                                            FinalOffset = (int)(EntryCumulSize + CumulativeSize);
                                             CumulativeSize += EntryCumulSize;
                                             if (*(_WORD *)(EntryDataPtr + 6) == 1296)
                                             {
@@ -904,7 +904,7 @@ __int64 RegistryOperationDispatch(void *InputBuffer, int BufferSize)
             && ValidateProcessObject(TargetProcess, 0) == 1)
         {
             if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0xA28)
-                Inited = EnumProcessAndInitObjects((__int64)TargetProcess, 1);
+                Inited = (char)EnumProcessAndInitObjects((__int64)TargetProcess, 1);
             else
                 Inited = InitProcessAndQueryInfo(TargetProcess, 1);
             Result = Inited;
