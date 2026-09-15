@@ -49,9 +49,7 @@ extern unsigned int QueryNdisDriverObject(__int64 OutputBuffer, unsigned int Max
 extern unsigned int QueryPnpManagerDriverObject(__int64 OutputBuffer, unsigned int MaxEntries);
 extern void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
 extern char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
-extern __int64 ResolveKernelModuleBasePair(__int64 Address, __int64 Size, _QWORD *pResult, __int64 Flags);
 extern char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
-extern __int64 ValidateAndClearProcessContext(__int64 Process, __int64 Flags, __int64 Context, __int64 Result);
 extern void ValidateObjectTypeEntries(__int64 OutputBuffer);
 extern void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize);
 
@@ -105,14 +103,11 @@ __int64 DeviceIoControlOperation(char *pInputBuffer, int InputSize, unsigned int
 __int64 DeviceIoControlSimpleOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithBufferOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithStringOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 DisableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 DisableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskReadSectorOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskSectorReadWriteOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 EnableObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 EnableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
 __int64 EnumDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 EnumFileSystemContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
 __int64 EnumHookDetailOperation(char *pInputBuffer, int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
@@ -153,7 +148,6 @@ __int64 GetKernelBaseLegacyOperation(__int64 InputBuffer, __int64 InputSize, _DW
 __int64 InitFileSystemCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitFileSystemFilterOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitKernelMemoryContextOperation(void);
-__int64 InitObjectCallbackOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 InstallUSBPortSyscallHookOperation(char *Address, int InputSize);
 __int64 KernelNotifyRoutineOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 KernelNotifyRoutineExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
@@ -172,7 +166,7 @@ __int64 QueryObjectInfoOperation(char *pInputBuffer, int InputSize, unsigned int
 __int64 QueryProcessNameByPidOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 QuerySystemInfoExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 ReadCpuBaseAddrOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
-__int64 ReadCpuBaseAddrExOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
+__int64 ReadCpuBaseAddrExOperation(__int64 InputBuffer, volatile void *pInputAddress, int InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 ReadCpuIdOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 ReadCpuInfoExOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 ReadCpuMsrOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
@@ -237,7 +231,7 @@ __int64 ReadCpuMsrOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOut
         ProbeForWrite(pOutputData, 16, 8);
         MsrPair[0] = MsrBase1;
         MsrPair[1] = MsrBase2;
-        ForEachProcessor((__int64 (*)(_QWORD, __int64))ResolveKernelModuleBasePair, (__int64)MsrPair);
+        ForEachProcessor((__int64 (*)(__int64, __int64))ResolveKernelModuleBasePair, (__int64)MsrPair);
         *pOutputData = *(_OWORD *)&MsrDiffResult;
         return 1;
     }
@@ -326,14 +320,14 @@ __int64 FindCpuMsrBaseLegacy(int MsrAddress)
         {
             SectionBase = (int)HalImageBase + AddressOffset;
             InitPESectionReadContext(
-                (PUCHAR)(HalImageBase + AddressOffset),
+                (__int64)(HalImageBase + AddressOffset),
                 HalImageSize - AddressOffset,
                 2,
                 0,
                 -1,
                 0,
                 0,
-                (PUCHAR)SectionContext);
+                (__int64)SectionContext);
 
             LoopCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)SectionContext, (PULONG)SectionEntryBuffer))
@@ -344,20 +338,20 @@ __int64 FindCpuMsrBaseLegacy(int MsrAddress)
 
                 if (EntryType == 225)
                 {
-                    Result = (unsigned int)pCurrentEntry - SectionBase;
-                    if ((int)pCurrentEntry - SectionBase > (int)HalImageSizeCopy)
+                    Result = (unsigned int)(ULONG_PTR)pCurrentEntry - SectionBase;
+                    if ((int)(ULONG_PTR)pCurrentEntry - SectionBase > (int)HalImageSizeCopy)
                         return 0;
                     return Result;
                 }
 
                 if (EntryType == 1301
-                    && (int)pCurrentEntry - (int)HalImageBase < (int)HalImageSizeCopy
-                    && (int)pCurrentEntry - (int)HalImageBase + 16 < (int)HalImageSizeCopy
+                    && (int)(ULONG_PTR)pCurrentEntry - (int)HalImageBase < (int)HalImageSizeCopy
+                    && (int)(ULONG_PTR)pCurrentEntry - (int)HalImageBase + 16 < (int)HalImageSizeCopy
                     && *pCurrentEntry == g_HalDispatchTable
                     && pCurrentEntry[1] == g_HalDispatchTableEnd)
                 {
-                    Result = (unsigned int)pCurrentEntry - SectionBase;
-                    if ((int)pCurrentEntry - SectionBase > (int)HalImageSizeCopy)
+                    Result = (unsigned int)(ULONG_PTR)pCurrentEntry - SectionBase;
+                    if ((int)(ULONG_PTR)pCurrentEntry - SectionBase > (int)HalImageSizeCopy)
                         return 0;
                     return Result;
                 }
@@ -401,14 +395,14 @@ __int64 FindCpuMsrBaseWin10(int MsrAddress)
         {
             SectionBase = HalImageBase + AddressOffset;
             InitPESectionReadContext(
-                (PUCHAR)SectionBase,
+                (__int64)SectionBase,
                 HalImageSize - AddressOffset,
                 2,
                 0,
                 -1,
                 0,
                 0,
-                (PUCHAR)&SectionReadContext);
+                (__int64)&SectionReadContext);
 
             LoopCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, (PULONG)SectionEntryBuffer))
@@ -495,8 +489,8 @@ char FindCpuMsrDifferences(char *VirtualAddress, unsigned int Size, _QWORD *pDif
 
         if (HalExportTable && HalImageSize && NtoskrnlBase)
         {
-            OffsetAdjust = (unsigned int)((int)VirtualAddress - (int)NtoskrnlBase);
-            if ((int)VirtualAddress != (int)NtoskrnlBase
+            OffsetAdjust = (unsigned int)((int)(ULONG_PTR)VirtualAddress - (int)NtoskrnlBase);
+            if ((int)(ULONG_PTR)VirtualAddress != (int)NtoskrnlBase
                 && VirtualAddress == (char *)(OffsetAdjust + NtoskrnlBase))
             {
                 Index = 0;
@@ -617,8 +611,8 @@ char CopyKernelMemoryToTarget(PVOID VirtualAddress, size_t Size)
 
         if (HalExportTable && HalImageSize && NtoskrnlBase)
         {
-            ExportOffset = (unsigned int)((int)VirtualAddress - (int)NtoskrnlBase);
-            if ((int)VirtualAddress != (int)NtoskrnlBaseCopy
+            ExportOffset = (unsigned int)((int)(ULONG_PTR)VirtualAddress - (int)NtoskrnlBase);
+            if ((int)(ULONG_PTR)VirtualAddress != (int)NtoskrnlBaseCopy
                 && VirtualAddress == (PVOID)(NtoskrnlBaseCopy + ExportOffset))
             {
                 ExportAddr = (char *)((unsigned int)ExportOffset + HalExportTable);
@@ -633,7 +627,7 @@ char CopyKernelMemoryToTarget(PVOID VirtualAddress, size_t Size)
                         if (MmIsAddressValid(&ExportAddr[SizeCopy]) == 1)
                         {
                             memmove(TempBuffer, ExportAddr, (unsigned int)SizeCopy);
-                            WritePhysicalMemoryBuffer((unsigned __int64)VirtualAddress, TempBuffer, SizeCopy, 0, 0);
+                            WritePhysicalMemoryBuffer((unsigned __int64)VirtualAddress, TempBuffer, (unsigned int)SizeCopy, 0, 0);
                             Result = 1;
                         }
                         ExFree(TempBuffer);
@@ -813,12 +807,12 @@ __int64 ReadPhysicalMemoryOperation(__int64 InputBuffer, __int64 InputSize, _DWO
     ProbeForWrite(pOutputData, 7928, 1);
     memset(pOutputData, 0, 7928);
     InitCallbackFunctions();
-    Device0Ready = GtRead(GtEprocessField133 | 0x100);
-    Ctx0Ready = GtRead(GtFltUnregisterFilterAddr | GtEprocessField22);
-    Device2Ready = GtRead(GtEprocessField134 | 0x100);
-    Ctx2Ready = GtRead(GtFltUnregisterFilterOffset | GtEprocessField22);
-    Device1Ready = GtRead(GtKernelDataField18);
-    Ctx1Ready = GtRead(GtFltDataSectionOffset | GtEprocessField22);
+    Device0Ready = (int)GtRead(GtEprocessField133 | 0x100);
+    Ctx0Ready = (int)GtRead(GtFltUnregisterFilterAddr | GtEprocessField22);
+    Device2Ready = (int)GtRead(GtEprocessField134 | 0x100);
+    Ctx2Ready = (int)GtRead(GtFltUnregisterFilterOffset | GtEprocessField22);
+    Device1Ready = (int)GtRead(GtKernelDataField18);
+    Ctx1Ready = (int)GtRead(GtFltDataSectionOffset | GtEprocessField22);
 
     if (EnumDeviceObjectTypeList(0, (__int64)(pOutputData + 8)) == 1)
     {
@@ -936,23 +930,23 @@ __int64 EnumProcessorInfoOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
     ProbeForWrite(pOutputData, BufferSize, 4);
     memset(pOutputData, 0, (unsigned int)BufferSize);
     *pOutputData = 0;
-    RemainingEntries = (BufferSize - 88) / 0x50 + 1;
-    ProcessorContext[0] = pOutputData;
-    ProcessorContext[1] = &RemainingEntries;
-    ForEachProcessor((__int64 (*)(_QWORD, __int64))ReadThreadContext, (__int64)ProcessorContext);
+    RemainingEntries = (int)((BufferSize - 88) / 0x50 + 1);
+    ProcessorContext[0] = (_QWORD)pOutputData;
+    ProcessorContext[1] = (_QWORD)&RemainingEntries;
+    ForEachProcessor((__int64 (*)(__int64, __int64))ReadThreadContext, (__int64)ProcessorContext);
 
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     if (BuildNumber >= 0xA28 && RemainingEntries)
     {
-        MaxProcessCount = GtRead(GtObjectTypeCount);
+        MaxProcessCount = (int)GtRead(GtObjectTypeCount);
         ObjectTypeOffset = GtRead(GtKiFastCallEntryAddr | GtNtoskrnlImageSize);
-        MaxCount = ObjectTypeOffset;
+        MaxCount = (int)ObjectTypeOffset;
         ObjectTableOffsetVal = ObjectTypeOffset;
         ImageFileOffsetVal = GtRead(GtEprocessModuleListOffset | GtPspTerminateThreadAddr);
         BasePriorityOffset = GtRead(GtProcessOffset);
         ObjectTableOffset = GtRead(GtProcessEprocess);
         EprocessOffset = GtRead(GtEprocessField43);
-        ImageFileNameOffset = EprocessOffset;
+        ImageFileNameOffset = (int)EprocessOffset;
         EprocessOffsetVal = EprocessOffset;
         SectionBase = GtRead(GtObjectTypeInfoPtr);
         pSectionBase = (_QWORD *)SectionBase;
@@ -987,7 +981,7 @@ __int64 EnumProcessorInfoOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
                             if (ObjectTableAddr > (ULONG64)MmSystemRangeStart)
                             {
                                 pContextTable = (_QWORD *)(ObjectTableAddr - (unsigned int)ImageFileOffsetVal);
-                                if (pContextTable > MmSystemRangeStart)
+                        if ((ULONG64)pContextTable > (ULONG64)MmSystemRangeStart)
                                 {
                                     BuildNumber;
                                     if (CheckMemoryValid(pContextTable) == 1 &&
@@ -1063,23 +1057,23 @@ __int64 SetProcessorFieldOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
     {
         Cleared = 0;
         ProcessorContext = *((_DWORD *)pInputBuffer + 2);
-        ForEachProcessor((__int64 (*)(_QWORD, __int64))ValidateAndClearProcessContext, (__int64)&ProcessorContext);
+        ForEachProcessor((__int64 (*)(__int64, __int64))ValidateAndClearProcessContext, (__int64)&ProcessorContext);
         return Cleared == 1;
     }
 
     if (BuildNumber >= 0xA28)
     {
         TargetEprocess = (char *)*((_QWORD *)pInputBuffer + 1);
-        ObjectTypeId = GtRead(GtObjectTypeCount);
-        ObjectTableOffset = GtRead(GtKiFastCallEntryAddr | GtNtoskrnlImageSize);
-        ContextOffset = GtRead(GtEprocessModuleListOffset | GtPspTerminateThreadAddr);
-        BasePriorityOffset = GtRead(GtProcessOffset);
+        ObjectTypeId = (int)GtRead(GtObjectTypeCount);
+        ObjectTableOffset = (int)GtRead(GtKiFastCallEntryAddr | GtNtoskrnlImageSize);
+        ContextOffset = (unsigned int)GtRead(GtEprocessModuleListOffset | GtPspTerminateThreadAddr);
+        BasePriorityOffset = (int)GtRead(GtProcessOffset);
         ImageFileOffsetVal = GtRead(GtEprocessField43);
         pSectionBase = (_QWORD *)GtRead(GtObjectTypeInfoPtr);
 
         if (ObjectTypeId && ObjectTableOffset && ContextOffset &&
             BasePriorityOffset != -1 && (_DWORD)ImageFileOffsetVal != -1 &&
-            pSectionBase > MmSystemRangeStart)
+            (ULONG64)pSectionBase > (ULONG64)MmSystemRangeStart)
         {
             ObjectTypeId = ObjectTypeId - 1;
             if (CheckMemoryValid(TargetEprocess) == 1 &&
@@ -1097,7 +1091,7 @@ __int64 SetProcessorFieldOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
                     if (TableAddr > (ULONG64)MmSystemRangeStart)
                     {
                         pContextTable = (_QWORD *)(TableAddr - ContextOffset);
-                        if (pContextTable > MmSystemRangeStart)
+                        if ((ULONG64)pContextTable > (ULONG64)MmSystemRangeStart)
                         {
                             BuildNumber;
                             if (CheckMemoryValid(pContextTable) == 1 &&
@@ -1132,7 +1126,7 @@ __int64 InitKernelMemoryContextOperation()
     pKernelMemCtx = (_QWORD *)GtRead(GtEprocessExtField58 | GtEprocessField54 | 0x400);
     pVerifyFunc = GtRead(GtEprocessExtField57 | GtEprocessField54 | 0x400);
     VerifyFunc = (int (*)(void))pVerifyFunc;
-    if (pKernelMemCtx && pKernelMemCtx > MmSystemRangeStart && pVerifyFunc &&
+    if (pKernelMemCtx && (ULONG64)pKernelMemCtx > (ULONG64)MmSystemRangeStart && pVerifyFunc &&
         CheckMemoryValid(pKernelMemCtx) == 1 && (!*pKernelMemCtx || VerifyFunc() >= 0))
         return 1;
     return Result;
@@ -1149,8 +1143,8 @@ __int64 CopyKernelArrayToUserBufferOperation(__int64 InputBuffer, __int64 InputS
     if (!GtRead(GtEprocessExtField58 | GtEprocessField27 | 0x400))
         InitKernelMemoryContext();
     pDataPtr = (char *)GtRead(GtEprocessExtField58 | GtEprocessField27 | 0x400);
-    EntryCount = GtRead(GtEprocessExtField58 | GtEprocessField28 | 0x400);
-    if (pDataPtr && EntryCount && pDataPtr > MmSystemRangeStart &&
+    EntryCount = (unsigned int)GtRead(GtEprocessExtField58 | GtEprocessField28 | 0x400);
+    if (pDataPtr && EntryCount && (ULONG64)pDataPtr > (ULONG64)MmSystemRangeStart &&
         EntryCount < 0x100 &&
         CheckMemoryValid(pDataPtr) == 1 &&
         CheckMemoryValid(&pDataPtr[8 * EntryCount - 1]) == 1 &&
@@ -1181,8 +1175,8 @@ __int64 CopyKernelDualArrayToUserBufferOperation(__int64 InputBuffer, __int64 In
     if (!GtRead(GtEprocessExtField48 | GtEprocessField54 | 0x400))
         InitKernelMemoryContext();
     pDataPtr = (char *)GtRead(GtEprocessExtField48 | GtEprocessField54 | 0x400);
-    EntryCount = GtRead(GtEprocessExtField47 | GtEprocessField54 | 0x400);
-    if (pDataPtr && EntryCount && pDataPtr > MmSystemRangeStart &&
+    EntryCount = (unsigned int)GtRead(GtEprocessExtField47 | GtEprocessField54 | 0x400);
+    if (pDataPtr && EntryCount && (ULONG64)pDataPtr > (ULONG64)MmSystemRangeStart &&
         EntryCount < 0x100 && CheckMemoryValid(pDataPtr) == 1)
     {
         if (CheckMemoryValid(&pDataPtr[8 * EntryCount - 1]) == 1 && pOutputBuffer)
@@ -1195,7 +1189,7 @@ __int64 CopyKernelDualArrayToUserBufferOperation(__int64 InputBuffer, __int64 In
                 ProbeForWrite(pOutputBuffer, BufferSize, 8);
                 memset(pOutputBuffer, 0, BufferSize);
                 *pOutputBuffer = EntryCount;
-                WinBuildNum = GtRead(GtWindowsBuildNumber);
+                WinBuildNum = (unsigned int)GtRead(GtWindowsBuildNumber);
                 if (WinBuildNum < 0x23F0)
                 {
                     memmove(pOutputBuffer + 2, pDataPtr, 8LL * EntryCount);
@@ -1222,7 +1216,7 @@ __int64 ReadKernelMemoryToUserBufferOperation(__int64 InputBuffer, __int64 Input
     if (!GtRead(GtEprocessExtField58 | GtEprocessField54 | 0x400))
         InitKernelMemoryContext();
     pKernelMemCtx = (_QWORD *)GtRead(GtEprocessExtField58 | GtEprocessField54 | 0x400);
-    if (pKernelMemCtx && pKernelMemCtx > MmSystemRangeStart &&
+    if (pKernelMemCtx && (ULONG64)pKernelMemCtx > (ULONG64)MmSystemRangeStart &&
         CheckMemoryValid(pKernelMemCtx) == 1 && pOutputBuffer && OutputSize == 8 &&
         (unsigned __int64)pOutputBuffer < MmUserProbeAddress &&
         (unsigned __int64)(pOutputBuffer + 1) < MmUserProbeAddress)
@@ -1243,7 +1237,7 @@ __int64 ReadKernelMemoryRangeOperation(__int64 InputBuffer, __int64 InputSize, _
     if (!GtRead(GtEprocessExtField58 | GtEprocessField57 | 0x400))
         InitKernelMemoryContext();
     pMacShimData = (_QWORD *)GtRead(GtEprocessExtField58 | GtEprocessField57 | 0x400);
-    if (pMacShimData && pMacShimData > MmSystemRangeStart &&
+    if (pMacShimData && (ULONG64)pMacShimData > (ULONG64)MmSystemRangeStart &&
         CheckMemoryValid(pMacShimData) == 1 && pOutputBuffer && OutputSize == 8 &&
         (unsigned __int64)pOutputBuffer < MmUserProbeAddress &&
         (unsigned __int64)(pOutputBuffer + 1) < MmUserProbeAddress)
@@ -1271,8 +1265,8 @@ __int64 EnumKernelMemoryContextOperation(__int64 InputBuffer, __int64 InputSize,
     if (!GtRead(GtEprocessExtField58 | GtEprocessField32 | 0x400))
         InitKernelMemoryContext();
     pMemCtxListHead = (_QWORD *)GtRead(GtEprocessExtField58 | GtEprocessField32 | 0x400);
-    EntryStepSize = GtRead(GtEprocessExtField42 | GtEprocessField54 | 0x400);
-    if (pMemCtxListHead && pMemCtxListHead > MmSystemRangeStart && EntryStepSize &&
+    EntryStepSize = (unsigned int)GtRead(GtEprocessExtField42 | GtEprocessField54 | 0x400);
+    if (pMemCtxListHead && (ULONG64)pMemCtxListHead > (ULONG64)MmSystemRangeStart && EntryStepSize &&
         *pMemCtxListHead > (unsigned __int64)MmSystemRangeStart)
     {
         pEntry = (_QWORD *)(*pMemCtxListHead + EntryStepSize);
@@ -1284,7 +1278,7 @@ __int64 EnumKernelMemoryContextOperation(__int64 InputBuffer, __int64 InputSize,
             memset(pOutputBuffer, 0, BufferSize);
             *pOutputBuffer = 0;
             MaxEntries = ((BufferSize - 24) >> 4) + 1;
-            WinBuildNum = GtRead(GtWindowsBuildNumber);
+            WinBuildNum = (unsigned int)GtRead(GtWindowsBuildNumber);
             if (WinBuildNum < 0x4563)
             {
                 if (WinBuildNum < 0x23F0)
@@ -1359,9 +1353,9 @@ __int64 EnumKernelMemoryDetailOperation(char *pInputBuffer, int InputSize, _DWOR
     if (!GtRead(GtEprocessExtField58 | GtEprocessField32 | 0x400))
         InitKernelMemoryContext();
     pContext = (unsigned __int64 *)GtRead(GtEprocessExtField58 | GtEprocessField32 | 0x400);
-    Offset = GtRead(GtEprocessExtField58 | GtEprocessField66 | 0x400);
+    Offset = (unsigned int)GtRead(GtEprocessExtField58 | GtEprocessField66 | 0x400);
     ppData = (void **)GtRead(GtEprocessExtField58 | GtEprocessField67 | 0x400);
-    if (!pContext || pContext <= MmSystemRangeStart || !Offset || !ppData || ppData <= MmSystemRangeStart)
+    if (!pContext || (ULONG64)pContext <= (ULONG64)MmSystemRangeStart || !Offset || !ppData || (ULONG64)ppData <= (ULONG64)MmSystemRangeStart)
         return 0;
     ListHead = *pContext;
     pData = *ppData;
@@ -1391,7 +1385,7 @@ __int64 EnumKernelMemoryDetailOperation(char *pInputBuffer, int InputSize, _DWOR
     pOutputBuffer[1] = 0;
     *((_BYTE *)pOutputBuffer + 8) = 0;
     MaxEntries = ((OutputSize - 80) >> 5) + 1;
-    if (pData > MmSystemRangeStart && CheckMemoryValid(pData) == 1 && CheckMemoryValid((char *)pData + StrideSize - 1) == 1)
+    if ((ULONG64)pData > (ULONG64)MmSystemRangeStart && CheckMemoryValid(pData) == 1 && CheckMemoryValid((char *)pData + StrideSize - 1) == 1)
     {
         if (BuildNumber < 0x1DB0)
         {
@@ -1419,7 +1413,7 @@ LABEL_31:
     Remaining = *(_DWORD *)pEnd;
     *pOutputBuffer = *(_DWORD *)pEnd;
     pEntry = (_DWORD *)pEnd[1];
-    if (pEntry > MmSystemRangeStart)
+    if ((ULONG64)pEntry > (ULONG64)MmSystemRangeStart)
     {
         for (Index = 0; ; ++Index)
         {
@@ -1469,9 +1463,9 @@ __int64 ReadKernelMemoryRangeSizeOperation(char *pInputBuffer, int InputSize, _Q
     Result = 0;
     if (!GtRead(GtEprocessExtField58 | GtEprocessField60 | 0x400))
         InitKernelMemoryContext();
-    Offset = GtRead(GtEprocessExtField58 | GtEprocessField60 | 0x400);
+    Offset = (unsigned int)GtRead(GtEprocessExtField58 | GtEprocessField60 | 0x400);
     pContext = (_QWORD *)GtRead(GtEprocessExtField58 | GtEprocessField32 | 0x400);
-    if (pContext && pContext > MmSystemRangeStart && Offset && (Offset & 7) == 0 &&
+    if (pContext && (ULONG64)pContext > (ULONG64)MmSystemRangeStart && Offset && (Offset & 7) == 0 &&
         *pContext > (unsigned __int64)MmSystemRangeStart)
     {
         pTarget = (_QWORD *)(*pContext + Offset);
