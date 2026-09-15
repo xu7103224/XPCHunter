@@ -205,8 +205,9 @@ __int64 IrpReadFileWithOffset(
     DWORD ByteOffset,
     void *Buffer,
     ULONG Length,
-    char WaitForLock,
+    PLARGE_INTEGER Timeout,
     _DWORD *pBytesRead,
+    char WaitForLock,
     char UseSecondary)
 {
     int Status;
@@ -240,7 +241,7 @@ __int64 IrpReadFileWithOffset(
     if (!Irp)
         goto Cleanup;
 
-    Status = (int)IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)WaitForLock, 1, (_DWORD *)&BufferMdl);
+    Status = (int)IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)Timeout, 1, (_DWORD *)&BufferMdl);
     if (Status < 0)
     {
         IoFreeIrp(Irp);

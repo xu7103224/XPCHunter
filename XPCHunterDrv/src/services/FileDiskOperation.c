@@ -44,9 +44,7 @@ extern unsigned int QueryNdisDriverObject(__int64 OutputBuffer, unsigned int Max
 extern unsigned int QueryPnpManagerDriverObject(__int64 OutputBuffer, unsigned int MaxEntries);
 extern void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
 extern char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
-extern __int64 ResolveKernelModuleBasePair(__int64 Address, __int64 Size, _QWORD *pResult, __int64 Flags);
 extern char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
-extern __int64 ValidateAndClearProcessContext(__int64 Process, __int64 Flags, __int64 Context, __int64 Result);
 extern void ValidateObjectTypeEntries(__int64 OutputBuffer);
 extern void QueryObjectDirectoryAndEnumerate(__int64 OutputBuffer, unsigned int OutputSize);
 
@@ -100,14 +98,11 @@ __int64 DeviceIoControlOperation(char *pInputBuffer, int InputSize, unsigned int
 __int64 DeviceIoControlSimpleOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithBufferOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DeviceIoControlWithStringOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 DisableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 DisableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskReadSectorOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 DiskSectorReadWriteOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 EnableObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnableObjectProtectOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 EnableThreadProtectOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
-__int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
 __int64 EnumDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 EnumFileSystemContextOperation(__int64 InputBuffer, __int64 InputSize, _BYTE *pOutputBuffer, int OutputSize);
 __int64 EnumHookDetailOperation(char *pInputBuffer, int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
@@ -148,7 +143,6 @@ __int64 GetKernelBaseLegacyOperation(__int64 InputBuffer, __int64 InputSize, _DW
 __int64 InitFileSystemCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitFileSystemFilterOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitKernelMemoryContextOperation(void);
-__int64 InitObjectCallbackOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 InstallUSBPortSyscallHookOperation(char *Address, int InputSize);
 __int64 KernelNotifyRoutineOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 KernelNotifyRoutineExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
@@ -209,7 +203,7 @@ __int64 CreateFileWithPathOperation(__int64 InputBuffer, __int64 InputSize, _DWO
     _WORD *pFilePath = (_WORD *)InputBuffer;
     SIZE_T FilePathLength = (unsigned int)InputSize;
     _QWORD *pFileHandle = (_QWORD *)pOutputBuffer;
-    unsigned int LengthCopy = FilePathLength;
+    unsigned int LengthCopy = (unsigned int)FilePathLength;
     unsigned int LastCharIndex;
     void *FileHandle;
 
@@ -231,7 +225,7 @@ __int64 CreateFileWithPathOperation(__int64 InputBuffer, __int64 InputSize, _DWO
     if (!CheckFilePathFilter((__int64)pFilePath, LastCharIndex) &&
         !(unsigned int)CreateFileWithPath(pFilePath, 0, &FileHandle, 0x100081, 0x80, 1, 1, 0x20))
     {
-        *pFileHandle = FileHandle;
+        *pFileHandle = (_QWORD)FileHandle;
         return 1;
     }
     return 0;
@@ -258,14 +252,14 @@ __int64 CloseHandleOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOu
     HandleValue = *pInputBuffer;
     HandleValueCopy = *pInputBuffer;
     pZwClose = (__int64 (*)(__int64))GtRead(GtRegisterObjectCallbacksFunc);
-    PreviousMode = GtRead(GtSdstServiceCount);
+    PreviousMode = (unsigned int)GtRead(GtSdstServiceCount);
     Result = PreviousMode;
     if (pZwClose && PreviousMode != -1 && CheckProcessJobObject(HandleValue))
     {
         CurrentThread = KeGetCurrentThread();
         PrevModeValue = *((_BYTE *)CurrentThread + Result);
         *((_BYTE *)CurrentThread + Result) = 0;
-        CloseResult = pZwClose(HandleValueCopy);
+        CloseResult = (int)pZwClose(HandleValueCopy);
         *((_BYTE *)CurrentThread + Result) = PrevModeValue;
         return CloseResult >= 0;
     }
@@ -381,7 +375,7 @@ __int64 WriteFileOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
                 if ((int)IrpWriteFile(*(void **)pInputBuffer, 0, pInputBuffer[4],
                     *((void **)pInputBuffer + 1), Timeout, &IoStatusBlock) >= 0)
                 {
-                    *pBytesWritten = IoStatusBlock.Information;
+                    *pBytesWritten = (_DWORD)IoStatusBlock.Information;
                     return 1;
                 }
             }
@@ -426,7 +420,7 @@ __int64 ReadFileOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutpu
                 if ((int)IrpReadFileEx(*(void **)pInputBuffer, 0, pInputBuffer[4],
                     *((void **)pInputBuffer + 1), Timeout, &IoStatusBlock) >= 0)
                 {
-                    *pBytesRead = IoStatusBlock.Information;
+                    *pBytesRead = (_DWORD)IoStatusBlock.Information;
                     return 1;
                 }
             }
@@ -486,7 +480,7 @@ __int64 ReadDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *p
     *((_BYTE *)&Timeout) = 1;
     return (unsigned int)IrpReadFileWithOffset(
         *pInputBuffer, 1, pInputBuffer[4], *((_DWORD *)pInputBuffer + 6),
-        Timeout, &IoStatusBlock, *((_BYTE *)pInputBuffer + 20),
+        Timeout, (_DWORD *)&IoStatusBlock, *((_BYTE *)pInputBuffer + 20),
         *((_BYTE *)pInputBuffer + 21)) == 0;
 }
 __int64 EnumDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
@@ -557,9 +551,9 @@ __int64 EnumDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *p
         if (pInputBuffer[2] == 6 && *(_WORD *)(*(_QWORD *)pInputBuffer + 2) == 58)
             IsRootPath = *(_WORD *)(*(_QWORD *)pInputBuffer + 4) == 92;
         *((_BYTE *)&Timeout) = 1;
-        OpenResult = IrpReadFileWithOffset(
+        OpenResult = (int)IrpReadFileWithOffset(
             Handle[0], 1, *((void **)pInputBuffer + 2), pInputBuffer[3],
-            Timeout, &IoStatusBlock, 1, 0);
+            Timeout, (_DWORD *)&IoStatusBlock, 1, 0);
         while (1)
         {
             if (!OpenResult)
@@ -603,9 +597,9 @@ __int64 EnumDirectoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *p
                 if (*pHasMoreData != 1)
                 {
                     *((_BYTE *)&Timeouta) = 1;
-                    OpenResult = IrpReadFileWithOffset(
+                    OpenResult = (int)IrpReadFileWithOffset(
                         Handle[0], 1, *((void **)pInputBuffer + 2), pInputBuffer[3],
-                        Timeouta, &IoStatusBlock, 0, 0);
+                        Timeouta, (_DWORD *)&IoStatusBlock, 0, 0);
                     continue;
                 }
             }
@@ -663,14 +657,14 @@ __int64 RenameFileOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOut
     if (*((_WORD *)*pInputBuffer + OldLastChar))
         *((_WORD *)*pInputBuffer + OldLastChar) = 0;
     NewLastChar = ((ULONG64)*((unsigned int *)pInputBuffer + 6) - 2) >> 1;
-    pNewPath2 = pInputBuffer[2];
+    pNewPath2 = (_WORD *)(ULONG_PTR)pInputBuffer[2];
     if (pNewPath2[NewLastChar])
         pNewPath2[NewLastChar] = 0;
     if (!(unsigned int)CreateFileWithPath(
         (__int16 *)*pInputBuffer, 0, &FileHandle, 0x80, 0x80, 1, 1, 0x20))
     {
         __int64 result = (int)CmdSendRenameFileIrp(
-            FileHandle, (const void *)pInputBuffer[2], *((_DWORD *)pInputBuffer + 6)) >= 0;
+            FileHandle, (const void *)(ULONG_PTR)pInputBuffer[2], *((_DWORD *)pInputBuffer + 6)) >= 0;
         ZwClose(FileHandle);
         return result;
     }
@@ -736,15 +730,15 @@ __int64 CopyFileOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutpu
     if (*((_WORD *)*pInputBuffer + SrcLastChar))
         *((_WORD *)*pInputBuffer + SrcLastChar) = 0;
     DstLastChar = ((ULONG64)*((unsigned int *)pInputBuffer + 6) - 2) >> 1;
-    pDstPath2 = pInputBuffer[2];
+    pDstPath2 = (_WORD *)(ULONG_PTR)pInputBuffer[2];
     if (pDstPath2[DstLastChar])
         pDstPath2[DstLastChar] = 0;
     if (!CheckFilePathFilter((__int64)*pInputBuffer, *((_DWORD *)pInputBuffer + 2)) &&
         !CheckFilePathFilter((__int64)pInputBuffer[2], *((_DWORD *)pInputBuffer + 6)) &&
         !(unsigned int)CreateFileWithPath(
-            (__int16 *)*pInputBuffer, 0, &SrcHandle, 0x80, 0x80, 1, 1, 0x20))
+            (__int16 *)(ULONG_PTR)*pInputBuffer, 0, &SrcHandle, 0x80, 0x80, 1, 1, 0x20))
     {
-        if (!(unsigned int)CmdQueryFileStandardInfo(SrcHandle, &FileInfo))
+        if (!(unsigned int)CmdQueryFileStandardInfo(SrcHandle, (_QWORD *)&FileInfo))
         {
             TempBuffer = ExAlloc(NonPagedPool, 0x2000);
             TempBufferCopy = TempBuffer;
@@ -787,7 +781,7 @@ __int64 OpenFileForEnumOperation(__int64 InputBuffer, __int64 InputSize, _DWORD 
     _WORD *pFilePath = (_WORD *)InputBuffer;
     SIZE_T FilePathLength = (unsigned int)InputSize;
     _QWORD *pFileHandle = (_QWORD *)pOutputBuffer;
-    unsigned int LengthCopy = FilePathLength;
+    unsigned int LengthCopy = (unsigned int)FilePathLength;
     unsigned int LastCharIndex;
     void *FileHandle;
 
@@ -809,7 +803,7 @@ __int64 OpenFileForEnumOperation(__int64 InputBuffer, __int64 InputSize, _DWORD 
     if (!CheckFilePathFilter((__int64)pFilePath, LastCharIndex) &&
         !(unsigned int)CreateFileWithPath(pFilePath, 0, &FileHandle, 0x100, 0x80, 1, 5, 0x20))
     {
-        *pFileHandle = FileHandle;
+        *pFileHandle = (_QWORD)FileHandle;
         return 1;
     }
     return 0;
@@ -909,7 +903,7 @@ __int64 CheckFileExistOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *
     _WORD *pFilePath = (_WORD *)InputBuffer;
     SIZE_T FilePathLength = (unsigned int)InputSize;
     _DWORD *pResult = pOutputBuffer;
-    unsigned int LengthCopy = FilePathLength;
+    unsigned int LengthCopy = (unsigned int)FilePathLength;
     unsigned int LastCharIndex;
     HANDLE FileHandle;
 
@@ -1037,22 +1031,22 @@ __int64 DiskReadSectorOperation(char *pInputBuffer, int InputSize, unsigned int 
                                         {
                                             if (i < (unsigned int)BufferSize)
                                             {
-                                                *pOutputBuffer = BufferSize;
+                                                *pOutputBuffer = (unsigned int)BufferSize;
                                                 *(_QWORD *)(pOutputBuffer + 1) = 0;
                                                 pOutputBuffer[3] = 0;
                                                 pOutputBuffer[1028] = 0;
                                                 RtlMoveMemory(pOutputBuffer + 4, Buffer, BufferSize);
-                                                if ((unsigned __int8)ProcessDiskSectorData(DeviceObject, 0, Buffer, (unsigned int)BufferSize) == 1)
+                                                if ((unsigned __int8)ProcessDiskSectorData((__int64)DeviceObject, 0, (__int64)Buffer, (unsigned int)BufferSize) == 1)
                                                 {
                                                     pOutputBuffer[1028] = 1;
                                                     RtlMoveMemory(pOutputBuffer + 1029, Buffer, BufferSize);
                                                 }
                                                 AnalyzeDiskSectorBuffer((__int64)pOutputBuffer);
                                                 if (pOutputBuffer[1] || pOutputBuffer[2])
-                                                    pOutputBuffer[3] = FindBootSectorWithRetry(DeviceObject, (unsigned int)BufferSize);
-                                                if (!pOutputBuffer[1] && !pOutputBuffer[2] && CheckMbrBootablePartition((__int64)(pOutputBuffer + 4)))
+                                                    pOutputBuffer[3] = (unsigned int)FindBootSectorWithRetry(DeviceObject, (unsigned int)BufferSize);
+                                                if (!pOutputBuffer[1] && !pOutputBuffer[2] && CheckMbrBootablePartition((void *)(pOutputBuffer + 4)))
                                                 {
-                                                    BootablePartitionLba = FindBootablePartitionLba((__int64)(pOutputBuffer + 4));
+                                                    BootablePartitionLba = (int)FindBootablePartitionLba((__int64)(pOutputBuffer + 4));
                                                     Lba = BootablePartitionLba;
                                                     if (BootablePartitionLba)
                                                     {
@@ -1068,14 +1062,14 @@ __int64 DiskReadSectorOperation(char *pInputBuffer, int InputSize, unsigned int 
                                                                     {
                                                                         pOutputBuffer[3078] = 0;
                                                                         RtlMoveMemory(pOutputBuffer + 2054, Buffer, BufferSize);
-                                                                        if ((unsigned __int8)ProcessDiskSectorData(DeviceObject, (unsigned int)(BufferSize * Lba), Buffer, (unsigned int)BufferSize) == 1)
+                                                                        if ((unsigned __int8)ProcessDiskSectorData((__int64)DeviceObject, (unsigned int)(BufferSize * Lba), (__int64)Buffer, (unsigned int)BufferSize) == 1)
                                                                         {
                                                                             pOutputBuffer[3078] = 1;
                                                                             RtlMoveMemory(pOutputBuffer + 3079, Buffer, BufferSize);
                                                                         }
                                                                         CheckDiskSectorHealth((char *)pOutputBuffer);
                                                                         if (pOutputBuffer[4103])
-                                                                            pOutputBuffer[4105] = FindReadableDiskSector(DeviceObject, (unsigned int)BufferSize, (__int64)pOutputBuffer);
+                                                                            pOutputBuffer[4105] = (unsigned int)FindReadableDiskSector(DeviceObject, (unsigned int)BufferSize, (__int64)pOutputBuffer);
                                                                     }
                                                                     break;
                                                                 }

@@ -666,7 +666,7 @@ __int64 IrpFsctlGetVolumeData(void *FileHandle, __int64 *pVolumeData);
 __int64 IrpFsctlVolumeDismount(void *FileObject);
 __int64 IrpReadFile(void *FileHandle, struct _IRP *AssociatedIrp, ULONG Length, ULONG CreateOptions);
 int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, void *Buffer, PLARGE_INTEGER Timeout, struct _IO_STATUS_BLOCK *IoStatusBlock);
-__int64 IrpReadFileWithOffset( void *FileHandle, DWORD ByteOffset, void *Buffer, ULONG Length, char WaitForLock, _DWORD *pBytesRead, char UseSecondary);
+__int64 IrpReadFileWithOffset( void *FileHandle, DWORD ByteOffset, void *Buffer, ULONG Length, PLARGE_INTEGER Timeout, _DWORD *pBytesRead, char WaitForLock, char UseSecondary);
 
 __int64 IrpSetupBufferMdl(PIRP Irp, __int64 StackLocation, void *Buffer, ULONG BufferSize, char ProbeAndLock, char WriteOperation, _DWORD *pFlags);
 
