@@ -101,7 +101,7 @@ char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize);
 char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize);
 char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize);
 char ReadNtoskrnlFileToBuffer3(void **pBuffer, unsigned int *pBufferSize);
-char ReadNtFileForSsdtTargets2(void **pFileBuffer, unsigned int *pFileSize);
+bool ReadNtFileForSsdtTargets2(_QWORD *pFileBuffer, unsigned int *pFileSize);
 char BuildSsdtHookTableWin10(void);
 void BuildSsdtHookTableLegacy(void);
 char FillExportEntrySlot(__int64 pOutputTable);
@@ -209,7 +209,7 @@ _QWORD *FindDiskDriverModule(void)
         ModuleSizeIdx = GtCallbackField58;
     }
     ModuleBase = ModuleStart;
-    ModuleSize = GtRead(ModuleSizeIdx);
+    ModuleSize = (unsigned int)GtRead(ModuleSizeIdx);
     if (ModuleBase && ModuleSize)
     {
         ModuleEnd = ModuleBase + ModuleSize;
@@ -348,7 +348,7 @@ bool ReadNtoskrnlNlsFile(_QWORD *OutBuffer, unsigned int *OutSize)
     EncodedPath[20] = 115; EncodedPath[21] = 0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &FileBuffer, (ULONG *)&FileSize, 1))
     {
-        Result = ReadNtFileToBuffer((int *)FileBuffer, (unsigned int)FileSize, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)FileBuffer, (unsigned int)FileSize, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(FileBuffer);
     }
     return Result;
@@ -376,7 +376,7 @@ bool ReadWin32kDriverFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     v9 = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pFileBuffer, pFileSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pFileBuffer, pFileSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -404,7 +404,7 @@ bool ReadWdfLibraryModule(_QWORD *OutBuffer, unsigned int *OutSize)
     EncodedPath[20] = 115; EncodedPath[21] = 0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -439,7 +439,7 @@ bool ReadDiskPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     }
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -467,7 +467,7 @@ bool ReadKbdClassSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     EncodedPath[20] = 115; EncodedPath[21] = 0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
     {
-        Result = ReadNtFileToBuffer((int *)pRawData, (unsigned int)RawDataSize, pFileBuffer, pFileSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)pRawData, (unsigned int)RawDataSize, (PUCHAR *)pFileBuffer, pFileSize) == 1;
         ExFree(pRawData);
     }
     return Result;
@@ -495,7 +495,7 @@ bool ReadIpsecSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     ExtraValue = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
     {
-        Result = ReadNtFileToBuffer((int *)pRawData, (unsigned int)RawDataSize, pFileBuffer, pFileSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)pRawData, (unsigned int)RawDataSize, (PUCHAR *)pFileBuffer, pFileSize) == 1;
         ExFree(pRawData);
     }
     return Result;
@@ -523,7 +523,7 @@ bool ReadNetioDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     v9 = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -552,7 +552,7 @@ bool ReadUSBPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     v9 = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -581,7 +581,7 @@ bool ReadVolumeSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     v9 = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pFileBuffer, pFileSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pFileBuffer, pFileSize) == 1;
         ExFree(Src);
     }
     return Result;
