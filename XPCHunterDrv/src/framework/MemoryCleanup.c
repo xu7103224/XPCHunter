@@ -63,10 +63,10 @@ __int64 CallKernelFreeEntryV2(__int64 TargetAddress)
     if (pFreeFunc)
     {
         if ((TargetAddress & 0xFFFFFFF8) != 0
-            && MmIsAddressValid((PVOID)((unsigned int)TargetAddress & 0xFFFFFFF8)) == 1
-            && MmIsAddressValid((PVOID)(((unsigned int)TargetAddress & 0xFFFFFFF8) + 15)) == 1)
+            && MmIsAddressValid((PVOID)(ULONG_PTR)((unsigned int)TargetAddress & 0xFFFFFFF8)) == 1
+            && MmIsAddressValid((PVOID)((ULONG_PTR)((unsigned int)TargetAddress & 0xFFFFFFF8) + 15)) == 1)
         {
-            pEntryPtr = *(_QWORD **)(((unsigned int)TargetAddress & 0xFFFFFFF8) + 8);
+            pEntryPtr = *(_QWORD **)((ULONG_PTR)((unsigned int)TargetAddress & 0xFFFFFFF8) + 8);
             if (pEntryPtr)
             {
                 if (MmIsAddressValid(pEntryPtr) == 1 && MmIsAddressValid((char *)pEntryPtr + 39) == 1)
@@ -93,7 +93,7 @@ __int64 CallKernelFreeEntryV2(__int64 TargetAddress)
                 if (*pCounter)
                     --*pCounter;
 
-                pEntryObj = (_QWORD *)((unsigned int)TargetAddress & 0xFFFFFFF8);
+                pEntryObj = (_QWORD *)(ULONG_PTR)((unsigned int)TargetAddress & 0xFFFFFFF8);
                 if (MmIsAddressValid(pEntryObj) == 1 && MmIsAddressValid((char *)pEntryObj + 15) == 1)
                 {
                     pDataPtr = pEntryObj[1];
@@ -137,7 +137,7 @@ __int64 CleanupProcessMemoryEntry(_QWORD *pTargetEntry)
             {
                 for (_QWORD *pCurrent = *pSentinel; pCurrent != (_QWORD *)pSentinel; pCurrent = (_QWORD *)*pCurrent)
                 {
-                    if (pCurrent <= MmSystemRangeStart)
+                    if ((ULONG64)pCurrent <= (ULONG64)MmSystemRangeStart)
                         break;
                     if (MmIsAddressValid(pCurrent) != 1)
                         break;
@@ -161,7 +161,7 @@ __int64 CleanupProcessMemoryEntry(_QWORD *pTargetEntry)
 __int64 ClearKernelObjectEntry(__int64 TargetAddress)
 {
     char Result = 0;
-    int IsWin7 = GtRead(GtEprocessField28);
+    int IsWin7 = (int)GtRead(GtEprocessField28);
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     void (__fastcall *pFreeFunc)(__int64, __int64) = (void (__fastcall *)(__int64, __int64))GtRead((GLOBAL_TABLE_INDEX)0x41A8);
     if (pFreeFunc)
@@ -189,9 +189,9 @@ SKIP_FREE:
         {
             if (BuildNumber > 0x1DB1)
             {
-                pTempCounter = pSsdtTable + 512;
+                pTempCounter = (_DWORD *)(pSsdtTable + 512);
                 if (BuildNumber == 9200)
-                    pCounter = pSsdtTable + 512;
+                    pCounter = (_DWORD *)(pSsdtTable + 512);
                 else
                 {
                     if (BuildNumber < 0x3839 || BuildNumber == 14393)
@@ -247,7 +247,7 @@ SKIP_FREE:
 __int64 ClearSsdtRelatedEntry(__int64 TargetAddress)
 {
     char Result = 0;
-    int IsWin7 = GtRead(GtEprocessField28);
+    int IsWin7 = (int)GtRead(GtEprocessField28);
     void (__fastcall *pFreeFunc)(__int64) = (void (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x41B7);
     if (pFreeFunc)
     {
@@ -448,7 +448,7 @@ char FreeProcessMemoryEntry(__int64 TargetAddress)
         _DWORD *pCounter = (_DWORD *)GtRead(GtEprocessField27|0x800);
         if (pWin8ListHead && pCounter)
         {
-            unsigned int BuildNumber = GtRead(GtWindowsBuildNumber);
+            unsigned int BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
             unsigned int EntryIndex = 0;
             unsigned int EntryCount = BuildNumber < 0x3FAB ? 8 : 32;
             while (MmIsAddressValid(pWin8ListHead))
@@ -625,7 +625,7 @@ __int64 UnlinkFromMemoryBlockList(PVOID *pTargetPointer)
     int IterationCount = 0;
     while (pCurrentNode != (PVOID *)pListHead)
     {
-        if (pCurrentNode <= MmSystemRangeStart) break;
+        if ((ULONG64)pCurrentNode <= (ULONG64)MmSystemRangeStart) break;
         if (MmIsAddressValid(pCurrentNode) != 1) break;
         if ((unsigned int)++IterationCount > 0x1000) break;
         if (pCurrentNode == pTargetPointer)
@@ -663,7 +663,7 @@ __int64 UnlinkProcessMemoryBlock(ULONG_PTR *pTargetEntry)
     {
         for (_QWORD *pCurrentNode = (_QWORD *)*pType2ListHead; pCurrentNode != pType2ListHead; pCurrentNode = (_QWORD *)*pCurrentNode)
         {
-            if (pCurrentNode <= MmSystemRangeStart) break;
+            if ((ULONG64)pCurrentNode <= (ULONG64)MmSystemRangeStart) break;
             if (MmIsAddressValid(pCurrentNode) != 1) break;
             if ((unsigned int)++IterationCount > 0x1000) break;
             if (pCurrentNode == (_QWORD *)pTargetEntry)
@@ -674,8 +674,8 @@ __int64 UnlinkProcessMemoryBlock(ULONG_PTR *pTargetEntry)
                     pFreeCallback(pTargetEntry[4]);
                     _QWORD *pPrevEntry = (_QWORD *)*pCurrentNode;
                     _QWORD *pNextEntry = (_QWORD *)pCurrentNode[1];
-                    pPrevEntry[1] = pNextEntry;
-                    *pNextEntry = pPrevEntry;
+                    pPrevEntry[1] = (_QWORD)pNextEntry;
+                    *pNextEntry = (_QWORD)pPrevEntry;
                     ExFreePoolWithTag(pTargetEntry, 0);
                     return 1;
                 }
