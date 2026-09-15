@@ -283,7 +283,7 @@ LABEL_CONTINUE:
             SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT,
                   ByteIndex + DispatchResult + 1);
             if ((CTX_D(SectionInfo, DEC_CTX_STATE_FLAGS) & 4) != 0)
-                ClassifyPESectionType((ULONG64)SectionInfo);
+                ClassifyPESectionType((PUCHAR)SectionInfo);
             return 0;
         }
     }
@@ -1118,7 +1118,7 @@ __int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedPara
             break;
 
         // 构造调用上下文
-        PUCHAR FuncContext = CTX_Q(Context, 0);
+        PUCHAR FuncContext = (PUCHAR)CTX_Q(Context, 0);
         // 设置函数分发参数
         ULONG64 FuncContextArray[6];
         FuncContextArray[0] = (ULONG64)(BufferBase + TotalSize + OpIndex);
@@ -1311,7 +1311,7 @@ __int64 DecodeOpcodeWithModrm(PUCHAR Context)
 
     // 读取立即操作数
     ImmediateSize = (int)DecodeImmediateOperandValue(
-        (ULONG64)(BufferBase + 1), (ULONG64)BufferEnd, DecodeContext, 0);
+        (PUCHAR)(BufferBase + 1), (ULONG64)BufferEnd, DecodeContext, 0);
     if (ImmediateSize == -1)
         return (ULONG64)-1;
 
@@ -1773,13 +1773,13 @@ __int64 DecodeOpcodeWithPrefix(PUCHAR *Context)
     }
 
     // 解码立即操作数
-    Result = DecodeImmediateOperandValue(Context[0], (ULONG64)Context[1], DecodeCtx, &ImmediateSize);
+    Result = (int)DecodeImmediateOperandValue(Context[0], (ULONG64)Context[1], DecodeCtx, (PULONG)&ImmediateSize);
     if (Result == -1)
         return (ULONG64)-1;
 
     RemainingSize = Result + 1;
     Context[0] += ImmediateSize;
-    DecodeModrmInstruction(Context);
+    DecodeModrmInstruction((PULONG64)Context);
     Context[0] -= ImmediateSize;
     Context[0]--;
 
@@ -1830,7 +1830,7 @@ __int64 DecodeOpcodeWithPrefixEx(PUCHAR *Context)
         }
     }
 
-    Result = DecodeImmediateOperandSize(Context[0], (ULONG64)Context[1], DecodeCtx, &SizeResult);
+    Result = (int)DecodeImmediateOperandSize(Context[0], (ULONG64)Context[1], DecodeCtx, (PULONG)&SizeResult);
     if (Result == -1)
         return (ULONG64)-1;
 
@@ -2377,7 +2377,7 @@ __int64 DispatchInstructionDecode(
         OperandIndex++;
 
         // 设置操作数大小
-        CalcOpcodeSize(DecodeCtx, (PULONG)(56LL * (OperandIndex - 1) + DecodeCtx + 0x30));
+        CalcOpcodeSize((PUCHAR)DecodeCtx, (PULONG)(56LL * (OperandIndex - 1) + DecodeCtx + 0x30));
 
         if (OperandIndex >= 3)
             return TotalSize;
@@ -2546,7 +2546,7 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             else
             {
                 CTX_Q(OperandOut, 0x20) |= 1;
-                DecodeModrmAddressingMode(DecodeCtx, 0, ModeField, OperandOut, 1);
+                DecodeModrmAddressingMode((PULONG)DecodeCtx, 0, ModeField, OperandOut, 1);
             }
             ULONG DispValue = CTX_D(DecodeCtx, 0xE0);
             CTX_Q(OperandOut, 0x20) |= 0x4000;
@@ -2563,7 +2563,7 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             else
             {
                 CTX_Q(OperandOut, 0x20) |= 1;
-                DecodeModrmAddressingMode(DecodeCtx, 0, ModeField, OperandOut, 1);
+                DecodeModrmAddressingMode((PULONG)DecodeCtx, 0, ModeField, OperandOut, 1);
             }
             ULONG DispValue = CTX_D(DecodeCtx, 0xE0);
             CTX_Q(OperandOut, 0x20) |= 0x10000;
@@ -2579,7 +2579,7 @@ LABEL_MODRM:
         return 0;
 
 LABEL_MODRM_ADDR:
-    DecodeModrmAddressingMode(DecodeCtx, 0, RegField, OperandOut, IsModrmAddr);
+    DecodeModrmAddressingMode((PULONG)DecodeCtx, 0, RegField, OperandOut, IsModrmAddr);
     return 0;
 }
 
