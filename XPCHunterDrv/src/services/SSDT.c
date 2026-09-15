@@ -100,7 +100,7 @@ char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize);
 char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize);
 char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize);
 char ReadNtoskrnlFileToBuffer3(void **pBuffer, unsigned int *pBufferSize);
-char ReadNtFileForSsdtTargets2(void **pFileBuffer, unsigned int *pFileSize);
+bool ReadNtFileForSsdtTargets2(_QWORD *pFileBuffer, unsigned int *pFileSize);
 char BuildSsdtHookTableWin10(void);
 void BuildSsdtHookTableLegacy(void);
 char FillExportEntrySlot(__int64 pOutputTable);
@@ -967,7 +967,7 @@ __int64 CleanupNtoskrnlFile(void)
     if (NtImageBuffer)
     {
         ExFree(NtImageBuffer);
-        return (void *)(ULONG_PTR)GtWrite(GtEprocessField66, 0);
+        return (__int64)(ULONG_PTR)GtWrite(GtEprocessField66, 0);
     }
     return (__int64)result;
 }
@@ -1174,7 +1174,7 @@ char ReadNtFileToBuffer(PUCHAR Src, ULONG MaxCount, PUCHAR *OutBuffer, PULONG Ou
         return Result;
 
     DosHeader = (PIMAGE_DOS_HEADER)Src;
-    if (DosHeader->e_lfanew >= MaxCount || DosHeader->e_lfanew + 24 >= MaxCount)
+    if ((ULONG)DosHeader->e_lfanew >= MaxCount || (ULONG)DosHeader->e_lfanew + 24 >= MaxCount)
         return Result;
 
     NtHeaders = (PIMAGE_NT_HEADERS)(Src + DosHeader->e_lfanew);
@@ -1496,11 +1496,11 @@ __int64 CmdEnumSyscallEntries(__int64 InputBuffer, __int64 InputSize, _BYTE *pOu
     {
         ProbeForWrite(pOutputBuffer, 0x548u, 1u);
         memset(pOutputBuffer, 0, 0x548u);
-        TableReady = GtRead(GtEprocessField135 | 0x100);
+        TableReady = (int)GtRead(GtEprocessField135 | 0x100);
         if (!TableReady)
         {
             InitDiskQueryExportTable();
-            TableReady = GtRead(GtEprocessField135 | 0x100);
+            TableReady = (int)GtRead(GtEprocessField135 | 0x100);
         }
         if (EnumSyscallTable7((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -1567,11 +1567,11 @@ __int64 CmdEnumShadowSyscallEntries(__int64 InputBuffer, __int64 InputSize, _BYT
     {
         ProbeForWrite(pOutputBuffer, 0x548u, 1u);
         memset(pOutputBuffer, 0, 0x548u);
-        IsReady = GtRead(GtCallbackField15);
+        IsReady = (int)GtRead(GtCallbackField15);
         if (!IsReady)
         {
             InitShadowSyscallExportTable();
-            IsReady = GtRead(GtCallbackField15);
+            IsReady = (int)GtRead(GtCallbackField15);
         }
         if (EnumShadowSyscallTable((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -1638,11 +1638,11 @@ __int64 CmdEnumSyscallTable2(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x578u, 1u);
         memset(pOutputBuffer, 0, 0x578u);
-        TableReady = GtRead(GtCallbackField37);
+        TableReady = (int)GtRead(GtCallbackField37);
         if (!TableReady)
         {
             BuildSsdtHookTargets2();
-            TableReady = GtRead(GtCallbackField37);
+            TableReady = (int)GtRead(GtCallbackField37);
         }
         if (EnumSsdtFunctionTable2((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -1720,11 +1720,11 @@ __int64 CmdEnumSyscallTable3(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x748u, 1u);
         memset(pOutputBuffer, 0, 0x748u);
-        HookTableReady = GtRead(GtCallbackField44);
+        HookTableReady = (int)GtRead(GtCallbackField44);
         if (!HookTableReady)
         {
             BuildSsdtHookTargets3();
-            HookTableReady = GtRead(GtCallbackField44);
+            HookTableReady = (int)GtRead(GtCallbackField44);
         }
         if (InitContextTableFromSyscallBase((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -1798,11 +1798,11 @@ __int64 CmdEnumSyscallTable4(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x548u, 1u);
         memset(pOutputBuffer, 0, 0x548u);
-        HookTableReady = GtRead(GtCallbackField49);
+        HookTableReady = (int)GtRead(GtCallbackField49);
         if (!HookTableReady)
         {
             BuildSsdtHookTargets4();
-            HookTableReady = GtRead(GtCallbackField49);
+            HookTableReady = (int)GtRead(GtCallbackField49);
         }
         if (EnumSsdtFunctionTable4((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -1871,11 +1871,11 @@ __int64 CmdEnumSyscallTable5(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x578u, 1u);
         memset(pOutputBuffer, 0, 0x578u);
-        TableReady = GtRead(GtCallbackField61);
+        TableReady = (int)GtRead(GtCallbackField61);
         if (!TableReady)
         {
             ParseStorPortExportDir();
-            TableReady = GtRead(GtCallbackField61);
+            TableReady = (int)GtRead(GtCallbackField61);
         }
         if (FillSyscallTableInfo((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -1946,11 +1946,11 @@ __int64 CmdEnumSyscallTable6(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x548u, 1u);
         memset(pOutputBuffer, 0, 0x548u);
-        IsReady = GtRead(GtCallbackField72);
+        IsReady = (int)GtRead(GtCallbackField72);
         if (!IsReady)
         {
             ParseSyscallFileExportDir();
-            IsReady = GtRead(GtCallbackField72);
+            IsReady = (int)GtRead(GtCallbackField72);
         }
         if (EnumSyscallTable6((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -2018,11 +2018,11 @@ __int64 CmdEnumSyscallTable7(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x548u, 1u);
         memset(pOutputBuffer, 0, 0x548u);
-        IsReady = GtRead(GtCallbackField80);
+        IsReady = (int)GtRead(GtCallbackField80);
         if (!IsReady)
         {
             BuildSyscallExportTable();
-            IsReady = GtRead(GtCallbackField80);
+            IsReady = (int)GtRead(GtCallbackField80);
         }
         if (InitSyscallExportEntryArray((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -2091,11 +2091,11 @@ __int64 CmdEnumSyscallTable8(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x548u, 1u);
         memset(pOutputBuffer, 0, 0x548u);
-        TableReady = GtRead(GtCallbackField83);
+        TableReady = (int)GtRead(GtCallbackField83);
         if (!TableReady)
         {
             InitWin32kSyscallTable();
-            TableReady = GtRead(GtCallbackField83);
+            TableReady = (int)GtRead(GtCallbackField83);
         }
         if (CopyWin32kServiceTable((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -2163,11 +2163,11 @@ __int64 CmdEnumSyscallTable9(__int64 InputBuffer, __int64 InputSize, _BYTE *pOut
     {
         ProbeForWrite(pOutputBuffer, 0x548u, 1u);
         memset(pOutputBuffer, 0, 0x548u);
-        TableReady = GtRead(GtDisableHookProtectionAddr2 | GtEprocessField157);
+        TableReady = (int)GtRead(GtDisableHookProtectionAddr2 | GtEprocessField157);
         if (!TableReady)
         {
             ParseSyscallTableExportDir();
-            TableReady = GtRead(GtDisableHookProtectionAddr2 | GtEprocessField157);
+            TableReady = (int)GtRead(GtDisableHookProtectionAddr2 | GtEprocessField157);
         }
         if (CopySyscallTableEntries((__int64)(pOutputBuffer + 8)) == 1)
         {
@@ -2300,9 +2300,9 @@ __int64 CmdQuerySsdtDetails(__int64 InputBuffer, __int64 InputSize, _QWORD *pOut
 
     if (!(unsigned int)GtRead(GtEprocessExtField46))
         InitKernelDataSectionTable();
-    TableCount = GtRead(GtEprocessExtField46);
+    TableCount = (int)GtRead(GtEprocessExtField46);
     ServiceTableBase = (_QWORD *)GtRead(GtEprocessExtField47);
-    ServiceTableCount = GtRead(GtEprocessExtField48);
+    ServiceTableCount = (int)GtRead(GtEprocessExtField48);
     ServiceTableLimit = (unsigned int *)GtRead(GtEprocessExtField49);
     ServiceTableArray[0] = GtRead(GtEprocessExtField50);
     ServiceTableArray[1] = GtRead(GtEprocessExtField51);
@@ -2329,8 +2329,8 @@ __int64 CmdQuerySsdtDetails(__int64 InputBuffer, __int64 InputSize, _QWORD *pOut
         ProbeForWrite(pOutputBuffer, 0xB0u, 8u);
         memset(pOutputBuffer, 0, 0xB0u);
         *(_DWORD *)pOutputBuffer = 7;
-        pOutputBuffer[1] = ServiceTableBase;
-        pOutputBuffer[2] = (char *)ServiceTableLimit + *ServiceTableLimit + 4;
+        pOutputBuffer[1] = (_QWORD)ServiceTableBase;
+        pOutputBuffer[2] = (_QWORD)((char *)ServiceTableLimit + *ServiceTableLimit + 4);
         pOutputBuffer[4] = ServiceTableArray[0];
         pOutputBuffer[5] = ServiceTableBase[1];
         pOutputBuffer[7] = ServiceTableArray[1];
@@ -2363,9 +2363,9 @@ __int64 CmdSetSsdtEntry(_DWORD *pInputBuffer, int InputSize)
 
     if (!(unsigned int)GtRead(GtEprocessExtField46))
         InitKernelDataSectionTable();
-    TableCount = GtRead(GtEprocessExtField46);
+    TableCount = (int)GtRead(GtEprocessExtField46);
     ServiceTableBase = GtRead(GtEprocessExtField47);
-    ServiceTableCount = GtRead(GtEprocessExtField48);
+    ServiceTableCount = (int)GtRead(GtEprocessExtField48);
     ServiceTableLimit = GtRead(GtEprocessExtField49);
     ServiceTableArray[0] = GtRead(GtEprocessExtField50);
     ServiceTableArray[1] = GtRead(GtEprocessExtField51);
@@ -2394,7 +2394,7 @@ __int64 CmdSetSsdtEntry(_DWORD *pInputBuffer, int InputSize)
         switch (*pInputBuffer)
         {
         case 0:
-            return WritePhysicalMemoryBuffer((void *)ServiceTableLimit, &ServiceTableCount, 4u, 0, 0) != 0;
+            return WritePhysicalMemoryBuffer((unsigned __int64)ServiceTableLimit, &ServiceTableCount, 4u, 0, 0) != 0;
         case 1:
             TargetAddress = ServiceTableBase + 8;
             NewValue = ServiceTableArray[0];
@@ -2442,7 +2442,7 @@ __int64 CmdReadExportDirectory(__int64 InputBuffer, __int64 InputSize, char *Out
         InitKernelDataSectionTable();
     ExportDirData = (const void *)GtRead(GtEprocessExtField56);
     GtAlloc(GtEprocessExtField58);
-    ExportDirSize = GtRead(GtEprocessExtField57);
+    ExportDirSize = (unsigned int)GtRead(GtEprocessExtField57);
     KernelBase = GtRead(GtEprocessExtField11);
 
     if (KernelBase
@@ -2489,7 +2489,7 @@ __int64 CmdUpdateExportEntry(__int64 *pInputBuffer, int InputSize)
     if (!GtRead(GtEprocessExtField56))
         InitKernelDataSectionTable();
     ExportDirData = (_QWORD *)GtRead(GtEprocessExtField56);
-    ExportDirSize = GtRead(GtEprocessExtField57);
+    ExportDirSize = (unsigned int)GtRead(GtEprocessExtField57);
     pExportEntryTable = GtAlloc(GtEprocessExtField58);
     KernelBase = GtRead(GtEprocessExtField11);
 
@@ -2544,7 +2544,7 @@ __int64 CmdRestoreExportTable(void)
     if (!GtRead(GtEprocessExtField56))
         InitKernelDataSectionTable();
     ExportDirData = GtRead(GtEprocessExtField56);
-    ExportDirSize = GtRead(GtEprocessExtField57);
+    ExportDirSize = (unsigned int)GtRead(GtEprocessExtField57);
     pExportEntryTable = GtAlloc(GtEprocessExtField58);
     KernelBase = GtRead(GtEprocessExtField11);
 
@@ -2591,9 +2591,9 @@ __int64 CmdReadSsdtEntryTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pO
     unsigned __int64 NtEndAddr;
 
     SsdtBase = GtRead(GtUninstallHookSyscallPeOffset | GtEprocessField187 | GtEprocessField06 | 0x100);
-    SsdtCount = GtRead(GtEprocessField94 | 0x800);
+    SsdtCount = (unsigned int)GtRead(GtEprocessField94 | 0x800);
     NtBase = GtRead(GtNtoskrnlModuleBase);
-    NtImageBase = GtRead(GtNtoskrnlImageSize);
+    NtImageBase = (unsigned int)GtRead(GtNtoskrnlImageSize);
 
     if (SsdtBase && SsdtCount)
     {
@@ -2610,7 +2610,7 @@ __int64 CmdReadSsdtEntryTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pO
                 ProbeForWrite(pOutputBuffer, (unsigned int)OutputSize, 8u);
                 memset(pOutputBuffer, 0, (unsigned int)OutputSize);
                 pOutputBuffer[1] = SsdtCount;
-                *pOutputBuffer = GtRead(GtWindowsBuildNumber);
+                *pOutputBuffer = (_DWORD)GtRead(GtWindowsBuildNumber);
                 memmove(pOutputBuffer + 2, (const void *)(SsdtBase + 8), 8LL * SsdtCount);
                 return 1;
             }
@@ -2632,9 +2632,9 @@ __int64 CmdReadSsdtEntryTableEx(__int64 InputBuffer, __int64 InputSize, _DWORD *
     unsigned __int64 NtEndAddr;
 
     SsdtBase = GtRead((enum _GLOBAL_TABLE_INDEX)17408);
-    SsdtCount = GtRead(GtEprocessField95 | 0x800);
+    SsdtCount = (unsigned int)GtRead(GtEprocessField95 | 0x800);
     NtBase = GtRead(GtNtoskrnlModuleBase);
-    NtImageSize = GtRead(GtNtoskrnlImageSize);
+    NtImageSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
 
     if (SsdtBase && SsdtCount)
     {
@@ -2651,7 +2651,7 @@ __int64 CmdReadSsdtEntryTableEx(__int64 InputBuffer, __int64 InputSize, _DWORD *
                 ProbeForWrite(pOutputBuffer, (unsigned int)OutputSize, 8u);
                 memset(pOutputBuffer, 0, (unsigned int)OutputSize);
                 pOutputBuffer[1] = SsdtCount;
-                *pOutputBuffer = GtRead(GtWindowsBuildNumber);
+                *pOutputBuffer = (_DWORD)GtRead(GtWindowsBuildNumber);
                 memmove(pOutputBuffer + 2, (const void *)(SsdtBase + 8), 8LL * SsdtCount);
                 return 1;
             }
@@ -2689,7 +2689,7 @@ __int64 CmdFixSsdtEntryAddress(unsigned int *pSyscallIndex, int FieldSize)
         if (!GtRead(GtEprocessModuleListOffset | GtEprocessField25))
             BuildInitSsdtHookTable();
         SsdtHookTableBase = GtRead(GtEprocessModuleListOffset | GtEprocessField25);
-        SsdtHookTableSize = GtRead(GtEprocessModuleListOffset | GtEprocessField26);
+        SsdtHookTableSize = (unsigned int)GtRead(GtEprocessModuleListOffset | GtEprocessField26);
         pSsdtHookEntryTable = GtAlloc(GtEprocessModuleListOffset | GtEprocessField27);
         if (SsdtHookTableBase && SsdtHookTableSize > 8
             && SsdtHookTableBase > (unsigned __int64)MmSystemRangeStart
@@ -2737,7 +2737,7 @@ __int64 CmdEnumSsdtEntryTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pO
     if (!GtRead(GtEprocessModuleListOffset | GtEprocessField23))
         BuildInitSsdtHookTable();
     HookTableBase = GtRead(GtEprocessModuleListOffset | GtEprocessField23);
-    HookTableCount = GtRead(GtEprocessModuleListOffset | GtEprocessField24);
+    HookTableCount = (unsigned int)GtRead(GtEprocessModuleListOffset | GtEprocessField24);
     if (GetSsdtBaseAndSize((__int64 *)SsdtBaseAndSize, SsdtRange))
     {
         if (HookTableBase && HookTableBase > (unsigned __int64)MmSystemRangeStart && HookTableCount)
@@ -2755,7 +2755,7 @@ __int64 CmdEnumSsdtEntryTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pO
                     ProbeForWrite(pOutputBuffer, (unsigned int)OutputBufferSizeCopy, 8u);
                     memset(pOutputBuffer, 0, (unsigned int)OutputBufferSizeCopy);
                     pOutputBuffer[1] = HookTableCount;
-                    *pOutputBuffer = GtRead(GtWindowsBuildNumber);
+                    *pOutputBuffer = (_DWORD)GtRead(GtWindowsBuildNumber);
                     for (EntryIndex = 0; EntryIndex < HookTableCount; EntryIndex++)
                         *(_QWORD *)&pOutputBuffer[2 * EntryIndex + 2] = *(_QWORD *)(HookTableBase + 16LL * EntryIndex);
                     return 1;
