@@ -40,8 +40,8 @@ char ParseServiceTableWin7(char *Src, size_t MaxCount)
     unsigned __int64 FuncAddr;
 
     Result = 0;
-    VerifyServiceTableDriverFile((__int64)Src, MaxCount);
-    ServiceCount = GtRead(GtEprocessField57);
+    VerifyServiceTableDriverFile((__int64)Src, (unsigned int)MaxCount);
+    ServiceCount = (unsigned int)GtRead(GtEprocessField57);
     if (ServiceCount)
     {
         if (!(unsigned int)GtRead(GtCallbackField53))
@@ -52,7 +52,7 @@ char ParseServiceTableWin7(char *Src, size_t MaxCount)
             {
                 memset(ServiceTable, 0, 4LL * ServiceCount);
                 ImageBase = *(_QWORD *)&Src[*((int *)Src + 15) + 48];
-                Win32kServiceTable = FindWin32kServiceTable((__int64)Src, (unsigned int)MaxCount);
+                Win32kServiceTable = (unsigned int)FindWin32kServiceTable((__int64)Src, (unsigned int)MaxCount);
                 if (!Win32kServiceTable)
                     goto LABEL_FREE;
                 if (Win32kServiceTable >= (unsigned int)MaxCount)
@@ -82,7 +82,7 @@ char ParseServiceTableWin7(char *Src, size_t MaxCount)
                             break;
                         ++EntryIndex;
                         ServiceTablePtr += 8;
-                        *CurrentEntry++ = FuncAddr - ImageBase;
+                        *CurrentEntry++ = (_DWORD)(FuncAddr - ImageBase);
                     } while (EntryIndex < ServiceCount);
                     if (EntryIndex < ServiceCount)
                         goto LABEL_FREE;
@@ -117,19 +117,19 @@ char ParseServiceTableWin8(char *Src, size_t MaxCount)
     unsigned int FuncValue;
 
     Result = 0;
-    VerifyServiceTableDriverFile((__int64)Src, MaxCount);
-    ServiceCount = GtRead(GtEprocessField57);
+    VerifyServiceTableDriverFile((__int64)Src, (unsigned int)MaxCount);
+    ServiceCount = (unsigned int)GtRead(GtEprocessField57);
     if (ServiceCount)
     {
         if (!(unsigned int)GtRead(GtCallbackField53))
         {
             TableSize = 4LL * ServiceCount;
-            ServiceTable = (unsigned int *)ExAlloc(PagedPool, TableSize);
+            ServiceTable = (unsigned int *)ExAlloc(PagedPool, (ULONG)TableSize);
             ServiceTableCopy = ServiceTable;
             if (ServiceTable)
             {
                 memset(ServiceTable, 0, 4LL * ServiceCount);
-                Win32kServiceTable = FindWin32kServiceTable((__int64)Src, (unsigned int)MaxCount);
+                Win32kServiceTable = (unsigned int)FindWin32kServiceTable((__int64)Src, (unsigned int)MaxCount);
                 if (!Win32kServiceTable)
                     goto LABEL_FREE;
                 if (Win32kServiceTable >= (unsigned int)MaxCount)

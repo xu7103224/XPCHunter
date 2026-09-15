@@ -513,7 +513,7 @@ __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
         && (unsigned __int64)(Dst + Length) < MmUserProbeAddress)
     {
         ProbeForWrite(Dst, (unsigned int)Length, 1u);
-        if (!QuerySystemInfoPart1(Dst, (unsigned int)Length, &Part1Size))
+        if (!QuerySystemInfoPart1((_DWORD *)Dst, (unsigned int)Length, (_DWORD *)&Part1Size))
         {
             memset(Dst, 0, 0x38u);
             Part1Size = 56;
@@ -522,7 +522,7 @@ __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
         {
             if ((unsigned int)Length - Part1Size >= 0x1C)
             {
-                if (!QuerySystemInfoPart2(&Dst[Part1Size], (unsigned int)Length - Part1Size, &Part2Size))
+                if (!QuerySystemInfoPart2((_DWORD *)&Dst[Part1Size], (unsigned int)Length - Part1Size, (_DWORD *)&Part2Size))
                 {
                     *(_QWORD *)&Dst[Part1Size] = 0;
                     *((_QWORD *)&Dst[Part1Size] + 1) = 0;
@@ -583,7 +583,7 @@ __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Cal
     ContextCopy = CallbackContext;
     CallbackFunc = (__int64)pCallbackFunc;
     IsInitialized = 0;
-    ObjectTableCode = GetObjectTableCode();
+    ObjectTableCode = (unsigned int)GetObjectTableCode();
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
     {
         pGetAffinity = (__int64 (*)(_QWORD, __int16 *))GtRead((GLOBAL_TABLE_INDEX)0x4402);
@@ -861,7 +861,7 @@ char BuildDevicePath(char *Buffer, unsigned int BufferSize)
             if (*((unsigned __int8 *)pCurrentEntry + 4) == SystemRootType)
             {
                 __int64 ObjectAddr = *(_QWORD *)pCurrentEntry;
-                if (ObjectAddr && ObjectAddr > (unsigned __int64)MmSystemRangeStart)
+                if (ObjectAddr && (unsigned __int64)ObjectAddr > (unsigned __int64)MmSystemRangeStart)
                 {
                     ObjectName[0] = 0;
                     pNameBuffer = ObjectName;
@@ -931,7 +931,7 @@ char QuerySystemInfoPart1(_DWORD *OutputBuffer, unsigned int OutputBufferSize, _
                 0,
                 (__int64 *)&NameBufferPtr,
                 EntrySize,
-                &ExtBufferPtr,
+                (_QWORD *)&ExtBufferPtr,
                 32,
                 &ActualEntryCount))
         {
@@ -1028,7 +1028,7 @@ char QuerySystemInfoPart2(_DWORD *OutputBuffer, unsigned int OutputBufferSize, _
                 0,
                 0,
                 0,
-                &NameBufferPtr,
+                (_QWORD *)&NameBufferPtr,
                 32,
                 &ActualEntryCount))
         {
