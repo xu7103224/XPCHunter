@@ -1077,7 +1077,7 @@ AES 加密密钥扩展使用运行时生成的查找表，位于地址 0x1400A40
 | 全局变量标注 | 完成 | 40+ 个全局变量已命名，含 AES 表、驱动状态、同步对象等 |
 | 结构体分析 | 完成 | FLT_REGISTRATION (0x14008D600), UTF-8 解码表 (0x140094000) |
 | 指令解码器分析 | 完成 | 60+ 个指令解码函数已分析（DecodeOpcode* 系列），覆盖 x86/x64 指令解码 |
-| 编译警告清零 | 进行中 | 全量构建 0 错误；警告由 615 降至 348。已清零：Minifilter.c、MemoryOperation.c、HandleMgmt.c、ThreadMgmt.c（合计 267 条）；待清理：FileDiskOperation.c(56)、SSDT.c(45)、DriverEntry.c(38)、Utility.c(36)、DriverSection.c(30) 等 |
+| 编译警告清零 | 完成 | 全量构建 0 错误 0 警告（615→0）。按文件清零：Minifilter、MemoryOperation、HandleMgmt、ThreadMgmt、FileDiskOperation、SSDT、DriverEntry、Utility、DriverSection、Registry、PEDecoder、MemoryCleanup、ModuleEnum、SsdtHook、SystemInfo、ServiceTable、DiskQuery、Crypto、Callback、ModuleMgmt、GlobalTable、Utf8Decoder、TailHelpers、QueryDriver。期间经 IDA 复核修正 4 处 1:1 签名缺陷（IrpReadFileWithOffset、HookSyscallNtOpenProcessToken、AllocExBufferAndQuerySystemInfo、ReadProcessMemoryString） |
 | 文档输出 | 完成 | 本文档为最终版本 |
 
 ---
