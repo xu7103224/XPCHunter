@@ -402,7 +402,7 @@ char CheckTmDllSection(unsigned __int8 *NameToMatch)
 
 // ReadNtFileDiskInfo — 读取磁盘信息 NT 驱动文件
 // 对应原始驱动 sub_14004997C
-char ReadNtFileDiskInfo(_QWORD *OutBuffer, unsigned int *OutSize)
+char ReadNtFileDiskInfo(void **OutBuffer, unsigned int *OutSize)
 {
     char Result;
     size_t MaxCount;
@@ -432,7 +432,7 @@ char ReadNtFileDiskInfo(_QWORD *OutBuffer, unsigned int *OutSize)
     ExtraPathPart = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -470,7 +470,7 @@ char ReadNtFileForProcessContext(_QWORD *OutBuffer, unsigned int *OutSize)
     ExtraPathPart = 7536761;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        Result = ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(Src);
     }
     return Result;
@@ -479,7 +479,7 @@ char ReadNtFileForProcessContext(_QWORD *OutBuffer, unsigned int *OutSize)
 
 // ReadNtoskrnlToBuffer — 读取 ntoskrnl 到缓冲区
 // 对应原始驱动 sub_140039A8C
-char ReadNtoskrnlToBuffer(_QWORD *OutBuffer, unsigned int *OutSize)
+char ReadNtoskrnlToBuffer(void **OutBuffer, unsigned int *OutSize)
 {
     char Result;
     size_t RawDataSize;
@@ -510,7 +510,7 @@ char ReadNtoskrnlToBuffer(_QWORD *OutBuffer, unsigned int *OutSize)
     EncodedPath[20] = 115;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
     {
-        Result = ReadNtFileToBuffer((int *)pRawData, (unsigned int)RawDataSize, OutBuffer, OutSize) == 1;
+        Result = ReadNtFileToBuffer((PUCHAR)pRawData, (unsigned int)RawDataSize, (PUCHAR *)OutBuffer, OutSize) == 1;
         ExFree(pRawData);
     }
     return Result;
@@ -623,8 +623,8 @@ __int64 ReadProcessMemoryString(void *InputBuffer, int InputSize, void *OutputBu
 
                 while (1)
                 {
-                    BytesRead = ((__int64 (__fastcall *)(__int64, unsigned int, unsigned int, unsigned int *, unsigned int, void *))ReadFunc)(
-                        TargetAddress, CurrentPage, EndFlag, pCurrentOutput, OutputSize, OutputParam);
+                    BytesRead = (int)(((__int64 (__fastcall *)(__int64, unsigned int, unsigned int, unsigned int *, unsigned int, void *))ReadFunc)(
+                        TargetAddress, CurrentPage, EndFlag, pCurrentOutput, OutputSize, OutputParam));
 
                     if (EndFlag)
                         break;
@@ -679,8 +679,8 @@ __int64 ReadProcessMemoryString(void *InputBuffer, int InputSize, void *OutputBu
 
                     while (1)
                     {
-                        BytesRead = ((__int64 (__fastcall *)(__int64, unsigned int, unsigned int, unsigned int *, unsigned int, void *))AltReadFunc)(
-                            TargetAddress, CurrentPage, EndFlag, pCurrentOutput, OutputSize, OutputParam);
+                        BytesRead = (int)(((__int64 (__fastcall *)(__int64, unsigned int, unsigned int, unsigned int *, unsigned int, void *))AltReadFunc)(
+                            TargetAddress, CurrentPage, EndFlag, pCurrentOutput, OutputSize, OutputParam));
 
                         if (EndFlag)
                             break;
@@ -743,11 +743,11 @@ void CopyUnicodeStringSafe(const void **pSrcString, _WORD *pDstBuffer, int MaxLe
     if (MaxLength)
     {
         *pDstBuffer = 0;
-        if (CheckMemoryValid(pSrcString) == 1 && CheckMemoryValid((char *)pSrcString + 15) == 1)
+        if (CheckMemoryValid((void *)(ULONG_PTR)pSrcString) == 1 && CheckMemoryValid((char *)(ULONG_PTR)pSrcString + 15) == 1)
         {
             SrcBuffer = (PVOID)pSrcString[1];
             CopyLength = *(unsigned __int16 *)pSrcString >> 1;
-            if ((unsigned int)CopyLength > MaxLength - 1)
+            if ((unsigned int)CopyLength > (unsigned int)(MaxLength - 1))
                 CopyLength = (unsigned int)(MaxLength - 1);
             if (SrcBuffer > MmSystemRangeStart
                 && CheckMemoryValid(SrcBuffer) == 1
@@ -928,7 +928,7 @@ char ReadModifyWriteDiskSector(int UseProcessDiskData, unsigned int SectorIndex)
                         }
                         else
                         {
-                            if ((unsigned char)ProcessDiskSectorData(pDeviceObject, 0, pBuffer, SectorSize) == 1)
+                            if ((unsigned char)ProcessDiskSectorData((__int64)pDeviceObject, 0, (__int64)pBuffer, SectorSize) == 1)
                             {
 CHECK_BUFFER:
                                 Index = 0;
@@ -980,11 +980,11 @@ char WriteDiskSectorsWithMbr(int UseProcessDiskData, unsigned int SectorOffset)
             if (SendDiskDeviceInternalIrp((__int64)pDeviceObject, (struct _IRP *)pIrp))
             {
                 SectorSize = pIrp[5];
-                pBuffer = (__int64)ExAlloc(NonPagedPool, SectorSize);
+                pBuffer = (__int64)ExAlloc(NonPagedPool, (ULONG)SectorSize);
                 if (pBuffer)
                 {
                     memset((void *)pBuffer, 0, (unsigned int)SectorSize);
-                    if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, (void *)pBuffer, 0, 1, SectorSize))
+                    if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, (void *)pBuffer, 0, 1, (unsigned int)SectorSize))
                     {
                         Index = 0;
                         if ((_DWORD)SectorSize)
@@ -1008,18 +1008,18 @@ char WriteDiskSectorsWithMbr(int UseProcessDiskData, unsigned int SectorOffset)
                                     memset((void *)pBuffer, 0, SectorSize);
                                     if (UseProcessDiskData)
                                     {
-                                        if ((unsigned char)ProcessDiskSectorData(pDeviceObject, (unsigned int)(SectorSize * StartSector), (void *)pBuffer, (unsigned int)SectorSize) == 1)
+                                        if ((unsigned char)ProcessDiskSectorData((__int64)pDeviceObject, (unsigned int)(SectorSize * StartSector), (__int64)pBuffer, (unsigned int)SectorSize) == 1)
                                             goto CHECK_READ;
                                     }
                                     else if (SectorOffset < 0x100)
                                     {
-                                        if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, (void *)pBuffer, StartSector + SectorOffset, 1, SectorSize))
+                                        if (!(unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 3, (void *)pBuffer, StartSector + SectorOffset, 1, (unsigned int)SectorSize))
                                         {
 CHECK_READ:
                                             Index = 0; pByte = (_BYTE *)pBuffer;
                                             do { if (*pByte) break; ++Index; ++pByte; } while (Index < (unsigned int)SectorSize);
                                             if (Index < (unsigned int)SectorSize)
-                                                Result = (unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 4, (void *)pBuffer, StartSector, 1, SectorSize) == 0;
+                                                Result = (unsigned int)DispatchDiskIrpWithHookInit(pDeviceObject, 4, (void *)pBuffer, StartSector, 1, (unsigned int)SectorSize) == 0;
                                         }
                                     }
                                 }
@@ -1055,7 +1055,7 @@ char ReadWin32kBaseDriverFile(__int64 *pBuffer, unsigned int *pBufferSize)
     EncodedPath[17] = 115;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
-        if (ReadNtFileToBuffer((int *)Src, (unsigned int)MaxCount, pBuffer, pBufferSize) == 1)
+        if (ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pBuffer, pBufferSize) == 1)
         {
             ValidateWin32kBaseDriverImage(*pBuffer, *pBufferSize);
             Result = 1;
@@ -1171,10 +1171,10 @@ __int64 __fastcall ProcessDiskSectorData(
                 Handle,
                 0,
                 0,
-                &var_70,
+                (__int64)&var_70,
                 arg4,
                 arg3,
-                &var_80,
+                (__int64)&var_80,
                 0);
 
             if (Status == 0x103)  // STATUS_END_OF_FILE

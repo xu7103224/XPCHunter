@@ -847,7 +847,7 @@ __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo);
 __int64 ReadPESectionField(PUCHAR Context);
 __int64 ReadPESectionFieldByte(PUCHAR Context);
 char ReadProcessMemoryBlock(PRKPROCESS PROCESS, void *Dst, size_t Size);
-__int64 ReadProcessMemoryString(void *Process, void *Address, char *Buffer, unsigned int Length);
+__int64 ReadProcessMemoryString(void *InputBuffer, int InputSize, void *OutputBuffer, unsigned int OutputSize);
 __int64 ReadKernelMemoryViaSwap(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize);
 __int64 ReadKernelMemoryViaSwapEx(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize);
 __int64 ReadProcessMemoryWithAttach(__int64 ProcessHandle);
