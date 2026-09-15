@@ -86,7 +86,7 @@ char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSi
         EncodedDevicePath[3] = 6029413;
         EncodedDevicePath[4] = 6488148;
         EncodedDevicePath[5] = 112;
-        if (OpenDeviceTarget((__int64)EncodedDevicePath, (__int64)&DeviceHandle, &DeviceObjectHandle) == 1)
+        if (OpenDeviceTarget((__int64)EncodedDevicePath, &DeviceHandle, &DeviceObjectHandle) == 1)
         {
             memset(Dst, 0, sizeof(Dst));
             Dst[0] = 1024;
@@ -98,17 +98,17 @@ char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSi
             {
                 KeInitializeEvent(&Event, NotificationEvent, 0);
                 memset(AtaOutputBuffer, 0, 0x3Cu);
-                IrpPtr = SendDeviceIoControl(1179651, DeviceObjectFromContext, Dst, 40, AtaOutputBuffer, 60u, 0, &Event, &IoStatusBlock);
+                IrpPtr = SendDeviceIoControl(1179651, DeviceObjectFromContext, Dst, 40, (WORD *)AtaOutputBuffer, 60u, 0, &Event, &IoStatusBlock);
                 IrpResult = IrpPtr;
                 if (IrpPtr)
                 {
                     IrpStackLocation = *(_QWORD *)(IrpPtr + 184);
                     *(_QWORD *)(IrpStackLocation - 32) = DeviceObjectFromContext;
                     *(_QWORD *)(IrpStackLocation - 24) = DeviceHandle;
-                    DiskDriverInfo = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, &DiskDriverInfoTable);
+                    DiskDriverInfo = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, (__int64 *)&DiskDriverInfoTable);
                     DiskDriverInfo1 = SwapPhysicalMemoryQword(GtKernelDataField31, GtKernelDataField32);
                     RestoreFlag1 = SwapDiskIrpFunctionPointer();
-                    IoStatus = AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, IrpResult);
+                    IoStatus = (int)AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, IrpResult);
                     SetDiskDriverInfo(DiskDriverInfo, 0, &DiskDriverInfoBuffer);
                     if (IoStatus == 259)
                     {
@@ -127,17 +127,17 @@ char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSi
                             Dst[4] = 258;
                             KeInitializeEvent(&Event, NotificationEvent, 0);
                             WaitFlag = 0;
-                            IrpPtr2 = SendDeviceIoControl2(1179651, DeviceObjectFromContext, Dst, 40, IdentifyBuffer, IdentifyBufferSize, WaitFlag, &Event, &IoStatusBlock);
+                            IrpPtr2 = (__int64 (__fastcall *)(__int64, __int64, _DWORD *, __int64, _WORD *, unsigned int, int, struct _KEVENT *, int *))(ULONG_PTR)SendDeviceIoControl2(1179651, DeviceObjectFromContext, Dst, 40, IdentifyBuffer, IdentifyBufferSize, WaitFlag, &Event, &IoStatusBlock);
                             SendDeviceIoControl2 = IrpPtr2;
                             if (IrpPtr2)
                             {
                                 IrpStackLocation2 = *((_QWORD *)IrpPtr2 + 23);
                                 *(_QWORD *)(IrpStackLocation2 - 32) = DeviceObjectFromContext;
                                 *(_QWORD *)(IrpStackLocation2 - 24) = DeviceHandle;
-                                DiskDriverInfo2 = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, &DiskDriverInfoTable);
+                                DiskDriverInfo2 = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, (__int64 *)&DiskDriverInfoTable);
                                 RestoreFlag3 = SwapPhysicalMemoryQword(GtKernelDataField31, GtKernelDataField32);
                                 RestoreFlag2 = SwapDiskIrpFunctionPointer();
-                                IoStatus2 = AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, (ULONG_PTR)SendDeviceIoControl2);
+                                IoStatus2 = (int)AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, (ULONG_PTR)SendDeviceIoControl2);
                                 SetDiskDriverInfo(DiskDriverInfo2, 0, &DiskDriverInfoBuffer);
                                 if (IoStatus2 == 259)
                                 {
@@ -154,7 +154,7 @@ char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSi
                                     if (OutputBufferSizeCopy >= *OutSize)
                                     {
                                         memset(Buffer, 0, *OutSize);
-                                        *(unsigned int *)Buffer = PartitionCount;
+                                        *(unsigned int *)Buffer = (unsigned int)PartitionCount;
                                         if ((_DWORD)PartitionCount)
                                         {
                                             SrcEntry = IdentifyBuffer + 8;
@@ -256,7 +256,7 @@ char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *Out
         EncodedDevicePath[3] = 6029413;
         EncodedDevicePath[4] = 6553685;
         EncodedDevicePath[5] = 112;
-        if (OpenDeviceTarget((__int64)EncodedDevicePath, (__int64)&DeviceHandle, &DeviceObjectHandle) == 1)
+        if (OpenDeviceTarget((__int64)EncodedDevicePath, &DeviceHandle, &DeviceObjectHandle) == 1)
         {
             memset(Dst, 0, sizeof(Dst));
             Dst[0] = 1025;
@@ -277,10 +277,10 @@ char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *Out
                     IrpStackLocation = *(_QWORD *)(IrpPtr + 184);
                     *(_QWORD *)(IrpStackLocation - 32) = DeviceObjectFromContext;
                     *(_QWORD *)(IrpStackLocation - 24) = DeviceHandle;
-                    DiskDriverInfo = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, &DiskDriverInfoTable);
+                    DiskDriverInfo = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, (__int64 *)&DiskDriverInfoTable);
                     DiskDriverInfo1 = SwapPhysicalMemoryQword(GtKernelDataField31, GtKernelDataField32);
                     RestoreFlag1 = SwapDiskIrpFunctionPointer();
-                    IoStatus = AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, IrpResult);
+                    IoStatus = (int)AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, IrpResult);
                     SetDiskDriverInfo(DiskDriverInfo, 0, &DiskDriverInfoBuffer);
                     if (IoStatus == 259)
                     {
@@ -299,17 +299,17 @@ char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *Out
                             Dst[4] = 258;
                             KeInitializeEvent(&Event, NotificationEvent, 0);
                             WaitFlag = 0;
-                            IrpPtr2 = SendDeviceIoControl2(1179651, DeviceObjectFromContext, Dst, 40, ScsiBuffer, ScsiBufferSize, WaitFlag, &Event, &IoStatusBlock);
+                            IrpPtr2 = (__int64 (__fastcall *)(__int64, __int64, _DWORD *, __int64, char *, unsigned int, int, struct _KEVENT *, int *))(ULONG_PTR)SendDeviceIoControl2(1179651, DeviceObjectFromContext, Dst, 40, ScsiBuffer, ScsiBufferSize, WaitFlag, &Event, &IoStatusBlock);
                             SendDeviceIoControl2 = IrpPtr2;
                             if (IrpPtr2)
                             {
                                 IrpStackLocation2 = *((_QWORD *)IrpPtr2 + 23);
                                 *(_QWORD *)(IrpStackLocation2 - 32) = DeviceObjectFromContext;
                                 *(_QWORD *)(IrpStackLocation2 - 24) = DeviceHandle;
-                                DiskDriverInfo2 = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, &DiskDriverInfoTable);
+                                DiskDriverInfo2 = GetDiskDriverInfo(0, &DiskDriverInfoBuffer, (__int64 *)&DiskDriverInfoTable);
                                 RestoreFlag3 = SwapPhysicalMemoryQword(GtKernelDataField31, GtKernelDataField32);
                                 RestoreFlag2 = SwapDiskIrpFunctionPointer();
-                                IoStatus2 = AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, (ULONG_PTR)SendDeviceIoControl2);
+                                IoStatus2 = (int)AllocateIrpStackAndCallDriver(DiskDriverInfoTable, DeviceObjectFromContext, (ULONG_PTR)SendDeviceIoControl2);
                                 SetDiskDriverInfo(DiskDriverInfo2, 0, &DiskDriverInfoBuffer);
                                 if (IoStatus2 == 259)
                                 {
@@ -326,7 +326,7 @@ char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *Out
                                     if (OutputBufferSizeCopy >= *OutSize)
                                     {
                                         memset(Buffer, 0, *OutSize);
-                                        *(unsigned int *)Buffer = ScsiDeviceCount;
+                                        *(unsigned int *)Buffer = (unsigned int)ScsiDeviceCount;
                                         if ((_DWORD)ScsiDeviceCount)
                                         {
                                             SrcEntry = ScsiBuffer + 4;
