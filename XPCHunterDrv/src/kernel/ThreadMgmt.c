@@ -9,7 +9,7 @@ __int64 FindSystemRootEntry(_DWORD *ThreadInfoTable);
 void EnumerateVadIterativeV2(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateVadRecursiveV2(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
 _QWORD *ResetThreadStateIfMatch(__int64 Process, __int64 OutputBuffer);
-ULONG64 EnumerateThreadListEntries(unsigned int *ListHead, unsigned int EntryOffset, int IsUserMode, _DWORD *OutputBuffer, unsigned int BufferSize, int IsVirtual);
+ULONG64 EnumerateThreadListEntries(unsigned int *ListHead, unsigned int ListFieldOffset, char IsUserMode, unsigned int *OutputBuffer, unsigned int OutputSize, char EntryTypeValue);
 void EnumerateVadIterativeV3(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateVadRecursiveV3(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateVadIterativeV4(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize);
@@ -21,12 +21,12 @@ void EnumerateFileMappingSectionStub(__int64 VadNode, _DWORD *OutputBuffer, unsi
 void EnumerateFileMappingSectionByIndex(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumVadMemoryRegions(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize);
 char QueryObjectNameString(ULONG64 Object, _QWORD *OutBuffer, _DWORD *OutSize);
-char FindThreadEntry(_DWORD *ThreadId, __int64 Context, unsigned int *pResult, char Flags);
-char NormalizeRelativePath(_DWORD *Path);
+char FindThreadEntry(_DWORD *OutputBuffer, __int64 Target, unsigned int *OutIndex, __int64 ExtraParam);
+void NormalizeRelativePath(WORD *Path);
 void PatchThreadImagePathWithWow64(__int64 Path);
-__int64 StringCompareCaseInsensitiveV2(const char *Str1, const char *Str2);
-__int64 WStringCompare(__int64 Str1, const unsigned __int16 *Str2, unsigned int Length);
-__int64 StringCompare3Way(__int64 Str1, const unsigned __int16 *Str2, unsigned int Length);
+__int64 StringCompareCaseInsensitiveV2(__int64 Str1, __int64 Str2);
+__int64 WStringCompare(__int64 Str1, unsigned __int16 *Str2, unsigned int Length);
+__int64 StringCompare3Way(__int64 Str1, unsigned __int16 *Str2, unsigned int Length);
 __int16 *WStringCopy(__int16 *Dst, __int16 *Src);
 
 // EnableThreadProtect — 启用线程保护
@@ -47,7 +47,7 @@ char EnableThreadProtect(__int64 *Address, int InputSize, _QWORD *OutputBuffer, 
     ProbeForWrite(OutputBuffer, 8, 8);
 
     ThreadAddress = *Address;
-    if (ThreadAddress > MmSystemRangeStart)
+    if (ThreadAddress > (ULONG64)MmSystemRangeStart)
     {
         ULONG PageIndex;
         for (PageIndex = 0; PageIndex < 0x100 && MmIsAddressValid((PVOID)(ThreadAddress + PageIndex)); PageIndex++)
@@ -300,7 +300,7 @@ char MiniFilterOpLockPost(PRKPROCESS ProcessObject, char IsQwordKey, __int64 Con
     {
         if (ResolvedHead[0] < MmUserProbeAddress && ResolvedHead[0] + 48 < MmUserProbeAddress)
         {
-            ULONG *DwordKeyArray = (ULONG *)*(ULONG *)(ResolvedHead[0] + 12);
+            ULONG *DwordKeyArray = (ULONG *)(ULONG_PTR)*(ULONG *)(ResolvedHead[0] + 12);
             if ((ULONG64)DwordKeyArray < MmUserProbeAddress && (ULONG64)(DwordKeyArray + 10) < MmUserProbeAddress)
             {
                 RemoveOplockNodeByDwordKey(DwordKeyArray + 3, 0, Context);
@@ -341,7 +341,7 @@ ULONG64 RemoveOplockNodeByDwordKey(unsigned int *KeyArray, ULONG Offset, __int64
     ULONG64 NextEntry;
     ULONG64 PrevEntry;
 
-    CurrentEntry = (unsigned int *)*KeyArray;
+    CurrentEntry = (unsigned int *)(ULONG_PTR)*KeyArray;
     for (LoopCount = 0; ; LoopCount++)
     {
         if (CurrentEntry == KeyArray)
@@ -365,15 +365,15 @@ ULONG64 RemoveOplockNodeByDwordKey(unsigned int *KeyArray, ULONG Offset, __int64
                     {
                         if (PrevEntry + 8 < MmUserProbeAddress)
                         {
-                            *(_DWORD *)(*CurrentEntry + 4) = (unsigned int)PrevEntry;
-                            *(_DWORD *)CurrentEntry[1] = (unsigned int)*CurrentEntry;
+                            *(_DWORD *)((ULONG_PTR)*CurrentEntry + 4) = (unsigned int)PrevEntry;
+                            *(_DWORD *)(ULONG_PTR)CurrentEntry[1] = (unsigned int)*CurrentEntry;
                         }
                     }
                 }
             }
             return NextEntry;
         }
-        CurrentEntry = (unsigned int *)*CurrentEntry;
+        CurrentEntry = (unsigned int *)(ULONG_PTR)*CurrentEntry;
     }
     return (ULONG64)CurrentEntry;
 }
@@ -558,7 +558,7 @@ __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, 
 
     if (GetProcessImagePath(0, ProcessId, &ImagePath, &ThreadIndex, 0) == 1)
     {
-        WStringCopyN(OutputBuffer, (__int64)ImagePath, 0x104);
+        WStringCopyN((WORD *)OutputBuffer, (__int64)ImagePath, 0x104);
         *((WORD *)OutputBuffer + 259) = 0;
         ExFree(ImagePath);
         return 1;
@@ -626,7 +626,7 @@ void DecryptAndCompareStrings(__int64 Process, unsigned int *OutputBuffer, unsig
     if (EntryCount <= (int)StartIndex) return;
 
     unsigned int *EntryPtr = OutputBuffer + 2;
-    int ProcessType = MatchSystemProcessName(Process);
+    int ProcessType = (int)MatchSystemProcessName((_QWORD *)Process);
     if (!ProcessType) return;
 
     // 编码的白名单文件名数组（每 DWORD 编码 2 个宽字符，小端）
@@ -658,7 +658,7 @@ void DecryptAndCompareStrings(__int64 Process, unsigned int *OutputBuffer, unsig
     WORD *pStr1 = BuildSystem32Path();
     if (!pStr1) return;
 
-    ULONG PathLen = GetStringLength(pStr1);
+    ULONG PathLen = (ULONG)GetStringLength(pStr1);
 
     while (Index < *OutputBuffer)
     {
@@ -883,7 +883,7 @@ void NormalizeRelativePath(WORD *Path)
                 Path[255] = 0;
                 if (GetStringLength(Path) < 0xFF)
                 {
-                    StringLen = GetStringLength(Path);
+                    StringLen = (int)GetStringLength(Path);
                     WStringConcat(Path, SuffixBuffer, 255 - StringLen);
                     Path[255] = 0;
                 }
@@ -1062,7 +1062,7 @@ ULONG64 EnumerateThreadListEntries(
 
     if (IsUserMode)
     {
-        ThreadId = (unsigned int *)*ListHead;  // LIST_ENTRY Flink (72字节条目)
+        ThreadId = (unsigned int *)(ULONG_PTR)*ListHead;  // LIST_ENTRY Flink (72字节条目)
         EntrySize = 72;
     }
     else
@@ -1141,7 +1141,7 @@ ULONG64 EnumerateThreadListEntries(
                     *(_QWORD *)&OutputBuffer[CurrentEntryOffset + 8] = 0;
                     *((UCHAR *)OutputBuffer + CurrentEntryOffset + 2) = EntryTypeValue;
                     *(_QWORD *)&OutputBuffer[CurrentEntryOffset + 6] = ThreadFlags;
-                    StringLength = GetStringLength((PWSTR)&EncodedPrefix);
+                    StringLength = (unsigned int)GetStringLength((PWSTR)&EncodedPrefix);
                     ExistingEntryBytes3 = StringLength;
 
                     if (ClampedLength <= StringLength || (unsigned int)WStringCompare((__int64)&EncodedPrefix, (unsigned __int16 *)PathPtr, StringLength))
@@ -1151,13 +1151,13 @@ ULONG64 EnumerateThreadListEntries(
                     else
                     {
                         SrcPtr = (const void *)(PathPtr + 2LL * (unsigned int)ExistingEntryBytes3);
-                        ClampedLength -= 2 * ExistingEntryBytes3;
+                        ClampedLength -= (unsigned int)(2 * ExistingEntryBytes3);
                     }
                     DstEntry = &OutputBuffer[CurrentEntryOffset + 10];
                     memmove(DstEntry, SrcPtr, ClampedLength);
                     *((_WORD *)&OutputBuffer[136 * pListHead + 10] + ((unsigned __int64)ClampedLength >> 1)) = 0;
                     *(WORD *)((UCHAR *)OutputBuffer + CurrentEntryOffset + 138) = 0;
-                    NormalizeRelativePath(DstEntry);
+                    NormalizeRelativePath((WORD *)DstEntry);
 
                     if (IsUserModeLocal == 1)
                         PatchThreadImagePathWithWow64((__int64)&OutputBuffer[CurrentEntryOffset + 10]);
@@ -1208,7 +1208,7 @@ ULONG64 EnumerateThreadListEntries(
                 }
             }
             IsUserMode = IsUserModeLocal;
-            ThreadId = IsUserModeLocal ? (unsigned int *)*ThreadId : *(unsigned int **)ThreadId;
+            ThreadId = IsUserModeLocal ? (unsigned int *)(ULONG_PTR)*ThreadId : *(unsigned int **)ThreadId;
             ResultCount = LoopCount;
             ListFieldOffset = EntryOffsetLocal;
         }
@@ -1318,13 +1318,13 @@ void EnumerateVadWithBufferV4(_QWORD *VirtualAddress, _DWORD *OutputBuffer, unsi
 // 将系统路径替换为 Wow64 路径
 void PatchThreadImagePathWithWow64(__int64 Path)
 {
-    unsigned int StringLength = GetStringLength((_WORD *)Path);
+    unsigned int StringLength = (unsigned int)GetStringLength((_WORD *)Path);
     if (StringLength)
     {
         _WORD *pSystem32Path = BuildSystem32Path();
         if (pSystem32Path)
         {
-            unsigned int System32Len = GetStringLength(pSystem32Path);
+            unsigned int System32Len = (unsigned int)GetStringLength(pSystem32Path);
             if (System32Len <= StringLength
                 && !(unsigned int)StringCompare3Way((__int64)pSystem32Path, (unsigned __int16 *)Path, System32Len)
                 && StringLength >= 0x13)
@@ -1359,7 +1359,7 @@ __int64 ResetThreadStateFlag(__int64 Thread, __int64 FlagOffset)
 void EnumerateFileMappingSectionEx(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     ULONG EntryIndex = *OutputBuffer;
-    if (544 * (int)EntryIndex + 552 > BufferSize)
+    if ((unsigned int)(544 * (int)EntryIndex + 552) > BufferSize)
         return;
 
     __int64 *FileObjectPtr = *(__int64 **)(VadNode + 72);
@@ -1399,7 +1399,7 @@ void EnumerateFileMappingSectionEx(__int64 VadNode, _DWORD *OutputBuffer, unsign
 
     if (FindThreadEntry(OutputBuffer, StartAddr << 12, &ExistingEntryIndex, (__int64)FileHeader) == 1)
     {
-        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
+        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)FileHeader, (_QWORD *)Src, &ObjNameLength) == 1)
         {
             __int64 EntryByteOffset = 136 * EntryIndex;
             LOBYTE_LV(OutputBuffer[EntryByteOffset + 2]) = 1;
@@ -1417,15 +1417,15 @@ void EnumerateFileMappingSectionEx(__int64 VadNode, _DWORD *OutputBuffer, unsign
             ExFree(Src[0]);
         }
     }
-    else if (QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
+    else if (QueryObjectNameString((ULONG64)FileHeader, (_QWORD *)Src, &ObjNameLength) == 1)
     {
         __int64 ExistingEntryOffset = 136 * ExistingEntryIndex;
         HIWORD_LV(OutputBuffer[ExistingEntryOffset + 137]) = 0;
-        ULONG StringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+        ULONG StringLen = (ULONG)GetStringLength((_WORD *)&OutputBuffer[ExistingEntryOffset + 10]);
         if (2 * StringLen != ObjNameLength ||
             StringCompare3Way((__int64)&OutputBuffer[ExistingEntryOffset + 10], (WORD *)Src[0], ObjNameLength >> 1))
         {
-            ULONG ExistingStringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+            ULONG ExistingStringLen = (ULONG)GetStringLength((_WORD *)&OutputBuffer[ExistingEntryOffset + 10]);
             if (ObjNameLength > 2 * (ULONG64)ExistingStringLen)
             {
                 LOBYTE_LV(OutputBuffer[ExistingEntryOffset + 2]) = 1;
@@ -1467,7 +1467,7 @@ void EnumerateFileMappingSectionStub(__int64 VadNode, _DWORD *OutputBuffer, unsi
 void EnumerateFileMappingSectionByIndex(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     ULONG EntryIndex = *OutputBuffer;
-    if (544 * (int)EntryIndex + 552 > BufferSize)
+    if ((unsigned int)(544 * (int)EntryIndex + 552) > BufferSize)
         return;
 
     __int64 *FileObjectPtr = *(__int64 **)(VadNode + 72);
@@ -1507,7 +1507,7 @@ void EnumerateFileMappingSectionByIndex(__int64 VadNode, _DWORD *OutputBuffer, u
 
     if (FindThreadEntry(OutputBuffer, StartAddr << 12, &ExistingEntryIndex, (__int64)FileHeader) == 1)
     {
-        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
+        if (EndAddr != StartAddr && QueryObjectNameString((ULONG64)FileHeader, (_QWORD *)Src, &ObjNameLength) == 1)
         {
             __int64 EntryByteOffset = 136 * EntryIndex;
             LOBYTE_LV(OutputBuffer[EntryByteOffset + 2]) = 1;
@@ -1525,15 +1525,15 @@ void EnumerateFileMappingSectionByIndex(__int64 VadNode, _DWORD *OutputBuffer, u
             ExFree(Src[0]);
         }
     }
-    else if (QueryObjectNameString((ULONG64)FileHeader, Src, &ObjNameLength) == 1)
+    else if (QueryObjectNameString((ULONG64)FileHeader, (_QWORD *)Src, &ObjNameLength) == 1)
     {
         __int64 ExistingEntryOffset = 136 * ExistingEntryIndex;
         HIWORD_LV(OutputBuffer[ExistingEntryOffset + 137]) = 0;
-        ULONG StringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+        ULONG StringLen = (ULONG)GetStringLength((_WORD *)&OutputBuffer[ExistingEntryOffset + 10]);
         if (2 * StringLen != ObjNameLength ||
             StringCompare3Way((__int64)&OutputBuffer[ExistingEntryOffset + 10], (WORD *)Src[0], ObjNameLength >> 1))
         {
-            ULONG ExistingStringLen = GetStringLength(&OutputBuffer[ExistingEntryOffset + 10]);
+            ULONG ExistingStringLen = (ULONG)GetStringLength((_WORD *)&OutputBuffer[ExistingEntryOffset + 10]);
             if (ObjNameLength > 2 * (ULONG64)ExistingStringLen)
             {
                 LOBYTE_LV(OutputBuffer[ExistingEntryOffset + 2]) = 1;
@@ -1985,9 +1985,9 @@ __int64 MatchSystemProcessName(_QWORD *Process)
     char ExplorerStr[13] = "explorer.exe";
     char SidebarStr[12] = "sidebar.exe";
     char SearchIndexerStr[18] = "SearchIndexer.exe";
-    char SearchFilterHostStr[18] = "SearchFilterHost.exe";
-    char SearchProtocolHostStr[19] = "SearchProtocolHost.exe";
-    char ServiceHostStr[14] = "ServiceHost.exe";
+    char SearchFilterHostStr[21] = "SearchFilterHost.exe";
+    char SearchProtocolHostStr[23] = "SearchProtocolHost.exe";
+    char ServiceHostStr[16] = "ServiceHost.exe";
     unsigned int Result = 0;
 
     unsigned int BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
@@ -1998,25 +1998,25 @@ __int64 MatchSystemProcessName(_QWORD *Process)
 
     char *pProcessName = (char *)Process + NameOffset;
 
-    if (StringCompareCaseInsensitiveV2(SvchostStr, pProcessName) == 0)
+    if (StringCompareCaseInsensitiveV2((__int64)SvchostStr, (__int64)pProcessName) == 0)
         return 1;
 
-    if (StringCompareCaseInsensitiveV2(ExplorerStr, pProcessName) == 0)
+    if (StringCompareCaseInsensitiveV2((__int64)ExplorerStr, (__int64)pProcessName) == 0)
         return 4;
 
-    if (StringCompareCaseInsensitiveV2(SidebarStr, pProcessName) == 0)
+    if (StringCompareCaseInsensitiveV2((__int64)SidebarStr, (__int64)pProcessName) == 0)
         return 3;
 
     if (BuildNumber > 0x1DB0)
     {
-        if (StringCompareCaseInsensitiveV2(SearchIndexerStr, pProcessName) == 0
-            || StringCompareCaseInsensitiveV2(SearchFilterHostStr, pProcessName) == 0
-            || StringCompareCaseInsensitiveV2(SearchProtocolHostStr, pProcessName) == 0)
+        if (StringCompareCaseInsensitiveV2((__int64)SearchIndexerStr, (__int64)pProcessName) == 0
+            || StringCompareCaseInsensitiveV2((__int64)SearchFilterHostStr, (__int64)pProcessName) == 0
+            || StringCompareCaseInsensitiveV2((__int64)SearchProtocolHostStr, (__int64)pProcessName) == 0)
             return 2;
     }
     else
     {
-        if (StringCompareCaseInsensitiveV2(ServiceHostStr, pProcessName) == 0)
+        if (StringCompareCaseInsensitiveV2((__int64)ServiceHostStr, (__int64)pProcessName) == 0)
             return 2;
     }
 
