@@ -10,7 +10,7 @@ __int64 GetWindowsBuildNumber(void);
 BOOLEAN IsWindowsVersionSupported(ULONG BuildNumber);
 void InitGlobalMutex(void);
 __int64 InitGtKey(__int64 RegistryPath);
-__int64 InitDriverSection(void);
+ULONG64 InitDriverSection(_QWORD **pDriverList);
 __int64 InitGtCore(__int64 NtBuildNumber, __int64 DriverObject);
 
 // 全局变量
@@ -137,7 +137,7 @@ void DriverUnload(PDRIVER_OBJECT DriverObject)
     struct _UNICODE_STRING DestStr;
     LARGE_INTEGER Interval;
 
-    Result = MiniFilterFormatFileName();
+    Result = (UCHAR)MiniFilterFormatFileName();
     Result = MiniFilterFormatFileNameWithPath() & Result;
     Result = MiniFilterCommPortRecv() & Result;
     Result = MiniFilterCommPortDisconnect() & Result;
@@ -217,7 +217,7 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         ULONG Opcode = InputHeader->Opcode;
         if (Opcode < CMD_OPCODE_COUNT && g_CommandHandlerTable[Opcode])
         {
-            Status = g_CommandHandlerTable[Opcode](
+            Status = (NTSTATUS)g_CommandHandlerTable[Opcode](
                 (__int64)InputHeader->Param3,
                 (__int64)InputHeader->Param4,
                 (_DWORD *)InputHeader->Param5,
@@ -623,9 +623,9 @@ __int64 InitGtKey(__int64 RegistryPath)
     __int64 Count;
 
     *(ULONG64 *)PathHash = RegistryPath;
-    Sha1InitContext(ShaContext);
-    Sha1Update(ShaContext, PathHash, 8);
-    Sha1FinalTransform(ShaContext, (__int64)KeyBytes);
+    Sha1InitContext((PSHA1_CONTEXT)ShaContext);
+    Sha1Update((PSHA1_CONTEXT)ShaContext, PathHash, 8);
+    Sha1FinalTransform((PSHA1_CONTEXT)ShaContext, (__int64)KeyBytes);
     ByteCount = (UCHAR *)KeyBytes;
     Count = 4;
     do
@@ -789,7 +789,7 @@ void InitWin32kServiceTableEntries(void)
         if (Buffer)
         {
             RtlZeroMemory(Buffer, BufferSize);
-            if (ScanWin32kDriverForPatterns(Buffer, EntryCount) == 1 &&
+            if (ScanWin32kDriverForPatterns((ULONG_PTR)Buffer, EntryCount) == 1 &&
                 DispatchWin32kPatternMatching((__int64)Buffer, EntryCount) == 1)
             {
                 GtWrite(GtWin32kServiceTable, (__int64)Buffer);
@@ -822,9 +822,9 @@ char InitFileSystemCallback(__int64 ContextArg1, __int64 ContextArg2, _DWORD *Ou
                 RtlZeroMemory(OutputBuffer, OutputBufferSize);
                 *OutputBuffer = 0;
                 RemainingSize = (OutputBufferSize - 32) / 0x18;
-                ScanKernelMemForFsChanges(OutputBuffer, RemainingSize);
+                ScanKernelMemForFsChanges(OutputBuffer, (int)RemainingSize);
                 if (*OutputBuffer < (ULONG)RemainingSize)
-                    ScanVadForModifiedPages(OutputBuffer, RemainingSize - *OutputBuffer);
+                    ScanVadForModifiedPages(OutputBuffer, (int)(RemainingSize - *OutputBuffer));
                 return 1;
             }
         }
@@ -967,7 +967,7 @@ __int64 InitAllHookSubsystems(void)
         HookSyscallNtDuplicateObject(ExportDirVa, ExportDirSize);
         HookSyscallNtClose(ExportDirVa, ExportDirSize);
         HookSyscallNtReadFile(ExportDirVa, ExportDirSize);
-        HookSyscallNtOpenProcessToken(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
+        HookSyscallNtOpenProcessToken(ExportDirVa, ExportDirSize);
         HookSyscallNtCreateToken(ExportDirVa, ExportDirSize);
         HookSyscallNtSuspendThread(ExportDirVa, ExportDirSize);
         HookSyscallNtResumeThread(ExportDirVa, ExportDirSize);
@@ -982,7 +982,7 @@ __int64 InitAllHookSubsystems(void)
         EnableHookProtection(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
         if (Success == 1)
         {
-            Success = InitEprocessFieldOffsets();
+            Success = (char)InitEprocessFieldOffsets();
             if (Success == 1)
             {
                 HookSyscallNtCreateFile(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
@@ -1101,7 +1101,7 @@ __int64 InitHandleTypeTable(void)
     if (Status < 0)
         return 0;
 
-    SystemInfoBuffer = AllocExBufferAndQuerySystemInfo(16, &EntryCount);
+    SystemInfoBuffer = AllocExBufferAndQuerySystemInfo(16);
     if (!SystemInfoBuffer)
         return 0;
 
@@ -1114,7 +1114,7 @@ __int64 InitHandleTypeTable(void)
     {
         if (*(USHORT *)(Entry + 6) == *(USHORT *)(((UCHAR *)&EntryCount) + 0x28))
         {
-            if (CompareInt16Equal((ULONG)TokenPtr, *(USHORT *)Entry) == 1)
+            if (CompareInt16Equal((__int16)TokenPtr, *(__int16 *)Entry) == 1)
             {
                 GtWrite(0x316, (ULONG64)*(UCHAR *)(Entry + 12));
                 ExFreePool(SystemInfoBuffer);
@@ -1169,7 +1169,7 @@ __int64 InitImageNotifyCallbackWin7(void)
     IsPageSection = 0;
     while (1)
     {
-        Result = ReadPESectionEntry(ReadContext, SectionEntry);
+        Result = (ULONG)ReadPESectionEntry(ReadContext, (PULONG)SectionEntry);
         if (Result != 0)
             break;
 
@@ -1192,7 +1192,7 @@ __int64 InitImageNotifyCallbackWin7(void)
 
     if (IsInitSection || IsPageSection)
     {
-        PsSetLoadImageNotifyRoutine(ImageLoadCallbackRoutine);
+        PsSetLoadImageNotifyRoutine((PLOAD_IMAGE_NOTIFY_ROUTINE)ImageLoadCallbackRoutine);
         return 1;
     }
     return 0;
@@ -1729,7 +1729,7 @@ __int64 InitEprocessOffsetsWin81(void)
         IsWin81Update = DefaultFlag;
         for (i = 0; i < 0x14; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry(&PeSectionReadContext, SectionEntryBuf))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&PeSectionReadContext, SectionEntryBuf))
                 break;
             SectionCharacteristics += SectionVirtualSize;
             if (*(_WORD *)(SectionEntryPtr + 6) == 373 && (CharacteristicsFlags & 4) != 0 && SectionNameCheck == 65601)
@@ -1969,7 +1969,7 @@ __int64 InitEprocessOffsetsWin81_Update(void)
     int DefaultFlag = 0;
 
     SectionFound = 0;
-    Win7Sp1EprocessOffset = GetWin7Sp1EprocessOffset();
+    Win7Sp1EprocessOffset = (int)GetWin7Sp1EprocessOffset();
     Field35Val = (int)GtRead(GtEprocessField35 | 0x800);
     if (Field35Val == -1)
     {
@@ -2033,7 +2033,7 @@ __int64 InitEprocessOffsetsWin81_Update(void)
         GtWrite(GtProcessOffset, 528);
     if ((unsigned int)GtRead(GtEprocessField182 | GtEprocessField06 | 0x100) == -1)
         GtWrite(GtEprocessField182 | GtEprocessField06 | 0x100, 48);
-    Field182Val = GtRead(GtEprocessField182 | GtEprocessField06 | 0x100);
+    Field182Val = (unsigned int)GtRead(GtEprocessField182 | GtEprocessField06 | 0x100);
     GtWrite(GtEprocessField183 | GtEprocessField06 | 0x100, Field182Val + 8LL);
     GtWrite(GtEprocessField47, (unsigned int)(Win7Sp1EprocessOffset + 1056));
     GtWrite(GtEprocessField48, 760);
@@ -2230,7 +2230,7 @@ __int64 InitEprocessOffsetsWin10_10240(void)
         Field38Offset = Is10240 ? 1096 : 1104;
     }
     GtWrite(GtEprocessField40, (unsigned int)(Field38Offset + 16) + 40LL);
-    Field43Offset = GtRead(GtEprocessField43);
+    Field43Offset = (unsigned int)GtRead(GtEprocessField43);
     if (Field43Offset == -1)
     {
         GtWrite(GtEprocessField43, 1056);
@@ -2444,7 +2444,7 @@ __int64 InitEprocessOffsetsWin10_14393(void)
         Field38Offset = 1104;
     }
     GtWrite(GtEprocessField40, (unsigned int)(Field38Offset + 16) + 40LL);
-    Field43Offset = GtRead(GtEprocessField43);
+    Field43Offset = (unsigned int)GtRead(GtEprocessField43);
     if (Field43Offset == -1)
     {
         GtWrite(GtEprocessField43, 1056);
@@ -2635,7 +2635,7 @@ __int64 InitEprocessOffsetsWin10_15063(void)
         Field38Offset = 1104;
     }
     GtWrite(GtEprocessField40, (unsigned int)(Field38Offset + 16) + 40LL);
-    Field43Offset = GtRead(GtEprocessField43);
+    Field43Offset = (unsigned int)GtRead(GtEprocessField43);
     if (Field43Offset == -1)
     {
         GtWrite(GtEprocessField43, 1056);
@@ -2902,7 +2902,7 @@ __int64 InitEprocessOffsetsWin10_17134(void)
         Field38Offset = 1104;
     }
     GtWrite(GtEprocessField40, (unsigned int)(Field38Offset + 16) + 40LL);
-    Field43Offset = GtRead(GtEprocessField43);
+    Field43Offset = (unsigned int)GtRead(GtEprocessField43);
     if (Field43Offset == -1)
     {
         GtWrite(GtEprocessField43, 1056);
@@ -3146,7 +3146,7 @@ __int64 InitEprocessOffsetsWin10_18362(void)
         Field38Offset = 1104;
     }
     GtWrite(GtEprocessField40, (unsigned int)(Field38Offset + 16) + 40LL);
-    Field43Offset = GtRead(GtEprocessField43);
+    Field43Offset = (unsigned int)GtRead(GtEprocessField43);
     if (Field43Offset == -1)
     {
         GtWrite(GtEprocessField43, 1056);
@@ -3326,7 +3326,7 @@ __int64 InitEprocessOffsetsWin10_19041(void)
         Field38Offset = 1448;
     }
     GtWrite(GtEprocessField40, (unsigned int)(Field38Offset + 16) + 40LL);
-    Field43Offset = GtRead(GtEprocessField43);
+    Field43Offset = (unsigned int)GtRead(GtEprocessField43);
     if (Field43Offset == -1)
     {
         GtWrite(GtEprocessField43, 1400);
@@ -3549,7 +3549,7 @@ __int64 InitEprocessOffsetsWin11(void)
         Field38Offset = 1448;
     }
     GtWrite(GtEprocessField40, (unsigned int)(Field38Offset + 16) + 40LL);
-    Field43Offset = GtRead(GtEprocessField43);
+    Field43Offset = (unsigned int)GtRead(GtEprocessField43);
     if (Field43Offset == -1)
     {
         GtWrite(GtEprocessField43, 1400);
@@ -3886,15 +3886,15 @@ char InitNsiEnumerateObjects(void)
         EncodedPathOrFuncName[18] = 7536761;
         if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPathOrFuncName, &FileBuffer, &FileSize, 1))
         {
-            if (ReadNtFileToBuffer((int *)FileBuffer, FileSize, &NtFileBuffer, &NtFileSize) == 1)
+            if (ReadNtFileToBuffer((PUCHAR)FileBuffer, FileSize, (PUCHAR *)&NtFileBuffer, &NtFileSize) == 1)
             {
                 Result = 1;
                 strcpy((char *)EncodedPathOrFuncName, "NsiEnumerateObjectsAllParametersEx");
                 *((unsigned char *)&EncodedPathOrFuncName[8] + 3) = 0;
-                ExportByNameInPeBody = FindExportByNameInPeBody(
-                    (__int64)NtFileBuffer,
+                ExportByNameInPeBody = (unsigned int)FindExportByNameInPeBody(
+                    (PUCHAR)NtFileBuffer,
                     NtFileSize,
-                    (__int64)EncodedPathOrFuncName,
+                    (PCHAR)EncodedPathOrFuncName,
                     0);
                 if (ExportByNameInPeBody)
                     GtWrite(GtNtQuerySystemInformationFunc, NsiBaseAddr + ExportByNameInPeBody);
@@ -3913,7 +3913,7 @@ char InitNsiEnumerateObjects(void)
 __int64 InitFileSystemFilterCallbacks(__int64 FilterExtensionObject, _QWORD *FastIoDispatchPtr, char Is64Bit)
 {
     __int64 Result = 0;
-    if (!FilterExtensionObject || FilterExtensionObject < (unsigned __int64)MmSystemRangeStart)
+    if (!FilterExtensionObject || (unsigned __int64)FilterExtensionObject < (unsigned __int64)MmSystemRangeStart)
         return Result;
     if (MmIsAddressValid((void *)FilterExtensionObject) != 1)
         return Result;
@@ -3926,7 +3926,7 @@ __int64 InitFileSystemFilterCallbacks(__int64 FilterExtensionObject, _QWORD *Fas
     for (unsigned int i = 0; i < 0x20; ++i)
     {
         __int64 CallbackFunc = pCallbacks[i];
-        if (CallbackFunc && CallbackFunc > (unsigned __int64)MmSystemRangeStart)
+        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
         {
             if (MmIsAddressValid((void *)CallbackFunc) == 1)
             {
