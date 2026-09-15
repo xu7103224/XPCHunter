@@ -2587,7 +2587,7 @@ char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLengt
         int SectionName4 = 7340141;
         int SectionName5 = 6619182;
         __int64 SectionName6 = 6619256;
-        if (!(unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)SectionName, 0xCu))
+        if (!(unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)&SectionName, 0xCu))
             return 1;
         SectionName = 7602286;
         SectionName2 = 7536751;
@@ -2595,7 +2595,7 @@ char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLengt
         SectionName4 = 7077998;
         SectionName5 = 6619182;
         SectionName6 = 6619256;
-        if (!(unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)SectionName, 0xCu))
+        if (!(unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)&SectionName, 0xCu))
             return 1;
         SectionName = 7602286;
         SectionName2 = 7471211;
@@ -2603,7 +2603,7 @@ char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLengt
         SectionName4 = 6357104;
         SectionName5 = 6619182;
         SectionName6 = 6619256;
-        if ((unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)SectionName, 0xCu))
+        if ((unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)&SectionName, 0xCu))
         {
             SectionName = 7602286;
             SectionName2 = 7471211;
@@ -2611,7 +2611,7 @@ char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLengt
             SectionName4 = 7340141;
             SectionName5 = 6619182;
             SectionName6 = 6619256;
-            return (unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)SectionName, 0xCu) == 0;
+            return (unsigned int)StringCompare3Way((__int64)&SectionName, (unsigned __int16 *)&SectionName, 0xCu) == 0;
         }
         else
         {
@@ -3085,7 +3085,7 @@ LABEL_SCAN:
 __int64 ScanProcessPESectionsV2(void)
 {
     __int64 TargetProcess = GtRead(0x61);
-    __int64 CurrentProcess = IoGetCurrentProcess();
+    __int64 CurrentProcess = (__int64)IoGetCurrentProcess();
     KAPC_STATE ApcState;
 
     if (TargetProcess != CurrentProcess && TargetProcess)
@@ -3147,7 +3147,7 @@ __int64 InitHookFunctionTable(void)
     // 查找类型 0x48E(1166) 节区，然后找类型 0x558(1368) 节区
     // 写入 GT[0x23F](575) = KiInsertQueueApc 函数地址
     __int64 TargetProcess = GtRead(GtEprocessField61);
-    __int64 CurrentProcess = IoGetCurrentProcess();
+    __int64 CurrentProcess = (__int64)IoGetCurrentProcess();
     KAPC_STATE ApcState;
 
     if (TargetProcess != CurrentProcess && TargetProcess)
@@ -4234,7 +4234,7 @@ __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __i
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
-            int MatchSize = SectionSize2 + CumulativeSize;
+            int MatchSize = (int)(SectionSize2 + CumulativeSize);
             CumulativeSize += SectionSize2;
             if (*(_WORD *)(SectionDataPtr + 6) == 1245 && FieldValue == 64 && EntryFlags == 1 && FieldValue2 == 0x40000)
             {
@@ -4442,11 +4442,11 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
         SectionBase = ImageBase + (unsigned int)result;
         SectionEnd = (int)EndAddress;
         if (EndAddress > (unsigned __int64)(SectionBase + 4096))
-            SectionEnd = SectionBase + 4096;
+            SectionEnd = (int)(SectionBase + 4096);
         InitPESectionReadContext(SectionBase, (ULONG)(SectionEnd - SectionBase), 2, 0, -1, 0, 0, (__int64)ReadContext);
         while (1)
         {
-            result = ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry);
+            result = ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry);
             if ((_DWORD)result)
                 break;
             __int64 CumulativeSize = SectionSize + CumulativeSize2;
@@ -4752,11 +4752,11 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
         ScanStart = TargetBase + (unsigned int)Result;
         ScanEnd = (int)BufferEnd;
         if (BufferEnd > (unsigned __int64)(ScanStart + 4096))
-            ScanEnd = ScanStart + 4096;
+            ScanEnd = (int)(ScanStart + 4096);
         InitPESectionReadContext(ScanStart, (ULONG)(ScanEnd - ScanStart), 2, 0, -1, 0, 0, (__int64)ReadContext);
         while (1)
         {
-            Result = ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry);
+            Result = ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry);
             if ((_DWORD)Result)
                 break;
             __int64 CumulativeSize = EntryCumulSize + TotalCumulSize;
