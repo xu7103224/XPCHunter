@@ -1390,7 +1390,7 @@ __int64 FindPeExecutableSection(void)
     if (!KernelBase || !KernelSize || !NtImageBase || !(_DWORD)result || (unsigned int)result >= KernelSize)
         return result;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     unsigned int FieldValue = 0;
@@ -1449,7 +1449,7 @@ __int64 ScanFileForPeSectionInfo(void)
     if (NtImageBase + SizeDiff != NtImageSize)
         return Result;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     // ReadPESectionEntry 只填充前 0x120 字节，但本函数会访问到 +0x1A0 处，
     // 故缓冲须大于 0x120（原声明 [72] 恰为 0x120，会越界读到相邻栈变量）
     _DWORD SectionEntry[112];
@@ -3785,9 +3785,9 @@ char ParseKernelModuleSectionTable(__int64 FileBuffer, unsigned int FileSize, __
     unsigned int SectionRva2;
     __int64 SlotIndex;
     unsigned int SectionOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 AccumulatedOffset;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int SectionDataSize;
     int FieldFlags;
     __int64 SectionCharacteristics;
@@ -4085,9 +4085,9 @@ char ScanKernelPeExportSection()
     int ComputedOffset;
     __int16 SectionType;
     unsigned int ExportRva;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionFileOffset;
-    ULONG SectionEntry[20];
+    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 FieldValueSize;
     int FieldCount;
     int SectionDataSize;
@@ -4169,9 +4169,9 @@ char ScanKernelPeExportData()
     int ComputedOffset;
     __int16 SectionType;
     unsigned int ExportRva;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionFileOffset;
-    ULONG SectionEntry[20];
+    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 FieldValueSize;
     __int64 FieldFlags;
     int SectionDataSize;
@@ -4288,9 +4288,9 @@ char EnumProcessPeExportData()
     int ComputedOffset;
     __int16 SectionType;
     unsigned int ExportRva;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionFileOffset;
-    ULONG SectionEntry[20];
+    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 FieldValueSize;
     int FieldCount;
     int SectionDataSize;
@@ -4379,9 +4379,9 @@ char EnumProcessPeExportDataByIndex()
     int ComputedOffset;
     __int16 SectionType;
     unsigned int ExportRva;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionFileOffset;
-    ULONG SectionEntry[20];
+    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 FieldFlags;
     __int64 FieldValueSize;
     int SectionDataSize;
@@ -4466,9 +4466,9 @@ char EnumProcessPeExportDataEx()
     int ComputedOffset;
     __int16 SectionType;
     unsigned int ExportRva;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionFileOffset;
-    ULONG SectionEntry[20];
+    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 FieldFlags;
     __int64 FieldValueSize;
     int FieldCount;
