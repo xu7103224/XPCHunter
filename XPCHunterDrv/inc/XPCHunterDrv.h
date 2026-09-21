@@ -1335,7 +1335,7 @@ __int64 GetProcessDeviceMap(_QWORD *pEprocessPtr);
 __int64 FindPESectionByIndex(unsigned int SectionIndex);
 __int64 DispatchParseNtExportSectionsV2(void);
 char ValidateIoPortSection(__int64 Address);
-void ParseNtExportSectionsV4(void);
+char ParseNtExportSectionsV4(void);
 __int64 ParseNtExportSectionsV2(void);
 __int64 ParseNtExportSectionsWin10(void);
 void ReadIdtr(void *pIdtr);

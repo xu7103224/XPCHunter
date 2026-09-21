@@ -2553,11 +2553,172 @@ __int64 DispatchParseNtExportSectionsV2(void)
 }
 
 
-// ParseNtExportSectionsV4 -- 解析 NT 导出节区 V4
-// 对应原始驱动 sub_1400382FC
-void ParseNtExportSectionsV4(void)
+// ParseNtExportSectionsV4 — 解析 NT 导出节区 V4（三段递进扫描）
+// 对应原始驱动 0x1400382FC（727 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用），由 0x1400382FC~0x1400385D2
+//   的 194 条指令逐条还原
+// 【⚠ 修正记录】此前本函数是空壳（`void ParseNtExportSectionsV4(void) { return; }`），
+//   属 CLAUDE.md 明令禁止的占位实现。本次补齐真实逻辑，并把返回类型由 `void`
+//   更正为 `char` —— 原始结尾是 `mov al, bl`，成功路径 `mov bl, 1`，是布尔返回
+//   （调用点 ContextMgmt.c 忽略返回值，故更正后调用点无需改动）。
+// 【验证依据】描述符字段偏移由 rbp 位移换算（条目基址 var_150 = rbp-0x70）：
+//   0xF0 / 0x118 / 0x88 / 0x70 / 0x50 / 0x58 / 0x38 / 0x78，与已验证的 0x120
+//   布局吻合；帧布局与其它扫描器一致（ctx = rsp+0x40，读指针 = rsp+0x48 = ctx+8，
+//   同样是"ReadPESectionEntry 只读上下文、调用方推进读指针"）
+// 【与其它扫描器的差异（差分结论）】
+//   1) 三段递进，每段都用 InitPESectionReadContext 重新初始化，且窗口大小**固定
+//      0x1000**(4096) 字节，不是"扫到文件末尾"
+//   2) 前置校验：GT 0x43A5 的值 v 须满足 v < 文件大小 且 v+0x1000 < 文件大小
+//   3) 三段识别条件各不相同，循环上限分别为 0x64 / 0x12C / 0x64
+//   4) 结果写 GT 0x1A3，返回布尔（其它扫描器返回 0 且靠 GT 传结果）
+// 【⚠ GT 0x43A5 说明】该索引落在原始驱动的"哈希表区"(0x4158-0x4479)，运行时会被
+//   解析结果覆盖，此处按"第 1 段的起始偏移"使用，语义存疑但操作忠实。
+// 【逻辑】
+//   第 1 段：从「文件缓冲基址 + GT 0x43A5」起扫 0x1000 字节，遇到 0x558 型且
+//           +0x38(VA) 非 0 的节区就记候选偏移（候选 = VA - 文件缓冲低 32 位 +
+//           读指针低 32 位）；随后若遇到 +0x88==0x800000 且 +0x70==0xC0000259
+//           的节区且候选合法（非 0 且 < 文件大小）则进入第 2 段
+//   第 2 段：以候选偏移为基址再扫 0x1000 字节，先置位"见到 +0x50==0x200 且
+//           +0x88==0x40000 的节区"标志；标志置位后再遇 0x558 型且 +0x38 非 0，
+//           算出新偏移且 < 文件大小者进入第 3 段
+//   第 3 段：以该偏移为基址再扫 0x1000 字节，找 0x510 型且 +0x50==0x40 且
+//           +0x88==0x40000 且 +0x58==2 的节区，取 +0x78 算出末偏移，非 0 且
+//           < 文件大小时写入 GT 0x1A3（末偏移 + GT 0x3 镜像基址），返回 1
+//   任一段失败/越界一律返回 0
+char ParseNtExportSectionsV4(void)
 {
-    return;
+    char Result = 0;
+    char FoundFlag = 0;
+    unsigned int PhaseBase;
+    unsigned int KernelSize;
+    unsigned int Candidate = 0;
+    unsigned int EntryIndex;
+    unsigned int ReadPtr32;
+    ULONG64 ExpectedValue;
+    ULONG64 NtImageBase;
+    ULONG64 FileBase;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    FileBase = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    KernelSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    PhaseBase = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43A5);
+
+    if (!NtImageBase || !FileBase || !KernelSize || !PhaseBase)
+        return Result;
+    if (PhaseBase >= KernelSize)
+        return Result;
+    if (PhaseBase + 0x1000 >= KernelSize)
+        return Result;
+
+    // ---- 第 1 段：定位候选偏移 ----
+    InitPESectionReadContext(FileBase + PhaseBase, 0x1000, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    ExpectedValue = 0x558;
+
+    for (EntryIndex = 0; EntryIndex < 0x64; EntryIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return Result;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        ReadPtr32 = (unsigned int)ReadContext.ReadPtr;
+
+        if ((unsigned __int16)ExpectedValue ==
+                *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) &&
+            *(_DWORD *)((char *)SectionEntry + 0x38) != 0)
+        {
+            Candidate = *(_DWORD *)((char *)SectionEntry + 0x38) - (unsigned int)FileBase + ReadPtr32;
+            continue;
+        }
+
+        if (*(__int64 *)((char *)SectionEntry + 0x88) == 0x800000 &&
+            *(__int64 *)((char *)SectionEntry + 0x70) == 0xC0000259 &&
+            Candidate != 0 &&
+            Candidate < KernelSize)
+            break;
+    }
+
+    if (EntryIndex >= 0x64)
+        return Result;
+
+    // ---- 第 2 段：由候选偏移再定位下一级偏移 ----
+    InitPESectionReadContext(FileBase + Candidate, 0x1000, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    ExpectedValue = 0x40000;
+    FoundFlag = 0;
+
+    for (EntryIndex = 0; EntryIndex < 0x12C; EntryIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return Result;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        ReadPtr32 = (unsigned int)ReadContext.ReadPtr;
+
+        if (*(__int64 *)((char *)SectionEntry + 0x50) == 0x200 &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == ExpectedValue)
+        {
+            FoundFlag = 1;
+            continue;
+        }
+
+        if (FoundFlag != 1)
+            continue;
+        if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) != 0x558)
+            continue;
+
+        PhaseBase = *(_DWORD *)((char *)SectionEntry + 0x38);
+        if (!PhaseBase)
+            continue;
+
+        PhaseBase = PhaseBase - (unsigned int)FileBase + ReadPtr32;
+        if (!PhaseBase)
+            continue;
+        if (PhaseBase >= KernelSize)
+            continue;
+
+        break;
+    }
+
+    if (EntryIndex >= 0x12C)
+        return Result;
+
+    // ---- 第 3 段：由下一级偏移定位最终节区并写结果 ----
+    InitPESectionReadContext(FileBase + PhaseBase, 0x1000, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (EntryIndex = 0; EntryIndex < 0x64; EntryIndex++)
+    {
+        unsigned int FinalOffset;
+
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return Result;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        ReadPtr32 = (unsigned int)ReadContext.ReadPtr;
+
+        if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) != 0x510)
+            continue;
+        if (*(__int64 *)((char *)SectionEntry + 0x50) != 0x40)
+            continue;
+        if (*(__int64 *)((char *)SectionEntry + 0x88) != ExpectedValue)
+            continue;
+        if (*(__int64 *)((char *)SectionEntry + 0x58) != 2)
+            continue;
+
+        FinalOffset = *(_DWORD *)((char *)SectionEntry + 0x78);
+        FinalOffset = FinalOffset - (unsigned int)FileBase + ReadPtr32;
+        if (!FinalOffset)
+            continue;
+        if (FinalOffset >= KernelSize)
+            continue;
+
+        GtWrite((GLOBAL_TABLE_INDEX)0x1A3, (__int64)(FinalOffset + NtImageBase));
+        Result = 1;
+        return Result;
+    }
+
+    return Result;
 }
 
 // ValidateIoPortSection -- 验证 IO 端口节区
