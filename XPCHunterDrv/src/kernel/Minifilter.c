@@ -1341,21 +1341,51 @@ __int64 MiniFilterCommPortCleanup(__int64 Unknown, __int64 Unknown2, _DWORD *Out
     return 1;
 }
 
-// MiniFilterCommPortConnect — 通信端口连接
-// 对应原始驱动 sub_140019784
-// 检查通信端口回调就绪标志，若未就绪则注册通信端口回复回调
-void MiniFilterCommPortConnect(void)
+// RegisterCommPortReplyCallback — 注册通信端口回复回调
+// 对应原始驱动 0x140019898（62 字节）
+// 【逆向来源】反汇编逐条还原：GtRead(0x42CE) 取出注册函数指针（为 0 则返回 0），
+//   以 (MiniFilterCommPortReplyDone, 0, &g_CommPortContext) 调用，返回 (eax >= 0)
+// 【命名同步 2026-09-21】此前该函数体被错误地挂在 MiniFilterCommPortConnect 名下，
+//   而后者在原始中是一个独立的 54 字节"只做一次"守卫包装（见下方同名函数）。
+//   本次按命名审计文档拆开：本体归名 RegisterCommPortReplyCallback，包装另行实现。
+char RegisterCommPortReplyCallback(void)
 {
+    char Result = 0;
     int (__fastcall *RegisterCallbackFunc)(_QWORD, _QWORD, __int64 *);
+
+    RegisterCallbackFunc = (int (__fastcall *)(_QWORD, _QWORD, __int64 *))GtRead(GtTotalSize | GtCallbackField03);
+    if (RegisterCallbackFunc)
+    {
+        Result = (RegisterCallbackFunc((_QWORD)MiniFilterCommPortReplyDone, 0, &g_CommPortContext) >= 0) ? 1 : 0;
+    }
+    return Result;
+}
+
+// MiniFilterCommPortConnect — 通信端口连接（"只做一次"的守卫包装）
+// 对应原始驱动 0x140019784（54 字节）
+// 【逆向来源】反汇编逐条还原：
+//   if (GtRead(0x8F2) == 0)                        // 未初始化才继续
+//       if (RegisterCommPortReplyCallback() == 1)  // 注册成功（严格 == 1）
+//           GtWrite(0x8F2, 1);                     // 标记已初始化
+//           返回 1
+//   否则返回 0
+// 【与 RegisterCommPortReplyCallback 的关系】原始是两个独立函数：本函数负责
+//   "只注册一次"的守卫（GT 0x8F2 = GtCommPortCallbackReady 作标志位），
+//   注册动作本身在 0x140019898。复刻此前把两者合并且丢了守卫逻辑，
+//   2026-09-21 按命名审计拆分为两个函数。
+char MiniFilterCommPortConnect(void)
+{
+    char Result = 0;
 
     if (!(unsigned int)GtRead(GtCommPortCallbackReady))
     {
-        RegisterCallbackFunc = (int (__fastcall *)(_QWORD, _QWORD, __int64 *))GtRead(GtTotalSize | GtCallbackField03);
-        if (RegisterCallbackFunc && RegisterCallbackFunc((_QWORD)MiniFilterCommPortReplyDone, 0, &g_CommPortContext) >= 0)
+        if (RegisterCommPortReplyCallback() == 1)
         {
             GtWrite(GtCommPortCallbackReady, 1);
+            Result = 1;
         }
     }
+    return Result;
 }
 
 // MiniFilterCommPortReplyDone — 通信端口回复完成
