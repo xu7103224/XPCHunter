@@ -404,6 +404,7 @@ char DisableThreadProtect(unsigned int *Address, int ContextSize);
 __int64 DiskOperationDispatcher(void *Address, unsigned int Length);
 __int64 DispatchFreeProcessMemory(char *VirtualAddress);
 __int64 __fastcall DispatchHookSwapByVersion(__int64 Handle, __int64 *OriginalValue);
+char SendIoControlWithBufferSwap(unsigned char *PrefixDesc, unsigned char *NameDesc, unsigned char *OutputBuffer, unsigned int OutputSize);
 __int64 DispatchInstructionDecode( ULONG64 BufferPos, ULONG64 BufferEnd, ULONG64 TableEntry, ULONG64 DecodeCtx);
 
 __int64 __fastcall DispatchIoControlByBuildNumber( __int64 (__fastcall *HandlerFunc)(__int64, __int64),

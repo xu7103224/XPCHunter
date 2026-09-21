@@ -2555,6 +2555,239 @@ __int64 __fastcall DispatchIoControlByBuildNumber(
 }
 
 // =========================================================================
+// SWAP_IOCTL_BLOCK — SendIoControlWithBufferSwap 的输入描述符
+// =========================================================================
+// 【逆向来源】原始驱动 0x1400731F4 的栈布局直接读出（基址 var_60 = rbp-0x09）：
+//   +0x00 从未被调用方初始化，而是由 SwapKernelMemoryPointer 写入，
+//         随后被 `*pSwap = [var_60]` 拷回 —— 故为"交换内存句柄槽"
+//   +0x08 = 0x30（描述符长度），+0x0C = 0，+0x10 = 0
+//   +0x18 = &UNICODE_STRING（拼接好的宽字符路径）
+//   +0x20 = 0x240（576，缓冲大小类字段），+0x28/+0x30 = 0（movdqu xmm0 清零 16 字节）
+//   共 0x38 字节。调用方把 &+0x08 作为输入结构传给
+//   DispatchIoControlForServer2022，把 &+0x00 传给 SwapKernelMemoryPointer，
+//   故二者必须连续 —— 用结构体而非两个独立局部变量来保证。
+// 【⚠ 存疑】该描述符的确切类型尚未确认（+0x18 处放 UNICODE_STRING 指针、
+//   +0x20 处为 0x240 这一点不匹配 OBJECT_ATTRIBUTES 等常见结构），
+//   此处按偏移命名，待确认类型后再改名。
+typedef struct _SWAP_IOCTL_BLOCK
+{
+    __int64 SwapHandle;             // +0x00 交换内存句柄（由 SwapKernelMemoryPointer 写入）
+
+    struct
+    {
+        ULONG   Length;             // +0x08 = 0x30
+        ULONG   Reserved0C;         // +0x0C = 0
+        __int64 Field10;            // +0x10 = 0
+        __int64 NamePtr;            // +0x18 = &UNICODE_STRING
+        __int64 Field20;            // +0x20 = 0x240
+        __int64 Field28;            // +0x28 = 0
+        __int64 Field30;            // +0x30 = 0
+    } Descriptor;
+} SWAP_IOCTL_BLOCK;                 // 共 0x38 字节
+
+// SendIoControlWithBufferSwap — 拼接宽字符路径并执行注册表键 IOCTL
+// 对应原始驱动 0x1400731F4（760 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用），由 0x1400731F4~0x1400734EB
+//   的 213 条指令逐条还原
+// 【⚠ 名称说明】名字里的 "IoControl" 只描述了后半段，本函数前半段是**路径拼接**：
+//   把 Arg1 的缓冲搬入输出缓冲 → **强制把最后一个宽字符改写为 0x005C('\\')**
+//   （`mov [rax+r12-2], cx`，cx = 0x5C）→ 追加 Arg2 的内联数据 →
+//   补一个 0 宽字符结尾。名称沿用 IDA 数据库。
+// 【参数（由寄存器用途与栈 home 槽位推出）】
+//   Arg1 rcx 前缀描述符：+0x04 = 前缀字节长度，+0x08 = 前缀缓冲指针
+//   Arg2 rdx 名字描述符：+0x0C = 名字字节长度，+0x10 = 内联名字数据（宽字符）
+//   Arg3 r8  输出缓冲
+//   Arg4 r9d 输出缓冲大小（32 位 —— 序言 `mov [rax+20h], r9d` 只存 32 位可证）
+// 【栈参数槽位标定】IDA 显示的 Dst / NumberOfBytes / var_C0 分别是 rsp+0x20 /
+//   rsp+0x28 / rsp+0x30，即第 5/6/7 个栈参数。依据：AllocBufferAndQuerySystemInfo
+//   的第 7 参数（ReturnSize）实参 &var_68 落在 var_C0；且
+//   DispatchIoControlForServer2022 的第 7 参数是 char，调用点对 var_C0 只写 1 字节。
+// 【容量校验】`len2 + len1 + 2 < 输出缓冲大小`，用 `jnb`（无符号 >=）判失败。
+// 【逻辑】
+//   1) 从 7 个 GT 索引取值，任一个为 0 直接返回 0：
+//      0x184 = IOCTL 执行函数指针，0x41C6 = 旧版构建号的发送函数，
+//      0x4223 = 缓冲释放函数，0x17C(GtEprocessExtField124) = 查询函数，
+//      0x4334 = 句柄关闭函数，0x179 = 指向待传参的指针，0x197 = 另一个函数指针
+//   2) 拼接路径（见上），并据此填写 UNICODE_STRING（Length = 总长-2，
+//      MaximumLength = 总长，Buffer = 输出缓冲）
+//   3) 填 SWAP_IOCTL_BLOCK，调用 SwapKernelMemoryPointer 取得交换句柄，
+//      并把句柄值经返回指针拷回
+//   4) DispatchIoControlForServer2022(..., 0x20019 /*KEY_READ*/, &描述符, 0,0,0)
+//   5) 按构建号 0x1DB0 分岔：低于则间接调用 0x41C6 的函数（6 参数），
+//      否则调用 SendDeviceIoControlWithRetry
+//   6) DispatchIoControlByBuildNumber(0x197 的函数, &ValueA8, &ValueA0, 0, 1)
+//   7) DispatchHookSwapByVersion 两次（第二次仅在 ValueA0 非 0 时），
+//      分别把原始值写回其返回的指针
+//   8) AllocBufferAndQuerySystemInfo(0x17C 的函数, ValueA8, ValueA0, 2, 输出缓冲,
+//      输出缓冲大小, &返回大小)
+//   9) 结果 = (输出缓冲 +0x14 处的 DWORD > 0)
+//   10) 释放 ValueA8、关闭句柄后返回
+// 【⚠ 清理路径】函数内所有错误分支都汇合到「先释放 ValueA8 再关闭句柄」两步，
+//   与原始驱动的 0x1400734BB/0x1400734C2 两个汇合点一一对应。
+// =========================================================================
+char SendIoControlWithBufferSwap(
+    unsigned char *PrefixDesc,
+    unsigned char *NameDesc,
+    unsigned char *OutputBuffer,
+    unsigned int OutputSize)
+{
+    char Result = 0;
+    int Status;
+    __int64 *SwapSlot;
+    __int64 *HookTarget1;
+    __int64 *HookTarget2;
+    __int64 HookSave2;
+    unsigned int PrefixLength;
+    unsigned int NameLength;
+    unsigned int TotalLength;
+    __int64 Handle184;
+    __int64 Func41C6;
+    __int64 Func4223;
+    __int64 Func4334;
+    __int64 Func179;
+    __int64 Value197;
+    __int64 Value17C;
+    __int64 OutHandle;
+    __int64 ValueA0;
+    __int64 ValueA8;
+    __int64 ReturnSize;
+    UNICODE_STRING PathString;
+    SWAP_IOCTL_BLOCK Block;
+
+    Handle184 = GtRead((GLOBAL_TABLE_INDEX)0x184);
+    Func41C6 = GtRead((GLOBAL_TABLE_INDEX)0x41C6);
+    Func4223 = GtRead((GLOBAL_TABLE_INDEX)0x4223);
+    Value17C = GtRead(GtEprocessExtField124);
+    Func4334 = GtRead((GLOBAL_TABLE_INDEX)0x4334);
+    Func179 = GtRead((GLOBAL_TABLE_INDEX)0x179);
+    Value197 = GtRead((GLOBAL_TABLE_INDEX)0x197);
+
+    if (!Handle184 || !Func41C6 || !Func4223 || !Value17C || !Func4334 || !Func179 || !Value197)
+        return Result;
+
+    PrefixLength = *(unsigned int *)(PrefixDesc + 0x04);
+    NameLength = *(unsigned int *)(NameDesc + 0x0C);
+    TotalLength = NameLength + PrefixLength + 2;
+
+    if (TotalLength >= OutputSize)
+        return Result;
+
+    memmove(OutputBuffer, *(void **)(PrefixDesc + 0x08), PrefixLength);
+    *(unsigned short *)(OutputBuffer + PrefixLength - 2) = 0x5C;
+    memmove(OutputBuffer + PrefixLength, NameDesc + 0x10, NameLength);
+    *(unsigned short *)(OutputBuffer + PrefixLength + NameLength) = 0;
+
+    if (TotalLength < 2)
+    {
+        PathString.Buffer = NULL;
+        PathString.Length = 0;
+        PathString.MaximumLength = 0;
+    }
+    else
+    {
+        PathString.MaximumLength = (USHORT)TotalLength;
+        PathString.Buffer = (PWSTR)OutputBuffer;
+        PathString.Length = (USHORT)(TotalLength - 2);
+    }
+
+    Block.Descriptor.Length = 0x30;
+    Block.Descriptor.Field10 = 0;
+    Block.Descriptor.Field20 = 0x240;
+    Block.Descriptor.Field28 = 0;
+    Block.Descriptor.Field30 = 0;
+    Block.Descriptor.NamePtr = (__int64)&PathString;
+
+    SwapSlot = SwapKernelMemoryPointer(&Block.SwapHandle);
+
+    Status = (int)DispatchIoControlForServer2022(
+        (__int64(__fastcall *)(__int64, _QWORD, __int64, _QWORD, __int64, char))Handle184,
+        (__int64)&OutHandle,
+        0x20019,
+        (__int64)&Block.Descriptor,
+        0,
+        0,
+        0);
+
+    if (SwapSlot)
+        *SwapSlot = Block.SwapHandle;
+
+    if (Status < 0)
+        return Result;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0)
+    {
+        Status = (int)((__int64(__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64))Func41C6)(
+            OutHandle,
+            1,
+            *(__int64 *)Func179,
+            0,
+            (__int64)&ValueA8,
+            0);
+    }
+    else
+    {
+        Status = (int)SendDeviceIoControlWithRetry(OutHandle, 1, 0, (_DWORD **)&ValueA8, 0);
+    }
+
+    if (Status < 0)
+        goto LABEL_FREE_A8;
+
+    ValueA0 = 0;
+
+    Status = (int)DispatchIoControlByBuildNumber(
+        (__int64(__fastcall *)(__int64, __int64))Value197,
+        (__int64)&ValueA8,
+        (__int64)&ValueA0,
+        0,
+        1);
+
+    if (Status < 0)
+        goto LABEL_FREE_A8;
+
+    HookTarget1 = (__int64 *)DispatchHookSwapByVersion(ValueA8, &Value197);
+    HookTarget2 = NULL;
+    HookSave2 = 0;
+
+    if (ValueA0)
+    {
+        HookTarget2 = (__int64 *)DispatchHookSwapByVersion(ValueA0, &HookSave2);
+    }
+
+    Status = (int)AllocBufferAndQuerySystemInfo(
+        (__int64(__fastcall *)(__int64, __int64, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *))Value17C,
+        ValueA8,
+        ValueA0,
+        2,
+        (unsigned char *)OutputBuffer,
+        (size_t)OutputSize,
+        (size_t *)&ReturnSize);
+
+    if (HookTarget1)
+        *HookTarget1 = Value197;
+
+    if (ValueA0)
+    {
+        if (HookTarget2)
+            *HookTarget2 = HookSave2;
+
+        ((void(__fastcall *)(__int64))Func4223)(ValueA0);
+    }
+
+    if (Status >= 0)
+    {
+        Result = (*(unsigned int *)(OutputBuffer + 0x14) > 0) ? 1 : 0;
+    }
+
+LABEL_FREE_A8:
+    ((void(__fastcall *)(__int64))Func4223)(ValueA8);
+
+    ((void(__fastcall *)(__int64))Func4334)(OutHandle);
+
+    return Result;
+}
+
+// =========================================================================
 // DispatchIoControlForServer2022 — 根据构建号分发 Server 2022 的 IO 控制命令
 // 对应原始驱动 sub_140075FA4
 // 构建号 >= 0x4F7C 时使用 6 参数调用；否则使用 5 参数调用
