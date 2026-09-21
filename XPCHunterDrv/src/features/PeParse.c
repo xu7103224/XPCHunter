@@ -37,9 +37,9 @@ __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, _
     int MatchSize2;
     __int16 SubType;
     __int64 ResultAddress;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int EntryCharacteristics;
     __int64 FieldValue;
     unsigned int EntryFlags;
@@ -174,9 +174,9 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
     unsigned int SecondRelocOffset;
     unsigned int LoopIndex3;
     int CurrentOffset;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     unsigned int EntrySize;
     int EntryFlags;
     __int64 SectionFlags;
@@ -345,8 +345,10 @@ __int64 ParseNtExportFunctions(void)
     unsigned int ImageBase;
     unsigned int ImageSize;
     unsigned int DataDirRva;
-    __int64 PeContext;
-    char EntryBuffer[80];
+    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>，见 L362/408/660/713）
+                            //   又被取址当解码上下文；不能只改类型，需按"角色拆分"处理
+                            //   （与 ContextMgmt.c 的 PeContext、CumulativeSize 家族同源）
+    char EntryBuffer[448];              // 描述符：原 [80] 仅 80 字节
     __int64 PeFileData;
 
     Result = 0;
@@ -643,8 +645,10 @@ __int64 ParseNtExportFunctionsV2(void)
     unsigned int ImageBase;
     unsigned int DataDirRva;
     unsigned int ImageSize;
-    __int64 PeContext;
-    char EntryBuffer[80];
+    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>，见 L362/408/660/713）
+                            //   又被取址当解码上下文；不能只改类型，需按"角色拆分"处理
+                            //   （与 ContextMgmt.c 的 PeContext、CumulativeSize 家族同源）
+    char EntryBuffer[448];              // 描述符：原 [80] 仅 80 字节
     __int64 PeFileData;
 
     Result = 0;
@@ -933,9 +937,9 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
     __int64 *pContextTable;
     __int64 *pTargetTable;
     unsigned __int64 ImageNtHeader;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int FieldValue;
     int FieldValue2;
     __int64 SectionCharacteristics;
@@ -1127,9 +1131,9 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     unsigned int EntryIndex;
     int SectionEnd4;
     __int64 BaseOffset;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int FieldValue;
     int FieldValue2;
     __int64 SectionCharacteristics;
@@ -1240,9 +1244,9 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
     char FoundSecondStage;
     int LoopIndex;
     int CurrentOffset;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int EntrySize;
     __int64 SectionFlags;
     unsigned int SectionSize;
