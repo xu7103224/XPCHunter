@@ -1200,17 +1200,163 @@ Cleanup:
 }
 
 // ReadKernelMemoryViaSwap -- 通过交换缓冲区读取内核内存
-// 对应原始驱动 sub_140074D5C
+// 对应原始驱动 sub_140074D5C（地址 0x140074D5C，411 字节，114 条指令）
+// 【逆向来源】人工阅读反汇编逐条重建 —— 与 ReadKernelMemoryViaSwapEx 同因（IDA 无法
+//   分析该函数，Hex-Rays 报 "function frame is wrong"，无伪代码可用）
+// 【验证依据】调用者同为 CmdReadProcessMemoryStr(0x140074418)，其可反编译的伪代码给出
+//   ReadKernelMemoryViaSwap(v46, v18, v8, v35)，实参 4 个与本实现签名一致；
+//   与 Ex 版逐指令差分比对，确认仅三处不同（见下）
+// 【存疑/注意】原函数名与实际行为不符（0x20019 = KEY_READ，实际读注册表键信息）
+// 【与 Ex 版的差异（逐指令差分结论）】
+//   1) 三个全局表索引不同：0x16E / 0x4334(ExFreePool) / 0x172
+//   2) 打开对象之前额外调用 SwapKernelMemoryPointer(&SavedValue) 取得"交换槽"指针
+//   3) 打开之后**无条件**执行 *pSwapSlot = SavedValue，随后才判断打开状态
+//       （此顺序由汇编确认：写回在状态判断之前，容易写反）
+// 【其余逻辑】与 Ex 版完全一致：长度检查 → 拼接"基串 + '\' + 子串" →
+//   UNICODE_STRING + OBJECT_ATTRIBUTES → 打开(0x20019) → 查询(类别 2) →
+//   Result = (*(DWORD*)(SwapBuffer + 0x14) != 0) → 释放句柄
 __int64 ReadKernelMemoryViaSwap(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize)
 {
-    return 0;
+    NTSTATUS(__fastcall *OpenObjectFunc)(HANDLE *, ULONG, POBJECT_ATTRIBUTES);
+    void(__fastcall *ReleaseFunc)(HANDLE);
+    NTSTATUS(__fastcall *QueryObjectFunc)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+    __int64 *pSwapSlot;
+    __int64 SavedValue;
+    NTSTATUS Status;
+    char Result;
+    unsigned int BaseLength;
+    unsigned int SubLength;
+    unsigned int TotalLength;
+    HANDLE ObjectHandle;
+    ULONG ReturnLength;
+    UNICODE_STRING ObjectPath;
+    struct _OBJECT_ATTRIBUTES ObjectAttributes;
+
+    Result = 0;
+    ObjectHandle = NULL;
+    SavedValue = 0;
+    BaseLength = *(unsigned int *)((char *)InputBuffer + 4);
+    SubLength = *(unsigned int *)((char *)OutputBuffer + 0xC);
+
+    OpenObjectFunc = (NTSTATUS(__fastcall *)(HANDLE *, ULONG, POBJECT_ATTRIBUTES))GtRead((GLOBAL_TABLE_INDEX)0x16E);
+    ReleaseFunc = (void(__fastcall *)(HANDLE))GtRead(GtExFreePoolFunc);
+    QueryObjectFunc = (NTSTATUS(__fastcall *)(HANDLE, ULONG, PVOID, ULONG, PULONG))GtRead((GLOBAL_TABLE_INDEX)0x172);
+    if (!OpenObjectFunc || !ReleaseFunc || !QueryObjectFunc)
+        return Result;
+
+    TotalLength = BaseLength + SubLength + 2;
+    if (TotalLength >= BufferSize)
+        return Result;
+
+    memmove(SwapBuffer, *(const void **)((char *)InputBuffer + 8), BaseLength);
+    *(WORD *)((char *)SwapBuffer + BaseLength - 2) = 0x5C;
+    memmove((char *)SwapBuffer + BaseLength, *(const void **)((char *)OutputBuffer + 0x10), SubLength);
+    *(WORD *)((char *)SwapBuffer + BaseLength + SubLength) = 0;
+
+    ObjectPath.Length = (USHORT)(TotalLength - 2);
+    ObjectPath.MaximumLength = (USHORT)TotalLength;
+    ObjectPath.Buffer = (PWSTR)SwapBuffer;
+
+    ObjectAttributes.Length = 48;
+    ObjectAttributes.RootDirectory = NULL;
+    ObjectAttributes.ObjectName = &ObjectPath;
+    ObjectAttributes.Attributes = 576;
+    ObjectAttributes.SecurityDescriptor = NULL;
+    ObjectAttributes.SecurityQualityOfService = NULL;
+
+    pSwapSlot = SwapKernelMemoryPointer(&SavedValue);
+    Status = OpenObjectFunc(&ObjectHandle, 0x20019, &ObjectAttributes);
+    if (pSwapSlot)
+        *pSwapSlot = SavedValue;
+    if (Status < 0)
+        return Result;
+
+    ReturnLength = 0;
+    if (QueryObjectFunc(ObjectHandle, 2, SwapBuffer, BufferSize, &ReturnLength) >= 0)
+    {
+        if (*(unsigned int *)((char *)SwapBuffer + 0x14) > 0)
+            Result = 1;
+    }
+    ReleaseFunc(ObjectHandle);
+    return Result;
 }
 
 // ReadKernelMemoryViaSwapEx -- 通过交换缓冲区读取内核内存（扩展版）
-// 对应原始驱动 sub_140075874
+// 对应原始驱动 sub_140075874（地址 0x140075874，385 字节，106 条指令）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"；已试 reanalyze_function 与 删除+auto_make_proc 重建，
+//   均无效，因此没有伪代码可用，逻辑全部由反汇编数据流还原）
+// 【验证依据】1) 调用点 CmdReadProcessMemoryStr(0x140074418) 可反编译，其伪代码给出
+//   实参为 4 个：ReadKernelMemoryViaSwapEx(Address, v5, v8, v35)，与本实现签名一致；
+//   2) 访问掩码 0x20019 = KEY_READ、查询类别 2，据此判定语义为"打开并查询注册表键"
+// 【存疑/注意】原函数名与实际行为不符（实际读的是注册表键信息，非内核内存）；
+//   三个全局表槽位(0x41F3/0x4334/0x4205)在头文件中的别名不可信（该区域是"先存哈希、
+//   运行时被解析地址覆盖"的槽位），故按调用形态而非别名理解
+// 【逻辑】
+//   1) 取全局表已解析的三个例程 0x41F3 / 0x4334(ExFreePool) / 0x4205，任一为空即返回 0
+//   2) 长度检查：InputBuffer->len(+4) + OutputBuffer->len(+0xC) + 2 >= BufferSize 则返回 0
+//   3) 在 SwapBuffer 中拼路径：基串(+8) → 末两字节改写为 '\' → 追加子串(+0x10) → 补 0
+//   4) 构造 UNICODE_STRING{Length=总长-2, MaximumLength=总长, Buffer=SwapBuffer}
+//      与 OBJECT_ATTRIBUTES{Length=48, Attributes=0x240, ObjectName=上述串}
+//   5) 打开(&句柄, 0x20019, &OA)
+//   6) 查询(句柄, 2, SwapBuffer, BufferSize, &实际长度) —— 结果覆盖写入同一缓冲区
+//   7) Result = (*(DWORD*)(SwapBuffer + 0x14) != 0)；最后释放句柄
 __int64 ReadKernelMemoryViaSwapEx(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize)
 {
-    return 0;
+    NTSTATUS(__fastcall *OpenObjectFunc)(HANDLE *, ULONG, POBJECT_ATTRIBUTES);
+    void(__fastcall *ReleaseFunc)(HANDLE);
+    NTSTATUS(__fastcall *QueryObjectFunc)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+    char Result;
+    unsigned int BaseLength;
+    unsigned int SubLength;
+    unsigned int TotalLength;
+    HANDLE ObjectHandle;
+    ULONG ReturnLength;
+    UNICODE_STRING ObjectPath;
+    struct _OBJECT_ATTRIBUTES ObjectAttributes;
+
+    Result = 0;
+    ObjectHandle = NULL;
+    BaseLength = *(unsigned int *)((char *)InputBuffer + 4);
+    SubLength = *(unsigned int *)((char *)OutputBuffer + 0xC);
+
+    OpenObjectFunc = (NTSTATUS(__fastcall *)(HANDLE *, ULONG, POBJECT_ATTRIBUTES))GtRead((GLOBAL_TABLE_INDEX)0x41F3);
+    ReleaseFunc = (void(__fastcall *)(HANDLE))GtRead(GtExFreePoolFunc);
+    QueryObjectFunc = (NTSTATUS(__fastcall *)(HANDLE, ULONG, PVOID, ULONG, PULONG))GtRead((GLOBAL_TABLE_INDEX)0x4205);
+    if (!OpenObjectFunc || !ReleaseFunc || !QueryObjectFunc)
+        return Result;
+
+    TotalLength = BaseLength + SubLength + 2;
+    if (TotalLength >= BufferSize)
+        return Result;
+
+    memmove(SwapBuffer, *(const void **)((char *)InputBuffer + 8), BaseLength);
+    *(WORD *)((char *)SwapBuffer + BaseLength - 2) = 0x5C;
+    memmove((char *)SwapBuffer + BaseLength, *(const void **)((char *)OutputBuffer + 0x10), SubLength);
+    *(WORD *)((char *)SwapBuffer + BaseLength + SubLength) = 0;
+
+    ObjectPath.Length = (USHORT)(TotalLength - 2);
+    ObjectPath.MaximumLength = (USHORT)TotalLength;
+    ObjectPath.Buffer = (PWSTR)SwapBuffer;
+
+    ObjectAttributes.Length = 48;
+    ObjectAttributes.RootDirectory = NULL;
+    ObjectAttributes.ObjectName = &ObjectPath;
+    ObjectAttributes.Attributes = 576;
+    ObjectAttributes.SecurityDescriptor = NULL;
+    ObjectAttributes.SecurityQualityOfService = NULL;
+
+    if (OpenObjectFunc(&ObjectHandle, 0x20019, &ObjectAttributes) >= 0)
+    {
+        ReturnLength = 0;
+        if (QueryObjectFunc(ObjectHandle, 2, SwapBuffer, BufferSize, &ReturnLength) >= 0)
+        {
+            if (*(unsigned int *)((char *)SwapBuffer + 0x14) > 0)
+                Result = 1;
+        }
+        ReleaseFunc(ObjectHandle);
+    }
+    return Result;
 }
 void *j_GetCurrentFiber(void)
 {

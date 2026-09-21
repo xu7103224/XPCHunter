@@ -47,6 +47,23 @@ __int64 ClassifyPESectionType(PUCHAR Context);
 #define DEC_CTX_CUR_TABLE_ENTRY     0x118 // QWORD: 当前解码表条目 (由 DispatchInstructionDecode 设置)
 #define DEC_CTX_SUB_DECODE_TABLE    0x160 // QWORD: 子解码表指针 (MultiByte 子表)
 
+// ============================================================
+// PE 解码上下文（PE_DECODE_CONTEXT，0x48 字节）的真实偏移
+// 由 0x14008A7E4 与 0x14008A54C 两个函数的反汇编汇总得出（并集恰好 0x00~0x40）
+// 【注意】上面那套 DEC_CTX_* 是 0x120 字节指令描述符的偏移，两者不可混用；
+//   历史遗留问题正是混用所致，新代码一律使用本组宏访问上下文。
+// ============================================================
+#define CTX_OFF_DECODE_TABLE   0x00  // QWORD: 解码表指针（决定操作码如何解码）
+#define CTX_OFF_READ_PTR       0x08  // QWORD: 当前读指针（初值 Base，调用方按解码长度推进）
+#define CTX_OFF_END_PTR        0x10  // QWORD: 缓冲区结束边界
+#define CTX_OFF_MODE           0x18  // DWORD: 模式（2 = 64 位）
+#define CTX_OFF_MODE_DUP       0x1C  // DWORD: 模式副本
+#define CTX_OFF_ADDR_SIZE      0x20  // DWORD: 地址大小（Mode==2 时为 1）
+#define CTX_OFF_PARAM4         0x28  // QWORD: 第 4 参数
+#define CTX_OFF_PARAM6         0x30  // QWORD: 第 6 参数
+#define CTX_OFF_PARAM7         0x38  // QWORD: 第 7 参数
+#define CTX_OFF_EXTRA_FIELD    0x40  // DWORD: 第 5 参数（栈上传入，唯一非 0 的附加参数）
+
 // 输出上下文额外偏移
 #define DEC_CTX_LAST_OPCODE_SAVE    0xE4  // BYTE: 保存的最后操作码字节
 #define DEC_CTX_INSTR_IDX           0xEA  // WORD: 指令索引
@@ -80,7 +97,23 @@ __int64 ClassifyPESectionType(PUCHAR Context);
 
 // ============================================================
 // InitPESectionReadContext — 初始化 PE 节区读取上下文
-// 对应原始驱动 sub_14008A7E4
+// 对应原始驱动 sub_14008A7E4（地址 0x14008A7E4，95 字节）
+// 【逆向来源】反汇编逐条重建（函数体共 29 条指令，全部写入偏移已逐条核对）
+// 【原始指令 ↔ 偏移对照】
+//   mov [r10+8],   rcx   → +0x08 = Base                  （读指针初值）
+//   mov [r10+18h], r8d   → +0x18 = Mode
+//   mov [r10+10h], rax   → +0x10 = Base + (int)Size      （rax = movsxd edx + rcx）
+//   mov [r10+1Ch], r8d   → +0x1C = Mode
+//   mov [r10+40h], eax   → +0x40 = 第 5 参数 ExtraField
+//   mov [r10+28h], r9    → +0x28 = 第 4 参数
+//   mov [r10+30h], rax   → +0x30 = 第 6 参数
+//   mov [r10+38h], rax   → +0x38 = 第 7 参数
+//   Mode==2 → [r10+20h]=1  且解码表 = 0x140097E50
+//   否则    → [r10+20h]=Mode 且解码表 = 0x140096A50
+//   mov [r10], rax       → +0x00 = 解码表指针
+// 【⚠ 修正记录】此前重建把后 4 个参数写到了 0xDC/0xF0/0xF8/0x100，那是 0x120 字节
+//   指令描述符的偏移，不是本上下文的；且调用点上下文只声明 8 字节，属栈越界。
+//   详见 PE_DECODE_CONTEXT 的注释。
 // ============================================================
 void InitPESectionReadContext(
     __int64 Base,
@@ -92,24 +125,24 @@ void InitPESectionReadContext(
     LONG64 Param7,
     __int64 Context)
 {
-    SET_Q(Context, DEC_CTX_BUFFER_BASE, Base);
-    SET_D(Context, DEC_CTX_MODE, Mode);
-    SET_Q(Context, DEC_CTX_BUFFER_END, (ULONG64)(Base + Size));
-    SET_D(Context, DEC_CTX_MODE_DUP, Mode);
-    SET_D(Context, DEC_CTX_EXTRA_FIELD, ExtraField);
-    SET_Q(Context, DEC_CTX_PARAM5, Param5);
-    SET_Q(Context, DEC_CTX_PARAM6, Param6);
-    SET_Q(Context, DEC_CTX_PARAM7, Param7);
+    SET_Q(Context, CTX_OFF_READ_PTR, (ULONG64)Base);
+    SET_D(Context, CTX_OFF_MODE, Mode);
+    SET_Q(Context, CTX_OFF_END_PTR, (ULONG64)(Base + (int)Size));
+    SET_D(Context, CTX_OFF_MODE_DUP, Mode);
+    SET_D(Context, CTX_OFF_EXTRA_FIELD, ExtraField);
+    SET_Q(Context, CTX_OFF_PARAM4, (ULONG64)Param5);
+    SET_Q(Context, CTX_OFF_PARAM6, (ULONG64)Param6);
+    SET_Q(Context, CTX_OFF_PARAM7, (ULONG64)Param7);
 
     if (Mode == 2)
     {
-        SET_D(Context, DEC_CTX_ADDR_SIZE, 1);
-        SET_Q(Context, DEC_CTX_DECODE_TABLE_PTR, (ULONG64)g_PeDataDescrambleTable);
+        SET_D(Context, CTX_OFF_ADDR_SIZE, 1);
+        SET_Q(Context, CTX_OFF_DECODE_TABLE, (ULONG64)g_PeDataDescrambleTable);
     }
     else
     {
-        SET_D(Context, DEC_CTX_ADDR_SIZE, Mode);
-        SET_Q(Context, DEC_CTX_DECODE_TABLE_PTR, (ULONG64)g_PeLegacyDescrambleTable);
+        SET_D(Context, CTX_OFF_ADDR_SIZE, (ULONG)Mode);
+        SET_Q(Context, CTX_OFF_DECODE_TABLE, (ULONG64)g_PeLegacyDescrambleTable);
     }
 }
 
@@ -137,12 +170,18 @@ __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
     SET_D(SectionInfo, DEC_CTX_OPERAND_SIZE, 3);
     SET_D(SectionInfo, DEC_CTX_ADDR_SIZE, 0);
 
-    SET_D(SectionInfo, DEC_CTX_MODE, CTX_D(Context, DEC_CTX_MODE));
-    SET_D(SectionInfo, DEC_CTX_MODE_DUP, CTX_D(Context, DEC_CTX_MODE_DUP));
-    SET_D(SectionInfo, DEC_CTX_ADDR_SIZE, CTX_D(Context, DEC_CTX_ADDR_SIZE));
-    SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, CTX_D(Context, DEC_CTX_EXTRA_FIELD));
-    SET_Q(SectionInfo, DEC_CTX_PARAM5, CTX_Q(Context, DEC_CTX_PARAM5));
-    SET_Q(SectionInfo, DEC_CTX_PARAM6, CTX_Q(Context, DEC_CTX_PARAM6));
+    SET_D(SectionInfo, DEC_CTX_MODE, CTX_D(Context, CTX_OFF_MODE));
+    SET_D(SectionInfo, DEC_CTX_MODE_DUP, CTX_D(Context, CTX_OFF_MODE_DUP));
+    SET_D(SectionInfo, DEC_CTX_ADDR_SIZE, CTX_D(Context, CTX_OFF_ADDR_SIZE));
+    // 【⚠ 修正记录】上下文只有 0x48 字节，原重建这里读的是 Context+0xDC/+0xF0/+0xF8
+    //   （那是 0x120 字节指令描述符的偏移），属越界读取。按 PE_DECODE_CONTEXT 的真实
+    //   偏移改为 +0x40/+0x28/+0x30，参数角色一一对应：
+    //     ExtraField(第5参数) → +0x40，第4参数 → +0x28，第6参数 → +0x30
+    //   注意：原始驱动把这三个值分别写入描述符的 +0x110/+0x10/+0x18，本重建的目标
+    //   偏移尚未按原始布局改正（见审计报告 P0-1 的 0x120 描述符布局表）。
+    SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, CTX_D(Context, CTX_OFF_EXTRA_FIELD));
+    SET_Q(SectionInfo, DEC_CTX_PARAM5, CTX_Q(Context, CTX_OFF_PARAM4));
+    SET_Q(SectionInfo, DEC_CTX_PARAM6, CTX_Q(Context, CTX_OFF_PARAM6));
     SET_Q(SectionInfo, DEC_CTX_FUNC_TABLE, (ULONG64)g_PeDecodeFunctionTable);
 
     BufferPos = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
@@ -251,7 +290,7 @@ LABEL_CONTINUE:
         if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) == 2)
         {
             ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
-                          CTX_Q(Context, DEC_CTX_PARAM5);
+                          CTX_Q(Context, CTX_OFF_PARAM4);
             SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, 0);
             SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT, 1);
             SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
@@ -264,7 +303,7 @@ LABEL_CONTINUE:
         // 正常完成：分发到指令解码器
         SET_B(SectionInfo, DEC_CTX_LAST_OPCODE_SAVE, *BufferPos);
         ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
-                      CTX_Q(Context, DEC_CTX_PARAM5);
+                      CTX_Q(Context, CTX_OFF_PARAM4);
         SET_W(SectionInfo, DEC_CTX_INSTR_IDX, ByteIndex);
         SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
 
@@ -298,7 +337,7 @@ LABEL_ERROR:
         if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) == 2)
         {
             ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
-                          CTX_Q(Context, DEC_CTX_PARAM5);
+                          CTX_Q(Context, CTX_OFF_PARAM4);
             SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, 0);
             SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT, 1);
             SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
@@ -423,7 +462,7 @@ __int64 ReadPESectionField(PUCHAR Context)
 {
     PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
     PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM5);
+    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
     PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
     INT OperandSize = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
     ULONG64 Value;
@@ -479,7 +518,7 @@ __int64 ReadPESectionFieldByte(PUCHAR Context)
 {
     PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
     PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM5);
+    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
     PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
 
     if (BufferBase >= BufferEnd)
@@ -502,7 +541,7 @@ __int64 ReadPESectionAsmField(PUCHAR Context)
 {
     PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
     PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM5);
+    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
     PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
     INT OperandSize = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
     ULONG64 Value;
@@ -574,7 +613,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
 {
     PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
     PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM5);
+    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
     PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
     INT DataType = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
     ULONG64 Value;
@@ -673,7 +712,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
 // ============================================================
 __int64 SetDecoderStateFlags(PUCHAR Context)
 {
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM5);
+    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
     ULONG64 Flags = CTX_Q(OutputContext, 0x20);
     INT Mode = CTX_D(CTX_Q(Context, DEC_CTX_PARAM6) + 4, 0);  // 偏移 0x04 = 数据类型
 

@@ -3689,9 +3689,999 @@ ULONG64 FindKernelInitSection(void)
     return 0;
 }
 
+// FindKernelDataSectionV2Dispatch — 内核数据节 V2 查找分发
+// 对应原始驱动 sub_1400130A4（地址 0x1400130A4，31 字节）
+// 【逆向来源】人工阅读反汇编重建 —— IDA 无法分析该函数
+// 【逻辑】构建号 >= 0x1DB0(7600, Win7) 时调用 FindKernelDataSectionV2，否则原样返回构建号
+__int64 FindKernelDataSectionV2Dispatch(void)
+{
+    __int64 Result;
+
+    Result = GtRead(GtWindowsBuildNumber);
+    if ((unsigned int)Result >= 0x1DB0)
+        return FindKernelDataSectionV2();
+    return Result;
+}
+
+// FindKernelDataSectionV2 — 查找内核数据节 V2
+// 对应原始驱动 sub_1400130C4（地址 0x1400130C4，551 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用）
+// 【验证依据】与 ParseMiniFilterDataSection(0x140014ACC) 逐指令差分，两者同构；
+//   节区字段偏移沿用已四次交叉验证的 0x120 布局
+// 【与 ParseMiniFilterDataSection 的差异（差分结论）】
+//   1) 多读一个全局表值 0x4222 并要求其非 0（32 位判断）
+//   2) 路径基准值改用 0x176 处的值
+//   3) 0x53D 分支中 +0x70 的比较值为 0x11（ParseMiniFilterDataSection 为 0x10）
+//   4) 命中结果写入全局表 0x180（ParseMiniFilterDataSection 为 0x17E）
+// 【逻辑】取全局表值 → 一致性校验（基准值须落在 [NtImageBase, +KernelSize) 且自洽）
+//   → 扫描最多 0x200 个节区，按 0x43E / 0x558 / 0x53D 三支处理 → 命中写入 GT 0x180
+__int64 FindKernelDataSectionV2(void)
+{
+    char FoundFlag;
+    ULONG64 KernelBase;
+    unsigned int KernelSize;
+    ULONG64 NtImageBase;
+    unsigned int RequiredFlag;
+    ULONG64 DataSectionVa;
+    unsigned int ImageOffset;
+    unsigned int SavedValue;
+    unsigned int SectionIndex;
+    // 【读指针语义】原始驱动把「累计长度」直接累加到解码上下文的 +0x08(读指针) 上：
+    //   InitPESectionReadContext 先写入 Base，随后每轮 `+= 描述符[0xF0](指令长度)`
+    //   ——ReadPESectionEntry 对上下文只读、自身不推进，推进责任在调用方。
+    //   故此处不再使用独立变量，直接用 ReadContext.ReadPtr（初值由初始化函数写入）。
+    unsigned __int16 SectionType;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    FoundFlag = 0;
+    SavedValue = 0;
+
+    KernelBase = (ULONG64)GtRead(GtEprocessField22);
+    KernelSize = (unsigned int)GtRead(GtEprocessField23);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    RequiredFlag = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x4222);
+    DataSectionVa = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x176);
+
+    if (!KernelBase || !KernelSize || !NtImageBase || !RequiredFlag)
+        return 0;
+    if (DataSectionVa <= NtImageBase)
+        return 0;
+
+    ImageOffset = (unsigned int)(DataSectionVa - NtImageBase);
+    if (ImageOffset >= KernelSize)
+        return 0;
+    if (DataSectionVa != NtImageBase + ImageOffset)
+        return 0;
+
+    InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (SectionIndex = 0; SectionIndex < 0x200; SectionIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            break;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x43E &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 0x80000 &&
+            *(_DWORD *)((char *)SectionEntry + 0x70) == 2)
+        {
+            FoundFlag = 1;
+            continue;
+        }
+
+        if (SectionType == 0x558 &&
+            (*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0 &&
+            *(_DWORD *)((char *)SectionEntry + 0x38) != 0)
+        {
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) != 0x4F7C || FoundFlag != 1)
+            {
+                SavedValue = *(unsigned int *)((char *)SectionEntry + 0x38) - (unsigned int)KernelBase + (unsigned int)ReadContext.ReadPtr;
+            }
+            FoundFlag = 0;
+            continue;
+        }
+
+        if (SectionType == 0x53D &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 0x800000 &&
+            *(_DWORD *)((char *)SectionEntry + 0x70) == 0x11 &&
+            *(__int64 *)((char *)SectionEntry + 0x50) == 0x20 &&
+            *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                continue;
+
+            if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 0x558)
+            {
+                if (SavedValue && SavedValue < KernelSize)
+                    GtWrite((GLOBAL_TABLE_INDEX)0x180, (__int64)(SavedValue + NtImageBase));
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
+// FindKernelDataSectionV3 — 查找内核数据节 V3
+// 对应原始驱动 0x1400132EC（638 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用），由 0x1400132EC~0x14001356A
+//   的 186 条指令逐条还原
+// 【验证依据】与 ParseNtKernelDataSectionsV2(0x1400137BC) 逐指令差分：
+//   两者结构同源（同一段类型序列扫描逻辑），本函数的寄存器分配为
+//   r15=文件基址 / r14=文件大小 / rbx=镜像基址 / esi=节区序号；
+//   描述符字段偏移由 rbp 位移换算（条目基址 var_150 = rbp-0x60）得到
+//   0xF0 / 0x118 / 0x88 / 0x70 / 0x50 / 0x58 / 0x38，与已验证的 0x120 布局吻合
+// 【与 ParseNtKernelDataSectionsV2 的差异（差分结论）】
+//   1) 扫描起点读 GT 0x170（V2 为 GT 0x171），校验方式完全相同
+//   2) 无 GT 0x41C5 非零前置校验
+//   3) 循环上限 0x200（V2 为 0x300）
+//   4) 三段匹配的类型码为 0x512 / 0x558 / 0x420（V2 为 0x512 / 0x558 / 0x510），
+//      且 0x420 型的判定字段为 +0x88==0x800000、+0x70==0xC0000023、+0x50==0x20
+//      （V2 的 0x510 型为 +0x88==0x10041、+0x58==9、+0x50==0x40）
+//   5) 新旧路径的分工相反：本函数**旧路径**做"第 2 次命中"计数并直接写结果，
+//      **新路径**先记候选值（edi）再等 0x420 型节区确认
+//   6) 命中结果写入全局表 0x17A（V2 为 0x17B）
+// 【读指针语义（重要）】本函数与 V1/V2 一样，把「上下文 +0x08」当作读指针推进：
+//   原始 `add [rsp+1F0h+var_198], rax`（var_198 = 上下文+8，64 位 read-modify-write
+//   在 V1 中可见）累加的是描述符 +0xF0（指令长度），而 ReadPESectionEntry 对上下文
+//   只读、自身不推进，故推进责任在调用方。详见 PE_DECODE_CONTEXT 的注释。
+// 【逻辑】取 4 个全局表值做一致性校验（GT 0x170 须落在 (GT3, GT3+文件大小) 内
+//   且低 32 位截断自洽）→ 以「文件缓冲区 + (GT 0x170 - GT 0x3)」为起点初始化 PE
+//   节区读取上下文 → 最多扫描 0x200 个节区，每轮把读指针按指令长度推进：
+//     a) 0x512 型且 +0x50==0x40：按 +0x58 记录序号 —— ==2 记 Type2EntryIndex、
+//        ==9 记 Type9EntryIndex、==1 且（紧跟 Type2 之后 1 节 或 Type9 之后 3 节）
+//        则置 FoundType1Pair 标志
+//     b) FoundType1Pair 置位后按构建号分岔：
+//        - 旧版：本节点须为 0x558 型且带 0x4000000 标志且 VirtualAddress!=0，
+//          且为第 2 次命中；候选值 = VirtualAddress - 文件缓冲区低 32 位 + 读指针低 32 位，
+//          候选值 >= 文件大小则直接返回（**不判 0**）
+//        - 新版：本节点为 0x558 型且带 0x4000000 标志且 VirtualAddress!=0 时，
+//          先记候选值 SavedValue 并继续；随后遇到 0x420 型且 +0x88==0x800000 且
+//          +0x70==0xC0000023 且 +0x50==0x20 且 SavedValue 非 0 且 < 文件大小时写结果
+//     两路命中均写入全局表 0x17A（候选值 + GT 0x3 镜像基址）
+__int64 FindKernelDataSectionV3(void)
+{
+    unsigned __int16 SectionType;
+    unsigned int KernelSize;
+    unsigned int ScanOffset;
+    unsigned int EntryIndex;
+    unsigned int Type2EntryIndex;
+    unsigned int Type9EntryIndex;
+    unsigned int Type1MatchCount;
+    unsigned int SavedValue;
+    char FoundType1Pair;
+    ULONG64 FileBase;
+    ULONG64 NtImageBase;
+    ULONG64 ScanStartVa;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    FileBase = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    KernelSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    ScanStartVa = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x170);
+
+    Type2EntryIndex = 0;
+    Type9EntryIndex = 0;
+    Type1MatchCount = 0;
+    FoundType1Pair = 0;
+    SavedValue = 0;
+
+    if (!FileBase || !KernelSize || !NtImageBase)
+        return 0;
+    if (ScanStartVa <= NtImageBase)
+        return 0;
+
+    ScanOffset = (unsigned int)(ScanStartVa - NtImageBase);
+    if (ScanOffset >= KernelSize)
+        return 0;
+    if (ScanStartVa != NtImageBase + ScanOffset)
+        return 0;
+
+    InitPESectionReadContext(FileBase + ScanOffset, KernelSize - ScanOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (EntryIndex = 0; EntryIndex < 0x200; EntryIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return 0;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x512 && *(__int64 *)((char *)SectionEntry + 0x50) == 0x40)
+        {
+            switch (*(unsigned int *)((char *)SectionEntry + 0x58))
+            {
+            case 2:
+                Type2EntryIndex = EntryIndex;
+                continue;
+
+            case 9:
+                Type9EntryIndex = EntryIndex;
+                continue;
+
+            case 1:
+                if (Type2EntryIndex)
+                {
+                    if (Type2EntryIndex + 1 == EntryIndex)
+                    {
+                        FoundType1Pair = 1;
+                        continue;
+                    }
+                }
+                if (!Type9EntryIndex)
+                    continue;
+                if (Type9EntryIndex + 3 != EntryIndex)
+                    continue;
+                FoundType1Pair = 1;
+                continue;
+
+            default:
+                continue;
+            }
+        }
+
+        if (FoundType1Pair != 1)
+            continue;
+
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+        {
+            // 新版路径：先记候选值，随后由 0x420 型节区确认
+            if (SectionType == 0x558 &&
+                (*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0)
+            {
+                SavedValue = *(unsigned int *)((char *)SectionEntry + 0x38);
+                if (SavedValue)
+                {
+                    SavedValue = SavedValue - (unsigned int)FileBase + (unsigned int)ReadContext.ReadPtr;
+                    continue;
+                }
+            }
+
+            if (SectionType != 0x420)
+                continue;
+            if (*(__int64 *)((char *)SectionEntry + 0x88) != 0x800000)
+                continue;
+            if (*(__int64 *)((char *)SectionEntry + 0x70) != 0xC0000023)
+                continue;
+            if (*(__int64 *)((char *)SectionEntry + 0x50) != 0x20)
+                continue;
+            if (!SavedValue)
+                continue;
+            if (SavedValue >= KernelSize)
+                continue;
+
+            GtWrite((GLOBAL_TABLE_INDEX)0x17A, (__int64)(SavedValue + NtImageBase));
+            return 0;
+        }
+
+        // 旧版路径：0x558 型节区出现 2 次才认定，且不判候选值是否为 0
+        if (SectionType != 0x558)
+            continue;
+        if ((*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) == 0)
+            continue;
+
+        SavedValue = *(unsigned int *)((char *)SectionEntry + 0x38);
+        if (!SavedValue)
+            continue;
+
+        if (++Type1MatchCount != 2)
+            continue;
+
+        SavedValue = SavedValue - (unsigned int)FileBase + (unsigned int)ReadContext.ReadPtr;
+        if (SavedValue >= KernelSize)
+            return 0;
+
+        GtWrite((GLOBAL_TABLE_INDEX)0x17A, (__int64)(SavedValue + NtImageBase));
+        return 0;
+    }
+    return 0;
+}
+
+// FindKernelPageSection — 查找内核 PAGE 节
+// 对应原始驱动 0x140012E0C（662 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用），由 0x140012E0C~0x1400130A1
+//   的 174 条指令逐条还原；控制流用与原地址一一对应的 goto 标签保持忠实
+// 【验证依据】描述符字段偏移由 rbp 位移换算（条目基址 var_150 = rbp-0x60）：
+//   0xF0 / 0x118 / 0x88 / 0x70 / 0x50 / 0x58 / 0x78 / 0x38，与已验证的 0x120
+//   布局吻合；帧布局与另外六个扫描器一致（ctx = rsp+0x50，读指针 = rsp+0x58 = ctx+8）
+// 【与其它扫描器的差异（差分结论）】
+//   1) 扫描起点读 GT 0x175，结果写 GT 0x17F，另读 GT 0x446B 作为"已算出的值"用于比对
+//   2) 分段识别条件不同：0x461 型(+0x88==0x80000 且 +0x70==4)置标记；
+//      0x558 型(+0x50 的 bit26)取候选值；0x53D 型(+0x88==0x800000 且 +0x70==0xF 且
+//      +0x50==0x20 且 +0x58==1) 或 0x512 型(+0x50==0x20 且 +0x58==1 且 +0x78==0xF
+//      且 +0x88==0x4041) 则再取后续节区确认
+//   3) 有"候选值 == GT 0x446B"的提前命中路径（跳过构建号判断）
+//   4) 构建号 0x4F7C 且已置 0x461 标记时跳过本节点的候选值记录
+//   5) 循环上限 0x200
+// 【⚠ GT 0x446B 说明】该索引落在原始驱动的"哈希表区"(0x4158-0x4479)，
+//   运行时会被解析结果覆盖，此处按"与已算出的值比对"理解，语义存疑但操作忠实。
+// 【⚠ 变量复用说明】edi 在原始驱动中一变量两用：循环顶部固定为 0x558（供 `di` 比较，
+//   即"期望类型"），在 0x558 分支里又被赋为候选偏移值。因两条路径互斥且每轮重设，
+//   本实现用同一变量 TypeOrCandidate 忠实保留该复用。
+// 【逻辑】取 4 个全局表值做一致性校验后，以「文件缓冲区 + (GT 0x175 - GT 0x3)」为
+//   起点初始化 PE 节区读取上下文，最多扫描 0x200 个节区（每轮把读指针按指令长度推进）：
+//     命中路径一：候选值恰等于 GT 0x446B 的低 32 位 → 立即尝试写入
+//     命中路径二：在 0x53D/0x512 型节点之后，再连续取节区，若其类型回到 0x558 则命中
+//   写入前校验：候选值非 0 且 < 文件大小，写入 GT 0x17F（候选值 + 镜像基址）
+__int64 FindKernelPageSection(void)
+{
+    unsigned __int16 SectionType;
+    unsigned int KernelSize;
+    unsigned int ScanOffset;
+    unsigned int EntryIndex;
+    unsigned int SavedValue;
+    unsigned int TypeOrCandidate;
+    ULONG64 EntryFlags88;
+    ULONG64 EntryFlags50;
+    unsigned int PreviousValue;
+    char FoundType461;
+    ULONG64 FileBase;
+    ULONG64 NtImageBase;
+    ULONG64 ScanStartVa;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    FoundType461 = 0;
+    SavedValue = 0;
+
+    FileBase = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    KernelSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    ScanStartVa = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x175);
+
+    if (!FileBase || !KernelSize || !NtImageBase)
+        return 0;
+    if (ScanStartVa <= NtImageBase)
+        return 0;
+
+    ScanOffset = (unsigned int)(ScanStartVa - NtImageBase);
+    if (ScanOffset >= KernelSize)
+        return 0;
+    if (ScanStartVa != NtImageBase + ScanOffset)
+        return 0;
+
+    InitPESectionReadContext(FileBase + ScanOffset, KernelSize - ScanOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    PreviousValue = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x446B);
+
+    for (EntryIndex = 0; EntryIndex < 0x200; EntryIndex++)
+    {
+        TypeOrCandidate = 0x558;
+
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return 0;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        EntryFlags88 = *(__int64 *)((char *)SectionEntry + 0x88);
+        SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x461 &&
+            EntryFlags88 == 0x80000 &&
+            *(__int64 *)((char *)SectionEntry + 0x70) == 4)
+        {
+            FoundType461 = 1;
+            goto LABEL_LOOP_TAIL;                       // 0x140013049
+        }
+
+        EntryFlags50 = *(__int64 *)((char *)SectionEntry + 0x50);
+
+        if ((unsigned __int16)TypeOrCandidate == SectionType && (EntryFlags50 & 0x4000000) != 0)
+        {
+            // 0x558 型：取候选偏移值
+            TypeOrCandidate = *(unsigned int *)((char *)SectionEntry + 0x38);
+            if (TypeOrCandidate)
+            {
+                TypeOrCandidate = TypeOrCandidate - (unsigned int)FileBase + (unsigned int)ReadContext.ReadPtr;
+
+                if (PreviousValue == TypeOrCandidate)
+                    goto LABEL_WRITE;                   // 0x14001305A：与已算出的值相同 → 命中
+
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) == 0x4F7C && FoundType461)
+                    goto LABEL_LOOP_TAIL;               // 该版本且已置标记 → 跳过
+
+                SavedValue = TypeOrCandidate;
+                goto LABEL_LOOP_TAIL;
+            }
+            TypeOrCandidate = 0x558;                    // 候选值为 0 → 恢复期望类型
+        }
+
+        // 0x53D 型或 0x512 型：再取后续节区确认
+        if (!(SectionType == 0x53D &&
+              EntryFlags88 == 0x800000 &&
+              *(_DWORD *)((char *)SectionEntry + 0x70) == 0xF &&
+              EntryFlags50 == 0x20 &&
+              *(__int64 *)((char *)SectionEntry + 0x58) == 1))
+        {
+            if (!(SectionType == 0x512 &&
+                  EntryFlags50 == 0x20 &&
+                  *(__int64 *)((char *)SectionEntry + 0x58) == 1 &&
+                  *(__int64 *)((char *)SectionEntry + 0x78) == 0xF &&
+                  EntryFlags88 == 0x4041))
+                goto LABEL_LOOP_TAIL;
+        }
+
+        // LABEL_CONFIRM: 0x140012FF3
+        {
+            unsigned int ConfirmType;
+
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                goto LABEL_LOOP_TAIL;
+
+            if ((unsigned __int16)TypeOrCandidate ==
+                *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6))
+            {
+                ConfirmType = TypeOrCandidate;
+            }
+            else
+            {
+                ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                {
+                    ConfirmType = 0x53D;
+                }
+                else
+                {
+                    ConfirmType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+                }
+            }
+
+            if (ConfirmType == TypeOrCandidate)
+                goto LABEL_WRITE;                       // 0x14001305A
+        }
+
+    LABEL_LOOP_TAIL:                                    // 0x140013049
+        ;
+    }
+
+    return 0;
+
+LABEL_WRITE:                                            // 0x14001305A
+    if (!SavedValue)
+        return 0;
+    if (SavedValue >= KernelSize)
+        return 0;
+
+    GtWrite((GLOBAL_TABLE_INDEX)0x17F, (__int64)(SavedValue + NtImageBase));
+    return 0;
+}
+
+// FindKernelDataSectionV4 — 查找内核数据节（本家族第 4 个扫描器）
+// 对应原始驱动 0x140014078（557 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用），由 0x140014078~0x1400142A4
+//   的 163 条指令逐条还原
+// 【⚠ 名称说明】IDA 数据库中 0x140014078 的名字是 MiniFilterPreCreate，但该名字
+//   与实际功能不符，也与本复刻中已实现的同名 FLT 回调（Minifilter.c:297，
+//   签名为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)）冲突：
+//   本函数**无参数**（不从 rcx/rdx/r8/r9 读取任何值），而 minifilter 的 PreCreate
+//   回调必须接收 3 个参数，故 0x140014078 不是 FLT 回调。其真实功能与
+//   ParseMiniFilterDataSection 同族 —— 在 ntoskrnl.exe 的 PE 文件缓冲区中
+//   按类型序列扫描并定位某个内核数据节。故此处按家族命名改为 FindKernelDataSectionV4，
+//   与审计清单的对应关系是「审计表中的 MiniFilterPreCreate(557B) = 本函数」。
+// 【验证依据】与 ParseNtKernelDataSectionsV2(0x1400137BC) 逐指令差分，两者同源；
+//   描述符字段偏移 0xF0 / 0x118 / 0x88 / 0x70 / 0x50 / 0x58 / 0x38 与已验证的
+//   0x120 布局吻合；帧布局与另外五个扫描器一致（ctx = rsp+0x50，
+//   读指针 = rsp+0x58 = ctx+8）
+// 【与其他扫描器的差异（差分结论）】
+//   1) 扫描起点读 GT 0x172，结果写 GT 0x17C(GtEprocessExtField124)
+//   2) **无构建号分岔**：单一路径同时处理「记录候选值」与「确认并写入」
+//   3) 第 1 型（+0x58==1）的匹配条件多一个：type9 之后 3 节 **或** 4 节均可
+//   4) 确认节区的类型码为 0x420 **或 0x4DF**（V3 只有 0x420，V2 只有 0x510）
+//   5) 循环上限 0x300
+//   6) 候选值失败（为 0 或 >= 文件大小）时仅继续循环，绝不提前返回
+//   7) 原始驱动用 `bt r8, 1Ah` 判 bit 26（0x4000000），即"测试单个位"而非整值测试
+// 【逻辑】取 4 个全局表值做一致性校验（GT 0x172 须落在 (GT3, GT3+文件大小) 内
+//   且低 32 位截断自洽）→ 以「文件缓冲区 + (GT 0x172 - GT 0x3)」为起点初始化 PE
+//   节区读取上下文 → 最多扫描 0x300 个节区，每轮把读指针按指令长度推进：
+//     a) 0x512 型且 +0x50==0x40：按 +0x58 记录序号 —— ==2 记 Type2EntryIndex、
+//        ==9 记 Type9EntryIndex、==1 且（紧跟 Type2 之后 1 节 或 Type9 之后 3/4 节）
+//        则置 FoundType1Pair 标志
+//     b) FoundType1Pair 置位后：0x558 型且带 0x4000000 标志且 VirtualAddress!=0 时
+//        记录候选值 = VirtualAddress - 文件缓冲区低 32 位 + 读指针低 32 位；
+//        随后遇 0x420 或 0x4DF 型且 +0x88==0x800000 且 +0x70==0xC0000023 且
+//        +0x50==0x20 且候选值非 0 且 < 文件大小时写入全局表 0x17C（候选值 + 镜像基址）
+__int64 FindKernelDataSectionV4(void)
+{
+    unsigned __int16 SectionType;
+    unsigned int KernelSize;
+    unsigned int ScanOffset;
+    unsigned int EntryIndex;
+    unsigned int Type2EntryIndex;
+    unsigned int Type9EntryIndex;
+    unsigned int SavedValue;
+    char FoundType1Pair;
+    ULONG64 EntryFlags;
+    ULONG64 FileBase;
+    ULONG64 NtImageBase;
+    ULONG64 ScanStartVa;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    FileBase = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    KernelSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    ScanStartVa = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x172);
+
+    Type2EntryIndex = 0;
+    Type9EntryIndex = 0;
+    SavedValue = 0;
+    FoundType1Pair = 0;
+
+    if (!FileBase || !KernelSize || !NtImageBase)
+        return 0;
+    if (ScanStartVa <= NtImageBase)
+        return 0;
+
+    ScanOffset = (unsigned int)(ScanStartVa - NtImageBase);
+    if (ScanOffset >= KernelSize)
+        return 0;
+    if (ScanStartVa != NtImageBase + ScanOffset)
+        return 0;
+
+    InitPESectionReadContext(FileBase + ScanOffset, KernelSize - ScanOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (EntryIndex = 0; EntryIndex < 0x300; EntryIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return 0;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        EntryFlags = *(__int64 *)((char *)SectionEntry + 0x50);
+        SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x512 && EntryFlags == 0x40)
+        {
+            switch (*(unsigned int *)((char *)SectionEntry + 0x58))
+            {
+            case 2:
+                Type2EntryIndex = EntryIndex;
+                continue;
+
+            case 9:
+                Type9EntryIndex = EntryIndex;
+                continue;
+
+            case 1:
+                if (Type2EntryIndex)
+                {
+                    if (Type2EntryIndex + 1 == EntryIndex)
+                    {
+                        FoundType1Pair = 1;
+                        continue;
+                    }
+                }
+                if (!Type9EntryIndex)
+                    continue;
+                if (Type9EntryIndex + 3 == EntryIndex || Type9EntryIndex + 4 == EntryIndex)
+                    FoundType1Pair = 1;
+                continue;
+
+            default:
+                continue;
+            }
+        }
+
+        if (FoundType1Pair != 1)
+            continue;
+
+        if (SectionType == 0x558 &&
+            (EntryFlags & 0x4000000) != 0)
+        {
+            SavedValue = *(unsigned int *)((char *)SectionEntry + 0x38);
+            if (SavedValue)
+            {
+                SavedValue = SavedValue - (unsigned int)FileBase + (unsigned int)ReadContext.ReadPtr;
+                continue;
+            }
+        }
+
+        if (SectionType != 0x420 && SectionType != 0x4DF)
+            continue;
+        if (*(__int64 *)((char *)SectionEntry + 0x88) != 0x800000)
+            continue;
+        if (*(__int64 *)((char *)SectionEntry + 0x70) != 0xC0000023)
+            continue;
+        if (EntryFlags != 0x20)
+            continue;
+        if (!SavedValue)
+            continue;
+        if (SavedValue >= KernelSize)
+            continue;
+
+        GtWrite(GtEprocessExtField124, (__int64)(SavedValue + NtImageBase));
+        return 0;
+    }
+    return 0;
+}
+
+// ParseNtKernelDataSectionsV2 — 解析 ntoskrnl 数据节 V2
+// 对应原始驱动 0x1400137BC（682 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用），全部逻辑由 0x1400137BC~0x140013A66
+//   的 194 条指令逐条还原
+// 【验证依据】节区条目字段偏移由反汇编变量位移换算（条目基址 var_150 = rbp-0x60）：
+//   0xF0 / 0x118 / 0x50 / 0x58 / 0x38 / 0x88，与已四次交叉验证的 0x120 字节布局
+//   完全吻合；且条目缓冲区末端的 rbp+0xC0 恰好是 __security_cookie 槽，进一步佐证
+// 【与 FindKernelDataSectionV2 / ParseMiniFilterDataSection 的差异】
+//   1) 数据源不同：本函数读 ntoskrnl.exe 的 PE 文件缓冲区（GT 0x20/0x21），
+//      另两个函数读内核内存镜像（GT 32/33 的别名）
+//   2) 扫描起始偏移由 GT 0x171 与 GT 0x3 之差决定（另两个为 GT 0x176/0x4222）
+//   3) 前置校验多读一个 GT 0x41C5 并要求其 32 位值非 0
+//   4) 三段匹配的类型码为 0x512 / 0x558 / 0x510（另两个为 0x43E / 0x558 / 0x53D）
+//   5) 循环上限 0x300（另两个为 0x200）
+//   6) 命中结果写入全局表 0x17B（另两个为 0x17E / 0x180）
+//   7) 以构建号 0x42EE(17134, Win10 1803) 分岔：旧路径要求是第 2 次命中且失败即返回；
+//      新路径改用 0x510 型节区打标记，且失败仅继续循环
+// 【逻辑】取 5 个全局表值做一致性校验（GT 0x171 须落在 (GT3, GT3+文件大小) 内且
+//   低 32 位截断自洽）→ 以「文件缓冲区 + (GT 0x171 - GT 0x3)」为起点初始化 PE 节区
+//   读取上下文 → 最多扫描 0x300 个节区，累计各节的 SizeOfRawData：
+//     a) 0x512 型且 +0x50==0x40：按 +0x58 记录序号 —— +0x58==2 记 Type2EntryIndex、
+//        ==9 记 Type9EntryIndex、==1 且（紧跟 Type2 之后 1 节 或 Type9 之后 3 节）
+//        则置 FoundType1Pair 标志
+//     b) FoundType1Pair 置位后按构建号分岔：
+//        - 旧版：本节点须为 0x558 型且带 0x4000000 标志且 VirtualAddress!=0，
+//          且为第 2 次命中；候选值 = VirtualAddress - 文件缓冲区低 32 位 + 累计大小，
+//          为 0 或 >= 文件大小则直接返回
+//        - 新版：本节点为 0x510 型且 +0x50==0x40 且 +0x58==9 且 +0x88==0x10041
+//          则置 FoundType510 标志；标志置位后本节点须为 0x558 型且带 0x4000000
+//          标志且 VirtualAddress!=0，候选值计算同上，越界则仅继续循环
+//     两路命中均写入全局表 0x17B（候选值 + GT 0x3 镜像基址）
+__int64 ParseNtKernelDataSectionsV2(void)
+{
+    unsigned __int16 SectionType;
+    unsigned int KernelSize;
+    unsigned int RequiredFlag;
+    unsigned int ScanOffset;
+    unsigned int EntryIndex;
+    unsigned int Type2EntryIndex;
+    unsigned int Type9EntryIndex;
+    unsigned int Type1MatchCount;
+    unsigned int SavedValue;
+    char FoundType1Pair;
+    char FoundType510Section;
+    ULONG64 FileBase;
+    ULONG64 NtImageBase;
+    ULONG64 ScanStartVa;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    FileBase = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    KernelSize = (unsigned int)GtRead(GtNtoskrnlPeFileSize);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    RequiredFlag = (unsigned int)GtRead(GtSyscallHash16837);
+    ScanStartVa = (ULONG64)GtRead(GtEprocessExtField113);
+
+    Type2EntryIndex = 0;
+    Type9EntryIndex = 0;
+    Type1MatchCount = 0;
+    FoundType1Pair = 0;
+    FoundType510Section = 0;
+
+    if (!FileBase || !KernelSize || !NtImageBase || !RequiredFlag)
+        return 0;
+    if (ScanStartVa <= NtImageBase)
+        return 0;
+
+    ScanOffset = (unsigned int)(ScanStartVa - NtImageBase);
+    if (ScanOffset >= KernelSize)
+        return 0;
+    if (ScanStartVa != NtImageBase + ScanOffset)
+        return 0;
+
+    InitPESectionReadContext(FileBase + ScanOffset, KernelSize - ScanOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (EntryIndex = 0; EntryIndex < 0x300; EntryIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return 0;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x512 && *(__int64 *)((char *)SectionEntry + 0x50) == 0x40)
+        {
+            switch (*(unsigned int *)((char *)SectionEntry + 0x58))
+            {
+            case 2:
+                Type2EntryIndex = EntryIndex;
+                continue;
+
+            case 9:
+                Type9EntryIndex = EntryIndex;
+                continue;
+
+            case 1:
+                if (Type2EntryIndex)
+                {
+                    if (Type2EntryIndex + 1 == EntryIndex)
+                    {
+                        FoundType1Pair = 1;
+                        continue;
+                    }
+                }
+                if (!Type9EntryIndex)
+                    continue;
+                if (Type9EntryIndex + 3 != EntryIndex)
+                    continue;
+                FoundType1Pair = 1;
+                continue;
+
+            default:
+                continue;
+            }
+        }
+
+        if (FoundType1Pair != 1)
+            continue;
+
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
+        {
+            // 新版路径（Win10 1803 及以后）：先要看到一个 0x510 型节区作标记
+            if (SectionType == 0x510 &&
+                *(__int64 *)((char *)SectionEntry + 0x50) == 0x40 &&
+                *(__int64 *)((char *)SectionEntry + 0x58) == 9 &&
+                *(__int64 *)((char *)SectionEntry + 0x88) == 0x10041)
+            {
+                FoundType510Section = 1;
+                continue;
+            }
+
+            if (FoundType510Section != 1)
+                continue;
+            if (SectionType != 0x558)
+                continue;
+            if ((*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) == 0)
+                continue;
+
+            SavedValue = *(unsigned int *)((char *)SectionEntry + 0x38);
+            if (!SavedValue)
+                continue;
+
+            SavedValue = SavedValue - (unsigned int)FileBase + (unsigned int)ReadContext.ReadPtr;
+            if (!SavedValue)
+                continue;
+            if (SavedValue >= KernelSize)
+                continue;
+
+            GtWrite((GLOBAL_TABLE_INDEX)0x17B, (__int64)(SavedValue + NtImageBase));
+            return 0;
+        }
+
+        // 旧版路径：0x558 型节区出现 2 次才认定
+        if (SectionType != 0x558)
+            continue;
+        if ((*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) == 0)
+            continue;
+
+        SavedValue = *(unsigned int *)((char *)SectionEntry + 0x38);
+        if (!SavedValue)
+            continue;
+
+        if (++Type1MatchCount != 2)
+            continue;
+
+        SavedValue = SavedValue - (unsigned int)FileBase + (unsigned int)ReadContext.ReadPtr;
+        if (!SavedValue)
+            return 0;
+        if (SavedValue >= KernelSize)
+            return 0;
+
+        GtWrite((GLOBAL_TABLE_INDEX)0x17B, (__int64)(SavedValue + NtImageBase));
+        return 0;
+    }
+    return 0;
+}
+
+// FindKernelDataSectionV3Dispatch — 内核数据节 V3 查找分发
+// 对应原始驱动 0x14001356C（31 字节）
+// 【逆向来源】人工阅读反汇编重建 —— IDA 无法分析该函数
+// 【逻辑】构建号 >= 0x1DB0(7600, Win7) 时调用 ParseNtKernelDataSectionsV2，否则原样返回构建号
+__int64 FindKernelDataSectionV3Dispatch(void)
+{
+    __int64 Result;
+
+    Result = GtRead(GtWindowsBuildNumber);
+    if ((unsigned int)Result >= 0x1DB0)
+        return ParseNtKernelDataSectionsV2();
+    return Result;
+}
+
+// ParseMiniFilterDataSection — 解析 Minifilter 数据节
+// 对应原始驱动 sub_140014ACC（地址 0x140014ACC，530 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用）
+// 【验证依据】节区条目字段偏移由反汇编变量的 rbp 位移换算（var_140 为基址），
+//   结果与已验证的 0x120 字节布局吻合：0xF0/0x118/0x88/0x70/0x50/0x38/0x58
+// 【逻辑】版本无关；取 4 个全局表值并做与 ByDebug 相同的一致性校验后遍历最多
+//   0x200 个节区，按类型分三支：
+//     a) 0x43E 型 且 SectionAlignment==0x80000 且 +0x70==2  → 置 FoundFlag
+//     b) 0x558 型 且带 0x4000000 标志 且 VirtualAddress!=0 → 除非
+//        （构建号==0x4F7C 且 FoundFlag 已置）否则记录候选值
+//        （VirtualAddress - KernelBase + 累计大小）；随后清零 FoundFlag
+//     c) 0x53D 型 且 SectionAlignment==0x800000 且 +0x70==0x10 且
+//        Characteristics==0x20 且 SectionIndex==1 → 再取一个节区，
+//        若其为 0x558 型且候选值合法，则写入全局表 0x17E（候选值 + NtImageBase）
+__int64 ParseMiniFilterDataSection(void)
+{
+    char FoundFlag;
+    ULONG64 KernelBase;
+    unsigned int KernelSize;
+    ULONG64 NtImageBase;
+    ULONG64 DataSectionVa;
+    unsigned int ImageOffset;
+    unsigned int SavedValue;
+    unsigned int SectionIndex;
+    // 【读指针语义】原始驱动把「累计长度」直接累加到解码上下文的 +0x08(读指针) 上：
+    //   InitPESectionReadContext 先写入 Base，随后每轮 `+= 描述符[0xF0](指令长度)`
+    //   ——ReadPESectionEntry 对上下文只读、自身不推进，推进责任在调用方。
+    //   故此处不再使用独立变量，直接用 ReadContext.ReadPtr（初值由初始化函数写入）。
+    unsigned __int16 SectionType;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    FoundFlag = 0;
+    SavedValue = 0;
+
+    KernelBase = (ULONG64)GtRead(GtEprocessField22);
+    KernelSize = (unsigned int)GtRead(GtEprocessField23);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    DataSectionVa = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x174);
+
+    if (!KernelBase || !KernelSize || !NtImageBase)
+        return 0;
+    if (DataSectionVa <= NtImageBase)
+        return 0;
+
+    ImageOffset = (unsigned int)(DataSectionVa - NtImageBase);
+    if (ImageOffset >= KernelSize)
+        return 0;
+    if (DataSectionVa != NtImageBase + ImageOffset)
+        return 0;
+
+    InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (SectionIndex = 0; SectionIndex < 0x200; SectionIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            break;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x43E &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 0x80000 &&
+            *(_DWORD *)((char *)SectionEntry + 0x70) == 2)
+        {
+            FoundFlag = 1;
+            continue;
+        }
+
+        if (SectionType == 0x558 &&
+            (*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0 &&
+            *(_DWORD *)((char *)SectionEntry + 0x38) != 0)
+        {
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) != 0x4F7C || FoundFlag != 1)
+            {
+                SavedValue = *(unsigned int *)((char *)SectionEntry + 0x38) - (unsigned int)KernelBase + (unsigned int)ReadContext.ReadPtr;
+            }
+            FoundFlag = 0;
+            continue;
+        }
+
+        if (SectionType == 0x53D &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 0x800000 &&
+            *(_DWORD *)((char *)SectionEntry + 0x70) == 0x10 &&
+            *(__int64 *)((char *)SectionEntry + 0x50) == 0x20 &&
+            *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                continue;
+
+            if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 0x558)
+            {
+                if (SavedValue && SavedValue < KernelSize)
+                    GtWrite((GLOBAL_TABLE_INDEX)0x17E, (__int64)(SavedValue + NtImageBase));
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
+// FindKernelDataSectionByDebug — 通过 DEBUG 节查找内核数据节
+// 对应原始驱动 sub_140013E6C（地址 0x140013E6C，454 字节）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用）
+// 【验证依据】节区条目字段偏移由反汇编变量的 rbp 位移直接换算（IDA 的 var_XXX 命名
+//   即相对 rbp 位移，var_140 为节区条目基址），换算结果与 ParseNtRelocSection 中
+//   独立验证过的 0x120 字节布局**逐项吻合**：0xF0/0x118/0x50/0x58/0x88/0x90/0x38
+// 【逻辑】版本门槛 >= 0x1770(6000) → 取 4 个全局表值并做一致性校验
+//   （DataSectionVa 必须落在 [NtImageBase, NtImageBase+KernelSize) 且等于基址加偏移）
+//   → 遍历最多 0x64 个节区：先遇到 0x4D7 节区且四个字段为 (0x20, 9, 0x20, 9) 时置标志；
+//   再遇到 0x558 节区且带 0x4000000 标志、VirtualAddress 非 0 且标志已置时，
+//   按 (VirtualAddress - KernelBase + 累计大小) 算出结果写入全局表 0x184；
+//   遇到 0x545 类型节区立即返回
+__int64 FindKernelDataSectionByDebug(void)
+{
+    char FoundFlag;
+    ULONG64 KernelBase;
+    unsigned int KernelSize;
+    ULONG64 NtImageBase;
+    ULONG64 DataSectionVa;
+    unsigned int ImageOffset;
+    int Value;
+    unsigned int SectionIndex;
+    unsigned __int16 SectionType;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];
+
+    FoundFlag = 0;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770)
+        return 0;
+
+    KernelBase = (ULONG64)GtRead(GtEprocessField22);
+    KernelSize = (unsigned int)GtRead(GtEprocessField23);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    DataSectionVa = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x16E);
+
+    if (!KernelBase || !KernelSize || !NtImageBase)
+        return 0;
+    if (DataSectionVa <= NtImageBase)
+        return 0;
+
+    ImageOffset = (unsigned int)(DataSectionVa - NtImageBase);
+    if (ImageOffset >= KernelSize)
+        return 0;
+    if (DataSectionVa != NtImageBase + ImageOffset)
+        return 0;
+
+    InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (SectionIndex = 0; SectionIndex < 0x64; SectionIndex++)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+            return 0;
+
+        ReadContext.ReadPtr += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x545)
+            return 0;
+
+        if (SectionType == 0x4D7 &&
+            *(__int64 *)((char *)SectionEntry + 0x50) == 0x20 &&
+            *(_DWORD *)((char *)SectionEntry + 0x58) == 9 &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 0x20 &&
+            *(_DWORD *)((char *)SectionEntry + 0x90) == 9)
+        {
+            FoundFlag = 1;
+            continue;
+        }
+
+        if (SectionType == 0x558 &&
+            (*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0 &&
+            *(_DWORD *)((char *)SectionEntry + 0x38) != 0 &&
+            FoundFlag == 1)
+        {
+            Value = (int)(*(_DWORD *)((char *)SectionEntry + 0x38) - (unsigned int)KernelBase + (unsigned int)ReadContext.ReadPtr);
+            if ((unsigned int)Value < KernelSize)
+                GtWrite((GLOBAL_TABLE_INDEX)0x184, (__int64)((unsigned int)Value + NtImageBase));
+            return 0;
+        }
+    }
+    return 0;
+}
+
 // FindKernelDataSectionDispatch — 内核数据节查找分发
 // 根据版本号选择不同的查找策略
-// 对应原始驱动 sub_140013A98
+// 对应原始驱动 sub_140013A68
 ULONG64 FindKernelDataSectionDispatch(void)
 {
     ULONG64 BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);

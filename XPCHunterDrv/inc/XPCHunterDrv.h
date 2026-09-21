@@ -634,6 +634,42 @@ __int64 InitObjectAndQueryName(__int64 VirtualAddress, int Flags);
 char InitObjectCallback(__int64 UnusedParam, __int64 UnusedParam2, _DWORD *OutputBuffer, unsigned int OutputBufferSize);
 __int64 InitObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 InitObjectTypeTable(_QWORD InputName);
+// ============================================================
+// PE_DECODE_CONTEXT — PE 指令解码上下文（0x48 字节）
+// ============================================================
+// 【逆向来源】原始驱动 0x14008A7E4(InitPESectionReadContext, 95 字节) 与
+//   0x14008A54C(ReadPESectionEntry, 662 字节) 的反汇编直接读出：
+//   两个函数对上下文访问的偏移并集恰为
+//     0x00/0x08/0x10/0x18/0x1C/0x20/0x28/0x30/0x38/0x40
+//   故上下文共 0x48 字节。
+// 【关键语义】+0x08 是「当前读指针」，不是累计大小：
+//   1) InitPESectionReadContext 把第 1 个参数(Base)写入 +0x08，把 Base+Size 写入 +0x10；
+//   2) ReadPESectionEntry 对上下文**只读**（全部 14 处 [rdi+..] 访问都是读），
+//      它以 +0x08 为操作码指针、以 +0x10 为结束边界，自身不推进；
+//   3) 因此推进读指针的责任在调用方 —— 调用方的
+//      `累计变量 += *(DWORD*)(条目+0xF0)` 实际改写的正是 +0x08。
+//      调用方帧布局可证：上下文起始于 rsp+0x50，该变量位于 rsp+0x58，
+//      而条目缓冲区起点为 rsp+0xA0（= 上下文 0x48 字节后按 16 字节对齐），
+//      两者之间没有第三个变量可放（V1/V2/V3 三个函数帧布局一致）。
+// 【注意】早期重建把 `DEC_CTX_*` 这一套宏同时用于本上下文和 0x120 字节的
+//   指令描述符，导致上下文写入偏移错位到 0xDC/0xF0/0xF8/0x100（那是描述符的
+//   布局），而调用点只声明 8 字节 —— 既栈越界又会破坏描述符。此处按反汇编改正。
+typedef struct _PE_DECODE_CONTEXT
+{
+    ULONG64 DecodeTablePtr;   // +0x00 解码表指针（Mode==2 用 g_PeDataDescrambleTable，否则 g_PeLegacyDescrambleTable）
+    ULONG64 ReadPtr;          // +0x08 当前读指针（初值 Base，由调用方按解码长度推进）
+    ULONG64 EndPtr;           // +0x10 缓冲区结束（Base + (int)Size）
+    ULONG   Mode;             // +0x18 模式（2 = 64 位）
+    ULONG   ModeDup;          // +0x1C 模式副本
+    ULONG   AddrSize;         // +0x20 地址大小（Mode==2 时为 1，否则为 Mode）
+    ULONG   Reserved24;       // +0x24 原始驱动未写入
+    ULONG64 Param4;           // +0x28 第 4 参数（r9）
+    ULONG64 Param6;           // +0x30 第 6 参数
+    ULONG64 Param7;           // +0x38 第 7 参数
+    ULONG   ExtraField;       // +0x40 第 5 参数（栈上传入）
+    ULONG   Reserved44;       // +0x44 原始驱动未写入
+} PE_DECODE_CONTEXT, *PPE_DECODE_CONTEXT;
+
 void InitPESectionReadContext(__int64 Base, ULONG Size, INT Mode, LONG64 Param5, INT ExtraField, LONG64 Param6, LONG64 Param7, __int64 Context);
 
 __int64 InitPhysicalMemoryContextTable(int DeviceIndex, __int64 pOutputTable);
@@ -1271,6 +1307,15 @@ __int64 FindKernelDataSectionOffsetWin8(void);
 __int64 FindKernelDataSectionPair(void);
 __int64 FindKernelDataSectionOffsetWin10(void);
 ULONG64 FindKernelInitSection(void);
+__int64 FindKernelDataSectionV2(void);
+__int64 FindKernelDataSectionV2Dispatch(void);
+__int64 ParseNtKernelDataSectionsV2(void);
+__int64 FindKernelDataSectionV3Dispatch(void);
+__int64 FindKernelDataSectionV3(void);
+__int64 FindKernelDataSectionV4(void);
+__int64 FindKernelPageSection(void);
+__int64 ParseMiniFilterDataSection(void);
+__int64 FindKernelDataSectionByDebug(void);
 ULONG64 FindKernelDataSectionDispatch(void);
 ULONG64 FindKernelDataSectionByCode(void);
 ULONG64 FindKernelDataSectionByData(void);
