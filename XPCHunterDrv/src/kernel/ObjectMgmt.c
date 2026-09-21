@@ -2890,9 +2890,9 @@ __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, int ImageSi
     int ScanCount;
     int CurrentRva;
     __int16 TypeValue;
-    __int64 PESectionContext;
+    PE_DECODE_CONTEXT PESectionContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 ContextOffset;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int EntryOffset;
     __int64 FlagsField;
     unsigned int EntrySize2;
@@ -2939,9 +2939,9 @@ __int64 __fastcall FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSiz
     int CurrentRva;
     __int16 TypeValue;
     unsigned int TargetRva;
-    char PESectionContext[8];
+    char PESectionContext[72];          // 0x48 字节解码上下文（原 [8] 仅 8 字节；保持数组形式以便裸名传参）
     __int64 ContextOffset;
-    char SectionEntry[80];
+    char SectionEntry[448];             // 描述符：原 [80] 仅 80 字节
     __int64 EntrySize;
     int RvaField;
     __int64 Flags2;
@@ -3420,9 +3420,9 @@ __int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionB
     unsigned int LoopIndex;
     int CurrentRva;
     __int16 TypeValue;
-    __int64 PESectionContext;
+    PE_DECODE_CONTEXT PESectionContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 ContextOffset;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int EntryOffset;
     __int64 FlagsField;
     int TypeField;
@@ -3467,9 +3467,9 @@ __int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int Section
     int CurrentRva;
     __int16 TypeValue;
     unsigned int TargetRva;
-    __int64 PESectionContext;
+    PE_DECODE_CONTEXT PESectionContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 ContextOffset;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int EntryOffset;
     __int64 FlagsField;
     int TypeField;
@@ -3700,9 +3700,9 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
     unsigned int SectionRva2;
     __int64 SlotIndex;
     unsigned int SectionOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 AccumulatedOffset;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int SectionDataSize;
     int FieldFlags;
     __int64 SectionCharacteristics;
