@@ -2740,30 +2740,24 @@ char SendReadMemoryIoControl(
     Advanced = 0;
     Accumulated = 0;
 
-    // 【⚠ 原型冲突说明】头文件里 SendIoControlWithQuotaBuffer 声明的形参顺序
-    //   是 (HandlerFunc, Arg2, Arg3, Arg4(uint), Arg5(uint), Dst(_BYTE*),
-    //   NumberOfBytes(SIZE_T), pOutSize(size_t*))，但原始驱动在
-    //   SendReadMemoryIoControl 内的这两处调用点按
-    //   `指针 / dword / dword / qword` 的宽度依次填充第 5~8 实参
-    //   （0x140072D3C/0x140072D38/0x140072D41/0x140072D30）。
-    //   两者对不上，说明声明（或其它调用点）与实际布局存在偏差。
-    //   此处按**实测 ABI 布局**用函数指针类型强制调用：参数仍落在完全相同的
-    //   寄存器/栈槽位，机器码层面与原驱动一致，同时避免形参类型警告。
-    //   （该冲突已在审计报告登记，待核对 SendIoControlWithQuotaBuffer 的真实签名
-    //   后统一修正声明与全部调用点。）
-    typedef __int64(__fastcall *PSEND_QUOTA_BUFFER)(__int64 HandlerFunc, __int64 Arg2, __int64 Arg3,
-                                                    unsigned int Arg4, unsigned char *Dst, SIZE_T NumberOfBytes,
-                                                    _DWORD Arg7, __int64 Arg8);
-
-    InnerStatus = (int)((PSEND_QUOTA_BUFFER)SendIoControlWithQuotaBuffer)(
-        Func17A,
+    // 【实参顺序的定案依据】原始被调用方 sub_140075A9C 可反编译，其伪代码给出真实签名
+    //   (a1 HandlerFunc, a2, a3, a4, a5, Dst, NumberOfBytes, a8)，体内：
+    //     v12 = a1(a2, v18, a4, a5, PoolWithQuotaTag, NumberOfBytes, &MaxCount);
+    //     memmove(Dst, PoolWithQuotaTag, v11);   // ← Dst 是搬运目的地
+    //     *(_DWORD *)a8 = MaxCount;              // ← a8 是输出大小指针
+    //   据此唯一确定本调用点的映射：Cursor→Dst、BufferSize→NumberOfBytes、
+    //   Arg7→a8，剩下的 Type→a5（第 2 次调用处该位为 0，与反汇编一致）。
+    //   【更正】此前据 IDA 栈槽名推断"声明在 Dst 前多插了 Arg5、整体错位一格"，
+    //   该结论**错误**，已按被调用方伪代码撤销：声明是正确的。
+    InnerStatus = (int)SendIoControlWithQuotaBuffer(
+        (__int64(__fastcall *)(__int64, __int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *))Func17A,
         Handle80,
         Handle88,
         Accumulated,
-        Cursor,
+        Type,
+        (unsigned char *)Cursor,
         (SIZE_T)BufferSize,
-        (_DWORD)Type,
-        Arg7);
+        (size_t *)&Arg7);
 
     for (;;)
     {
@@ -2802,15 +2796,15 @@ char SendReadMemoryIoControl(
 
         Cursor += Step;
 
-        InnerStatus = (int)((PSEND_QUOTA_BUFFER)SendIoControlWithQuotaBuffer)(
-            Func17A,
+        InnerStatus = (int)SendIoControlWithQuotaBuffer(
+            (__int64(__fastcall *)(__int64, __int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *))Func17A,
             Handle80,
             Handle88,
             Accumulated,
-            Cursor,
-            (SIZE_T)Remaining,
             0,
-            Arg7);
+            (unsigned char *)Cursor,
+            (SIZE_T)Remaining,
+            (size_t *)&Arg7);
         continue;
 
     LABEL_MODE_EXIT:                                // 0x140072E12
