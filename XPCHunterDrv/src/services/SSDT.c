@@ -2797,7 +2797,7 @@ char __fastcall FindExportTableOffsetV1(__int64 ImageBase, unsigned int ImageSiz
     __int64 EntryCount;
     char SectionContext[0x198];
     __int64 AccumulatedOffset = 0;
-    _DWORD SectionEntry[8];
+    _DWORD SectionEntry[112];           // 描述符：原 [8] 仅 32 字节
     char SectionFlags;
     int SectionDataSize;
     __int64 SectionCharacteristics;
@@ -2902,7 +2902,7 @@ char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSiz
     _QWORD *pExportSlot;
     char SectionContext[0x198];
     __int64 AccumulatedOffset = 0;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     int SectionDataSize;
     __int64 SectionCharacteristics;
     int FieldFlags;
