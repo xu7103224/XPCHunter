@@ -605,6 +605,36 @@ __int64 ReadProcessMemoryString(void *InputBuffer, int InputSize, void *OutputBu
         {
             ProbeForWrite(OutputParam, 4u, 4u);
 
+            // 【重构 2026-09-21】按原始驱动结构补回对 SendReadMemoryIoControl 的委托调用。
+            //   原始 CmdReadProcessMemoryStr 在 ProbeForWrite 之后调用它（伪代码 115 行），
+            //   并**仅在「返回 0 且出标志 == 1」时**才进入后续处理（伪代码 127 行）。
+            //   此前复刻把后续处理无条件内联、且整体跳过了这次调用，导致
+            //   SendReadMemoryIoControl 与其内层调用的 SendIoControlWithBufferSwap
+            //   虽已实现却不可达（map 中无它们）。
+            //   11 个实参全部由调用方伪代码定案：v5 = 第 3 形参(输出缓冲)、
+            //   v8 = ExAlloc(PagedPool, 0x10000)、v35 = 0x10000、
+            //   v48 = *(BYTE*)Address（即下方的 InputByte0）。
+            {
+                char CallFlag = 0;
+                __int64 CallResult;
+
+                CallResult = SendReadMemoryIoControl(
+                    (unsigned char *)&CallFlag,
+                    *(__int64 *)((char *)InputBuffer + 0x10),
+                    (unsigned char)(*(__int64 *)((char *)InputBuffer + 0x30)),
+                    (unsigned int)(*(__int64 *)((char *)InputBuffer + 0x38)),
+                    (unsigned char *)OutputBuffer,
+                    OutputSize,
+                    *(__int64 *)((char *)InputBuffer + 0x20),
+                    (unsigned char)InputByte0,
+                    (unsigned char *)InputBuffer,
+                    (__int64)SwapBuffer,
+                    0x10000);
+
+                if (CallResult != 0 || CallFlag != 1)
+                    goto LABEL_READ_STRING_CLEANUP;
+            }
+
             TargetAddress = *(__int64 *)((char *)InputBuffer + 8);
             CurrentPage = *(unsigned int *)((char *)InputBuffer + 24);
             EndFlag = *(unsigned int *)((char *)InputBuffer + 28);
@@ -726,6 +756,7 @@ __int64 ReadProcessMemoryString(void *InputBuffer, int InputSize, void *OutputBu
         }
     }
 
+LABEL_READ_STRING_CLEANUP:
     if (SwapBuffer)
         ExFree(SwapBuffer);
 
