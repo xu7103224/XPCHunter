@@ -2585,6 +2585,281 @@ typedef struct _SWAP_IOCTL_BLOCK
     } Descriptor;
 } SWAP_IOCTL_BLOCK;                 // 共 0x38 字节
 
+// SendReadMemoryIoControl — 读内存 IOCTL 主流程（11 参数）
+// 对应原始驱动 0x140072B64（866 字节，213 条指令）
+// 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用）。**参数语义取自唯一调用方的伪代码**
+//   （CmdReadProcessMemoryStr @0x140074418 可反编译），不是从寄存器猜的。
+// 【参数标定（决定性证据）】调用方伪代码给出的实参序列：
+//     SendReadMemoryIoControl(&v32, Address[2], v38, v41, v5, a4,
+//                             Address[4], v48, Address, v8, v35)
+//   与反汇编调用点（0x14007461B）存栈的第 5..11 实参
+//   （rsi / r13d / [r14+0x20] / 字节 / r14 / r12 / dword）**按序一一对应**；
+//   且 Address = r14 被两处独立印证（第 7 实参 [r14+0x20]、第 9 实参 r14）。
+//   共 11 个参数。
+// 【⚠ 更正记录】此前按"IDA arg_XX 槽位"推算得 10 参数，并卡在"某槽位既被当
+//   <=2 的小整数、又被当 64 位指针"的矛盾上。伪代码定案后确认：那只是
+//   "槽位名 ↔ 形参序号"的换算错误，语义本身自洽 —— 第 4 参数（类型值）与
+//   第 5 参数（缓冲指针）本来就是两个不同参数。
+// 【参数含义（按调用方实参表达式）】
+//   1  OutFlag     &v32          ：函数开头写 1；状态为 0x8000001A 时清 0
+//   2  IoctlHandle Address+0x10  ：IOCTL 句柄
+//   3  ModeByte    Address[6] 低字节，随即被 Address[1] 覆盖（参数替换）
+//   4  Type        Address[7] 低 32 位，须 <= 2；非 0 时只搬运一次
+//   5  Buffer5     v5            ：输出缓冲（[0] 收计数、[8] 收子调用结果字节、[0xC] 是推进步长基数）
+//   6  BufferSize  a4            ：= 调用方的 OutputSize（循环中递减）
+//   7  Arg7        Address+0x20  ：作为子调用第 8 实参
+//   8  Arg8        v48           ：字节标志，== 1 时在两条分岔里调子函数
+//   9  Address     Address       ：输入缓冲指针（作前缀描述符传给 SendIoControlWithBufferSwap）
+//   10 OutBuffer10 v8            ：输出缓冲（子调用第 3 实参）
+//   11 OutSize11   v35           ：输出大小（子调用第 4 实参）
+// 【线程字节技巧】以 gs:188h 取当前线程（即 KeGetCurrentThread()），
+//   用 GtRead(0x27) 作偏移**保存并清零**该字节，函数出口恢复
+//   （与 SaveAndReplaceDiskExtension 同族）。
+// 【⚠ 形参被修改】原始源码修改了自己的第 2、6 个形参（编译器把新值写回其 home 槽：
+//   `mov [arg_10], edx` 与 `mov [arg_28], ecx`）。复刻中用独立局部 Advanced /
+//   Accumulated 与形参 BufferSize 承担，语义等价。
+// 【循环推进（关键细节）】每轮把读指针推进 `*(DWORD*)(Buffer5+0xC)+0x10` 字节，
+//   并把该值记入计数器、把 BufferSize 递减同量，直到 `BufferSize <= 步长+0x10`
+//   放不下为止 —— 即按缓冲自描述的长度字段逐段搬运。
+// 【逻辑】置 *OutFlag=1 → 校验 GT 0x27（不得为 0xFFFFFFFF）与 0x41C6/0x4223/
+//   0x17A/0x179 非 0 → 发 IOCTL(码 8) 取 Handle80（构建号 0x1DB0 分岔）→
+//   保存并清零线程字节 → DispatchHookSwapByVersion 挂钩（HookTarget1）→
+//   状态先置 0xC0000001；构建号 < 0x1770 或 GT 0x197 为 0 则直接收尾 →
+//   DispatchIoControlByBuildNumber(…, 8) 取 Handle88（非 0 则跳过循环）→
+//   Handle88 非 0 时再挂钩（HookTarget2）→ 首次 SendIoControlWithQuotaBuffer →
+//   循环（Type 非 0 时只搬一次）：按 ModeByte / 内层状态 / Arg8 三条分岔决定
+//   是否调 SendIoControlWithBufferSwap，随后推进读指针 → 收尾：写回两处钩子、
+//   恢复线程字节、释放 Handle80/Handle88 → 状态为 0x8000001A 时清 *OutFlag →
+//   返回 (状态 == 0)
+char SendReadMemoryIoControl(
+    unsigned char *OutFlag,
+    __int64 IoctlHandle,
+    unsigned char ModeByte,
+    unsigned int Type,
+    unsigned char *Buffer5,
+    unsigned int BufferSize,
+    __int64 Arg7,
+    unsigned char Arg8,
+    unsigned char *Address,
+    __int64 OutBuffer10,
+    unsigned int OutSize11)
+{
+    char Result = 0;
+    int Status;
+    int InnerStatus;
+    unsigned int Counter;
+    unsigned int Advanced;
+    unsigned int One;
+    unsigned int Step;
+    unsigned int Remaining;
+    unsigned int Accumulated;
+    __int64 Id27;
+    __int64 Func41C6;
+    __int64 FreeFunc;
+    __int64 Func17A;
+    __int64 Func179;
+    __int64 Func197;
+    __int64 Handle80;
+    __int64 Handle88;
+    __int64 HookSave;
+    __int64 HookSave2;
+    __int64 *HookTarget1;
+    __int64 *HookTarget2;
+    unsigned char *ThreadPtr;
+    unsigned __int64 ThreadOffset;
+    unsigned char SavedThreadByte;
+    unsigned char *Cursor;
+
+    *OutFlag = 1;
+    ModeByte = Address[1];
+    if (Type > 2)
+        return Result;
+
+    Id27 = GtRead((GLOBAL_TABLE_INDEX)0x27);
+    Func41C6 = GtRead((GLOBAL_TABLE_INDEX)0x41C6);
+    FreeFunc = GtRead((GLOBAL_TABLE_INDEX)0x4223);
+    Func17A = GtRead((GLOBAL_TABLE_INDEX)0x17A);
+    Func179 = GtRead((GLOBAL_TABLE_INDEX)0x179);
+
+    if ((unsigned int)Id27 == 0xFFFFFFFF)
+        return Result;
+    if (!Func41C6 || !FreeFunc || !Func17A || !Func179)
+        return Result;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0)
+    {
+        Status = (int)((__int64(__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64))Func41C6)(
+            IoctlHandle, 8, *(__int64 *)Func179, 0, (__int64)&Handle80, 0);
+    }
+    else
+    {
+        Status = (int)SendDeviceIoControlWithRetry(IoctlHandle, 8, 0, (_DWORD **)&Handle80, 0);
+    }
+
+    if (Status < 0)
+        return Result;
+
+    ThreadPtr = (unsigned char *)KeGetCurrentThread();
+    ThreadOffset = (unsigned __int64)(unsigned int)Id27;
+    SavedThreadByte = ThreadPtr[ThreadOffset];
+    ThreadPtr[ThreadOffset] = 0;
+
+    Counter = 0;
+    HookSave = 0;
+    HookTarget1 = (__int64 *)DispatchHookSwapByVersion(Handle80, &HookSave);
+
+    Status = (int)0xC0000001;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770)
+        goto LABEL_RESTORE_THREAD;
+
+    Func197 = GtRead((GLOBAL_TABLE_INDEX)0x197);
+    if (!Func197)
+        goto LABEL_RESTORE_THREAD;
+
+    Handle88 = 0;
+
+    Status = (int)DispatchIoControlByBuildNumber(
+        (__int64(__fastcall *)(__int64, __int64))Func197,
+        (__int64)&Handle80,
+        (__int64)&Handle88,
+        0,
+        8);
+
+    if (Status != 0)
+        goto LABEL_FREE_HANDLE88;
+
+    HookTarget2 = NULL;
+    HookSave2 = 0;
+
+    if (Handle88)
+        HookTarget2 = (__int64 *)DispatchHookSwapByVersion(Handle88, &HookSave2);
+
+    Cursor = Buffer5;
+    Advanced = 0;
+    Accumulated = 0;
+
+    // 【⚠ 原型冲突说明】头文件里 SendIoControlWithQuotaBuffer 声明的形参顺序
+    //   是 (HandlerFunc, Arg2, Arg3, Arg4(uint), Arg5(uint), Dst(_BYTE*),
+    //   NumberOfBytes(SIZE_T), pOutSize(size_t*))，但原始驱动在
+    //   SendReadMemoryIoControl 内的这两处调用点按
+    //   `指针 / dword / dword / qword` 的宽度依次填充第 5~8 实参
+    //   （0x140072D3C/0x140072D38/0x140072D41/0x140072D30）。
+    //   两者对不上，说明声明（或其它调用点）与实际布局存在偏差。
+    //   此处按**实测 ABI 布局**用函数指针类型强制调用：参数仍落在完全相同的
+    //   寄存器/栈槽位，机器码层面与原驱动一致，同时避免形参类型警告。
+    //   （该冲突已在审计报告登记，待核对 SendIoControlWithQuotaBuffer 的真实签名
+    //   后统一修正声明与全部调用点。）
+    typedef __int64(__fastcall *PSEND_QUOTA_BUFFER)(__int64 HandlerFunc, __int64 Arg2, __int64 Arg3,
+                                                    unsigned int Arg4, unsigned char *Dst, SIZE_T NumberOfBytes,
+                                                    _DWORD Arg7, __int64 Arg8);
+
+    InnerStatus = (int)((PSEND_QUOTA_BUFFER)SendIoControlWithQuotaBuffer)(
+        Func17A,
+        Handle80,
+        Handle88,
+        Accumulated,
+        Cursor,
+        (SIZE_T)BufferSize,
+        (_DWORD)Type,
+        Arg7);
+
+    for (;;)
+    {
+        One = 1;
+
+        if (ModeByte == 1)
+            goto LABEL_MODE_EXIT;
+
+        if (InnerStatus != 0)
+            goto LABEL_ERROR_EXIT;
+
+        if (Arg8 != 1)
+            goto LABEL_ADVANCE;
+
+        // ===== 0x140072D77：Arg8 == 1 时的子调用（拼路径 + 注册表键 IOCTL）=====
+        *(unsigned __int32 *)(Cursor + 8) = (unsigned __int32)(unsigned __int8)SendIoControlWithBufferSwap(
+            Address, Cursor, (unsigned char *)OutBuffer10, OutSize11);
+        One = (unsigned int)(InnerStatus + 1);
+
+    LABEL_ADVANCE:                                  // 0x140072D9E
+        *(unsigned __int32 *)Cursor = Counter;
+
+        Step = *(unsigned int *)(Cursor + 0x0C) + 0x10;
+        Counter = Step;
+
+        if (BufferSize <= Step + 0x10)              // 0x140072DB3
+        {
+            *(unsigned __int32 *)Cursor = 0;
+            goto LABEL_FREE_HANDLE88;
+        }
+
+        Remaining = BufferSize - Step;
+        Accumulated += One;
+        Advanced += One;
+        BufferSize = Remaining;
+
+        Cursor += Step;
+
+        InnerStatus = (int)((PSEND_QUOTA_BUFFER)SendIoControlWithQuotaBuffer)(
+            Func17A,
+            Handle80,
+            Handle88,
+            Accumulated,
+            Cursor,
+            (SIZE_T)Remaining,
+            0,
+            Arg7);
+        continue;
+
+    LABEL_MODE_EXIT:                                // 0x140072E12
+        *(unsigned __int32 *)Cursor = 0;
+
+        if (InnerStatus != 0)
+            goto LABEL_FREE_HANDLE88;
+        if (Arg8 != 1)
+            goto LABEL_FREE_HANDLE88;
+
+        *(unsigned __int32 *)(Cursor + 8) = (unsigned __int32)(unsigned __int8)SendIoControlWithBufferSwap(
+            Address, Cursor, (unsigned char *)OutBuffer10, OutSize11);
+        goto LABEL_FREE_HANDLE88;
+
+    LABEL_ERROR_EXIT:                              // 0x140072E06
+        *(unsigned __int32 *)Cursor = 0;
+
+        if (Advanced != 0)
+            goto LABEL_FREE_HANDLE88;
+
+        InnerStatus = 0;
+        *(unsigned __int32 *)Cursor = 0;
+        goto LABEL_FREE_HANDLE88;
+    }
+
+LABEL_FREE_HANDLE88:                                // 0x140072E42
+    if (Handle88)
+    {
+        if (HookTarget2)
+            *HookTarget2 = HookSave2;
+
+        ((void(__fastcall *)(__int64))FreeFunc)(Handle88);
+    }
+
+LABEL_RESTORE_THREAD:                               // 0x140072E63
+    if (HookTarget1)
+        *HookTarget1 = HookSave;
+
+    ThreadPtr[ThreadOffset] = SavedThreadByte;
+
+    ((void(__fastcall *)(__int64))FreeFunc)(Handle80);
+
+    if (Status == 0x8000001A)
+        *OutFlag = 0;
+
+    Result = (Status == 0) ? 1 : 0;
+    return Result;
+}
+
 // SendIoControlWithBufferSwap — 拼接宽字符路径并执行注册表键 IOCTL
 // 对应原始驱动 0x1400731F4（760 字节）
 // 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报

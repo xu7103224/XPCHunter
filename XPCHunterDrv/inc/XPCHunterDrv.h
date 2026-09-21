@@ -405,6 +405,7 @@ __int64 DiskOperationDispatcher(void *Address, unsigned int Length);
 __int64 DispatchFreeProcessMemory(char *VirtualAddress);
 __int64 __fastcall DispatchHookSwapByVersion(__int64 Handle, __int64 *OriginalValue);
 char SendIoControlWithBufferSwap(unsigned char *PrefixDesc, unsigned char *NameDesc, unsigned char *OutputBuffer, unsigned int OutputSize);
+char SendReadMemoryIoControl(unsigned char *OutFlag, __int64 IoctlHandle, unsigned char ModeByte, unsigned int Type, unsigned char *Buffer5, unsigned int BufferSize, __int64 Arg7, unsigned char Arg8, unsigned char *Address, __int64 OutBuffer10, unsigned int OutSize11);
 __int64 DispatchInstructionDecode( ULONG64 BufferPos, ULONG64 BufferEnd, ULONG64 TableEntry, ULONG64 DecodeCtx);
 
 __int64 __fastcall DispatchIoControlByBuildNumber( __int64 (__fastcall *HandlerFunc)(__int64, __int64),
