@@ -200,7 +200,9 @@ void RegisterMiniFilterRegistry(void)
     if (RegPath)
     {
         RtlInitUnicodeString(&DestinationString, RegPath);
-        memset(&ObjectAttributes.SecurityDescriptor, 0, sizeof(ObjectAttributes) - 24);
+        // 原始驱动以 16 字节清零 SecurityDescriptor + SecurityQualityOfService，此处逐字段等价展开
+        ObjectAttributes.SecurityDescriptor = NULL;
+        ObjectAttributes.SecurityQualityOfService = NULL;
         ObjectAttributes.ObjectName = &DestinationString;
         ObjectAttributes.Length = 48;
         ObjectAttributes.RootDirectory = 0;
@@ -222,7 +224,8 @@ void RegisterMiniFilterRegistry(void)
                         memmove(AllocBuffer, RegPathBuffer, PathLength);
                         WStringCopy((__int16 *)&InstancePath[(unsigned __int64)PathLength >> 1], L"\\Instances");
                         RtlInitUnicodeString(&DestinationString, InstancePath);
-                        memset(&ObjectAttributes.SecurityDescriptor, 0, sizeof(ObjectAttributes) - 24);
+                        ObjectAttributes.SecurityDescriptor = NULL;
+                        ObjectAttributes.SecurityQualityOfService = NULL;
                         ObjectAttributes.ObjectName = &DestinationString;
                         ObjectAttributes.Length = 48;
                         ObjectAttributes.RootDirectory = 0;
@@ -235,7 +238,8 @@ void RegisterMiniFilterRegistry(void)
                                 memmove(InstancePath, RegPathBuffer, PathLength);
                                 WStringCopy((__int16 *)&InstancePath[(unsigned __int64)PathLength >> 1], L"\\Instances\\1");
                                 RtlInitUnicodeString(&DestinationString, InstancePath);
-                                memset(&ObjectAttributes.SecurityDescriptor, 0, sizeof(ObjectAttributes) - 24);
+                                ObjectAttributes.SecurityDescriptor = NULL;
+                                ObjectAttributes.SecurityQualityOfService = NULL;
                                 ObjectAttributes.ObjectName = &DestinationString;
                                 ObjectAttributes.Length = 48;
                                 ObjectAttributes.RootDirectory = 0;

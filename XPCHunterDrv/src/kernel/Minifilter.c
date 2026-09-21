@@ -1,17 +1,51 @@
 // Minifilter.c — 文件系统 Minifilter
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
 
+// 先包含 fltKernel.h：定义 __FLTKERNEL__ 后，xpc_basic.h 中的 FLT 类型前向声明会被跳过，
+// 使用 WDK 的真实类型声明（FltUnregisterFilter 等 FltMgr API 由此可用）
+#include <fltKernel.h>
 #include "XPCHunterDrv.h"
 #pragma warning(disable:4700)
 
 // 全局变量声明
 extern KMUTEX g_Mutex;
 extern volatile PVOID g_Pointer;
+extern PFLT_FILTER g_Filter;
 
 // 壳代码数据 — 用于 PatchPeHeaderMagic 修补 PE 头魔数
 // 对应原始驱动 g_ShellCodeBuffer (0x14008CA40) / g_ShellCodeMovEax (0x14008CA44)
 DWORD g_ShellCodeBuffer = 0x22B8;
 DWORD g_ShellCodeMovEax = 0xC3C0;
+
+// Minifilter 操作回调表 — 对应原始驱动 OperationRegistration (0x14008D5C0)
+// 仅注册 IRP_MJ_CREATE 一个操作，末尾以 IRP_MJ_OPERATION_END (0x80) 结尾
+const FLT_OPERATION_REGISTRATION g_OperationRegistration[] = {
+    { IRP_MJ_CREATE, 0, (PFLT_PRE_OPERATION_CALLBACK)MiniFilterPreVolumeDismount, NULL },
+    { IRP_MJ_OPERATION_END, 0, NULL, NULL }
+};
+
+// Minifilter 注册结构 — 对应原始驱动 Registration (0x14008D600)
+// Flags 置 FLTFL_REGISTRATION_DO_NOT_SUPPORT_SERVICE_STOP：不支持服务停止
+// 卸载回调指向 MiniFilterUnloadCleanup，其余回调均为空
+const FLT_REGISTRATION Registration = {
+    104,                                               // Size：原始驱动为 0x68。本机 SDK 的 FLT_REGISTRATION 多一个
+                                                       // SectionNotificationCallback 字段（sizeof 为 112），
+                                                       // 而 FltMgr 按 Version 校验 Size，故必须固定为 0x68
+    FLT_REGISTRATION_VERSION_0202,                     // Version (0x0202)
+    FLTFL_REGISTRATION_DO_NOT_SUPPORT_SERVICE_STOP,    // Flags (1)
+    NULL,                                              // ContextRegistration
+    g_OperationRegistration,                           // OperationRegistration
+    (PFLT_FILTER_UNLOAD_CALLBACK)MiniFilterUnloadCleanup,  // FilterUnloadCallback
+    NULL,                                              // InstanceSetupCallback
+    NULL,                                              // InstanceQueryTeardownCallback
+    NULL,                                              // InstanceTeardownStartCallback
+    NULL,                                              // InstanceTeardownCompleteCallback
+    NULL,                                              // GenerateFileNameCallback
+    NULL,                                              // NormalizeNameComponentCallback
+    NULL,                                              // NormalizeContextCleanupCallback
+    NULL,                                              // TransactionNotificationCallback
+    NULL                                               // NormalizeNameComponentExCallback
+};
 
 // 前向声明 — 这些函数在被定义之前已被调用
 __int64 (__fastcall *__fastcall FsFilterCreateCallback(__int64 FilterContext))(__int64);
@@ -557,9 +591,85 @@ __int64 MiniFilterPostWrite(void)
 
 // MiniFilterPreCleanup — 预清理
 // 对应原始驱动 sub_140014EE4
-NTSTATUS MiniFilterPreCleanup(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext)
+// 从 ntoskrnl 镜像的数据目录入口定位节表，遍历最多 0x100 个节区：
+// 记录特征值为 0x40000 的节区偏移（SavedSectionOffset），
+// 再在标记 0x558 且带 0x4000000 标志的节区中，用其字段算出候选偏移，
+// 命中已存的后写偏移之一且 SavedSectionOffset 有效时，把两个结果分别写入 GT 0x1A4 与 0x179
+__int64 MiniFilterPreCleanup(void)
 {
-    return STATUS_SUCCESS;
+    __int64 KernelBase;
+    unsigned int KernelSize;
+    ULONG64 NtImageBase;
+    ULONG64 SectionOffset;
+    int ExistingOffset1;
+    __int64 Result;
+    int ExistingOffset2;
+    ULONG64 ImageOffset;
+    __int64 PeHeaderDataDir;
+    ULONG64 SavedSectionOffset;
+    unsigned int SectionIndex;
+    int CalculatedSize;
+    __int64 ReadContext;
+    __int64 CumulativeSize = 0;
+    _DWORD SectionEntry[72];
+
+    KernelBase = GtRead(GtEprocessField22);
+    KernelSize = (unsigned int)GtRead(GtEprocessField23);
+    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    // 以下索引取自原始驱动实际立即数（IDA 中的枚举别名在 C 头文件中无对应项）
+    SectionOffset = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x170);
+    ExistingOffset1 = (int)GtRead((GLOBAL_TABLE_INDEX)0x41C5);
+    Result = GtRead((GLOBAL_TABLE_INDEX)0x439F);
+    ExistingOffset2 = (int)Result;
+
+    if (!KernelBase || !KernelSize || !NtImageBase || !SectionOffset)
+        return Result;
+    if (SectionOffset <= NtImageBase || !ExistingOffset1 || !(_DWORD)Result)
+        return Result;
+
+    Result = (unsigned int)(SectionOffset - NtImageBase);
+    if ((unsigned int)Result >= KernelSize)
+        return Result;
+
+    ImageOffset = (unsigned int)Result;
+    Result += NtImageBase;
+    if (SectionOffset != (ULONG64)Result)
+        return Result;
+
+    PeHeaderDataDir = *(_QWORD *)(*(int *)(KernelBase + 60) + KernelBase + 48);
+    InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - (unsigned int)ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    SavedSectionOffset = 0;
+
+    for (SectionIndex = 0; SectionIndex < 0x100; SectionIndex++)
+    {
+        Result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
+        if ((_DWORD)Result)
+            break;
+
+        CalculatedSize = (int)(*(unsigned int *)((char *)SectionEntry + 0xF0) + CumulativeSize);
+        CumulativeSize += *(unsigned int *)((char *)SectionEntry + 0xF0);
+
+        if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1368 &&
+            (*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0 &&
+            (Result = *(unsigned int *)((char *)SectionEntry + 0x38)) != 0)
+        {
+            Result = CalculatedSize + *(unsigned int *)((char *)SectionEntry + 0x38) - (unsigned int)KernelBase;
+            if (((_DWORD)Result == ExistingOffset1 || (_DWORD)Result == ExistingOffset2) &&
+                (_DWORD)SavedSectionOffset &&
+                (unsigned int)SavedSectionOffset < KernelSize)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x1A4, (__int64)(SavedSectionOffset + PeHeaderDataDir));
+                return GtWrite((GLOBAL_TABLE_INDEX)0x179, (__int64)(SavedSectionOffset + NtImageBase));
+            }
+        }
+        else if (*(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+        {
+            Result = *(unsigned int *)((char *)SectionEntry + 0x78);
+            if (*(unsigned int *)((char *)SectionEntry + 0x78))
+                SavedSectionOffset = CalculatedSize + *(unsigned int *)((char *)SectionEntry + 0x78) - (unsigned int)KernelBase;
+        }
+    }
+    return Result;
 }
 
 // MiniFilterPreClose — 预关闭
@@ -1136,17 +1246,70 @@ __int64 MiniFilterPreVolumeMount(char *InputBuffer, int BufferSize)
     return StoreResult & WriteResult;
 }
 
-// MiniFilterPreVolumeDismount — 预卷卸载处理
-// 在卷卸载前执行清理操作，清除卷相关的保护条目和回调
+// CheckVolumeFileExists — 检查卷文件是否存在
+// 对应原始驱动 sub_140019280
+// 用 FltCreateFile 只读试探打开文件：成功则关闭句柄返回 1；
+// 失败时仅当状态为 STATUS_OBJECT_NAME_NOT_FOUND 才判定为不存在（返回 0），其它错误一律返回 1
+char CheckVolumeFileExists(PUNICODE_STRING FileName, __int64 VolumeContext)
+{
+    PFLT_INSTANCE Instance;
+    char Result;
+    NTSTATUS Status;
+    struct _IO_STATUS_BLOCK IoStatusBlock;
+    struct _OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE FileHandle;
+
+    Instance = *(PFLT_INSTANCE *)(VolumeContext + 24);
+    ObjectAttributes.SecurityDescriptor = NULL;
+    ObjectAttributes.SecurityQualityOfService = NULL;
+    ObjectAttributes.ObjectName = FileName;
+    ObjectAttributes.Length = 48;
+    ObjectAttributes.RootDirectory = 0;
+    ObjectAttributes.Attributes = 576;
+    Result = 1;
+    Status = FltCreateFile(g_Filter, Instance, &FileHandle, 1, &ObjectAttributes, &IoStatusBlock,
+                           0, 0x80, 3, 1, 0x20, 0, 0, 0x100);
+    if (Status < 0)
+        return Status != STATUS_OBJECT_NAME_NOT_FOUND;
+    FltClose(FileHandle);
+    return Result;
+}
+
+// MiniFilterPreVolumeDismount — 卷文件访问前置回调
 // 对应原始驱动 sub_140018EA0
+// 取文件名信息并检查卷文件是否存在；文件不存在且信息类判定通过时，
+// 直接以成功状态完成该次请求（返回 FLT_PREOP_COMPLETE），否则放行（FLT_PREOP_SUCCESS_NO_CALLBACK）
 __int64 MiniFilterPreVolumeDismount(PFLT_CALLBACK_DATA CallbackData, __int64 VolumeContext)
 {
-    __int64 Result = 0;
-    // 清除卷卸载相关的 GT 标志
-    GtWrite(GtCommPortCallbackReady, 0);
-    GtWrite(GtEprocessField155 | 0x100, 0);
-    GtWrite(GtEprocessField156 | 0x100, 0);
-    Result = 1;
+    unsigned int Result;
+    struct _FLT_FILE_NAME_INFORMATION *FileNameInfo;
+    unsigned __int8 FsInformationClassHigh;
+    PFLT_FILE_NAME_INFORMATION FileNameInformation;
+
+    Result = FLT_PREOP_SUCCESS_NO_CALLBACK;
+    AcquireMiniFilterMutexEx();
+    if (FltGetFileNameInformation(CallbackData, 0x101, &FileNameInformation) >= 0)
+    {
+        FltParseFileNameInformation(FileNameInformation);
+        FileNameInfo = FileNameInformation;
+        if (FileNameInformation->Name.Length && FileNameInformation->Name.Buffer)
+        {
+            // 原始指令为 mov sil,[Iopb+23h]：SetVolumeInformation.FsInformationClass 位于 Iopb+0x20，
+            // 故取该 32 位字段的最高字节（不是 HIBYTE 宏的 >>8）
+            FsInformationClassHigh = (unsigned __int8)(CallbackData->Iopb->Parameters.SetVolumeInformation.FsInformationClass >> 24);
+            if (!CheckVolumeFileExists(&FileNameInformation->Name, VolumeContext) &&
+                FsInformationClassHigh != 1 &&
+                FsInformationClassHigh < 6)
+            {
+                CallbackData->IoStatus.Status = 0;
+                CallbackData->IoStatus.Information = 0;
+                Result = FLT_PREOP_COMPLETE;
+            }
+            FileNameInfo = FileNameInformation;
+        }
+        FltReleaseFileNameInformation(FileNameInfo);
+    }
+    AcquireMiniFilterMutex();
     return Result;
 }
 
@@ -1232,22 +1395,23 @@ char MiniFilterContextCleanup(ULONG64 Unknown, ULONG Unknown2, ULONG64 OutputBuf
     return 0;
 }
 
-// MiniFilterFormatFileName — 格式化文件名
+// MiniFilterFormatFileName — 注册文件名规范化回调
 // 对应原始驱动 sub_14001A030
-__int64 MiniFilterFormatFileName(void)
+// 读取全局表 0x41A8 中已解析的回调注册函数，注册 MiniFilterNormalizeName 后清零就绪标志 0x8F0
+char MiniFilterFormatFileName(void)
 {
-    if (!GtRead(GtMiniFilterFormatNameReady))
+    char Result;
+    void (__fastcall *RegisterCallbackFunc)(__int64 *(__fastcall *)(__int64, __int64, char), __int64);
+
+    Result = 0;
+    RegisterCallbackFunc = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char), __int64))GtRead(GtTotalSize | GtEprocessField158 | 0x100);
+    if (RegisterCallbackFunc)
     {
-        void (__fastcall *RegisterCallback)(__int64 *(__fastcall *)(__int64, __int64, char), __int64);
-        RegisterCallback = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char), __int64))GtRead(16808);
-        if (RegisterCallback)
-        {
-            RegisterCallback((__int64 *(__fastcall *)(__int64, __int64, char))MiniFilterNormalizeName, 1);
-            GtWrite(GtMiniFilterFormatNameReady, 0);
-            return 1;
-        }
+        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, char))MiniFilterNormalizeName, 1);
+        GtWrite(GtMiniFilterFormatNameReady, 0);
+        return 1;
     }
-    return 0;
+    return Result;
 }
 
 // MiniFilterGenerateFileName — 生成文件名
@@ -1946,28 +2110,73 @@ __int64 MiniFilterPreRelease(_QWORD **ContextPtr, int ContextSize)
     return Result;
 }
 
-// MiniFilterCommPortSend — 通信端口发送
-// 通过命名管道或设备 IOCTL 向用户态通信端口发送数据
-// 对应原始驱动 sub_140019B50
-NTSTATUS MiniFilterCommPortSend(void)
+// MiniFilterCommPortSend — 注册并启动 Minifilter
+// 对应原始驱动 sub_14001922C
+// 过滤器尚未注册时，先写入注册表实例项，再调用 StartMiniFilter 注册并启动过滤器
+char MiniFilterCommPortSend(void)
 {
-    // 通信端口发送需要 IRP 或命名管道上下文
-    // 此处验证通信端口状态后返回
-    if (!GtRead(GtCommPortCallbackReady))
-        return STATUS_DEVICE_NOT_READY;
-    return STATUS_SUCCESS;
+    char Result;
+    struct _DRIVER_OBJECT *DriverObject;
+
+    Result = 0;
+    if (!g_Filter)
+    {
+        DriverObject = (struct _DRIVER_OBJECT *)GtRead(GtDriverObject);
+        if (DriverObject)
+        {
+            RegisterMiniFilterRegistry();
+            return StartMiniFilter(DriverObject) == 1;
+        }
+    }
+    return Result;
+}
+
+// StartMiniFilter — 注册并启动 Minifilter 过滤器
+// 对应原始驱动 sub_1400193B0
+// FltRegisterFilter 注册成功后调用 FltStartFiltering 启动；启动失败则注销并清空句柄
+char StartMiniFilter(struct _DRIVER_OBJECT *DriverObject)
+{
+    char Result;
+
+    Result = 0;
+    if (FltRegisterFilter(DriverObject, &Registration, &g_Filter) >= 0)
+    {
+        if (FltStartFiltering(g_Filter) < 0)
+        {
+            FltUnregisterFilter(g_Filter);
+            g_Filter = 0;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// MiniFilterUnloadCleanup — 注销 Minifilter 过滤器
+// 对应原始驱动 sub_140018E70
+// 获取 Minifilter 互斥锁后，若过滤器句柄非空则调用 FltUnregisterFilter 注销并清空句柄
+__int64 MiniFilterUnloadCleanup(void)
+{
+    AcquireMiniFilterMutexEx();
+    if (g_Filter)
+    {
+        FltUnregisterFilter(g_Filter);
+        g_Filter = 0;
+    }
+    AcquireMiniFilterMutex();
+    return 0;
 }
 
 // MiniFilterCommPortRecv — 通信端口接收
-// 从用户态通信端口接收数据，等待 IRP 或命名管道数据
-// 对应原始驱动 sub_140019BB0
-NTSTATUS MiniFilterCommPortRecv(void)
+// 对应原始驱动 sub_140019210
+// 若 Minifilter 过滤器已注册则先执行注销清理，恒定返回 1
+char MiniFilterCommPortRecv(void)
 {
-    // 通信端口接收需要 IRP 或命名管道上下文
-    // 此处验证通信端口状态后返回
-    if (!GtRead(GtCommPortCallbackReady))
-        return STATUS_DEVICE_NOT_READY;
-    return STATUS_SUCCESS;
+    if (g_Filter)
+        MiniFilterUnloadCleanup();
+    return 1;
 }
 
 // MiniFilterCommPortReply — 通信端口回复
@@ -1982,13 +2191,23 @@ NTSTATUS MiniFilterCommPortReply(void)
     return STATUS_SUCCESS;
 }
 
-// MiniFilterFormatFileNameWithPath — 格式化文件名带路径
-// 将流文件对象名称格式化为完整路径，处理符号链接和相对路径
-// 对应原始驱动 sub_140019E50
-__int64 MiniFilterFormatFileNameWithPath(void)
+// MiniFilterFormatFileNameWithPath — 注册带路径的文件名格式化回调
+// 对应原始驱动 sub_14001A068
+// 读取全局表 0x41BA 中已解析的回调注册函数，注册 MiniFilterFilterUnload 后清零就绪标志 0x8F1
+char MiniFilterFormatFileNameWithPath(void)
 {
-    // 需要 FltGetFileNameInformation 获取文件名，然后格式化
-    return 0;
+    char Result;
+    void (__fastcall *RegisterCallbackFunc)(__int64 *(__fastcall *)(__int64, __int64, char));
+
+    Result = 0;
+    RegisterCallbackFunc = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char)))GtRead(GtTotalSize | GtNtQuerySystemInformationFunc | GtEprocessField22);
+    if (RegisterCallbackFunc)
+    {
+        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, char))MiniFilterFilterUnload);
+        GtWrite(GtMiniFilterFormatNameExReady, 0);
+        return 1;
+    }
+    return Result;
 }
 
 // MiniFilterFormatFileNameWithContext — 格式化文件名带上下文
@@ -2037,13 +2256,23 @@ NTSTATUS MiniFilterNotifyRoutineEx(void)
     return STATUS_SUCCESS;
 }
 
-// MiniFilterActiveRoutine — 激活例程
-// 在文件操作激活时执行保护检查
-// 对应原始驱动 sub_14001A150
-NTSTATUS MiniFilterActiveRoutine(void)
+// MiniFilterActiveRoutine — 注册空闲查询例程
+// 对应原始驱动 sub_14001A240
+// 读取全局表 0x41B7 中已解析的注册函数，注册 MiniFilterQueryIdleRoutine 后清零通知例程标志 0x8F3
+char MiniFilterActiveRoutine(void)
 {
-    // 需要检查文件是否受保护
-    return STATUS_SUCCESS;
+    char Result;
+    void (__fastcall *RegisterCallbackFunc)(__int64 *(__fastcall *)(__int64, __int64, _DWORD *));
+
+    Result = 0;
+    RegisterCallbackFunc = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, _DWORD *)))GtRead(GtNtDuplicateObjectPeSectionOffset | GtEprocessField42);
+    if (RegisterCallbackFunc)
+    {
+        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, _DWORD *))MiniFilterQueryIdleRoutine);
+        GtWrite(GtMiniFilterNotifyRoutineReady, 0);
+        return 1;
+    }
+    return Result;
 }
 
 // MiniFilterNotifyRoutineEx2 — 通知例程扩展2
@@ -3094,9 +3323,251 @@ __int64 EnumFileSystemCallbackEntries(void)
 
 // ParseNtRelocSection -- 解析 NT 重定位节区
 // 对应原始驱动 sub_14000E634
-char ParseNtRelocSection(__int64 PeBase, unsigned int PeSize, __int64 Context)
+// 在 PE 文件缓冲中定位重定位节区：第一轮找标记 0x559 的节区取得节区表偏移，
+// 第二轮找标记 0x547 + 节区名 0x188 的重定位节区，第三轮按 NtBuildNumber 分两套标记
+// （>= 0x23F0 用 0x547 + 名字 0xC0916A2；否则用 0x547 + 名字 0x188）收集重定位条目，
+// 把条目写回输出表：步长 48 字节，+8 处存 ExportTableBase+文件偏移，+4 处存文件偏移
+//
+// 节区条目缓冲（SectionEntry，0x120 字节）字段偏移来自原始驱动栈布局：
+//   0x38 VirtualAddress   0x40 VirtualSize    0x50 Characteristics  0x58 SectionIndex
+//   0x70 SectionName      0x78 RawDataSize    0x88 SectionAlignment  0x90 RelocEntryIndex
+//   0xDC MiscInfo         0xF0 SizeOfRawData  0x118 SectionNamePtr
+char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
 {
-    return 0;
+    __int64 SectionOffset;
+    int SectionIndex;
+    int SectionEnd;
+    unsigned int RawOffset;
+    int RelocSectionIndex;
+    int FirstRelocRva;
+    int FirstRelocType;
+    char FoundWin10Reloc;
+    int RelocEntryIndex;
+    unsigned int NtBuildNumber;
+    __int64 SectionCharacteristics;
+    unsigned int RelocFileOffset;
+    int CurrentRelocRva;
+    int BaseRelocRva;
+    unsigned int RelocDelta;
+    __int64 TableIndex;
+    unsigned int EntryFileOffset;
+    __int64 TableEntryPtr;
+    __int64 EntryOffset;
+    unsigned int RelocDeltaBytes;
+    __int64 EntryIndex;
+    __int64 OutputTableEntry;
+    __int16 SectionFlags;
+    __int16 FlagsCheck;
+    char EndCheck;
+    char Result;
+    int BaseRelocRvaSaved;
+    __int64 ExportTableBase;
+    char ReadContext[8];
+    __int64 CumulativeOffset;
+    _DWORD SectionEntry[72];
+    _DWORD DirectoryTable[16];
+
+    Result = 0;
+    CumulativeOffset = 0;
+    ExportTableBase = GtRead(GtFileSystemExportTable);
+    if (!ExportTableBase)
+        return Result;
+
+    // 节区表偏移 = e_lfanew(0x3C) 指向的 PE 头 + 0x28
+    SectionOffset = *(unsigned int *)(*(int *)(FileBuffer + 60) + FileBuffer + 40);
+    if ((unsigned int)SectionOffset < FileSize && (unsigned int)((int)SectionOffset + 4096) < FileSize)
+    {
+        InitPESectionReadContext(FileBuffer + SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+        SectionIndex = 0;
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+        {
+            SectionEnd = (int)(*(unsigned int *)((char *)SectionEntry + 0xF0) + CumulativeOffset);
+            CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);
+            if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1369)
+            {
+                if (*(int *)((char *)SectionEntry + 0x38))
+                {
+                    RawOffset = (unsigned int)(SectionEnd + *(int *)((char *)SectionEntry + 0x38) - FileBuffer);
+                    if (RawOffset)
+                    {
+                        if (RawOffset < FileSize)
+                        {
+                            LODWORD_LV(SectionOffset) = RawOffset;
+                            break;
+                        }
+                    }
+                }
+            }
+            if ((unsigned int)++SectionIndex >= 0x1E)
+                break;
+        }
+    }
+
+    if (!(_DWORD)SectionOffset || (unsigned int)SectionOffset >= FileSize ||
+        (unsigned int)((int)SectionOffset + 4096) >= FileSize)
+        return Result;
+
+    BaseRelocRvaSaved = 0;
+    InitPESectionReadContext(FileBuffer + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+    RelocSectionIndex = 0;
+    while (1)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+            return Result;
+        CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1351 &&
+            *(__int64 *)((char *)SectionEntry + 0x70) == 0x188)
+            break;
+        if ((unsigned int)++RelocSectionIndex >= 0x1F4)
+            return Result;
+    }
+
+    FirstRelocRva = *(int *)((char *)SectionEntry + 0x40);
+    FirstRelocType = *(_DWORD *)((char *)SectionEntry + 0xDC) & 0xF;
+    if (!FirstRelocRva)
+        return Result;
+
+    memset(DirectoryTable, 0, sizeof(DirectoryTable));
+    FoundWin10Reloc = 0;
+    InitPESectionReadContext(FileBuffer + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+    RelocEntryIndex = 0;
+
+    while (1)
+    {
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+            return Result;
+        CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);
+
+        NtBuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
+        SectionFlags = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        if (NtBuildNumber >= 0x23F0)
+        {
+            if (SectionFlags == 0x547 && *(__int64 *)((char *)SectionEntry + 0x70) == 0xC0916A2)
+                FoundWin10Reloc = 1;
+        }
+        else if (SectionFlags == 0x547 && *(__int64 *)((char *)SectionEntry + 0x70) == 0x188)
+        {
+            FoundWin10Reloc = 1;
+        }
+
+        SectionCharacteristics = *(__int64 *)((char *)SectionEntry + 0x50);
+        if (SectionFlags == 0x512 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+        {
+            if (*(int *)((char *)SectionEntry + 0x78) && SectionCharacteristics == 64)
+            {
+                RelocFileOffset = (unsigned int)(CumulativeOffset + *(int *)((char *)SectionEntry + 0x78) - FileBuffer);
+                if (RelocFileOffset)
+                {
+                    if (RelocFileOffset < FileSize)
+                        DirectoryTable[*(int *)((char *)SectionEntry + 0x58)] = RelocFileOffset;
+                }
+            }
+        }
+
+        if (SectionFlags != 1294 ||
+            (SectionCharacteristics & 0x14000) == 0 ||
+            (SectionCharacteristics & 0x40) == 0 ||
+            *(__int64 *)((char *)SectionEntry + 0x88) != 64)
+        {
+            goto CheckWin10End;
+        }
+
+        CurrentRelocRva = *(int *)((char *)SectionEntry + 0x40);
+        if (FirstRelocType == (*(_DWORD *)((char *)SectionEntry + 0xDC) & 0xF))
+            break;
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+            goto CheckWin10End;
+
+        EntryOffset = (unsigned int)DirectoryTable[*(int *)((char *)SectionEntry + 0x90)];
+        if (!(_DWORD)EntryOffset)
+            goto CheckWin10End;
+        if (FoundWin10Reloc != 1)
+            goto NextRelocEntry;
+
+        BaseRelocRva = BaseRelocRvaSaved;
+        if (!BaseRelocRvaSaved)
+        {
+            BaseRelocRva = *(int *)((char *)SectionEntry + 0x40) - 64;
+            BaseRelocRvaSaved = *(int *)((char *)SectionEntry + 0x40) - 64;
+        }
+        RelocDeltaBytes = (unsigned int)(CurrentRelocRva - BaseRelocRva);
+        if (RelocDeltaBytes - 1 <= 0x186 && (RelocDeltaBytes & 7) == 0)
+        {
+            EntryIndex = RelocDeltaBytes >> 3;
+            if ((unsigned int)EntryIndex < 0x40)
+            {
+                OutputTableEntry = 6 * EntryIndex;
+                *(__int64 *)(OutputTable + 8 * OutputTableEntry + 8) = ExportTableBase + EntryOffset;
+                *(_DWORD *)(OutputTable + 8 * OutputTableEntry + 4) = (unsigned int)EntryOffset;
+                Result = 1;
+                goto CheckWin10End;
+            }
+        }
+
+    NextRelocEntry:
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
+        {
+            EndCheck = (unsigned __int16)(*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) - 1139) <= 1;
+        }
+        else
+        {
+            FlagsCheck = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+            if (FlagsCheck == 1368)
+                return Result;
+            EndCheck = (unsigned __int16)(FlagsCheck - 1139) <= 1;
+        }
+        if (EndCheck)
+            return Result;
+
+    RescanRelocEntry:
+        if ((unsigned int)++RelocEntryIndex >= 0x1F4)
+            return Result;
+        continue;
+
+    CheckWin10End:
+        if (FoundWin10Reloc != 1)
+            goto RescanRelocEntry;
+        goto NextRelocEntry;
+    }
+
+    // FirstRelocType 与 MiscInfo 低 4 位一致时跳出上面的循环，改走本路径写回条目
+    {
+        char IsSizeValid = FirstRelocRva <= 0;
+        if (FirstRelocRva < 0)
+        {
+            if (*(int *)((char *)SectionEntry + 0x40) < 0 &&
+                *(int *)((char *)SectionEntry + 0x40) > FirstRelocRva)
+            {
+                goto WriteRelocEntry;
+            }
+            IsSizeValid = FirstRelocRva <= 0;
+        }
+        if (IsSizeValid || *(int *)((char *)SectionEntry + 0x40) <= 0 ||
+            *(int *)((char *)SectionEntry + 0x40) <= FirstRelocRva)
+        {
+            goto CheckWin10End;
+        }
+
+    WriteRelocEntry:
+        RelocDelta = (unsigned int)(*(int *)((char *)SectionEntry + 0x40) - FirstRelocRva);
+        if (RelocDelta - 1 <= 0x186 && (RelocDelta & 7) == 0)
+        {
+            TableIndex = RelocDelta >> 3;
+            if ((unsigned int)TableIndex < 0x40)
+            {
+                EntryFileOffset = (unsigned int)DirectoryTable[*(int *)((char *)SectionEntry + 0x90)];
+                if (EntryFileOffset)
+                {
+                    TableEntryPtr = 6 * TableIndex;
+                    Result = 1;
+                    *(__int64 *)(OutputTable + 8 * TableEntryPtr + 8) = ExportTableBase + EntryFileOffset;
+                    *(_DWORD *)(OutputTable + 8 * TableEntryPtr + 4) = EntryFileOffset;
+                }
+            }
+        }
+        goto CheckWin10End;
+    }
+    return Result;
 }
 
 // FileSystemFilterCallback — 文件系统过滤回调 (0x14000EF84)
@@ -3347,6 +3818,14 @@ ULONG64 FindKernelDataSectionByData(void)
         }
     }
     return 0;
+}
+
+// ClearImageNotifySectionOffset — 清除镜像通知节区偏移
+// 对应原始驱动 sub_140014AC0
+// 把全局表 0x182 处的镜像通知节区偏移清零
+__int64 ClearImageNotifySectionOffset(void)
+{
+    return GtWrite((GLOBAL_TABLE_INDEX)0x182, 0);
 }
 
 // InitImageNotifyWin7 — Win7 镜像通知初始化分发

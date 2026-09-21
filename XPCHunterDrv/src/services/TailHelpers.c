@@ -3231,9 +3231,130 @@ __int64 __fastcall EnumObjectDirectoryEntries(unsigned __int16 *DirectoryPath, _
 
 // EnumProcessHandleInfo -- 枚举进程句柄信息
 // 对应原始驱动 sub_14008475C
+// 遍历输入句柄条目表（每项 24 字节，首字段为类型序号），序号匹配 pHandleTable[0] 的记录
+// 填充为 0x250 字节输出项：跨进程时先引用并附加到目标进程，取句柄值/对象指针/授权位，
+// 再用全局表 0x41EA 处已解析的查询例程分别取名称（上限 19 字符）与类型名（上限 259 字符）。
+// 输出项布局：+0x000 名称，+0x028 类型名，+0x230 句柄标志，+0x238 句柄值，+0x240 对象指针，+0x248 授权位
 __int64 EnumProcessHandleInfo(_QWORD *pHandleTable, unsigned int *pInfoList, _OWORD *OutputBuffer, int MaxCount)
 {
-    return 0;
+    unsigned int Result;
+    struct _KPROCESS *Process;
+    char *EntryBuffer;
+    const void **QueryBuffer;
+    unsigned int *CurrentEntry;
+    unsigned int TotalEntries;
+    unsigned int Index;
+    __int64 HandleValue;
+    __int64 ObjectPointer;
+    __int64 NameLength;
+    __int64 TypeNameLength;
+    bool AttachNeeded;
+    unsigned __int8 Referenced;
+    unsigned int OutputCount;
+    _QWORD *pObjectTypeInfo;
+    int (__fastcall *QueryObjectFunc)(__int64, __int64, const void **, __int64, _QWORD);
+    struct _KAPC_STATE ApcState;
+
+    Result = 0;
+    OutputCount = 0;
+    Process = (struct _KPROCESS *)pHandleTable[1];
+    pObjectTypeInfo = (_QWORD *)GtRead(GtObjectTypeInfoPtr);
+    QueryObjectFunc = (int (__fastcall *)(__int64, __int64, const void **, __int64, _QWORD))GtRead(GtDereferenceObjectFunc);
+    if (!QueryObjectFunc)
+        return Result;
+
+    EntryBuffer = (char *)ExAlloc(PagedPool, 0x250);
+    if (!EntryBuffer)
+        return Result;
+
+    QueryBuffer = (const void **)ExAlloc(PagedPool, 0x1000);
+    if (!QueryBuffer)
+    {
+        ExFree(EntryBuffer);
+        return Result;
+    }
+
+    if (ValidateProcessObject(Process, 0) == 1)
+    {
+        AttachNeeded = IoGetCurrentProcess() != Process;
+        CurrentEntry = pInfoList + 2;
+        TotalEntries = *pInfoList;
+        Index = 0;
+        while (Index < TotalEntries && MaxCount)
+        {
+            if (CompareInt16Equal(*(_WORD *)CurrentEntry, *(_WORD *)pHandleTable))
+            {
+                memset(EntryBuffer, 0, 0x250);
+                if (AttachNeeded)
+                {
+                    Referenced = ReferenceObjectSafe((__int64)Process);
+                    KeStackAttachProcess(Process, &ApcState);
+                }
+
+                *((_QWORD *)EntryBuffer + 71) = *((unsigned __int16 *)CurrentEntry + 3);
+                ObjectPointer = *((_QWORD *)CurrentEntry + 1);
+                *((_QWORD *)EntryBuffer + 72) = ObjectPointer;
+                *((_DWORD *)EntryBuffer + 140) = *((unsigned __int8 *)CurrentEntry + 4);
+                if (MmIsAddressValid((PVOID)(ObjectPointer - 48)) == 1 &&
+                    MmIsAddressValid((PVOID)(ObjectPointer - 1)) == 1)
+                    *((_DWORD *)EntryBuffer + 146) = *(_DWORD *)(ObjectPointer - 48);
+                else
+                    *((_DWORD *)EntryBuffer + 146) = 0;
+
+                if (CheckHandleEntryValid((__int64)Process))
+                {
+                    HandleValue = *((_QWORD *)EntryBuffer + 71);
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0 && pObjectTypeInfo &&
+                        *pObjectTypeInfo == pHandleTable[1])
+                        HandleValue |= 0xFFFFFFFF80000000uLL;
+
+                    if (QueryObjectFunc(HandleValue, 2, QueryBuffer, 4096, 0) >= 0)
+                    {
+                        NameLength = *(unsigned __int16 *)QueryBuffer >> 1;
+                        if ((_DWORD)NameLength)
+                        {
+                            if ((unsigned int)NameLength > 0x13)
+                                NameLength = 19;
+                            memmove(EntryBuffer, QueryBuffer[1], (unsigned int)(2 * NameLength));
+                            *(_WORD *)&EntryBuffer[2 * NameLength] = 0;
+                        }
+                    }
+
+                    if (QueryObjectFunc(HandleValue, 1, QueryBuffer, 4096, 0) >= 0)
+                    {
+                        TypeNameLength = *(unsigned __int16 *)QueryBuffer >> 1;
+                        if ((_DWORD)TypeNameLength)
+                        {
+                            if ((unsigned int)TypeNameLength > 0x103)
+                                TypeNameLength = 259;
+                            memmove(EntryBuffer + 40, QueryBuffer[1], (unsigned int)(2 * TypeNameLength));
+                            *(_WORD *)&EntryBuffer[2 * TypeNameLength + 40] = 0;
+                        }
+                    }
+                    ReturnFalseStub();
+                }
+
+                if (AttachNeeded)
+                {
+                    KeUnstackDetachProcess(&ApcState);
+                    if (Referenced == 1)
+                        DereferenceObjectSafe((__int64)Process);
+                }
+
+                memmove(OutputBuffer, EntryBuffer, 0x250);
+                OutputBuffer = (_OWORD *)((char *)OutputBuffer + 0x250);
+                MaxCount--;
+                OutputCount++;
+            }
+            Index++;
+            CurrentEntry += 6;
+        }
+        Result = OutputCount;
+    }
+
+    ExFree((PVOID)QueryBuffer);
+    ExFree(EntryBuffer);
+    return Result;
 }
 
 // EnumProcessModules -- 枚举进程模块 (0x14005831C)

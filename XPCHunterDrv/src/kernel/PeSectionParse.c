@@ -54,7 +54,9 @@ __int64 ParseNtSectionsForModuleList1(void)
 
     __int64 ReadContext;
     __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
+    // ReadPESectionEntry 只填充前 0x120 字节，但本函数会访问到 +0x1A0 处，
+    // 故缓冲须大于 0x120（原声明 [72] 恰为 0x120，会越界读到相邻栈变量）
+    _DWORD SectionEntry[112];
     char FoundFlag = 0;
 
     InitPESectionReadContext(
@@ -119,7 +121,8 @@ __int64 ParseNtSectionsForModuleList2(void)
 
     __int64 ReadContext;
     __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
+    // 同 ParseNtSectionsForModuleList1：访问到 +0x1A0，缓冲须大于 0x120
+    _DWORD SectionEntry[112];
     char FoundFlag = 0;
 
     InitPESectionReadContext(
