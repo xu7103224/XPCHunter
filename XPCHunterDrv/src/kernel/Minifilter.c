@@ -318,7 +318,7 @@ ULONG64 MiniFilterPostCreate(void)
 
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 VirtualSize = 0;
-    _DWORD SectionInfo[14];
+    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
     ULONG DataSectionSize;
     __int64 SectionFlags2;
     ULONG SubType;
@@ -387,7 +387,7 @@ ULONG64 MiniFilterPreRead(void)
 
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 VirtualSize = 0;
-    _DWORD SectionInfo[14];
+    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
     ULONG DataSectionSize, RawSize;
     int FieldValue;
     __int64 SectionFlags2, SectionDataPtr, SectionName;
@@ -2719,7 +2719,7 @@ void ParseMiniFilterRegSections(void)
     __int64 SectionTarget2;
     __int64 SectionTarget3;
     ULONG CumulativeSize;
-    _DWORD PeSectionEntry[14];
+    _DWORD PeSectionEntry[112];         // 描述符：原 [14] 仅 56 字节
     __int64 SectionDataPtr;
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 SectionFlags;
@@ -3182,7 +3182,7 @@ __int64 EnumFileSystemCallbackEntries(void)
     int SectionFlags;
     int FieldValue;
     int FieldValue2;
-    __int64 SectionEntry[8];
+    __int64 SectionEntry[56];           // 描述符：原 [8] 仅 64 字节
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 char[8] 仅 8 字节，会被写坏栈）
     struct _KAPC_STATE ApcState;
 
@@ -3643,7 +3643,7 @@ ULONG64 FindKernelInitSection(void)
     int SectionSize;
     __int16 SectionFlags;
     char ReadContext[0x198];
-    _DWORD SectionInfo[14];
+    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
     unsigned int InitSectionSize;
     __int64 SectionFlags2, SectionDataPtr, SectionCharacteristics;
     unsigned int RawSize;
@@ -4701,7 +4701,7 @@ ULONG64 FindKernelDataSectionByCode(void)
     int SectionSize;
     __int16 SectionFlags;
     char ReadContext[0x198];
-    _DWORD SectionInfo[14];
+    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
     unsigned int DataSectionSize;
     __int64 SectionFlags2, SectionAlign;
     unsigned int RawSize;
@@ -4755,7 +4755,7 @@ ULONG64 FindKernelDataSectionByData(void)
     unsigned __int8 TypeFlag;
     char ReadContext[0x1A8];
     __int64 VirtualSize = 0;
-    _DWORD SectionInfo[14];
+    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
     unsigned int DataSectionSize;
     __int64 SectionFlags2;
     unsigned int SubType;

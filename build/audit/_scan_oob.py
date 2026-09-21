@@ -9,7 +9,7 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                      "..", "..", "XPCHunterDrv", "src"))
 BASE = {"__int64": 8, "ULONG64": 8, "unsigned __int64": 8, "char": 1, "_DWORD": 4,
         "DWORD": 4, "ULONG": 4, "int": 4, "unsigned int": 4, "short": 2,
-        "_WORD": 2, "BYTE": 1, "UCHAR": 1, "void": 1, "size_t": 8, "SIZE_T": 8}
+        "_WORD": 2, "BYTE": 1, "UCHAR": 1, "void": 1, "size_t": 8, "SIZE_T": 8, "PE_DECODE_CONTEXT": 72}
 FUNC = re.compile(r'^[A-Za-z_][A-Za-z0-9_ \t\*]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(')
 # 声明：  类型 名字 [N] ;  或  类型 名字 ;   或 类型 名字[4] = {..};
 DECL = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_ ]*?)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\[([^\]]*)\])?\s*(=|;)')

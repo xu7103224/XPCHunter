@@ -4505,9 +4505,9 @@ char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
     __int16 SectionType;
     int NextOffset;
     __int64 InfoBuffer;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[20];
+    _DWORD SectionEntry[112];           // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [20] 仅 80 字节
     unsigned int EntrySize;
     __int64 FieldValue;
     unsigned int EntryCumulSize;

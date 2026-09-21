@@ -1591,8 +1591,9 @@ __int64 LookupMsrTableEntry(void)
     int Phase1Offset;
     unsigned int Phase1Count;
     int Dst[16];
-    __int64 PeContext;
-    char EntryBuffer[80];
+    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
+                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
     ImageBase = GtRead(GtNtoskrnlPeFileBase);
@@ -1760,8 +1761,9 @@ __int64 ParseMsrRelatedSections(void)
     unsigned int BaseOffset;
     unsigned int Offset1;
     unsigned int Offset2;
-    __int64 PeContext;
-    char EntryBuffer[80];
+    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
+                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
     ImageBase = GtRead(0x20);
@@ -1891,8 +1893,9 @@ __int64 ParseMsrTableFromSections(void)
     unsigned int BaseOffset;
     unsigned int Offset1;
     unsigned int Offset2;
-    __int64 PeContext;
-    char EntryBuffer[80];
+    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
+                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
     ImageBase = GtRead(0x20);
@@ -2076,9 +2079,9 @@ __int64 ScanKernelDiscardableSection(unsigned int SectionIndex)
     char FoundFlag;
     unsigned int i;
     int MatchSize2;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[14];
+    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
     unsigned int EntryFlags;
     __int64 FieldValue;
     unsigned int SectionSize;
@@ -2763,7 +2766,8 @@ __int64 ParseNtExportSectionsV2(void)
     __int64 PeFileBase;
     unsigned int PeFileSize;
     unsigned int ExportDirSize;
-    __int64 PeContext;
+    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
+                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
     unsigned int SectionSize;
     __int64 CumulativeSize;
     __int64 SectionDataPtr;
@@ -2915,7 +2919,8 @@ __int64 ParseNtExportSectionsWin10(void)
     __int64 NtoskrnlBase;
     __int64 PeFileBase;
     unsigned int PeFileSize;
-    __int64 PeContext;
+    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
+                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
     unsigned int SectionSize;
     __int64 CumulativeSize;
     __int64 SectionDataPtr;
