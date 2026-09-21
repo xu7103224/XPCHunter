@@ -1320,9 +1320,9 @@ bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int Target
     int MatchCount;
     unsigned int LoopIndex;
     int CurrentOffset;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;
     __int64 CumulSize;
-    _DWORD SectionEntry[20];
+    _DWORD SectionEntry[112];
     __int64 EntryFlags;
     unsigned int EntrySize;
     int EntryCumulSize;
@@ -1372,7 +1372,8 @@ __int64 ParseNtSectionsForShadowSsdt(void)
     int CumulativeOffset;
     unsigned short SectionType;
     unsigned int ValueField;
-    __int64 SectionContext;
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L1405）又被取址当解码上下文，
+                                //   需按"角色拆分"处理（与 PeContext / CumulativeSize 家族同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1652,9 +1653,9 @@ bool __fastcall FindSsdtTableAddresses(
     __int16 SectionType2;
     __int64 TableRva;
     unsigned int OffsetRva;
-    char ReadContext[8];
+    char ReadContext[72];
     __int64 CumulativeOffset;
-    _DWORD SectionInfo[8];
+    _DWORD SectionInfo[112];
     int DecodedFlags;
     int SubSectionAddress;
     int OffsetFieldValue;
@@ -1778,9 +1779,9 @@ char __fastcall ResolveSsdtTablePointer(
     __int64 TableRva;
     __int16 SectionType2;
     __int64 OffsetRva;
-    __int64 SectionReadContext;
+    PE_DECODE_CONTEXT SectionReadContext;
     __int64 RootTableOffsetAccum;
-    _DWORD SectionEntry[8];
+    _DWORD SectionEntry[112];
     char FieldFlagsByte;
     int FieldValue;
     __int64 FieldFileOffset;
@@ -1882,9 +1883,9 @@ char __fastcall ResolveSsdtTablePointerEx(
     __int64 TableRva;
     __int16 SectionType2;
     __int64 OffsetRva;
-    __int64 SectionReadContext;
+    PE_DECODE_CONTEXT SectionReadContext;
     __int64 RootOffsetAccum;
-    _DWORD SectionEntry[8];
+    _DWORD SectionEntry[112];
     char FieldFlagsByte;
     int SubSectionFieldCount;
     int OffsetFieldValue;
