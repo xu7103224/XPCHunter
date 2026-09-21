@@ -301,9 +301,9 @@ __int64 FindCpuMsrBaseLegacy(int MsrAddress)
     int LoopCount;
     _QWORD *pCurrentEntry;
     __int16 EntryType;
-    char SectionContext[8];
+    char SectionContext[72];            // 0x48 字节解码上下文（原 [8] 仅 8 字节；保持数组形式）
     _QWORD *SectionDataPtr = 0;
-    char SectionEntryBuffer[240];
+    char SectionEntryBuffer[448];       // 描述符：原 [240] 仅 240 字节
     unsigned int SectionEntryOffset = 0;
     __int64 SectionTypeInfo = 0;
 
@@ -376,9 +376,9 @@ __int64 FindCpuMsrBaseWin10(int MsrAddress)
     int CurrentOffset;
     __int16 EntryType;
     unsigned int FinalOffset;
-    __int64 SectionReadContext;
+    PE_DECODE_CONTEXT SectionReadContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionDataPtr = 0;
-    _DWORD SectionEntryBuffer[60];
+    _DWORD SectionEntryBuffer[112];     // 描述符：原 [60] 仅 240 字节
     unsigned int SectionEntryOffset = 0;
     __int64 SectionTypeInfo = 0;
 
