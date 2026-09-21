@@ -316,7 +316,7 @@ ULONG64 MiniFilterPostCreate(void)
     if (SectionOffset >= PeSize) return result;
     if (SectionAddr != SectionOffset + NtImageBase) return result;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 VirtualSize = 0;
     _DWORD SectionInfo[14];
     ULONG DataSectionSize;
@@ -385,7 +385,7 @@ ULONG64 MiniFilterPreRead(void)
     result += NtImageBase;
     if (SectionAddr != result) return result;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 VirtualSize = 0;
     _DWORD SectionInfo[14];
     ULONG DataSectionSize, RawSize;
@@ -437,7 +437,7 @@ ULONG64 MiniFilterPostRead(void)
     result = ImageOffset + NtImageBase;
     if (TargetAddress != result) return result;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     ULONG FieldValue, SectionSize;
@@ -504,7 +504,7 @@ __int64 MiniFilterPreWrite(void)
     result += NtImageBase;
     if (TargetAddress != result) return result;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     ULONG FieldValue, SectionSize;
@@ -557,7 +557,7 @@ __int64 MiniFilterPostWrite(void)
         (ULONG)SectionOffset >= KernelSize || !ExistingPostWriteOffset1 || !result) return result;
 
     __int64 PeHeaderDataDir = *(_QWORD *)(*(int *)(KernelBase + 60) + KernelBase + 48);
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     ULONG FieldValue, SectionSize;
@@ -609,7 +609,7 @@ __int64 MiniFilterPreCleanup(void)
     ULONG64 SavedSectionOffset;
     unsigned int SectionIndex;
     int CalculatedSize;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
 
@@ -1589,10 +1589,10 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
             -1,
             0,
             0,
-            (__int64)ReadContext);
+            (__int64)&ReadContext);
         for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
         {
-            result = ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry);
+            result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)result)
                 break;
             CalculatedSize = SectionEntry[7] + (ULONG)CumulativeSize;
@@ -1670,11 +1670,11 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
     {
         InitPESectionReadContext(
             (__int64)(ImageBase + SizeOfCode), ImageSize - SizeOfCode,
-            2, 0, -1, 0, 0, (__int64)ReadContext);
+            2, 0, -1, 0, 0, (__int64)&ReadContext);
 
         for (SectionIndex = 0; SectionIndex < 20; ++SectionIndex)
         {
-            if (ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+            if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
 
             CumulativeSize += SectionEntry[7];
@@ -1723,12 +1723,12 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
 
         InitPESectionReadContext(
             (__int64)(ImageBase + CurrentExecOffset), ScanSize,
-            2, 0, -1, 0, 0, (__int64)ReadContext);
+            2, 0, -1, 0, 0, (__int64)&ReadContext);
 
         // 扫描 0x1F4 (500) 个条目
         for (i = 0; i < 0x1F4; ++i)
         {
-            if (ReadPESectionEntry((PUCHAR)ReadContext, SectionEntry))
+            if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
 
             CumulativeSize += SectionEntry[7];
@@ -2721,7 +2721,7 @@ void ParseMiniFilterRegSections(void)
     ULONG CumulativeSize;
     _DWORD PeSectionEntry[14];
     __int64 SectionDataPtr;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
     __int64 SectionFlags;
     ULONG SectionRawSize;
     ULONG ListHead1, ListHead2, ListHead3, ListHead4;
@@ -3183,7 +3183,7 @@ __int64 EnumFileSystemCallbackEntries(void)
     int FieldValue;
     int FieldValue2;
     __int64 SectionEntry[8];
-    char ReadContext[8];
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 char[8] 仅 8 字节，会被写坏栈）
     struct _KAPC_STATE ApcState;
 
     Result = 0;
@@ -3216,10 +3216,10 @@ __int64 EnumFileSystemCallbackEntries(void)
             -1,
             0,
             0,
-            (__int64)ReadContext);
+            (__int64)&ReadContext);
 
         SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
         {
             EntrySize = (int)SectionEntry[6];
             RootOffsetAccum += EntrySize;
@@ -3236,7 +3236,7 @@ __int64 EnumFileSystemCallbackEntries(void)
                 if (SectionCharacteristics == 64 && ModeField == 2 && ModeField2 == 4)
                 {
                     // 读取下一个条目
-                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                     {
                         EntrySize = (int)SectionEntry[6];
                         RootOffsetAccum += EntrySize;
@@ -3251,7 +3251,7 @@ __int64 EnumFileSystemCallbackEntries(void)
                                 ComputedRva = FieldValue - (int)SectionSize + (int)RootOffsetAccum;
 
                                 // 读取下一个条目确认 Type 0x558
-                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                                 {
                                     EntrySize = (int)SectionEntry[6];
                                     RootOffsetAccum += EntrySize;
@@ -3266,7 +3266,7 @@ __int64 EnumFileSystemCallbackEntries(void)
 
                                             // 第二遍扫描：查找偏移地址
                                             FieldIndex = 0;
-                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                                             {
                                                 EntrySize = (int)SectionEntry[6];
                                                 RootOffsetAccum += EntrySize;
@@ -3362,7 +3362,7 @@ char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 Outp
     char Result;
     int BaseRelocRvaSaved;
     __int64 ExportTableBase;
-    char ReadContext[8];
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 char[8] 仅 8 字节，会被写坏栈）
     __int64 CumulativeOffset;
     _DWORD SectionEntry[72];
     _DWORD DirectoryTable[16];
@@ -3377,9 +3377,9 @@ char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 Outp
     SectionOffset = *(unsigned int *)(*(int *)(FileBuffer + 60) + FileBuffer + 40);
     if ((unsigned int)SectionOffset < FileSize && (unsigned int)((int)SectionOffset + 4096) < FileSize)
     {
-        InitPESectionReadContext(FileBuffer + SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+        InitPESectionReadContext(FileBuffer + SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
         {
             SectionEnd = (int)(*(unsigned int *)((char *)SectionEntry + 0xF0) + CumulativeOffset);
             CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);
@@ -3408,11 +3408,11 @@ char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 Outp
         return Result;
 
     BaseRelocRvaSaved = 0;
-    InitPESectionReadContext(FileBuffer + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+    InitPESectionReadContext(FileBuffer + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
     RelocSectionIndex = 0;
     while (1)
     {
-        if ((unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
             return Result;
         CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);
         if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1351 &&
@@ -3429,12 +3429,12 @@ char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 Outp
 
     memset(DirectoryTable, 0, sizeof(DirectoryTable));
     FoundWin10Reloc = 0;
-    InitPESectionReadContext(FileBuffer + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)ReadContext);
+    InitPESectionReadContext(FileBuffer + (unsigned int)SectionOffset, 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
     RelocEntryIndex = 0;
 
     while (1)
     {
-        if ((unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry))
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
             return Result;
         CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);
 
@@ -3661,7 +3661,7 @@ ULONG64 FindKernelInitSection(void)
             SectionOffset = (unsigned int)(SectionAddr - NtImageBase);
             if ((unsigned int)SectionOffset < PeSize && SectionAddr == SectionOffset + NtImageBase)
             {
-                InitPESectionReadContext(PeBase + SectionOffset, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)ReadContext);
+                InitPESectionReadContext(PeBase + SectionOffset, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
                 for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
                 {
                     if (ReadPESectionEntry(ReadContext, SectionInfo))
@@ -4716,7 +4716,7 @@ ULONG64 FindKernelDataSectionByCode(void)
         SectionOffset = (unsigned int)(SectionAddr - NtImageBase);
         if ((unsigned int)SectionOffset < PeSize && SectionAddr == SectionOffset + NtImageBase)
         {
-            InitPESectionReadContext(PeBase + SectionOffset, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)ReadContext);
+            InitPESectionReadContext(PeBase + SectionOffset, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
             for (SectionIndex = 0; SectionIndex < 0x200; ++SectionIndex)
             {
                 if (ReadPESectionEntry(ReadContext, SectionInfo))
@@ -4772,7 +4772,7 @@ ULONG64 FindKernelDataSectionByData(void)
         SectionOffset = (unsigned int)(SectionAddr - NtImageBase);
         if ((unsigned int)SectionOffset < PeSize && SectionAddr == SectionOffset + NtImageBase)
         {
-            InitPESectionReadContext(SectionOffset + PeBase, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)ReadContext);
+            InitPESectionReadContext(SectionOffset + PeBase, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
             SectionType = TypeFlag;
             for (SectionIndex = 0; SectionIndex < 0x200; ++SectionIndex)
             {
