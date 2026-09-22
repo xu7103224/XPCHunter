@@ -1587,7 +1587,7 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
     {
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
         {
-            __int64 ReadContext = 0, CumulativeSize = 0;
+            PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
             _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
             int FieldValue = 0, EntryField = 0, EntrySize = 0;
             __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
@@ -1991,7 +1991,7 @@ char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize)
     if (OffloadOffset && Result && Result < ImageSize)
     {
         __int64 SectionBase = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
-        __int64 ReadContext = 0, CumulativeSize = 0;
+        PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
         _DWORD SectionEntry[112];           // 描述符：原 [20] 仅 80 字节
         __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
         __int64 Value = 0;
@@ -2185,7 +2185,7 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     {
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
         {
-            __int64 ReadContext = 0, CumulativeSize = 0;
+            PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
             _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
             int SectionChar = 0, EntryField = 0, SectionAlignment = 0;
             __int64 EntrySize = 0, EntryCumulSize = 0, SectionInfoPtr = 0;
@@ -2632,7 +2632,7 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
     __int64 FoundMarker = SectionBase;
     if (SectionBase && InitDevOffset && InitDevOffset < ImageSize)
     {
-        __int64 ReadContext = 0, CumulativeSize = 0;
+        PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
         _DWORD SectionEntry[112];           // 描述符：原 [8] 仅 32 字节
         char SectionFlags = 0;
         int EntrySize = 0;
@@ -3706,7 +3706,7 @@ void BuildHookTable(void)
 __int64 InitHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     unsigned int EntryFlags = 0;
@@ -3753,7 +3753,7 @@ __int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __
 {
     char FoundMatch = 0;
     __int64 result;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     __int64 Value = 0;
@@ -3806,7 +3806,7 @@ __int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __
 __int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     __int64 FieldValue = 0;
@@ -3868,7 +3868,7 @@ __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64
 {
     __int64 result;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     unsigned int EntryFlags = 0;
@@ -3941,7 +3941,7 @@ __int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __
     __int64 Result = 0;
     unsigned int SectionOffset = 0;
     __int64 SectionBase = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     __int64 SectionDataPtr = 0;
@@ -3974,7 +3974,7 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
     __int64 Result = 0;
     unsigned int SectionOffset = 0;
     __int64 SectionBase = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     int EntrySize = 0;
@@ -4032,7 +4032,7 @@ __int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 
 {
     __int64 TargetOffset = 0;
     __int64 result;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     unsigned int EntryFlags = 0;
@@ -4181,7 +4181,7 @@ LABEL_CLEANUP:
 __int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     unsigned int EntryFlags = 0;
@@ -4216,7 +4216,7 @@ __int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __
 __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     __int64 FieldValue = 0;
@@ -4258,7 +4258,7 @@ __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __i
 __int64 HookSyscallNtOpenProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     unsigned int EntryFlags = 0;
@@ -4304,7 +4304,7 @@ __int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 
 {
     unsigned int ResultValue = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     __int64 FieldValue = 0;
@@ -4344,7 +4344,7 @@ __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int ResultValue = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char FieldValue = 0;
@@ -4376,7 +4376,7 @@ __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
 __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char FieldValue = 0;
@@ -4555,7 +4555,7 @@ __int64 HookSyscallNtOpenFile(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4589,7 +4589,7 @@ __int64 HookSyscallNtReadFile(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4624,7 +4624,7 @@ __int64 HookSyscallNtWriteFile(__int64 TargetBase, unsigned int TargetSize)
     unsigned int ResultOffset = 0;
     int MatchOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4661,7 +4661,7 @@ __int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4695,7 +4695,7 @@ __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4780,7 +4780,7 @@ __int64 HookSyscallNtQueryInformationProcess(__int64 TargetBase, unsigned int Ta
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4813,7 +4813,7 @@ __int64 HookSyscallNtSetInformationProcess(__int64 TargetBase, unsigned int Targ
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4847,7 +4847,7 @@ __int64 HookSyscallNtQueryInformationThread(__int64 TargetBase, unsigned int Tar
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4880,7 +4880,7 @@ __int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int Targe
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4914,7 +4914,7 @@ __int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4964,7 +4964,7 @@ __int64 HookSyscallNtSuspendThread(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -4998,7 +4998,7 @@ __int64 HookSyscallNtResumeThread(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -5039,7 +5039,7 @@ __int64 HookSyscallNtOpenThreadToken(__int64 TargetBase, unsigned int TargetSize
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -5073,7 +5073,7 @@ __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
     unsigned int SectionOffset = 0;
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     char SectionFlags = 0;
@@ -5105,7 +5105,7 @@ __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize)
 }
 __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int64 Context, __int64 RelocBase)
 {
-    __int64 ReadContext = 0;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
     signed int EntrySize = 0;
