@@ -1588,7 +1588,7 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
         {
             __int64 ReadContext = 0, CumulativeSize = 0;
-            _DWORD SectionEntry[14];
+            _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
             int FieldValue = 0, EntryField = 0, EntrySize = 0;
             __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
             unsigned int EntryCumulSize = 0;
@@ -1992,7 +1992,7 @@ char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize)
     {
         __int64 SectionBase = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
         __int64 ReadContext = 0, CumulativeSize = 0;
-        _DWORD SectionEntry[20];
+        _DWORD SectionEntry[112];           // 描述符：原 [20] 仅 80 字节
         __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
         __int64 Value = 0;
         unsigned int EntryCumulSize = 0;
@@ -2186,7 +2186,7 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
         {
             __int64 ReadContext = 0, CumulativeSize = 0;
-            _DWORD SectionEntry[14];
+            _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
             int SectionChar = 0, EntryField = 0, SectionAlignment = 0;
             __int64 EntrySize = 0, EntryCumulSize = 0, SectionInfoPtr = 0;
             unsigned int EntryDataPtr = 0;
@@ -2633,7 +2633,7 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
     if (SectionBase && InitDevOffset && InitDevOffset < ImageSize)
     {
         __int64 ReadContext = 0, CumulativeSize = 0;
-        _DWORD SectionEntry[8];
+        _DWORD SectionEntry[112];           // 描述符：原 [8] 仅 32 字节
         char SectionFlags = 0;
         int EntrySize = 0;
         __int64 SectionChar = 0;
@@ -4427,7 +4427,7 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
     int SectionEnd = 0;
     char ReadContext[8];
     __int64 CumulativeSize2 = 0;
-    char SectionEntry[120];
+    char SectionEntry[448];                 // 描述符：原 [120] 仅 120 字节
     int EntrySize = 0;
     __int64 FieldValue = 0;
     unsigned int SectionSize = 0;
@@ -4735,7 +4735,7 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
     int ScanEnd = 0;
     char ReadContext[8];
     __int64 TotalCumulSize = 0;
-    char SectionEntry[64];
+    char SectionEntry[448];                 // 描述符：原 [64] 仅 64 字节
     int EntryFlags = 0;
     __int64 SectionFlags = 0;
     int EntrySize = 0;
