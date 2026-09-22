@@ -180,9 +180,9 @@ void ScanProcessPESections(void)
     __int64 ImageBase;
     __int64 SectionSize;
     __int64 SignatureOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 AccumulatedOffset;
-    char SectionEntry[256];
+    char SectionEntry[448];             // 描述符：原 [256] 仍差 32 字节（需 0x120 = 288）
     unsigned int SectionFileOffset;
     __int64 pSectionEntryBase;
     unsigned int LoopCount;
@@ -382,7 +382,7 @@ __int64 FindPeSectionByTypeRsrc(
     __int16 SectionType;
     __int64 ReadContext;
     __int64 CumulativeSize;
-    ULONG SectionEntry[20];
+    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 SectionFlags;
     int EntrySize;
     __int64 SectionAlignment;
@@ -444,7 +444,7 @@ __int64 FindPeSectionByType0x510(
     GLOBAL_TABLE_INDEX GtIndex;
     __int64 ReadContext;
     __int64 CumulativeSize;
-    ULONG SectionEntry[20];
+    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 SectionChar;
     int EntrySize;
     __int64 SectionAlignment;
@@ -520,7 +520,7 @@ __int64 ParseNtSectionsForProcessMemory(void)
     int CumulativeOffset;
     unsigned short SectionType;
     unsigned int ValueField;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -608,7 +608,7 @@ __int64 ParseNtSectionsForModuleBase(void)
     unsigned short SectionType;
     unsigned int Offset1;
     unsigned int Offset2;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -707,7 +707,7 @@ __int64 ParseNtSectionsForRelocBase(void)
     unsigned short SectionType;
     unsigned int FieldValue;
     unsigned int TrackedOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -811,7 +811,7 @@ __int64 ParseProcessMemSections(void)
     unsigned int Phase2Offset;
     unsigned int Phase2aOffset;
     unsigned int Phase2bOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1020,7 +1020,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
     unsigned int SectionIndex;
     int CumulativeOffset;
     unsigned int BaseOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1115,7 +1115,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
     int CumulativeOffset;
     unsigned int FoundOffset;
     int FoundCount;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1210,7 +1210,7 @@ __int64 FindKernelDataSectionOffsetV3(void)
     unsigned int BaseOffset;
     unsigned int SectionIndex;
     int CumulativeOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1638,7 +1638,7 @@ __int64 FindKernelDataSectionOffsetWin8(void)
     int SectionOffset = 0;
     unsigned int SectionIndex;
     __int64 ComputedOffset;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 AccumulatedOffset;
     ULONG SectionEntry[0x80];
     unsigned int RawDataSize;
