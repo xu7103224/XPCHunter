@@ -1711,7 +1711,7 @@ __int64 InitEprocessOffsetsWin81(void)
     __int64 FltPeSectionOfs3Val;
     __int64 FltPeSectionAddrVal;
     char DefaultFlag = 0;
-    __int64 PeSectionReadContext;
+    PE_DECODE_CONTEXT PeSectionReadContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionCharacteristics = 0;
     _DWORD SectionEntryBuf[8];
     char CharacteristicsFlags = 0;

@@ -680,7 +680,7 @@ __int64 InitSyscallNumberTable(void)
 bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char UsePESection)
 {
     char Result = 0;
-    __int64 CumulativeSize = 0;
+    PE_DECODE_CONTEXT CumulativeSize;   // 0x48 字节解码上下文（原 __int64 仅 8 字节；名字错误另行改名）
     __int64 SectionEntry = 0;
     _DWORD SectionChar[20];
     __int64 EntryField = 0;
