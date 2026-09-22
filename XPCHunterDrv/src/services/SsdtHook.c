@@ -2856,7 +2856,7 @@ char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __
         unsigned int ExportRva = (unsigned int)FindExportByNameInPeBody((PUCHAR)ImageBase, ImageSize, (PCHAR)ExportName, 0);
         if (ExportRva && ExportRva < ImageSize && ExportRva + 4096 < ImageSize)
         {
-            __int64 PESectionContext = 0, ContextOffset = 0;
+            PE_DECODE_CONTEXT PESectionContext; __int64 ContextOffset = 0;   // PESectionContext 为 0x48 字节解码上下文
             _DWORD SectionEntry[72];
             int EntryOffset = 0, EntrySize = 0, EntryIndex = 0, TypeField1 = 0, TypeField2 = 0, RvaField = 0;
             __int64 Flags = 0;
