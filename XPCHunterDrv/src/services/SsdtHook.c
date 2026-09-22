@@ -2355,7 +2355,7 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
     __int64 SectionBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
     if (SectionBase && Found && Found < ImageSize)
     {
-        __int64 CumulativeSize = 0, SectionEntry = 0;
+        PE_DECODE_CONTEXT CumulativeSize; __int64 SectionEntry = 0;   // CumulativeSize 实为 0x48 字节解码上下文（名字错位，累加的是 SectionEntry）
         _DWORD FieldValue[112];
         unsigned int SectionChar = 0, EntrySizeField = 0;
         __int64 EntryField = 0, SectionAlignment = 0, EntryDataPtr = 0, SectionInfoPtr = 0;
