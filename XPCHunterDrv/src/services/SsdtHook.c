@@ -1619,7 +1619,7 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
         }
         int VersionOffset = (GtRead(GtWindowsBuildNumber) == 16299) + 1;
         __int64 v18b = 0, v19b = 0;
-        _DWORD v20b[14];
+        _DWORD v20b[112];
         int v21b = 0, v23b = 0, v24b = 0;
         __int64 v22b = 0, v25b = 0, v27b = 0;
         unsigned int v26b = 0;
@@ -1725,7 +1725,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
         if (Found && Found < ImageSize)
         {
             __int64 ReadCtx2 = 0, EntryBase2 = 0;
-            _DWORD ReadEntry2[20];
+            _DWORD ReadEntry2[112];
             __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
             int SectionChar2 = 0;
             unsigned int FieldValue2 = 0, EntryDataPtr2 = 0;
@@ -2214,7 +2214,7 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             }
         }
         __int64 ReadCtx2 = 0, EntryBase2 = 0;
-        _DWORD ReadEntry2[14];
+        _DWORD ReadEntry2[112];
         int SectionChar2 = 0, FieldValue2 = 0, FieldValue3 = 0;
         __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
         unsigned int EntryDataPtr2 = 0;
@@ -2755,7 +2755,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
         {
             char FoundInitSection = 0;
             __int64 ReadCtx = 0, EntryBase = 0;
-            _DWORD ReadEntry[8];
+            _DWORD ReadEntry[112];
             char SectionFlags = 0;
             int EntryField = 0;
             __int64 EntrySize = 0;
@@ -2805,7 +2805,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
         if (OptHeaderSize && OptHeaderSize < ImageSize && (int)OptHeaderSize + 4096 < (int)ImageSize)
         {
             __int64 ReadCtx2 = 0, EntryBase2 = 0;
-            _DWORD ReadEntry2[8];
+            _DWORD ReadEntry2[112];
             char SectionFlags2 = 0;
             int EntryField2 = 0;
             __int64 EntrySize2 = 0;
