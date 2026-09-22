@@ -1143,7 +1143,7 @@ __int64 InitImageNotifyCallbackWin7(void)
     ULONG64 SectionOffset;
     ULONG64 ImageEndAddr;
     ULONG64 SectionVa;
-    UCHAR ReadContext[0x28];
+    UCHAR ReadContext[0x48];
     UCHAR SectionEntry[0x120];
     UCHAR IsInitSection;
     UCHAR IsPageSection;
