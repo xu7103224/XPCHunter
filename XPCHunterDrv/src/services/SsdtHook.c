@@ -1691,7 +1691,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
         {
             __int64 SectionType3 = 0, CumulativeSize2 = 0;
-            _DWORD ReadContext[20];
+            _DWORD ReadContext[112];
             __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
             int SectionEntry = 0;
             unsigned int FieldValue = 0, EntryField = 0;
@@ -2080,7 +2080,7 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     if (SectionBase && Found && Found < ImageSize)
     {
         __int64 FieldValue = 0, FieldValue2 = 0;
-        _DWORD ReadContext[20];
+        _DWORD ReadContext[112];
         int SectionEntry = 0;
         __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
         unsigned int EntryField = 0;
@@ -2129,7 +2129,7 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     if (LoopIndex && Found && Found < ImageSize)
     {
         __int64 FieldValue = 0, FieldValue2 = 0;
-        _DWORD ReadContext[16];
+        _DWORD ReadContext[112];
         int CumulativeSize = 0;
         __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
         unsigned int EntrySize = 0;
@@ -2281,7 +2281,7 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     if (SectionBase && Found && Found < ImageSize)
     {
         __int64 FieldValue = 0, FieldValue2 = 0;
-        _DWORD ReadContext[16];
+        _DWORD ReadContext[112];
         int CumulativeSize = 0, SectionChar = 0;
         __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
         unsigned int EntrySize = 0;
@@ -2356,7 +2356,7 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
     if (SectionBase && Found && Found < ImageSize)
     {
         __int64 CumulativeSize = 0, SectionEntry = 0;
-        _DWORD FieldValue[16];
+        _DWORD FieldValue[112];
         unsigned int SectionChar = 0, EntrySizeField = 0;
         __int64 EntryField = 0, SectionAlignment = 0, EntryDataPtr = 0, SectionInfoPtr = 0;
         int EntrySize = 0, EntryCumulSize = 0;
@@ -2968,7 +2968,7 @@ char ParseAtaPortInitForHookTargets(__int64 ImageBase, unsigned int ImageSize, _
         && (int)AtaPortBase + 4096 < (int)ImageSize)
     {
         __int64 Context[8];
-        _DWORD Entry[16];
+        _DWORD Entry[112];
         char FoundBoundImport = 0;
         char FoundPush = 0;
         int CallCount = 0;
@@ -3018,7 +3018,7 @@ LABEL_SCAN:
 
     {
         __int64 Context[8];
-        _DWORD Entry[16];
+        _DWORD Entry[112];
         _DWORD Dst[16];
         unsigned int LoopIndex = 0;
         char TableBuilt = 0;
