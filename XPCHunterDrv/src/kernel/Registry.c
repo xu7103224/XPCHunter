@@ -597,9 +597,9 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
     __int16 SectionType;
     unsigned int MatchOffset;
     int FinalOffset;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[16];
+    _DWORD SectionEntry[112];           // 描述符：原 [16] 仅 64 字节
     int EntryField;
     __int64 SectionFlags;
     __int64 Value;
@@ -692,9 +692,9 @@ __int64 FindRenameKeyTargetEx(
     int CurrentOffset;
     unsigned int MatchOffset;
     int FinalOffset;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
-    _DWORD SectionEntry[30];
+    _DWORD SectionEntry[112];           // 描述符：原 [30] 仅 120 字节
     unsigned int EntrySize;
     __int64 SectionFlags;
     unsigned int EntryCumulSize;
