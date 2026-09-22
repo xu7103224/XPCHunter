@@ -180,7 +180,9 @@ void ScanProcessPESections(void)
     __int64 ImageBase;
     __int64 SectionSize;
     __int64 SignatureOffset;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     __int64 AccumulatedOffset;
     char SectionEntry[448];             // 描述符：原 [256] 仍差 32 字节（需 0x120 = 288）
     unsigned int SectionFileOffset;
@@ -520,7 +522,9 @@ __int64 ParseNtSectionsForProcessMemory(void)
     int CumulativeOffset;
     unsigned short SectionType;
     unsigned int ValueField;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -608,7 +612,9 @@ __int64 ParseNtSectionsForModuleBase(void)
     unsigned short SectionType;
     unsigned int Offset1;
     unsigned int Offset2;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -707,7 +713,9 @@ __int64 ParseNtSectionsForRelocBase(void)
     unsigned short SectionType;
     unsigned int FieldValue;
     unsigned int TrackedOffset;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -811,7 +819,9 @@ __int64 ParseProcessMemSections(void)
     unsigned int Phase2Offset;
     unsigned int Phase2aOffset;
     unsigned int Phase2bOffset;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1020,7 +1030,9 @@ __int64 FindKernelDataSectionOffsetEx(void)
     unsigned int SectionIndex;
     int CumulativeOffset;
     unsigned int BaseOffset;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1115,7 +1127,9 @@ __int64 FindKernelDataSectionOffsetV2(void)
     int CumulativeOffset;
     unsigned int FoundOffset;
     int FoundCount;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1210,7 +1224,9 @@ __int64 FindKernelDataSectionOffsetV3(void)
     unsigned int BaseOffset;
     unsigned int SectionIndex;
     int CumulativeOffset;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1638,7 +1654,9 @@ __int64 FindKernelDataSectionOffsetWin8(void)
     int SectionOffset = 0;
     unsigned int SectionIndex;
     __int64 ComputedOffset;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
+                                //   又被取址当解码上下文，需按"角色拆分"处理
+                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
     __int64 AccumulatedOffset;
     ULONG SectionEntry[0x80];
     unsigned int RawDataSize;
