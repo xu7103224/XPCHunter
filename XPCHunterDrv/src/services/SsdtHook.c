@@ -2079,7 +2079,7 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = SectionBase;
     if (SectionBase && Found && Found < ImageSize)
     {
-        __int64 FieldValue = 0, FieldValue2 = 0;
+        PE_DECODE_CONTEXT FieldValue; __int64 FieldValue2 = 0;   // FieldValue 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
         _DWORD ReadContext[112];
         int SectionEntry = 0;
         __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
@@ -2128,7 +2128,7 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = GtRead(GtEprocessExtField11);
     if (LoopIndex && Found && Found < ImageSize)
     {
-        __int64 FieldValue = 0, FieldValue2 = 0;
+        PE_DECODE_CONTEXT FieldValue; __int64 FieldValue2 = 0;   // FieldValue 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
         _DWORD ReadContext[112];
         int CumulativeSize = 0;
         __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
@@ -2280,7 +2280,7 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = SectionBase;
     if (SectionBase && Found && Found < ImageSize)
     {
-        __int64 FieldValue = 0, FieldValue2 = 0;
+        PE_DECODE_CONTEXT FieldValue; __int64 FieldValue2 = 0;   // FieldValue 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
         _DWORD ReadContext[112];
         int CumulativeSize = 0, SectionChar = 0;
         __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
