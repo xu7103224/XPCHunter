@@ -1335,7 +1335,7 @@ __int64 ScanKernelModulePESections(void)
     unsigned int ScanBase = (unsigned int)ImageBase + TargetOffset1;
     unsigned int ScanSize = ImageSize - TargetOffset1;
 
-    __int64 Context[8];
+    __int64 Context[9];
     _DWORD SectionEntry[72];
     InitPESectionReadContext(ScanBase, ScanSize, 2, 0, -1, 0, 0, (__int64)&Context);
 
@@ -1618,7 +1618,7 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
             }
         }
         int VersionOffset = (GtRead(GtWindowsBuildNumber) == 16299) + 1;
-        __int64 v18b = 0, v19b = 0;
+        PE_DECODE_CONTEXT v18b; __int64 v19b = 0;   // v18b 为 0x48 字节解码上下文（原 __int64 仅 8 字节）
         _DWORD v20b[112];
         int v21b = 0, v23b = 0, v24b = 0;
         __int64 v22b = 0, v25b = 0, v27b = 0;
@@ -2967,7 +2967,7 @@ char ParseAtaPortInitForHookTargets(__int64 ImageBase, unsigned int ImageSize, _
         && (unsigned int)AtaPortBase < ImageSize
         && (int)AtaPortBase + 4096 < (int)ImageSize)
     {
-        __int64 Context[8];
+        __int64 Context[9];
         _DWORD Entry[112];
         char FoundBoundImport = 0;
         char FoundPush = 0;
@@ -3017,7 +3017,7 @@ LABEL_SCAN:
         return 0;
 
     {
-        __int64 Context[8];
+        __int64 Context[9];
         _DWORD Entry[112];
         _DWORD Dst[16];
         unsigned int LoopIndex = 0;
@@ -3098,7 +3098,7 @@ __int64 ScanProcessPESectionsV2(void)
 
     if (SectionBase && SectionSize && (unsigned int)NtoskrnlBase && NtoskrnlSize)
     {
-        __int64 Context[8];
+        __int64 Context[9];
         _DWORD SectionEntry[72];
         char FoundFlag = 0;
         __int64 EntryBase = 0;
@@ -3160,7 +3160,7 @@ __int64 InitHookFunctionTable(void)
 
     if (SectionBase && SectionSize && (unsigned int)NtoskrnlBase && NtoskrnlSize)
     {
-        __int64 Context[8];
+        __int64 Context[9];
         _DWORD SectionEntry[72];
         char FoundFlag = 0;
         __int64 EntryBase = 0;
