@@ -180,9 +180,7 @@ void ScanProcessPESections(void)
     __int64 ImageBase;
     __int64 SectionSize;
     __int64 SignatureOffset;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     __int64 AccumulatedOffset;
     char SectionEntry[448];             // 描述符：原 [256] 仍差 32 字节（需 0x120 = 288）
     unsigned int SectionFileOffset;
@@ -210,9 +208,9 @@ void ScanProcessPESections(void)
         FoundOffset = 0;
         FoundOffset2 = 0;
         FoundOffset3 = 0;
-        InitPESectionReadContext(SectionBase + BaseAddr, (ULONG)FileSize, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+        InitPESectionReadContext(SectionBase + BaseAddr, (ULONG)FileSize, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         LoopCount = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)SectionEntry))
         {
             if (*(_WORD *)(pSectionEntryBase + 6) == 0x512)
             {
@@ -522,9 +520,7 @@ __int64 ParseNtSectionsForProcessMemory(void)
     int CumulativeOffset;
     unsigned short SectionType;
     unsigned int ValueField;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -555,14 +551,14 @@ __int64 ParseNtSectionsForProcessMemory(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -611,9 +607,7 @@ __int64 ParseNtSectionsForModuleBase(void)
     unsigned short SectionType;
     unsigned int Offset1;
     unsigned int Offset2;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -646,14 +640,14 @@ __int64 ParseNtSectionsForModuleBase(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -711,9 +705,7 @@ __int64 ParseNtSectionsForRelocBase(void)
     unsigned short SectionType;
     unsigned int FieldValue;
     unsigned int TrackedOffset;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -746,7 +738,7 @@ __int64 ParseNtSectionsForRelocBase(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         TrackedOffset = 0;
         SectionIndex = 0;
@@ -754,7 +746,7 @@ __int64 ParseNtSectionsForRelocBase(void)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -816,9 +808,7 @@ __int64 ParseProcessMemSections(void)
     unsigned int Phase2Offset;
     unsigned int Phase2aOffset;
     unsigned int Phase2bOffset;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -854,7 +844,7 @@ __int64 ParseProcessMemSections(void)
         -1,
         0,
         0,
-        (__int64)&SectionContext);
+        (__int64)&DecodeContext);
 
     Phase1Offset = 0;
     SectionIndex = 0;
@@ -862,7 +852,7 @@ __int64 ParseProcessMemSections(void)
     {
         RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-        if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
             break;
 
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -907,14 +897,14 @@ __int64 ParseProcessMemSections(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -963,14 +953,14 @@ __int64 ParseProcessMemSections(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -1024,9 +1014,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
     unsigned int SectionIndex;
     int CumulativeOffset;
     unsigned int BaseOffset;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1058,7 +1046,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         TargetOffset = 0;
         SectionIndex = 0;
@@ -1066,7 +1054,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -1120,9 +1108,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
     int CumulativeOffset;
     unsigned int FoundOffset;
     int FoundCount;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1152,7 +1138,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         FoundOffset = 0;
         FoundCount = 0;
@@ -1161,7 +1147,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -1216,9 +1202,7 @@ __int64 FindKernelDataSectionOffsetV3(void)
     unsigned int BaseOffset;
     unsigned int SectionIndex;
     int CumulativeOffset;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1248,14 +1232,14 @@ __int64 FindKernelDataSectionOffsetV3(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -1645,9 +1629,7 @@ __int64 FindKernelDataSectionOffsetWin8(void)
     int SectionOffset = 0;
     unsigned int SectionIndex;
     __int64 ComputedOffset;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L546/636/735/842）
-                                //   又被取址当解码上下文，需按"角色拆分"处理
-                                //   （与 PeContext / CumulativeSize / SectionContext(SyscallTable.c) 同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     __int64 AccumulatedOffset;
     ULONG SectionEntry[0x80];
     unsigned int RawDataSize;
@@ -1662,12 +1644,12 @@ __int64 FindKernelDataSectionOffsetWin8(void)
         (unsigned int)Result < NtImageSize)
     {
         InitPESectionReadContext((__int64)((PUCHAR)NtImageBase + (unsigned int)Result),
-            NtImageSize - (unsigned int)Result, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+            NtImageSize - (unsigned int)Result, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         SectionOffset = 0;
         AccumulatedOffset = 0;
         for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
         {
-            Result = ReadPESectionEntry((PUCHAR)&SectionContext, SectionEntry);
+            Result = ReadPESectionEntry((PUCHAR)&DecodeContext, SectionEntry);
             if ((_DWORD)Result)
                 break;
             ComputedOffset = SectionEntry[0xF0 >> 2] + AccumulatedOffset;

@@ -17,7 +17,16 @@ RENAMES = [
     # ---- 上下文类：统一命名为 DecodeContext（0x48 字节解码上下文）----
     ("DriverEntry.c",            "InitEprocessOffsetsWin81",           "PeSectionReadContext", "DecodeContext"),
     ("services/SyscallTable.c",  "FindKernelPESectionByType",          "SectionChar",          "DecodeContext"),
-    ("services/SyscallTable.c",  "FindKernelTableBySectionType",       "SectionContext",       "DecodeContext"),
+    ("services/SyscallTable.c",  "ParseNtSectionsForShadowSsdt",       "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ScanProcessPESections",              "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseNtSectionsForProcessMemory",    "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseNtSectionsForModuleBase",       "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseNtSectionsForRelocBase",        "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseProcessMemSections",            "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetEx",      "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetV2",      "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetV3",      "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetWin8",    "SectionContext",       "DecodeContext"),
     ("services/SSDT.c",          "ScanPESectionPatterns",              "CumulativeSize",       "DecodeContext"),
     ("services/SsdtHook.c",      "FindNdisExportsBySectionScanV2",     "SectionType3",         "DecodeContext"),
     ("services/SsdtHook.c",      "FindNdisExportsBySectionScanV2",     "ReadCtx2",             "DecodeContext2"),
@@ -36,6 +45,22 @@ RENAMES = [
     ("services/SsdtHook.c",      "ScanTextSectionPattern",             "ReadContext",          "SectionInfo"),
     ("services/SsdtHook.c",      "ScanDataSectionPattern",             "ReadContext",          "SectionInfo"),
     ("services/SsdtHook.c",      "ScanPageSectionPattern",             "ReadContext",          "SectionInfo"),
+    # ---- int SectionEntry 实为"累计的 RVA 偏移"，与描述符同名易混，按用途改名 ----
+    ("services/SsdtHook.c",      "FindNdisExportsBySectionScanV2",     "SectionEntry",         "RvaOffset"),
+    ("services/SsdtHook.c",      "ScanTextSectionPattern",             "SectionEntry",         "RvaOffset"),
+    ("services/SsdtHook.c",      "ScanDataSectionPattern",             "SectionEntry",         "RvaOffset"),
+    ("services/SsdtHook.c",      "ScanPageSectionPattern",             "SectionEntry",         "RvaOffset"),
+    # ---- 上下文类：SectionContext（死写已删、类型已改）统一为 DecodeContext ----
+    ("services/SyscallTable.c",  "ParseNtSectionsForShadowSsdt",       "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ScanProcessPESections",              "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseNtSectionsForProcessMemory",    "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseNtSectionsForModuleBase",       "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseNtSectionsForRelocBase",        "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "ParseProcessMemSections",            "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetEx",      "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetV2",      "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetV3",      "SectionContext",       "DecodeContext"),
+    ("kernel/PeSectionParse.c",  "FindKernelDataSectionOffsetWin8",    "SectionContext",       "DecodeContext"),
 ]
 
 

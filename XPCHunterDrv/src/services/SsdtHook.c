@@ -1693,7 +1693,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
             PE_DECODE_CONTEXT DecodeContext; __int64 CumulativeSize2 = 0;   // DecodeContext 为 0x48 字节解码上下文
             _DWORD SectionInfo[112];
             __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
-            int SectionEntry = 0;
+            int RvaOffset = 0;
             unsigned int FieldValue = 0, EntryField = 0;
 
             InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
@@ -1706,7 +1706,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
                 int SectionEnd = (int)(EntryField + CumulativeSize2);
                 CumulativeSize2 += EntryField;
                 __int16 TargetRva = *(_WORD *)(EntrySize + 6);
-                if (TargetRva == 1296 && CumulativeSize == 64 && SectionEntry == 8 && SectionChar == 64)
+                if (TargetRva == 1296 && CumulativeSize == 64 && RvaOffset == 8 && SectionChar == 64)
                 {
                     SectionBaseCopy = 1;
                 }
@@ -2081,7 +2081,7 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     {
         PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
         _DWORD SectionInfo[112];
-        int SectionEntry = 0;
+        int RvaOffset = 0;
         __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
         unsigned int EntryField = 0;
 
@@ -2102,9 +2102,9 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             {
                 if (SectionType == 1296 && SectionChar == 0x40000)
                 {
-                    if (SectionEntry && CumulativeSize == 64)
+                    if (RvaOffset && CumulativeSize == 64)
                     {
-                        unsigned int SectionType2 = (unsigned int)(TargetRva2 + SectionEntry - ImageBase);
+                        unsigned int SectionType2 = (unsigned int)(TargetRva2 + RvaOffset - ImageBase);
                         if (SectionType2 && SectionType2 < ImageSize)
                         {
                             GtWrite(GtEprocessExtField16, LoopIndex + SectionType2);
@@ -2131,7 +2131,7 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
         PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
         _DWORD SectionInfo[112];
         int CumulativeSize = 0;
-        __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
+        __int64 RvaOffset = 0, EntryField = 0, SectionAlignment = 0;
         unsigned int EntrySize = 0;
 
         InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
@@ -2146,7 +2146,7 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             __int16 SectionType2 = *(_WORD *)(SectionAlignment + 6);
             if (SectionType2 == 1349)
                 break;
-            if (SectionType2 == 1294 && SectionEntry == 0x40000 && EntryField == 64)
+            if (SectionType2 == 1294 && RvaOffset == 0x40000 && EntryField == 64)
             {
                 unsigned int result = (unsigned int)(SectionType + CumulativeSize - ImageBase);
                 if (SectionType + CumulativeSize - (int)ImageBase)
@@ -2283,7 +2283,7 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
         PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
         _DWORD SectionInfo[112];
         int CumulativeSize = 0, SectionChar = 0;
-        __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
+        __int64 RvaOffset = 0, EntryField = 0, SectionAlignment = 0;
         unsigned int EntrySize = 0;
 
         InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
@@ -2303,10 +2303,10 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             {
                 if (SectionType == 1296)
                 {
-                    if (EntryField == 0x40000 && SectionChar && SectionEntry == 64)
+                    if (EntryField == 0x40000 && SectionChar && RvaOffset == 64)
                         SectionEnd = (unsigned int)(TargetRva2 + SectionChar - ImageBase);
                 }
-                else if (SectionEntry == 0x40000)
+                else if (RvaOffset == 0x40000)
                 {
                     if (CumulativeSize && EntryField == 64)
                     {

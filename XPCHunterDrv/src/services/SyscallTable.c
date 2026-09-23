@@ -1372,8 +1372,7 @@ __int64 ParseNtSectionsForShadowSsdt(void)
     int CumulativeOffset;
     unsigned short SectionType;
     unsigned int ValueField;
-    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L1405）又被取址当解码上下文，
-                                //   需按"角色拆分"处理（与 PeContext / CumulativeSize 家族同源）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原名为 SectionContext，名字与角色不符；死写已删）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1411,14 +1410,14 @@ __int64 ParseNtSectionsForShadowSsdt(void)
             -1,
             0,
             0,
-            (__int64)&SectionContext);
+            (__int64)&DecodeContext);
 
         SectionIndex = 0;
         while (SectionIndex < 0xA)
         {
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
