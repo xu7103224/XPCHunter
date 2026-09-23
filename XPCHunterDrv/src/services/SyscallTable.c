@@ -350,7 +350,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
     unsigned int SectionCount = (unsigned int)GtRead(TypeIndex);
     PE_DECODE_CONTEXT SectionChar;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 AccumulatedOffset;
-    _DWORD ReadEntry[70];
+    _DWORD ReadEntry[112];   // 描述符：原 [70] 仅 280 字节（缺 8 字节）
     __int64 SectionInfoPtr;
     int i;
 

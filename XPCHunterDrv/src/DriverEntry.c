@@ -1713,7 +1713,7 @@ __int64 InitEprocessOffsetsWin81(void)
     char DefaultFlag = 0;
     PE_DECODE_CONTEXT PeSectionReadContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionCharacteristics = 0;
-    _DWORD SectionEntryBuf[8];
+    _DWORD SectionEntryBuf[112];   // 描述符：原 [8] 仅 32 字节
     char CharacteristicsFlags = 0;
     int SectionCharaCheck = 0;
     __int64 SectionNameCheck = 0;
