@@ -1711,7 +1711,7 @@ __int64 InitEprocessOffsetsWin81(void)
     __int64 FltPeSectionOfs3Val;
     __int64 FltPeSectionAddrVal;
     char DefaultFlag = 0;
-    PE_DECODE_CONTEXT PeSectionReadContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    PE_DECODE_CONTEXT DecodeContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 SectionCharacteristics = 0;
     _DWORD SectionEntryBuf[112];   // 描述符：原 [8] 仅 32 字节
     char CharacteristicsFlags = 0;
@@ -1728,11 +1728,11 @@ __int64 InitEprocessOffsetsWin81(void)
     NtoskrnlImageSize = (int)GtRead(GtNtoskrnlImageSize);
     if (ExportDirVa && ExportDirSize && ServiceTableBase && NtoskrnlBase && NtoskrnlImageSize && (SectionOffset = (unsigned int)GtRead(GtTotalSize | GtEprocessField94 | 0x400)) != 0 && SectionOffset < ExportDirSize)
     {
-        InitPESectionReadContext(ExportDirVa + SectionOffset, ExportDirSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&PeSectionReadContext);
+        InitPESectionReadContext(ExportDirVa + SectionOffset, ExportDirSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         IsWin81Update = DefaultFlag;
         for (i = 0; i < 0x14; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&PeSectionReadContext, SectionEntryBuf))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionEntryBuf))
                 break;
             SectionCharacteristics += SectionVirtualSize;
             if (*(_WORD *)(SectionEntryPtr + 6) == 373 && (CharacteristicsFlags & 4) != 0 && SectionNameCheck == 65601)

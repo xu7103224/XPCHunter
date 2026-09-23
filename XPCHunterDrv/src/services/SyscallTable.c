@@ -348,7 +348,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
     __int64 NtoskrnlDataBase = GtRead(GtEprocessField22);
     unsigned int Result = (unsigned int)GtRead(GtEprocessField23);
     unsigned int SectionCount = (unsigned int)GtRead(TypeIndex);
-    PE_DECODE_CONTEXT SectionChar;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 AccumulatedOffset;
     _DWORD ReadEntry[112];   // 描述符：原 [70] 仅 280 字节（缺 8 字节）
     __int64 SectionInfoPtr;
@@ -356,10 +356,10 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
 
     if (NtoskrnlDataBase && Result && SectionCount && SectionCount < Result && (unsigned __int64)SectionCount + 5 <= Result)
     {
-        InitPESectionReadContext(SectionCount + NtoskrnlDataBase, Result - SectionCount, 2, 0, -1, 0, 0, (__int64)&SectionChar);
+        InitPESectionReadContext(SectionCount + NtoskrnlDataBase, Result - SectionCount, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         for (i = 0; i < 0x10; i++)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionChar, ReadEntry))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, ReadEntry))
                 break;
             AccumulatedOffset += ReadEntry[60];
             if (*(_WORD *)(SectionInfoPtr + 6) == 1340 && (*(_QWORD *)&ReadEntry[34] & 0x800000LL) != 0 && !ReadEntry[29])

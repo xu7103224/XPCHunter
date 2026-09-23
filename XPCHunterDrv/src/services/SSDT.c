@@ -680,7 +680,7 @@ __int64 InitSyscallNumberTable(void)
 bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char UsePESection)
 {
     char Result = 0;
-    PE_DECODE_CONTEXT CumulativeSize;   // 0x48 字节解码上下文（原 __int64 仅 8 字节；名字错误另行改名）
+    PE_DECODE_CONTEXT DecodeContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节；名字错误另行改名）
     __int64 SectionEntry = 0;
     _DWORD SectionChar[20];
     __int64 EntryField = 0;
@@ -700,8 +700,8 @@ bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char 
     if ((ULONG)(DataSize - 12) > 0x27F3) return Result;
     if (UsePESection == 1)
     {
-        InitPESectionReadContext((__int64)Pattern, DataSize, 2, 0, -1, 0, 0, (__int64)&CumulativeSize);
-        if (ReadPESectionEntry((unsigned char *)&CumulativeSize, SectionChar)) return Result;
+        InitPESectionReadContext((__int64)Pattern, DataSize, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
+        if (ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar)) return Result;
 
         while (1)
         {
@@ -718,7 +718,7 @@ bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char 
                 }
                 TargetRva = 0;
             }
-            if (ReadPESectionEntry((unsigned char *)&CumulativeSize, SectionChar)) return Result;
+            if (ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar)) return Result;
         }
     }
     else
@@ -739,14 +739,14 @@ CheckFound:
     {
         Result = 0;
         if (SectionType2 && MemoryCompare((__int64)Pattern, (char *)TargetData, (ULONG)SectionType2)) return Result;
-        InitPESectionReadContext((__int64)&TargetData[(ULONG)SectionType2], 12, 2, 0, -1, 0, 0, (__int64)&CumulativeSize);
-        if (!ReadPESectionEntry((unsigned char *)&CumulativeSize, SectionChar) && *(WORD *)(EntryDataPtr + 6) == 1296 && EntryCumulSize == 7 &&
+        InitPESectionReadContext((__int64)&TargetData[(ULONG)SectionType2], 12, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
+        if (!ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar) && *(WORD *)(EntryDataPtr + 6) == 1296 && EntryCumulSize == 7 &&
             EntryField == 64 && SectionAlignment == 0x40000)
         {
             if (EntrySize && *(ULONG *)&Pattern[(ULONG)SectionType2 + 3] == EntrySize)
             {
                 SectionEntry += 7;
-                if (!ReadPESectionEntry((unsigned char *)&CumulativeSize, SectionChar) && *(WORD *)(EntryDataPtr + 6) == 1368)
+                if (!ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar) && *(WORD *)(EntryDataPtr + 6) == 1368)
                     return EntryCumulSize == 5;
             }
         }

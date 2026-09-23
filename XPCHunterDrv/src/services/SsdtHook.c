@@ -1618,18 +1618,18 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
             }
         }
         int VersionOffset = (GtRead(GtWindowsBuildNumber) == 16299) + 1;
-        PE_DECODE_CONTEXT v18b; __int64 v19b = 0;   // v18b 为 0x48 字节解码上下文（原 __int64 仅 8 字节）
+        PE_DECODE_CONTEXT DecodeContext; __int64 v19b = 0;   // DecodeContext 为 0x48 字节解码上下文（原 __int64 仅 8 字节）
         _DWORD v20b[112];
         int v21b = 0, v23b = 0, v24b = 0;
         __int64 v22b = 0, v25b = 0, v27b = 0;
         unsigned int v26b = 0;
 
-        InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset, 2, 0, -1, 0, 0, (__int64)&v18b);
+        InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         unsigned int InnerOffset = 0;
         int InnerLoop = 0;
         while (1)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&v18b, v20b))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, v20b))
                 return 0;
             int InnerEnd = (int)(v26b + v19b);
             v19b += v26b;
@@ -1690,18 +1690,18 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
     {
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
         {
-            PE_DECODE_CONTEXT SectionType3; __int64 CumulativeSize2 = 0;   // SectionType3 为 0x48 字节解码上下文
-            _DWORD ReadContext[112];
+            PE_DECODE_CONTEXT DecodeContext; __int64 CumulativeSize2 = 0;   // DecodeContext 为 0x48 字节解码上下文
+            _DWORD SectionInfo[112];
             __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
             int SectionEntry = 0;
             unsigned int FieldValue = 0, EntryField = 0;
 
-            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&SectionType3);
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
             char SectionBaseCopy = 0;
             int LoopIndex = 0;
             while (1)
             {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionType3, ReadContext))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
                     return 0;
                 int SectionEnd = (int)(EntryField + CumulativeSize2);
                 CumulativeSize2 += EntryField;
@@ -1714,7 +1714,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
                 {
                     if (TargetRva == 1368)
                     {
-                        Found = (unsigned int)(SectionEnd + ReadContext[14] - ImageBase);
+                        Found = (unsigned int)(SectionEnd + SectionInfo[14] - ImageBase);
                         break;
                     }
                 }
@@ -1724,19 +1724,19 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
         }
         if (Found && Found < ImageSize)
         {
-            PE_DECODE_CONTEXT ReadCtx2; __int64 EntryBase2 = 0;   // ReadCtx2 为 0x48 字节解码上下文
+            PE_DECODE_CONTEXT DecodeContext2; __int64 EntryBase2 = 0;   // DecodeContext2 为 0x48 字节解码上下文
             _DWORD ReadEntry2[112];
             __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
             int SectionChar2 = 0;
             unsigned int FieldValue2 = 0, EntryDataPtr2 = 0;
 
-            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&ReadCtx2);
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext2);
             unsigned int InnerFound = 0;
             char InnerLoop = 0;
             int InnerEnd = 0;
             while (1)
             {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadCtx2, ReadEntry2))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, ReadEntry2))
                     return 0;
                 int SectionType = (int)(EntryDataPtr2 + EntryBase2);
                 EntryBase2 += EntryDataPtr2;
@@ -2079,17 +2079,17 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = SectionBase;
     if (SectionBase && Found && Found < ImageSize)
     {
-        PE_DECODE_CONTEXT FieldValue; __int64 FieldValue2 = 0;   // FieldValue 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
-        _DWORD ReadContext[112];
+        PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
+        _DWORD SectionInfo[112];
         int SectionEntry = 0;
         __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
         unsigned int EntryField = 0;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&FieldValue);
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         char SectionEnd = 0;
         for (unsigned int i = 0; i < 0x64; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&FieldValue, ReadContext))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
                 break;
             int TargetRva2 = (int)(EntryField + FieldValue2);
             FieldValue2 += EntryField;
@@ -2128,18 +2128,18 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = GtRead(GtEprocessExtField11);
     if (LoopIndex && Found && Found < ImageSize)
     {
-        PE_DECODE_CONTEXT FieldValue; __int64 FieldValue2 = 0;   // FieldValue 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
-        _DWORD ReadContext[112];
+        PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
+        _DWORD SectionInfo[112];
         int CumulativeSize = 0;
         __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
         unsigned int EntrySize = 0;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&FieldValue);
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         unsigned int SectionEnd = 0;
         unsigned int TargetRva = 0;
         for (unsigned int i = 0; i < 0x32; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&FieldValue, ReadContext))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
                 break;
             int SectionType = (int)(EntrySize + FieldValue2);
             FieldValue2 += EntrySize;
@@ -2213,18 +2213,18 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
                     break;
             }
         }
-        PE_DECODE_CONTEXT ReadCtx2; __int64 EntryBase2 = 0;   // ReadCtx2 为 0x48 字节解码上下文
+        PE_DECODE_CONTEXT DecodeContext2; __int64 EntryBase2 = 0;   // DecodeContext2 为 0x48 字节解码上下文
         _DWORD ReadEntry2[112];
         int SectionChar2 = 0, FieldValue2 = 0, FieldValue3 = 0;
         __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
         unsigned int EntryDataPtr2 = 0;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&ReadCtx2);
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext2);
         int TargetRva = 0;
         int SectionType = 0;
         for (unsigned int i = 0; i < 0x3E8; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadCtx2, ReadEntry2))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, ReadEntry2))
                 break;
             int SectionType3 = (int)(EntryDataPtr2 + EntryBase2);
             EntryBase2 += EntryDataPtr2;
@@ -2280,17 +2280,17 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = SectionBase;
     if (SectionBase && Found && Found < ImageSize)
     {
-        PE_DECODE_CONTEXT FieldValue; __int64 FieldValue2 = 0;   // FieldValue 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
-        _DWORD ReadContext[112];
+        PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
+        _DWORD SectionInfo[112];
         int CumulativeSize = 0, SectionChar = 0;
         __int64 SectionEntry = 0, EntryField = 0, SectionAlignment = 0;
         unsigned int EntrySize = 0;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&FieldValue);
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         int SectionEnd = 0;
         for (unsigned int i = 0; i < 0x3E8; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&FieldValue, ReadContext))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
                 break;
             int TargetRva2 = (int)(EntrySize + FieldValue2);
             FieldValue2 += EntrySize;
@@ -2355,7 +2355,7 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
     __int64 SectionBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
     if (SectionBase && Found && Found < ImageSize)
     {
-        PE_DECODE_CONTEXT CumulativeSize; __int64 SectionEntry = 0;   // CumulativeSize 实为 0x48 字节解码上下文（名字错位，累加的是 SectionEntry）
+        PE_DECODE_CONTEXT DecodeContext; __int64 SectionEntry = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位，累加的是 SectionEntry）
         _DWORD FieldValue[112];
         unsigned int SectionChar = 0, EntrySizeField = 0;
         __int64 EntryField = 0, SectionAlignment = 0, EntryDataPtr = 0, SectionInfoPtr = 0;
@@ -2364,13 +2364,13 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
         char SectionType3 = 0;
         int SectionType4 = 0;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&CumulativeSize);
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         int SectionBaseCopy = 0;
         unsigned int LoopIndex = 0;
         unsigned int SectionEnd = 0;
         do
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&CumulativeSize, FieldValue))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, FieldValue))
                 return 0;
             int TargetRva = (int)(EntrySizeField + SectionEntry);
             SectionEntry += EntrySizeField;
@@ -2754,7 +2754,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
         if (OptHeaderSize < ImageSize && (int)OptHeaderSize + 4096 < (int)ImageSize)
         {
             char FoundInitSection = 0;
-            PE_DECODE_CONTEXT ReadCtx; __int64 EntryBase = 0;   // ReadCtx 为 0x48 字节解码上下文
+            PE_DECODE_CONTEXT DecodeContext; __int64 EntryBase = 0;   // DecodeContext 为 0x48 字节解码上下文
             _DWORD ReadEntry[112];
             char SectionFlags = 0;
             int EntryField = 0;
@@ -2764,9 +2764,9 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
             unsigned int EntryDataSize = 0;
             __int64 SectionInfoPtr = 0;
 
-            InitPESectionReadContext(ImageBase + OptHeaderSize, 4096, 2, 0, -1, 0, 0, (__int64)&ReadCtx);
+            InitPESectionReadContext(ImageBase + OptHeaderSize, 4096, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
             unsigned int SectionIndex = 0;
-            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadCtx, ReadEntry))
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, ReadEntry))
             {
                 unsigned int SectionEnd = (unsigned int)(EntryDataSize + EntryBase);
                 EntryBase += EntryDataSize;
@@ -2804,7 +2804,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
         }
         if (OptHeaderSize && OptHeaderSize < ImageSize && (int)OptHeaderSize + 4096 < (int)ImageSize)
         {
-            PE_DECODE_CONTEXT ReadCtx2; __int64 EntryBase2 = 0;   // ReadCtx2 为 0x48 字节解码上下文
+            PE_DECODE_CONTEXT DecodeContext2; __int64 EntryBase2 = 0;   // DecodeContext2 为 0x48 字节解码上下文
             _DWORD ReadEntry2[112];
             char SectionFlags2 = 0;
             int EntryField2 = 0;
@@ -2814,10 +2814,10 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
             unsigned int EntryDataSize2 = 0;
             __int64 SectionInfoPtr2 = 0;
 
-            InitPESectionReadContext(ImageBase + OptHeaderSize, 4096, 2, 0, -1, 0, 0, (__int64)&ReadCtx2);
+            InitPESectionReadContext(ImageBase + OptHeaderSize, 4096, 2, 0, -1, 0, 0, (__int64)&DecodeContext2);
             unsigned int TargetRva2 = 0;
             unsigned int ScanIndex = 0;
-            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadCtx2, ReadEntry2))
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, ReadEntry2))
             {
                 unsigned int SectionEnd2 = (unsigned int)(EntryDataSize2 + EntryBase2);
                 EntryBase2 += EntryDataSize2;
@@ -2856,7 +2856,7 @@ char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __
         unsigned int ExportRva = (unsigned int)FindExportByNameInPeBody((PUCHAR)ImageBase, ImageSize, (PCHAR)ExportName, 0);
         if (ExportRva && ExportRva < ImageSize && ExportRva + 4096 < ImageSize)
         {
-            PE_DECODE_CONTEXT PESectionContext; __int64 ContextOffset = 0;   // PESectionContext 为 0x48 字节解码上下文
+            PE_DECODE_CONTEXT DecodeContext; __int64 ContextOffset = 0;   // DecodeContext 为 0x48 字节解码上下文
             _DWORD SectionEntry[72];
             int EntryOffset = 0, EntrySize = 0, EntryIndex = 0, TypeField1 = 0, TypeField2 = 0, RvaField = 0;
             __int64 Flags = 0;
@@ -2865,14 +2865,14 @@ char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __
             __int64 TypePtr = 0;
             _DWORD Dst[16];
 
-            InitPESectionReadContext(ImageBase + ExportRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+            InitPESectionReadContext(ImageBase + ExportRva, 4096, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
             memset(Dst, 0, sizeof(Dst));
             char SectionReady = 0;
             unsigned int LoopCount = 0;
             unsigned int FieldOffset = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0 ? 904 : 912;
             do
             {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, SectionEntry))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionEntry))
                     return Result;
                 int CurrentRva = (int)(EntrySize2 + ContextOffset);
                 ContextOffset += EntrySize2;
