@@ -1690,7 +1690,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
     {
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
         {
-            __int64 SectionType3 = 0, CumulativeSize2 = 0;
+            PE_DECODE_CONTEXT SectionType3; __int64 CumulativeSize2 = 0;   // SectionType3 为 0x48 字节解码上下文
             _DWORD ReadContext[112];
             __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
             int SectionEntry = 0;
@@ -1724,7 +1724,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
         }
         if (Found && Found < ImageSize)
         {
-            __int64 ReadCtx2 = 0, EntryBase2 = 0;
+            PE_DECODE_CONTEXT ReadCtx2; __int64 EntryBase2 = 0;   // ReadCtx2 为 0x48 字节解码上下文
             _DWORD ReadEntry2[112];
             __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
             int SectionChar2 = 0;
@@ -2213,7 +2213,7 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
                     break;
             }
         }
-        __int64 ReadCtx2 = 0, EntryBase2 = 0;
+        PE_DECODE_CONTEXT ReadCtx2; __int64 EntryBase2 = 0;   // ReadCtx2 为 0x48 字节解码上下文
         _DWORD ReadEntry2[112];
         int SectionChar2 = 0, FieldValue2 = 0, FieldValue3 = 0;
         __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
@@ -2754,7 +2754,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
         if (OptHeaderSize < ImageSize && (int)OptHeaderSize + 4096 < (int)ImageSize)
         {
             char FoundInitSection = 0;
-            __int64 ReadCtx = 0, EntryBase = 0;
+            PE_DECODE_CONTEXT ReadCtx; __int64 EntryBase = 0;   // ReadCtx 为 0x48 字节解码上下文
             _DWORD ReadEntry[112];
             char SectionFlags = 0;
             int EntryField = 0;
@@ -2804,7 +2804,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
         }
         if (OptHeaderSize && OptHeaderSize < ImageSize && (int)OptHeaderSize + 4096 < (int)ImageSize)
         {
-            __int64 ReadCtx2 = 0, EntryBase2 = 0;
+            PE_DECODE_CONTEXT ReadCtx2; __int64 EntryBase2 = 0;   // ReadCtx2 为 0x48 字节解码上下文
             _DWORD ReadEntry2[112];
             char SectionFlags2 = 0;
             int EntryField2 = 0;
@@ -3293,7 +3293,7 @@ char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSi
     char Result = 0;
     if (HalBase && SectionOffset && SectionOffset < ImageSize)
     {
-        __int64 ReadContext[8];
+        PE_DECODE_CONTEXT ReadContext;   // 0x48 字节解码上下文（原 __int64[8] 仅 64 字节）
         _DWORD SectionEntry[72];
         __int64 CumulativeSize = 0;
         unsigned int Phase1Result = 0;
@@ -3609,7 +3609,7 @@ char __fastcall ParseNdisGetVersionSection(unsigned int Rva, __int64 ImageBase, 
     char Result = 0;
     if (Rva && Rva < ImageSize)
     {
-        __int64 ReadContext[8];
+        PE_DECODE_CONTEXT ReadContext;   // 0x48 字节解码上下文（原 __int64[8] 仅 64 字节）
         _DWORD SectionEntry[72];
         __int64 CumulativeSize = 0;
         unsigned int Value = 0;
@@ -4425,7 +4425,7 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
     unsigned __int64 EndAddress;
     __int64 SectionBase = 0;
     int SectionEnd = 0;
-    char ReadContext[8];
+    PE_DECODE_CONTEXT ReadContext;   // 0x48 字节解码上下文（原 char[8] 仅 8 字节）
     __int64 CumulativeSize2 = 0;
     char SectionEntry[448];                 // 描述符：原 [120] 仅 120 字节
     int EntrySize = 0;
@@ -4443,10 +4443,10 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
         SectionEnd = (int)EndAddress;
         if (EndAddress > (unsigned __int64)(SectionBase + 4096))
             SectionEnd = (int)(SectionBase + 4096);
-        InitPESectionReadContext(SectionBase, (ULONG)(SectionEnd - SectionBase), 2, 0, -1, 0, 0, (__int64)ReadContext);
+        InitPESectionReadContext(SectionBase, (ULONG)(SectionEnd - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (1)
         {
-            result = ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry);
+            result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
             if ((_DWORD)result)
                 break;
             __int64 CumulativeSize = SectionSize + CumulativeSize2;
@@ -4733,7 +4733,7 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
     unsigned __int64 BufferEnd;
     __int64 ScanStart = 0;
     int ScanEnd = 0;
-    char ReadContext[8];
+    PE_DECODE_CONTEXT ReadContext;   // 0x48 字节解码上下文（原 char[8] 仅 8 字节）
     __int64 TotalCumulSize = 0;
     char SectionEntry[448];                 // 描述符：原 [64] 仅 64 字节
     int EntryFlags = 0;
@@ -4753,10 +4753,10 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
         ScanEnd = (int)BufferEnd;
         if (BufferEnd > (unsigned __int64)(ScanStart + 4096))
             ScanEnd = (int)(ScanStart + 4096);
-        InitPESectionReadContext(ScanStart, (ULONG)(ScanEnd - ScanStart), 2, 0, -1, 0, 0, (__int64)ReadContext);
+        InitPESectionReadContext(ScanStart, (ULONG)(ScanEnd - ScanStart), 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (1)
         {
-            Result = ReadPESectionEntry((PUCHAR)ReadContext, (PULONG)SectionEntry);
+            Result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
             if ((_DWORD)Result)
                 break;
             __int64 CumulativeSize = EntryCumulSize + TotalCumulSize;

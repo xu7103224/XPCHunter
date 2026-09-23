@@ -348,7 +348,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
     __int64 NtoskrnlDataBase = GtRead(GtEprocessField22);
     unsigned int Result = (unsigned int)GtRead(GtEprocessField23);
     unsigned int SectionCount = (unsigned int)GtRead(TypeIndex);
-    __int64 SectionChar;
+    PE_DECODE_CONTEXT SectionChar;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 AccumulatedOffset;
     _DWORD ReadEntry[70];
     __int64 SectionInfoPtr;
