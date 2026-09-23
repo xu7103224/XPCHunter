@@ -1372,7 +1372,7 @@ __int64 ParseNtSectionsForShadowSsdt(void)
     int CumulativeOffset;
     unsigned short SectionType;
     unsigned int ValueField;
-    __int64 SectionContext;     // ⚠ 别名变量：既被当整数赋值（L1405）又被取址当解码上下文，
+    PE_DECODE_CONTEXT SectionContext;     // ⚠ 别名变量：既被当整数赋值（L1405）又被取址当解码上下文，
                                 //   需按"角色拆分"处理（与 PeContext / CumulativeSize 家族同源）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
@@ -1403,7 +1403,6 @@ __int64 ParseNtSectionsForShadowSsdt(void)
         NtoskrnlModuleBase &&
         NtoskrnlImageSize)
     {
-        SectionContext = 0;
         InitPESectionReadContext(
             (__int64)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
