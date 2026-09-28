@@ -693,9 +693,288 @@ __int64 MiniFilterPreCleanup(void)
 //   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
 // 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
 //   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
+// 【实现 2026-09-21】按 build/audit/_mfc_listing.txt 与施工图"表 A/表 B"
+//   **逐标签机械转写**（goto + L<原始地址> 标签）。
+//   表 A 要点：Value[] 是**同一块 5 字节栈区**（[0..3] 字节标志、[4] dword 候选 RVA），
+//   故用 UCHAR Value[8] + *(ULONG*)&Value[4] 建模 —— 不得拆成独立变量（那是失真）。
+//   表 B 要点：控制流顺序为 外层(L140015445) → A 类内层(上限 0xA) → 第二段(0x14)
+//   → C7 模式搜索 → 写块2 → 第三段(0xF)；L14001566D/L140015683 属 A 类内层的
+//   "非 0x512 分支"，不是第二段的一部分。
 ULONG64 FindKernelObjectFieldOffsetsWin10(void)
 {
+    ULONG64 PeBase;        // rsi / var_1F8 <- GT 0x20
+    ULONG   PeSize;        // r12 <- GT 0x21
+    ULONG64 ImageBase;     // rdi -> var_1F0 <- GT 3
+    ULONG64 Gt8CC;         // r14 / var_1C0
+    ULONG64 Gt900;         // r15 / var_1B0
+    ULONG64 Gt8CD;         // rbx / var_1D0
+    ULONG64 Gt4459;        // var_1B8
+    UCHAR   Value[8];      // [0..3] 字节标志、[4] dword 候选 RVA（同一块栈区）
+    UCHAR   PairA, PairB;  // r8b / dl
+    UCHAR   FoundA, FoundB, FoundC;   // r14b / bl / dil
+    ULONG   CandidateRva;  // edi（外层候选）
+    ULONG   Rva2;          // r14d / Value[4]
+    ULONG   CountInner;    // esi（A 类内层，上限 0xA）
+    ULONG   CountMid;      // esi（第二段，上限 0x14）
+    ULONG   CountOuter;    // edi（第三段，上限 0xF）
+    ULONG64 ScanStart;     // r13
+    ULONG64 ScanEnd;       // var_1D8
+    ULONG64 SectionOff;    // var_1E8（.PAGE 文件内偏移）
+    ULONG64 ScanLimit;
+    ULONG64 Ptr;           // r15
+    ULONG64 SectionRvaVa;
+    ULONG   v;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  SectionInfo[112];
+    WCHAR   PageName[8];
+
+    PeBase    = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    PeSize    = (ULONG)GtRead(GtNtoskrnlPeFileSize);
+    ImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    Gt8CC     = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8CC);
+    Gt900     = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x900);
+    Gt8CD     = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8CD);
+    Gt4459    = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4459);
+
+    if (!PeBase || !PeSize || !ImageBase || !(ULONG)Gt8CC || !(ULONG)Gt900 ||
+        !(ULONG)Gt8CD || !(ULONG)Gt4459)
+        return 0;
+
+    PageName[0] = L'.'; PageName[1] = L'P'; PageName[2] = L'A';
+    PageName[3] = L'G'; PageName[4] = L'E'; PageName[5] = 0;
+
+    SectionOff   = (ULONG64)FindPESectionByName(PeBase, PeSize, (ULONG64)PageName);
+    SectionRvaVa = (ULONG64)FindPESectionByNameReturnVa(PeBase, PeSize, (ULONG64)PageName);
+    ScanStart = PeBase + SectionOff;
+    SectionRvaVa = SectionRvaVa ? SectionRvaVa : (ULONG64)(PeSize - (ULONG)SectionOff);
+    ScanEnd = ScanStart + SectionRvaVa;
+
+    PairA = 0; FoundA = 0; PairB = 0;
+    Value[0] = 0; Value[1] = 0; Value[2] = 0;
+    ScanLimit = ScanEnd;
+    if (ScanStart >= ScanEnd) goto L1400159F4;
+
+L140015445:
+    if (ScanStart + 0x30 >= ScanEnd) goto L1400159E3;
+    if (*(UCHAR *)(ScanStart + 0) != 0x48) goto L1400159E3;
+    if (*(UCHAR *)(ScanStart + 1) != 0x8D) goto L1400159E3;
+    CandidateRva = *(ULONG *)(ScanStart + 3) - PeSize + (ULONG)(ScanStart + 7);
+    *(ULONG *)&Value[4] = CandidateRva;
+    if (CandidateRva == 0) goto L1400159E3;
+    if (CandidateRva >= PeSize) goto L1400159E3;
+    Ptr = ScanStart + 7;
+    if (*(UCHAR *)Ptr != 0x48) goto L140015856;
+    if (*(UCHAR *)(ScanStart + 8) != 0x89) goto L140015856;
+    if (*(UCHAR *)(ScanStart + 0xA) != 8) goto L140015856;
+    if (FoundA) goto L140015584;
+
+    CountInner = 0;
+    InitPESectionReadContext((__int64)Ptr,
+                             (ULONG)(SectionOff - (ULONG)(ULONG_PTR)ScanStart - 7),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    FoundA = 0; FoundB = 0;
+
+L1400154F0:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L140015570;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) != 0x512) goto L14001566D;
+    if (*(__int64 *)((char *)SectionInfo + 0x88) != 0x40000) goto L140015553;
+    if (*(ULONG *)((char *)SectionInfo + 0x38) == 0) goto L140015553;
+    if (*(__int64 *)((char *)SectionInfo + 0x50) != 0x40) goto L140015553;
+    v = *(ULONG *)((char *)SectionInfo + 0x38) - (ULONG)PeBase + (ULONG)Ctx.ReadPtr;
+    if (v == 0) goto L140015553;
+    if (v >= PeSize) goto L140015553;
+    if (CandidateRva) goto L140015553;
+    CandidateRva = v;
+
+L140015553:
+    if (FoundA == 1 && FoundB == 1 && CandidateRva) goto L14001569A;
+    CountInner++;
+    if (CountInner < 0xA) goto L1400154F0;
+
+L140015570:
+    PairA = Value[2];
+    Rva2  = *(ULONG *)&Value[4];
+    PairB = Value[1];
+
+L140015584:
+    if (Value[0] != 0) goto L1400159B6;
+    if (Rva2 == 0) goto L1400159B6;
+    if (Rva2 >= PeSize) goto L1400159B6;
+    CountMid = 0;
+    goto L1400155E5;
+
+L14001566D:                                             // A 类内层：非 0x512 分支
+    if ((ULONG)Gt8CC == *(ULONG *)((char *)SectionInfo + 0x70)) { FoundA = 1; goto L14001555D; }
+    if ((ULONG)Gt900 == *(ULONG *)((char *)SectionInfo + 0x70)) { FoundB = 1; }
+    goto L140015558;
+
+L14001555D:
+    if (FoundB != 1) goto L140015569;
+    if (CandidateRva) goto L14001569A;
+
+L140015569:
+    CountInner += 1;
+    if (CountInner < 0xA) goto L1400154F0;
+    goto L140015570;
+
+L140015558:
+    if (FoundA != 1) goto L140015569;
+    goto L14001555D;
+
+L1400155E5:                                             // 第二段循环（上限 0x14）
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L14001575B;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) != 0x512) goto L1400156EC;
+    if (*(__int64 *)((char *)SectionInfo + 0x88) != 0x40000) goto L14001574F;
+    v = *(ULONG *)((char *)SectionInfo + 0x38);
+    if (v == 0) goto L14001574F;
+    if (*(__int64 *)((char *)SectionInfo + 0x50) != 0x40) goto L14001574F;
+    v = v - (ULONG)PeBase + (ULONG)Ctx.ReadPtr;
+    if (v == 0) goto L14001574F;
+    if (v >= PeSize) goto L14001574F;
+    if (Rva2) goto L14001574F;
+    Rva2 = v;
+    goto L14001574F;
+
+L1400156EC:
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0x547)
+    {
+        if (!(*(ULONG64 *)((char *)SectionInfo + 0x88) & 0x800000)) goto L14001574F;
+        if (*(ULONG *)((char *)SectionInfo + 0x70) != 0x1000) goto L14001574F;
+        if ((ULONG)Gt4459 != *(ULONG *)((char *)SectionInfo + 0x70)) goto L14001574F;
+        FoundB = 1;
+        Ptr = ScanStart + 7;
+        goto L14001574F;
+    }
+    if ((WORD)(*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) - 0x53C) > 7)
+        goto L14001574F;
+    if (!(*(ULONG64 *)((char *)SectionInfo + 0x88) & 0x2000000)) goto L14001574F;
+    if (*(ULONG64 *)((char *)SectionInfo + 0x70) == 0xFFFFF78000000014ULL) FoundC = 1;
+
+L14001574F:
+    CountMid += 1;
+    if (CountMid < 0x14) goto L1400155E5;
+
+L14001575B:
+    if (FoundC != 1) goto L1400159AD;
+    if (Rva2 == 0) goto L1400159AD;
+    if (FoundB) goto L1400157EE;
+
+    Ptr = ScanStart - 0x30;                             // L140015781/797
+L14001579B:
+    if (Ptr <= PeBase) goto L1400159AD;
+    if (Ptr - 7 < PeBase) goto L1400159AD;
+    if (*(UCHAR *)Ptr == 0xC7 && (ULONG)Gt8CD == *(UCHAR *)(Ptr + 2) &&
+        *(ULONG *)(Ptr + 3) == 0x1000) goto L1400157E9;
+L1400157C2:
+    if (Ptr <= ScanStart - 0xA && *(UCHAR *)Ptr == 0xC7 &&
+        (ULONG)Gt8CD == *(ULONG *)(Ptr + 2) && *(ULONG *)(Ptr + 6) == 0x1000)
+        goto L1400157E9;
+L1400157DF:
+    Ptr += 1;
+    goto L14001579B;
+L1400157E9:
+    FoundB = 1;
+
+L1400157EE:
+    if (FoundB != 1) goto L1400159AD;
+    GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Rva2);
+    GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Rva2 + ImageBase));
+    GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)Rva2);
+    GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)(Rva2 + ImageBase));
+    PairA = Value[2];
+    Value[0] = 1;
+    PairB = Value[1];
+    goto L1400159BB;
+
+L140015856:                                             // 第三段入口（上限 0xF）
+    if (PairB != 0) goto L1400159B6;
+    InitPESectionReadContext((__int64)Ptr,
+                             (ULONG)(SectionOff - (ULONG)(ULONG_PTR)ScanStart - 7),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    FoundB = 0; FoundC = 0;
+    CountOuter = 0;
+
+L140015893:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L1400159AD;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0x4B5 &&
+        *(_DWORD *)((char *)SectionInfo + 0xF0) == 6)
+    {
+        if ((ULONG)GtRead((GLOBAL_TABLE_INDEX)0x336) ==
+            *(ULONG *)((char *)SectionInfo + 0x70))
+            FoundB = 1;
+    }
+    if (CountOuter > 4 && !FoundB) goto L1400159AD;
+
+L1400158F7:
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0xE5 &&
+        *(__int64 *)((char *)SectionInfo + 0x50) == 0x40000 && FoundB)
+        goto L140015A24;
+
+L14001592C:
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0x558 &&
+        (*(ULONG64 *)((char *)SectionInfo + 0x50) & (1ULL << 26)))
+    {
+        v = *(ULONG *)((char *)SectionInfo + 0x38);
+        if (v != 0)
+        {
+            if (!FoundB) goto L1400159AD;
+            if (!(ULONG)Gt4459) goto L14001599B;
+            if (v == (ULONG)Ctx.ReadPtr) goto L140015A24;
+            goto L14001599B;
+        }
+    }
+
+L140015959:
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0x50E &&
+        *(__int64 *)((char *)SectionInfo + 0x50) == 0x40000 &&
+        *(__int64 *)((char *)SectionInfo + 0x88) == 0x40 && FoundB == 1)
+    {
+        v = *(ULONG *)((char *)SectionInfo + 0x70);
+        if (v != 0 && v < PeSize && (ULONG64)(Rva2 + 8) == v) goto L140015A24;
+    }
+
+L14001599B:
+    CountOuter += 1;
+    if (CountOuter < 0xF) goto L140015893;
+
+L1400159AD:
+    PairB = Value[1];
+L1400159B1:
+    PairA = Value[2];
+L1400159B6:
+    FoundA = Value[0];
+L1400159BB:
+    if (PairA == 1 && FoundA == 1 && PairB == 1) goto L1400159F4;
+L1400159CE:
+    ScanStart = PeBase + SectionOff;
+    ScanEnd = ScanLimit;
+L1400159E3:
+    ScanStart += 1;
+    if (ScanStart < ScanEnd) goto L140015445;
+
+L1400159F4:
     return 0;
+
+L14001569A:                                             // 写块 1
+    GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)CandidateRva);
+    GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)(CandidateRva + ImageBase));
+    GtWrite((GLOBAL_TABLE_INDEX)0x8EE, (__int64)CandidateRva);
+    GtWrite((GLOBAL_TABLE_INDEX)0x8EF, (__int64)(CandidateRva + ImageBase));
+    PairA = 1;
+    Value[2] = 1;
+    goto L14001557A;
+L14001557A:
+    PairB = Value[1];
+    goto L140015584;
+
+L140015A24:                                             // 收尾写 0x337
+    GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)(Rva2 + ImageBase));
+    PairB = 1;
+    Value[1] = 1;
+    goto L1400159B1;
 }
 
 // FindKernelObjectFieldOffsetsWin8 — 节区扫描器（**不是 FLT 回调**）
