@@ -684,7 +684,7 @@ __int64 MiniFilterPreCleanup(void)
     return Result;
 }
 
-// MiniFilterPreClose — 节区扫描器（**不是 FLT 回调**）
+// FindKernelObjectFieldOffsetsWin10 — 节区扫描器（**不是 FLT 回调**）
 // 对应原始驱动 0x1400152D4（1908 字节）
 // 【2026-09-21 签名修正】此前声明为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)
 //   并实现为 `return STATUS_SUCCESS;` 空壳 —— 两者都与实物不符：
@@ -693,12 +693,12 @@ __int64 MiniFilterPreCleanup(void)
 //   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
 // 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
 //   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
-ULONG64 MiniFilterPreClose(void)
+ULONG64 FindKernelObjectFieldOffsetsWin10(void)
 {
     return 0;
 }
 
-// MiniFilterPreDirEnum — 节区扫描器（**不是 FLT 回调**）
+// FindKernelObjectFieldOffsetsWin8 — 节区扫描器（**不是 FLT 回调**）
 // 对应原始驱动 0x140015A48（1257 字节）
 // 【2026-09-21 签名修正】此前声明为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)
 //   并实现为 `return STATUS_SUCCESS;` 空壳 —— 两者都与实物不符：
@@ -707,12 +707,12 @@ ULONG64 MiniFilterPreClose(void)
 //   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
 // 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
 //   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
-ULONG64 MiniFilterPreDirEnum(void)
+ULONG64 FindKernelObjectFieldOffsetsWin8(void)
 {
     return 0;
 }
 
-// MiniFilterPreSetInfo — 节区扫描器（**不是 FLT 回调**）
+// FindKernelObjectFieldOffsetsWin10Early — 节区扫描器（**不是 FLT 回调**）
 // 对应原始驱动 0x140015F34（1231 字节）
 // 【2026-09-21 签名修正】此前声明为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)
 //   并实现为 `return STATUS_SUCCESS;` 空壳 —— 两者都与实物不符：
@@ -721,7 +721,7 @@ ULONG64 MiniFilterPreDirEnum(void)
 //   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
 // 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
 //   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
-ULONG64 MiniFilterPreSetInfo(void)
+ULONG64 FindKernelObjectFieldOffsetsWin10Early(void)
 {
     return 0;
 }
@@ -4934,15 +4934,15 @@ __int64 SelectMiniFilterCleanupCallback(void)
 }
 
 // SelectMiniFilterDirEnumCallback — 选择 Minifilter 目录枚举回调
-// 版本 < 0x23F0 时调用 MiniFilterPreDirEnum，>= 0x2800 时调用 MiniFilterPreClose，否则调用 MiniFilterPreSetInfo
+// 版本 < 0x23F0 时调用 FindKernelObjectFieldOffsetsWin8，>= 0x2800 时调用 FindKernelObjectFieldOffsetsWin10，否则调用 FindKernelObjectFieldOffsetsWin10Early
 // 对应原始驱动 sub_1400152D4
 __int64 SelectMiniFilterDirEnumCallback(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
-        return ((__int64 (*)(void))MiniFilterPreDirEnum)();
+        return ((__int64 (*)(void))FindKernelObjectFieldOffsetsWin8)();
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
-        return ((__int64 (*)(void))MiniFilterPreClose)();
-    return ((__int64 (*)(void))MiniFilterPreSetInfo)();
+        return ((__int64 (*)(void))FindKernelObjectFieldOffsetsWin10)();
+    return ((__int64 (*)(void))FindKernelObjectFieldOffsetsWin10Early)();
 }
 
 // SelectMiniFilterWriteReadCallback — 选择 Minifilter 写/读回调
