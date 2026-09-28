@@ -299,10 +299,13 @@ NTSTATUS MiniFilterPreCreate(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltO
     return STATUS_SUCCESS;
 }
 
-// MiniFilterPostCreate — 后处理创建
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `MiniFilterPostCreate` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17C 生产者之一（类型序列 0x512/0x558）。
+//   故改名为 FindKernelDataSectionForImageNotify2（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForImageNotify2 — 后处理创建
 // 对应原始驱动 sub_1400142A8
 // 遍历 PE 节表定位 PostCreate 相关的数据节偏移
-ULONG64 MiniFilterPostCreate(void)
+ULONG64 FindKernelDataSectionForImageNotify2(void)
 {
     __int64 PeBase = GtRead(GtEprocessField22);
     ULONG PeSize = (ULONG)GtRead(GtEprocessField23);
@@ -365,10 +368,13 @@ ULONG64 MiniFilterPostCreate(void)
     return result;
 }
 
-// MiniFilterPreRead — 预读取
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `MiniFilterPreRead` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17C 生产者之一（类型序列 0x430/0x558）。
+//   故改名为 FindKernelDataSectionForImageNotify3（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForImageNotify3 — 预读取
 // 对应原始驱动 sub_1400144A8
 // 遍历 PE 节表查找 PreRead 相关节
-ULONG64 MiniFilterPreRead(void)
+ULONG64 FindKernelDataSectionForImageNotify3(void)
 {
     __int64 PeBase = GtRead(GtEprocessField22);
     ULONG PeSize = (ULONG)GtRead(GtEprocessField23);
@@ -420,10 +426,13 @@ ULONG64 MiniFilterPreRead(void)
     return result;
 }
 
-// MiniFilterPostRead — 后读取
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `MiniFilterPostRead` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17D 生产者之一；消费者 SendDeviceIoControl。
+//   故改名为 FindKernelDataSectionForDeviceIoControl（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForDeviceIoControl — 后读取
 // 对应原始驱动 sub_1400146D4
 // 遍历 PE 节表定位 PostRead 数据节偏移
-ULONG64 MiniFilterPostRead(void)
+ULONG64 FindKernelDataSectionForDeviceIoControl(void)
 {
     __int64 KernelBase = GtRead(GtEprocessField22);
     ULONG KernelSize = (ULONG)GtRead(GtEprocessField23);
@@ -484,10 +493,13 @@ ULONG64 MiniFilterPostRead(void)
     return result;
 }
 
-// MiniFilterPreWrite — 预写入
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `MiniFilterPreWrite` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17D 生产者之一（类型序列 0x558）。
+//   故改名为 FindKernelDataSectionForDeviceIoControl2（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForDeviceIoControl2 — 预写入
 // 对应原始驱动 sub_1400148D4
 // 遍历 PE 节表查找 PreWrite 相关节
-__int64 MiniFilterPreWrite(void)
+__int64 FindKernelDataSectionForDeviceIoControl2(void)
 {
     __int64 KernelBase = GtRead(GtEprocessField22);
     ULONG KernelSize = (ULONG)GtRead(GtEprocessField23);
@@ -3722,31 +3734,34 @@ ULONG64 FindKernelInitSection(void)
 // FindKernelDataSectionV2Dispatch — 内核数据节 V2 查找分发
 // 对应原始驱动 sub_1400130A4（地址 0x1400130A4，31 字节）
 // 【逆向来源】人工阅读反汇编重建 —— IDA 无法分析该函数
-// 【逻辑】构建号 >= 0x1DB0(7600, Win7) 时调用 FindKernelDataSectionV2，否则原样返回构建号
+// 【逻辑】构建号 >= 0x1DB0(7600, Win7) 时调用 FindKernelDataSectionForCreateFile，否则原样返回构建号
 __int64 FindKernelDataSectionV2Dispatch(void)
 {
     __int64 Result;
 
     Result = GtRead(GtWindowsBuildNumber);
     if ((unsigned int)Result >= 0x1DB0)
-        return FindKernelDataSectionV2();
+        return FindKernelDataSectionForCreateFile();
     return Result;
 }
 
-// FindKernelDataSectionV2 — 查找内核数据节 V2
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `sub_1400130C4` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x180；消费者 SendCreateFileIoControl。
+//   故改名为 FindKernelDataSectionForCreateFile（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForCreateFile — 查找内核数据节 V2
 // 对应原始驱动 sub_1400130C4（地址 0x1400130C4，551 字节）
 // 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
 //   "function frame is wrong"，无伪代码可用）
-// 【验证依据】与 ParseMiniFilterDataSection(0x140014ACC) 逐指令差分，两者同构；
+// 【验证依据】与 FindKernelDataSectionForStringParam(0x140014ACC) 逐指令差分，两者同构；
 //   节区字段偏移沿用已四次交叉验证的 0x120 布局
-// 【与 ParseMiniFilterDataSection 的差异（差分结论）】
+// 【与 FindKernelDataSectionForStringParam 的差异（差分结论）】
 //   1) 多读一个全局表值 0x4222 并要求其非 0（32 位判断）
 //   2) 路径基准值改用 0x176 处的值
-//   3) 0x53D 分支中 +0x70 的比较值为 0x11（ParseMiniFilterDataSection 为 0x10）
-//   4) 命中结果写入全局表 0x180（ParseMiniFilterDataSection 为 0x17E）
+//   3) 0x53D 分支中 +0x70 的比较值为 0x11（FindKernelDataSectionForStringParam 为 0x10）
+//   4) 命中结果写入全局表 0x180（FindKernelDataSectionForStringParam 为 0x17E）
 // 【逻辑】取全局表值 → 一致性校验（基准值须落在 [NtImageBase, +KernelSize) 且自洽）
 //   → 扫描最多 0x200 个节区，按 0x43E / 0x558 / 0x53D 三支处理 → 命中写入 GT 0x180
-__int64 FindKernelDataSectionV2(void)
+__int64 FindKernelDataSectionForCreateFile(void)
 {
     char FoundFlag;
     ULONG64 KernelBase;
@@ -3835,17 +3850,20 @@ __int64 FindKernelDataSectionV2(void)
     return 0;
 }
 
-// FindKernelDataSectionV3 — 查找内核数据节 V3
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `sub_1400132EC` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17A；消费者 SendReadMemoryIoControl。
+//   故改名为 FindKernelDataSectionForReadMemory（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForReadMemory — 查找内核数据节 V3
 // 对应原始驱动 0x1400132EC（638 字节）
 // 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
 //   "function frame is wrong"，无伪代码可用），由 0x1400132EC~0x14001356A
 //   的 186 条指令逐条还原
-// 【验证依据】与 ParseNtKernelDataSectionsV2(0x1400137BC) 逐指令差分：
+// 【验证依据】与 FindKernelDataSectionForWriteMemory(0x1400137BC) 逐指令差分：
 //   两者结构同源（同一段类型序列扫描逻辑），本函数的寄存器分配为
 //   r15=文件基址 / r14=文件大小 / rbx=镜像基址 / esi=节区序号；
 //   描述符字段偏移由 rbp 位移换算（条目基址 var_150 = rbp-0x60）得到
 //   0xF0 / 0x118 / 0x88 / 0x70 / 0x50 / 0x58 / 0x38，与已验证的 0x120 布局吻合
-// 【与 ParseNtKernelDataSectionsV2 的差异（差分结论）】
+// 【与 FindKernelDataSectionForWriteMemory 的差异（差分结论）】
 //   1) 扫描起点读 GT 0x170（V2 为 GT 0x171），校验方式完全相同
 //   2) 无 GT 0x41C5 非零前置校验
 //   3) 循环上限 0x200（V2 为 0x300）
@@ -3873,7 +3891,7 @@ __int64 FindKernelDataSectionV2(void)
 //          先记候选值 SavedValue 并继续；随后遇到 0x420 型且 +0x88==0x800000 且
 //          +0x70==0xC0000023 且 +0x50==0x20 且 SavedValue 非 0 且 < 文件大小时写结果
 //     两路命中均写入全局表 0x17A（候选值 + GT 0x3 镜像基址）
-__int64 FindKernelDataSectionV3(void)
+__int64 FindKernelDataSectionForReadMemory(void)
 {
     unsigned __int16 SectionType;
     unsigned int KernelSize;
@@ -4012,7 +4030,10 @@ __int64 FindKernelDataSectionV3(void)
     return 0;
 }
 
-// FindKernelPageSection — 查找内核 PAGE 节
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `sub_140012E0C` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17F；消费者 OpenSectionWithIoControl。
+//   故改名为 FindKernelDataSectionForOpenSection（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForOpenSection — 查找内核 PAGE 节
 // 对应原始驱动 0x140012E0C（662 字节）
 // 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
 //   "function frame is wrong"，无伪代码可用），由 0x140012E0C~0x1400130A1
@@ -4039,7 +4060,7 @@ __int64 FindKernelDataSectionV3(void)
 //     命中路径一：候选值恰等于 GT 0x446B 的低 32 位 → 立即尝试写入
 //     命中路径二：在 0x53D/0x512 型节点之后，再连续取节区，若其类型回到 0x558 则命中
 //   写入前校验：候选值非 0 且 < 文件大小，写入 GT 0x17F（候选值 + 镜像基址）
-__int64 FindKernelPageSection(void)
+__int64 FindKernelDataSectionForOpenSection(void)
 {
     unsigned __int16 SectionType;
     unsigned int KernelSize;
@@ -4181,7 +4202,10 @@ LABEL_WRITE:                                            // 0x14001305A
     return 0;
 }
 
-// FindKernelDataSectionV4 — 查找内核数据节（本家族第 4 个扫描器）
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `MiniFilterPreCreate` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17C 生产者之一（类型序列 0x512/0x558/0x420/0x4DF）；0x17C 消费者为 InitImageNotifyCallbackWin7 / SendIoControlWithBufferSwap / SendIoControlWithQueryBuffer。
+//   故改名为 FindKernelDataSectionForImageNotify（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForImageNotify — 查找内核数据节（本家族第 4 个扫描器）
 // 对应原始驱动 0x140014078（557 字节）
 // 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
 //   "function frame is wrong"，无伪代码可用），由 0x140014078~0x1400142A4
@@ -4191,10 +4215,10 @@ LABEL_WRITE:                                            // 0x14001305A
 //   签名为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)）冲突：
 //   本函数**无参数**（不从 rcx/rdx/r8/r9 读取任何值），而 minifilter 的 PreCreate
 //   回调必须接收 3 个参数，故 0x140014078 不是 FLT 回调。其真实功能与
-//   ParseMiniFilterDataSection 同族 —— 在 ntoskrnl.exe 的 PE 文件缓冲区中
-//   按类型序列扫描并定位某个内核数据节。故此处按家族命名改为 FindKernelDataSectionV4，
+//   FindKernelDataSectionForStringParam 同族 —— 在 ntoskrnl.exe 的 PE 文件缓冲区中
+//   按类型序列扫描并定位某个内核数据节。故此处按家族命名改为 FindKernelDataSectionForImageNotify，
 //   与审计清单的对应关系是「审计表中的 MiniFilterPreCreate(557B) = 本函数」。
-// 【验证依据】与 ParseNtKernelDataSectionsV2(0x1400137BC) 逐指令差分，两者同源；
+// 【验证依据】与 FindKernelDataSectionForWriteMemory(0x1400137BC) 逐指令差分，两者同源；
 //   描述符字段偏移 0xF0 / 0x118 / 0x88 / 0x70 / 0x50 / 0x58 / 0x38 与已验证的
 //   0x120 布局吻合；帧布局与另外五个扫描器一致（ctx = rsp+0x50，
 //   读指针 = rsp+0x58 = ctx+8）
@@ -4216,7 +4240,7 @@ LABEL_WRITE:                                            // 0x14001305A
 //        记录候选值 = VirtualAddress - 文件缓冲区低 32 位 + 读指针低 32 位；
 //        随后遇 0x420 或 0x4DF 型且 +0x88==0x800000 且 +0x70==0xC0000023 且
 //        +0x50==0x20 且候选值非 0 且 < 文件大小时写入全局表 0x17C（候选值 + 镜像基址）
-__int64 FindKernelDataSectionV4(void)
+__int64 FindKernelDataSectionForImageNotify(void)
 {
     unsigned __int16 SectionType;
     unsigned int KernelSize;
@@ -4330,7 +4354,10 @@ __int64 FindKernelDataSectionV4(void)
     return 0;
 }
 
-// ParseNtKernelDataSectionsV2 — 解析 ntoskrnl 数据节 V2
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `sub_1400137BC` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17B；消费者 SendWriteMemoryIoControl。
+//   故改名为 FindKernelDataSectionForWriteMemory（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForWriteMemory — 解析 ntoskrnl 数据节 V2
 // 对应原始驱动 0x1400137BC（682 字节）
 // 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
 //   "function frame is wrong"，无伪代码可用），全部逻辑由 0x1400137BC~0x140013A66
@@ -4338,7 +4365,7 @@ __int64 FindKernelDataSectionV4(void)
 // 【验证依据】节区条目字段偏移由反汇编变量位移换算（条目基址 var_150 = rbp-0x60）：
 //   0xF0 / 0x118 / 0x50 / 0x58 / 0x38 / 0x88，与已四次交叉验证的 0x120 字节布局
 //   完全吻合；且条目缓冲区末端的 rbp+0xC0 恰好是 __security_cookie 槽，进一步佐证
-// 【与 FindKernelDataSectionV2 / ParseMiniFilterDataSection 的差异】
+// 【与 FindKernelDataSectionForCreateFile / FindKernelDataSectionForStringParam 的差异】
 //   1) 数据源不同：本函数读 ntoskrnl.exe 的 PE 文件缓冲区（GT 0x20/0x21），
 //      另两个函数读内核内存镜像（GT 32/33 的别名）
 //   2) 扫描起始偏移由 GT 0x171 与 GT 0x3 之差决定（另两个为 GT 0x176/0x4222）
@@ -4362,7 +4389,7 @@ __int64 FindKernelDataSectionV4(void)
 //          则置 FoundType510 标志；标志置位后本节点须为 0x558 型且带 0x4000000
 //          标志且 VirtualAddress!=0，候选值计算同上，越界则仅继续循环
 //     两路命中均写入全局表 0x17B（候选值 + GT 0x3 镜像基址）
-__int64 ParseNtKernelDataSectionsV2(void)
+__int64 FindKernelDataSectionForWriteMemory(void)
 {
     unsigned __int16 SectionType;
     unsigned int KernelSize;
@@ -4511,18 +4538,21 @@ __int64 ParseNtKernelDataSectionsV2(void)
 // FindKernelDataSectionV3Dispatch — 内核数据节 V3 查找分发
 // 对应原始驱动 0x14001356C（31 字节）
 // 【逆向来源】人工阅读反汇编重建 —— IDA 无法分析该函数
-// 【逻辑】构建号 >= 0x1DB0(7600, Win7) 时调用 ParseNtKernelDataSectionsV2，否则原样返回构建号
+// 【逻辑】构建号 >= 0x1DB0(7600, Win7) 时调用 FindKernelDataSectionForWriteMemory，否则原样返回构建号
 __int64 FindKernelDataSectionV3Dispatch(void)
 {
     __int64 Result;
 
     Result = GtRead(GtWindowsBuildNumber);
     if ((unsigned int)Result >= 0x1DB0)
-        return ParseNtKernelDataSectionsV2();
+        return FindKernelDataSectionForWriteMemory();
     return Result;
 }
 
-// ParseMiniFilterDataSection — 解析 Minifilter 数据节
+// 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `sub_140014ACC` 与实物不符：
+//   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17E；消费者 SendIoControlWithStringParam。
+//   故改名为 FindKernelDataSectionForStringParam（同一 GT 槽有多个生产者时以数字后缀区分）。
+// FindKernelDataSectionForStringParam — 解析 Minifilter 数据节
 // 对应原始驱动 sub_140014ACC（地址 0x140014ACC，530 字节）
 // 【逆向来源】人工阅读反汇编逐条重建 —— IDA 无法分析该函数（Hex-Rays 报
 //   "function frame is wrong"，无伪代码可用）
@@ -4537,7 +4567,7 @@ __int64 FindKernelDataSectionV3Dispatch(void)
 //     c) 0x53D 型 且 SectionAlignment==0x800000 且 +0x70==0x10 且
 //        Characteristics==0x20 且 SectionIndex==1 → 再取一个节区，
 //        若其为 0x558 型且候选值合法，则写入全局表 0x17E（候选值 + NtImageBase）
-__int64 ParseMiniFilterDataSection(void)
+__int64 FindKernelDataSectionForStringParam(void)
 {
     char FoundFlag;
     ULONG64 KernelBase;
@@ -4860,15 +4890,15 @@ __int64 InitImageNotifyWin7(void)
 }
 
 // SelectMiniFilterCallbackByVersion — 根据版本选择 Minifilter 回调
-// 版本 <= 0x23F0 时调用 MiniFilterPostCreate，>= 0x42EE 时调用 MiniFilterPreCreate，否则调用 MiniFilterPreRead
+// 版本 <= 0x23F0 时调用 FindKernelDataSectionForImageNotify2，>= 0x42EE 时调用 MiniFilterPreCreate，否则调用 FindKernelDataSectionForImageNotify3
 // 对应原始驱动 sub_140014078
 __int64 SelectMiniFilterCallbackByVersion(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0)
-        return ((__int64 (*)(void))MiniFilterPostCreate)();
+        return ((__int64 (*)(void))FindKernelDataSectionForImageNotify2)();
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
         return ((__int64 (*)(void))MiniFilterPreCreate)();
-    return ((__int64 (*)(void))MiniFilterPreRead)();
+    return ((__int64 (*)(void))FindKernelDataSectionForImageNotify3)();
 }
 
 // SelectMiniFilterCleanupCallback — 选择 Minifilter 清理回调
@@ -4895,14 +4925,14 @@ __int64 SelectMiniFilterDirEnumCallback(void)
 }
 
 // SelectMiniFilterWriteReadCallback — 选择 Minifilter 写/读回调
-// 版本 > 0x23F0 时调用 MiniFilterPreWrite，否则调用 MiniFilterPostRead
+// 版本 > 0x23F0 时调用 FindKernelDataSectionForDeviceIoControl2，否则调用 FindKernelDataSectionForDeviceIoControl
 // 对应原始驱动 sub_1400146D4
 unsigned __int64 SelectMiniFilterWriteReadCallback(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
-        return ((unsigned __int64 (*)(void))MiniFilterPreWrite)();
+        return ((unsigned __int64 (*)(void))FindKernelDataSectionForDeviceIoControl2)();
     else
-        return ((unsigned __int64 (*)(void))MiniFilterPostRead)();
+        return ((unsigned __int64 (*)(void))FindKernelDataSectionForDeviceIoControl)();
 }
 
 // PatchPeHeaderMagic — 修补 PE 头魔数
