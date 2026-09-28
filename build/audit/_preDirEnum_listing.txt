@@ -1,0 +1,321 @@
+140015A48|mov     rax, rsp
+140015A4B|mov     [rax+8], rbx
+140015A4F|mov     [rax+10h], rsi
+140015A53|mov     [rax+18h], rdi
+140015A57|push    rbp
+140015A58|push    r12
+140015A5A|push    r13
+140015A5C|push    r14
+140015A5E|push    r15
+140015A60|lea     rbp, [rax-118h]
+140015A67|sub     rsp, 1F0h
+140015A6E|mov     rax, cs:__security_cookie
+140015A75|xor     rax, rsp
+140015A78|mov     [rbp+110h+var_30], rax
+140015A7F|mov     ecx, 20h 
+140015A84|call    GtRead
+140015A89|mov     ecx, 21h 
+140015A8E|mov     r12, rax
+140015A91|call    GtRead
+140015A96|mov     ecx, 3
+140015A9B|mov     r14, rax
+140015A9E|call    GtRead
+140015AA3|mov     r13, rax
+140015AA6|mov     [rsp+210h+var_1B8], rax
+140015AAB|test    r12, r12
+140015AAE|jz      loc_140015F01
+140015AB4|test    r14d, r14d
+140015AB7|jz      loc_140015F01
+140015ABD|test    rax, rax
+140015AC0|jz      loc_140015F01
+140015AC6|mov     eax, r14d
+140015AC9|lea     r8, [rsp+210h+var_1C8]
+140015ACE|mov     edx, r14d
+140015AD1|add     rax, r12
+140015AD4|mov     rcx, r12
+140015AD7|mov     dword ptr [rsp+210h+var_1C8], 4741502Eh
+140015ADF|mov     [rsp+210h+var_1B0], rax
+140015AE4|mov     dword ptr [rsp+210h+var_1C8+4], 45h 
+140015AEC|call    FindPESectionByName
+140015AF1|cmp     eax, r14d
+140015AF4|lea     r8, [rsp+210h+var_1C8]
+140015AF9|mov     edx, r14d
+140015AFC|sbb     ebx, ebx
+140015AFE|mov     rcx, r12
+140015B01|and     ebx, eax
+140015B03|call    FindPESectionByNameReturnVa
+140015B08|mov     ecx, eax
+140015B0A|test    eax, eax
+140015B0C|jnz     short loc_140015B13
+140015B0E|mov     ecx, r14d
+140015B11|sub     ecx, ebx
+140015B13|mov     eax, r14d
+140015B16|lea     rsi, [rbx+r12]
+140015B1A|sub     eax, ebx
+140015B1C|cmp     ecx, eax
+140015B1E|cmova   ecx, eax
+140015B21|xor     dil, dil
+140015B24|xor     r9b, r9b
+140015B27|xor     r8b, r8b
+140015B2A|xor     dl, dl
+140015B2C|mov     r15d, ecx
+140015B2F|mov     eax, ebx
+140015B31|mov     byte ptr [rsp+210h+var_1D0+3], dil
+140015B36|mov     byte ptr [rsp+210h+var_1D0+2], r9b
+140015B3B|add     r15, rax
+140015B3E|mov     byte ptr [rsp+210h+var_1D0+1], r8b
+140015B43|mov     byte ptr [rsp+210h+var_1D0], dl
+140015B47|add     r15, r12
+140015B4A|mov     [rsp+210h+var_1C0], r15
+140015B4F|cmp     rsi, r15
+140015B52|jnb     loc_140015F01
+140015B58|mov     r10d, 1
+140015B5E|lea     rax, [rsi+30h]
+140015B62|cmp     rax, r15
+140015B65|jnb     loc_140015EF5
+140015B6B|mov     al, [rsi]
+140015B6D|cmp     al, 48h 
+140015B6F|jnz     loc_140015EF5
+140015B75|cmp     byte ptr [rsi+1], 8Dh
+140015B79|jnz     loc_140015DB3
+140015B7F|mov     edx, [rsi+3]
+140015B82|mov     ecx, esi
+140015B84|add     edx, 7
+140015B87|sub     ecx, r12d
+140015B8A|add     edx, ecx
+140015B8C|jz      loc_140015EEA
+140015B92|cmp     edx, r14d
+140015B95|jnb     loc_140015EEA
+140015B9B|test    dil, dil
+140015B9E|jnz     loc_140015C24
+140015BA4|cmp     byte ptr [rsi+0Dh], 8
+140015BA8|jnz     short loc_140015C24
+140015BAA|cmp     [rsi+0Eh], al
+140015BAD|jnz     short loc_140015C24
+140015BAF|cmp     byte ptr [rsi+0Fh], 8Dh
+140015BB3|jnz     short loc_140015C24
+140015BB5|cmp     byte ptr [rsi+18h], 10h
+140015BB9|jnz     short loc_140015C24
+140015BBB|mov     eax, [rsi+11h]
+140015BBE|lea     ebx, [rsi+15h]
+140015BC1|sub     eax, r12d
+140015BC4|add     ebx, eax
+140015BC6|cmp     edx, r14d
+140015BC9|jnb     loc_140015EEA
+140015BCF|cmp     ebx, r14d
+140015BD2|jnb     loc_140015EEA
+140015BD8|mov     ecx, 32Eh
+140015BDD|mov     edi, edx
+140015BDF|call    GtWrite
+140015BE4|mov     edx, ebx
+140015BE6|mov     ecx, 330h
+140015BEB|call    GtWrite
+140015BF0|lea     rdx, [rdi+r13]
+140015BF4|mov     ecx, 32Fh
+140015BF9|call    GtWrite
+140015BFE|lea     rdx, [rbx+r13]
+140015C02|mov     ecx, 331h
+140015C07|call    GtWrite
+140015C0C|mov     r9b, byte ptr [rsp+210h+var_1D0+2]
+140015C11|mov     r8d, 1
+140015C17|mov     dil, r8b
+140015C1A|mov     byte ptr [rsp+210h+var_1D0+3], r8b
+140015C1F|jmp     loc_140015D31
+140015C24|test    r9b, r9b
+140015C27|jnz     short loc_140015C82
+140015C29|cmp     byte ptr [rsi+7], 48h 
+140015C2D|jnz     short loc_140015C82
+140015C2F|cmp     byte ptr [rsi+8], 89h
+140015C33|jnz     short loc_140015C82
+140015C35|cmp     byte ptr [rsi+0Ah], 8
+140015C39|jnz     short loc_140015C82
+140015C3B|cmp     dword ptr [rsi+11h], 0A0h
+140015C42|jnz     short loc_140015C82
+140015C44|test    edx, edx
+140015C46|jz      loc_140015D22
+140015C4C|cmp     edx, r14d
+140015C4F|jnb     loc_140015D22
+140015C55|mov     ecx, 332h
+140015C5A|mov     ebx, edx
+140015C5C|call    GtWrite
+140015C61|lea     rdx, [rbx+r13]
+140015C65|mov     ecx, 333h
+140015C6A|call    GtWrite
+140015C6F|mov     r8d, 1
+140015C75|mov     r9b, r8b
+140015C78|mov     byte ptr [rsp+210h+var_1D0+2], r8b
+140015C7D|jmp     loc_140015D17
+140015C82|test    r8b, r8b
+140015C85|jnz     loc_140015D22
+140015C8B|lea     rcx, [rsi+7]
+140015C8F|cmp     byte ptr [rcx], 41h 
+140015C92|jnz     loc_140015D22
+140015C98|cmp     byte ptr [rsi+8], 0F6h
+140015C9C|jnz     loc_140015D22
+140015CA2|mov     edx, dword ptr [rsp+210h+var_1B0]
+140015CA6|lea     rax, [rsp+210h+var_1A0]
+140015CAB|xor     r9d, r9d
+140015CAE|mov     qword ptr [rsp+210h+var_1D8], rax
+140015CB3|and     [rsp+210h+var_1E0], 0
+140015CB9|and     [rsp+210h+var_1E8], 0
+140015CBF|or      dword ptr [rsp+210h+var_1F0], 0FFFFFFFFh
+140015CC4|sub     edx, esi
+140015CC6|lea     r8d, [r9+2]
+140015CCA|sub     edx, 7
+140015CCD|call    InitPESectionReadContext
+140015CD2|xor     ebx, ebx
+140015CD4|lea     rdx, [rbp+110h+var_150]
+140015CD8|lea     rcx, [rsp+210h+var_1A0]
+140015CDD|call    ReadPESectionEntry
+140015CE2|test    eax, eax
+140015CE4|jnz     short loc_140015D12
+140015CE6|mov     eax, [rbp+110h+var_60]
+140015CEC|add     [rsp+210h+var_198], rax
+140015CF1|cmp     [rbp+110h+var_C8], 800000h
+140015CF9|jnz     short loc_140015D04
+140015CFB|cmp     [rbp+110h+var_E0], 1000h
+140015D02|jz      short loc_140015D60
+140015D04|mov     r8d, 1
+140015D0A|add     ebx, r8d
+140015D0D|cmp     ebx, 0Ah
+140015D10|jb      short loc_140015CD4
+140015D12|mov     r9b, byte ptr [rsp+210h+var_1D0+2]
+140015D17|mov     r8b, byte ptr [rsp+210h+var_1D0+1]
+140015D1C|mov     r10d, 1
+140015D22|cmp     dil, r10b
+140015D25|jnz     loc_140015EEA
+140015D2B|mov     r8d, 1
+140015D31|mov     dl, byte ptr [rsp+210h+var_1D0]
+140015D35|cmp     r9b, r8b
+140015D38|mov     r8b, byte ptr [rsp+210h+var_1D0+1]
+140015D3D|mov     r10d, 1
+140015D43|jnz     loc_140015EF5
+140015D49|cmp     r8b, r10b
+140015D4C|jnz     loc_140015EF5
+140015D52|cmp     dl, r10b
+140015D55|jz      loc_140015F01
+140015D5B|jmp     loc_140015EF5
+140015D60|mov     edx, [rsi+3]
+140015D63|mov     ecx, esi
+140015D65|add     edx, 7
+140015D68|sub     ecx, r12d
+140015D6B|add     edx, ecx
+140015D6D|jz      short loc_140015D9E
+140015D6F|cmp     edx, r14d
+140015D72|jnb     short loc_140015D12
+140015D74|mov     ecx, 334h
+140015D79|mov     ebx, edx
+140015D7B|call    GtWrite
+140015D80|lea     rdx, [rbx+r13]
+140015D84|mov     ecx, 335h
+140015D89|call    GtWrite
+140015D8E|mov     r10d, 1
+140015D94|mov     r8b, r10b
+140015D97|mov     byte ptr [rsp+210h+var_1D0+1], r10b
+140015D9C|jmp     short loc_140015DA9
+140015D9E|mov     r8b, byte ptr [rsp+210h+var_1D0+1]
+140015DA3|mov     r10d, 1
+140015DA9|mov     r9b, byte ptr [rsp+210h+var_1D0+2]
+140015DAE|jmp     loc_140015D22
+140015DB3|cmp     al, 48h 
+140015DB5|jnz     loc_140015EF5
+140015DBB|cmp     byte ptr [rsi+1], 8Bh
+140015DBF|jnz     loc_140015EF5
+140015DC5|mov     eax, [rsi+3]
+140015DC8|lea     edi, [rsi+7]
+140015DCB|sub     eax, r12d
+140015DCE|add     edi, eax
+140015DD0|jz      loc_140015EF0
+140015DD6|cmp     edi, r14d
+140015DD9|jnb     loc_140015EF0
+140015DDF|test    dl, dl
+140015DE1|jnz     loc_140015EB5
+140015DE7|mov     edx, dword ptr [rsp+210h+var_1B0]
+140015DEB|lea     rax, [rsp+210h+var_1A0]
+140015DF0|xor     r9d, r9d
+140015DF3|mov     qword ptr [rsp+210h+var_1D8], rax
+140015DF8|and     [rsp+210h+var_1E0], 0
+140015DFE|and     [rsp+210h+var_1E8], 0
+140015E04|or      dword ptr [rsp+210h+var_1F0], 0FFFFFFFFh
+140015E09|sub     edx, esi
+140015E0B|lea     rcx, [rsi+7]
+140015E0F|lea     r8d, [r9+2]
+140015E13|sub     edx, 7
+140015E16|xor     r13b, r13b
+140015E19|xor     bl, bl
+140015E1B|call    InitPESectionReadContext
+140015E20|xor     r15d, r15d
+140015E23|lea     rdx, [rbp+110h+var_150]
+140015E27|lea     rcx, [rsp+210h+var_1A0]
+140015E2C|call    ReadPESectionEntry
+140015E31|test    eax, eax
+140015E33|jnz     short loc_140015E97
+140015E35|mov     eax, [rbp+110h+var_60]
+140015E3B|add     [rsp+210h+var_198], rax
+140015E40|mov     rax, [rbp+110h+var_C8]
+140015E44|bt      rax, 10h
+140015E49|jnb     short loc_140015E6A
+140015E4B|mov     ecx, 336h
+140015E50|call    GtRead
+140015E55|mov     ecx, [rbp+110h+var_D8]
+140015E58|add     eax, ecx
+140015E5A|jnz     short loc_140015E64
+140015E5C|lea     edx, [rax+1]
+140015E5F|mov     r13b, dl
+140015E62|jmp     short loc_140015E8A
+140015E64|mov     rax, [rbp+110h+var_C8]
+140015E68|jmp     short loc_140015E6D
+140015E6A|mov     ecx, [rbp+110h+var_D8]
+140015E6D|mov     edx, 1
+140015E72|bt      rax, 10h
+140015E77|jnb     short loc_140015E85
+140015E79|movzx   ebx, bl
+140015E7C|cmp     ecx, 0BC0h
+140015E82|cmovz   ebx, edx
+140015E85|cmp     r13b, dl
+140015E88|jnz     short loc_140015E8E
+140015E8A|cmp     bl, dl
+140015E8C|jz      short loc_140015EC7
+140015E8E|add     r15d, edx
+140015E91|cmp     r15d, 0Ah
+140015E95|jb      short loc_140015E23
+140015E97|mov     dl, byte ptr [rsp+210h+var_1D0]
+140015E9B|mov     r13, [rsp+210h+var_1B8]
+140015EA0|mov     r15, [rsp+210h+var_1C0]
+140015EA5|mov     r8b, byte ptr [rsp+210h+var_1D0+1]
+140015EAA|mov     r9b, byte ptr [rsp+210h+var_1D0+2]
+140015EAF|mov     r10d, 1
+140015EB5|mov     dil, byte ptr [rsp+210h+var_1D0+3]
+140015EBA|cmp     dil, r10b
+140015EBD|jnz     short loc_140015EF5
+140015EBF|cmp     r9b, r10b
+140015EC2|jmp     loc_140015D43
+140015EC7|mov     r13, [rsp+210h+var_1B8]
+140015ECC|mov     edx, edi
+140015ECE|mov     ecx, 337h
+140015ED3|add     rdx, r13
+140015ED6|call    GtWrite
+140015EDB|mov     r8d, 1
+140015EE1|mov     dl, r8b
+140015EE4|mov     byte ptr [rsp+210h+var_1D0], dl
+140015EE8|jmp     short loc_140015EA0
+140015EEA|mov     dl, byte ptr [rsp+210h+var_1D0]
+140015EEE|jmp     short loc_140015EF5
+140015EF0|mov     dil, byte ptr [rsp+210h+var_1D0+3]
+140015EF5|add     rsi, r10
+140015EF8|cmp     rsi, r15
+140015EFB|jb      loc_140015B5E
+140015F01|mov     rcx, [rbp+110h+var_30]
+140015F08|xor     rcx, rsp
+140015F0B|call    __security_check_cookie
+140015F10|lea     r11, [rsp+210h+var_20]
+140015F18|mov     rbx, [r11+30h]
+140015F1C|mov     rsi, [r11+38h]
+140015F20|mov     rdi, [r11+40h]
+140015F24|mov     rsp, r11
+140015F27|pop     r15
+140015F29|pop     r14
+140015F2B|pop     r13
+140015F2D|pop     r12
+140015F2F|pop     rbp
+140015F30|retn
