@@ -728,7 +728,12 @@ ULONG64 InitImageNotify(void)
                 GtIndexTriples[EntryIndex][2] == 0)
                 break;
 
-            SectionRva = (unsigned int)FindKernelPESectionByType((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][1]);
+            // 【实参顺序（反汇编核对）】FindKernelPESectionByType 的入参是**字段 0**：
+            //   0x1400725C5 mov ecx,[rsp+rdi*4+Dst]（字段0=0x41xx）→ 哨兵判断
+            //   0x1400725DB call FindKernelPESectionByType —— 此时 ecx 仍是字段0
+            //   0x1400725F4 mov ecx,[rsp+rdi*4+Index]（字段1=0x16E）→ GtWrite 的目标
+            //   旁证：复刻其它调用点亦传 0x41xx 区索引（MemoryOps.c:1612 传 0x41D1）
+            SectionRva = (unsigned int)FindKernelPESectionByType((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][0]);
             if (!SectionRva)
                 continue;
 
@@ -738,7 +743,7 @@ ULONG64 InitImageNotify(void)
             if (Resolved >= KernelSize)
                 continue;
 
-            GtWrite((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][0],
+            GtWrite((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][1],
                     (__int64)(Resolved + NtImageBase));
         }
 
