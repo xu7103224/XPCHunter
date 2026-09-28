@@ -1239,9 +1239,19 @@ L140015D43:
 //   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
 ULONG64 FindKernelObjectFieldOffsetsWin10Early(void)
 {
+    // 【⚠ 转写回退 2026-09-21】首版转写中发现**明确误读**，按"无法解释每一行不算完成"
+    // 的原则整体回退（未提交该版）。已定位的待查点：
+    //   1) 0x140016300 `mov ecx,[r14]` —— 该处 r14d 已被置 1（0x1400162D3），
+    //      不可能作合法指针读取 → 说明我对该处寄存器生命的跟踪有误，
+    //      需重新确认 0x1400162D3/0x1400161DF 两处 `mov r14d,1` 是否属同一变量，
+    //      或 `[r14]` 实为 IDA 显示偏差（可能应为 `[r14+..]` 的指针在别处设置）。
+    //   2) ScanEnd 的计算（0x140016020-0x14001605B 段）被写成重复赋值，
+    //      需按 `cmova`(无符号取大) 的语义单次确定。
+    //   3) L14001614A 的 0xFF8 比较属第一个扫描块还是收尾路径，需再确认。
+    // 前置表（GT 读写 11 处、标志区 var_1E0[0..2]、31 个标签全序）已存于
+    // docs/reversing/待实现函数结构分析.md，转写基准见 build/audit/_preSetInfo_listing.txt。
     return 0;
 }
-
 // MiniFilterPreRename — 预重命名
 // 对应原始驱动 sub_140017938
 __int64 MiniFilterPreRename(__int64 Unknown, __int64 Unknown2, _BYTE *OutputBuffer, int OutputBufferSize)
