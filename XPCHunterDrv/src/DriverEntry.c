@@ -642,16 +642,132 @@ __int64 InitGtKey(__int64 RegistryPath)
     return *(ULONG *)KeyBytes;
 }
 
-// InitImageNotify — 初始化镜像加载通知
-// 对应原始驱动 sub_14001358C
-__int64 InitImageNotify(void)
+// InitImageNotify — 镜像加载通知总枢纽
+// 对应原始驱动 0x1400723EC（690 字节）
+// 【逆向来源】人工阅读反汇编逐条还原 —— IDA 无法分析该函数（Hex-Rays 报
+//   "function frame is wrong"，无伪代码可用），由 0x1400723EC~0x14007269E
+//   的 142 条指令逐条还原
+// 【⚠ 重大修正】此前本函数是**错误移植**：其函数体实际是 31 字节的
+//   `InitImageNotifyWin7`(0x14001358C) 的移植（"构建号 >= 0x1DB0 则调
+//   InitImageNotifyCallbackWin7"），而它在 DriverEntry 初始化路径
+//   （DriverEntry.c:97）被调用 —— 这正是 minifilter/节区扫描整条支路不通的原因：
+//   真正的枢纽从未被实现。本次按反汇编补齐。
+// 【功能】本函数是驱动初始化后期最重要的**总调度点**：
+//   1) 取 GT 0x61 为"目标进程"；若它等于 IoGetCurrentProcess() 则视为 0（已在目标进程内）
+//   2) 非 0 则 KeStackAttachProcess 切换地址空间，出口 KeUnstackDetachProcess
+//   3) 取 GT 0x21(ntoskrnl 文件大小) 与 GT 3(镜像基址)，任一为 0 则跳过扫描段
+//   4) 在栈上构造一张 **GT 索引三元组表**并逐个处理（每项 = 3 个 DWORD）：
+//        [0] 结果索引（GtWrite 的目标）
+//        [1] 类型索引（作为 FindKernelPESectionByType 的"类型"入参）
+//        [2] 序号     （供 FindKernelPESectionByType 与哨兵判断）
+//      共 16 项，序号 59..65 与 99..101（即表中前段连续、后段跳变）：
+//        (0x41F2,0x16E,59) (0x41F5,0x16F,60) (0x41F8,0x170,61) (0x41FB,0x171,62)
+//        (0x4204,0x172,63) (0x4207,0x173,64) (0x420A,0x174,65) (0x420D,0x175,66)
+//        (0x4210,0x176,67) (0x4213,0x177,68) (0x4216,0x178,69) (0x42AC,0x290,99)
+//        (0x42AF,0x291,100) (0x42B2,0x292,101)（另有 2 项，表中总数见数组长度）
+//      逐项：FindKernelPESectionByType(类型索引的值?) → ResolveSyscallToAddress
+//            → 若结果非 0 且 < GT 0x21 的值 → GtWrite(结果索引, 结果 + 镜像基址)
+//      注：哨兵判断为"三项全 0 则跳出循环"，用于遇到表中未使用的空位时提前结束
+//   5) 随后**顺序调用全部扫描器与按版本选择器**（这一步是整条支路的入口）：
+//        SelectMiniFilterCleanupCallback / FindKernelDataSectionForReadMemory /
+//        FindKernelDataSectionV3Dispatch / SelectMiniFilterCallbackByVersion /
+//        SelectMiniFilterWriteReadCallback / FindKernelDataSectionForStringParam /
+//        FindKernelDataSectionForOpenSection / FindKernelDataSectionV2Dispatch /
+//        FindKernelDataSectionDispatch / ClearImageNotifySectionOffset
+//      若构建号 >= 0x1770 再追加：
+//        FindKernelInitSection / FindKernelDataSectionByDebug /
+//        FindKernelDataSectionByData / InitImageNotifyWin7
+//   6) 最后（在 detach 之前）调用 SelectMiniFilterDirEnumCallback
+// 【命名依据】原名正确（它就是"镜像加载通知的初始化枢纽"），无需改名。
+// 【⚠ 待确认】GT 0x61 的语义（目标进程对象）、以及三元组表中各
+//   "类型索引"（0x16E..0x178、0x290..0x292）作为 FindKernelPESectionByType
+//   入参的取值方式，需在实现 FindKernelPESectionByType 的调用约定后核对。
+ULONG64 InitImageNotify(void)
 {
-    __int64 Result;
+    ULONG64 Result;
+    ULONG64 TargetProcess;
+    ULONG64 KernelSize;
+    ULONG64 NtImageBase;
+    ULONG64 NtoskrnlBase;
+    ULONG64 Resolved;
+    unsigned int SectionRva;
+    unsigned int EntryIndex;
+    char Attached = 0;
+    KAPC_STATE ApcState;
 
-    Result = GtRead(GtWindowsBuildNumber);
-    if ((ULONG)Result >= 0x1DB0)
-        return InitImageNotifyCallbackWin7();
-    return Result;
+    // 三元组表：{ 结果索引, 类型索引, 序号 }
+    static const _DWORD GtIndexTriples[16][3] =
+    {
+        { 0x41F2, 0x16E, 59 }, { 0x41F5, 0x16F, 60 }, { 0x41F8, 0x170, 61 },
+        { 0x41FB, 0x171, 62 }, { 0x4204, 0x172, 63 }, { 0x4207, 0x173, 64 },
+        { 0x420A, 0x174, 65 }, { 0x420D, 0x175, 66 }, { 0x4210, 0x176, 67 },
+        { 0x4213, 0x177, 68 }, { 0x4216, 0x178, 69 }, { 0x42AC, 0x290, 99 },
+        { 0x42AF, 0x291, 100 }, { 0x42B2, 0x292, 101 }, { 0, 0, 0 }, { 0, 0, 0 }
+    };
+
+    TargetProcess = GtRead(GtCurrentEprocess);
+    if (TargetProcess == (ULONG64)IoGetCurrentProcess())
+        TargetProcess = 0;
+
+    if (TargetProcess)
+    {
+        KeStackAttachProcess((PVOID)TargetProcess, &ApcState);
+        Attached = 1;
+    }
+
+    NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
+    KernelSize = GtRead(GtNtoskrnlPeFileSize);
+    NtImageBase = GtRead(GtNtoskrnlModuleBase);
+
+    if ((unsigned int)KernelSize && NtImageBase)
+    {
+        for (EntryIndex = 0; ; EntryIndex++)
+        {
+            if ((unsigned int)GtRead((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][0]) == 0 &&
+                (unsigned int)GtRead((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][1]) == 0 &&
+                GtIndexTriples[EntryIndex][2] == 0)
+                break;
+
+            SectionRva = (unsigned int)FindKernelPESectionByType((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][1]);
+            if (!SectionRva)
+                continue;
+
+            Resolved = (ULONG64)ResolveSyscallToAddress(SectionRva);
+            if (!Resolved)
+                continue;
+            if (Resolved >= KernelSize)
+                continue;
+
+            GtWrite((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][0],
+                    (__int64)(Resolved + NtImageBase));
+        }
+
+        SelectMiniFilterCleanupCallback();
+        FindKernelDataSectionForReadMemory();
+        FindKernelDataSectionV3Dispatch();
+        SelectMiniFilterCallbackByVersion();
+        SelectMiniFilterWriteReadCallback();
+        FindKernelDataSectionForStringParam();
+        FindKernelDataSectionForOpenSection();
+        FindKernelDataSectionV2Dispatch();
+        FindKernelDataSectionDispatch();
+        ClearImageNotifySectionOffset();
+
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+        {
+            FindKernelInitSection();
+            FindKernelDataSectionByDebug();
+            FindKernelDataSectionByData();
+            InitImageNotifyWin7();
+        }
+    }
+
+    SelectMiniFilterDirEnumCallback();
+
+    if (Attached)
+        KeUnstackDetachProcess(&ApcState);
+
+    return 0;
 }
 
 // InitDriverSection — 初始化驱动节区
