@@ -684,25 +684,46 @@ __int64 MiniFilterPreCleanup(void)
     return Result;
 }
 
-// MiniFilterPreClose — 预关闭
-// 对应原始驱动 sub_1400152D4
-NTSTATUS MiniFilterPreClose(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext)
+// MiniFilterPreClose — 节区扫描器（**不是 FLT 回调**）
+// 对应原始驱动 0x1400152D4（1908 字节）
+// 【2026-09-21 签名修正】此前声明为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)
+//   并实现为 `return STATUS_SUCCESS;` 空壳 —— 两者都与实物不符：
+//   原始函数**无参数**（反汇编中未读取 rcx/rdx/r8/r9），栈帧 sub rsp,220hh，
+//   体内立即 `GtRead`（首条为 GT 0x20 镜像基址）并进入节区扫描循环，
+//   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
+// 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
+//   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
+ULONG64 MiniFilterPreClose(void)
 {
-    return STATUS_SUCCESS;
+    return 0;
 }
 
-// MiniFilterPreDirEnum — 预目录枚举
-// 对应原始驱动 sub_140015A48
-NTSTATUS MiniFilterPreDirEnum(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext)
+// MiniFilterPreDirEnum — 节区扫描器（**不是 FLT 回调**）
+// 对应原始驱动 0x140015A48（1257 字节）
+// 【2026-09-21 签名修正】此前声明为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)
+//   并实现为 `return STATUS_SUCCESS;` 空壳 —— 两者都与实物不符：
+//   原始函数**无参数**（反汇编中未读取 rcx/rdx/r8/r9），栈帧 sub rsp,1F0hh，
+//   体内立即 `GtRead`（首条为 GT 0x20 镜像基址）并进入节区扫描循环，
+//   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
+// 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
+//   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
+ULONG64 MiniFilterPreDirEnum(void)
 {
-    return STATUS_SUCCESS;
+    return 0;
 }
 
-// MiniFilterPreSetInfo — 预设置信息
-// 对应原始驱动 sub_140015F34
-NTSTATUS MiniFilterPreSetInfo(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext)
+// MiniFilterPreSetInfo — 节区扫描器（**不是 FLT 回调**）
+// 对应原始驱动 0x140015F34（1231 字节）
+// 【2026-09-21 签名修正】此前声明为 NTSTATUS(PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID*)
+//   并实现为 `return STATUS_SUCCESS;` 空壳 —— 两者都与实物不符：
+//   原始函数**无参数**（反汇编中未读取 rcx/rdx/r8/r9），栈帧 sub rsp,200hh，
+//   体内立即 `GtRead`（首条为 GT 0x20 镜像基址）并进入节区扫描循环，
+//   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
+// 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
+//   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
+ULONG64 MiniFilterPreSetInfo(void)
 {
-    return STATUS_SUCCESS;
+    return 0;
 }
 
 // MiniFilterPreRename — 预重命名
