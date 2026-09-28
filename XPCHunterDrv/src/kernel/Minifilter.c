@@ -988,7 +988,244 @@ L140015A24:                                             // 收尾写 0x337
 //   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
 ULONG64 FindKernelObjectFieldOffsetsWin8(void)
 {
+    // 【机械转写 2026-09-21】按 build/audit/_preDirEnum_listing.txt 与
+    // docs/reversing/待实现函数结构分析.md §三 的前置表逐标签转写。
+    // 标志区 var_1D0[0..3] 为**同一块 4 字节栈区**（UCHAR Flags[4]）。
+    // GT 槽与 Win10 版**不同**：块1 用 0x32E/0x330/0x32F/0x331（非连续）。
+    ULONG64 PeBase;       // r12 <- GT 0x20
+    ULONG   PeSize;       // r14 <- GT 0x21
+    ULONG64 ImageBase;    // r13 / var_1B8 <- GT 3
+    UCHAR   Flags[4];     // var_1D0[0..3]
+    UCHAR   f0, f1, f2, f3;   // dl / r8b / r9b / dil
+    ULONG   Cand1;        // edx（外层候选）
+    ULONG   Cand2;        // ebx/edi（第二候选）
+    UCHAR   r10b;         // 步长标志（恒 1）
+    ULONG   Count1;       // ebx（第一条内层计数，上限 0xA）
+    ULONG   Count2;       // r15d（第二条内层计数，上限 0xA）
+    ULONG64 ScanStart;    // rsi
+    ULONG64 ScanEnd;      // r15 / var_1C0
+    ULONG64 ScanLimit;    // var_1B0
+    ULONG64 SectionOff;   // rbx
+    ULONG64 Ptr;          // rcx
+    ULONG   v;
+    PE_DECODE_CONTEXT Ctx;          // var_1A0
+    _DWORD  SectionInfo[112];       // var_150
+    WCHAR   PageName[8];            // var_1C8
+    ULONG   PathLen;                // var_1E0 等（Init 的参数）
+
+    PeBase    = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    PeSize    = (ULONG)GtRead(GtNtoskrnlPeFileSize);
+    ImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+
+    if (!PeBase || !PeSize || !ImageBase)
+        return 0;
+
+    PathLen = PeSize;                                  // edx = r14d
+    PageName[0] = L'.'; PageName[1] = L'P'; PageName[2] = L'A';
+    PageName[3] = L'G'; PageName[4] = L'E'; PageName[5] = 0;
+    ScanLimit = PeBase + PeSize;                       // var_1B0
+
+    SectionOff = (ULONG64)FindPESectionByName(PeBase, PeSize, (ULONG64)PageName);
+    {
+        ULONG64 rvaVa = (ULONG64)FindPESectionByNameReturnVa(PeBase, PeSize, (ULONG64)PageName);
+        if (rvaVa)
+            v = (ULONG)rvaVa;
+        else
+            v = PeSize - (ULONG)SectionOff;
+    }
+    ScanStart = PeBase + SectionOff;                   // rsi
+    {
+        ULONG lim = (ULONG)(PeSize - (ULONG)SectionOff);
+        ScanEnd = ScanStart + (lim < v ? lim : v);     // r15
+    }
+
+    f0 = 0; f1 = 0; f2 = 0; f3 = 0;
+    Flags[0] = 0; Flags[1] = 0; Flags[2] = 0; Flags[3] = 0;
+    if (ScanStart >= ScanEnd) goto L140015F01;
+    r10b = 1;
+
+L140015B5E:
+    if (ScanStart + 0x30 >= ScanEnd) goto L140015EF5;
+    if (*(UCHAR *)ScanStart != 0x48) goto L140015EF5;
+    if (*(UCHAR *)(ScanStart + 1) != 0x8D) goto L140015DB3;
+
+    Cand1 = *(ULONG *)(ScanStart + 3) + 7 + (ULONG)ScanStart - (ULONG)PeBase;
+    if (Cand1 == 0) goto L140015EEA;
+    if (Cand1 >= PeSize) goto L140015EEA;
+
+    if (f3 != 0) goto L140015C24;
+    if (*(UCHAR *)(ScanStart + 0x0D) != 8) goto L140015C24;
+    if (*(UCHAR *)(ScanStart + 0x0E) != *(UCHAR *)ScanStart) goto L140015C24;
+    if (*(UCHAR *)(ScanStart + 0x0F) != 0x8D) goto L140015C24;
+    if (*(UCHAR *)(ScanStart + 0x18) != 0x10) goto L140015C24;
+    Cand2 = *(ULONG *)(ScanStart + 0x11) + (ULONG)(ScanStart + 0x15) - (ULONG)PeBase;
+    if (Cand1 >= PeSize) goto L140015EEA;
+    if (Cand2 >= PeSize) goto L140015EEA;
+    GtWrite((GLOBAL_TABLE_INDEX)0x32E, (__int64)Cand1);
+    GtWrite((GLOBAL_TABLE_INDEX)0x330, (__int64)Cand2);
+    GtWrite((GLOBAL_TABLE_INDEX)0x32F, (__int64)(Cand1 + ImageBase));
+    GtWrite((GLOBAL_TABLE_INDEX)0x331, (__int64)(Cand2 + ImageBase));
+    f2 = Flags[2];
+    f3 = 1;
+    Flags[3] = 1;
+    goto L140015D31;
+
+L140015C24:
+    if (f2 != 0) goto L140015C82;
+    if (*(UCHAR *)(ScanStart + 7) != 0x48) goto L140015C82;
+    if (*(UCHAR *)(ScanStart + 8) != 0x89) goto L140015C82;
+    if (*(UCHAR *)(ScanStart + 0xA) != 8) goto L140015C82;
+    if (*(ULONG *)(ScanStart + 0x11) != 0xA0) goto L140015C82;
+    if (Cand1 == 0) goto L140015D22;
+    if (Cand1 >= PeSize) goto L140015D22;
+    GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand1);
+    GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)(Cand1 + ImageBase));
+    f1 = 1;
+    f2 = 1;
+    Flags[2] = 1;
+    goto L140015D17;
+
+L140015C82:
+    if (f1 != 0) goto L140015D22;
+    Ptr = ScanStart + 7;
+    if (*(UCHAR *)Ptr != 0x41) goto L140015D22;
+    if (*(UCHAR *)(ScanStart + 8) != 0xF6) goto L140015D22;
+
+    // 内层扫描 1（上限 0xA）
+    Count1 = 0;
+    InitPESectionReadContext((__int64)ScanStart + 7,
+                             (ULONG)(PathLen - (ULONG)ScanStart - 7),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    goto L140015CD4;
+
+L140015CD4:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L140015D12;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    if (*(__int64 *)((char *)SectionInfo + 0x88) != 0x800000) goto L140015D04;
+    if (*(ULONG *)((char *)SectionInfo + 0x70) == 0x1000) goto L140015D60;
+L140015D04:
+    Count1 += 1;
+    if (Count1 < 0xA) goto L140015CD4;
+
+L140015D12:
+    f2 = Flags[2];
+L140015D17:
+    f1 = Flags[1];
+    r10b = 1;
+L140015D22:
+    if (f3 != r10b) goto L140015EEA;
+    goto L140015D31;
+
+L140015D60:
+    Cand2 = *(ULONG *)(ScanStart + 3) + 7 + (ULONG)ScanStart - (ULONG)PeBase;
+    if (Cand2 == 0) goto L140015D9E;
+    if (Cand2 >= PeSize) goto L140015D12;
+    GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand2);
+    GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand2 + ImageBase));
+    r10b = 1;
+    f1 = 1;
+    Flags[1] = 1;
+    goto L140015DA9;
+
+L140015D9E:
+    f1 = Flags[1];
+    r10b = 1;
+L140015DA9:
+    f2 = Flags[2];
+    goto L140015D22;
+
+L140015D31:
+    f0 = Flags[0];
+    if (f2 != f1) goto L140015EF5;
+    f1 = Flags[1];
+    r10b = 1;
+    if (f1 != r10b) goto L140015EF5;
+    if (f0 == r10b) goto L140015F01;
+    goto L140015EF5;
+
+L140015DB3:                                            // 第二类模式：48 8B
+    if (*(UCHAR *)ScanStart != 0x48) goto L140015EF5;
+    if (*(UCHAR *)(ScanStart + 1) != 0x8B) goto L140015EF5;
+    Cand2 = *(ULONG *)(ScanStart + 3) + (ULONG)(ScanStart + 7) - (ULONG)PeBase;
+    if (Cand2 == 0) goto L140015EF0;
+    if (Cand2 >= PeSize) goto L140015EF0;
+    if (f0 != 0) goto L140015EB5;
+
+    Count2 = 0;
+    InitPESectionReadContext((__int64)(ScanStart + 7),
+                             (ULONG)(PathLen - (ULONG)ScanStart - 7),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    goto L140015E23;
+
+L140015E23:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L140015E97;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    {
+        ULONG64 ch88 = *(__int64 *)((char *)SectionInfo + 0x88);
+        ULONG   w70 = *(ULONG *)((char *)SectionInfo + 0x70);
+        UCHAR   r13b, bl;
+        if (ch88 & (1ULL << 16))
+        {
+            v = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x336);
+            v += w70;
+            if (v != 0)
+            {
+                r13b = 0;
+                bl = (w70 == 0xBC0) ? 1 : 0;
+            }
+            else
+            {
+                r13b = 1;
+                bl = 0;
+            }
+        }
+        else
+        {
+            r13b = 0;
+            bl = 0;
+        }
+        if (r13b != 1 || bl == 1)
+            goto L140015EC7;
+    }
+
+L140015E8E:
+    Count2 += 1;
+    if (Count2 < 0xA) goto L140015E23;
+
+L140015E97:
+    f0 = Flags[0];
+    f1 = Flags[1];
+    f2 = Flags[2];
+    r10b = 1;
+L140015EB5:
+    f3 = Flags[3];
+    if (f3 != r10b) goto L140015EF5;
+    if (f2 != r10b) goto L140015D43;
+    goto L140015EF5;
+
+L140015EC7:                                            // 收尾写 0x337
+    GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)(Cand2 + ImageBase));
+    f0 = 1;
+    Flags[0] = 1;
+    goto L140015EA0;
+
+L140015EEA:
+    f0 = Flags[0];
+    goto L140015EF5;
+
+L140015EF0:
+    f3 = Flags[3];
+L140015EF5:
+    ScanStart += r10b;
+    if (ScanStart < ScanEnd) goto L140015B5E;
+
+L140015F01:
+    (void)SectionOff; (void)ScanLimit; (void)Flags;
     return 0;
+
+L140015D43:
+    if (f2 != f1) goto L140015EF5;
+    goto L140015F01;
 }
 
 // FindKernelObjectFieldOffsetsWin10Early — 节区扫描器（**不是 FLT 回调**）
