@@ -3186,7 +3186,7 @@ bool MiniFilterStreamHandle(void *Address, int InputSize)
         if (!TargetProcess && Status >= 0)
             TargetProcess = Process;
 
-        if (ValidateProcessObject((__int64)TargetProcess, 0) == 1 &&
+        if (ValidateProcessObject(TargetProcess, 0) == 1 &&
             (*(unsigned __int64 *)&StreamData) < MmUserProbeAddress &&
             (*(unsigned __int64 *)((char *)&StreamData + 8)) < MmUserProbeAddress)
         {
@@ -3316,6 +3316,12 @@ char MiniFilterAcquireForCcFlush(int ProcessorNumber, __int64 ContextBuffer)
     return Result;
 }
 
+// ForEachProcessor 回调适配（原始直接传函数名，复刻中声明形参不同故加 thunk）
+static __int64 MiniFilterAcquireForCcFlushThunk(__int64 a, __int64 b)
+{ return (__int64)MiniFilterAcquireForCcFlush((int)a, b); }
+static __int64 MiniFilterReleaseForModWriteThunk(__int64 a, __int64 b)
+{ return (__int64)MiniFilterReleaseForModWrite((int)a, (unsigned int **)b); }
+
 // MiniFilterReleaseForCcFlush — 遍历处理器执行 GDT 清理（补全空壳）
 // 对应原始驱动 0x14001C1B4（192 字节）
 // 【逆向来源】⚠ 可反编译（22 行伪代码）
@@ -3337,7 +3343,7 @@ bool MiniFilterReleaseForCcFlush(void *Address, int ContextSize)
         ContextData = *(_OWORD *)Address;
         FlagsValue = *((_DWORD *)Address + 4);
         SuccessFlag = 0;
-        ForEachProcessor((__int64 (__fastcall *)(_QWORD, __int64))MiniFilterAcquireForCcFlush,
+        ForEachProcessor(MiniFilterAcquireForCcFlushThunk,
                          (__int64)&ContextData);
         return SuccessFlag == 1;
     }
@@ -3367,7 +3373,7 @@ bool MiniFilterAcquireForSectionSync(__int64 FilterObject, __int64 CallbackData,
         *OutputBuffer = 0;
         ContextSize = BufferSize;
         ContextPtr = OutputBuffer;
-        ForEachProcessor((__int64 (__fastcall *)(_QWORD, __int64))MiniFilterReleaseForModWrite,
+        ForEachProcessor(MiniFilterReleaseForModWriteThunk,
                          (__int64)&ContextPtr);
         return *OutputBuffer != 0;
     }

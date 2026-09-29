@@ -1101,10 +1101,10 @@ char LookupExportByName(PUCHAR PeBase, ULONG PeSize, PCHAR FuncName, PULONG OutR
     return 0;
 }
 
-// FindPESectionByName — 按名称查找 PE 节
+// FindPESectionByNameLocal — 按名称查找 PE 节
 // 对应原始驱动 sub_140005C28
 // 遍历节表，返回匹配节名的节在文件中的偏移
-__int64 FindPESectionByName(PUCHAR PeBase, PCHAR SectionName)
+static __int64 FindPESectionByNameLocal(PUCHAR PeBase, PCHAR SectionName)
 {
     PIMAGE_DOS_HEADER DosHeader;
     PIMAGE_NT_HEADERS NtHeaders;
@@ -1125,10 +1125,10 @@ __int64 FindPESectionByName(PUCHAR PeBase, PCHAR SectionName)
     return 0;
 }
 
-// FindPESectionByNameReturnVa — 按名称查找 PE 节返回 VA
+// FindPESectionByNameReturnVaLocal — 按名称查找 PE 节返回 VA
 // 对应原始驱动 sub_140005CB4
 // 遍历节表，返回匹配节名的虚拟地址
-__int64 FindPESectionByNameReturnVa(PUCHAR PeBase, PCHAR SectionName)
+static __int64 FindPESectionByNameReturnVaLocal(PUCHAR PeBase, PCHAR SectionName)
 {
     PIMAGE_DOS_HEADER DosHeader;
     PIMAGE_NT_HEADERS NtHeaders;

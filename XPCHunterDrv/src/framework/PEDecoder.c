@@ -2663,3 +2663,78 @@ __int64 DecodeReadQwordImmediate(PUCHAR *Context)
     SET_Q(OperandOut, 8, QwordValue);
     return 8;
 }
+
+// FindPESectionByName — 按名称查找 PE 节（返回节在文件内的偏移）
+// 对应原始驱动 0x140005C28（137 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（26 行伪代码），按伪代码实现
+// 【⚠ 修正记录】本函数**此前只有 SSDT.c 里一个 2 参数的 static 简化版**，而
+//   ContextMgmt/Minifilter/PeParse 都在调用它（靠隐式声明蒙混），且头文件的
+//   3 参数声明（原始伪代码实证）与之不符 —— 本轮按原始伪代码补齐全局实现。
+// 【逻辑】读 PE 头 +0x3C 处的签名偏移 → 取节数(+6) 与节头起始(+20/+24) →
+//   遍历节头（每节 40 字节）用 StringCompareCaseInsensitiveV2 比较节名 →
+//   命中且该节的文件偏移（+12）< 文件大小则返回之，否则返回 0。
+__int64 FindPESectionByName(__int64 PeBase, unsigned int PeSize, __int64 SectionName)
+{
+    __int64 PeHeaderRva;
+    unsigned int Result = 0;
+    unsigned int NumberOfSections;
+    __int64 SectionHeaderStart;
+    unsigned int SectionIndex;
+
+    PeHeaderRva = *(int *)(PeBase + 60);
+    NumberOfSections = *(unsigned __int16 *)(PeHeaderRva + PeBase + 6);
+    SectionHeaderStart = *(unsigned __int16 *)(PeHeaderRva + PeBase + 20) + PeHeaderRva + PeBase + 24;
+    SectionIndex = 0;
+
+    if (*(_WORD *)(PeHeaderRva + PeBase + 6))
+    {
+        while ((unsigned int)StringCompareCaseInsensitiveV2(SectionName,
+                                                            SectionHeaderStart + 40LL * SectionIndex))
+        {
+            if (++SectionIndex >= NumberOfSections)
+                return Result;
+        }
+        if (*(_DWORD *)(SectionHeaderStart + 40LL * SectionIndex + 12) < PeSize)
+            return *(unsigned int *)(SectionHeaderStart + 40LL * SectionIndex + 12);
+    }
+    return Result;
+}
+
+// FindPESectionByNameReturnVa — 按名称查找 PE 节（返回节虚拟地址）
+// 对应原始驱动 0x140005CB4（151 字节）
+// 【逆向来源】⚠ 可被反编译（33 行伪代码），按伪代码实现（同上处修正说明）
+// 【逻辑】同上，但命中后需额外校验：节 VA(+8) < 文件大小 且 节大小(+12) < 文件大小
+//   且 VA+Size < 文件大小，才返回该节 VA；否则返回 0。
+__int64 FindPESectionByNameReturnVa(__int64 PeBase, unsigned int PeSize, __int64 SectionName)
+{
+    __int64 PeSignature;
+    unsigned int Result = 0;
+    unsigned int NumberOfSections;
+    __int64 SectionHeaderStart;
+    unsigned int SectionIndex;
+    unsigned int SectionVa;
+    unsigned int SectionSize;
+
+    PeSignature = *(int *)(PeBase + 60);
+    NumberOfSections = *(unsigned __int16 *)(PeSignature + PeBase + 6);
+    SectionHeaderStart = *(unsigned __int16 *)(PeSignature + PeBase + 20) + PeSignature + PeBase + 24;
+    SectionIndex = 0;
+
+    if (*(_WORD *)(PeSignature + PeBase + 6))
+    {
+        while ((unsigned int)StringCompareCaseInsensitiveV2(SectionName,
+                                                            SectionHeaderStart + 40LL * SectionIndex))
+        {
+            if (++SectionIndex >= NumberOfSections)
+                return Result;
+        }
+        SectionVa = *(_DWORD *)(SectionHeaderStart + 40LL * SectionIndex + 8);
+        if (SectionVa < PeSize)
+        {
+            SectionSize = *(_DWORD *)(SectionHeaderStart + 40LL * SectionIndex + 12);
+            if (SectionSize < PeSize && SectionVa + SectionSize < PeSize)
+                return *(unsigned int *)(SectionHeaderStart + 40LL * SectionIndex + 8);
+        }
+    }
+    return Result;
+}

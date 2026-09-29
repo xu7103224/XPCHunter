@@ -278,7 +278,7 @@ __int64 CheckProcessAccess(void)
     if (!ProtectedProcess || ProtectedProcess == IoGetCurrentProcess())
         return 1;
 
-    Allowed = (ValidateProcessObject((__int64)ProtectedProcess, 0) == 0);
+    Allowed = (ValidateProcessObject(ProtectedProcess, 0) == 0);
     GtWrite((GLOBAL_TABLE_INDEX)GtCallbackField125, 0);
     return Allowed ? 1 : 0;
 }
@@ -721,7 +721,6 @@ __int64 InitGtKey(__int64 RegistryPath)
 //   入参的取值方式，需在实现 FindKernelPESectionByType 的调用约定后核对。
 ULONG64 InitImageNotify(void)
 {
-    ULONG64 Result;
     ULONG64 TargetProcess;
     ULONG64 KernelSize;
     ULONG64 NtImageBase;
