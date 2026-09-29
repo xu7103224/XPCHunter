@@ -26,7 +26,7 @@ void BuildCallbackContextHookTargets(void)
     if (SectionBase && ReadNtoskrnlForCallbackCtx((_QWORD *)&pFileBuffer, &FileSize))
     {
         if (ParseNtExportSectionsV3((__int64)pFileBuffer, FileSize, (__int64)pTargetTable) == 1 &&
-            ParseNtExportDir((__int64)pFileBuffer, FileSize, SectionBase, 0) == 1)
+            ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, SectionBase, 0) == 1)
         {
             pRvaEntry = (unsigned int *)pTargetTable + 1;
             EntryCount = 28;
@@ -74,7 +74,7 @@ void BuildContextTableFromNtFile(void)
     {
         pExportTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3F32);
         if (ParseNtSectionsForContextTable((__int64)pRawData, FileSize, (__int64)pExportTable) == 1 &&
-            ParseNtExportDir((__int64)pRawData, FileSize, NtoskrnlBase, 0) == 1)
+            ParseNtExportDir((PUCHAR)pRawData, FileSize, NtoskrnlBase, 0) == 1)
         {
             pIndexPtr = (unsigned int *)pExportTable + 1;
             EntryCount = 28;
@@ -965,7 +965,7 @@ bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize
     size_t RawDataSize = 0;
     WCHAR EncodedPath[40];
 
-    wcscpy(EncodedPath, L"\SystemRoot\system32\drivers\msfs.sys");
+    wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\msfs.sys");
 
     if (!(unsigned int)ReadFileRawData(EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
     {
@@ -990,9 +990,9 @@ bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize)
     WCHAR EncodedPath[40];
 
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
-        wcscpy(EncodedPath, L"\SystemRoot\system32\drivers\volmgr.sys");
+        wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\volmgr.sys");
     else
-        wcscpy(EncodedPath, L"\SystemRoot\system32\drivers\ftdisk.sys");
+        wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\ftdisk.sys");
 
     if (!(unsigned int)ReadFileRawData(EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
     {
@@ -1015,7 +1015,7 @@ bool ReadNtFileForContextTable(_QWORD *pFileBuffer, unsigned int *pFileSize)
     size_t FileSize = 0;
     WCHAR EncodedBuffer[40];
 
-    wcscpy(EncodedBuffer, L"\SystemRoot\system32\drivers\partmgr.sys");
+    wcscpy(EncodedBuffer, L"\\SystemRoot\\system32\\drivers\\partmgr.sys");
 
     if (!(unsigned int)ReadFileRawData(EncodedBuffer, &pRawData, (ULONG *)&FileSize, 1))
     {
@@ -1053,7 +1053,7 @@ void InitCallbackContextHookTable(void)
         return;
 
     if (ParseNtFileForCallbackContext((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1 &&
-        ParseNtExportDir((__int64)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
+        ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
     {
         pSlot = (unsigned int *)pExportTable + 1;
         EntryCount = 28;
@@ -1337,7 +1337,7 @@ void InitProcessContextHookTable(void)
         return;
 
     ParseNtExportSectionsForProcessContext((__int64)FileBuf, FileSize);
-    ParseNtExportDir((__int64)FileBuf, FileSize, Ctx8C4, 0);
+    ParseNtExportDir((PUCHAR)FileBuf, FileSize, Ctx8C4, 0);
 
     Tab = (ULONG64)GtAlloc((GLOBAL_TABLE_INDEX)0x2024);
     for (i = 0, p = Tab; i < 0x1C; i++, p += 0x30)
