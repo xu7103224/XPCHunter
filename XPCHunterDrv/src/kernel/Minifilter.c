@@ -3008,7 +3008,7 @@ char MiniFilterCommPortRecv(void)
 
 // MiniFilterCommPortReply — 通信端口回复
 // 向用户态通信端口回复数据，完成 IRP 或发送命名管道响应
-// 对应原始驱动 sub_140019C10
+// 对应原始驱动 0x140019344
 NTSTATUS MiniFilterCommPortReply(void)
 {
     // 通信端口回复需要 IRP 或命名管道上下文
@@ -3038,7 +3038,7 @@ char MiniFilterFormatFileNameWithPath(void)
 }
 
 // MiniFilterFormatFileNameWithContext — 注册 MiniFilter 回调（补全空壳）
-// 对应原始驱动 0x140019ED0（69 字节）
+// 对应原始驱动 0x14001A0E8（69 字节）
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（18 行伪代码），按伪代码实现
 // 【⚠ 修正记录】此前注释写"需要 FLT_CALLBACK_DATA 上下文获取文件名，无法实现" ——
 //   该判断**错误**：伪代码显示本函数**无参数**，实际是"一次性注册回调"：
@@ -3066,7 +3066,7 @@ __int64 MiniFilterFormatFileNameWithContext(void)
 }
 
 // MiniFilterFormatFileNameEx — 查询"文件名格式化就绪"标志（补全空壳）
-// 对应原始驱动 0x140019F50（110 字节）
+// 对应原始驱动 0x14001A130（110 字节）
 // 【逆向来源】⚠ 可反编译（17 行伪代码）
 // 【⚠ 修正记录】此前注释写"需要 FltGetStreamFileObjectContext 获取文件名" —— **错误**。
 //   实际：校验输出缓冲可写且 BufferSize == 4 → ProbeForWrite
@@ -3087,7 +3087,7 @@ __int64 MiniFilterFormatFileNameEx(__int64 Unknown, __int64 Unknown2, _DWORD *Ou
 }
 
 // MiniFilterFormatFileNameWithPathEx — 查询"扩展格式化就绪"标志（补全空壳）
-// 对应原始驱动 0x140019FD0（110 字节）
+// 对应原始驱动 0x14001A1A0（110 字节）
 // 【逆向来源】⚠ 可反编译（22 行伪代码）
 // 【⚠ 修正记录】此前注释写"需要 FltGetStreamFileObjectContext 获取文件名" —— **错误**。
 //   与 MiniFilterFormatFileNameEx 同构，只是查询的 GT 槽不同
@@ -3109,7 +3109,7 @@ __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _D
 
 // MiniFilterQueryIdleRoutine — 查询空闲例程
 // 检查文件是否处于空闲状态（无活跃句柄），返回 STATUS_SUCCESS
-// 对应原始驱动 sub_14001A050
+// 对应原始驱动 0x14001A210
 NTSTATUS MiniFilterQueryIdleRoutine(void)
 {
     // 需要 FltIsFileInUse 检查文件是否被使用
@@ -3118,7 +3118,7 @@ NTSTATUS MiniFilterQueryIdleRoutine(void)
 
 // MiniFilterNotifyRoutineEx — 通知例程扩展
 // 将文件操作通知发送到 GT 0x3400 缓冲区，扩展版本支持更多操作类型
-// 对应原始驱动 sub_14001A0D0
+// 对应原始驱动 0x14001A39C
 NTSTATUS MiniFilterNotifyRoutineEx(void)
 {
     if (!GtRead(GtCommPortCallbackReady))
@@ -3147,7 +3147,7 @@ char MiniFilterActiveRoutine(void)
 
 // MiniFilterNotifyRoutineEx2 — 通知例程扩展2
 // 通知例程的第二个扩展版本，支持额外的操作类型
-// 对应原始驱动 sub_14001A1D0
+// 对应原始驱动 0x14001A3E4
 NTSTATUS MiniFilterNotifyRoutineEx2(void)
 {
     if (!GtRead(GtCommPortCallbackReady))
@@ -3205,7 +3205,7 @@ bool MiniFilterStreamHandle(__m128i *Address, int InputSize)
 
 // MiniFilterPreFastIo — 快速 IO 预处理
 // 处理 PreFastIoRead/PreFastIoWrite 等快速 IO 操作
-// 对应原始驱动 sub_14001A2D0
+// 对应原始驱动 0x14001B2B4
 NTSTATUS MiniFilterPreFastIo(void)
 {
     // 需要 FLT_CALLBACK_DATA 获取快速 IO 信息
@@ -3246,7 +3246,7 @@ char MiniFilterPostFastIo(__int64 FilterObject, __int64 CallbackData,
 
 // MiniFilterAcquireForModWrite — 获取修改写入锁
 // 获取文件修改写入的独占锁，防止并发修改
-// 对应原始驱动 sub_14001A3D0
+// 对应原始驱动 0x14001BD44
 NTSTATUS MiniFilterAcquireForModWrite(void)
 {
     // 需要 FltAcquireForModifiedWrite 获取锁
@@ -3380,7 +3380,7 @@ bool MiniFilterAcquireForSectionSync(__int64 FilterObject, __int64 CallbackData,
 
 // MiniFilterServerContext — 服务器上下文管理
 // 管理 minifilter 服务器端的流/实例上下文
-// 对应原始驱动 sub_14001A650
+// 对应原始驱动 0x140019A44
 NTSTATUS MiniFilterServerContext(void)
 {
     // 需要 FltGetStreamFileObjectContext 获取上下文
@@ -3389,7 +3389,7 @@ NTSTATUS MiniFilterServerContext(void)
 
 // MiniFilterClientContext — 客户端上下文管理
 // 管理 minifilter 客户端的流/实例上下文
-// 对应原始驱动 sub_14001A6D0
+// 对应原始驱动 0x140019A5C
 NTSTATUS MiniFilterClientContext(void)
 {
     // 需要 FltGetStreamFileObjectContext 获取上下文
