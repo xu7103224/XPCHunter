@@ -2373,3 +2373,152 @@ char __fastcall ParseSyscallTableDataSection(__int64 FileBuffer, unsigned int Fi
     }
     return Result;
 }
+
+// ParseSyscallTableSections — 解析目标库的节区并填充系统调用表
+// 对应原始驱动 0x140086150（856 字节，223 行反汇编）
+// 【逆向来源】人工阅读反汇编**按原始地址逐标签机械转写**（goto + L<地址> 标签），
+//   依据 build/audit/_psts_listing.txt。IDA 无法分析该函数（Hex-Rays 失败）。
+// 【参数】rcx = PE 文件缓冲基址、edx = 文件大小、r8 = 输出表（GtAlloc 得来的表）
+// 【产出】向输出表条目写入 { +4 = 节偏移, +8 = 节偏移 + 文件大小 }（首次命中才写，
+//   由 `cmp dword [r13+rdx*8+4], 0` 保证），返回 r12b（是否有命中）。
+// 【结构】两段扫描：
+//   段 1（上限 0x14 = 20）：用节头 +0x28（SizeOfHeaders 区）算出目标节偏移，
+//     类型 0x545 → 记录；0x559 → 记录偏移后转段 2 入口；0x510(且 +0x50==0x40 且
+//     +0x58==1) 置 dil；0x558 在 dil 置位后记录偏移。
+//   段 2（上限 0x1F4 = 500）：先 memset 一张 Dst[0x40] 表，再扫描；
+//     类型 0x512(且 +0x88==0x40000 且 +0x38!=0 且 +0x50==0x40) → 按 +0x58 序号
+//     把偏移记入 Dst[序号]；类型 0x473/0x558 命中时若 r12b 已置 1 则退出；
+//     类型 0x50E(且 +0x50 bit14/bit6 置位、+0xDC 低 3 位==4 排除、+0x88==0x40、
+//     +0x38 落在 0x70..0x148 且 8 字节对齐、除以 8 后 <= 0x1B) → 取 Dst[+0x38] 作为
+//     节偏移，在输出表中按 `idx*0x18` 定位条目，写 +4 = 偏移、+8 = 偏移 + 文件大小，
+//     并置 r12b = 1（表示已找到）。
+// 【⚠ 说明】本函数属"缺失函数"（复刻中原不存在），且其调用方
+//   ParseSyscallTableExportDir 在复刻中是空壳 —— 该链条尚有 5 个被调用方缺失
+//   （FindSyscallTableDescriptor / BuildExportSectionMapping / CollectSyscallEntries4 /
+//    CollectTwoSyscallTables / CollectSyscallExportEntries），见审计报告待办。
+char ParseSyscallTableSections(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
+{
+    ULONG64 Base = (ULONG64)FileBuffer;
+    ULONG   Size = FileSize;
+    ULONG64 Out = (ULONG64)OutputTable;
+    ULONG   SecOff;
+    ULONG64 Alloc = (ULONG64)GtAlloc((GLOBAL_TABLE_INDEX)0x39BC);
+    UCHAR   Found = 0;
+    UCHAR   FlagDil = 0;
+    USHORT  ExcludeType = 0x545;
+    ULONG   Count = 0;
+    ULONG64 PeHdrOff;
+    ULONG   SecType;
+    ULONG64 SecFlags;
+    ULONG   v;
+    ULONG64 ctxPtr;
+    ULONG   secIdx;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  SectionInfo[112];
+    UCHAR   Dst[0x40];
+
+    if (!Out) goto L14008641B;
+
+    PeHdrOff = (ULONG64)(LONG)*(LONG *)(Base + 0x3C);
+    SecOff = *(ULONG *)(PeHdrOff + Base + 0x28);
+    if (SecOff >= Size) goto L140086278;
+    if (SecOff + 0x1000 >= Size) goto L140086278;
+
+    InitPESectionReadContext((__int64)(Base + SecOff), 0x1000, 2, 0, -1, 0, 0, (__int64)&Ctx);
+    Count = 0; FlagDil = 0;
+    goto L14008620F;
+
+L14008620F:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L140086273;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    SecType = *(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6);
+    if (SecType == 0x545) goto L1400864A1;
+    if (SecType != 0x559) goto L14008644E;
+    v = *(ULONG *)((char *)SectionInfo + 0x38) - (ULONG)Base + (ULONG)Ctx.ReadPtr;
+    if (v == 0) goto L14008648F;
+    if (v >= Size) goto L14008648F;
+    SecOff = v;
+L140086273:
+    ExcludeType = 0x545;
+L140086278:
+    if (SecOff == 0) goto L14008641B;
+    if (SecOff >= Size) goto L14008641B;
+    if (SecOff + 0x1000 >= Size) goto L14008641B;
+    InitPESectionReadContext((__int64)(Base + SecOff), 0x1000, 2, 0, -1, 0, 0, (__int64)&Ctx);
+    memset(Dst, 0, 0x40);
+    Count = 0;
+
+L1400862E4:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L14008641B;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    SecType = *(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6);
+    if (SecType == ExcludeType) goto L14008641B;
+    SecFlags = *(__int64 *)((char *)SectionInfo + 0x50);
+    if (SecType == 0x512 && *(__int64 *)((char *)SectionInfo + 0x88) == 0x40000 &&
+        *(ULONG *)((char *)SectionInfo + 0x38) != 0 && SecFlags == 0x40)
+    {
+        secIdx = *(ULONG *)((char *)SectionInfo + 0x58);
+        v = *(ULONG *)((char *)SectionInfo + 0x38) - (ULONG)Base + (ULONG)Ctx.ReadPtr;
+        if (v != 0 && v < Size) Dst[secIdx] = (UCHAR)v;
+    }
+    if (SecType == 0x473 || SecType == 0x558)
+    {
+        memset(Dst, 0, 0x40);
+        if (Found == 1) goto L14008641B;
+    }
+    if (SecType == 0x50E && (SecFlags & 0x14000) && (SecFlags & 0x40) &&
+        ((*(ULONG *)((char *)SectionInfo + 0xDC) & 0xF) != 4) &&
+        *(__int64 *)((char *)SectionInfo + 0x88) == 0x40)
+    {
+        ULONG a = *(ULONG *)((char *)SectionInfo + 0x38);
+        ULONG c = a - 0x70;
+        if (c <= 0xD8 && (a & 7) == 0 && (c >> 3) <= 0x1B)
+        {
+            secIdx = *(ULONG *)((char *)SectionInfo + 0x100);
+            v = Dst[secIdx];
+            if (v)
+            {
+                ULONG64 e = (ULONG64)secIdx * 0x18;
+                if (*(DWORD *)(Alloc + e + 4) == 0)
+                {
+                    Found = 1;
+                    *(DWORD *)(Alloc + e + 4) = v;
+                    *(ULONG64 *)(Alloc + e + 8) = (ULONG64)v + Out;
+                }
+            }
+        }
+    }
+    Count++;
+    ExcludeType = 0x545;
+    if (Count < 0x1F4) goto L1400862E4;
+    goto L14008641B;
+
+L14008644E:
+    if (SecType == 0x510 && *(__int64 *)((char *)SectionInfo + 0x50) == 0x40 &&
+        *(__int64 *)((char *)SectionInfo + 0x58) == 1)
+    {
+        FlagDil = 1;
+        goto L14008648F;
+    }
+    if (SecType == 0x558 && FlagDil == 1)
+    {
+        v = *(ULONG *)((char *)SectionInfo + 0x38) - (ULONG)Base + (ULONG)Ctx.ReadPtr;
+        if (v != 0 && v < Size) { SecOff = v; goto L140086273; }
+        goto L14008648C;
+    }
+L14008648C:
+    FlagDil = 0;
+L14008648F:
+    Count++;
+    if (Count >= 0x14) goto L140086273;
+    goto L14008620F;
+
+L1400864A1:
+    ExcludeType = 0x545;
+    goto L140086278;
+
+L14008641B:
+    ctxPtr = (ULONG64)&Ctx;
+    (void)ctxPtr;
+    return (char)Found;
+}
