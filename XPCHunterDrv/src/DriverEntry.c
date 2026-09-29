@@ -259,12 +259,28 @@ BOOLEAN IsWindowsVersionSupported(ULONG BuildNumber)
     return FALSE;
 }
 
-// CheckProcessAccess — 检查进程访问权限
-// 对应原始驱动 sub_1400812B0
+// CheckProcessAccess — 检查进程访问权限（补全空壳）
+// 对应原始驱动 0x1400812B0（97 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（15 行伪代码），按伪代码实现
+// 【⚠ 修正记录】此前是空壳（`return 1;` —— **无条件放行**），而它在
+//   IoctlDispatch.c:484 被真实调用（CmdCheckProcessAccess 转调）。
+//   空壳意味着"访问检查恒通过"，属"假装成功"的危险占位。
+// 【逻辑】读 GT (GtEprocessField123|0x100) 取"驱动保护进程"；
+//   若为空、或就是当前进程 → 返回 1（放行）；
+//   否则调 ValidateProcessObject(该进程, 0)，按"返回 0"判为有权，
+//   并把 GT GtCallbackField125 清 0。
 __int64 CheckProcessAccess(void)
 {
-    // 检查当前进程是否有合适的访问令牌
-    return 1;
+    struct _KPROCESS *ProtectedProcess;
+    bool Allowed;
+
+    ProtectedProcess = (struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField123 | 0x100));
+    if (!ProtectedProcess || ProtectedProcess == IoGetCurrentProcess())
+        return 1;
+
+    Allowed = (ValidateProcessObject((__int64)ProtectedProcess, 0) == 0);
+    GtWrite((GLOBAL_TABLE_INDEX)GtCallbackField125, 0);
+    return Allowed ? 1 : 0;
 }
 
 // InitCallbackFunctions — 初始化回调函数（补全空壳）
