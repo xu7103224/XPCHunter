@@ -1,0 +1,253 @@
+140039214|mov     rax, rsp
+140039217|mov     [rax+10h], rbx
+14003921B|mov     [rax+18h], rsi
+14003921F|mov     [rax+20h], rdi
+140039223|push    rbp
+140039224|push    r12
+140039226|push    r13
+140039228|push    r14
+14003922A|push    r15
+14003922C|lea     rbp, [rax-148h]
+140039233|sub     rsp, 220h
+14003923A|mov     rax, cs:__security_cookie
+140039241|xor     rax, rsp
+140039244|mov     [rbp+140h+var_30], rax
+14003924B|mov     r12, rcx
+14003924E|mov     ecx, 8C4h
+140039253|mov     esi, edx
+140039255|xor     edi, edi
+140039257|call    GtRead
+14003925C|mov     ecx, 2024h
+140039261|mov     r13, rax
+140039264|call    GtAlloc
+140039269|mov     ecx, 20D2h
+14003926E|mov     r15, rax
+140039271|mov     [rsp+240h+var_1F8], rax
+140039276|call    GtAlloc
+14003927B|mov     [rsp+240h+var_1F0], rax
+140039280|test    r13, r13
+140039283|jz      loc_1400394C3
+140039289|movsxd  rax, dword ptr [r12+3Ch]
+14003928E|mov     ebx, [rax+r12+28h]
+140039293|mov     r14, [rax+r12+30h]
+140039298|mov     [rsp+240h+var_200], r14
+14003929D|cmp     ebx, esi
+14003929F|jnb     loc_14003934F
+1400392A5|lea     eax, [rbx+1000h]
+1400392AB|cmp     eax, esi
+1400392AD|jnb     loc_14003934F
+1400392B3|lea     rcx, [r12+rbx]
+1400392B7|mov     eax, r12d
+1400392BA|lea     edx, [rbx+1000h]
+1400392C0|sub     eax, ecx
+1400392C2|lea     r8d, [rdi+2]
+1400392C6|xor     r9d, r9d
+1400392C9|add     edx, eax
+1400392CB|lea     rax, [rsp+240h+var_1E0]
+1400392D0|mov     r14b, dil
+1400392D3|mov     [rsp+240h+var_208], rax
+1400392D8|mov     [rsp+240h+var_210], rdi
+1400392DD|mov     [rsp+240h+var_218], rdi
+1400392E2|or      dword ptr [rsp+240h+var_220], 0FFFFFFFFh
+1400392E7|call    InitPESectionReadContext
+1400392EC|mov     r15d, edi
+1400392EF|lea     rdx, [rbp+140h+var_190]
+1400392F3|lea     rcx, [rsp+240h+var_1E0]
+1400392F8|call    ReadPESectionEntry
+1400392FD|test    eax, eax
+1400392FF|jnz     short loc_140039345
+140039301|mov     eax, [rbp+140h+var_A0]
+140039307|mov     rcx, [rsp+240h+var_1D8]
+14003930C|add     rcx, rax
+14003930F|mov     rax, [rbp+140h+var_78]
+140039316|mov     [rsp+240h+var_1D8], rcx
+14003931B|movzx   edx, word ptr [rax+6]
+14003931F|mov     eax, 559h
+140039324|cmp     ax, dx
+140039327|jnz     loc_1400394F6
+14003932D|mov     eax, [rbp+140h+var_158]
+140039330|sub     eax, r12d
+140039333|add     eax, ecx
+140039335|jz      loc_140039537
+14003933B|cmp     eax, esi
+14003933D|jnb     loc_140039537
+140039343|mov     ebx, eax
+140039345|mov     r15, [rsp+240h+var_1F8]
+14003934A|mov     r14, [rsp+240h+var_200]
+14003934F|test    ebx, ebx
+140039351|jz      loc_1400394C3
+140039357|cmp     ebx, esi
+140039359|jnb     loc_1400394C3
+14003935F|lea     eax, [rbx+1000h]
+140039365|cmp     eax, esi
+140039367|jnb     loc_1400394C3
+14003936D|mov     eax, r12d
+140039370|lea     edx, [rbx+1000h]
+140039376|xor     r9d, r9d
+140039379|mov     ecx, ebx
+14003937B|lea     r8d, [r9+2]
+14003937F|add     rcx, r12
+140039382|sub     eax, ecx
+140039384|add     edx, eax
+140039386|lea     rax, [rsp+240h+var_1E0]
+14003938B|mov     [rsp+240h+var_208], rax
+140039390|mov     [rsp+240h+var_210], rdi
+140039395|mov     [rsp+240h+var_218], rdi
+14003939A|or      dword ptr [rsp+240h+var_220], 0FFFFFFFFh
+14003939F|call    InitPESectionReadContext
+1400393A4|xor     edx, edx
+1400393A6|lea     r8d, [rdx+40h]
+1400393AA|lea     rcx, [rbp+140h+Dst]
+1400393B1|call    memset
+1400393B6|mov     ebx, edi
+1400393B8|lea     rdx, [rbp+140h+var_190]
+1400393BC|lea     rcx, [rsp+240h+var_1E0]
+1400393C1|call    ReadPESectionEntry
+1400393C6|test    eax, eax
+1400393C8|jnz     loc_1400394C3
+1400393CE|mov     eax, [rbp+140h+var_A0]
+1400393D4|mov     rdx, [rsp+240h+var_1D8]
+1400393D9|mov     r10, [rbp+140h+var_108]
+1400393DD|mov     r8, [rbp+140h+var_140]
+1400393E1|add     rdx, rax
+1400393E4|mov     rax, [rbp+140h+var_78]
+1400393EB|mov     [rsp+240h+var_1D8], rdx
+1400393F0|movzx   r9d, word ptr [rax+6]
+1400393F5|mov     eax, 512h
+1400393FA|cmp     ax, r9w
+1400393FE|jnz     short loc_140039431
+140039400|cmp     r10, 40000h
+140039407|jnz     short loc_140039431
+140039409|mov     ecx, [rbp+140h+var_118]
+14003940C|test    ecx, ecx
+14003940E|jz      short loc_140039431
+140039410|cmp     r8, 40h 
+140039414|jnz     short loc_140039431
+140039416|sub     ecx, r12d
+140039419|add     ecx, edx
+14003941B|jz      short loc_140039431
+14003941D|cmp     ecx, esi
+14003941F|jnb     short loc_140039431
+140039421|cmp     [rbp+140h+var_138], 10h
+140039425|jnb     short loc_140039431
+140039427|mov     eax, [rbp+140h+var_138]
+14003942A|mov     [rbp+rax*4+140h+Dst], ecx
+140039431|mov     ecx, [rbp+140h+var_B4]
+140039437|mov     edx, [rbp+140h+var_100]
+14003943A|mov     eax, 50Eh
+14003943F|cmp     ax, r9w
+140039443|jnz     loc_1400395CD
+140039449|mov     eax, [rbp+140h+var_B8]
+14003944F|mov     r11d, 300h
+140039455|and     eax, r11d
+140039458|cmp     eax, 100h
+14003945D|jnz     loc_140039549
+140039463|cmp     [rbp+140h+var_150], 70h 
+140039467|jnz     loc_140039549
+14003946D|mov     eax, ecx
+14003946F|and     eax, r11d
+140039472|cmp     eax, r11d
+140039475|jnz     loc_140039549
+14003947B|cmp     r10, 40h 
+14003947F|jnz     loc_140039549
+140039485|cmp     edx, 10h
+140039488|jnb     loc_140039549
+14003948E|mov     ecx, [rbp+rdx*4+140h+Dst]
+140039495|test    ecx, ecx
+140039497|jz      loc_1400395CD
+14003949D|cmp     ecx, esi
+14003949F|jnb     loc_1400395CD
+1400394A5|lea     r8, [rcx+r13]
+1400394A9|lea     rax, [r15+8]
+1400394AD|lea     edx, [r10-24h]
+1400394B1|mov     [rax-4], ecx
+1400394B4|mov     [rax], r8
+1400394B7|lea     rax, [rax+30h]
+1400394BB|dec     rdx
+1400394BE|jnz     short loc_1400394B1
+1400394C0|mov     dil, 1
+1400394C3|mov     al, dil
+1400394C6|mov     rcx, [rbp+140h+var_30]
+1400394CD|xor     rcx, rsp
+1400394D0|call    __security_check_cookie
+1400394D5|lea     r11, [rsp+240h+var_20]
+1400394DD|mov     rbx, [r11+38h]
+1400394E1|mov     rsi, [r11+40h]
+1400394E5|mov     rdi, [r11+48h]
+1400394E9|mov     rsp, r11
+1400394EC|pop     r15
+1400394EE|pop     r14
+1400394F0|pop     r13
+1400394F2|pop     r12
+1400394F4|pop     rbp
+1400394F5|retn
+1400394F6|mov     eax, 510h
+1400394FB|cmp     ax, dx
+1400394FE|jnz     short loc_140039512
+140039500|cmp     [rbp+140h+var_140], 40h 
+140039505|jnz     short loc_140039512
+140039507|cmp     [rbp+140h+var_138], 1
+14003950B|jnz     short loc_140039512
+14003950D|mov     r14b, 1
+140039510|jmp     short loc_140039537
+140039512|mov     eax, 558h
+140039517|cmp     ax, dx
+14003951A|jnz     short loc_140039537
+14003951C|cmp     r14b, 1
+140039520|jnz     short loc_140039534
+140039522|mov     eax, [rbp+140h+var_158]
+140039525|sub     eax, r12d
+140039528|add     eax, ecx
+14003952A|jz      short loc_140039534
+14003952C|cmp     eax, esi
+14003952E|jb      loc_140039343
+140039534|mov     r14b, dil
+140039537|inc     r15d
+14003953A|cmp     r15d, 14h
+14003953E|jnb     loc_140039345
+140039544|jmp     loc_1400392EF
+140039549|mov     eax, 50Eh
+14003954E|cmp     ax, r9w
+140039552|jnz     short loc_1400395CD
+140039554|test    r8, 14000h
+14003955B|jz      short loc_1400395CD
+14003955D|test    r8b, 40h
+140039561|jz      short loc_1400395CD
+140039563|and     ecx, 0Fh
+140039566|cmp     cl, 4
+140039569|jz      short loc_1400395CD
+14003956B|cmp     r10, 40h 
+14003956F|jnz     short loc_1400395CD
+140039571|cmp     [rbp+140h+var_150], 50h 
+140039575|jnz     short loc_1400395CD
+140039577|mov     ecx, [rbp+rdx*4+140h+Dst]
+14003957E|test    ecx, ecx
+140039580|jz      short loc_1400395CD
+140039582|cmp     ecx, esi
+140039584|jnb     short loc_1400395CD
+140039586|mov     edx, ecx
+140039588|add     rcx, 0E0h
+14003958F|cmp     rcx, rsi
+140039592|ja      short loc_1400395CD
+140039594|mov     rcx, [rsp+240h+var_1F0]
+140039599|add     rdx, 8
+14003959D|lea     r8d, [r10-25h]
+1400395A1|add     rcx, 8
+1400395A5|add     rdx, r12
+1400395A8|mov     rax, [rdx]
+1400395AB|cmp     rax, r14
+1400395AE|jbe     short loc_1400395C0
+1400395B0|sub     eax, r14d
+1400395B3|cmp     esi, eax
+1400395B5|jbe     short loc_1400395C0
+1400395B7|mov     [rcx-4], eax
+1400395BA|add     rax, r13
+1400395BD|mov     [rcx], rax
+1400395C0|add     rdx, 8
+1400395C4|add     rcx, 30h 
+1400395C8|dec     r8
+1400395CB|jnz     short loc_1400395A8
+1400395CD|inc     ebx
+1400395CF|cmp     ebx, 1F4h
+1400395D5|jnb     loc_1400394C3
+1400395DB|jmp     loc_1400393B8

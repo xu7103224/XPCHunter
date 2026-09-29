@@ -678,6 +678,7 @@ __int64 InitPhysicalMemoryContextTable(int DeviceIndex, __int64 pOutputTable);
 char InitPowerCallback(__int64 InputBuffer, ULONG64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
 char InitProcessCallback(struct _KPROCESS **ProcessPtr, int BufferSize);
 void InitProcessContextExportTableWin7(void);
+ULONG64 ParseNtExportSectionsForProcessContext(__int64 FileBuffer, unsigned int FileSize);
 void InitProcessContextHookTable(void);
 __int64 InitProcessNotify(void);
 char InitRegCallback(void *OutputBuffer, int OutputSize, volatile void *UserBuffer, unsigned int UserBufferSize);
