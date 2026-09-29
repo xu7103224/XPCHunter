@@ -869,6 +869,82 @@ __int64 GetProcessContextBase(void)
     return OpenFileSection((__int64)EncodedName);
 }
 
+// ReadNtoskrnlForCallbackContext — 读取 msfs.sys 供回调上下文解析
+// 对应原始驱动 0x14003E80C（285 字节）
+// 【逆向来源】本轮发现该函数**可被 Hex-Rays 反编译**（伪代码可用），
+//   故按伪代码 + 路径字符串的精确解码还原（字符串由伪代码的
+//   `EncodedPath[N] = <十进制>` 赋值序列按 DWORD 索引重建并验证）。
+// 【路径】\SystemRoot\system32\drivers\msfs.sys
+// 【逻辑】构造编码路径 → ReadFileRawData（**返回 0 表示成功**）→
+//   ReadNtFileToBuffer 解析进缓冲区 → ExFree 原始数据；返回是否成功。
+bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = false;
+    void *pRawData = NULL;
+    size_t RawDataSize = 0;
+    WCHAR EncodedPath[40];
+
+    wcscpy(EncodedPath, L"\SystemRoot\system32\drivers\msfs.sys");
+
+    if (!(unsigned int)ReadFileRawData(EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
+    {
+        Result = (ReadNtFileToBuffer((PUCHAR)pRawData, (ULONG)RawDataSize,
+                                     (PUCHAR *)pFileBuffer, (PULONG)pFileSize) == 1);
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// ReadNtoskrnlForCallbackCtx — 读取 volmgr.sys / ftdisk.sys（按构建号二选一）
+// 对应原始驱动 0x14003612C（344 字节）
+// 【逆向来源】同上（反编译可得）
+// 【路径】前缀 \SystemRoot\system32\drivers 固定，
+//   构建号 >= 0x1770(6000, Vista) 时用 **volmgr.sys**，否则用 **ftdisk.sys**
+//   （两者是同一"卷管理器"驱动的不同代际实现，故按构建号选择）
+bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = false;
+    void *pRawData = NULL;
+    size_t RawDataSize = 0;
+    WCHAR EncodedPath[40];
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+        wcscpy(EncodedPath, L"\SystemRoot\system32\drivers\volmgr.sys");
+    else
+        wcscpy(EncodedPath, L"\SystemRoot\system32\drivers\ftdisk.sys");
+
+    if (!(unsigned int)ReadFileRawData(EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
+    {
+        Result = (ReadNtFileToBuffer((PUCHAR)pRawData, (ULONG)RawDataSize,
+                                     (PUCHAR *)pFileBuffer, (PULONG)pFileSize) == 1);
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// ReadNtFileForContextTable — 读取 partmgr.sys 供上下文表解析
+// 对应原始驱动 0x1400475C8（293 字节）
+// 【逆向来源】同上（反编译可得）
+// 【路径】\SystemRoot\system32\drivers\partmgr.sys
+// 【逻辑】与上面两个完全同构（构造路径 → ReadFileRawData → ReadNtFileToBuffer → ExFree）
+bool ReadNtFileForContextTable(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = false;
+    void *pRawData = NULL;
+    size_t FileSize = 0;
+    WCHAR EncodedBuffer[40];
+
+    wcscpy(EncodedBuffer, L"\SystemRoot\system32\drivers\partmgr.sys");
+
+    if (!(unsigned int)ReadFileRawData(EncodedBuffer, &pRawData, (ULONG *)&FileSize, 1))
+    {
+        Result = (ReadNtFileToBuffer((PUCHAR)pRawData, (ULONG)FileSize,
+                                     (PUCHAR *)pFileBuffer, (PULONG)pFileSize) == 1);
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
 // InitCallbackContextHookTable
 void InitCallbackContextHookTable(void)
 {

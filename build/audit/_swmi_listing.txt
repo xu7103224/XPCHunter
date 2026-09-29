@@ -1,0 +1,223 @@
+140072EC8|mov     rax, rsp
+140072ECB|mov     [rax+10h], rbx
+140072ECF|mov     [rax+20h], r9d
+140072ED3|mov     [rax+18h], r8d
+140072ED7|mov     [rax+8], rcx
+140072EDB|push    rbp
+140072EDC|push    rsi
+140072EDD|push    rdi
+140072EDE|push    r12
+140072EE0|push    r13
+140072EE2|push    r14
+140072EE4|push    r15
+140072EE6|lea     rbp, [rax-3Fh]
+140072EEA|sub     rsp, 0A0h
+140072EF1|xor     ebx, ebx
+140072EF3|mov     rdi, rdx
+140072EF6|lea     edx, [rbx+1]
+140072EF9|mov     [rcx], dl
+140072EFB|cmp     r9d, 2
+140072EFF|ja      loc_1400731D6
+140072F05|lea     ecx, [rbx+27h]
+140072F08|call    GtRead
+140072F0D|mov     ecx, 41C6h
+140072F12|mov     r15, rax
+140072F15|call    GtRead
+140072F1A|mov     ecx, 4223h
+140072F1F|mov     rsi, rax
+140072F22|call    GtRead
+140072F27|mov     ecx, 17Bh
+140072F2C|mov     r13, rax
+140072F2F|mov     [rbp+37h+var_70], rax
+140072F33|call    GtRead
+140072F38|mov     ecx, 179h
+140072F3D|mov     r12, rax
+140072F40|mov     qword ptr [rbp+37h+var_60], rax
+140072F44|call    GtRead
+140072F49|mov     r14, rax
+140072F4C|cmp     r15d, 0FFFFFFFFh
+140072F50|jz      loc_1400731D6
+140072F56|test    rsi, rsi
+140072F59|jz      loc_1400731D6
+140072F5F|test    r13, r13
+140072F62|jz      loc_1400731D6
+140072F68|test    r12, r12
+140072F6B|jz      loc_1400731D6
+140072F71|test    rax, rax
+140072F74|jz      loc_1400731D6
+140072F7A|mov     ecx, 914h
+140072F7F|call    GtRead
+140072F84|lea     edx, [rbx+1]
+140072F87|mov     rcx, rdi
+140072F8A|cmp     eax, 1DB0h
+140072F8F|jnb     short loc_140072FA9
+140072F91|mov     r8, [r14]
+140072F94|lea     rax, [rbp+37h+var_88]
+140072F98|xor     r9d, r9d
+140072F9B|mov     [rsp+0D0h+NumberOfBytes], rbx
+140072FA0|mov     [rsp+0D0h+Dst], rax
+140072FA5|call    rsi
+140072FA7|jmp     short loc_140072FBA
+140072FA9|lea     r9, [rbp+37h+var_88]
+140072FAD|xor     r8d, r8d
+140072FB0|mov     [rsp+0D0h+Dst], rbx
+140072FB5|call    SendDeviceIoControlWithRetry
+140072FBA|test    eax, eax
+140072FBC|js      loc_1400731D6
+140072FC2|mov     rax, gs:188h
+140072FCB|mov     rsi, [rbp+37h+arg_20]
+140072FCF|mov     r15d, r15d
+140072FD2|mov     cl, [r15+rax]
+140072FD6|mov     [r15+rax], bl
+140072FDA|lea     rdx, [rbp+37h+var_50]
+140072FDE|mov     [rbp+37h+var_90], cl
+140072FE1|mov     rcx, qword ptr [rbp+37h+var_88]
+140072FE5|mov     [rbp+37h+var_8C], ebx
+140072FE8|mov     r12d, ebx
+140072FEB|mov     r14, rsi
+140072FEE|mov     [rbp+37h+var_40], rax
+140072FF2|mov     [rbp+37h+var_78], r15
+140072FF6|call    DispatchHookSwapByVersion
+140072FFB|mov     ecx, 914h
+140073000|mov     [rbp+37h+var_58], rax
+140073004|call    GtRead
+140073009|mov     edi, 0C0000001h
+14007300E|cmp     eax, 1770h
+140073013|jb      loc_140073199
+140073019|mov     ecx, 197h
+14007301E|call    GtRead
+140073023|mov     r15, rax
+140073026|test    rax, rax
+140073029|jz      loc_140073195
+14007302F|mov     ecx, 198h
+140073034|call    GtRead
+140073039|lea     r8, [rbp+37h+var_80]
+14007303D|lea     rdx, [rbp+37h+var_88]
+140073041|mov     qword ptr [rbp+37h+var_48], rax
+140073045|mov     eax, 1
+14007304A|xor     r9d, r9d
+14007304D|mov     rcx, r15
+140073050|mov     qword ptr [rbp+37h+var_80], rbx
+140073054|mov     dword ptr [rsp+0D0h+Dst], eax
+140073058|call    DispatchIoControlByBuildNumber
+14007305D|mov     edi, eax
+14007305F|test    eax, eax
+140073061|jnz     loc_140073195
+140073067|mov     rcx, qword ptr [rbp+37h+var_80]
+14007306B|mov     r13, rbx
+14007306E|mov     [rbp+37h+var_68], rbx
+140073072|test    rcx, rcx
+140073075|jz      short loc_140073083
+140073077|lea     rdx, [rbp+37h+var_68]
+14007307B|call    DispatchHookSwapByVersion
+140073080|mov     r13, rax
+140073083|mov     r15d, dword ptr [rbp+37h+arg_28]
+140073087|mov     r8d, 1
+14007308D|mov     rcx, qword ptr [rbp+37h+var_80]
+140073091|mov     edi, 0C0000001h
+140073096|test    rcx, rcx
+140073099|jz      short loc_1400730D5
+14007309B|mov     r10, qword ptr [rbp+37h+var_48]
+14007309F|test    r10, r10
+1400730A2|jz      short loc_140073105
+1400730A4|mov     r9d, [rbp+37h+arg_18]
+1400730A8|mov     rax, [rbp+37h+arg_30]
+1400730AC|mov     rdx, qword ptr [rbp+37h+var_88]
+1400730B0|mov     [rsp+38h], rax
+1400730B5|mov     dword ptr [rsp+0D0h+var_A0], r15d
+1400730BA|mov     r8, rcx
+1400730BD|mov     [rsp+0D0h+NumberOfBytes], rsi
+1400730C2|mov     dword ptr [rsp+0D0h+Dst], r9d
+1400730C7|mov     r9d, [rbp+37h+arg_10]
+1400730CB|mov     rcx, r10
+1400730CE|call    AllocBufferAndSendIoControl
+1400730D3|jmp     short loc_1400730FD
+1400730D5|mov     rax, [rbp+37h+arg_30]
+1400730D9|mov     r9d, [rbp+37h+arg_18]
+1400730DD|mov     r8d, [rbp+37h+arg_10]
+1400730E1|mov     rdx, qword ptr [rbp+37h+var_88]
+1400730E5|mov     rcx, qword ptr [rbp+37h+var_60]
+1400730E9|mov     [rsp+0D0h+var_A0], rax
+1400730EE|mov     dword ptr [rsp+0D0h+NumberOfBytes], r15d
+1400730F3|mov     [rsp+0D0h+Dst], rsi
+1400730F8|call    SendIoControlWithQuotaBufferEx
+1400730FD|mov     r8d, 1
+140073103|mov     edi, eax
+140073105|cmp     [rbp+37h+arg_18], r8d
+140073109|jnz     short loc_14007316C
+14007310B|cmp     [rbp+37h+arg_38], r8b
+14007310F|jz      short loc_140073165
+140073111|test    edi, edi
+140073113|jnz     short loc_140073157
+140073115|mov     [r14], r12d
+140073118|mov     ecx, [rsi+8]
+14007311B|cmp     ecx, 0FFFFFFFFh
+14007311E|jz      short loc_140073129
+140073120|mov     r12d, [rsi+0Ch]
+140073124|add     r12d, ecx
+140073127|jmp     short loc_140073131
+140073129|mov     r12d, [rsi+10h]
+14007312D|add     r12d, 14h
+140073131|lea     rcx, [r12+4]
+140073136|mov     eax, r15d
+140073139|mov     edx, r12d
+14007313C|cmp     rax, rcx
+14007313F|jbe     short loc_140073169
+140073141|add     [rbp+37h+arg_10], r8d
+140073145|mov     r14, rsi
+140073148|sub     r15d, r12d
+14007314B|add     rsi, rdx
+14007314E|add     [rbp+37h+var_8C], r8d
+140073152|jmp     loc_14007308D
+140073157|mov     eax, [rbp+37h+var_8C]
+14007315A|mov     [r14], ebx
+14007315D|test    eax, eax
+14007315F|jz      short loc_14007316C
+140073161|mov     edi, ebx
+140073163|jmp     short loc_14007316C
+140073165|test    edi, edi
+140073167|jnz     short loc_14007316C
+140073169|mov     [r14], ebx
+14007316C|cmp     qword ptr [rbp+37h+var_80], rbx
+140073170|jz      short loc_140073191
+140073172|test    r13, r13
+140073175|jz      short loc_14007317F
+140073177|mov     rax, [rbp+37h+var_68]
+14007317B|mov     [r13+0], rax
+14007317F|mov     rcx, qword ptr [rbp+37h+var_80]
+140073183|mov     r13, [rbp+37h+var_70]
+140073187|test    rcx, rcx
+14007318A|jz      short loc_140073195
+14007318C|call    r13
+14007318F|jmp     short loc_140073195
+140073191|mov     r13, [rbp+37h+var_70]
+140073195|mov     r15, [rbp+37h+var_78]
+140073199|mov     rcx, [rbp+37h+var_58]
+14007319D|test    rcx, rcx
+1400731A0|jz      short loc_1400731A9
+1400731A2|mov     rax, [rbp+37h+var_50]
+1400731A6|mov     [rcx], rax
+1400731A9|mov     rax, [rbp+37h+var_40]
+1400731AD|mov     cl, [rbp+37h+var_90]
+1400731B0|mov     [r15+rax], cl
+1400731B4|mov     rcx, qword ptr [rbp+37h+var_88]
+1400731B8|call    r13
+1400731BB|cmp     edi, 8000001Ah
+1400731C1|jnz     short loc_1400731C9
+1400731C3|mov     rax, [rbp+37h+arg_0]
+1400731C7|mov     [rax], bl
+1400731C9|movzx   ebx, bl
+1400731CC|test    edi, edi
+1400731CE|mov     ecx, 1
+1400731D3|cmovz   ebx, ecx
+1400731D6|mov     al, bl
+1400731D8|mov     rbx, [rsp+0D0h+arg_8]
+1400731E0|add     rsp, 0A0h
+1400731E7|pop     r15
+1400731E9|pop     r14
+1400731EB|pop     r13
+1400731ED|pop     r12
+1400731EF|pop     rdi
+1400731F0|pop     rsi
+1400731F1|pop     rbp
+1400731F2|retn
