@@ -267,14 +267,35 @@ __int64 CheckProcessAccess(void)
     return 1;
 }
 
-// InitCallbackFunctions — 初始化回调函数
-// 对应原始驱动 sub_140033EE8
+// InitCallbackFunctions — 初始化回调函数（补全空壳）
+// 对应原始驱动 0x140033EE8（84 字节）
+// 【逆向来源】可反编译（15 行伪代码）
+// 【⚠ 修正记录】此前是空壳（`return 1;` 且 doc 注释写着"InitProcessNotify();
+//   InitThreadNotify();"两个被注释掉的调用），而它在 MemoryOperation.c:809 被真实调用。
+// 【逻辑】先调 InitProcessNotify + InitThreadNotify；
+//   然后按三个"结果槽是否已填"分别以**模式 0 / 2 / 1** 调 InitCallbackFunctionTable：
+//     GT (GtEprocessField133|0x100) == 0  → InitCallbackFunctionTable(0)
+//     GT (GtEprocessField134|0x100) == 0  → InitCallbackFunctionTable(2)
+//     GT GtKernelDataField18 == 0         → InitCallbackFunctionTable(1)
+//   （模式与结果槽的对应关系：0→GT 0x18F/0x18F 族、2→GT 0x190 族、1→GT 0x2A4 族，
+//     见 InitCallbackFunctionTable 的实现与 §待实现文档）
+//   返回最后一个 GtRead 的值（全已填时返回该值）。
 __int64 InitCallbackFunctions(void)
 {
-    // 初始化进程、线程、映像、注册表等通知回调
-    // InitProcessNotify();
-    // InitThreadNotify();
-    return 1;
+    __int64 Status;
+
+    InitProcessNotify();
+    InitThreadNotify();
+
+    if (!(unsigned int)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField133 | 0x100)))
+        InitCallbackFunctionTable(0);
+    if (!(unsigned int)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField134 | 0x100)))
+        InitCallbackFunctionTable(2);
+
+    Status = (__int64)GtRead(GtKernelDataField18);
+    if (!(_DWORD)Status)
+        return InitCallbackFunctionTable(1);
+    return Status;
 }
 
 // InvokeRegisteredCallbackWithUserData — 调用注册的回调

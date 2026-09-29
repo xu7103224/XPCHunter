@@ -423,6 +423,10 @@ __int64 __fastcall SendIoControlWithQuotaBuffer(
     __int64 (__fastcall *HandlerFunc)(__int64, __int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *),
     __int64 Arg2, __int64 Arg3, unsigned int Arg4, unsigned int Arg5,
     _BYTE *Dst, SIZE_T NumberOfBytes, size_t *pOutSize);
+__int64 __fastcall AllocBufferAndSendIoControl(
+    __int64 (__fastcall *a1)(__int64, __int64, _QWORD, _QWORD, int, _BYTE *, _DWORD, size_t *, _QWORD),
+    __int64 a2, __int64 a3, unsigned int a4, int a5,
+    _BYTE *Dst, SIZE_T NumberOfBytes, size_t *a8);
 __int64 __fastcall SendIoControlWithQuotaBufferEx(
     __int64 (__fastcall *HandlerFunc)(__int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *),
     __int64 Arg2, unsigned int Arg3, int Arg4,
