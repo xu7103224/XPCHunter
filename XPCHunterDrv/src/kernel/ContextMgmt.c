@@ -1178,10 +1178,98 @@ void InitUSBPortSyscallTable(void)
     return;
 }
 
-// InitWin32kTableByVersion
+// InitWin32kTableByVersion — 按构建号初始化 Win32k 表（补全空壳）
+// 对应原始驱动 0x14008850C（76 字节）
+// 【逆向来源】反汇编逐条还原
+// 【逻辑】构建号 >= 0x2800(10240, Win10 1507) 走新路径：
+//   读 win32k 完整驱动文件（ReadWin32kFullDriverFile）→ 解析导出（ResolveWin32kExportAddresses）
+//   → ExFree；否则走旧路径：直接用 ResolveWin32kSyscallAddresses（读 ntoskrnl 服务表）。
 void InitWin32kTableByVersion(void)
 {
-    return;
+    unsigned int FileSize = 0;
+    __int64 FileBuf = 0;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+    {
+        if (!ReadWin32kFullDriverFile(&FileBuf, &FileSize))
+            return;
+        ResolveWin32kExportAddresses(FileBuf, FileSize);
+        ExFree((PVOID)FileBuf);
+    }
+    else
+    {
+        ResolveWin32kSyscallAddresses();
+    }
+}
+
+// ResolveWin32kSyscallAddresses — 由 ntoskrnl 服务表解析 Win32k 调用地址
+// 对应原始驱动 0x140088558（175 字节）
+// 【逆向来源】反汇编逐条还原
+// 【逻辑】GtRead(GT 0x1FA) 取服务表指针；为空则先调 ReadNtOsKrnlAndParseServiceTable
+//   再重取。再取 GT 0x50（服务表基址）与 GT 0x303（标志）——若标志已置位或任一为空则返回。
+//   然后取 GT 0x1E2 与 GT 0x1E7 作索引，从服务表 [索引] 读出两个 RVA，分别加基址后
+//   写入 GT 0x1F2 与 GT 0x1F7（即两个 Win32k 目标函数的解析地址）。
+void ResolveWin32kSyscallAddresses(void)
+{
+    __int64 ServiceTable = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1FA);
+    __int64 Base, Index1, Index2;
+
+    if (!ServiceTable)
+    {
+        ReadNtOsKrnlAndParseServiceTable();
+        ServiceTable = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1FA);
+    }
+    Base = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x50);
+    if (!ServiceTable || !Base)
+        return;
+    if ((unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x303) != 0)
+        return;
+
+    Index1 = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1E2);
+    Index2 = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1E7);
+    {
+        ULONG Rva1 = *(ULONG *)(ServiceTable + (unsigned int)Index1 * 4);
+        ULONG Rva2 = *(ULONG *)(ServiceTable + (unsigned int)Index2 * 4);
+        GtWrite((GLOBAL_TABLE_INDEX)0x1F2, (__int64)(Rva1 + Base));
+        GtWrite((GLOBAL_TABLE_INDEX)0x1F7, (__int64)(Rva2 + Base));
+    }
+}
+
+// ResolveWin32kExportAddresses — 由 win32k 导出表解析两个目标函数地址
+// 对应原始驱动 0x140088608（277 字节）
+// 【逆向来源】反汇编逐条还原（含两个字符串常量的字节还原）
+// 【参数】rcx = 文件缓冲、edx = 文件大小
+// 【逻辑】GtRead(GT 0x8F6) 取镜像基址（为空返回）；若 GT 0x8FB 已置位则直接返回。
+//   依次按名查找两个导出并写回 GT 槽：
+//     "NtUserBuildHwndList" → GT 0x1F2
+//     "NtUserQueryWindow"   → GT 0x1F7
+//   仅在查找成功、结果非 0 且 < 文件大小时写入（偏移 + 镜像基址）。
+void ResolveWin32kExportAddresses(__int64 FileBuffer, unsigned int FileSize)
+{
+    __int64 ImageBase;
+    ULONG Out1 = 0, Out2 = 0;
+    WCHAR Name1[24];
+    WCHAR Name2[24];
+
+    ImageBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x8F6);
+    if (!ImageBase)
+        return;
+    if ((unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8FB) != 0)
+        return;
+
+    memcpy(Name1, L"NtUserBuildHwndList", 40);
+    if (LookupExportByName((PUCHAR)FileBuffer, FileSize, (PCHAR)Name1, &Out1))
+    {
+        if (Out1 != 0 && Out1 < FileSize)
+            GtWrite((GLOBAL_TABLE_INDEX)0x1F2, (__int64)(Out1 + ImageBase));
+    }
+
+    memcpy(Name2, L"NtUserQueryWindow", 34);
+    if (LookupExportByName((PUCHAR)FileBuffer, FileSize, (PCHAR)Name2, &Out2))
+    {
+        if (Out2 != 0 && Out2 < FileSize)
+            GtWrite((GLOBAL_TABLE_INDEX)0x1F7, (__int64)(Out2 + ImageBase));
+    }
 }
 
 // InstallCallbackContextHookEntry — 安装回调上下文 Hook 条目

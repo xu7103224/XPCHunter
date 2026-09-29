@@ -694,6 +694,8 @@ __int64 InitThreadNotify(void);
 void InitUSBPortSyscallTable(void);
 __int64 InitUnicodeStringBuffer(__int64 Buffer, __int64 StringPtr, unsigned int MaxLength);
 void InitWin32kServiceTableEntries(void);
+void ResolveWin32kSyscallAddresses(void);
+void ResolveWin32kExportAddresses(__int64 FileBuffer, unsigned int FileSize);
 void InitWin32kTableByVersion(void);
 __int64 InstallCallbackContextHookEntry(unsigned int *pInputEntry);
 __int64 InstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
