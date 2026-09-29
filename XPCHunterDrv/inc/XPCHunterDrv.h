@@ -770,7 +770,7 @@ __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _D
 __int64 MiniFilterGenerateFileName(void);
 NTSTATUS MiniFilterInstanceQuery(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCFLT_RELATED_OBJECTS FltObjects, FLT_INSTANCE_QUERY_FLAGS Flags);
 NTSTATUS MiniFilterInstanceSetup(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCFLT_RELATED_OBJECTS FltObjects, FLT_INSTANCE_SETUP_FLAGS Flags);
-__int64 MiniFilterNormalizeName(void);
+__int64 *__fastcall MiniFilterNormalizeName(__int64 Unknown, __int64 FilePath, char IsAddOperation);
 __int64 MiniFilterNotifyRoutine(wchar_t *Name, ULONG NameLength);
 NTSTATUS MiniFilterNotifyRoutineEx(void);
 NTSTATUS MiniFilterNotifyRoutineEx2(void);
@@ -799,7 +799,7 @@ NTSTATUS MiniFilterQueryIdleRoutine(void);
 NTSTATUS MiniFilterReleaseForCcFlush(void);
 NTSTATUS MiniFilterReleaseForModWrite(void);
 NTSTATUS MiniFilterServerContext(void);
-NTSTATUS MiniFilterStreamHandle(void);
+bool MiniFilterStreamHandle(__m128i *Address, int InputSize);
 char MiniFilterStreamHandleEx(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 StreamHandle, __int64 BaseOffset);
 __int64 MiniFilterUnloadCleanup(void);
 __int64 ModuleOperation(__int64 *pInputBuffer, unsigned int InputSize);

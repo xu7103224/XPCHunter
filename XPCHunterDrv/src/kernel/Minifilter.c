@@ -2152,11 +2152,57 @@ __int64 MiniFilterCommPortReplyDone(void)
 // MiniFilterNormalizeName — 文件名规范化
 // 将 DOS 设备路径（\\.\C:\）转换为 NT 路径（\Device\HarddiskVolume1\），处理设备符号链接
 // 对应原始驱动 sub_140019DD8
-__int64 MiniFilterNormalizeName(void)
+__int64 *__fastcall MiniFilterNormalizeName(__int64 Unknown, __int64 FilePath, char IsAddOperation)
 {
-    // 文件名规范化需要 IopGetDeviceObject 和 IopParseFileName 等内部函数
-    // 此处返回 1 表示规范化成功（使用默认路径）
-    return 1;
+    // 【补全空壳 2026-09-29】对应原始驱动 0x140019DD8（199 字节），可反编译（46 行伪码）
+    // 【⚠ 修正记录】此前是空壳 `return 1;`，注释称"需要 IopGetDeviceObject 和
+    //   IopParseFileName 等内部函数" —— 该判断**错误**。伪代码签名
+    //   `f(Unknown, FilePath, IsAddOperation)`：实为"**添加操作**时通过创建文件对象
+    //   来设置路径信息"，只用三个 GT 函数指针，无需任何内部函数。
+    // 【GT 索引（反汇编实测）】0x432E=创建文件函数、0x41CF=设置信息函数、0x4334=关闭函数
+    // 【逻辑】先加互斥锁；若 IsAddOperation == 1 且三个函数指针齐备，构造参数块
+    //   （[0]=FilePath、+0x10=48、+0x28=512）调创建函数 → 成功后设置信息(句柄,0) →
+    //   关闭句柄；最后释放互斥锁并返回其值。
+    int (__fastcall *CreateFileFunc)(__int64 *, __int64, int *, _QWORD *);
+    void (__fastcall *SetInfoFunc)(__int64, _QWORD);
+    __int64 CloseFuncPtr;
+    void (__fastcall *CloseFunc)(__int64);
+    _QWORD v10[2];
+    int v11;
+    __int64 v12;
+    __int64 v13;
+    int v14;
+    __int128 v15;
+    __int64 v16;
+
+    AcquireMiniFilterMutexEx();
+
+    if (IsAddOperation == 1)
+    {
+        CreateFileFunc = (int (__fastcall *)(__int64 *, __int64, int *, _QWORD *))
+            GtRead((GLOBAL_TABLE_INDEX)0x432E);
+        SetInfoFunc = (void (__fastcall *)(__int64, _QWORD))
+            GtRead((GLOBAL_TABLE_INDEX)0x41CF);
+        CloseFuncPtr = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x4334);
+        CloseFunc = (void (__fastcall *)(__int64))CloseFuncPtr;
+
+        if (CreateFileFunc && SetInfoFunc && CloseFuncPtr)
+        {
+            v10[1] = 0;
+            v12 = 0;
+            v13 = 0;
+            v15 = 0;
+            v10[0] = FilePath;
+            v11 = 48;
+            v14 = 512;
+            if (CreateFileFunc(&v16, 1, &v11, v10) >= 0)
+            {
+                SetInfoFunc(v16, 0);
+                CloseFunc(v16);
+            }
+        }
+    }
+    return AcquireMiniFilterMutex();
 }
 
 // MiniFilterContextCleanup — 上下文清理命令处理
@@ -2991,31 +3037,74 @@ char MiniFilterFormatFileNameWithPath(void)
     return Result;
 }
 
-// MiniFilterFormatFileNameWithContext — 格式化文件名带上下文
-// 从回调上下文获取文件名信息并格式化
-// 对应原始驱动 sub_140019ED0
+// MiniFilterFormatFileNameWithContext — 注册 MiniFilter 回调（补全空壳）
+// 对应原始驱动 0x140019ED0（69 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（18 行伪代码），按伪代码实现
+// 【⚠ 修正记录】此前注释写"需要 FLT_CALLBACK_DATA 上下文获取文件名，无法实现" ——
+//   该判断**错误**：伪代码显示本函数**无参数**，实际是"一次性注册回调"：
+//   若 GT (GtMiniFilterFormatNameExReady) 未置位，则取注册函数指针
+//   (GtTotalSize|GtEprocessField155|0x100) 注册 MiniFilterFilterUnload，然后置位并返回 1。
+// 【命名说明】名字与实际功能（注册回调）不符，与 MiniFilterCommPortConnect 同族；
+//   改名归入命名轮，此处先按伪代码补全实现。
 __int64 MiniFilterFormatFileNameWithContext(void)
 {
-    // 需要 FLT_CALLBACK_DATA 上下文获取文件名
-    return 0;
+    char Result = 0;
+    void (__fastcall *RegisterFunc)(__int64 *(__fastcall *)(__int64, __int64, char));
+
+    if (!(unsigned int)GtRead(GtMiniFilterFormatNameExReady))
+    {
+        RegisterFunc = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char)))
+            GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField155 | 0x100));
+        if (RegisterFunc)
+        {
+            RegisterFunc(MiniFilterFilterUnload);
+            GtWrite(GtMiniFilterFormatNameExReady, 1);
+            return 1;
+        }
+    }
+    return Result;
 }
 
-// MiniFilterFormatFileNameEx — 格式化文件名扩展
-// 从流上下文获取文件名并格式化为 Unicode 字符串
-// 对应原始驱动 sub_140019F50
+// MiniFilterFormatFileNameEx — 查询"文件名格式化就绪"标志（补全空壳）
+// 对应原始驱动 0x140019F50（110 字节）
+// 【逆向来源】⚠ 可反编译（17 行伪代码）
+// 【⚠ 修正记录】此前注释写"需要 FltGetStreamFileObjectContext 获取文件名" —— **错误**。
+//   实际：校验输出缓冲可写且 BufferSize == 4 → ProbeForWrite
+//   → 把 GT (GtMiniFilterFormatNameReady) 是否非 0 作为结果写回输出缓冲 → 返回 1。
 __int64 MiniFilterFormatFileNameEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize)
 {
-    // 需要 FltGetStreamFileObjectContext 获取文件名
-    return 0;
+    int Result = 0;
+
+    if ((unsigned __int64)OutputBuffer < MmUserProbeAddress && OutputBuffer &&
+        (unsigned __int64)OutputBuffer + 1 < MmUserProbeAddress && BufferSize == 4)
+    {
+        ProbeForWrite(OutputBuffer, 4u, 4u);
+        LOBYTE(Result) = ((unsigned int)GtRead(GtMiniFilterFormatNameReady) != 0);
+        *OutputBuffer = Result;
+        LOBYTE(Result) = 1;
+    }
+    return Result;
 }
 
-// MiniFilterFormatFileNameWithPathEx — 格式化文件名带路径扩展
-// 从流上下文获取文件名并格式化为完整路径
-// 对应原始驱动 sub_140019FD0
+// MiniFilterFormatFileNameWithPathEx — 查询"扩展格式化就绪"标志（补全空壳）
+// 对应原始驱动 0x140019FD0（110 字节）
+// 【逆向来源】⚠ 可反编译（22 行伪代码）
+// 【⚠ 修正记录】此前注释写"需要 FltGetStreamFileObjectContext 获取文件名" —— **错误**。
+//   与 MiniFilterFormatFileNameEx 同构，只是查询的 GT 槽不同
+//   （GtMiniFilterFormatNameExReady = 0x8F1）。
 __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize)
 {
-    // 需要 FltGetStreamFileObjectContext 获取文件名
-    return 0;
+    int Result = 0;
+
+    if ((unsigned __int64)OutputBuffer < MmUserProbeAddress && OutputBuffer &&
+        (unsigned __int64)OutputBuffer + 1 < MmUserProbeAddress && BufferSize == 4)
+    {
+        ProbeForWrite(OutputBuffer, 4u, 4u);
+        LOBYTE(Result) = ((unsigned int)GtRead(GtMiniFilterFormatNameExReady) != 0);
+        *OutputBuffer = Result;
+        LOBYTE(Result) = 1;
+    }
+    return Result;
 }
 
 // MiniFilterQueryIdleRoutine — 查询空闲例程
@@ -3066,13 +3155,52 @@ NTSTATUS MiniFilterNotifyRoutineEx2(void)
     return STATUS_SUCCESS;
 }
 
-// MiniFilterStreamHandle — 流句柄处理
-// 处理流级别的打开/关闭/读写操作
-// 对应原始驱动 sub_14001A250
-NTSTATUS MiniFilterStreamHandle(void)
+// MiniFilterStreamHandle — 流句柄操作处理器（补全空壳）
+// 对应原始驱动 0x14001AB5C（289 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（43 行伪代码），按伪代码实现
+// 【⚠ 修正记录两处】① 此前注释写"对应 sub_14001A250"，而该地址**在原始中不存在**
+//   （已用 _xrefs 与函数清单双向核实）—— 正确地址是 0x14001AB5C；
+//   ② 此前是空壳 `return STATUS_SUCCESS;` 且注释称"需要 FltGetStreamFileObjectContext
+//   获取流上下文"—— 该判断**错误**。伪代码签名 `bool f(__m128i *Address, int a2)`：
+//   实为**输入缓冲处理器**（校验 40 字节输入 → 解析 ProcessId/EPROCESS/流上下文 →
+//   PsLookupProcessByProcessId → ValidateProcessObject → 调 MiniFilterStreamHandleEx）。
+bool MiniFilterStreamHandle(__m128i *Address, int InputSize)
 {
-    // 需要 FltGetStreamFileObjectContext 获取流上下文
-    return STATUS_SUCCESS;
+    bool Result = false;
+    __m128i InputData;
+    __m128i StreamData;
+    struct _KPROCESS *TargetProcess;
+    NTSTATUS Status;
+    int Status2;
+    PEPROCESS Process = NULL;
+    __int64 StreamContext;
+
+    if (Address && InputSize == 40 &&
+        (unsigned __int64)Address < MmUserProbeAddress &&
+        (unsigned __int64)&Address[2].m128i_u64[1] < MmUserProbeAddress)
+    {
+        ProbeForRead(Address, 0x28u, 4u);
+        InputData = *Address;
+        StreamData = Address[1];
+        StreamContext = Address[2].m128i_i64[0];
+
+        TargetProcess = (struct _KPROCESS *)_mm_srli_si128(InputData, 8).m128i_u64[0];
+        Status = PsLookupProcessByProcessId((HANDLE)InputData.m128i_i64[0], &Process);
+        Status2 = Status;
+        if (!TargetProcess && Status >= 0)
+            TargetProcess = Process;
+
+        if (ValidateProcessObject((__int64)TargetProcess, 0) == 1 &&
+            StreamData.m128i_i64[0] < MmUserProbeAddress &&
+            StreamData.m128i_i64[1] < MmUserProbeAddress)
+        {
+            Result = MiniFilterStreamHandleEx(TargetProcess,
+                StreamData.m128i_i64[0], StreamData.m128i_u64[1], StreamContext);
+        }
+        if (Status2 >= 0)
+            ObfDereferenceObject(Process);
+    }
+    return Result;
 }
 
 // MiniFilterPreFastIo — 快速 IO 预处理
