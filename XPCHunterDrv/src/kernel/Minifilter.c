@@ -1239,17 +1239,209 @@ L140015D43:
 //   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
 ULONG64 FindKernelObjectFieldOffsetsWin10Early(void)
 {
-    // 【⚠ 转写回退 2026-09-21】首版转写中发现**明确误读**，按"无法解释每一行不算完成"
-    // 的原则整体回退（未提交该版）。已定位的待查点：
-    //   1) 0x140016300 `mov ecx,[r14]` —— 该处 r14d 已被置 1（0x1400162D3），
-    //      不可能作合法指针读取 → 说明我对该处寄存器生命的跟踪有误，
-    //      需重新确认 0x1400162D3/0x1400161DF 两处 `mov r14d,1` 是否属同一变量，
-    //      或 `[r14]` 实为 IDA 显示偏差（可能应为 `[r14+..]` 的指针在别处设置）。
-    //   2) ScanEnd 的计算（0x140016020-0x14001605B 段）被写成重复赋值，
-    //      需按 `cmova`(无符号取大) 的语义单次确定。
-    //   3) L14001614A 的 0xFF8 比较属第一个扫描块还是收尾路径，需再确认。
-    // 前置表（GT 读写 11 处、标志区 var_1E0[0..2]、31 个标签全序）已存于
-    // docs/reversing/待实现函数结构分析.md，转写基准见 build/audit/_preSetInfo_listing.txt。
+    // 【机械转写 2026-09-21】按 build/audit/_preSetInfo_listing.txt 逐标签转写。
+    // 【三个待查点已解决】
+    //   ① r14 为**顺序复用**：0x140016083 先作指针（lea r14,[rbx+3]）读出候选值到 r15d，
+    //      其后才用 r14b 作标志；0x140016300 的 `mov ecx,[r14]` 因 r14 的高 32 位仍保留
+    //      rbx+3（mov r14b 只写最低字节）而合法 —— 读的是 *(ULONG*)(ScanStart+3)。
+    //      （前版判"不可能作指针读取"是错的。）
+    //   ② 外层循环变量是 var_1B0（0x14001605B 存 rbx+1、0x140016175 从它恢复），非 rbx。
+    //   ③ 0xFF8 比较属第一个扫描块路径。
+    // 【内层上限】块1 = 6（0x140016166 `cmp ebx,6`）；块2 = 0xA；块3 = 0xF。
+    ULONG64 PeBase;      // r12 <- GT 0x20
+    ULONG   PeSize;      // rsi <- GT 0x21
+    ULONG64 ImageBase;   // rbx -> var_1C8 <- GT 3
+    ULONG64 Gt8CC;       // rdi / var_1B8
+    ULONG64 Gt8CD;       // var_1C0
+    UCHAR   Flags[4];    // var_1E0[0..2]
+    UCHAR   fR14;        // r14b（Gt8CC 命中标志）
+    UCHAR   fDil;        // dil（0xFF8 命中标志）
+    ULONG64 ScanStart;   // rbx（当前位置）
+    ULONG64 LoopNext;    // var_1B0（下一位置）
+    ULONG64 LimitHi;     // var_1D8 = PeBase + PeSize
+    ULONG64 ScanEnd;     // r13
+    ULONG64 SectionOff;
+    ULONG   Cand;        // r15d
+    ULONG   Count1, Count2, Count3;
+    PE_DECODE_CONTEXT Ctx;      // var_1A0
+    _DWORD  SectionInfo[112];   // var_150
+    WCHAR   PageName[8];        // var_1D0
+
+    PeBase    = (ULONG64)GtRead(GtNtoskrnlPeFileBase);
+    PeSize    = (ULONG)GtRead(GtNtoskrnlPeFileSize);
+    ImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    Gt8CC     = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8CC);
+    Gt8CD     = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8CD);
+
+    if (!PeBase || !PeSize || !ImageBase || !(ULONG)Gt8CC || !(ULONG)Gt8CD)
+        return 0;
+
+    PageName[0] = L'.'; PageName[1] = L'P'; PageName[2] = L'A';
+    PageName[3] = L'G'; PageName[4] = L'E'; PageName[5] = 0;
+    LimitHi = PeBase + PeSize;
+
+    SectionOff = (ULONG64)FindPESectionByName(PeBase, PeSize, (ULONG64)PageName);
+    {
+        ULONG64 rvaVa = (ULONG64)FindPESectionByNameReturnVa(PeBase, PeSize, (ULONG64)PageName);
+        ULONG   lim;
+        if (!rvaVa)
+            rvaVa = (ULONG64)(PeSize - (ULONG)SectionOff);
+        lim = PeSize - (ULONG)SectionOff;
+        if (lim > (ULONG)rvaVa)                              // cmova：无符号取大
+            rvaVa = lim;
+        ScanEnd = SectionOff + rvaVa;
+    }
+    ScanEnd += PeBase;
+    ScanStart = PeBase + SectionOff;
+    if (ScanStart >= ScanEnd) goto L140016188;
+    Flags[0] = 0; Flags[1] = 0; Flags[2] = 0; fR14 = 0; fDil = 0;
+    LoopNext = ScanStart + 1;
+    goto L14001617F;
+
+L14001605B:
+    LoopNext = ScanStart + 1;
+    if (LoopNext + 0x2F >= ScanEnd) goto L140016175;
+    if (*(UCHAR *)ScanStart != 0x48) goto L140016175;
+    if (*(UCHAR *)LoopNext != 0x8D) goto L140016175;
+
+    Cand = *(ULONG *)(ScanStart + 3) + 7 + (ULONG)ScanStart - (ULONG)PeBase;
+    if (Cand == 0) goto L140016175;
+    if (Cand >= PeSize) goto L140016175;
+    if (Flags[2] != 0) goto L1400161EF;
+
+    if (*(UCHAR *)(ScanStart + 7) != 0x48) goto L1400161EF;
+    if (*(UCHAR *)(ScanStart + 8) != 0x89) goto L1400161EF;
+    if (*(UCHAR *)(ScanStart + 0xA) != 8) goto L1400161EF;
+    if (Cand == 0) goto L140016175;
+    if (Cand >= PeSize) goto L140016175;
+
+    // ---- 块 1（上限 6）：Gt8CC / 0xFF8 命中判定 ----
+    Count1 = 0;
+    fR14 = 0; fDil = 0;
+    InitPESectionReadContext((__int64)(ScanStart + 7),
+                             (ULONG)((ULONG)LimitHi - (ULONG)ScanStart - 7),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+L14001611A:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L14001616B;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    if ((ULONG)Gt8CC == *(ULONG *)((char *)SectionInfo + 0x110)) { fR14 = 1; goto L14001615E; }
+    if (*(ULONG *)((char *)SectionInfo + 0x110) == 0xFF8) fDil = 1;
+L14001615E:
+    if (fDil == 1) goto L1400161B8;
+    Count1 += 1;
+    if (Count1 < 6) goto L14001611A;
+
+L14001616B:
+    goto L140016175;
+
+L1400161B8:                                                  // 写块 1
+    GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand);
+    GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)(Cand + ImageBase));
+    Flags[2] = 1;
+    goto L1400162E4;
+
+L1400161EF:                                                  // 41 F6 判定
+    if (fR14 != 0) goto L14001633B;
+    if (*(UCHAR *)(ScanStart + 7) == 0x41 && *(UCHAR *)(ScanStart + 8) == 0xF6)
+        goto L14001621B;
+    if (*(UCHAR *)(ScanStart + 0xA) == 0x41 && *(UCHAR *)(ScanStart + 0xB) == 0xF6)
+        goto L14001621B;
+    goto L14001633B;
+
+L14001621B:                                                  // 块 2（上限 0xA）
+    Count2 = 0;
+    InitPESectionReadContext((__int64)(ScanStart + 7),
+                             (ULONG)((ULONG)LimitHi - (ULONG)ScanStart - 7),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+L14001624E:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L14001628E;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    if (*(__int64 *)((char *)SectionInfo + 0x88) == 0x800000 &&
+        *(ULONG *)((char *)SectionInfo + 0x70) == 0x1000 &&
+        (ULONG)Gt8CC == *(ULONG *)((char *)SectionInfo + 0x110))
+        goto L140016300;
+    Count2 += 1;
+    if (Count2 < 0xA) goto L14001624E;
+
+L14001628E:                                                  // C7 模式反向搜索
+    {
+        ULONG64 p = ScanStart - 0x30;
+        if (ScanStart <= PeBase || p <= PeBase || p >= (ULONG64)(ScanStart - 7))
+            goto L1400162C9;
+        for (;;)
+        {
+            if (*(UCHAR *)p == 0xC7 && (ULONG)Gt8CD == *(UCHAR *)(p + 2) &&
+                *(ULONG *)(p + 3) == 0x1000) goto L140016300;
+            p += 1;
+            if (p >= (ULONG64)(ScanStart - 7)) break;
+        }
+    }
+
+L1400162C9:
+    if (Flags[2] != 1) goto L140016175;
+    goto L1400162E4;
+
+L1400162E4:
+    if (fR14 != 1) goto L140016175;
+    if (Flags[0] == 1) goto L140016188;
+    goto L140016175;
+
+L140016175:
+    ScanStart = LoopNext;
+L14001617F:
+    if (ScanStart < ScanEnd) goto L14001605B;
+    goto L140016188;
+
+L140016300:                                                  // 写块 2（第二次候选读取）
+    Cand = *(ULONG *)(ScanStart + 3) + 7 + (ULONG)ScanStart - (ULONG)PeBase;
+    if (Cand == 0) goto L1400162C9;
+    if (Cand >= PeSize) goto L1400162C9;
+    GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);
+    GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand + ImageBase));
+    fR14 = 1;
+    Flags[1] = 1;
+    goto L1400162D3;
+
+L1400162D3:
+    if (Flags[2] != 1) goto L140016175;
+    goto L1400162E4;
+
+L14001633B:                                                  // 48 05 模式（MOV eax,imm32）
+    if (Flags[0] != 0) goto L1400162D3;
+    if (*(UCHAR *)(ScanStart + 7) != 0x48) goto L1400162D3;
+    if (*(UCHAR *)(ScanStart + 8) != 0x05) goto L1400162D3;
+    if ((ULONG)GtRead((GLOBAL_TABLE_INDEX)0x336) != *(ULONG *)(ScanStart + 9))
+        goto L1400162C9;
+
+    // ---- 块 3（上限 0xF）----
+    Count3 = 0;
+    InitPESectionReadContext((__int64)(ScanStart + 7),
+                             (ULONG)((ULONG)LimitHi - (ULONG)ScanStart - 7),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+L140016394:
+    if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, (PULONG)SectionInfo)) goto L1400163F4;
+    Ctx.ReadPtr += *(unsigned int *)((char *)SectionInfo + 0xF0);
+    if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) != 0xE5) goto L1400163CB;
+    if (*(__int64 *)((char *)SectionInfo + 0x50) != 0x40000) goto L1400163CB;
+    goto L1400163D8;
+L1400163CB:
+    Count3++;
+    if (Count3 >= 0xF) goto L1400162C9;
+    goto L140016394;
+
+L1400163D8:                                                  // 收尾写 0x337
+    GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)(Cand + ImageBase));
+    Flags[0] = 1;
+    goto L1400163F9;
+L1400163F4:
+    ;
+L1400163F9:
+    goto L1400162D3;
+
+L140016188:
     return 0;
 }
 // MiniFilterPreRename — 预重命名
