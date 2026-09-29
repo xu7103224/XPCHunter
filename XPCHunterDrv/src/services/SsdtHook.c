@@ -1891,8 +1891,8 @@ char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize)
         strcpy(SectionName, ".data");
         *(_WORD *)&SectionName[6] = 0;
     }
-    unsigned int PESectionByName = (unsigned int)FindPESectionByName((PUCHAR)ImageBase, (PCHAR)SectionName);
-    unsigned int SectionBaseCopy = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)ImageBase, (PCHAR)SectionName);
+    unsigned int PESectionByName = (unsigned int)FindPESectionByName((__int64)ImageBase, (unsigned int)ImageSize, (__int64)SectionName);
+    unsigned int SectionBaseCopy = (unsigned int)FindPESectionByNameReturnVa((__int64)ImageBase, (unsigned int)ImageSize, (__int64)SectionName);
     if (PESectionByName && SectionBaseCopy && PESectionByName < (unsigned int)ImageSizeVar)
     {
         _QWORD *ExportOffset = (_QWORD *)(PESectionByName + ImageBase);
@@ -3426,8 +3426,8 @@ char __fastcall BuildHalExportTable(__int64 ImageBase, unsigned int ImageSize, _
         char SectionName[8];
         strcpy(SectionName, ".rdata");
         SectionName[7] = 0;
-        SectionVa = (unsigned int)FindPESectionByName((PUCHAR)ImageBase, SectionName);
-        SectionRva = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)ImageBase, SectionName);
+        SectionVa = (unsigned int)FindPESectionByName((__int64)ImageBase, (unsigned int)ImageSize, (__int64)SectionName);
+        SectionRva = (unsigned int)FindPESectionByNameReturnVa((__int64)ImageBase, (unsigned int)ImageSize, (__int64)SectionName);
         if (SectionRva >= 0x100000)
             SectionRva = 0x100000;
     }
@@ -3443,8 +3443,8 @@ char __fastcall BuildHalExportTable(__int64 ImageBase, unsigned int ImageSize, _
         }
         else
         {
-            SectionVa = (unsigned int)FindPESectionByName((PUCHAR)ImageBase, SectionName);
-            SectionRva = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)ImageBase, SectionName);
+            SectionVa = (unsigned int)FindPESectionByName((__int64)ImageBase, (unsigned int)ImageSize, (__int64)SectionName);
+            SectionRva = (unsigned int)FindPESectionByNameReturnVa((__int64)ImageBase, (unsigned int)ImageSize, (__int64)SectionName);
             if (SectionRva >= 0x100000)
                 SectionRva = 0x100000;
         }

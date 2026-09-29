@@ -6,7 +6,7 @@
 // BuildCallbackContextHookTargets — 构建回调上下文 Hook 目标表（补全空壳）
 // 对应原始驱动 0x140035EE0（231 字节）
 // 【逆向来源】同上（可反编译，43 行伪代码）
-// 【逻辑】GtAlloc(0x3FE6) + GtRead(GtNtoskrnlFileSize)；
+// 【逻辑】GtAlloc(0x3FE6) + GtRead((GLOBAL_TABLE_INDEX)0x902)；
 //   ReadNtoskrnlForCallbackCtx 读 volmgr.sys/ftdisk.sys → ParseNtExportSectionsV3
 //   → ParseNtExportDir(...,0)；遍历 28 项（+4 为 RVA），命中则置 +0=1 并拷 **16 字节**；
 //   成功则 GtWrite(0x904, 1)，ExFree，FillExportEntrySlot。
@@ -22,7 +22,7 @@ void BuildCallbackContextHookTargets(void)
     char *pFileBuffer = NULL;
 
     pTargetTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3FE6);
-    SectionBase = (__int64)GtRead(GtNtoskrnlFileSize);
+    SectionBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x902);
     if (SectionBase && ReadNtoskrnlForCallbackCtx((_QWORD *)&pFileBuffer, &FileSize))
     {
         if (ParseNtExportSectionsV3((__int64)pFileBuffer, FileSize, (__int64)pTargetTable) == 1 &&
@@ -960,7 +960,7 @@ __int64 GetProcessContextBase(void)
 //   ReadNtFileToBuffer 解析进缓冲区 → ExFree 原始数据；返回是否成功。
 bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
-    bool Result = false;
+    bool Result = 0;
     void *pRawData = NULL;
     size_t RawDataSize = 0;
     WCHAR EncodedPath[40];
@@ -984,7 +984,7 @@ bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize
 //   （两者是同一"卷管理器"驱动的不同代际实现，故按构建号选择）
 bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
-    bool Result = false;
+    bool Result = 0;
     void *pRawData = NULL;
     size_t RawDataSize = 0;
     WCHAR EncodedPath[40];
@@ -1010,7 +1010,7 @@ bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize)
 // 【逻辑】与上面两个完全同构（构造路径 → ReadFileRawData → ReadNtFileToBuffer → ExFree）
 bool ReadNtFileForContextTable(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
-    bool Result = false;
+    bool Result = 0;
     void *pRawData = NULL;
     size_t FileSize = 0;
     WCHAR EncodedBuffer[40];
@@ -3466,8 +3466,8 @@ __int64 ParseNtExportSectionsWin10(void)
         return 0;
 
     // Win10 特有：按名称查找 .data 节
-    DataSectionOffset = (unsigned int)FindPESectionByName((PUCHAR)PeFileBase, ".data");
-    DataSectionVa = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)PeFileBase, ".data");
+    DataSectionOffset = (unsigned int)FindPESectionByName((__int64)PeFileBase, (unsigned int)PeFileSize, (__int64)".data");
+    DataSectionVa = (unsigned int)FindPESectionByNameReturnVa((__int64)PeFileBase, (unsigned int)PeFileSize, (__int64)".data");
     if (DataSectionOffset && DataSectionOffset < PeFileSize && DataSectionVa && DataSectionVa < PeFileSize && DataSectionOffset + DataSectionVa <= PeFileSize)
     {
         GtWrite(GtNtosExportSectionOffset, DataSectionOffset);

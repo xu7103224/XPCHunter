@@ -2292,8 +2292,8 @@ char __fastcall ParseSyscallTableDataSection(__int64 FileBuffer, unsigned int Fi
     ImageBase = *(_QWORD *)(*(int *)(FileBuffer + 60) + FileBuffer + 48);
     SectionName[0] = 0x7461642E;  // ".dat"
     SectionName[1] = 0x61;         // "a" → ".data"
-    SectionOffset = (unsigned int)FindPESectionByName((PUCHAR)FileBuffer, (PCHAR)SectionName);
-    SectionVa = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)FileBuffer, (PCHAR)SectionName);
+    SectionOffset = (unsigned int)FindPESectionByName((__int64)FileBuffer, FileSize, (__int64)SectionName);
+    SectionVa = (unsigned int)FindPESectionByNameReturnVa((__int64)FileBuffer, FileSize, (__int64)SectionName);
     if (SectionOffset && SectionVa && SectionOffset < FileSize && SectionVa < FileSize && SectionVa + SectionOffset < FileSize)
     {
         pScan = (_QWORD *)(SectionOffset + FileBuffer);

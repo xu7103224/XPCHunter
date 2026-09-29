@@ -524,8 +524,8 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
 __int64 FindNtoskrnlExportsInThreadEnv(void);
 __int64 FindOpenProcessTokenOffset(__int64 TargetBase, unsigned int TargetSize);
 __int64 FindOpenProcessTokenTarget(__int64 TargetBase, unsigned int TargetSize);
-__int64 FindPESectionByName(PUCHAR PeBase, PCHAR SectionName);
-__int64 FindPESectionByNameReturnVa(PUCHAR PeBase, PCHAR SectionName);
+__int64 FindPESectionByName(__int64 PeBase, unsigned int PeSize, __int64 SectionName);
+__int64 FindPESectionByNameReturnVa(__int64 PeBase, unsigned int PeSize, __int64 SectionName);
 __int64 __fastcall FindPESectionByRva(__int64 PeBase, unsigned int PeSize, unsigned int TargetRva);
 __int64 FindPeExecutableSection(void);
 char FindRegCallbackEntry(__int64 RegEntry);
@@ -796,11 +796,13 @@ __int64 MiniFilterPreVolumeDismount(PFLT_CALLBACK_DATA CallbackData, __int64 Vol
 __int64 MiniFilterPreVolumeMount(char *InputBuffer, int BufferSize);
 __int64 FindKernelDataSectionForDeviceIoControl2(void);
 NTSTATUS MiniFilterQueryIdleRoutine(void);
-bool MiniFilterReleaseForCcFlush(__int128 *Address, int ContextSize);
+bool MiniFilterReleaseForCcFlush(void *Address, int ContextSize);
 char MiniFilterReleaseForModWrite(int ProcessorNumber, unsigned int **ContextBuffer);
 NTSTATUS MiniFilterServerContext(void);
-bool MiniFilterStreamHandle(__m128i *Address, int InputSize);
+bool MiniFilterStreamHandle(void *Address, int InputSize);
 char MiniFilterStreamHandleEx(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 StreamHandle, __int64 BaseOffset);
+ULONG64 InitCallbackFunctionTable(unsigned int Mode);
+__int64 EnumerateAleEndpointLayers(void *OutputBuffer, __int64 SecondBuffer, unsigned __int64 EntryCount);
 __int64 MiniFilterUnloadCleanup(void);
 __int64 ModuleOperation(__int64 *pInputBuffer, unsigned int InputSize);
 __int64 ModuleOperationDispatch(void *Address, unsigned int InputSize);

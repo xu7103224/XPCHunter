@@ -867,11 +867,9 @@ L14001579B:
     if (Ptr - 7 < PeBase) goto L1400159AD;
     if (*(UCHAR *)Ptr == 0xC7 && (ULONG)Gt8CD == *(UCHAR *)(Ptr + 2) &&
         *(ULONG *)(Ptr + 3) == 0x1000) goto L1400157E9;
-L1400157C2:
     if (Ptr <= ScanStart - 0xA && *(UCHAR *)Ptr == 0xC7 &&
         (ULONG)Gt8CD == *(ULONG *)(Ptr + 2) && *(ULONG *)(Ptr + 6) == 0x1000)
         goto L1400157E9;
-L1400157DF:
     Ptr += 1;
     goto L14001579B;
 L1400157E9:
@@ -908,12 +906,10 @@ L140015893:
     }
     if (CountOuter > 4 && !FoundB) goto L1400159AD;
 
-L1400158F7:
     if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0xE5 &&
         *(__int64 *)((char *)SectionInfo + 0x50) == 0x40000 && FoundB)
         goto L140015A24;
 
-L14001592C:
     if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0x558 &&
         (*(ULONG64 *)((char *)SectionInfo + 0x50) & (1ULL << 26)))
     {
@@ -927,7 +923,6 @@ L14001592C:
         }
     }
 
-L140015959:
     if (*(WORD *)(*(__int64 *)((char *)SectionInfo + 0x118) + 6) == 0x50E &&
         *(__int64 *)((char *)SectionInfo + 0x50) == 0x40000 &&
         *(__int64 *)((char *)SectionInfo + 0x88) == 0x40 && FoundB == 1)
@@ -948,7 +943,6 @@ L1400159B6:
     FoundA = Value[0];
 L1400159BB:
     if (PairA == 1 && FoundA == 1 && PairB == 1) goto L1400159F4;
-L1400159CE:
     ScanStart = PeBase + SectionOff;
     ScanEnd = ScanLimit;
 L1400159E3:
@@ -1188,7 +1182,6 @@ L140015E23:
             goto L140015EC7;
     }
 
-L140015E8E:
     Count2 += 1;
     if (Count2 < 0xA) goto L140015E23;
 
@@ -1215,6 +1208,8 @@ L140015EEA:
 
 L140015EF0:
     f3 = Flags[3];
+L140015EA0:
+    ;
 L140015EF5:
     ScanStart += r10b;
     if (ScanStart < ScanEnd) goto L140015B5E;
@@ -2172,7 +2167,7 @@ __int64 *__fastcall MiniFilterNormalizeName(__int64 Unknown, __int64 FilePath, c
     __int64 v12;
     __int64 v13;
     int v14;
-    __int128 v15;
+    _OWORD v15;
     __int64 v16;
 
     AcquireMiniFilterMutexEx();
@@ -2191,7 +2186,7 @@ __int64 *__fastcall MiniFilterNormalizeName(__int64 Unknown, __int64 FilePath, c
             v10[1] = 0;
             v12 = 0;
             v13 = 0;
-            v15 = 0;
+            RtlZeroMemory(&v15, sizeof(v15));
             v10[0] = FilePath;
             v11 = 48;
             v14 = 512;
@@ -2202,7 +2197,8 @@ __int64 *__fastcall MiniFilterNormalizeName(__int64 Unknown, __int64 FilePath, c
             }
         }
     }
-    return AcquireMiniFilterMutex();
+    AcquireMiniFilterMutex();
+    return (__int64 *)0;   // AcquireMiniFilterMutex 为 void，原函数返回其值
 }
 
 // MiniFilterContextCleanup — 上下文清理命令处理
@@ -3079,9 +3075,9 @@ __int64 MiniFilterFormatFileNameEx(__int64 Unknown, __int64 Unknown2, _DWORD *Ou
         (unsigned __int64)OutputBuffer + 1 < MmUserProbeAddress && BufferSize == 4)
     {
         ProbeForWrite(OutputBuffer, 4u, 4u);
-        LOBYTE(Result) = ((unsigned int)GtRead(GtMiniFilterFormatNameReady) != 0);
+        Result = (int)((unsigned int)GtRead(GtMiniFilterFormatNameReady) != 0);
         *OutputBuffer = Result;
-        LOBYTE(Result) = 1;
+        Result = 1;
     }
     return Result;
 }
@@ -3100,9 +3096,9 @@ __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _D
         (unsigned __int64)OutputBuffer + 1 < MmUserProbeAddress && BufferSize == 4)
     {
         ProbeForWrite(OutputBuffer, 4u, 4u);
-        LOBYTE(Result) = ((unsigned int)GtRead(GtMiniFilterFormatNameExReady) != 0);
+        Result = (int)((unsigned int)GtRead(GtMiniFilterFormatNameExReady) != 0);
         *OutputBuffer = Result;
-        LOBYTE(Result) = 1;
+        Result = 1;
     }
     return Result;
 }
@@ -3164,11 +3160,11 @@ NTSTATUS MiniFilterNotifyRoutineEx2(void)
 //   获取流上下文"—— 该判断**错误**。伪代码签名 `bool f(__m128i *Address, int a2)`：
 //   实为**输入缓冲处理器**（校验 40 字节输入 → 解析 ProcessId/EPROCESS/流上下文 →
 //   PsLookupProcessByProcessId → ValidateProcessObject → 调 MiniFilterStreamHandleEx）。
-bool MiniFilterStreamHandle(__m128i *Address, int InputSize)
+bool MiniFilterStreamHandle(void *Address, int InputSize)
 {
-    bool Result = false;
-    __m128i InputData;
-    __m128i StreamData;
+    bool Result = 0;
+    _OWORD InputData;
+    _OWORD StreamData;
     struct _KPROCESS *TargetProcess;
     NTSTATUS Status;
     int Status2;
@@ -3177,25 +3173,25 @@ bool MiniFilterStreamHandle(__m128i *Address, int InputSize)
 
     if (Address && InputSize == 40 &&
         (unsigned __int64)Address < MmUserProbeAddress &&
-        (unsigned __int64)&Address[2].m128i_u64[1] < MmUserProbeAddress)
+        ((unsigned __int64)Address + 40) < MmUserProbeAddress)
     {
         ProbeForRead(Address, 0x28u, 4u);
-        InputData = *Address;
-        StreamData = Address[1];
-        StreamContext = Address[2].m128i_i64[0];
+        InputData = *(_OWORD *)Address;
+        StreamData = *((_OWORD *)Address + 1);
+        StreamContext = *((__int64 *)Address + 4);
 
-        TargetProcess = (struct _KPROCESS *)_mm_srli_si128(InputData, 8).m128i_u64[0];
-        Status = PsLookupProcessByProcessId((HANDLE)InputData.m128i_i64[0], &Process);
+        TargetProcess = (struct _KPROCESS *)(*(unsigned __int64 *)((char *)&InputData + 8));
+        Status = PsLookupProcessByProcessId((HANDLE)(*(unsigned __int64 *)&InputData), &Process);
         Status2 = Status;
         if (!TargetProcess && Status >= 0)
             TargetProcess = Process;
 
         if (ValidateProcessObject((__int64)TargetProcess, 0) == 1 &&
-            StreamData.m128i_i64[0] < MmUserProbeAddress &&
-            StreamData.m128i_i64[1] < MmUserProbeAddress)
+            (*(unsigned __int64 *)&StreamData) < MmUserProbeAddress &&
+            (*(unsigned __int64 *)((char *)&StreamData + 8)) < MmUserProbeAddress)
         {
             Result = MiniFilterStreamHandleEx(TargetProcess,
-                StreamData.m128i_i64[0], StreamData.m128i_u64[1], StreamContext);
+                *(unsigned __int64 *)&StreamData, (*(unsigned __int64 *)((char *)&StreamData + 8)), StreamContext);
         }
         if (Status2 >= 0)
             ObfDereferenceObject(Process);
@@ -3270,20 +3266,20 @@ char MiniFilterReleaseForModWrite(int ProcessorNumber, unsigned int **ContextBuf
     char Result = 1;
     _DWORD *EntryPtr;
     __int64 EntryIndex;
-    _TBYTE GdtrValue;
+    _OWORD GdtrValue;
 
     ReadGdtr(&GdtrValue);
 
     EntryPtr = (_DWORD *)*ContextBuffer;
     EntryIndex = 16389LL * **ContextBuffer;
-    if (EntryIndex * 4 + 65560 > (unsigned __int64)*((unsigned int *)ContextBuffer + 2))
+    if ((unsigned __int64)(EntryIndex * 4 + 65560) > (unsigned __int64)*((unsigned int *)ContextBuffer + 2))
         return 0;
 
     EntryPtr[EntryIndex + 1] = ProcessorNumber;
-    *(_TBYTE *)&EntryPtr[16389 * *EntryPtr + 2] = GdtrValue;
-    EntryPtr[16389 * *EntryPtr + 5] = (unsigned __int64)LOWORD(GdtrValue) >> 3;
+    *(_OWORD *)&EntryPtr[16389 * *EntryPtr + 2] = GdtrValue;
+    EntryPtr[16389 * *EntryPtr + 5] = (unsigned __int64)(*(unsigned short *)&GdtrValue) >> 3;
     memmove(&EntryPtr[16389 * *EntryPtr + 6], *(const void **)((char *)&GdtrValue + 2),
-            LOWORD(GdtrValue));
+            (unsigned int)(*(unsigned short *)&GdtrValue));
     ++*EntryPtr;
     return Result;
 }
@@ -3309,7 +3305,7 @@ char MiniFilterAcquireForCcFlush(int ProcessorNumber, __int64 ContextBuffer)
         if (!(unsigned int)MemoryCompare((__int64)&GdtrValue, (char *)(ContextBuffer + 4), 0xAu))
         {
             SelectorIndex = *(unsigned int *)(ContextBuffer + 16);
-            if ((unsigned int)SelectorIndex < GdtrValue >> 3)
+            if ((unsigned int)SelectorIndex < (unsigned int)(*(unsigned short *)&GdtrValue >> 3))
             {
                 *(_WORD *)(GdtrBase + 8 * SelectorIndex + 4) &= ~0x8000u;
                 *(_BYTE *)(ContextBuffer + 20) = 1;
@@ -3326,10 +3322,10 @@ char MiniFilterAcquireForCcFlush(int ProcessorNumber, __int64 ContextBuffer)
 // 【⚠ 修正记录】注释称"需要 CcFlushCache 相关操作" —— **错误**。实为：
 //   校验 20 字节输入可读 → ProbeForRead → 复制上下文 → ForEachProcessor 对每个
 //   处理器调 MiniFilterAcquireForCcFlush → 返回"成功标志是否为 1"。
-bool MiniFilterReleaseForCcFlush(__int128 *Address, int ContextSize)
+bool MiniFilterReleaseForCcFlush(void *Address, int ContextSize)
 {
-    bool Result = false;
-    __int128 ContextData;
+    bool Result = 0;
+    _OWORD ContextData;
     int FlagsValue;
     char SuccessFlag;
 
@@ -3338,7 +3334,7 @@ bool MiniFilterReleaseForCcFlush(__int128 *Address, int ContextSize)
         (unsigned __int64)Address + 20 < MmUserProbeAddress)
     {
         ProbeForRead(Address, 0x14u, 1u);
-        ContextData = *Address;
+        ContextData = *(_OWORD *)Address;
         FlagsValue = *((_DWORD *)Address + 4);
         SuccessFlag = 0;
         ForEachProcessor((__int64 (__fastcall *)(_QWORD, __int64))MiniFilterAcquireForCcFlush,
@@ -3358,7 +3354,7 @@ bool MiniFilterReleaseForCcFlush(__int128 *Address, int ContextSize)
 bool MiniFilterAcquireForSectionSync(__int64 FilterObject, __int64 CallbackData,
                                     _DWORD *OutputBuffer, unsigned int BufferSize)
 {
-    bool Result = false;
+    bool Result = 0;
     _DWORD *ContextPtr;
     unsigned int ContextSize;
 
@@ -5971,4 +5967,26 @@ char __fastcall PatchPeHeaderMagic(__int64 QueryResult)
         }
     }
     return Result;
+}
+
+// InitCallbackFunctionTable — 初始化回调函数表（按模式 0/1/2）【⚠ 尚未实现】
+// 对应原始驱动 0x1400344BC（2359 字节，574 行反汇编，**IDA 确认不可反编译**）
+// 【⚠ 未实现说明】这是复刻中唯一已知未实现的大函数（骨架与三项前置核实见
+//   docs/reversing/待实现函数结构分析.md §四）。此处为**最小可链接实现**，
+//   使 InitCallbackFunctions 的调用链能通过链接。
+//   **性质说明**：显式返回 0 并标注未实现，不是"假装成功"的空壳
+//   （那些 `return STATUS_SUCCESS;` 会把失败伪装成成功）。
+ULONG64 InitCallbackFunctionTable(unsigned int Mode)
+{
+    (void)Mode;
+    return 0;
+}
+
+// EnumerateAleEndpointLayers — 枚举 ALE 端点层【⚠ 尚未实现】
+// 被 CmdEnumAleEndpointLayers（原 MiniFilterPreFastIo）调用；本函数在复刻中缺失。
+// 此处为最小可链接实现并显式标注未实现。
+__int64 EnumerateAleEndpointLayers(void *OutputBuffer, __int64 SecondBuffer, unsigned __int64 EntryCount)
+{
+    (void)OutputBuffer; (void)SecondBuffer; (void)EntryCount;
+    return 0;
 }

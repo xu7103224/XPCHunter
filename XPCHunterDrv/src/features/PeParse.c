@@ -1160,8 +1160,8 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
         return;
 
     FuncNameBuffer[0] = 1414090313;  // "INIT" as DWORD
-    PESectionByName = (unsigned int)FindPESectionByName((PUCHAR)PeBuffer, (PCHAR)FuncNameBuffer);
-    PESectionByNameReturnVa = (unsigned int)FindPESectionByNameReturnVa((PUCHAR)PeBuffer, (PCHAR)FuncNameBuffer);
+    PESectionByName = (unsigned int)FindPESectionByName((__int64)PeBuffer, PeSize, (__int64)FuncNameBuffer);
+    PESectionByNameReturnVa = (unsigned int)FindPESectionByNameReturnVa((__int64)PeBuffer, PeSize, (__int64)FuncNameBuffer);
     if (!PESectionByName || !PESectionByNameReturnVa)
         return;
     if (PESectionByName >= PeSize || PESectionByNameReturnVa >= PeSize)
@@ -1405,7 +1405,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
     ULONG TargetRva;
 
     PeOffset = *(int *)(ImageBase + 60);
-    SectionBase = (__int64)GtRead(GtNtoskrnlFileSize);
+    SectionBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x902);
     if (!SectionBase)
         return Result;
 
@@ -1646,7 +1646,7 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
     int Win8SectionCount;
 
     PeOffset = *(int *)(ImageBase + 60);
-    NtoskrnlBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)(GtNtReadVirtualMemoryFunc | GtEprocessField54));
+    NtoskrnlBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x8E0);
     if (!NtoskrnlBase)
         return Result;
 
