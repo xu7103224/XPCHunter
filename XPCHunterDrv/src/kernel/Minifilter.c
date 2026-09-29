@@ -3212,13 +3212,36 @@ NTSTATUS MiniFilterPreFastIo(void)
     return STATUS_SUCCESS;
 }
 
-// MiniFilterPostFastIo — 快速 IO 后处理
-// 处理 PostFastIoRead/PostFastIoWrite 等快速 IO 操作
-// 对应原始驱动 sub_14001A350
-NTSTATUS MiniFilterPostFastIo(void)
+// MiniFilterPostFastIo — 枚举 ALE 端点层（补全空壳）
+// 对应原始驱动 0x14001BC08（316 字节）
+// 【逆向来源】⚠ 可反编译（46 行伪代码）
+// 【⚠ 修正记录】注释称"需要 FLT_CALLBACK_DATA 获取快速 IO 信息" —— **错误**。
+//   实为：要求输出缓冲 ≥ 0x278 且位于用户空间 → ProbeForWrite → 清零 →
+//   EnumerateAleEndpointLayers(缓冲, 缓冲+8, (大小-632)/0x270 + 1) → 返回 1。
+//   （名字与功能完全无关，见待实现文档 §7.3）
+char MiniFilterPostFastIo(__int64 FilterObject, __int64 CallbackData,
+                          _DWORD *OutputBuffer, unsigned int BufferSize)
 {
-    // 需要 FLT_CALLBACK_DATA 获取快速 IO 信息
-    return STATUS_SUCCESS;
+    char Result = 0;
+    __int64 Size;
+
+    if (OutputBuffer)
+    {
+        if (BufferSize >= 0x278 && (unsigned __int64)OutputBuffer < MmUserProbeAddress)
+        {
+            Size = BufferSize;
+            if ((unsigned __int64)OutputBuffer + BufferSize < MmUserProbeAddress)
+            {
+                ProbeForWrite(OutputBuffer, BufferSize, 8u);
+                memset(OutputBuffer, 0, (unsigned int)Size);
+                *OutputBuffer = 0;
+                EnumerateAleEndpointLayers(OutputBuffer, (__int64)(OutputBuffer + 2),
+                                           (Size - 632) / 0x270uLL + 1);
+                return 1;
+            }
+        }
+    }
+    return Result;
 }
 
 // MiniFilterAcquireForModWrite — 获取修改写入锁
@@ -3230,40 +3253,129 @@ NTSTATUS MiniFilterAcquireForModWrite(void)
     return STATUS_SUCCESS;
 }
 
-// MiniFilterReleaseForModWrite — 释放修改写入锁
-// 释放文件修改写入的独占锁
-// 对应原始驱动 sub_14001A450
-NTSTATUS MiniFilterReleaseForModWrite(void)
+// MiniFilterReleaseForModWrite — 记录 GDTR 信息到上下文缓冲（补全空壳）
+// 对应原始驱动 0x14001C048（229 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（20 行伪代码）
+// 【⚠ 修正记录两处】① 注释地址 sub_14001A450 **在原始中不存在**（已核实），
+//   正确为 0x14001C048；② 注释称"需要 FltReleaseForModifiedWrite 释放锁" —— **错误**。
+//   伪代码签名 `char f(int ProcessorNumber, unsigned int **ContextBuffer)`：
+//   实为**读取 GDTR 并把 GDT 信息追加写入上下文缓冲**（形似处理器/GDT 操作，
+//   与"ModWrite 回调"无关 —— 见待实现文档 §7.3 的命名问题）。
+// 【逻辑】ReadGdtr 取 GDTR；按 `16389 * *ContextBuffer` 算条目索引，
+//   越界（`索引*4 + 65560 > 缓冲容量`）则返回 0；否则写入处理器号、
+//   GDTR 值（10 字节）、段选择子（GDTR 低 16 位 >> 3）、并把 GDT 表数据 memmove 进去，
+//   最后把条目计数 `*ContextBuffer` 加 1；返回 1。
+char MiniFilterReleaseForModWrite(int ProcessorNumber, unsigned int **ContextBuffer)
 {
-    // 需要 FltReleaseForModifiedWrite 释放锁
-    return STATUS_SUCCESS;
+    char Result = 1;
+    _DWORD *EntryPtr;
+    __int64 EntryIndex;
+    _TBYTE GdtrValue;
+
+    ReadGdtr(&GdtrValue);
+
+    EntryPtr = (_DWORD *)*ContextBuffer;
+    EntryIndex = 16389LL * **ContextBuffer;
+    if (EntryIndex * 4 + 65560 > (unsigned __int64)*((unsigned int *)ContextBuffer + 2))
+        return 0;
+
+    EntryPtr[EntryIndex + 1] = ProcessorNumber;
+    *(_TBYTE *)&EntryPtr[16389 * *EntryPtr + 2] = GdtrValue;
+    EntryPtr[16389 * *EntryPtr + 5] = (unsigned __int64)LOWORD(GdtrValue) >> 3;
+    memmove(&EntryPtr[16389 * *EntryPtr + 6], *(const void **)((char *)&GdtrValue + 2),
+            LOWORD(GdtrValue));
+    ++*EntryPtr;
+    return Result;
 }
 
-// MiniFilterAcquireForCcFlush — 获取缓存管理器刷新锁
-// 获取缓存管理器刷新的锁，用于同步缓存写入
-// 对应原始驱动 sub_14001A4D0
-NTSTATUS MiniFilterAcquireForCcFlush(void)
+// MiniFilterAcquireForCcFlush — 清除指定 GDT 选择子的 Present 位（补全空壳）
+// 对应原始驱动 0x14001C130（129 字节）
+// 【逆向来源】⚠ 可反编译（24 行伪代码）
+// 【⚠ 修正记录】注释称"需要 CcFlushCache 相关操作" —— **错误**。实为 GDT 操作用例：
+//   若处理器号匹配，ReadGdtr 取 GDTR 并与上下文 +4 处 10 字节比较（MemoryCompare）；
+//   相同且上下文 +16 的选择子索引 < GDTR 限值>>3 时，
+//   **清除该 GDT 条目（基址 + 8*索引 + 4）的 Present 位（0x8000）**，并置上下文 +20 = 1；
+//   返回 0（"已处理当前处理器"）。
+char MiniFilterAcquireForCcFlush(int ProcessorNumber, __int64 ContextBuffer)
 {
-    // 需要 CcFlushCache 相关操作
-    return STATUS_SUCCESS;
+    char Result = 1;
+    __int64 SelectorIndex;
+    unsigned __int16 GdtrValue;
+    __int64 GdtrBase;
+
+    if (ProcessorNumber == *(_DWORD *)ContextBuffer)
+    {
+        ReadGdtr(&GdtrValue);
+        if (!(unsigned int)MemoryCompare((__int64)&GdtrValue, (char *)(ContextBuffer + 4), 0xAu))
+        {
+            SelectorIndex = *(unsigned int *)(ContextBuffer + 16);
+            if ((unsigned int)SelectorIndex < GdtrValue >> 3)
+            {
+                *(_WORD *)(GdtrBase + 8 * SelectorIndex + 4) &= ~0x8000u;
+                *(_BYTE *)(ContextBuffer + 20) = 1;
+            }
+        }
+        return 0;
+    }
+    return Result;
 }
 
-// MiniFilterReleaseForCcFlush — 释放缓存管理器刷新锁
-// 释放缓存管理器刷新的锁
-// 对应原始驱动 sub_14001A550
-NTSTATUS MiniFilterReleaseForCcFlush(void)
+// MiniFilterReleaseForCcFlush — 遍历处理器执行 GDT 清理（补全空壳）
+// 对应原始驱动 0x14001C1B4（192 字节）
+// 【逆向来源】⚠ 可反编译（22 行伪代码）
+// 【⚠ 修正记录】注释称"需要 CcFlushCache 相关操作" —— **错误**。实为：
+//   校验 20 字节输入可读 → ProbeForRead → 复制上下文 → ForEachProcessor 对每个
+//   处理器调 MiniFilterAcquireForCcFlush → 返回"成功标志是否为 1"。
+bool MiniFilterReleaseForCcFlush(__int128 *Address, int ContextSize)
 {
-    // 需要 CcFlushCache 相关操作
-    return STATUS_SUCCESS;
+    bool Result = false;
+    __int128 ContextData;
+    int FlagsValue;
+    char SuccessFlag;
+
+    if (Address && ContextSize == 20 &&
+        (unsigned __int64)Address < MmUserProbeAddress &&
+        (unsigned __int64)Address + 20 < MmUserProbeAddress)
+    {
+        ProbeForRead(Address, 0x14u, 1u);
+        ContextData = *Address;
+        FlagsValue = *((_DWORD *)Address + 4);
+        SuccessFlag = 0;
+        ForEachProcessor((__int64 (__fastcall *)(_QWORD, __int64))MiniFilterAcquireForCcFlush,
+                         (__int64)&ContextData);
+        return SuccessFlag == 1;
+    }
+    return Result;
 }
 
-// MiniFilterAcquireForSectionSync — 获取节同步锁
-// 获取节同步的锁，用于同步节对象的写入
-// 对应原始驱动 sub_14001A5D0
-NTSTATUS MiniFilterAcquireForSectionSync(void)
+// MiniFilterAcquireForSectionSync — 收集各处理器 GDT 条目（补全空壳）
+// 对应原始驱动 0x14001C274（181 字节）
+// 【逆向来源】⚠ 可反编译（26 行伪代码）
+// 【⚠ 修正记录】注释称"需要 FltAcquireFileForSectionSynchronization 获取锁" —— **错误**。
+//   实为：要求输出缓冲 ≥ 0x10018 且位于用户空间 → ProbeForWrite → 清零 →
+//   ForEachProcessor 对每个处理器调 MiniFilterReleaseForModWrite（把该处理器 GDTR/GDT
+//   条目追加写入输出缓冲）→ 返回"输出缓冲首 DWORD 是否非 0"。
+bool MiniFilterAcquireForSectionSync(__int64 FilterObject, __int64 CallbackData,
+                                    _DWORD *OutputBuffer, unsigned int BufferSize)
 {
-    // 需要 FltAcquireFileForSectionSynchronization 获取锁
-    return STATUS_SUCCESS;
+    bool Result = false;
+    _DWORD *ContextPtr;
+    unsigned int ContextSize;
+
+    if (OutputBuffer && BufferSize >= 0x10018 &&
+        (unsigned __int64)OutputBuffer < MmUserProbeAddress &&
+        (unsigned __int64)OutputBuffer + BufferSize < MmUserProbeAddress)
+    {
+        ProbeForWrite(OutputBuffer, BufferSize, 1u);
+        memset(OutputBuffer, 0, BufferSize);
+        *OutputBuffer = 0;
+        ContextSize = BufferSize;
+        ContextPtr = OutputBuffer;
+        ForEachProcessor((__int64 (__fastcall *)(_QWORD, __int64))MiniFilterReleaseForModWrite,
+                         (__int64)&ContextPtr);
+        return *OutputBuffer != 0;
+    }
+    return Result;
 }
 
 // MiniFilterServerContext — 服务器上下文管理
