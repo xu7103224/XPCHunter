@@ -171,11 +171,100 @@ char InitRegFilter(__int64 DeviceObject, __int64 Irp, _OWORD *OutputBuffer, int 
     return Result;
 }
 
-// RegNotifyCallback — 注册表通知回调
-// 对应原始驱动 sub_14000D0B0
-NTSTATUS RegNotifyCallback(PVOID CallbackContext, PVOID Argument1, PVOID Argument2)
+// RegNotifyCallback — 向目标地址写入数据（补全空壳）
+// 对应原始驱动 0x14000D0B0（518 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（84 行伪代码），按伪代码实现
+// 【⚠ 修正记录】此前是空壳（`return STATUS_SUCCESS;` —— 把失败伪装成成功），
+//   且名字与功能不符：本函数**不是注册表通知回调**，而是"**向指定内核地址
+//   写数据**"的处理器（签名实为 `char f(void *Address, int InputSize)`）。
+// 【逻辑】
+//   1) 要求 InputSize == 24，且 Address 位于用户空间（含边界校验）
+//   2) ProbeForRead(24 字节)；要求 Address[0]（目标地址）> MmSystemRangeStart，
+//      Address[1]（大小）非 0 且 < MmUserProbeAddress，Address[2]（数据指针）合法
+//   3) ProbeForRead 数据 → ExAlloc(NonPagedPool, 大小) → 把数据拷入内核缓冲
+//   4) 按目标地址是否在系统模块范围二选一建立访问上下文：
+//      - 是：ReadDiskSectorsWithAlloc(&ApcState)（磁盘分区路径）
+//      - 否：取 GT 当前进程 → KeStackAttachProcess（若非本进程）
+//   5) 校验目标地址与末字节有效后，用 WritePhysicalMemoryBuffer 写入
+//   6) 按上述分支释放（ReleaseDiskBuffer / KeUnstackDetachProcess）→ ExFree
+char RegNotifyCallback(void *Address, int InputSize)
 {
-    return STATUS_SUCCESS;
+    unsigned int DataSize;
+    PVOID UserDataPtr;
+    PVOID AllocBuffer;
+    struct _KPROCESS *TargetProcess;
+    char Result = 0;
+    char DiskSectorsAllocated;
+    char IsSystemModule;
+    unsigned int CopySize;
+    char *TargetAddress;
+    struct _KPROCESS *AttachedProcess = 0;
+    void *Buffer;
+    KAPC_STATE ApcState;
+
+    if (InputSize == 24)
+    {
+        __int64 *Addr = (__int64 *)Address;
+        if (Addr && (unsigned __int64)Addr < MmUserProbeAddress &&
+            (unsigned __int64)(Addr + 3) < MmUserProbeAddress)
+        {
+            ProbeForRead(Addr, 0x18u, 4u);
+            if ((unsigned __int64)*Addr > (unsigned __int64)MmSystemRangeStart)
+            {
+                DataSize = *((_DWORD *)Addr + 2);
+                if (DataSize && DataSize < (unsigned int)MmUserProbeAddress)
+                {
+                    UserDataPtr = (PVOID)Addr[2];
+                    if (UserDataPtr && (unsigned __int64)UserDataPtr < MmUserProbeAddress &&
+                        (unsigned __int64)UserDataPtr + DataSize < MmUserProbeAddress)
+                    {
+                        ProbeForRead(UserDataPtr, DataSize, 1u);
+                        AllocBuffer = ExAlloc(NonPagedPool, *((unsigned int *)Addr + 2));
+                        Buffer = AllocBuffer;
+                        if (AllocBuffer)
+                        {
+                            memmove(AllocBuffer, (PVOID)Addr[2], *((unsigned int *)Addr + 2));
+                            TargetAddress = (char *)*Addr;
+                            CopySize = *((_DWORD *)Addr + 2);
+                            IsSystemModule = CheckAddressInSystemModuleRange((unsigned __int64)*Addr);
+                            DiskSectorsAllocated = 0;
+
+                            if (IsSystemModule)
+                            {
+                                DiskSectorsAllocated = (char)ReadDiskSectorsWithAlloc((__int64)&ApcState);
+                            }
+                            else
+                            {
+                                TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+                                if (IoGetCurrentProcess() == TargetProcess)
+                                    TargetProcess = 0;
+                                AttachedProcess = TargetProcess;
+                                if (TargetProcess)
+                                    KeStackAttachProcess(TargetProcess, &ApcState);
+                            }
+
+                            if (MmIsAddressValid(TargetAddress) == 1 &&
+                                MmIsAddressValid(&TargetAddress[CopySize - 1]) == 1)
+                                Result = WritePhysicalMemoryBuffer((unsigned __int64)TargetAddress,
+                                                                   Buffer, CopySize, 0, 0);
+
+                            if (IsSystemModule)
+                            {
+                                if (DiskSectorsAllocated == 1)
+                                    ReleaseDiskBuffer((__int64)&ApcState);
+                            }
+                            else if (AttachedProcess)
+                            {
+                                KeUnstackDetachProcess(&ApcState);
+                            }
+                            ExFree(Buffer);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Result;
 }
 
 // RegisterMiniFilterRegistry — 注册 Minifilter 注册表项

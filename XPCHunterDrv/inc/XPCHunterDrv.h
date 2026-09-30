@@ -911,7 +911,7 @@ __int64 ReadServiceTableEntries(__int64 OutputBuffer, __int64 UnusedParam, char 
 char ReadSystemDriverFile(_QWORD *OutBuffer, unsigned int *OutSize);
 unsigned __int64 ReadDebugRegisters(unsigned __int64 *pDebugRegisters);
 char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
-NTSTATUS RegNotifyCallback(PVOID CallbackContext, PVOID Argument1, PVOID Argument2);
+char RegNotifyCallback(void *Address, int InputSize);
 void RegisterMiniFilterRegistry(void);
 __int64 RegistryOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 __int64 RegistryOperationDispatch(void *InputBuffer, int BufferSize);
