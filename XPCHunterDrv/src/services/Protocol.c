@@ -2999,8 +2999,16 @@ char SendIoControlWithBufferSwap(
         Status = (int)SendDeviceIoControlWithRetry(OutHandle, 1, 0, (_DWORD **)&ValueA8, 0);
     }
 
+    // 【⚠ 更正记录（本轮逐条核对反汇编 0x1400733F1 / 0x1400734BB / 0x1400734C2）】
+    //   原实现把"第二次发送失败"也并入 LABEL_FREE_A8（会关闭 ValueA8）——**错误**。
+    //   反汇编证明存在**两个不同出口**：
+    //     0x1400733F1 `js loc_1400734C2` —— 第二次发送失败时**跳过** 0x1400734BB，
+    //        即**不关闭 ValueA8**（此时 ValueA8 尚未被赋予有效句柄），只关 OutHandle；
+    //     0x140073415 `js loc_1400734BB` —— DispatchIoControlByBuildNumber 失败时
+    //        才走 0x1400734BB（关闭 ValueA8），再关 OutHandle。
+    //   原实现让前者也去关闭未初始化的 ValueA8，属真实缺陷。此处按反汇编拆分。
     if (Status < 0)
-        goto LABEL_FREE_A8;
+        goto LABEL_CLOSE_OUT_ONLY;
 
     ValueA0 = 0;
 
@@ -3048,9 +3056,10 @@ char SendIoControlWithBufferSwap(
         Result = (*(unsigned int *)(OutputBuffer + 0x14) > 0) ? 1 : 0;
     }
 
-LABEL_FREE_A8:
+LABEL_FREE_A8:                                      // 0x1400734BB
     ((void(__fastcall *)(__int64))Func4223)(ValueA8);
 
+LABEL_CLOSE_OUT_ONLY:                               // 0x1400734C2
     ((void(__fastcall *)(__int64))Func4334)(OutHandle);
 
     return Result;
