@@ -4764,3 +4764,85 @@ __int64 __fastcall AllocBufferAndSendIoControl(
         return (unsigned int)a1(a2, a3, 0, a4, a5, Dst, (_DWORD)NumberOfBytes, a8, 0);
     }
 }
+
+// =========================================================================
+// AllocDualBufferAndSendIoControl — 分配双缓冲区并发送 IO 控制
+// 对应原始驱动 0x140076190（591 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（67 行伪代码），按伪代码实现。
+// 【与 AllocBufferAndSendIoControl（单缓冲版）的差异】
+//   本版需要**两个**缓冲区：输出缓冲（NumberOfBytes）与**输入字符串缓冲**
+//   （长度取自 a3 指向的描述符首 WORD）。处理函数是 9 参（比单缓冲版多两个指针）。
+// 【参数】a1=处理函数（9 参）a2=句柄 a3=输入描述符（+0 WORD 长度、+8 数据指针）
+//   a4=类型 a5=输出目的地 NumberOfBytes=输出大小 a7=输出大小指针
+// 【逻辑】构建号 >= 0x42EE 时：按大小各在栈上 64 字节缓冲/配额池二选一分配两个缓冲；
+//   memmove 把 a3[1] 的 *(WORD*)a3 字节拷进输入缓冲；
+//   组装 4 WORD 的描述符（[0]=长度、[1]=描述符+2 处的 WORD、[2..3]=指针）；
+//   调用处理函数（9 实参：句柄、描述符、类型、输出池、大小、&MaxCount、v16、输入池、输出池）；
+//   成功则回写大小并 memmove 到 a5；按需释放两个池。
+//   构建号 < 0x42EE 时直接调用（9 参，后两个为 0）。
+// 【备注】v16 的高低 32 位分别装载 -1073741823(0xC0000001) 与 a4 —— 与单缓冲版同族技巧。
+// =========================================================================
+__int64 __fastcall AllocDualBufferAndSendIoControl(
+    __int64 (__fastcall *a1)(__int64, _WORD *, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *, _BYTE *),
+    __int64 a2,
+    const void **a3,
+    int a4,
+    _BYTE *a5,
+    SIZE_T NumberOfBytes,
+    size_t *a7)
+{
+    unsigned int CopySize = (unsigned int)NumberOfBytes;
+    int Status = -1073741823;
+    _BYTE *OutPool;
+    _BYTE *InPool;
+    __int64 Packed;
+    size_t MaxCount = 0;
+    _WORD Desc[4];
+    _BYTE StackOut[64];
+    _BYTE StackIn[64];
+
+    // v16 的高低 32 位分别装载状态码与 a4（用显式移位构造，HIDWORD/LODWORD 不可作左值）
+    Packed = (__int64)((unsigned __int64)(unsigned int)a4 << 32) | (unsigned int)-1073741823;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x42EE)
+    {
+        return (unsigned int)a1(a2, (_WORD *)a3, HIDWORD(Packed), a5, (_DWORD)NumberOfBytes, a7, Packed, 0, 0);
+    }
+
+    if ((unsigned int)NumberOfBytes > 0x40)
+        OutPool = ExAllocatePoolWithQuotaTag((POOL_TYPE)9, (unsigned int)NumberOfBytes, 0x42424D43u);
+    else
+        OutPool = StackOut;
+
+    if (*(_WORD *)a3 > 0x40u)
+        InPool = ExAllocatePoolWithQuotaTag((POOL_TYPE)9, *(unsigned __int16 *)a3, 0x42424D43u);
+    else
+        InPool = StackIn;
+
+    if (OutPool)
+    {
+        if (InPool)
+        {
+            memmove(InPool, a3[1], *(unsigned __int16 *)a3);
+            Desc[0] = *(_WORD *)a3;
+            Desc[1] = *((_WORD *)a3 + 1);
+            Desc[2] = 0;
+            Desc[3] = 0;
+            Status = (int)a1(a2, Desc, HIDWORD(Packed), OutPool, (_DWORD)NumberOfBytes,
+                             &MaxCount, Packed, InPool, OutPool);
+            if (Status >= 0)
+            {
+                *(_DWORD *)a7 = (unsigned int)MaxCount;
+                if ((unsigned int)NumberOfBytes > (unsigned int)MaxCount)
+                    CopySize = (unsigned int)MaxCount;
+                memmove(a5, OutPool, CopySize);
+            }
+        }
+        if (OutPool != StackOut)
+            ExFreePoolWithTag(OutPool, 0x42424D43u);
+    }
+    if (InPool && InPool != StackIn)
+        ExFreePoolWithTag(InPool, 0x42424D43u);
+    return (unsigned int)Status;
+}
+

@@ -423,6 +423,11 @@ __int64 __fastcall SendIoControlWithQuotaBuffer(
     __int64 (__fastcall *HandlerFunc)(__int64, __int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *),
     __int64 Arg2, __int64 Arg3, unsigned int Arg4, unsigned int Arg5,
     _BYTE *Dst, SIZE_T NumberOfBytes, size_t *pOutSize);
+// 【签名 2026-09-30】双缓冲版：处理函数 9 参，需额外一个"输入字符串"缓冲。
+//   a3 是输入描述符（+0 = WORD 长度、+8 = 数据指针）。
+__int64 __fastcall AllocDualBufferAndSendIoControl(
+    __int64 (__fastcall *a1)(__int64, _WORD *, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *, _BYTE *),
+    __int64 a2, const void **a3, int a4, _BYTE *a5, SIZE_T NumberOfBytes, size_t *a7);
 __int64 __fastcall AllocBufferAndSendIoControl(
     __int64 (__fastcall *a1)(__int64, __int64, _QWORD, _QWORD, int, _BYTE *, _DWORD, size_t *, _QWORD),
     __int64 a2, __int64 a3, unsigned int a4, int a5,
