@@ -33,7 +33,7 @@ extern unsigned int QueryFileSystemDriverObject(__int64 OutputBuffer, unsigned i
 extern unsigned int EnumFileSystemDeviceObjects(__int64 OutputBuffer, unsigned int MaxEntries);
 extern bool SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize);
 extern bool SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING UnicodeString, unsigned int CommandType, unsigned int SomeValue, __int64 OutputBuffer, unsigned int OutputSize);
-extern char SendIoControlWithVersionBranch(char *OutputBuffer, int Command, int *UnicodeString, int Param2, void *OutputBuf, SIZE_T OutputSize, __int64 Context);
+// SendIoControlWithVersionBranch 的声明见头文件（形参 3 为 UNICODE_STRING*）
 extern unsigned int BuildDriverPathKbdClass(__int64 OutputBuffer, unsigned int MaxEntries);
 extern unsigned int BuildDriverPathI8042prt(__int64 OutputBuffer, unsigned int MaxEntries);
 extern unsigned int QueryTcpipDriverObject(__int64 OutputBuffer, unsigned int MaxEntries);
@@ -4066,7 +4066,7 @@ __int64 DeviceIoControlWithBufferOperation(char *pInputBuffer, int InputSize, un
     Result = SendIoControlWithVersionBranch(
         &FlagByte,
         *(int *)pInputBuffer,
-        UnicodeString,
+        (PUNICODE_STRING)UnicodeString,
         *((_DWORD *)pInputBuffer + 2),
         pOutputBuffer,
         OutSize,
@@ -4108,10 +4108,10 @@ __int64 DeviceIoControlWithBufferOperation(char *pInputBuffer, int InputSize, un
 
     return Result;
 }
-char SendIoControlWithVersionBranch(
+char __fastcall SendIoControlWithVersionBranch(
     char *OutputBuffer,
     int Command,
-    int *UnicodeString,
+    PUNICODE_STRING UnicodeString,
     int Param2,
     void *OutputBuf,
     SIZE_T OutputSize,
@@ -4126,9 +4126,15 @@ char SendIoControlWithVersionBranch(
     }
     else
     {
-        // 低版本Windows走完整IO控制路径
-        // SendDeviceIoControl 后续实现
-        *OutputBuffer = 1;
+        // 【补全 2026-09-30】低版本 Windows 走完整 IO 控制路径。
+        //   原为占位（只写 *OutputBuffer = 1，与高版本分支等价，等于未实现）。
+        //   现按原始驱动 0x1400738A8 的反编译伪代码补全：
+        //     return SendDeviceIoControl(OutputBuffer, Command, (PUNICODE_STRING)UnicodeString,
+        //                                Param2, OutputBuf, (SIZE_T)OutputSize, Context);
+        //   形参 3 是 UNICODE_STRING*（本声明写作 int*，与实物一致）。
+        return SendDeviceIoControl((unsigned char *)OutputBuffer, Command,
+                                   (PUNICODE_STRING)UnicodeString, Param2,
+                                   OutputBuf, (SIZE_T)OutputSize, Context);
     }
     return Result;
 }

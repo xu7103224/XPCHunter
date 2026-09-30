@@ -33,7 +33,7 @@ extern unsigned int QueryFileSystemDriverObject(__int64 OutputBuffer, unsigned i
 extern unsigned int EnumFileSystemDeviceObjects(__int64 OutputBuffer, unsigned int MaxEntries);
 extern bool SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize);
 extern bool SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING UnicodeString, unsigned int CommandType, unsigned int SomeValue, __int64 OutputBuffer, unsigned int OutputSize);
-extern char SendIoControlWithVersionBranch(char *OutputBuffer, int Command, int *UnicodeString, int Param2, void *OutputBuf, SIZE_T OutputSize, __int64 Context);
+// SendIoControlWithVersionBranch 声明见头文件（形参 3 为 PUNICODE_STRING）
 extern unsigned int BuildDriverPathKbdClass(__int64 OutputBuffer, unsigned int MaxEntries);
 extern unsigned int BuildDriverPathI8042prt(__int64 OutputBuffer, unsigned int MaxEntries);
 extern unsigned int QueryTcpipDriverObject(__int64 OutputBuffer, unsigned int MaxEntries);

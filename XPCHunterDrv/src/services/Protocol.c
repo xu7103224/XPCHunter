@@ -4846,3 +4846,184 @@ __int64 __fastcall AllocDualBufferAndSendIoControl(
     return (unsigned int)Status;
 }
 
+
+// =========================================================================
+// SendDeviceIoControl — 发送设备 IO 控制（多步句柄协商 + Hook 交换）
+// 对应原始驱动 0x140073934（688 字节，183 条指令）
+// 【逆向来源】⚠ 人工阅读反汇编**逐条转写** —— IDA **确认无法反编译**
+//   （`ida_hexrays.decompile` 返回 None，已复验），故走转写流程。
+//
+// 【形参定案】capstone 栈参映射（rbp = entry_rsp − 0x47）实测读到的栈形参：
+//   rbp+0x4F=形参1(OutFlag)  rbp+0x67=形参4  rbp+0x6F=形参5
+//   rbp+0x77=形参6  rbp+0x7F=形参7
+//   序言只把 rcx(形参1) 与 r9d(形参4) 存栈；rdx/r8 留在 rsi/rdi。
+//   ⚠ **形参 3 的类型**：`mov rdi, r8` 之后以 `[rdi]`(WORD)、`[rdi+2]`(WORD)、
+//     `[rdi+8]`(QWORD) 读取 —— 正是 UNICODE_STRING 的
+//     Length / MaximumLength / Buffer。调用方 `CmdDeviceIoControlWithBuffer`
+//     传 `(int)v25`，而 v25 由 `RtlInitUnicodeString(v25, Address[2])` 初始化。
+//     故形参 3 实为 UNICODE_STRING*；IDA 形参表标为 int 是错的。
+//
+// 【栈槽语义（capstone 实测，这是本函数最容易出错之处）】
+//   var_88 (rbp−0x49) = Gt[0x27] 线程字节偏移（后被复用为 r15 保存槽）
+//   var_80 (rbp−0x41) = FirstHandle
+//   var_78 (rbp−0x39) = SecondHandle
+//   var_70 (rbp−0x31) = **Gt[0x4223] 关闭句柄函数**（0x14007399B 由 GtRead(0x4223) 写入；
+//                       0x140073B52 `call [var_70]` 用以关闭 SecondHandle）
+//   var_68 (rbp−0x29) = **Gt[0x17D] 处理函数**（0x1400739AC 由 GtRead(0x17D) 写入；
+//                       **两次 AllocDualBufferAndSendIoControl 的 a1 都用它**）
+//   var_60 (rbp−0x21) = KTHREAD 指针
+//   var_58 (rbp−0x19) = 传参用的 UNICODE_STRING（Length@+0 / MaximumLength@+2 / Buffer@+8）
+//   var_48 (rbp−0x09) = HookSave2
+//   Gt[0x179] 只存于 r15，用途是"低于 0x1DB0 时取 *(__int64*)Gt[0x179] 作发送第 3 实参"
+//
+// 【流程】
+//   ① `*OutFlag = 1`；`Arg4 > 4` → 返回 0。
+//   ② 取 GT 0x27/0x41C6/0x4223/0x17D/0x179；校验 0x27 != −1 且四个函数指针非空。
+//   ③ 按构建号 0x1DB0 取得 FirstHandle（间接调用 FnSend(Arg2,1,*(QWORD*)Gt[0x179],0,
+//      &FirstHandle,0) / SendDeviceIoControlWithRetry）；失败返回 0。
+//   ④ 段 B：`PathString->Length & 1` 非 0 → 关 FirstHandle 并返回 0；
+//      否则对 Buffer 做"去尾"（i=(Length>>1)−1，Buffer[i]==0 则 Length−=2 并重复），
+//      把 Length / MaximumLength / Buffer 组装进 var_58（UNICODE_STRING）。
+//   ⑤ 保存并清零 KTHREAD 字节；HookTarget1 = DispatchHookSwapByVersion(FirstHandle,&var_40)。
+//   ⑥ 构建号 < 0x1770 → 跳收尾。
+//   ⑦ Gt[0x197] → DispatchIoControlByBuildNumber(&FirstHandle,&SecondHandle,0,1)；
+//      失败跳收尾；SecondHandle 非 0 → HookTarget2 = DispatchHookSwapByVersion(SecondHandle,&var_48)。
+//   ⑧ 若 SecondHandle 非 0（第一条路径）：
+//      Status = AllocDualBufferAndSendIoControl(Gt[0x17D], SecondHandle, &var_58, Arg4,
+//               形参5, 形参6, 形参7)；
+//      恢复 HookTarget2 → `call [var_70]`(SecondHandle) 关闭；
+//      Status != 0xC0000034 → 跳收尾（跳过第二条路径）。
+//      （若 SecondHandle 为 0 则直接进入第二条路径）
+//      第二条路径：Status = AllocDualBufferAndSendIoControl(Gt[0x17D], FirstHandle, &var_58,
+//               Arg4, 形参5, 形参6, 形参7)；
+//   ⑨ 收尾：恢复 HookTarget1、还原 KTHREAD 字节、`call [var_70]`(FirstHandle) 关闭；
+//      `Status == 0xC0000034` → `*OutFlag = 0`；返回 `Status == 0`。
+// =========================================================================
+char SendDeviceIoControl(unsigned char *OutFlag, int Arg2, PUNICODE_STRING PathString, int Arg4,
+                         void *OutputBuffer, SIZE_T OutputSize, __int64 OutputSizePtr)
+{
+    char Result = 0;
+    int Status;
+    __int64 FnSend;
+    __int64 FnCloseHandle;
+    __int64 FnHandler;
+    __int64 Fn179;
+    __int64 FnGetSecond;
+    unsigned int ThreadByteOffset;
+    __int64 *HookTarget1;
+    __int64 HookSave1;
+    __int64 *HookTarget2 = 0;
+    __int64 HookSave2 = 0;
+    __int64 FirstHandle = 0;
+    __int64 SecondHandle = 0;
+    UNICODE_STRING PathBuf;
+    unsigned __int8 *ThreadPtr;
+    unsigned __int8 SavedThreadByte;
+
+    *OutFlag = 1;
+    if ((unsigned int)Arg4 > 4)
+        return Result;
+
+    ThreadByteOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x27);
+    FnSend       = GtRead(GtNtFsControlFileFunc);              // 0x41C6
+    FnCloseHandle= GtRead(GtCloseHandleFunc);                  // 0x4223
+    FnHandler    = GtRead((GLOBAL_TABLE_INDEX)0x17D);
+    Fn179        = GtRead((GLOBAL_TABLE_INDEX)0x179);
+
+    if (ThreadByteOffset == 0xFFFFFFFF)
+        return Result;
+    if (!FnSend || !FnCloseHandle || !FnHandler || !Fn179)
+        return Result;
+
+    // ---- ③ 取 FirstHandle ----
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0)
+    {
+        Status = (int)((__int64(__fastcall *)(int, __int64, __int64, __int64, __int64, __int64))FnSend)(
+            Arg2, 1, *(__int64 *)Fn179, 0, (__int64)&FirstHandle, 0);
+    }
+    else
+    {
+        Status = (int)SendDeviceIoControlWithRetry(Arg2, 1, 0, (_DWORD **)&FirstHandle, 0);
+    }
+    if (Status < 0)
+        return Result;
+
+    // ---- ④ 段 B：验证 + 去尾 + 组装 UNICODE_STRING ----
+    if ((PathString->Length & 1) != 0)
+        goto L_CLOSE_FIRST;
+
+    {
+        unsigned __int16 Length = PathString->Length;
+        PWSTR Buffer = PathString->Buffer;
+
+        while (Length)
+        {
+            if (*((PUSHORT)Buffer + ((Length >> 1) - 1)) != 0)
+                break;
+            Length -= 2;
+        }
+        PathBuf.Length        = Length;
+        PathBuf.MaximumLength = PathString->MaximumLength;
+        PathBuf.Buffer        = PathString->Buffer;
+    }
+
+    // ---- ⑤ Hook 交换 + 保存线程字节 ----
+    ThreadPtr = (unsigned __int8 *)KeGetCurrentThread();
+    SavedThreadByte = ThreadPtr[ThreadByteOffset];
+    ThreadPtr[ThreadByteOffset] = 0;
+    HookTarget1 = (__int64 *)DispatchHookSwapByVersion(FirstHandle, &HookSave1);
+
+    Status = (int)0xC0000001;
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770)
+        goto L_RESTORE_HOOK1;
+
+    // ---- ⑦ 取 SecondHandle ----
+    FnGetSecond = GtRead((GLOBAL_TABLE_INDEX)0x197);
+    if (!FnGetSecond)
+        goto L_RESTORE_HOOK1;
+
+    Status = (int)DispatchIoControlByBuildNumber(
+        (__int64(__fastcall *)(__int64, __int64))FnGetSecond,
+        (__int64)&FirstHandle, (__int64)&SecondHandle, 0, 1);
+    if (Status < 0)
+        goto L_RESTORE_HOOK1;
+
+    if (SecondHandle)
+        HookTarget2 = (__int64 *)DispatchHookSwapByVersion(SecondHandle, &HookSave2);
+
+    // ---- ⑧ 第一条路径：a1 = Gt[0x17D]，a2 = SecondHandle ----
+    if (SecondHandle)
+    {
+        Status = (int)AllocDualBufferAndSendIoControl(
+            (__int64(__fastcall *)(__int64, _WORD *, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *, _BYTE *))FnHandler,
+            SecondHandle, (const void **)&PathBuf, Arg4,
+            (unsigned char *)OutputBuffer, OutputSize, (size_t *)OutputSizePtr);
+
+        if (HookTarget2)
+            *HookTarget2 = HookSave2;
+        ((void(__fastcall *)(__int64))FnCloseHandle)(SecondHandle);
+
+        if (Status != (int)0xC0000034)
+            goto L_RESTORE_HOOK1;
+    }
+
+    // ---- 第二条路径：a1 = Gt[0x17D]，a2 = FirstHandle ----
+    Status = (int)AllocDualBufferAndSendIoControl(
+        (__int64(__fastcall *)(__int64, _WORD *, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *, _BYTE *))FnHandler,
+        FirstHandle, (const void **)&PathBuf, Arg4,
+        (unsigned char *)OutputBuffer, OutputSize, (size_t *)OutputSizePtr);
+
+L_RESTORE_HOOK1:
+    if (HookTarget1)
+        *HookTarget1 = HookSave1;
+    ThreadPtr[ThreadByteOffset] = SavedThreadByte;
+    ((void(__fastcall *)(__int64))FnCloseHandle)(FirstHandle);
+
+    if (Status == (int)0xC0000034)
+        *OutFlag = 0;
+    return (Status == 0) ? 1 : 0;
+
+L_CLOSE_FIRST:
+    ((void(__fastcall *)(__int64))FnCloseHandle)(FirstHandle);
+    return Result;
+}

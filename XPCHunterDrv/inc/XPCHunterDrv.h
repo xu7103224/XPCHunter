@@ -1004,6 +1004,12 @@ char ScanRegValueBodyForRef(unsigned __int64 Buffer, unsigned int BufferSize, __
 void ScanVadForModifiedPages(ULONG *OutputBuffer, int MaxModifiedCount);
 __int64 ScanWin32kDriverForPatterns(ULONG_PTR PatternBase, ULONG_PTR PatternSize);
 __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, int BlockCount, int SectorSize, int SectorCount);
+// 【新增 2026-09-30】设备 IO 控制多步发送（原 0x140073934，688B，不可反编译，逐条转写）
+//   形参 3 是 UNICODE_STRING*（非 int），已由 capstone + 调用方伪代码双重定案。
+char __fastcall SendIoControlWithVersionBranch(char *OutputBuffer, int Command,
+        PUNICODE_STRING UnicodeString, int Param2, void *OutputBuf, SIZE_T OutputSize, __int64 Context);
+char SendDeviceIoControl(unsigned char *OutFlag, int Arg2, PUNICODE_STRING PathString, int Arg4,
+                         void *OutputBuffer, SIZE_T OutputSize, __int64 OutputSizePtr);
 __int64 __fastcall SendDeviceIoControlWithRetry(__int64 Handle, unsigned int IoControlCode, char Flags, _DWORD **OutputHandle, __int64 IoStatusBlock);
 char SendFsctlWithHookSwap(__int64 DeviceHandle, unsigned int IoControlCode, __int64 InputBuffer, unsigned int InputSize, __int64 OutputBuffer, int OutputSize, __int64 Flags);
 
