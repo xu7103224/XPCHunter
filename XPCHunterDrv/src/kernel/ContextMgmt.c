@@ -1209,22 +1209,22 @@ L1400393B8:
     SecFlags = *(__int64 *)((char *)SectionInfo + 0x50);
 
     if (SecType == 0x512 && SecFlags88 == 0x40000 &&
-        *(ULONG *)((char *)SectionInfo + 0x38) != 0 && SecFlags == 0x40)
+        *(ULONG *)((char *)SectionInfo + 0x78) != 0 && SecFlags == 0x40)
     {
         ULONG idx = *(ULONG *)((char *)SectionInfo + 0x58);
-        v = *(ULONG *)((char *)SectionInfo + 0x38) - (ULONG)Base + (ULONG)Ctx.ReadPtr;
+        v = *(ULONG *)((char *)SectionInfo + 0x78) - (ULONG)Base + (ULONG)Ctx.ReadPtr;
         if (v != 0 && v < Size && idx < 0x10) Dst[idx] = (UCHAR)v;
     }
 
     if (SecType != 0x50E) goto L1400395CD;
 
     // ---- 路径 a ----
-    if (((*(ULONG *)((char *)SectionInfo + 0xB8) & 0x300) == 0x100) &&
-        (*(ULONG *)((char *)SectionInfo + 0x38) == 0x70) &&
+    if (((*(ULONG *)((char *)SectionInfo + 0xD8) & 0x300) == 0x100) &&
+        (*(ULONG *)((char *)SectionInfo + 0x40) == 0x70) &&
         ((*(ULONG *)((char *)SectionInfo + 0xDC) & 0x300) == 0x300) &&
         (SecFlags88 == 0x40))
     {
-        ULONG idx = *(ULONG *)((char *)SectionInfo + 0x100);
+        ULONG idx = *(ULONG *)((char *)SectionInfo + 0x90);
         if (idx < 0x10)
         {
             v = Dst[idx];
@@ -1251,9 +1251,9 @@ L140039549:
         (*(ULONG64 *)((char *)SectionInfo + 0x50) & 0x40) &&
         ((*(ULONG *)((char *)SectionInfo + 0xDC) & 0xF) != 4) &&
         (SecFlags88 == 0x40) &&
-        (*(ULONG64 *)((char *)SectionInfo + 0x38) == 0x50))
+        (*(ULONG64 *)((char *)SectionInfo + 0x40) == 0x50))
     {
-        ULONG idx = *(ULONG *)((char *)SectionInfo + 0x100);
+        ULONG idx = *(ULONG *)((char *)SectionInfo + 0x90);
         v = Dst[idx];
         if (v != 0 && v < Size && (ULONG64)v + 0xE0 <= Size)
         {
@@ -1279,7 +1279,7 @@ L1400395CD:
     goto L1400393B8;
 
 L1400394F6:
-    if (SecType == 0x510 && *(__int64 *)((char *)SectionInfo + 0x38) == 0x40 &&
+    if (SecType == 0x510 && *(__int64 *)((char *)SectionInfo + 0x50) == 0x40 &&
         *(__int64 *)((char *)SectionInfo + 0x58) == 1)
     {
         FlagDil = 1;

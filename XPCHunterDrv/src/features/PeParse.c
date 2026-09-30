@@ -1433,7 +1433,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
             }
         }
         else if (TypeValue == 1296 &&
-                 *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
                  *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
         {
             FoundFlag = 1;
@@ -1471,8 +1471,8 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
 
         if (TypeValue2 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
         {
-            ULONG RvaField = *(ULONG *)((char *)SectionEntry + 0x38);
-            if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+            ULONG RvaField = *(ULONG *)((char *)SectionEntry + 0x78);
+            if (RvaField && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
             {
                 ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
                 if (v && v < ImageSize)
@@ -1486,7 +1486,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
         {
             ULONG SizeValue = *(ULONG *)((char *)SectionEntry + 0x50);
             ULONG ExtraFlags = *(ULONG *)((char *)SectionEntry + 0xDC);
-            ULONG EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x38);
+            ULONG EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x40);
             if ((SizeValue & 0x14000) && (SizeValue & 0x40) && (ExtraFlags & 0xF) != 4 &&
                 *(__int64 *)((char *)SectionEntry + 0x88) == 64 &&
                 (EntryOffsetVal - 112) <= 0xD8 && (EntryOffsetVal & 7) == 0)
@@ -1494,7 +1494,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
                 ULONG SlotIndex = (EntryOffsetVal - 112) >> 3;
                 if (SlotIndex <= 0x1B)
                 {
-                    ULONG DstRva = Dst[*(ULONG *)((char *)SectionEntry + 0x100)];
+                    ULONG DstRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
                     if (DstRva && !*(_DWORD *)(pTargetTable + 48 * SlotIndex + 4))
                     {
                         Result = 1;
@@ -1556,7 +1556,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
             if (SectionRva && SectionRva < FileSize) { CurrentRva = SectionRva; break; }
         }
         else if (SectionType == 1296 &&
-                 *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
                  *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
         {
             IsTargetSection = 1;
@@ -1586,8 +1586,8 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
 
         if (SectionType2 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
         {
-            ULONG v = *(ULONG *)((char *)SectionEntry + 0x38);
-            if (v && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+            ULONG v = *(ULONG *)((char *)SectionEntry + 0x78);
+            if (v && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
             {
                 EntryRva = ComputedOffset2 + v - (ULONG)pFileBuffer;
                 if (EntryRva && EntryRva < FileSize)
@@ -1600,7 +1600,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
         {
             ULONG SecFlags = *(ULONG *)((char *)SectionEntry + 0x50);
             ULONG MiscFlags = *(ULONG *)((char *)SectionEntry + 0xDC);
-            ULONG FieldOffset = *(ULONG *)((char *)SectionEntry + 0x38);
+            ULONG FieldOffset = *(ULONG *)((char *)SectionEntry + 0x40);
             if ((SecFlags & 0x14000) && (SecFlags & 0x40) && (MiscFlags & 0xF) != 4 &&
                 *(__int64 *)((char *)SectionEntry + 0x88) == 64 &&
                 (FieldOffset - 112) <= 0xD8 && (FieldOffset & 7) == 0)
@@ -1608,7 +1608,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
                 ULONG SlotIndex = (FieldOffset - 112) >> 3;
                 if (SlotIndex <= 0x1B)
                 {
-                    TargetRva = SlotAddresses[*(ULONG *)((char *)SectionEntry + 0x100)];
+                    TargetRva = SlotAddresses[*(ULONG *)((char *)SectionEntry + 0x90)];
                     if (TargetRva && !*(_DWORD *)(pExportTable + 48 * SlotIndex + 4))
                     {
                         Result = 1;
@@ -1668,7 +1668,7 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
             if (SectionRva && SectionRva < ImageSize) { SectionDirRva = SectionRva; break; }
         }
         else if (SectionType == 1296 &&
-                 *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
                  *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
         {
             IsTargetSection = 1;
@@ -1699,12 +1699,12 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
         {
             if (*(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1298 &&
                 *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
-                *(_DWORD *)((char *)SectionEntry + 0x38) != 0 &&
-                *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                *(_DWORD *)((char *)SectionEntry + 0x78) != 0 &&
+                *(__int64 *)((char *)SectionEntry + 0x50) == 64)
             {
                 if (++Win8SectionCount == 2)
                 {
-                    ULONG Rva = (ULONG)AccumulatedOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                    ULONG Rva = (ULONG)AccumulatedOffset + *(ULONG *)((char *)SectionEntry + 0x78) - (ULONG)ImageBase;
                     if (Rva >= ImageSize)
                         return Result;
                     for (ULONG k = 0; k < 28; k++)
@@ -1721,16 +1721,16 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
             __int16 SectionType2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
             if (SectionType2 == 1298 &&
                 *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
-                *(_DWORD *)((char *)SectionEntry + 0x38) != 0 &&
-                *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                *(_DWORD *)((char *)SectionEntry + 0x78) != 0 &&
+                *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
                 *(_DWORD *)((char *)SectionEntry + 0x58) == 0)
             {
-                ExportDirRva = (ULONG)AccumulatedOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                ExportDirRva = (ULONG)AccumulatedOffset + *(ULONG *)((char *)SectionEntry + 0x78) - (ULONG)ImageBase;
                 if (ExportDirRva >= ImageSize)
                     ExportDirRva = 0;
             }
             else if (SectionType2 == 1327 &&
-                     (*(ULONG64 *)((char *)SectionEntry + 0x50) & 0x10) &&
+                     (*(UCHAR *)((char *)SectionEntry + 0x20) & 0x10) &&
                      ExportDirRva)
             {
                 for (ULONG k = 0; k < 28; k++)
@@ -1842,7 +1842,7 @@ char ParseCallbackFunctionSections(
                     }
                 }
                 else if (TypeValue == 1296 &&
-                         *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                         *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
                          *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
                 {
                     FoundFlag = 1;
@@ -1888,13 +1888,13 @@ char ParseCallbackFunctionSections(
             TypeValue2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
 
             SizeValue = *(ULONG *)((char *)SectionEntry + 0x50);
-            RvaField = *(ULONG *)((char *)SectionEntry + 0x38);
+            RvaField = *(ULONG *)((char *)SectionEntry + 0x78);
             ExtraFlags = *(ULONG *)((char *)SectionEntry + 0xDC);
-            EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x38);
+            EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x40);
 
             if (TypeValue2 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
             {
-                if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                if (RvaField && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
                 {
                     ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
                     if (v && v < ImageSize)
@@ -1905,7 +1905,7 @@ char ParseCallbackFunctionSections(
             {
                 if (TypeValue2 == 1296 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
                 {
-                    if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                    if (RvaField && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
                     {
                         ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
                         if (v && v < ImageSize)
@@ -2029,7 +2029,7 @@ char ParseCallbackContextSections(
                     }
                 }
                 else if (TypeValue == 1296 &&
-                         *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                         *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
                          *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
                 {
                     FoundFlag = 1;
@@ -2075,13 +2075,13 @@ char ParseCallbackContextSections(
             TypeValue2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
 
             SizeValue = *(ULONG *)((char *)SectionEntry + 0x50);
-            RvaField = *(ULONG *)((char *)SectionEntry + 0x38);
+            RvaField = *(ULONG *)((char *)SectionEntry + 0x78);
             ExtraFlags = *(ULONG *)((char *)SectionEntry + 0xDC);
-            EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x38);
+            EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x40);
 
             if (TypeValue2 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
             {
-                if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                if (RvaField && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
                 {
                     ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
                     if (v && v < ImageSize)
@@ -2092,7 +2092,7 @@ char ParseCallbackContextSections(
             {
                 if (TypeValue2 == 1296 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
                 {
-                    if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                    if (RvaField && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
                     {
                         ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
                         if (v && v < ImageSize)
@@ -2103,7 +2103,7 @@ char ParseCallbackContextSections(
             // 1351 前置定基分支（本函数独有）
             if (TypeValue2 == 1351 && SizeValue == 0x40000)
             {
-                if (EntryOffsetVal && *(__int64 *)((char *)SectionEntry + 0x110) == 224)
+                if (EntryOffsetVal && *(__int64 *)((char *)SectionEntry + 0x70) == 224)
                 {
                     ULONG TargetRva4 = EntryRva + EntryOffsetVal - (ULONG)ImageBase;
                     if (TargetRva4 && TargetRva4 < ImageSize && !BaseRva)
