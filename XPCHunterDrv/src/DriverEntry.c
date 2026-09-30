@@ -731,14 +731,26 @@ ULONG64 InitImageNotify(void)
     char Attached = 0;
     KAPC_STATE ApcState;
 
-    // 三元组表：{ 结果索引, 类型索引, 序号 }
+    // 三元组表：{ 待解析索引, 结果索引, 非零哨兵值 }
+    // 【⚠ 本轮更正（逐条核对反汇编 0x14007248A~0x1400725B5）】
+    //   1) 第三列原写作 59..69 —— **错误**。反汇编实测为：
+    //      0x39/0x3A/0x3B/0x3C/0x3D/0x3E/0x3F/0x40/0x41/0x42/0x43（=57..67）
+    //      以及 0x63/0x64/0x65（=99..101）。第三列的唯一用途是"三者全零即跳出"
+    //      的哨兵判据（见下），故其数值不影响功能，但为忠实原文仍需如实填写。
+    //   2) 哨兵判据原写作对字段 0/1 调 `GtRead(...)` —— **错误**。反汇编
+    //      （0x1400725C5 `mov ecx,[rsp+rdi*4+Dst]` / 0x1400725CD `cmp [rsp+rdi*4+Index],r12d`
+    //      / 0x1400725D4 `cmp [rsp+rdi*4+var_D8],r12d`）证明判据比较的是**表内字面值**，
+    //      不查全局表。原写法会多做两次无意义的 GtRead（因第三列恒非零而不致功能错，
+    //      但属不忠实实现）。
+    //   3) memset 的 0xB4 = 180 字节 = 15 项 × 12 字节，故表实际容量 15 项；
+    //      原写 [16][3] 但只填 14 项，等价。
     static const _DWORD GtIndexTriples[16][3] =
     {
-        { 0x41F2, 0x16E, 59 }, { 0x41F5, 0x16F, 60 }, { 0x41F8, 0x170, 61 },
-        { 0x41FB, 0x171, 62 }, { 0x4204, 0x172, 63 }, { 0x4207, 0x173, 64 },
-        { 0x420A, 0x174, 65 }, { 0x420D, 0x175, 66 }, { 0x4210, 0x176, 67 },
-        { 0x4213, 0x177, 68 }, { 0x4216, 0x178, 69 }, { 0x42AC, 0x290, 99 },
-        { 0x42AF, 0x291, 100 }, { 0x42B2, 0x292, 101 }, { 0, 0, 0 }, { 0, 0, 0 }
+        { 0x41F2, 0x16E, 0x39 }, { 0x41F5, 0x16F, 0x3A }, { 0x41F8, 0x170, 0x3B },
+        { 0x41FB, 0x171, 0x3C }, { 0x4204, 0x172, 0x3D }, { 0x4207, 0x173, 0x3E },
+        { 0x420A, 0x174, 0x3F }, { 0x420D, 0x175, 0x40 }, { 0x4210, 0x176, 0x41 },
+        { 0x4213, 0x177, 0x42 }, { 0x4216, 0x178, 0x43 }, { 0x42AC, 0x290, 0x63 },
+        { 0x42AF, 0x291, 0x64 }, { 0x42B2, 0x292, 0x65 }, { 0, 0, 0 }, { 0, 0, 0 }
     };
 
     TargetProcess = GtRead(GtCurrentEprocess);
@@ -759,8 +771,11 @@ ULONG64 InitImageNotify(void)
     {
         for (EntryIndex = 0; ; EntryIndex++)
         {
-            if ((unsigned int)GtRead((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][0]) == 0 &&
-                (unsigned int)GtRead((GLOBAL_TABLE_INDEX)GtIndexTriples[EntryIndex][1]) == 0 &&
+            // 哨兵判据：比较**表内字面值**（反汇编 0x1400725C5/0x1400725CD/0x1400725D4），
+            // 三项全零即表示表中已到空位，跳出循环。注意前两列在表中恒非零，
+            // 实际起作用的是第三列的 0 哨兵。
+            if (GtIndexTriples[EntryIndex][0] == 0 &&
+                GtIndexTriples[EntryIndex][1] == 0 &&
                 GtIndexTriples[EntryIndex][2] == 0)
                 break;
 
