@@ -1744,3 +1744,427 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
     }
     return Result;
 }
+
+
+// =========================================================================
+// ReadNtFileForCallbackTable — 按模式读取驱动文件供回调表解析
+// 对应原始驱动 0x1400355B4（0x179 = 377 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（38 行伪代码），按伪代码实现
+// 【参数】pFileBuffer / pFileSize 为输出；VersionType 是模式（0/1/2），
+//   与 InitCallbackFunctionTable 的模式一一对应。
+// 【路径（由伪代码 EncodedPath[N] = <十进制> 赋值序列按 DWORD 索引重建并逐字节验证）】
+//   前缀固定 \SystemRoot\system32\drivers，文件名按模式追加：
+//     VersionType == 0 → fastfat.sys（FAT 文件系统驱动）
+//     VersionType == 1 → exfat.sys （exFAT 文件系统驱动）
+//     VersionType == 2 → ntfs.sys  （NTFS 文件系统驱动）
+// 【逻辑】构造路径 → ReadFileRawData（返回 0 表示成功）→ ReadNtFileToBuffer 解析
+//   → ExFree 原始数据；返回是否成功。与 ReadNtoskrnlForCallbackContext 同构。
+// =========================================================================
+bool ReadNtFileForCallbackTable(_QWORD *pFileBuffer, unsigned int *pFileSize, int VersionType)
+{
+    bool Result = 0;
+    void *pRawData = NULL;
+    size_t RawDataSize = 0;
+    WCHAR EncodedPath[40];
+
+    if (VersionType == 0)
+        wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\fastfat.sys");
+    else if (VersionType == 1)
+        wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\exfat.sys");
+    else if (VersionType == 2)
+        wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\ntfs.sys");
+    else
+        return Result;
+
+    if (!(unsigned int)ReadFileRawData(EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
+    {
+        Result = (ReadNtFileToBuffer((PUCHAR)pRawData, (ULONG)RawDataSize,
+                                     (PUCHAR *)pFileBuffer, (PULONG)pFileSize) == 1);
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
+// =========================================================================
+// ParseCallbackFunctionSections — 解析回调函数节区，填充目标表与备用表
+// 对应原始驱动 0x140033FA8（0x3F8 = 1016 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（150 行伪代码，字段名已由 IDA 标注），
+//   故按伪代码实现；0x120 字节描述符字段偏移由反汇编逐条核对为：
+//     +0x38 RVA 字段、+0x50 大小/特征、+0x58 序号、+0x70 对齐值、+0x88 标志、
+//     +0x90 Dst 读索引、+0xDC 额外标志、+0xF0 指令长度、
+//     +0x118 指向类型 word 的指针（+6 处为节区类型码）
+// 【参数】ImageBase / ImageSize / SectionBase（重定位基址）/ pTargetTable（0x30 项表）
+//   / pAlternateTable / IsVersion2（char，模式 2 标志）
+// =========================================================================
+char ParseCallbackFunctionSections(
+        __int64 ImageBase,
+        unsigned int ImageSize,
+        __int64 SectionBase,
+        __int64 pTargetTable,
+        __int64 pAlternateTable,
+        char IsVersion2)
+{
+    char Result = 0;
+    __int64 InitSectionRva;
+    char FoundFlag;
+    int ScanCount;
+    ULONG BaseRva = 0;
+    ULONG LoopIndex;
+    PE_DECODE_CONTEXT PESectionContext;
+    __int64 ContextOffset = 0;
+    _DWORD SectionEntry[112];
+    _DWORD Dst[16];
+
+    InitSectionRva = *(unsigned int *)(*(int *)(ImageBase + 60) + ImageBase + 40);
+    if ((_DWORD)InitSectionRva)
+    {
+        if ((unsigned int)InitSectionRva >= ImageSize)
+            return Result;
+        if ((int)InitSectionRva + 4096 < (int)ImageSize)
+        {
+            FoundFlag = 0;
+            InitPESectionReadContext(InitSectionRva + ImageBase, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+            ScanCount = 0;
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+            {
+                ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
+                ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+                __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+                ULONG TargetRva;
+
+                if (TypeValue == 1369)
+                {
+                    TargetRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                    if (TargetRva && TargetRva < ImageSize)
+                    {
+                        InitSectionRva = TargetRva;
+                        break;
+                    }
+                }
+                else if (TypeValue == 1296 &&
+                         *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                         *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+                {
+                    FoundFlag = 1;
+                }
+                else if (TypeValue == 1368)
+                {
+                    if (FoundFlag == 1)
+                    {
+                        TargetRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                        if (TargetRva && TargetRva < ImageSize)
+                        {
+                            InitSectionRva = TargetRva;
+                            break;
+                        }
+                    }
+                    FoundFlag = 0;
+                }
+                if ((unsigned int)++ScanCount >= 0x14)
+                    break;
+            }
+        }
+    }
+
+    if ((unsigned int)InitSectionRva < ImageSize && (int)InitSectionRva + 4096 < (int)ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)InitSectionRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+        memset(Dst, 0, sizeof(Dst));
+        BaseRva = 0;
+        for (LoopIndex = 0; LoopIndex < 0x3E8; ++LoopIndex)
+        {
+            ULONG EntryRva;
+            __int16 TypeValue2;
+            ULONG SizeValue;
+            ULONG RvaField;
+            ULONG ExtraFlags;
+            ULONG EntryOffsetVal;
+
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+                break;
+
+            EntryRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
+            ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+            TypeValue2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+            SizeValue = *(ULONG *)((char *)SectionEntry + 0x50);
+            RvaField = *(ULONG *)((char *)SectionEntry + 0x38);
+            ExtraFlags = *(ULONG *)((char *)SectionEntry + 0xDC);
+            EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x38);
+
+            if (TypeValue2 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+            {
+                if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                {
+                    ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
+                    if (v && v < ImageSize)
+                        Dst[*(ULONG *)((char *)SectionEntry + 0x90)] = v;
+                }
+            }
+            if (BaseRva)
+            {
+                if (TypeValue2 == 1296 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+                {
+                    if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                    {
+                        ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
+                        if (v && v < ImageSize)
+                            Dst[*(ULONG *)((char *)SectionEntry + 0x90)] = 0;
+                    }
+                }
+            }
+            if (TypeValue2 == 1294)
+            {
+                if ((SizeValue & 0x14000) != 0 && (SizeValue & 0x40) != 0 &&
+                    (ExtraFlags & 0xF) != 4 && *(__int64 *)((char *)SectionEntry + 0x88) == 64)
+                {
+                    if ((unsigned int)(EntryOffsetVal - 112) > 0xD8 || (EntryOffsetVal & 7) != 0)
+                    {
+                        if (EntryOffsetVal == 80)
+                        {
+                            ULONG BaseRvaEntry = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                            if (BaseRvaEntry && !BaseRva)
+                            {
+                                GLOBAL_TABLE_INDEX GtIndex = GtNtQueryVirtualMemoryFunc;
+                                BaseRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                                if (IsVersion2 != 1)
+                                    GtIndex = GtKeStackAttachProcessFunc;
+                                GtWrite(GtIndex, SectionBase + BaseRvaEntry);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ULONG SlotIndex = (EntryOffsetVal - 112) >> 3;
+                        if (SlotIndex <= 0x1B)
+                        {
+                            ULONG DstRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                            if (DstRva && !*(_DWORD *)(pTargetTable + 48 * SlotIndex + 4))
+                            {
+                                Result = 1;
+                                *(_DWORD *)(pTargetTable + 48 * SlotIndex + 4) = DstRva;
+                                *(_QWORD *)(pTargetTable + 48 * SlotIndex + 8) = SectionBase + DstRva;
+                            }
+                        }
+                    }
+                }
+                else if (SizeValue == 0x40000 && *(__int64 *)((char *)SectionEntry + 0x88) == 64)
+                {
+                    ULONG AltTargetRva = EntryRva + EntryOffsetVal - (ULONG)ImageBase;
+                    if (AltTargetRva && AltTargetRva < ImageSize && AltTargetRva > BaseRva)
+                    {
+                        ULONG AltSlotIndex = (AltTargetRva - BaseRva - 8) >> 3;
+                        if (AltSlotIndex < 0x1B)
+                        {
+                            ULONG AltDstRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                            if (AltDstRva)
+                            {
+                                *(_DWORD *)(pAlternateTable + 48 * AltSlotIndex + 4) = AltDstRva;
+                                *(_QWORD *)(pAlternateTable + 48 * AltSlotIndex + 8) = SectionBase + AltDstRva;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// =========================================================================
+// ParseCallbackContextSections — 解析回调上下文章节，填充目标表与备用表
+// 对应原始驱动 0x140034E7C（0x43E = 1086 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（165 行伪代码），按伪代码实现
+// 【与 ParseCallbackFunctionSections 的差异（逐条比对伪代码得出）】
+//   1) 无 IsVersion2 参数（5 参）；BaseRva 的 GtWrite 一律用
+//      GtNtFreeVirtualMemoryFunc（不是二选一的分支）；
+//   2) 多一个 1351/+0x50==0x40000 的**前置定基**分支：+0x38!=0 且 +0x110==224 且
+//      目标 RVA 有效且 BaseRva 未定时，置 BaseRva 并 GtWrite，
+//      然后以 ContextOffset 重新取 EntryRva；
+//   3) 1294 主支槽步长写作 48*SlotIndex（与函数族其它处一致）。
+// 【参数】ImageBase / ImageSize / SectionBase / pTargetTable / pAlternateTable
+// =========================================================================
+char ParseCallbackContextSections(
+        __int64 ImageBase,
+        unsigned int ImageSize,
+        __int64 SectionBase,
+        __int64 pTargetTable,
+        __int64 pAlternateTable)
+{
+    char Result = 0;
+    __int64 InitSectionRva;
+    char FoundFlag;
+    int ScanCount;
+    ULONG BaseRva = 0;
+    ULONG LoopIndex;
+    PE_DECODE_CONTEXT PESectionContext;
+    __int64 ContextOffset = 0;
+    _DWORD SectionEntry[112];
+    _DWORD Dst[16];
+
+    InitSectionRva = *(unsigned int *)(*(int *)(ImageBase + 60) + ImageBase + 40);
+    if ((_DWORD)InitSectionRva)
+    {
+        if ((unsigned int)InitSectionRva >= ImageSize)
+            return Result;
+        if ((int)InitSectionRva + 4096 < (int)ImageSize)
+        {
+            FoundFlag = 0;
+            InitPESectionReadContext(InitSectionRva + ImageBase, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+            ScanCount = 0;
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+            {
+                ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
+                ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+                __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+                ULONG TargetRva;
+
+                if (TypeValue == 1369)
+                {
+                    TargetRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                    if (TargetRva && TargetRva < ImageSize)
+                    {
+                        InitSectionRva = TargetRva;
+                        break;
+                    }
+                }
+                else if (TypeValue == 1296 &&
+                         *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                         *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+                {
+                    FoundFlag = 1;
+                }
+                else if (TypeValue == 1368)
+                {
+                    if (FoundFlag == 1)
+                    {
+                        TargetRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                        if (TargetRva && TargetRva < ImageSize)
+                        {
+                            InitSectionRva = TargetRva;
+                            break;
+                        }
+                    }
+                    FoundFlag = 0;
+                }
+                if ((unsigned int)++ScanCount >= 0x14)
+                    break;
+            }
+        }
+    }
+
+    if ((unsigned int)InitSectionRva < ImageSize && (int)InitSectionRva + 4096 < (int)ImageSize)
+    {
+        InitPESectionReadContext(ImageBase + (unsigned int)InitSectionRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+        memset(Dst, 0, sizeof(Dst));
+        BaseRva = 0;
+        for (LoopIndex = 0; LoopIndex < 0x3E8; ++LoopIndex)
+        {
+            ULONG EntryRva;
+            __int16 TypeValue2;
+            ULONG SizeValue;
+            ULONG RvaField;
+            ULONG ExtraFlags;
+            ULONG EntryOffsetVal;
+
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+                return Result;
+
+            EntryRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
+            ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+            TypeValue2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+            SizeValue = *(ULONG *)((char *)SectionEntry + 0x50);
+            RvaField = *(ULONG *)((char *)SectionEntry + 0x38);
+            ExtraFlags = *(ULONG *)((char *)SectionEntry + 0xDC);
+            EntryOffsetVal = *(ULONG *)((char *)SectionEntry + 0x38);
+
+            if (TypeValue2 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+            {
+                if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                {
+                    ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
+                    if (v && v < ImageSize)
+                        Dst[*(ULONG *)((char *)SectionEntry + 0x90)] = v;
+                }
+            }
+            if (BaseRva)
+            {
+                if (TypeValue2 == 1296 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+                {
+                    if (RvaField && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+                    {
+                        ULONG v = EntryRva + RvaField - (ULONG)ImageBase;
+                        if (v && v < ImageSize)
+                            Dst[*(ULONG *)((char *)SectionEntry + 0x90)] = 0;
+                    }
+                }
+            }
+            // 1351 前置定基分支（本函数独有）
+            if (TypeValue2 == 1351 && SizeValue == 0x40000)
+            {
+                if (EntryOffsetVal && *(__int64 *)((char *)SectionEntry + 0x110) == 224)
+                {
+                    ULONG TargetRva4 = EntryRva + EntryOffsetVal - (ULONG)ImageBase;
+                    if (TargetRva4 && TargetRva4 < ImageSize && !BaseRva)
+                    {
+                        BaseRva = EntryRva + EntryOffsetVal - (ULONG)ImageBase;
+                        GtWrite(GtNtFreeVirtualMemoryFunc, SectionBase + TargetRva4);
+                        EntryRva = (ULONG)ContextOffset;
+                    }
+                }
+            }
+            if (TypeValue2 == 1294)
+            {
+                if ((SizeValue & 0x14000) != 0 && (SizeValue & 0x40) != 0 &&
+                    (ExtraFlags & 0xF) != 4 && *(__int64 *)((char *)SectionEntry + 0x88) == 64)
+                {
+                    if ((unsigned int)(EntryOffsetVal - 112) > 0xD8 || (EntryOffsetVal & 7) != 0)
+                    {
+                        if (EntryOffsetVal == 80)
+                        {
+                            ULONG BaseRvaEntry = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                            if (BaseRvaEntry && !BaseRva)
+                            {
+                                BaseRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                                GtWrite(GtNtFreeVirtualMemoryFunc, SectionBase + BaseRvaEntry);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ULONG SlotIndex = (EntryOffsetVal - 112) >> 3;
+                        if (SlotIndex <= 0x1B)
+                        {
+                            ULONG DstRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                            if (DstRva && !*(_DWORD *)(pTargetTable + 48 * SlotIndex + 4))
+                            {
+                                Result = 1;
+                                *(_DWORD *)(pTargetTable + 48 * SlotIndex + 4) = DstRva;
+                                *(_QWORD *)(pTargetTable + 48 * SlotIndex + 8) = SectionBase + DstRva;
+                            }
+                        }
+                    }
+                }
+                else if (SizeValue == 0x40000 && *(__int64 *)((char *)SectionEntry + 0x88) == 64)
+                {
+                    ULONG AltTargetRva = EntryRva + EntryOffsetVal - (ULONG)ImageBase;
+                    if (AltTargetRva && AltTargetRva < ImageSize && AltTargetRva > BaseRva)
+                    {
+                        ULONG AltSlotIndex = (AltTargetRva - BaseRva - 8) >> 3;
+                        if (AltSlotIndex < 0x1B)
+                        {
+                            ULONG AltDstRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                            if (AltDstRva)
+                            {
+                                *(_DWORD *)(pAlternateTable + 48 * AltSlotIndex + 4) = AltDstRva;
+                                *(_QWORD *)(pAlternateTable + 48 * AltSlotIndex + 8) = SectionBase + AltDstRva;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return Result;
+}

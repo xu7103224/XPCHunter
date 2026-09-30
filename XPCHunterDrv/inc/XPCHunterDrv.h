@@ -703,6 +703,7 @@ void ResolveWin32kExportAddresses(__int64 FileBuffer, unsigned int FileSize);
 bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize);
 bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize);
 bool ReadNtFileForContextTable(_QWORD *pFileBuffer, unsigned int *pFileSize);
+bool ReadNtFileForCallbackTable(_QWORD *pFileBuffer, unsigned int *pFileSize, int VersionType);
 void InitWin32kTableByVersion(void);
 __int64 InstallCallbackContextHookEntry(unsigned int *pInputEntry);
 __int64 InstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
@@ -1226,6 +1227,8 @@ __int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
 char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, __int64 pExportTable);
 char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable);
 char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 pTargetTable);
+char ParseCallbackFunctionSections(__int64 ImageBase, unsigned int ImageSize, __int64 SectionBase, __int64 pTargetTable, __int64 pAlternateTable, char IsVersion2);
+char ParseCallbackContextSections(__int64 ImageBase, unsigned int ImageSize, __int64 SectionBase, __int64 pTargetTable, __int64 pAlternateTable);
 char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTable);
 __int64 InitObjectOperationLegacy(void);
 __int64 ResolveSyscallAddressesInProcess(void);

@@ -655,6 +655,13 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtNtOpenProcessHookOffset = 0x909,   // 2313: NtOpenProcess Hook 目标偏移(HookSyscallNtOpenProcess)
     GtNtOpenProcessHookAddress = 0x90A,  // 2314: NtOpenProcess Hook 目标地址(HookSyscallNtOpenProcess)
     GtFileSystemExportTable = 0x8A8,         // 2216: 文件系统导出表地址(InitFileSystemExportTable)
+    // ---- 回调表初始化用的三个函数指针槽（ParseCallback*Sections 写入）----
+    // 【来源】原始驱动 0x140034E7C 与 0x140033FA8 的 GtWrite 立即数实测：
+    //   0x8A5(ParseCallbackContextSections 主用)、0x8A6/0x8A7(ParseCallbackFunctionSections
+    //   按 IsVersion2 二选一)。名字取 IDB 反编译输出的枚举成员名。
+    GtNtFreeVirtualMemoryFunc = 0x8A5,       // 2213: NtFreeVirtualMemory 函数指针(回调上下文章节解析写入口)
+    GtNtQueryVirtualMemoryFunc = 0x8A6,      // 2214: NtQueryVirtualMemory 函数指针(回调函数节区解析写入口，模式2)
+    GtKeStackAttachProcessFunc = 0x8A7,      // 2215: KeStackAttachProcess 函数指针(回调函数节区解析写入口，非模式2)
     GtFileSystemExportTable32 = 0x8AA,        // 2218: 32位文件系统导出表地址(InitFileSystemExportTable)
     GtExReleaseFastMutex = 0x8AC,             // 2220: ExReleaseFastMutex 函数地址(InitDriverModuleParsing)
     GtFileSystemReady10 = 0x8B0,              // 2224: Win10 文件系统过滤器就绪标志(InitFileSystemExportTable)

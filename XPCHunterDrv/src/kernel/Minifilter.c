@@ -5975,19 +5975,343 @@ char __fastcall PatchPeHeaderMagic(__int64 QueryResult)
     return Result;
 }
 
-// InitCallbackFunctionTable — 初始化回调函数表（按模式 0/1/2）【⚠ 尚未实现】
-// 对应原始驱动 0x1400344BC（2359 字节，574 行反汇编，**IDA 确认不可反编译**）
-// 【⚠ 未实现说明】这是复刻中唯一已知未实现的大函数（骨架与三项前置核实见
-//   docs/reversing/待实现函数结构分析.md §四）。此处为**最小可链接实现**，
-//   使 InitCallbackFunctions 的调用链能通过链接。
-//   **性质说明**：显式返回 0 并标注未实现，不是"假装成功"的空壳
-//   （那些 `return STATUS_SUCCESS;` 会把失败伪装成成功）。
+// =========================================================================
+// InitCallbackFunctionTable — 初始化回调函数表（按模式 0/1/2）
+// 对应原始驱动 0x1400344BC（2359 字节，574 行反汇编）
+// 【逆向来源】⚠ 人工阅读反汇编**逐条转写** —— IDA **确认无法反编译**
+//   （`ida_hexrays.decompile` 返回 None，已复验），故走转写流程。
+// 【参数】Mode = ecx（0 / 1 / 2）。调用方 InitCallbackFunctions（0x140033EE8）
+//   按"结果槽是否已填"分别以模式 0 / 2 / 1 调用它。
+// 【模式与文件系统的对应（由 ReadNtFileForCallbackTable 的路径表确定）】
+//   模式 0 → fastfat.sys（FAT）  模式 1 → exfat.sys（exFAT）  模式 2 → ntfs.sys（NTFS）
+// 【⚠ 三处文档错误更正（本轮逐条核对反汇编得出，原 docs §四 骨架有误）】
+//   1) 原骨架写"按模式再取 0x2A1(模式1)/0x52(模式0)/0x54(模式2)"——正确；
+//      但**该值不是文件大小，而是该模式的重定位基址**，随后作为
+//      ParseCallback*Sections 的 SectionBase，并参与 `GtWrite(槽, 段偏移+基址)`。
+//   2) 原骨架未区分 r13 与 r12：**r13 = Gt[0x421A]**（8 实参调用，IDB 名为
+//      IoCreateFile 但实参形状与 ObjectMgmt.c 的 7 参用法不同，按本函数反汇编为准）、
+//      **r12 = Gt[0x4223] = CloseHandle**（1 实参）；原骨架完全未提及这两次调用。
+//   3) 原骨架写"名字串是 ntoskrnl.exe 与 IoCompleteRequest"——**部分正确**：
+//      第一处是 `ParsePESectionHeaders(FileBuffer, FileSize, "ntoskrnl.exe",
+//      "MmFlushImageSection", &OutOffset)`（原骨架漏了 MmFlushImageSection），
+//      第二处才是 "IoCompleteRequest"；两个结果分别写进两族 GT 槽。
+// 【两个填表循环的迭代数（原骨架写"0x1C 项 / 0x1B 项"）——实为混淆写法】
+//   目标表的循环上限是 `Mode + {0x1C|0x1A|0x1B}`：三种模式**恒等于 0x1C**；
+//   备用表上限是固定 0x1B。已在代码中按恒等值 0x1C / 0x1B 书写并注明。
+// 【GT 槽】0x421D=RtlInitUnicodeString、0x421A=IoCreateFile 包装、0x4223=CloseHandle、
+//   0x4160=驱动对象链表头（解引用后作第 5 实参）；
+//   模式基址槽 0x52/0x54/0x2A1；段偏移槽 0x188/0x187/0x2A5 与 0x2AB/0x2AC/0x2AD；
+//   结果槽 0x195+0x18F+0x8A3（模式0）/ 0x194+0x190+0x8A2（模式2）/ 0x2A3+0x2A4+0x8A4（模式1）。
+// 【三段主体】仅分配槽、缓存表迭代数与解析函数不同：
+//   模式 0：GtAlloc(0xA4C)/GtAlloc(0xAFA)，ParseCallbackFunctionSections(…,1)，
+//           IoCreateFile("\FileSystem\Fastfat")
+//   模式 2：GtAlloc(0xBA8)/GtAlloc(0xC56)，ParseCallbackContextSections(…)，
+//           IoCreateFile("\FileSystem\Ntfs")
+//   模式 1：GtAlloc(0xD04)/GtAlloc(0xDB2)，ParseCallbackFunctionSections(…,0)，
+//           IoCreateFile("\FileSystem\exfat")
+//   每个表项：取 +4 处 RVA → 清 +0 → 越界检查（RVA+0x10 <= FileSize）→
+//   置 +0 命中标志 → 从 FileBuffer+RVA 拷 16 字节到 +0x10。
+// 【后缀】ExFree(文件缓冲) → FillExportEntrySlot(目标表) →
+//   取 GT 0x4C(映像缓冲)/0x21(PE 大小)/3(ntoskrnl 基址)，任一为 0 即返回；
+//   按模式把 6 个一族回调地址槽填入**备用表**（槽内布局：+0=1、+4=槽值、
+//   +8=槽值+基址、+0x10=16 字节节头副本；仅在 +4 尚为 0 时写）：
+//   模式 2：仅 +0x300(0x442F) / +0x360(0x4432)
+//   模式 1：+0x30(0x4429) +0x60(0x442C) +0x300 +0x360 +0x2D0(0x4435) +0x330(0x4438)
+//   模式 0：+0x30 +0x60，然后**仅当构建号 >= 0x1772** 时再加 +0x300/+0x360/+0x2D0/+0x330
+// 【返回值】原始函数 ret 前未显式设置 rax（返回值意外取自最后一条 call 的结果），
+//   两个调用方（InitCallbackFunctions、MemoryOperation.c:809）均忽略该值；
+//   此处显式返回 0 以消除不确定性，并如实记录该差异。
+// =========================================================================
 ULONG64 InitCallbackFunctionTable(unsigned int Mode)
 {
-    (void)Mode;
+    __int64 FnRtlInitUnicodeString;
+    __int64 FnCreateFile;
+    __int64 FnCloseHandle;
+    __int64 DriverListHead;
+    __int64 RelocBase;
+    __int64 FileBuffer = 0;
+    unsigned int FileSize = 0;
+    unsigned int SectionOffset = 0;
+    __int64 pTargetTable = 0;
+    __int64 pAlternateTable = 0;
+    __int64 Handle = 0;
+    int Result = 0;
+    int IoStatus;
+    WCHAR NameNtoskrnl[20];
+    WCHAR NameMmFlush[24];
+    WCHAR NameIoComplete[24];
+    WCHAR FilePath[24];
+    _BYTE UnicodeString[16];
+    int i;
+
+    FnRtlInitUnicodeString = GtRead(GtRtlInitUnicodeStringFunc);
+    FnCreateFile           = GtRead(GtIoCreateFileFunc);
+    FnCloseHandle          = GtRead(GtCloseHandleFunc);
+    DriverListHead         = GtRead(GtDriverObjectListHead);
+
+    if (!FnRtlInitUnicodeString || !FnCreateFile || !FnCloseHandle || !DriverListHead)
+        return 0;
+
+    // ---- 按模式取该模式的重定位基址（0x140034554~0x140034584）----
+    if (Mode == 0)
+        RelocBase = GtRead((GLOBAL_TABLE_INDEX)0x52);
+    else if (Mode == 2)
+        RelocBase = GtRead((GLOBAL_TABLE_INDEX)0x54);
+    else if (Mode == 1)
+        RelocBase = GtRead(GtKernelDataField15);        // 0x2A1
+    else
+        RelocBase = 0;
+    if (!RelocBase)
+        return 0;
+
+    // ---- 按模式读取文件系统驱动（0x14003458A）----
+    if (!ReadNtFileForCallbackTable((_QWORD *)&FileBuffer, &FileSize, (int)Mode))
+        return 0;
+
+    // ---- 节名查找 1：ntoskrnl.exe 内的 MmFlushImageSection（0x1400345A2~0x140034628）----
+    SectionOffset = 0;
+    wcscpy(NameNtoskrnl, L"ntoskrnl.exe");
+    wcscpy(NameMmFlush, L"MmFlushImageSection");
+    if (ParsePESectionHeaders(FileBuffer, FileSize, (__int64)NameNtoskrnl,
+                              (unsigned __int8 *)NameMmFlush, &SectionOffset) == 1)
+    {
+        GLOBAL_TABLE_INDEX ResultIndex;
+        if (Mode == 2)
+            ResultIndex = (GLOBAL_TABLE_INDEX)0x187;
+        else if (Mode == 0)
+            ResultIndex = (GLOBAL_TABLE_INDEX)0x188;
+        else
+            ResultIndex = GtKernelDataField19;          // 0x2A5
+        GtWrite(ResultIndex, SectionOffset + RelocBase);
+    }
+
+    // ---- 节名查找 2：ntoskrnl.exe 内的 IoCompleteRequest（0x14003462D~0x14003469F）----
+    SectionOffset = 0;
+    wcscpy(NameNtoskrnl, L"ntoskrnl.exe");
+    wcscpy(NameIoComplete, L"IoCompleteRequest");
+    if (ParsePESectionHeaders(FileBuffer, FileSize, (__int64)NameNtoskrnl,
+                              (unsigned __int8 *)NameIoComplete, &SectionOffset) == 1)
+    {
+        GLOBAL_TABLE_INDEX ResultIndex;
+        if (Mode == 2)
+            ResultIndex = GtKernelDataField26;          // 0x2AC
+        else if (Mode == 0)
+            ResultIndex = GtKernelDataField25;          // 0x2AB
+        else
+            ResultIndex = GtKernelDataField27;          // 0x2AD
+        GtWrite(ResultIndex, SectionOffset + RelocBase);
+    }
+
+    // ---- 三段主体（0x1400346D3 / 0x140034846 / 0x1400349A7）----
+    if (Mode == 0)
+    {
+        pTargetTable    = (__int64)GtAlloc((GLOBAL_TABLE_INDEX)0xA4C);
+        pAlternateTable = (__int64)GtAlloc((GLOBAL_TABLE_INDEX)0xAFA);
+
+        if (ParseCallbackFunctionSections(FileBuffer, FileSize, RelocBase,
+                                          pTargetTable, pAlternateTable, 1) != 1)
+            goto L_FREE_FILE;
+        if (ParseNtExportDir((PUCHAR)FileBuffer, FileSize, (ULONG64)RelocBase, 0) != 1)
+            goto L_FREE_FILE;
+
+        for (i = 0; i < 0x1C; i++)              // 恒为 0x1C（原写 Mode+0x1C）
+        {
+            unsigned int Rva = *(unsigned int *)(pTargetTable + 48 * i + 4);
+            *(_DWORD *)(pTargetTable + 48 * i) = 0;
+            if (Rva && Rva + 0x10 <= FileSize)
+            {
+                *(_DWORD *)(pTargetTable + 48 * i) = 1;
+                memcpy((void *)(pTargetTable + 48 * i + 0x10), (void *)(FileBuffer + Rva), 16);
+            }
+        }
+        for (i = 0; i < 0x1B; i++)
+        {
+            unsigned int Rva = *(unsigned int *)(pAlternateTable + 48 * i + 4);
+            *(_DWORD *)(pAlternateTable + 48 * i) = 0;
+            if (Rva && Rva + 0x10 <= FileSize)
+            {
+                *(_DWORD *)(pAlternateTable + 48 * i) = 1;
+                memcpy((void *)(pAlternateTable + 48 * i + 0x10), (void *)(FileBuffer + Rva), 16);
+            }
+        }
+
+        wcscpy(FilePath, L"\\FileSystem\\Fastfat");
+        ((void(__fastcall *)(_BYTE *, WCHAR *))FnRtlInitUnicodeString)(UnicodeString, FilePath);
+        IoStatus = (int)((__int64(__fastcall *)(_BYTE *, __int64, __int64, __int64, __int64,
+                                               __int64, __int64, __int64 *))FnCreateFile)(
+                     UnicodeString, 0x40, 0, 0, *(__int64 *)DriverListHead, 0, 0, &Handle);
+        if (IoStatus < 0 || !Handle)
+            goto L_FREE_FILE;
+        Result = 1;
+        ((void(__fastcall *)(__int64))FnCloseHandle)(Handle);
+
+        GtWrite(GtSavedDeviceObject2, Handle);       // 0x195
+        GtWrite((GLOBAL_TABLE_INDEX)0x18F, 1);
+        GtWrite((GLOBAL_TABLE_INDEX)0x8A3, 1);
+    }
+    else if (Mode == 2)
+    {
+        pTargetTable    = (__int64)GtAlloc((GLOBAL_TABLE_INDEX)0xBA8);
+        pAlternateTable = (__int64)GtAlloc((GLOBAL_TABLE_INDEX)0xC56);
+
+        if (ParseCallbackContextSections(FileBuffer, FileSize, RelocBase,
+                                         pTargetTable, pAlternateTable) != 1)
+            goto L_FREE_FILE;
+        if (ParseNtExportDir((PUCHAR)FileBuffer, FileSize, (ULONG64)RelocBase, 0) != 1)
+            goto L_FREE_FILE;
+
+        for (i = 0; i < 0x1C; i++)              // 恒为 0x1C（原写 Mode+0x1A）
+        {
+            unsigned int Rva = *(unsigned int *)(pTargetTable + 48 * i + 4);
+            *(_DWORD *)(pTargetTable + 48 * i) = 0;
+            if (Rva && Rva + 0x10 <= FileSize)
+            {
+                *(_DWORD *)(pTargetTable + 48 * i) = 1;
+                memcpy((void *)(pTargetTable + 48 * i + 0x10), (void *)(FileBuffer + Rva), 16);
+            }
+        }
+        for (i = 0; i < 0x1B; i++)
+        {
+            unsigned int Rva = *(unsigned int *)(pAlternateTable + 48 * i + 4);
+            *(_DWORD *)(pAlternateTable + 48 * i) = 0;
+            if (Rva && Rva + 0x10 <= FileSize)
+            {
+                *(_DWORD *)(pAlternateTable + 48 * i) = 1;
+                memcpy((void *)(pAlternateTable + 48 * i + 0x10), (void *)(FileBuffer + Rva), 16);
+            }
+        }
+
+        wcscpy(FilePath, L"\\FileSystem\\Ntfs");
+        ((void(__fastcall *)(_BYTE *, WCHAR *))FnRtlInitUnicodeString)(UnicodeString, FilePath);
+        IoStatus = (int)((__int64(__fastcall *)(_BYTE *, __int64, __int64, __int64, __int64,
+                                               __int64, __int64, __int64 *))FnCreateFile)(
+                     UnicodeString, 0x40, 0, 0, *(__int64 *)DriverListHead, 0, 0, &Handle);
+        if (IoStatus < 0 || !Handle)
+            goto L_FREE_FILE;
+        Result = 1;
+        ((void(__fastcall *)(__int64))FnCloseHandle)(Handle);
+
+        GtWrite(GtSavedDeviceObject, Handle);        // 0x194
+        GtWrite((GLOBAL_TABLE_INDEX)0x190, 1);
+        GtWrite((GLOBAL_TABLE_INDEX)0x8A2, 1);
+    }
+    else if (Mode == 1)
+    {
+        pTargetTable    = (__int64)GtAlloc((GLOBAL_TABLE_INDEX)0xD04);
+        pAlternateTable = (__int64)GtAlloc((GLOBAL_TABLE_INDEX)0xDB2);
+
+        if (ParseCallbackFunctionSections(FileBuffer, FileSize, RelocBase,
+                                          pTargetTable, pAlternateTable, 0) != 1)
+            goto L_FREE_FILE;
+        if (ParseNtExportDir((PUCHAR)FileBuffer, FileSize, (ULONG64)RelocBase, 0) != 1)
+            goto L_FREE_FILE;
+
+        for (i = 0; i < 0x1C; i++)              // 恒为 0x1C（原写 Mode+0x1B）
+        {
+            unsigned int Rva = *(unsigned int *)(pTargetTable + 48 * i + 4);
+            *(_DWORD *)(pTargetTable + 48 * i) = 0;
+            if (Rva && Rva + 0x10 <= FileSize)
+            {
+                *(_DWORD *)(pTargetTable + 48 * i) = 1;
+                memcpy((void *)(pTargetTable + 48 * i + 0x10), (void *)(FileBuffer + Rva), 16);
+            }
+        }
+        for (i = 0; i < 0x1B; i++)
+        {
+            unsigned int Rva = *(unsigned int *)(pAlternateTable + 48 * i + 4);
+            *(_DWORD *)(pAlternateTable + 48 * i) = 0;
+            if (Rva && Rva + 0x10 <= FileSize)
+            {
+                *(_DWORD *)(pAlternateTable + 48 * i) = 1;
+                memcpy((void *)(pAlternateTable + 48 * i + 0x10), (void *)(FileBuffer + Rva), 16);
+            }
+        }
+
+        wcscpy(FilePath, L"\\FileSystem\\exfat");
+        ((void(__fastcall *)(_BYTE *, WCHAR *))FnRtlInitUnicodeString)(UnicodeString, FilePath);
+        IoStatus = (int)((__int64(__fastcall *)(_BYTE *, __int64, __int64, __int64, __int64,
+                                               __int64, __int64, __int64 *))FnCreateFile)(
+                     UnicodeString, 0x40, 0, 0, *(__int64 *)DriverListHead, 0, 0, &Handle);
+        if (IoStatus < 0 || !Handle)
+            goto L_FREE_FILE;
+        Result = 1;
+        ((void(__fastcall *)(__int64))FnCloseHandle)(Handle);
+
+        GtWrite(GtSavedDeviceObject3, Handle);       // 0x2A3
+        GtWrite(GtKernelDataField18, 1);             // 0x2A4
+        GtWrite((GLOBAL_TABLE_INDEX)0x8A4, 1);
+    }
+    else
+    {
+        return 0;
+    }
+
+L_FREE_FILE:                                        // 0x140034B06
+    ExFree((void *)FileBuffer);
+    if (!Result)
+        return 0;
+
+    // ---- 后缀（0x140034B19~0x140034DC6）----
+    FillExportEntrySlot(pTargetTable);
+    {
+        __int64 ImageBuffer  = GtRead(GtNtoskrnlImageBuffer);            // 0x4C
+        unsigned int PeSize  = (unsigned int)GtRead(GtNtoskrnlPeFileSize); // 0x21
+        __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);             // 3
+        // 槽集合：{ 备用表偏移, 源 GT 索引 }
+        unsigned int SlotOff[6];
+        GLOBAL_TABLE_INDEX SlotGt[6];
+        unsigned int SlotCount = 0;
+
+        if (!ImageBuffer || !PeSize || !NtoskrnlBase)
+            return 0;
+
+        if (Mode == 2)
+        {
+            SlotOff[0] = 0x300; SlotGt[0] = (GLOBAL_TABLE_INDEX)0x442F;
+            SlotOff[1] = 0x360; SlotGt[1] = (GLOBAL_TABLE_INDEX)0x4432;
+            SlotCount = 2;
+        }
+        else if (Mode == 1)
+        {
+            SlotOff[0] = 0x30;  SlotGt[0] = (GLOBAL_TABLE_INDEX)0x4429;
+            SlotOff[1] = 0x60;  SlotGt[1] = (GLOBAL_TABLE_INDEX)0x442C;
+            SlotOff[2] = 0x300; SlotGt[2] = (GLOBAL_TABLE_INDEX)0x442F;
+            SlotOff[3] = 0x360; SlotGt[3] = (GLOBAL_TABLE_INDEX)0x4432;
+            SlotOff[4] = 0x2D0; SlotGt[4] = (GLOBAL_TABLE_INDEX)0x4435;
+            SlotOff[5] = 0x330; SlotGt[5] = (GLOBAL_TABLE_INDEX)0x4438;
+            SlotCount = 6;
+        }
+        else /* Mode == 0：前两个无条件，其余需构建号 >= 0x1772 */
+        {
+            SlotOff[0] = 0x30;  SlotGt[0] = (GLOBAL_TABLE_INDEX)0x4429;
+            SlotOff[1] = 0x60;  SlotGt[1] = (GLOBAL_TABLE_INDEX)0x442C;
+            SlotCount = 2;
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1772)
+            {
+                SlotOff[2] = 0x300; SlotGt[2] = (GLOBAL_TABLE_INDEX)0x442F;
+                SlotOff[3] = 0x360; SlotGt[3] = (GLOBAL_TABLE_INDEX)0x4432;
+                SlotOff[4] = 0x2D0; SlotGt[4] = (GLOBAL_TABLE_INDEX)0x4435;
+                SlotOff[5] = 0x330; SlotGt[5] = (GLOBAL_TABLE_INDEX)0x4438;
+                SlotCount = 6;
+            }
+        }
+
+        for (i = 0; i < (int)SlotCount; i++)
+        {
+            unsigned int Value = (unsigned int)GtRead(SlotGt[i]);
+            unsigned int Off = SlotOff[i];
+            if (Value && !*(_DWORD *)(pAlternateTable + Off + 4))
+            {
+                *(_DWORD *)(pAlternateTable + Off)     = 1;
+                *(_DWORD *)(pAlternateTable + Off + 4) = Value;
+                *(_QWORD *)(pAlternateTable + Off + 8) = NtoskrnlBase + Value;
+                memcpy((void *)(pAlternateTable + Off + 0x10),
+                       (void *)(ImageBuffer + Value), 16);
+            }
+        }
+    }
     return 0;
 }
-
 // EnumerateAleEndpointLayers — 枚举 ALE 端点层【⚠ 尚未实现】
 // 被 CmdEnumAleEndpointLayers（原 CmdEnumAleEndpointLayers）调用；本函数在复刻中缺失。
 // 此处为最小可链接实现并显式标注未实现。
