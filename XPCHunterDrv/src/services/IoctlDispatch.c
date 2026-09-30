@@ -187,10 +187,10 @@ __int64 InitCommandHandlerTable(void)
     Table[97] = (PCOMMAND_HANDLER)NULL;
     Table[98] = (PCOMMAND_HANDLER)NULL;
     Table[99] = (PCOMMAND_HANDLER)MiniFilterGenerateFileName;
-    Table[100] = (PCOMMAND_HANDLER)MiniFilterFormatFileName;
+    Table[100] = (PCOMMAND_HANDLER)RegisterFormatNameCallback;
     Table[101] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameEx;
     Table[102] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithContext;
-    Table[103] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithPath;
+    Table[103] = (PCOMMAND_HANDLER)RegisterFormatPathCallback;
     Table[104] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithPathEx;
     // 105-110: NULL (memset 0x30 = 48 bytes = 6 entries)
     RtlZeroMemory(&Table[105], 0x30);
@@ -240,15 +240,15 @@ __int64 InitCommandHandlerTable(void)
     Table[164] = (PCOMMAND_HANDLER)CmdFixProcessEProcess;
     Table[165] = (PCOMMAND_HANDLER)NULL;
     Table[166] = (PCOMMAND_HANDLER)NULL;
-    Table[167] = (PCOMMAND_HANDLER)MiniFilterClientContext;
-    Table[168] = (PCOMMAND_HANDLER)MiniFilterServerContext;
+    Table[167] = (PCOMMAND_HANDLER)CmdSetCallbackFlagTrue;
+    Table[168] = (PCOMMAND_HANDLER)CmdSetCallbackFlagFalse;
     Table[169] = (PCOMMAND_HANDLER)MiniFilterContextCleanup;
     Table[170] = (PCOMMAND_HANDLER)CmdDiskReadSector;
     Table[171] = (PCOMMAND_HANDLER)CmdDiskOperationDispatch;
     Table[172] = (PCOMMAND_HANDLER)CmdDiskSectorReadWrite;
-    Table[173] = (PCOMMAND_HANDLER)MiniFilterAcquireForSectionSync;
-    Table[174] = (PCOMMAND_HANDLER)MiniFilterReleaseForCcFlush;
-    Table[175] = (PCOMMAND_HANDLER)MiniFilterNotifyRoutineEx;
+    Table[173] = (PCOMMAND_HANDLER)CmdCollectAllCpuGdtEntries;
+    Table[174] = (PCOMMAND_HANDLER)CmdForEachCpuClearGdtBit;
+    Table[175] = (PCOMMAND_HANDLER)RegisterFilterUnloadCallback;
     Table[176] = (PCOMMAND_HANDLER)MiniFilterActiveRoutine;
     Table[177] = (PCOMMAND_HANDLER)MiniFilterNotifyRoutineEx2;
     Table[178] = (PCOMMAND_HANDLER)EnableProcessProtect;
@@ -260,8 +260,8 @@ __int64 InitCommandHandlerTable(void)
     Table[184] = (PCOMMAND_HANDLER)CmdInitProcessCallback;
     // 185-190: NULL (memset 0x30 = 48 bytes = 6 entries)
     RtlZeroMemory(&Table[185], 0x30);
-    Table[191] = (PCOMMAND_HANDLER)MiniFilterInstanceSetup;
-    Table[192] = (PCOMMAND_HANDLER)MiniFilterInstanceQuery;
+    Table[191] = (PCOMMAND_HANDLER)CmdOpenFilterVolumeFile;
+    Table[192] = (PCOMMAND_HANDLER)CmdRemoveFilterContextNode;
     Table[193] = (PCOMMAND_HANDLER)CmdEnumProcessListEx;
     Table[194] = (PCOMMAND_HANDLER)CmdEnumProcessListWin7;
     Table[195] = (PCOMMAND_HANDLER)CmdEnumProcessListWin8;
@@ -278,8 +278,8 @@ __int64 InitCommandHandlerTable(void)
     Table[206] = (PCOMMAND_HANDLER)CmdRestoreExportTable;
     Table[207] = (PCOMMAND_HANDLER)CmdInitSsdtTable;
     Table[208] = (PCOMMAND_HANDLER)CmdEnumKernelModules;
-    Table[209] = (PCOMMAND_HANDLER)MiniFilterAcquireForModWrite;
-    Table[210] = (PCOMMAND_HANDLER)MiniFilterPostFastIo;
+    Table[209] = (PCOMMAND_HANDLER)CmdInitFwpsDispatchTables2;
+    Table[210] = (PCOMMAND_HANDLER)CmdInitFwpsDispatchTables;
     Table[211] = (PCOMMAND_HANDLER)CmdCopyKernelArrayToUserBuffer;
     Table[212] = (PCOMMAND_HANDLER)CmdEnumKernelMemoryContext;
     Table[213] = (PCOMMAND_HANDLER)InvokeRegisteredCallbackWithUserData;
@@ -311,7 +311,7 @@ __int64 InitCommandHandlerTable(void)
     Table[239] = (PCOMMAND_HANDLER)MiniFilterPreHardLink;
     Table[240] = (PCOMMAND_HANDLER)MiniFilterPreShutdown;
     Table[241] = (PCOMMAND_HANDLER)InitMiniFilterDriver;
-    Table[242] = (PCOMMAND_HANDLER)MiniFilterPreFastIo;
+    Table[242] = (PCOMMAND_HANDLER)CmdEnumAleEndpointLayers;
     Table[243] = (PCOMMAND_HANDLER)CmdInitFileSystemFilter;
     Table[244] = (PCOMMAND_HANDLER)CmdFileSystemFilterCallback;
     Table[245] = (PCOMMAND_HANDLER)CmdCallSystemRoutine;
@@ -2519,7 +2519,7 @@ __int64 CmdModuleOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
     return ((PCOMMAND_HANDLER)ModuleOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
-// MiniFilterStreamHandle — Minifilter 流句柄
+// CmdHandleStreamProcessInput — Minifilter 流句柄
 // 对应原始驱动 sub_14001AB5C
 // 读取 40 字节输入(ProcessId + EPROCESS + StreamData + StreamContext)，验证后调用 MiniFilterStreamHandleEx
 __int64 CmdMiniFilterStreamHandle(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)

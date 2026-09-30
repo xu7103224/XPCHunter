@@ -140,8 +140,8 @@ void DriverUnload(PDRIVER_OBJECT DriverObject)
     struct _UNICODE_STRING DestStr;
     LARGE_INTEGER Interval;
 
-    Result = (UCHAR)MiniFilterFormatFileName();
-    Result = MiniFilterFormatFileNameWithPath() & Result;
+    Result = (UCHAR)RegisterFormatNameCallback();
+    Result = RegisterFormatPathCallback() & Result;
     Result = MiniFilterCommPortRecv() & Result;
     Result = MiniFilterCommPortDisconnect() & Result;
     if (!((UCHAR)MiniFilterActiveRoutine() & Result))

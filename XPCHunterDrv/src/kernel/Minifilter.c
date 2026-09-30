@@ -149,16 +149,16 @@ bool InitMiniFilterDriver(__int64 Reserved, __int64 Reserved2, _DWORD *OutputBuf
     return Result;
 }
 
-// MiniFilterInstanceSetup — Minifilter 实例安装回调
+// CmdOpenFilterVolumeFile — Minifilter 实例安装回调
 // 对应原始驱动 sub_1400129CC
-NTSTATUS MiniFilterInstanceSetup(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCFLT_RELATED_OBJECTS FltObjects, FLT_INSTANCE_SETUP_FLAGS Flags)
+NTSTATUS CmdOpenFilterVolumeFile(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCFLT_RELATED_OBJECTS FltObjects, FLT_INSTANCE_SETUP_FLAGS Flags)
 {
     return STATUS_SUCCESS;
 }
 
-// MiniFilterInstanceQuery — Minifilter 实例查询回调
+// CmdRemoveFilterContextNode — Minifilter 实例查询回调
 // 对应原始驱动 sub_140012B78
-NTSTATUS MiniFilterInstanceQuery(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCFLT_RELATED_OBJECTS FltObjects, FLT_INSTANCE_QUERY_FLAGS Flags)
+NTSTATUS CmdRemoveFilterContextNode(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCFLT_RELATED_OBJECTS FltObjects, FLT_INSTANCE_QUERY_FLAGS Flags)
 {
     return STATUS_SUCCESS;
 }
@@ -2144,10 +2144,10 @@ __int64 MiniFilterCommPortReplyDone(void)
     return 1;
 }
 
-// MiniFilterNormalizeName — 文件名规范化
+// CmdCreateFileForPathAdd — 文件名规范化
 // 将 DOS 设备路径（\\.\C:\）转换为 NT 路径（\Device\HarddiskVolume1\），处理设备符号链接
 // 对应原始驱动 sub_140019DD8
-__int64 *__fastcall MiniFilterNormalizeName(__int64 Unknown, __int64 FilePath, char IsAddOperation)
+__int64 *__fastcall CmdCreateFileForPathAdd(__int64 Unknown, __int64 FilePath, char IsAddOperation)
 {
     // 【补全空壳 2026-09-29】对应原始驱动 0x140019DD8（199 字节），可反编译（46 行伪码）
     // 【⚠ 修正记录】此前是空壳 `return 1;`，注释称"需要 IopGetDeviceObject 和
@@ -2218,10 +2218,10 @@ char MiniFilterContextCleanup(ULONG64 Unknown, ULONG Unknown2, ULONG64 OutputBuf
     return 0;
 }
 
-// MiniFilterFormatFileName — 注册文件名规范化回调
+// RegisterFormatNameCallback — 注册文件名规范化回调
 // 对应原始驱动 sub_14001A030
-// 读取全局表 0x41A8 中已解析的回调注册函数，注册 MiniFilterNormalizeName 后清零就绪标志 0x8F0
-char MiniFilterFormatFileName(void)
+// 读取全局表 0x41A8 中已解析的回调注册函数，注册 CmdCreateFileForPathAdd 后清零就绪标志 0x8F0
+char RegisterFormatNameCallback(void)
 {
     char Result;
     void (__fastcall *RegisterCallbackFunc)(__int64 *(__fastcall *)(__int64, __int64, char), __int64);
@@ -2230,7 +2230,7 @@ char MiniFilterFormatFileName(void)
     RegisterCallbackFunc = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char), __int64))GtRead(GtTotalSize | GtEprocessField158 | 0x100);
     if (RegisterCallbackFunc)
     {
-        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, char))MiniFilterNormalizeName, 1);
+        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, char))CmdCreateFileForPathAdd, 1);
         GtWrite(GtMiniFilterFormatNameReady, 0);
         return 1;
     }
@@ -2247,7 +2247,7 @@ __int64 MiniFilterGenerateFileName(void)
         RegisterCallback = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, char), __int64))GtRead(16808);
         if (RegisterCallback)
         {
-            RegisterCallback((__int64 *(__fastcall *)(__int64, __int64, char))MiniFilterNormalizeName, 0);
+            RegisterCallback((__int64 *(__fastcall *)(__int64, __int64, char))CmdCreateFileForPathAdd, 0);
             GtWrite(GtMiniFilterFormatNameReady, 1);
             return 1;
         }
@@ -3014,10 +3014,10 @@ NTSTATUS MiniFilterCommPortReply(void)
     return STATUS_SUCCESS;
 }
 
-// MiniFilterFormatFileNameWithPath — 注册带路径的文件名格式化回调
+// RegisterFormatPathCallback — 注册带路径的文件名格式化回调
 // 对应原始驱动 sub_14001A068
 // 读取全局表 0x41BA 中已解析的回调注册函数，注册 MiniFilterFilterUnload 后清零就绪标志 0x8F1
-char MiniFilterFormatFileNameWithPath(void)
+char RegisterFormatPathCallback(void)
 {
     char Result;
     void (__fastcall *RegisterCallbackFunc)(__int64 *(__fastcall *)(__int64, __int64, char));
@@ -3103,19 +3103,19 @@ __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _D
     return Result;
 }
 
-// MiniFilterQueryIdleRoutine — 查询空闲例程
+// CmdPatchPeHeaderOnFlag — 查询空闲例程
 // 检查文件是否处于空闲状态（无活跃句柄），返回 STATUS_SUCCESS
 // 对应原始驱动 0x14001A210
-NTSTATUS MiniFilterQueryIdleRoutine(void)
+NTSTATUS CmdPatchPeHeaderOnFlag(void)
 {
     // 需要 FltIsFileInUse 检查文件是否被使用
     return STATUS_SUCCESS;
 }
 
-// MiniFilterNotifyRoutineEx — 通知例程扩展
+// RegisterFilterUnloadCallback — 通知例程扩展
 // 将文件操作通知发送到 GT 0x3400 缓冲区，扩展版本支持更多操作类型
 // 对应原始驱动 0x14001A39C
-NTSTATUS MiniFilterNotifyRoutineEx(void)
+NTSTATUS RegisterFilterUnloadCallback(void)
 {
     if (!GtRead(GtCommPortCallbackReady))
         return STATUS_SUCCESS;
@@ -3124,7 +3124,7 @@ NTSTATUS MiniFilterNotifyRoutineEx(void)
 
 // MiniFilterActiveRoutine — 注册空闲查询例程
 // 对应原始驱动 sub_14001A240
-// 读取全局表 0x41B7 中已解析的注册函数，注册 MiniFilterQueryIdleRoutine 后清零通知例程标志 0x8F3
+// 读取全局表 0x41B7 中已解析的注册函数，注册 CmdPatchPeHeaderOnFlag 后清零通知例程标志 0x8F3
 char MiniFilterActiveRoutine(void)
 {
     char Result;
@@ -3134,7 +3134,7 @@ char MiniFilterActiveRoutine(void)
     RegisterCallbackFunc = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, _DWORD *)))GtRead(GtNtDuplicateObjectPeSectionOffset | GtEprocessField42);
     if (RegisterCallbackFunc)
     {
-        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, _DWORD *))MiniFilterQueryIdleRoutine);
+        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, _DWORD *))CmdPatchPeHeaderOnFlag);
         GtWrite(GtMiniFilterNotifyRoutineReady, 0);
         return 1;
     }
@@ -3151,7 +3151,7 @@ NTSTATUS MiniFilterNotifyRoutineEx2(void)
     return STATUS_SUCCESS;
 }
 
-// MiniFilterStreamHandle — 流句柄操作处理器（补全空壳）
+// CmdHandleStreamProcessInput — 流句柄操作处理器（补全空壳）
 // 对应原始驱动 0x14001AB5C（289 字节）
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（43 行伪代码），按伪代码实现
 // 【⚠ 修正记录两处】① 此前注释写"对应 sub_14001A250"，而该地址**在原始中不存在**
@@ -3160,7 +3160,7 @@ NTSTATUS MiniFilterNotifyRoutineEx2(void)
 //   获取流上下文"—— 该判断**错误**。伪代码签名 `bool f(__m128i *Address, int a2)`：
 //   实为**输入缓冲处理器**（校验 40 字节输入 → 解析 ProcessId/EPROCESS/流上下文 →
 //   PsLookupProcessByProcessId → ValidateProcessObject → 调 MiniFilterStreamHandleEx）。
-bool MiniFilterStreamHandle(void *Address, int InputSize)
+bool CmdHandleStreamProcessInput(void *Address, int InputSize)
 {
     bool Result = 0;
     _OWORD InputData;
@@ -3199,23 +3199,23 @@ bool MiniFilterStreamHandle(void *Address, int InputSize)
     return Result;
 }
 
-// MiniFilterPreFastIo — 快速 IO 预处理
+// CmdEnumAleEndpointLayers — 快速 IO 预处理
 // 处理 PreFastIoRead/PreFastIoWrite 等快速 IO 操作
 // 对应原始驱动 0x14001B2B4
-NTSTATUS MiniFilterPreFastIo(void)
+NTSTATUS CmdEnumAleEndpointLayers(void)
 {
     // 需要 FLT_CALLBACK_DATA 获取快速 IO 信息
     return STATUS_SUCCESS;
 }
 
-// MiniFilterPostFastIo — 枚举 ALE 端点层（补全空壳）
+// CmdInitFwpsDispatchTables — 枚举 ALE 端点层（补全空壳）
 // 对应原始驱动 0x14001BC08（316 字节）
 // 【逆向来源】⚠ 可反编译（46 行伪代码）
 // 【⚠ 修正记录】注释称"需要 FLT_CALLBACK_DATA 获取快速 IO 信息" —— **错误**。
 //   实为：要求输出缓冲 ≥ 0x278 且位于用户空间 → ProbeForWrite → 清零 →
 //   EnumerateAleEndpointLayers(缓冲, 缓冲+8, (大小-632)/0x270 + 1) → 返回 1。
 //   （名字与功能完全无关，见待实现文档 §7.3）
-char MiniFilterPostFastIo(__int64 FilterObject, __int64 CallbackData,
+char CmdInitFwpsDispatchTables(__int64 FilterObject, __int64 CallbackData,
                           _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     char Result = 0;
@@ -3240,16 +3240,16 @@ char MiniFilterPostFastIo(__int64 FilterObject, __int64 CallbackData,
     return Result;
 }
 
-// MiniFilterAcquireForModWrite — 获取修改写入锁
+// CmdInitFwpsDispatchTables2 — 获取修改写入锁
 // 获取文件修改写入的独占锁，防止并发修改
 // 对应原始驱动 0x14001BD44
-NTSTATUS MiniFilterAcquireForModWrite(void)
+NTSTATUS CmdInitFwpsDispatchTables2(void)
 {
     // 需要 FltAcquireForModifiedWrite 获取锁
     return STATUS_SUCCESS;
 }
 
-// MiniFilterReleaseForModWrite — 记录 GDTR 信息到上下文缓冲（补全空壳）
+// CmdCollectGdtrEntries — 记录 GDTR 信息到上下文缓冲（补全空壳）
 // 对应原始驱动 0x14001C048（229 字节）
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（20 行伪代码）
 // 【⚠ 修正记录两处】① 注释地址 sub_14001A450 **在原始中不存在**（已核实），
@@ -3261,7 +3261,7 @@ NTSTATUS MiniFilterAcquireForModWrite(void)
 //   越界（`索引*4 + 65560 > 缓冲容量`）则返回 0；否则写入处理器号、
 //   GDTR 值（10 字节）、段选择子（GDTR 低 16 位 >> 3）、并把 GDT 表数据 memmove 进去，
 //   最后把条目计数 `*ContextBuffer` 加 1；返回 1。
-char MiniFilterReleaseForModWrite(int ProcessorNumber, unsigned int **ContextBuffer)
+char CmdCollectGdtrEntries(int ProcessorNumber, unsigned int **ContextBuffer)
 {
     char Result = 1;
     _DWORD *EntryPtr;
@@ -3284,7 +3284,7 @@ char MiniFilterReleaseForModWrite(int ProcessorNumber, unsigned int **ContextBuf
     return Result;
 }
 
-// MiniFilterAcquireForCcFlush — 清除指定 GDT 选择子的 Present 位（补全空壳）
+// CmdClearGdtPresentBit — 清除指定 GDT 选择子的 Present 位（补全空壳）
 // 对应原始驱动 0x14001C130（129 字节）
 // 【逆向来源】⚠ 可反编译（24 行伪代码）
 // 【⚠ 修正记录】注释称"需要 CcFlushCache 相关操作" —— **错误**。实为 GDT 操作用例：
@@ -3292,7 +3292,7 @@ char MiniFilterReleaseForModWrite(int ProcessorNumber, unsigned int **ContextBuf
 //   相同且上下文 +16 的选择子索引 < GDTR 限值>>3 时，
 //   **清除该 GDT 条目（基址 + 8*索引 + 4）的 Present 位（0x8000）**，并置上下文 +20 = 1；
 //   返回 0（"已处理当前处理器"）。
-char MiniFilterAcquireForCcFlush(int ProcessorNumber, __int64 ContextBuffer)
+char CmdClearGdtPresentBit(int ProcessorNumber, __int64 ContextBuffer)
 {
     char Result = 1;
     __int64 SelectorIndex;
@@ -3317,18 +3317,18 @@ char MiniFilterAcquireForCcFlush(int ProcessorNumber, __int64 ContextBuffer)
 }
 
 // ForEachProcessor 回调适配（原始直接传函数名，复刻中声明形参不同故加 thunk）
-static __int64 MiniFilterAcquireForCcFlushThunk(__int64 a, __int64 b)
-{ return (__int64)MiniFilterAcquireForCcFlush((int)a, b); }
-static __int64 MiniFilterReleaseForModWriteThunk(__int64 a, __int64 b)
-{ return (__int64)MiniFilterReleaseForModWrite((int)a, (unsigned int **)b); }
+static __int64 CmdClearGdtPresentBitThunk(__int64 a, __int64 b)
+{ return (__int64)CmdClearGdtPresentBit((int)a, b); }
+static __int64 CmdCollectGdtrEntriesThunk(__int64 a, __int64 b)
+{ return (__int64)CmdCollectGdtrEntries((int)a, (unsigned int **)b); }
 
-// MiniFilterReleaseForCcFlush — 遍历处理器执行 GDT 清理（补全空壳）
+// CmdForEachCpuClearGdtBit — 遍历处理器执行 GDT 清理（补全空壳）
 // 对应原始驱动 0x14001C1B4（192 字节）
 // 【逆向来源】⚠ 可反编译（22 行伪代码）
 // 【⚠ 修正记录】注释称"需要 CcFlushCache 相关操作" —— **错误**。实为：
 //   校验 20 字节输入可读 → ProbeForRead → 复制上下文 → ForEachProcessor 对每个
-//   处理器调 MiniFilterAcquireForCcFlush → 返回"成功标志是否为 1"。
-bool MiniFilterReleaseForCcFlush(void *Address, int ContextSize)
+//   处理器调 CmdClearGdtPresentBit → 返回"成功标志是否为 1"。
+bool CmdForEachCpuClearGdtBit(void *Address, int ContextSize)
 {
     bool Result = 0;
     _OWORD ContextData;
@@ -3343,21 +3343,21 @@ bool MiniFilterReleaseForCcFlush(void *Address, int ContextSize)
         ContextData = *(_OWORD *)Address;
         FlagsValue = *((_DWORD *)Address + 4);
         SuccessFlag = 0;
-        ForEachProcessor(MiniFilterAcquireForCcFlushThunk,
+        ForEachProcessor(CmdClearGdtPresentBitThunk,
                          (__int64)&ContextData);
         return SuccessFlag == 1;
     }
     return Result;
 }
 
-// MiniFilterAcquireForSectionSync — 收集各处理器 GDT 条目（补全空壳）
+// CmdCollectAllCpuGdtEntries — 收集各处理器 GDT 条目（补全空壳）
 // 对应原始驱动 0x14001C274（181 字节）
 // 【逆向来源】⚠ 可反编译（26 行伪代码）
 // 【⚠ 修正记录】注释称"需要 FltAcquireFileForSectionSynchronization 获取锁" —— **错误**。
 //   实为：要求输出缓冲 ≥ 0x10018 且位于用户空间 → ProbeForWrite → 清零 →
-//   ForEachProcessor 对每个处理器调 MiniFilterReleaseForModWrite（把该处理器 GDTR/GDT
+//   ForEachProcessor 对每个处理器调 CmdCollectGdtrEntries（把该处理器 GDTR/GDT
 //   条目追加写入输出缓冲）→ 返回"输出缓冲首 DWORD 是否非 0"。
-bool MiniFilterAcquireForSectionSync(__int64 FilterObject, __int64 CallbackData,
+bool CmdCollectAllCpuGdtEntries(__int64 FilterObject, __int64 CallbackData,
                                     _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     bool Result = 0;
@@ -3373,26 +3373,26 @@ bool MiniFilterAcquireForSectionSync(__int64 FilterObject, __int64 CallbackData,
         *OutputBuffer = 0;
         ContextSize = BufferSize;
         ContextPtr = OutputBuffer;
-        ForEachProcessor(MiniFilterReleaseForModWriteThunk,
+        ForEachProcessor(CmdCollectGdtrEntriesThunk,
                          (__int64)&ContextPtr);
         return *OutputBuffer != 0;
     }
     return Result;
 }
 
-// MiniFilterServerContext — 服务器上下文管理
+// CmdSetCallbackFlagFalse — 服务器上下文管理
 // 管理 minifilter 服务器端的流/实例上下文
 // 对应原始驱动 0x140019A44
-NTSTATUS MiniFilterServerContext(void)
+NTSTATUS CmdSetCallbackFlagFalse(void)
 {
     // 需要 FltGetStreamFileObjectContext 获取上下文
     return STATUS_SUCCESS;
 }
 
-// MiniFilterClientContext — 客户端上下文管理
+// CmdSetCallbackFlagTrue — 客户端上下文管理
 // 管理 minifilter 客户端的流/实例上下文
 // 对应原始驱动 0x140019A5C
-NTSTATUS MiniFilterClientContext(void)
+NTSTATUS CmdSetCallbackFlagTrue(void)
 {
     // 需要 FltGetStreamFileObjectContext 获取上下文
     return STATUS_SUCCESS;
@@ -5989,7 +5989,7 @@ ULONG64 InitCallbackFunctionTable(unsigned int Mode)
 }
 
 // EnumerateAleEndpointLayers — 枚举 ALE 端点层【⚠ 尚未实现】
-// 被 CmdEnumAleEndpointLayers（原 MiniFilterPreFastIo）调用；本函数在复刻中缺失。
+// 被 CmdEnumAleEndpointLayers（原 CmdEnumAleEndpointLayers）调用；本函数在复刻中缺失。
 // 此处为最小可链接实现并显式标注未实现。
 __int64 EnumerateAleEndpointLayers(void *OutputBuffer, __int64 SecondBuffer, unsigned __int64 EntryCount)
 {

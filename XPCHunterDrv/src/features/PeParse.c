@@ -1412,7 +1412,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
     InitSectionRva = *(ULONG *)(PeOffset + ImageBase + 40);
     if (InitSectionRva >= ImageSize)
         return Result;
-    if ((int)InitSectionRva + 4096 >= ImageSize)
+    if ((unsigned int)(InitSectionRva + 4096) >= ImageSize)
         return Result;
 
     InitPESectionReadContext(ImageBase + InitSectionRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
@@ -1452,7 +1452,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
             break;
     }
 
-    if (InitSectionRva >= ImageSize || (int)InitSectionRva + 4096 >= ImageSize)
+    if (InitSectionRva >= ImageSize || (unsigned int)(InitSectionRva + 4096) >= ImageSize)
         return Result;
 
     InitPESectionReadContext(ImageBase + InitSectionRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
@@ -1539,7 +1539,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
         return Result;
 
     CurrentRva = *(ULONG *)(PeOffset + pFileBuffer + 40);
-    if (CurrentRva >= FileSize || (int)CurrentRva + 4096 >= FileSize)
+    if (CurrentRva >= FileSize || (unsigned int)(CurrentRva + 4096) >= FileSize)
         return Result;
 
     InitPESectionReadContext(pFileBuffer + CurrentRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
@@ -1570,7 +1570,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
         if ((unsigned int)++SectionIndex >= 0x14) break;
     }
 
-    if (CurrentRva >= FileSize || (int)CurrentRva + 4096 >= FileSize)
+    if (CurrentRva >= FileSize || (unsigned int)(CurrentRva + 4096) >= FileSize)
         return Result;
 
     InitPESectionReadContext(pFileBuffer + CurrentRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
@@ -1651,7 +1651,7 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
         return Result;
 
     SectionDirRva = *(ULONG *)(PeOffset + ImageBase + 40);
-    if (SectionDirRva >= ImageSize || (int)SectionDirRva + 4096 >= ImageSize)
+    if (SectionDirRva >= ImageSize || (unsigned int)(SectionDirRva + 4096) >= ImageSize)
         return Result;
 
     InitPESectionReadContext(ImageBase + SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
@@ -1682,7 +1682,7 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
         if ((unsigned int)++SectionIndex >= 0x14) break;
     }
 
-    if (SectionDirRva >= ImageSize || (int)SectionDirRva + 4096 >= ImageSize)
+    if (SectionDirRva >= ImageSize || (unsigned int)(SectionDirRva + 4096) >= ImageSize)
         return Result;
 
     InitPESectionReadContext(ImageBase + SectionDirRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);

@@ -717,10 +717,10 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtRegPathStringPtr = 0x8EB,               // 2283: 驱动注册表路径字符串指针(RegisterMiniFilterRegistry)
     GtObjectTypeIdxMatched = 0x8ED,           // 2285: 对象类型索引匹配(CmdEnumKernelObjectTable)
     GtObjectTypeIdxNotMatched = 0x8EF,        // 2287: 对象类型索引未匹配(CmdEnumKernelObjectTable)
-    GtMiniFilterFormatNameReady = 0x8F0,      // 2288: MiniFilter 文件名格式化就绪标志(MiniFilterFormatFileName)
-    GtMiniFilterFormatNameExReady = 0x8F1,    // 2289: MiniFilter 文件名格式化扩展就绪标志(MiniFilterFormatFileNameWithPath)
+    GtMiniFilterFormatNameReady = 0x8F0,      // 2288: MiniFilter 文件名格式化就绪标志(RegisterFormatNameCallback)
+    GtMiniFilterFormatNameExReady = 0x8F1,    // 2289: MiniFilter 文件名格式化扩展就绪标志(RegisterFormatPathCallback)
     GtCommPortCallbackReady = 0x8F2,          // 2290: 通信端口回调注册标志(MiniFilterCommPortDisconnect)
-    GtMiniFilterNotifyRoutineReady = 0x8F3,   // 2291: MiniFilter 通知例程注册标志(MiniFilterNotifyRoutineEx)
+    GtMiniFilterNotifyRoutineReady = 0x8F3,   // 2291: MiniFilter 通知例程注册标志(RegisterFilterUnloadCallback)
 
     // ---- Hook 系统调用初始化偏移 (2325-2326) ----
     GtInitHookSyscallOffset = 0x915,           // 2325: Hook 系统调用初始化 PE 偏移(InitHookSyscall)
