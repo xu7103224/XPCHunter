@@ -803,7 +803,13 @@ NTSTATUS CmdSetCallbackFlagFalse(void);
 bool CmdHandleStreamProcessInput(void *Address, int InputSize);
 char MiniFilterStreamHandleEx(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 StreamHandle, __int64 BaseOffset);
 ULONG64 InitCallbackFunctionTable(unsigned int Mode);
-__int64 EnumerateAleEndpointLayers(void *OutputBuffer, __int64 SecondBuffer, unsigned __int64 EntryCount);
+// 【签名更正 2026-09-30】原声明 (void*, __int64, unsigned __int64) 与实物不符。
+//   反编译（0x14001B23C）显示真实签名为 (OutCount, OutBuffer, MaxCount)，
+//   与调用方 CmdInitFwpsDispatchTables 传的 (OutputBuffer, OutputBuffer+8, ...) 吻合。
+__int64 EnumerateAleEndpointLayers(_DWORD *OutCount, __int64 OutBuffer, int MaxCount);
+__int64 EnumerateAleEndpointLayer(__int64 FilePath, _DWORD *OutCount, __int64 OutBuffer, int MaxCount);
+char FindAleEndpointDuplicate(__int64 EndpointData, _DWORD *EndpointList);
+char CopyAleEndpointEntry(__int64 OutputBuffer, __int64 EndpointEntry);
 __int64 MiniFilterUnloadCleanup(void);
 __int64 ModuleOperation(__int64 *pInputBuffer, unsigned int InputSize);
 __int64 ModuleOperationDispatch(void *Address, unsigned int InputSize);

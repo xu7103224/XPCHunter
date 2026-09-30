@@ -3232,7 +3232,7 @@ char CmdInitFwpsDispatchTables(__int64 FilterObject, __int64 CallbackData,
                 memset(OutputBuffer, 0, (unsigned int)Size);
                 *OutputBuffer = 0;
                 EnumerateAleEndpointLayers(OutputBuffer, (__int64)(OutputBuffer + 2),
-                                           (Size - 632) / 0x270uLL + 1);
+                                           (int)((Size - 632) / 0x270uLL + 1));
                 return 1;
             }
         }
@@ -6312,11 +6312,201 @@ L_FREE_FILE:                                        // 0x140034B06
     }
     return 0;
 }
-// EnumerateAleEndpointLayers — 枚举 ALE 端点层【⚠ 尚未实现】
-// 被 CmdEnumAleEndpointLayers（原 CmdEnumAleEndpointLayers）调用；本函数在复刻中缺失。
-// 此处为最小可链接实现并显式标注未实现。
-__int64 EnumerateAleEndpointLayers(void *OutputBuffer, __int64 SecondBuffer, unsigned __int64 EntryCount)
+// =========================================================================
+// EnumerateAleEndpointLayer — 枚举单个 ALE 端点层
+// 对应原始驱动 0x14001B090（427 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（47 行伪代码），故按伪代码实现。
+// 【参数】FilePath = 层标识串（编码后的 DWORD 数组，见 EnumerateAleEndpointLayers）
+//   OutCount = 已枚举条目计数（dword，即输出缓冲首 4 字节）
+//   OutBuffer = 输出缓冲（每条目 0x270 字节）
+//   MaxCount = 最大条目数
+// 【逻辑】从 4 个 GT 槽取函数指针（RtlInitUnicodeString / IoCreateFile /
+//   驱动对象链表头 / CloseHandle），任一为空即返回 0；
+//   构造对象属性 → IoCreateFile(...,1<<6,...) → 失败或句柄为空则返回 0；
+//   双层链表遍历：外层 = 句柄+8 起、步长 +0x10（层链）；
+//   内层 = 层节点起、步长 +0x18（端点链），且仅在 MaxCount 非 0 时继续；
+//   端点数据 = 内层节点+8；去重（FindAleEndpointDuplicate）后
+//   复制（CopyAleEndpointEntry）成功才 ++计数、OutBuffer += 0x270、--MaxCount；
+//   最后关闭句柄。
+// 【⚠ 与消费者契约】调用方 CmdInitFwpsDispatchTables 传
+//   (OutputBuffer, OutputBuffer+8, (Size-632)/0x270+1) —— 与形参一一对应：
+//   OutCount=(dword*)OutputBuffer、OutBuffer=OutputBuffer+8、MaxCount=条目上限。
+//   条目步长 0x270(=624) 与 CopyAleEndpointEntry 的写入范围（+0..+0x270）一致。
+// =========================================================================
+__int64 EnumerateAleEndpointLayer(__int64 FilePath, _DWORD *OutCount, __int64 OutBuffer, int MaxCount)
 {
-    (void)OutputBuffer; (void)SecondBuffer; (void)EntryCount;
-    return 0;
+    unsigned int ResultCount = 0;
+    __int64 (*InitObjAttrFunc)(_BYTE *, __int64);
+    __int64 (*CreateFileFunc)(_BYTE *, __int64, __int64, __int64, __int64, char, __int64, __int64 *, int);
+    __int64 *ObjAttrPtr;
+    __int64 CloseFunc;
+    __int64 LayerEntry;
+    __int64 i;
+    __int64 EndpointData;
+    __int64 FileHandle = 0;
+    _BYTE ObjAttrBuffer[80];
+
+    InitObjAttrFunc = (__int64 (*)(_BYTE *, __int64))GtRead(GtRtlInitUnicodeStringFunc);
+    CreateFileFunc  = (__int64 (*)(_BYTE *, __int64, __int64, __int64, __int64, char, __int64, __int64 *, int))GtRead(GtIoCreateFileFunc);
+    ObjAttrPtr      = (__int64 *)GtRead(GtDriverObjectListHead);
+    CloseFunc       = GtRead(GtCloseHandleFunc);
+
+    if (!InitObjAttrFunc || !CreateFileFunc || !ObjAttrPtr || !CloseFunc)
+        return ResultCount;
+
+    InitObjAttrFunc(ObjAttrBuffer, FilePath);
+    if (CreateFileFunc(ObjAttrBuffer, 64, 0, 0, *ObjAttrPtr, 0, 0, &FileHandle, 0) < 0)
+        return ResultCount;
+    if (!FileHandle)
+        return ResultCount;
+
+    for (LayerEntry = *(__int64 *)(FileHandle + 8); LayerEntry; LayerEntry = *(__int64 *)(LayerEntry + 16))
+    {
+        for (i = LayerEntry; i && MaxCount; i = *(__int64 *)(i + 24))
+        {
+            EndpointData = *(__int64 *)(i + 8);
+            if (!FindAleEndpointDuplicate(EndpointData, OutCount) &&
+                CopyAleEndpointEntry(OutBuffer, EndpointData) == 1)
+            {
+                ++*OutCount;
+                OutBuffer += 624;
+                --MaxCount;
+                ++ResultCount;
+            }
+        }
+    }
+
+    ((void(__fastcall *)(__int64))CloseFunc)(FileHandle);
+    return ResultCount;
+}
+
+// =========================================================================
+// FindAleEndpointDuplicate — 在已枚举列表中查找重复的 ALE 端点
+// 对应原始驱动 0x14001B4F4（41 字节）
+// 【逆向来源】⚠ 可反编译（18 行伪代码），按伪代码实现。
+// 【参数】EndpointData = 待查端点数据指针；EndpointList = 输出缓冲（首 dword 为计数）
+// 【逻辑】计数为 0 直接返回 0；否则从 EndpointList+2（即 +8 字节）起、
+//   步长 78 个 QWORD（= 0x270 字节，与条目步长一致）比较；命中返回 1，
+//   遍历完计数次未命中返回 0。
+// =========================================================================
+char FindAleEndpointDuplicate(__int64 EndpointData, _DWORD *EndpointList)
+{
+    unsigned int Count = *(unsigned int *)EndpointList;
+    char Result = 0;
+    int Index = 0;
+
+    if (!Count)
+        return Result;
+
+    for (__int64 *p = (__int64 *)(EndpointList + 2); EndpointData != *p; p += 78)
+    {
+        if (++Index >= (int)Count)
+            return Result;
+    }
+    return 1;
+}
+
+// =========================================================================
+// CopyAleEndpointEntry — 复制 ALE 端点条目到输出缓冲
+// 对应原始驱动 0x14001B364（399 字节）
+// 【逆向来源】⚠ 可反编译（44 行伪代码），按伪代码实现。
+// 【参数】OutputBuffer = 输出缓冲（本条目的起点）；EndpointEntry = 端点条目节点
+// 【逻辑】EndpointEntry+0x30 取 EndpointData，须 > MmSystemRangeStart 且内存有效；
+//   EndpointData[6] 取 EndpointInfo，须有效且 +103 处有效；
+//   把 EndpointInfo[1..12] 共 12 个 QWORD 写入 OutputBuffer+528（步长 8），
+//   OutputBuffer+616 收尾；OutputBuffer[0] = EndpointEntry；
+//   名称长度 = *(WORD*)(EndpointEntry+0x38) >> 1（截到 0x103=259），
+//   从 EndpointEntry+0x40 复制 2*长度 字节到 OutputBuffer+8，末尾补 0；
+//   名称指针与末尾均须通过有效性检查。
+// 【⚠ 缓冲区范围】写入区间 OutputBuffer+0..+0x270（8+259*2+... ≤ 624），
+//   与调用方条目步长 0x270 吻合 —— 无越界。
+// =========================================================================
+char CopyAleEndpointEntry(__int64 OutputBuffer, __int64 EndpointEntry)
+{
+    __int64 EndpointData;
+    char Result = 0;
+    __int64 EndpointInfo;
+    __int64 LastQword;
+    unsigned int NameLength;
+    __int64 NamePtr;
+
+    EndpointData = *(__int64 *)(EndpointEntry + 48);
+    if (EndpointData <= (__int64)MmSystemRangeStart || CheckMemoryValid((void *)EndpointData) != 1)
+        return Result;
+
+    EndpointInfo = *(__int64 *)(EndpointData + 48);
+    if (EndpointInfo <= (__int64)MmSystemRangeStart ||
+        CheckMemoryValid((void *)EndpointInfo) != 1 ||
+        CheckMemoryValid((void *)(EndpointInfo + 103)) != 1)
+        return Result;
+
+    Result = 1;
+    *(__int64 *)(OutputBuffer + 528) = *(__int64 *)(EndpointInfo + 8);
+    *(__int64 *)(OutputBuffer + 536) = *(__int64 *)(EndpointInfo + 16);
+    *(__int64 *)(OutputBuffer + 544) = *(__int64 *)(EndpointInfo + 24);
+    *(__int64 *)(OutputBuffer + 552) = *(__int64 *)(EndpointInfo + 32);
+    *(__int64 *)(OutputBuffer + 560) = *(__int64 *)(EndpointInfo + 40);
+    *(__int64 *)(OutputBuffer + 568) = *(__int64 *)(EndpointInfo + 48);
+    *(__int64 *)(OutputBuffer + 576) = *(__int64 *)(EndpointInfo + 56);
+    *(__int64 *)(OutputBuffer + 584) = *(__int64 *)(EndpointInfo + 64);
+    *(__int64 *)(OutputBuffer + 592) = *(__int64 *)(EndpointInfo + 72);
+    *(__int64 *)(OutputBuffer + 600) = *(__int64 *)(EndpointInfo + 80);
+    *(__int64 *)(OutputBuffer + 608) = *(__int64 *)(EndpointInfo + 88);
+    LastQword = *(__int64 *)(EndpointInfo + 96);
+    *(__int64 *)OutputBuffer = EndpointEntry;
+    *(__int64 *)(OutputBuffer + 616) = LastQword;
+
+    NameLength = (unsigned int)(*(unsigned __int16 *)(EndpointEntry + 56) >> 1);
+    *(_WORD *)(OutputBuffer + 8) = 0;
+    NamePtr = *(__int64 *)(EndpointEntry + 64);
+    if (NameLength > 0x103)
+        NameLength = 259;
+    if (NamePtr > (__int64)MmSystemRangeStart &&
+        CheckMemoryValid((void *)NamePtr) == 1 &&
+        CheckMemoryValid((void *)(*(__int64 *)(EndpointEntry + 64) - 2 + 2LL * NameLength)) == 1)
+    {
+        memmove((void *)(OutputBuffer + 8), (const void *)NamePtr, 2 * NameLength);
+    }
+    if (NameLength)
+        *(_WORD *)(OutputBuffer + 2 * NameLength + 8) = 0;
+
+    return Result;
+}
+
+// =========================================================================
+// EnumerateAleEndpointLayers — 枚举全部 ALE 端点层
+// 对应原始驱动 0x14001B23C（120 字节）
+// 【逆向来源】⚠ 可反编译（12 行伪代码），按伪代码实现。
+// 【⚠ 签名更正】原声明 `(void *OutputBuffer, __int64 SecondBuffer, unsigned __int64 EntryCount)`
+//   与实物不符 —— 真实签名是 `(OutCount, OutBuffer, MaxCount)`（见反编译）：
+//   本函数只是把 8 个编码后的层标识串打包成一个 16 项的 DWORD 数组
+//   （实际写 8 项，其余为 0），然后转调 EnumerateAleEndpointLayer。
+// 【层标识串】8 个 DWORD 是**编码后的宽字符路径**（与 ReadNtFileForCallbackTable 同法）。
+//   逐字节解码结果为 `\FileSystem\RAW`（含结尾 NUL 共 16 字节）。
+//   ⚠ 注意：本族函数名由 IDA 标为 "AleEndpointLayer"（ALE 端点层），但路径实为
+//   `\FileSystem\RAW`（裸卷文件系统）—— 名字与实物不符，属 IDA 命名问题
+//   （同 §7.3 记录的那类），此处如实保留 IDA 名并在注释中留档。
+// =========================================================================
+__int64 EnumerateAleEndpointLayers(_DWORD *OutCount, __int64 OutBuffer, int MaxCount)
+{
+    _DWORD LayerIds[16];
+
+    LayerIds[0] = 4587612;
+    LayerIds[1] = 7077993;
+    LayerIds[2] = 5439589;
+    LayerIds[3] = 7536761;
+    LayerIds[4] = 6619252;
+    LayerIds[5] = 6029421;
+    LayerIds[6] = 4259922;
+    LayerIds[7] = 87;
+    LayerIds[8] = 0;
+    LayerIds[9] = 0;
+    LayerIds[10] = 0;
+    LayerIds[11] = 0;
+    LayerIds[12] = 0;
+    LayerIds[13] = 0;
+    LayerIds[14] = 0;
+    LayerIds[15] = 0;
+
+    return EnumerateAleEndpointLayer((__int64)LayerIds, OutCount, OutBuffer, MaxCount);
 }
