@@ -4278,10 +4278,197 @@ __int64 OpenSectionObjectOperation(char *pInputBuffer, int InputSize, unsigned i
     }
     return Result;
 }
+// =========================================================================
+// SendWriteMemoryIoControl — 写内存 IOCTL 主流程
+// 对应原始驱动 0x140072EC8（811 字节，223 条指令）
+// 【逆向来源】人工阅读反汇编**逐条转写** —— IDA **确认无法反编译**
+//   （`ida_hexrays.decompile` 返回 None，已复验），故走转写流程。
+// 【形参顺序定案（三重确认）】
+//   ① 调用点实参（Operation.c 内 WriteProcessMemoryExOperation）；
+//   ② 序言 home 写入：`mov [rax+8],rcx` / `mov [rax+18h],r8d` / `mov [rax+20h],r9d`；
+//   ③ IDA 栈帧偏移（本函数）：arg_0=0xE8(形参1) arg_8=0xF0(形参2)
+//      arg_10=0xF8(形参3 int) arg_18=0x100(形参4 int) arg_20=0x108(形参5 void*)
+//      arg_28=0x110(形参6 SIZE_T) arg_30=0x118(形参7 __int64) arg_38=0x120(形参8 char)。
+//   结论：现签名的 8 个形参顺序与原始完全一致。
+// 【GT 槽语义（本函数实测，与读版 SendReadMemoryIoControl 同族）】
+//   0x27   = KTHREAD 内待保存/清零的字节偏移
+//   0x41C6 = 旧版构建号的发送函数（6 参数，GtNtFsControlFileFunc）
+//   0x4223 = **句柄关闭函数**（GtCloseHandleFunc；收尾处两次 `call r13`）
+//   0x17B  = **路径 1 的处理函数**（SendIoControlWithQuotaBufferEx 的 HandlerFunc）
+//   0x179  = 供解引用取参的指针（`mov r8,[r14]` → 作为发送函数第 3 实参）
+//   0x197  = 取第二句柄的函数；0x198 = 路径 2 的处理函数（AllocBufferAndSendIoControl 的 a1）
+//   ⚠ 更正记录：此前草稿曾把 0x4223 记作"仅做非空校验"、把 0x17B 记作"关闭函数"，
+//     与 `call r13`（r13 = Gt[0x4223]）及路径 1 的 `mov rcx,[rbp+var_60]`
+//     （var_60 = Gt[0x17B]）直接矛盾 —— 已按反汇编更正。
+// 【两条搬运路径（由 SecondHandle 与 Gt[0x198] 决定）】
+//   SecondHandle == 0                 → SendIoControlWithQuotaBufferEx(Gt[0x17B], FirstHandle, …)
+//   SecondHandle != 0 && Gt[0x198] !=0 → AllocBufferAndSendIoControl(Gt[0x198], FirstHandle, SecondHandle, …)
+//   SecondHandle != 0 && Gt[0x198] ==0 → **不调用**（InnerStatus 保持 0xC0000001），汇合到 0x140073105
+// 【循环】仅在 AddressField == 1 时多轮搬运；每轮回填上一轮步长到 PrevCursor；
+//   步长 Step = Cursor[+8]（为 0xFFFFFFFF 时取 Cursor[+0x10]+0x14）；
+//   退出条件 Remaining <= Step+4（无符号）；IterCount（栈槽 var_8C）记轮次。
+// 【收尾】先恢复 HookTarget2 并关闭 SecondHandle，再恢复 HookTarget1、
+//   还原 KTHREAD 字节、关闭 FirstHandle；Status == 0x8000001A 时把 *pResult 清 0。
+// =========================================================================
 __int64 SendWriteMemoryIoControl(unsigned char *pResult, __int64 ProcessId, int PageIndex, int AddressField, unsigned int *pOutputBuffer, unsigned int OutputSize, __int64 ResultBuffer, unsigned char Flag)
 {
+    int Result;                                 // ← 对应 edi：状态与内层调用结果**共用同一寄存器**
+    __int64 ThreadByteOffset;
+    __int64 FnSend;
+    __int64 FnClose;
+    __int64 FnHandler;
+    __int64 SendArgPtr;
+    __int64 FnGetSecond;
+    __int64 FnHandler2;
+    __int64 FirstHandle = 0;
+    __int64 SecondHandle = 0;
+    __int64 *HookTarget1 = 0;
+    __int64 HookSave1 = 0;
+    __int64 *HookTarget2 = 0;
+    __int64 HookSave2 = 0;
+    unsigned char *ThreadPtr;
+    unsigned char SavedThreadByte;
+    unsigned int Remaining;
+    unsigned int Step;
+    unsigned int IterCount;
+    unsigned char *Cursor;
+    unsigned char *PrevCursor;
+    unsigned int EntrySize;
+
     *pResult = 1;
-    return 0;
+    if ((unsigned int)AddressField > 2)
+        return 0;
+
+    ThreadByteOffset = GtRead((GLOBAL_TABLE_INDEX)0x27);
+    FnSend          = GtRead(GtNtFsControlFileFunc);
+    FnClose         = GtRead(GtCloseHandleFunc);
+    FnHandler       = GtRead((GLOBAL_TABLE_INDEX)0x17B);
+    SendArgPtr      = GtRead((GLOBAL_TABLE_INDEX)0x179);
+
+    if ((unsigned int)ThreadByteOffset == 0xFFFFFFFF)
+        return 0;
+    if (!FnSend || !FnClose || !FnHandler || !SendArgPtr)
+        return 0;
+
+    // ---- 初始 IOCTL：按构建号二选一，取得 FirstHandle（0x140072F7A~0x140072FBC）----
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0)
+    {
+        Result = (int)((__int64(__fastcall *)(__int64, __int64, __int64, __int64, __int64, __int64))FnSend)(
+            ProcessId, 1, *(__int64 *)SendArgPtr, 0, (__int64)&FirstHandle, 0);
+    }
+    else
+    {
+        Result = (int)SendDeviceIoControlWithRetry(ProcessId, 1, 0, (_DWORD **)&FirstHandle, 0);
+    }
+    if (Result < 0)
+        return 0;
+
+    // ---- 保存并清零当前线程字节（0x140072FC2~0x140072FEB）----
+    ThreadPtr = (unsigned char *)KeGetCurrentThread();
+    Cursor = (unsigned char *)pOutputBuffer;
+    SavedThreadByte = ThreadPtr[ThreadByteOffset];
+    ThreadPtr[ThreadByteOffset] = 0;
+
+    IterCount = 0;
+    Step = 0;
+    PrevCursor = Cursor;
+    HookTarget1 = (__int64 *)DispatchHookSwapByVersion(FirstHandle, &HookSave1);
+
+    Result = (int)0xC0000001;                   // 0x140073009
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1770)
+        goto L_RESTORE_HOOK1;
+
+    FnGetSecond = GtRead((GLOBAL_TABLE_INDEX)0x197);
+    if (!FnGetSecond)
+        goto L_RESTORE_HOOK1;
+
+    FnHandler2 = GtRead((GLOBAL_TABLE_INDEX)0x198);
+
+    Result = (int)DispatchIoControlByBuildNumber(
+        (__int64(__fastcall *)(__int64, __int64))FnGetSecond,
+        (__int64)&FirstHandle, (__int64)&SecondHandle, 0, 1);
+    if (Result != 0)
+        goto L_RESTORE_HOOK1;                   // 未取得第二句柄 → 不释放
+
+    if (SecondHandle)
+        HookTarget2 = (__int64 *)DispatchHookSwapByVersion(SecondHandle, &HookSave2);
+
+    Remaining = OutputSize;                     // 0x140073083（仅进循环前赋值一次）
+
+L_LOOP:                                         // 0x14007308D
+    Result = (int)0xC0000001;
+
+    if (SecondHandle == 0)
+    {
+        // 路径 1（0x1400730D5）：处理函数 = Gt[0x17B]
+        Result = (int)SendIoControlWithQuotaBufferEx(
+            (__int64(__fastcall *)(__int64, _QWORD, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *))FnHandler,
+            FirstHandle, (unsigned int)PageIndex, AddressField,
+            Cursor, (SIZE_T)Remaining, (size_t *)ResultBuffer);
+    }
+    else if (FnHandler2 != 0)
+    {
+        // 路径 2（0x1400730A4）：处理函数 = Gt[0x198]
+        Result = (int)AllocBufferAndSendIoControl(
+            (__int64(__fastcall *)(__int64, __int64, _QWORD, _QWORD, int, _BYTE *, _DWORD, size_t *, _QWORD))FnHandler2,
+            FirstHandle, SecondHandle, (unsigned int)PageIndex, AddressField,
+            Cursor, (SIZE_T)Remaining, (size_t *)ResultBuffer);
+    }
+
+    // ---- 汇合点 0x140073105 ----
+    if (AddressField != 1)
+        goto L_CLOSE_SECOND;
+
+    if (Flag == 1)
+    {
+        if (Result != 0)
+            goto L_CLOSE_SECOND;
+        *(unsigned int *)PrevCursor = 0;        // 0x140073169
+        goto L_CLOSE_SECOND;
+    }
+
+    if (Result != 0)                            // 0x140073157
+    {
+        *(unsigned int *)PrevCursor = 0;
+        if (IterCount == 0)
+            goto L_CLOSE_SECOND;
+        Result = 0;
+        goto L_CLOSE_SECOND;
+    }
+
+    *(unsigned int *)PrevCursor = Step;         // 回填上一轮步长（0x140073115）
+    EntrySize = *(unsigned int *)(Cursor + 8);
+    Step = (EntrySize == 0xFFFFFFFF) ? (*(unsigned int *)(Cursor + 0x10) + 0x14)
+                                     : (*(unsigned int *)(Cursor + 0x0C) + EntrySize);
+    if ((unsigned __int64)Remaining <= (unsigned __int64)((__int64)Step + 4))
+    {
+        *(unsigned int *)PrevCursor = 0;
+        goto L_CLOSE_SECOND;
+    }
+    PageIndex += 1;
+    PrevCursor = Cursor;
+    Remaining -= Step;
+    Cursor += Step;
+    IterCount += 1;
+    goto L_LOOP;
+
+L_CLOSE_SECOND:                                 // 0x14007316C
+    if (SecondHandle)
+    {
+        if (HookTarget2)
+            *HookTarget2 = HookSave2;
+        ((void(__fastcall *)(__int64))FnClose)(SecondHandle);
+    }
+
+L_RESTORE_HOOK1:                                // 0x140073199
+    if (HookTarget1)
+        *HookTarget1 = HookSave1;
+    ThreadPtr[ThreadByteOffset] = SavedThreadByte;
+    ((void(__fastcall *)(__int64))FnClose)(FirstHandle);
+
+    if (Result == 0x8000001A)
+        *pResult = 0;
+    return (Result == 0) ? 1 : 0;
 }
 __int64 WriteProcessMemoryExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
