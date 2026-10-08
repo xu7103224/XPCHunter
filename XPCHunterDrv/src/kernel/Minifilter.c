@@ -3380,22 +3380,27 @@ bool CmdCollectAllCpuGdtEntries(__int64 FilterObject, __int64 CallbackData,
     return Result;
 }
 
-// CmdSetCallbackFlagFalse — 服务器上下文管理
-// 管理 minifilter 服务器端的流/实例上下文
-// 对应原始驱动 0x140019A44
-NTSTATUS CmdSetCallbackFlagFalse(void)
+// MiniFilterServerContext — 服务器上下文标志回调（补全空壳）
+// 对应原始驱动 0x140019A44（23 字节）
+// 【⚠ 修正记录 2026-10-08】原为无参 `return STATUS_SUCCESS;` 空壳 ——
+//   既丢了返回值语义（原始返回 1），也漏掉了唯一动作 GtWrite。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（4 行伪代码），按伪代码实现。
+// 【逻辑】GtWrite(GT 0x2E5, 0) —— 向该标志槽写 0（"服务器侧"），返回 1。
+char MiniFilterServerContext(void)
 {
-    // 需要 FltGetStreamFileObjectContext 获取上下文
-    return STATUS_SUCCESS;
+    GtWrite(GtCallbackField23, 0);
+    return 1;
 }
 
-// CmdSetCallbackFlagTrue — 客户端上下文管理
-// 管理 minifilter 客户端的流/实例上下文
-// 对应原始驱动 0x140019A5C
-NTSTATUS CmdSetCallbackFlagTrue(void)
+// MiniFilterClientContext — 客户端上下文标志回调（补全空壳）
+// 对应原始驱动 0x140019A5C（26 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（4 行伪代码），按伪代码实现。
+// 【逻辑】GtWrite(GT 0x2E5, 1) —— 向同一标志槽写 1（"客户端侧"），返回 1。
+//   与 MiniFilterServerContext 构成 0/1 配对，用于区分当前处理侧。
+char MiniFilterClientContext(void)
 {
-    // 需要 FltGetStreamFileObjectContext 获取上下文
-    return STATUS_SUCCESS;
+    GtWrite(GtCallbackField23, 1);
+    return 1;
 }
 
 // CopyServiceTableFromSection — 从节复制服务表

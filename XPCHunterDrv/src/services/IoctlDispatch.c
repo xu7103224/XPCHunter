@@ -240,8 +240,8 @@ __int64 InitCommandHandlerTable(void)
     Table[164] = (PCOMMAND_HANDLER)CmdFixProcessEProcess;
     Table[165] = (PCOMMAND_HANDLER)NULL;
     Table[166] = (PCOMMAND_HANDLER)NULL;
-    Table[167] = (PCOMMAND_HANDLER)CmdSetCallbackFlagTrue;
-    Table[168] = (PCOMMAND_HANDLER)CmdSetCallbackFlagFalse;
+    Table[167] = (PCOMMAND_HANDLER)MiniFilterClientContext;
+    Table[168] = (PCOMMAND_HANDLER)MiniFilterServerContext;
     Table[169] = (PCOMMAND_HANDLER)MiniFilterContextCleanup;
     Table[170] = (PCOMMAND_HANDLER)CmdDiskReadSector;
     Table[171] = (PCOMMAND_HANDLER)CmdDiskOperationDispatch;
