@@ -1200,9 +1200,55 @@ char BuildSyscallExportTable(void)
     }
     return 1;
 }
+// InitShadowSyscallExportTable — 初始化 Shadow SSDT 导出表（补全空壳）
+// 对应原始驱动 0x14003CF4C（231 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `GtWrite(就绪位,1); return 1;` 空壳 —— 静默失败型。
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（44 行伪代码），按伪代码实现。
+// 【逻辑】GtAlloc(GT 0xE60) 取导出表 → GtRead(GT 0x2D8) 取 ntoskrnl 基址；
+//   ReadKbdClassSysFile 读 kbdclass.sys；
+//   ParseShadowSyscallExportSections 填表 → ParseNtExportDir 修正重定位；
+//   循环 28 项填 {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}；
+//   成功置就绪位(GT 0x2DA) 并 FillExportEntrySlot。
 char InitShadowSyscallExportTable(void)
 {
-    GtWrite(GtCallbackField15, 1);
+    char IsReady = 0;
+    __int64 *pExportTable;
+    __int64 NtoskrnlBase;
+    unsigned int *pSlot;
+    __int64 EntryCount;
+    __int64 RvaValue;
+    unsigned int FileSize = 0;
+    char *pFileBuffer = 0;
+
+    pExportTable = GtAlloc((GLOBAL_TABLE_INDEX)0xE60);
+    NtoskrnlBase = GtRead(GtCallbackField13);
+    if (NtoskrnlBase && ReadKbdClassSysFile((_QWORD *)&pFileBuffer, &FileSize))
+    {
+        if (ParseShadowSyscallExportSections((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1
+            && ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, (ULONG64)NtoskrnlBase, 0) == 1)
+        {
+            pSlot = (unsigned int *)pExportTable + 1;
+            EntryCount = 28;
+            do
+            {
+                RvaValue = *pSlot;
+                *(pSlot - 1) = 0;
+                if ((_DWORD)RvaValue && (int)RvaValue + 16 <= (int)FileSize)
+                {
+                    *(pSlot - 1) = 1;
+                    *(_OWORD *)(pSlot + 3) = *(_OWORD *)&pFileBuffer[RvaValue];
+                }
+                pSlot += 12;
+                --EntryCount;
+            }
+            while (EntryCount);
+            IsReady = 1;
+            GtWrite(GtCallbackField15, 1);
+        }
+        ExFree(pFileBuffer);
+        if (IsReady == 1)
+            FillExportEntrySlot((__int64)pExportTable);
+    }
     return 1;
 }
 char InitWin32kSyscallTable(void)
@@ -5423,4 +5469,152 @@ char __fastcall ParseSyscallFileExportSections(__int64 PeBase, unsigned int PeSi
         }
         return IsReady;
     }
+}
+
+// =========================================================================
+// ParseShadowSyscallExportSections — 解析 Shadow SSDT 导出节区
+// 对应原始驱动 0x14003D034（781 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（130 行伪代码），按伪代码实现。
+// 【与 ParseNtFileForCallbackContext **完全同构**（逐句对比确认）】
+//   同一两段扫描（段1 上限 0x14 定位目标节；段2 上限 0x3E8 填槽）、
+//   同样的类型码 1369/1296/1368/1298/1349/1139/1294、
+//   同样的 1349 提前 break、同样的槽步长 48、同样的 Dst 索引与判据。
+//   唯一差异：NtoskrnlBase 取自 GtCallbackField13（回调上下文版取复合名）。
+// 【参数】pFileBuffer / FileSize / pExportTable（0x30 字节/项）
+// 【描述符字段】与本会话确立的权威映射一致：
+//   +0x38 段1 RVA / +0x40 1294 槽偏移 / +0x50 ==64 / +0x58 Dst 写索引
+//   +0x78 1298 RVA / +0x88 Flags / +0x90 Dst 读索引 / +0xDC ExtraFlags
+//   +0xF0 指令长度 / +0x118 类型指针
+// =========================================================================
+char __fastcall ParseShadowSyscallExportSections(__int64 pFileBuffer, unsigned int FileSize, __int64 pExportTable)
+{
+    __int64 PeOffset;
+    char Result = 0;
+    __int64 NtoskrnlBase;
+    ULONG CurrentRva;
+    char IsTargetSection = 0;
+    int SectionIndex;
+    PE_DECODE_CONTEXT SectionContext;
+    __int64 AccumulatedOffset = 0;
+    _DWORD SectionEntry[112];
+    _DWORD SlotAddresses[16];
+
+    PeOffset = *(int *)(pFileBuffer + 60);
+    NtoskrnlBase = GtRead(GtCallbackField13);
+    if (!NtoskrnlBase)
+        return Result;
+
+    CurrentRva = *(ULONG *)(PeOffset + pFileBuffer + 40);
+    if (CurrentRva >= FileSize || (int)CurrentRva + 4096 >= (int)FileSize)
+        return Result;
+
+    // ---- 段 1：定位目标节（上限 0x14）----
+    InitPESectionReadContext(pFileBuffer + CurrentRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+    SectionIndex = 0;
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+    {
+        ULONG ComputedOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
+        AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        ULONG SectionRva;
+
+        if (SectionType == 1369)
+        {
+            SectionRva = ComputedOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)pFileBuffer;
+            if (SectionRva && SectionRva < FileSize)
+            {
+                CurrentRva = SectionRva;
+                break;
+            }
+        }
+        else if (SectionType == 1296 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                 *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            IsTargetSection = 1;
+        }
+        else if (SectionType == 1368)
+        {
+            if (IsTargetSection == 1)
+            {
+                SectionRva = ComputedOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)pFileBuffer;
+                if (SectionRva && SectionRva < FileSize)
+                {
+                    CurrentRva = SectionRva;
+                    break;
+                }
+            }
+            IsTargetSection = 0;
+        }
+        if ((unsigned int)++SectionIndex >= 0x14)
+            break;
+    }
+
+    if (CurrentRva >= FileSize || (int)CurrentRva + 4096 >= (int)FileSize)
+        return Result;
+
+    // ---- 段 2：填槽（上限 0x3E8，遇 1349 提前结束）----
+    InitPESectionReadContext(pFileBuffer + CurrentRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+    memset(SlotAddresses, 0, sizeof(SlotAddresses));
+
+    for (ULONG SectionIndex2 = 0; SectionIndex2 < 0x3E8; SectionIndex2++)
+    {
+        ULONG ComputedOffset2;
+        __int16 SectionType2;
+        ULONG SectionFlags;
+        ULONG FieldValueSize;
+        ULONG FieldFlags;
+        ULONG FieldMiscFlags;
+        ULONG FieldOffset;
+        ULONG SectionDataSize;
+        ULONG SlotFieldIndex;
+
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+            break;
+
+        ComputedOffset2 = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
+        AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        SectionType2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        if (SectionType2 == 1349)
+            break;
+
+        FieldValueSize   = *(ULONG *)((char *)SectionEntry + 0x50);
+        SectionFlags     = *(ULONG *)((char *)SectionEntry + 0x50);
+        FieldFlags       = *(ULONG *)((char *)SectionEntry + 0x88);
+        FieldMiscFlags   = *(ULONG *)((char *)SectionEntry + 0xDC);
+        FieldOffset      = *(ULONG *)((char *)SectionEntry + 0x40);
+        SectionDataSize  = *(ULONG *)((char *)SectionEntry + 0x78);
+        SlotFieldIndex   = *(ULONG *)((char *)SectionEntry + 0x90);
+
+        if (SectionType2 == 1298 && FieldFlags == 0x40000)
+        {
+            if (SectionDataSize && FieldValueSize == 64)
+            {
+                ULONG EntryRva = ComputedOffset2 + SectionDataSize - (ULONG)pFileBuffer;
+                if (EntryRva && EntryRva < FileSize)
+                    SlotAddresses[*(ULONG *)((char *)SectionEntry + 0x58)] = EntryRva;
+            }
+        }
+        if (SectionType2 == 1139)
+            memset(SlotAddresses, 0, sizeof(SlotAddresses));
+
+        if (SectionType2 == 1294 &&
+            (SectionFlags & 0x14000) && (SectionFlags & 0x40) &&
+            (FieldMiscFlags & 0xF) != 4 && FieldFlags == 64 &&
+            (FieldOffset - 112) <= 0xD8 && (FieldOffset & 7) == 0)
+        {
+            ULONG SlotIndex = (FieldOffset - 112) >> 3;
+            if (SlotIndex <= 0x1B)
+            {
+                ULONG TargetRva = SlotAddresses[SlotFieldIndex];
+                if (TargetRva && !*(_DWORD *)(pExportTable + 48 * SlotIndex + 4))
+                {
+                    Result = 1;
+                    *(_DWORD *)(pExportTable + 48 * SlotIndex + 4) = TargetRva;
+                    *(_QWORD *)(pExportTable + 48 * SlotIndex + 8) = NtoskrnlBase + TargetRva;
+                }
+            }
+        }
+    }
+    return Result;
 }
