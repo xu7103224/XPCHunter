@@ -1105,9 +1105,53 @@ char ParseSyscallFileExportDir(void)
     GtWrite(GtCallbackField72, 1);
     return 1;
 }
+// BuildSyscallExportTable — 构建系统调用导出表（补全空壳）
+// 对应原始驱动 0x140046AF4（211 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `GtWrite(就绪位,1); return 1;` 空壳 ——
+//   **静默失败型**：只置就绪位就报成功，调用方据此认为导出表已填充，实际表内容为空。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（40 行伪代码），按伪代码实现。
+// 【逻辑】GtRead(GT 0x3DA) 取 ntoskrnl 基址 → ReadNtFileSyscall 读 nsiproxy.sys；
+//   GtAlloc(GT 0x4466) 取导出表 → DispatchFindExportTableOffset 找导出表偏移
+//   → ParseNtExportDir 修正重定位；
+//   随后循环 28 项（步长 0x30）：取 +4 处 RVA，清零 +0，
+//   若 RVA 有效且 RVA+16 <= 文件大小，则置 +0=1 并从文件缓冲拷 16 字节节头到 +0x10；
+//   最后 GtWrite(GT 0x4280, 1) 置就绪位。
 char BuildSyscallExportTable(void)
 {
-    GtWrite(GtCallbackField80, 1);
+    __int64 NtoskrnlBase;
+    __int64 *pExportTable;
+    unsigned int *pIndexPtr;
+    __int64 EntryCount;
+    __int64 TargetRva;
+    unsigned int FileSize = 0;
+    char *pRawData = 0;
+
+    NtoskrnlBase = GtRead(GtCallbackField78);
+    if (NtoskrnlBase && ReadNtFileSyscall((_QWORD *)&pRawData, &FileSize))
+    {
+        pExportTable = GtAlloc(GtNtQueryVirtualMemoryFunc | 0x1100);
+        if (DispatchFindExportTableOffset((__int64)pRawData, FileSize, (__int64)pExportTable) == 1
+            && ParseNtExportDir((PUCHAR)pRawData, FileSize, (ULONG64)NtoskrnlBase, 0) == 1)
+        {
+            pIndexPtr = (unsigned int *)pExportTable + 1;
+            EntryCount = 28;
+            do
+            {
+                TargetRva = *pIndexPtr;
+                *(pIndexPtr - 1) = 0;
+                if ((_DWORD)TargetRva && (int)TargetRva + 16 <= (int)FileSize)
+                {
+                    *(pIndexPtr - 1) = 1;
+                    *(_OWORD *)(pIndexPtr + 3) = *(_OWORD *)&pRawData[TargetRva];
+                }
+                pIndexPtr += 12;
+                --EntryCount;
+            }
+            while (EntryCount);
+            GtWrite(GtCallbackField80, 1);
+        }
+        ExFree(pRawData);
+    }
     return 1;
 }
 char InitShadowSyscallExportTable(void)

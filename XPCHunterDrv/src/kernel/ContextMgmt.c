@@ -976,6 +976,32 @@ bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize
     return Result;
 }
 
+// ReadNtFileSyscall — 读取 nsiproxy.sys 供系统调用表解析
+// 对应原始驱动 0x140046D34（299 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（30 行伪代码），按伪代码实现。
+// 【路径（由伪代码的 EncodedBuffer[N] = <十进制> 赋值序列按 DWORD 索引重建并逐字节验证）】
+//   \SystemRoot\system32\drivers\nsiproxy.sys
+//   （nsiproxy = 网络栈代理驱动，其导出表含系统调用相关桩）
+// 【逻辑】与 ReadNtoskrnlForCallbackContext 同构：构造路径 → ReadFileRawData
+//   （返回 0 表示成功）→ ReadNtFileToBuffer 解析 → ExFree 原始数据。
+bool __fastcall ReadNtFileSyscall(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = 0;
+    void *pRawData = NULL;
+    size_t FileSize = 0;
+    WCHAR EncodedPath[64];
+
+    wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\nsiproxy.sys");
+
+    if (!(unsigned int)ReadFileRawData(EncodedPath, &pRawData, (ULONG *)&FileSize, 1))
+    {
+        Result = (ReadNtFileToBuffer((PUCHAR)pRawData, (ULONG)FileSize,
+                                     (PUCHAR *)pFileBuffer, (PULONG)pFileSize) == 1);
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
 // ReadNtoskrnlForCallbackCtx — 读取 volmgr.sys / ftdisk.sys（按构建号二选一）
 // 对应原始驱动 0x14003612C（344 字节）
 // 【逆向来源】同上（反编译可得）

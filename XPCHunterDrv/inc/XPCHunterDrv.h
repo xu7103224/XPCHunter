@@ -709,6 +709,7 @@ bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize
 bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize);
 bool ReadNtFileForContextTable(_QWORD *pFileBuffer, unsigned int *pFileSize);
 bool ReadNtFileForCallbackTable(_QWORD *pFileBuffer, unsigned int *pFileSize, int VersionType);
+bool __fastcall ReadNtFileSyscall(_QWORD *pFileBuffer, unsigned int *pFileSize);
 void InitWin32kTableByVersion(void);
 __int64 InstallCallbackContextHookEntry(unsigned int *pInputEntry);
 __int64 InstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
