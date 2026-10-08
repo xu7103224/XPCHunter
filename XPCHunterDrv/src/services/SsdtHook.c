@@ -73,7 +73,7 @@ char ParseSyscallFileExportDir(void);
 char BuildSyscallExportTable(void);
 char InitShadowSyscallExportTable(void);
 char InitWin32kSyscallTable(void);
-char ParseSyscallTableExportDir(void);
+void ParseSyscallTableExportDir(void);
 char InitDiskQueryExportTable(void);
 
 // 前向声明 — SSDT 节区扫描/NDIS 导出查找/文件读取等辅助函数（在文件末尾定义，被构建函数调用）
@@ -1315,7 +1315,7 @@ char InitWin32kSyscallTable(void)
 //   最后 ExFree 文件缓冲。
 // 【说明】本函数是"系统调用表导出族"的顶层枢纽，此前因 7 个被调用方全部缺失
 //   而无法实现；本轮补齐后得以忠实转写。
-char ParseSyscallTableExportDir(void)
+void ParseSyscallTableExportDir(void)
 {
     __int64 WdfModuleBase;
     unsigned int FileSize = 0;

@@ -73,7 +73,7 @@ char ParseSyscallFileExportDir(void);
 char BuildSyscallExportTable(void);
 char InitShadowSyscallExportTable(void);
 char InitWin32kSyscallTable(void);
-char ParseSyscallTableExportDir(void);
+// ParseSyscallTableExportDir 声明见头文件（返回类型 void）
 char InitDiskQueryExportTable(void);
 
 // 前向声明 — SSDT 节区扫描/NDIS 导出查找/文件读取等辅助函数（在文件末尾定义，被构建函数调用）
