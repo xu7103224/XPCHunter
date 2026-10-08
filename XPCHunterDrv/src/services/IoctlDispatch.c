@@ -261,7 +261,7 @@ __int64 InitCommandHandlerTable(void)
     // 185-190: NULL (memset 0x30 = 48 bytes = 6 entries)
     RtlZeroMemory(&Table[185], 0x30);
     Table[191] = (PCOMMAND_HANDLER)CmdOpenFilterVolumeFile;
-    Table[192] = (PCOMMAND_HANDLER)CmdRemoveFilterContextNode;
+    Table[192] = (PCOMMAND_HANDLER)MiniFilterInstanceQuery;
     Table[193] = (PCOMMAND_HANDLER)CmdEnumProcessListEx;
     Table[194] = (PCOMMAND_HANDLER)CmdEnumProcessListWin7;
     Table[195] = (PCOMMAND_HANDLER)CmdEnumProcessListWin8;

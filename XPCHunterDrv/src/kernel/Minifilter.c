@@ -156,11 +156,105 @@ NTSTATUS CmdOpenFilterVolumeFile(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCF
     return STATUS_SUCCESS;
 }
 
-// CmdRemoveFilterContextNode — Minifilter 实例查询回调
-// 对应原始驱动 sub_140012B78
-NTSTATUS CmdRemoveFilterContextNode(PFLT_FILTER Filter, PFLT_INSTANCE Instance, PCFLT_RELATED_OBJECTS FltObjects, FLT_INSTANCE_QUERY_FLAGS Flags)
+// =========================================================================
+// RemoveMiniFilterContextNode — 从上下文链表中摘除匹配节点
+// 对应原始驱动 0x140012A80（247 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（45 行伪代码），按伪代码实现。
+// 【参数】ContextNode = 含 { 链表基址偏移, 目标值 } 的 16 字节结构
+// 【逻辑】取 GT 0x41DB（校验函数/标志，须非 0）与 GT 0x360（上下文链表偏移）；
+//   链表头 = (void**)(偏移 + ContextNode[0])，须内存有效；
+//   从 *链表头 起遍历（上限 0x10000，且要求节点 > MmSystemRangeStart 且
+//   节点与 +63 处均内存有效）：
+//     若 节点[5] 或 节点[6] == ContextNode[1] → 命中：
+//       取 Prev=*节点、Next=节点[1]，摘链（Prev[1]=Next、*Next=Prev），返回 1；
+//     否则节点 = *节点 继续；
+//   未命中返回 0。
+// =========================================================================
+char __fastcall RemoveMiniFilterContextNode(_QWORD *ContextNode)
 {
-    return STATUS_SUCCESS;
+    char Result = 0;
+    __int64 ValidateFlag;
+    unsigned int ContextOffset;
+    __int64 ContextOffsetVal;
+    void **ListHead;
+    _QWORD *CurrentNode;
+    int NodeIndex = 0;
+    __int64 TargetValue;
+    _QWORD *PrevNode;
+    _QWORD *NextNode;
+
+    ValidateFlag = GtRead(GtObjectTypeCheckFlag);
+    ContextOffset = (unsigned int)GtRead(GtEprocessExtField10);
+    if (!ValidateFlag || !ContextOffset)
+        return Result;
+
+    ContextOffsetVal = ContextOffset;
+    ListHead = (void **)(ContextOffset + *ContextNode);
+    if (CheckMemoryValid(ListHead) != 1)
+        return Result;
+
+    CurrentNode = *ListHead;
+    while (CurrentNode &&
+           CurrentNode != (_QWORD *)(ContextOffsetVal + *ContextNode) &&
+           CurrentNode > (_QWORD *)MmSystemRangeStart &&
+           CheckMemoryValid(CurrentNode) == 1 &&
+           CheckMemoryValid((char *)CurrentNode + 63) == 1)
+    {
+        TargetValue = ContextNode[1];
+        if (CurrentNode[5] == TargetValue || CurrentNode[6] == TargetValue)
+        {
+            if (CheckMemoryValid((void *)*CurrentNode) == 1)
+            {
+                PrevNode = (_QWORD *)*CurrentNode;
+                NextNode = (_QWORD *)CurrentNode[1];
+                Result = 1;
+                PrevNode[1] = (__int64)NextNode;
+                *NextNode = (__int64)PrevNode;
+            }
+            return Result;
+        }
+        CurrentNode = (_QWORD *)*CurrentNode;
+        if ((unsigned int)++NodeIndex >= 0x10000)
+            return Result;
+    }
+    return Result;
+}
+
+// =========================================================================
+// MiniFilterInstanceQuery — Minifilter 实例查询回调（补全空壳）
+// 对应原始驱动 0x140012B78（175 字节）
+// 【⚠ 修正记录 2026-10-08】原名 `CmdRemoveFilterContextNode`、注释称
+//   "Minifilter 实例查询回调" —— 名字与实物不符（功能对，名字错）。
+//   原始 IDA 名是 MiniFilterInstanceQuery。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（22 行伪代码），按伪代码实现。
+// 【参数】InputBuffer = 16 字节输入（含两个内核指针）；BufferSize 须 == 16
+// 【逻辑】校验输入缓冲位于用户空间且大小为 16 → ProbeForRead 后读出两个 QWORD；
+//   两者都须 > MmSystemRangeStart 且构建号 >= 0x1771；
+//   然后转调 RemoveMiniFilterContextNode（传读出的 16 字节）并返回其结果是否为 1。
+bool __fastcall MiniFilterInstanceQuery(_OWORD *InputBuffer, int BufferSize)
+{
+    char Result = 0;
+    _QWORD ContextPair[2];      // 与 _OWORD 同为 16 字节，但可按 QWORD 访问（_OWORD 不可直接转整数）
+
+    if (!InputBuffer)
+        return Result;
+    if (BufferSize != 16)
+        return Result;
+    if ((unsigned __int64)InputBuffer >= MmUserProbeAddress)
+        return Result;
+    if ((unsigned __int64)(InputBuffer + 1) >= MmUserProbeAddress)
+        return Result;
+
+    ProbeForRead(InputBuffer, 0x10u, 1u);
+    ContextPair[0] = *(_QWORD *)InputBuffer;
+    ContextPair[1] = *((_QWORD *)InputBuffer + 1);
+    if (ContextPair[0] > (unsigned __int64)MmSystemRangeStart &&
+        ContextPair[1] > (unsigned __int64)MmSystemRangeStart &&
+        (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1771)
+    {
+        return RemoveMiniFilterContextNode(ContextPair) == 1;
+    }
+    return Result;
 }
 
 // MiniFilterTeardownRoutine — Minifilter 拆卸回调
