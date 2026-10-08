@@ -699,7 +699,20 @@ void FreeAllocatedBuffers(void *Buffer1, void *Buffer2, void *Buffer3, void *Buf
 
 
 // QuerySystemInfoAllocateBuffers -- 查询系统信息并分配缓冲区
-// 对应原始驱动 sub_140047894
+// 对应原始驱动 0x140047894（542 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `return 0;` 空壳 —— **静默失败型危险占位**：
+//   调用点（本文件 924 行附近）在它返回 0（成功）后**立即使用**它应当分配的
+//   三个缓冲区（NameBufferPtr / ExtBufferPtr / BaseBufferPtr）。
+//   空壳从未分配 → 调用方用未初始化指针做内存访问。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（84 行伪代码），按伪代码实现。
+// 【逻辑】两次调用 CallQuerySystemInformation：
+//   第 1 次只为取所需大小（输出缓冲全传 0），返回负值则直接返回该错误；
+//   随后按各类的"条目数"分配两组非分页池缓冲（B1/B2/B3/B4 × Count），
+//   任一分配失败即置 STATUS_INSUFFICIENT_RESOURCES(0xC000009A) 并释放已分配的；
+//   第 2 次带缓冲调用，返回非 0 则置 STATUS_UNSUCCESSFUL(0xC0000001) 并释放；
+//   成功则回写所需大小与四个输出指针。
+// 【尺寸算术（忠实还原）】size = 首次查询返回的长度 + 0x1000；
+//   每个缓冲分配 Count * size 字节（同一 size，未随类型变化）。
 __int64 QuerySystemInfoAllocateBuffers(
     unsigned int SystemInformationClass,
     __int64 Argument2,
@@ -714,7 +727,82 @@ __int64 QuerySystemInfoAllocateBuffers(
     int Buffer4Count,
     _DWORD *pRequiredSize)
 {
-    return 0;
+    unsigned int Status;
+    void *Buffer4 = 0;
+    unsigned int RequiredSize;
+    void *Buffer3 = 0;
+    void *Buffer2 = 0;
+    void *Buffer1 = 0;
+    bool Success = 1;
+    void *AllocResult;
+    _DWORD QueryResult[22];
+
+    QueryResult[0] = 0;
+    Status = (unsigned int)CallQuerySystemInformation(
+        SystemInformationClass, 1u, (PVOID)Argument2, (ULONG)Argument3,
+        0, 0, 0, 0, 0, 0, 0, 0, (PULONG)QueryResult);
+    if ((Status & 0x80000000) != 0)
+        return Status;
+
+    RequiredSize = QueryResult[0] + 0x1000;
+    QueryResult[0] += 0x1000;
+
+    if (Buffer1Count)
+    {
+        AllocResult = ExAlloc(NonPagedPool, (ULONG)(Buffer1Count * RequiredSize));
+        Buffer1 = AllocResult;
+        Success = (AllocResult != 0);
+    }
+    if (Buffer2Count)
+    {
+        AllocResult = ExAlloc(NonPagedPool, (ULONG)(Buffer2Count * QueryResult[0]));
+        Buffer2 = AllocResult;
+        if (!AllocResult)
+            Success = 0;
+    }
+    if (Buffer3Count)
+    {
+        AllocResult = ExAlloc(NonPagedPool, (ULONG)(Buffer3Count * QueryResult[0]));
+        Buffer3 = AllocResult;
+        if (!AllocResult)
+            Success = 0;
+    }
+    if (Buffer4Count)
+    {
+        Buffer4 = ExAlloc(NonPagedPool, (ULONG)(Buffer4Count * QueryResult[0]));
+        if (!Buffer4)
+            Success = 0;
+    }
+
+    if (!Success)
+    {
+        Status = 0xC000009A;                        // STATUS_INSUFFICIENT_RESOURCES
+        FreeAllocatedBuffers(Buffer1, Buffer2, Buffer3, Buffer4);
+        return Status;
+    }
+
+    Status = (unsigned int)CallQuerySystemInformation(
+        SystemInformationClass, 1u, (PVOID)Argument2, (ULONG)Argument3,
+        Buffer1, (ULONG)Buffer1Count, Buffer2, (ULONG)Buffer2Count,
+        Buffer3, (ULONG)Buffer3Count, Buffer4, (ULONG)Buffer4Count,
+        (PULONG)QueryResult);
+    if (Status)
+    {
+        Status = 0xC0000001;                        // STATUS_UNSUCCESSFUL
+        FreeAllocatedBuffers(Buffer1, Buffer2, Buffer3, Buffer4);
+        return Status;
+    }
+
+    *pRequiredSize = QueryResult[0];
+    if (pBuffer1)
+        *pBuffer1 = (__int64)Buffer1;
+    if (pBuffer2)
+        *pBuffer2 = (__int64)Buffer2;
+    if (pBuffer3)
+        *pBuffer3 = (__int64)Buffer3;
+    if (pBuffer4)
+        *pBuffer4 = (__int64)Buffer4;
+    return Status;
 }
 
 // BuildSystemRootPath — 构建系统根路径
