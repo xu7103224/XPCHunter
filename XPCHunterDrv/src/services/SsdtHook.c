@@ -1302,10 +1302,40 @@ char InitWin32kSyscallTable(void)
     }
     return 1;
 }
+// ParseSyscallTableExportDir — 解析系统调用表导出目录（补全空壳）
+// 对应原始驱动 0x1400865C8（200 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `GtWrite(就绪位,1); return 1;` 空壳 —— 静默失败型。
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（30 行伪代码），按伪代码实现。
+// 【逻辑】GtRead(GT 0x8AE) 取 WDF 库模块基址；非 0 且 ReadWdfLibraryModule
+//   成功读入文件后，依次调用 7 个解析/收集函数：
+//     FindSyscallTableDescriptor → BuildExportSectionMapping
+//     → ParseSyscallTableDataSection → ParseSyscallTableSections
+//     → 若 ParseNtExportDir 成功，再调
+//       CollectSyscallEntries4 → CollectTwoSyscallTables → CollectSyscallExportEntries
+//   最后 ExFree 文件缓冲。
+// 【说明】本函数是"系统调用表导出族"的顶层枢纽，此前因 7 个被调用方全部缺失
+//   而无法实现；本轮补齐后得以忠实转写。
 char ParseSyscallTableExportDir(void)
 {
-    GtWrite(GtDisableHookProtectionAddr2 | GtEprocessField157, 1);
-    return 1;
+    __int64 WdfModuleBase;
+    unsigned int FileSize = 0;
+    void *pFileBuffer = 0;
+
+    WdfModuleBase = GtRead((GLOBAL_TABLE_INDEX)0x8AE);
+    if (WdfModuleBase && ReadWdfLibraryModule(&pFileBuffer, &FileSize))
+    {
+        FindSyscallTableDescriptor((__int64)pFileBuffer, FileSize, WdfModuleBase);
+        BuildExportSectionMapping((__int64)pFileBuffer, FileSize);
+        ParseSyscallTableDataSection((__int64)pFileBuffer, FileSize, WdfModuleBase);
+        ParseSyscallTableSections(pFileBuffer, FileSize, WdfModuleBase);
+        if (ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, (ULONG64)WdfModuleBase, 0) == 1)
+        {
+            CollectSyscallEntries4((__int64)pFileBuffer, FileSize, WdfModuleBase);
+            CollectTwoSyscallTables((__int64)pFileBuffer, FileSize, WdfModuleBase);
+            CollectSyscallExportEntries((__int64)pFileBuffer, FileSize, WdfModuleBase);
+        }
+        ExFree(pFileBuffer);
+    }
 }
 // InitDiskQueryExportTable — 初始化磁盘查询导出表（补全空壳）
 // 对应原始驱动 0x140048B08（439 字节）

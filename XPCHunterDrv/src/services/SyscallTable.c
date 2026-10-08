@@ -2522,3 +2522,325 @@ L14008641B:
     (void)ctxPtr;
     return (char)Found;
 }
+
+// =========================================================================
+// FindSyscallTableDescriptor — 查找系统调用表描述符
+// 对应原始驱动 0x140085E34（639 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（100 行伪代码），按伪代码实现。
+// 【参数】a1 = 文件缓冲；a2 = 文件大小；a3 = 基址（非 0 才处理）
+// 【描述符字段（权威映射）】
+//   +0x38 段1 RVA / +0x50 ==64 / +0x58 序号 / +0x78 1298 RVA
+//   +0x88 Flags / +0xF0 指令长度 / +0x118 类型指针
+// 【结构】两段：
+//   1) 上限 0x14：找 1369/1296(64,序1)/1368 得目标节 RVA；
+//   2) 上限 0x12C：找 1298 且 +0x88==0x40000 且 +0x78!=0 且 +0x50==64 且 +0x58==1，
+//      算出候选 RVA 后**验证描述符形状**：RVA+56 < 大小、
+//      该处首个 DWORD == 56（描述符长度）、其 +8 处的 QWORD > (节数据大小 v8)、
+//      且 (该 QWORD - v8) < 文件大小 —— 全部满足才算命中；
+//      命中则 GtWrite(GT 0x8B4, RVA) 与 GtWrite(GT 0x8B5, RVA + a3) 并返回 1。
+// 【⚠ 枚举名说明】伪代码显示 `GtWrite(GtKeGetCurrentIrql, ...)` / `GtWrite(GtKeLowerIrql, ...)`，
+//   但 capstone 实测立即数为 **0x8B4 / 0x8B5**（原枚举无此二名，已按实测索引新增）。
+// =========================================================================
+char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 a3)
+{
+    __int64 PeOffset;
+    char Result = 0;
+    ULONG TargetRva;
+    __int64 SectionDataSize;
+    char FoundFlag;
+    int ScanCount;
+    int ScanCount2;
+    PE_DECODE_CONTEXT Context;
+    __int64 Accumulated = 0;
+    _DWORD SectionEntry[112];
+
+    PeOffset = *(int *)(a1 + 60);
+    if (!a3)
+        return Result;
+
+    TargetRva = *(unsigned int *)(PeOffset + a1 + 40);
+    SectionDataSize = *(_QWORD *)(PeOffset + a1 + 48);
+    if ((unsigned int)TargetRva >= a2 || (int)TargetRva + 4096 >= (int)a2)
+        return Result;
+
+    // ---- 段 1：定位目标节（上限 0x14）----
+    FoundFlag = 0;
+    InitPESectionReadContext(TargetRva + a1, 4096, 2, 0, -1, 0, 0, (__int64)&Context);
+    ScanCount = 0;
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
+    {
+        ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
+        Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
+        __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        ULONG NewRva;
+
+        if (SectionType == 1369)
+        {
+            NewRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)a1;
+            if (NewRva && NewRva < a2)
+            {
+                TargetRva = NewRva;
+                break;
+            }
+        }
+        else if (SectionType == 1296 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                 *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            FoundFlag = 1;
+        }
+        else if (SectionType == 1368)
+        {
+            if (FoundFlag == 1)
+            {
+                NewRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)a1;
+                if (NewRva && NewRva < a2)
+                {
+                    TargetRva = NewRva;
+                    break;
+                }
+            }
+            FoundFlag = 0;
+        }
+        if ((unsigned int)++ScanCount >= 0x14)
+            break;
+    }
+
+    if ((unsigned int)TargetRva >= a2 || (int)TargetRva + 4096 >= (int)a2)
+        return Result;
+
+    // ---- 段 2：找并验证描述符（上限 0x12C）----
+    InitPESectionReadContext(a1 + TargetRva, 4096, 2, 0, -1, 0, 0, (__int64)&Context);
+    ScanCount2 = 0;
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
+    {
+        ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
+        Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
+
+        if (*(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1298 &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
+            *(ULONG *)((char *)SectionEntry + 0x78) != 0 &&
+            *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+            *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            ULONG Candidate = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x78) - (ULONG)a1;
+            if (Candidate &&
+                Candidate < a2 &&
+                Candidate + 56 < a2 &&
+                *(_DWORD *)(Candidate + a1) == 56 &&
+                *(unsigned int *)(Candidate + a1 + 8) > (unsigned int)SectionDataSize &&
+                a2 > (unsigned int)(*(_DWORD *)(Candidate + a1 + 8) - (int)SectionDataSize))
+            {
+                GtWrite(GtKeGetCurrentIrql, Candidate);            // GT 0x8B4: RVA
+                GtWrite(GtKeLowerIrql, Candidate + a3);            // GT 0x8B5: RVA + 基址
+                return 1;
+            }
+        }
+        if ((unsigned int)++ScanCount2 >= 0x12C)
+            return Result;
+    }
+    return Result;
+}
+
+// =========================================================================
+// BuildExportSectionMapping — 构建导出节区映射
+// 对应原始驱动 0x140086908（224 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（50 行伪代码），按伪代码实现。
+// 【参数】a1 = 文件缓冲；a2 = 文件大小
+// 【逻辑】取 PE 头 +0x30（节数据大小 v4）；GtRead(GT 0x8B4)（即
+//   FindSyscallTableDescriptor 写入的描述符 RVA）；
+//   若非 0 则 GtAlloc(GT 0x2180) 取 4 项表，并把描述符处
+//   [1]/[2]/[3]/[4] 四个 QWORD **减去 v4** 作为映射偏移写入表项 +4
+//   （越界则写 0）；任一有效即返回 1。
+// 【用途】FindSyscallTableDescriptor 定位到描述符后，本函数把描述符里的
+//   4 个"系统调用表地址"换算成相对节数据的偏移。
+// =========================================================================
+char __fastcall BuildExportSectionMapping(__int64 a1, unsigned int a2)
+{
+    unsigned __int64 SectionDataSize;
+    char Result = 0;
+    unsigned int DescriptorRva;
+    __int64 *pMapping;
+    unsigned __int64 *pDescriptor;
+    unsigned int *pEntry;
+    unsigned int i;
+
+    SectionDataSize = *(_QWORD *)(*(int *)(a1 + 60) + a1 + 48);
+    DescriptorRva = (unsigned int)GtRead(GtKeGetCurrentIrql);      // GT 0x8B4
+    if (!DescriptorRva)
+        return Result;
+
+    pMapping = GtAlloc((GLOBAL_TABLE_INDEX)0x2180);
+    pDescriptor = (unsigned __int64 *)(a1 + DescriptorRva);
+    pEntry = (unsigned int *)pMapping + 1;
+
+    for (i = 0; i < 4; i++)
+    {
+        unsigned __int64 Value;
+        unsigned int Offset;
+
+        if (i == 0)
+            Value = pDescriptor[1];
+        else if (i == 1)
+            Value = pDescriptor[2];
+        else if (i == 2)
+            Value = pDescriptor[3];
+        else
+            Value = pDescriptor[4];
+
+        if (Value <= SectionDataSize || (Offset = (unsigned int)(Value - SectionDataSize), a2 <= Offset))
+        {
+            *pEntry = 0;
+        }
+        else
+        {
+            *pEntry = Offset;
+            Result = 1;
+        }
+        pEntry += 12;
+    }
+    return Result;
+}
+
+// =========================================================================
+// CollectSyscallEntries4 — 收集 4 个系统调用条目
+// 对应原始驱动 0x140086868（176 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（30 行伪代码），按伪代码实现。
+// 【参数】a1 = 文件缓冲；a2 = 文件大小；a3 = 基址（非 0 才处理）
+// 【逻辑】GtAlloc(GT 0x2180) 取 4 项表；逐项：取 +4 处 RVA，
+//   清零 +0；若 RVA 有效且 RVA+16 <= 文件大小，则置 +0=1、
+//   +8 = RVA + a3、+0x10 起拷 16 字节节头，并 GtWrite(GT 0x8B6, 1)；
+//   任一有效即返回 1。
+// =========================================================================
+char __fastcall CollectSyscallEntries4(__int64 a1, unsigned int a2, __int64 a3)
+{
+    char Result = 0;
+    unsigned int *pEntry;
+
+    if (!a3)
+        return Result;
+
+    pEntry = (unsigned int *)GtAlloc((GLOBAL_TABLE_INDEX)0x2180) + 1;
+    for (__int64 Count = 4; Count; --Count, pEntry += 12)
+    {
+        __int64 Rva = *pEntry;
+        *(pEntry - 1) = 0;
+        if ((_DWORD)Rva && (int)Rva + 16 <= (int)a2)
+        {
+            *(pEntry - 1) = 1;
+            *(__int64 *)(pEntry + 1) = Rva + a3;
+            *(_OWORD *)(pEntry + 3) = *(_OWORD *)(Rva + a1);
+            GtWrite((GLOBAL_TABLE_INDEX)0x8B6, 1);
+            Result = 1;
+        }
+    }
+    return Result;
+}
+
+// =========================================================================
+// CollectTwoSyscallTables — 收集两个系统调用表
+// 对应原始驱动 0x140086740（295 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（55 行伪代码），按伪代码实现。
+// 【参数】a1 / a2 / a3 语义同上
+// 【逻辑】两段，结构相同：
+//   第 1 段：GtRead(GT 0x8B7) 取计数；非 0 则 GtAlloc(GT 0x21A4) 取表，
+//     逐项填 {+0=命中, +8=RVA+a3, +0x10=16 字节节头}（RVA 有效且+16<=大小），
+//     每次迭代后 GtWrite(GT 0x8BD, 1)；
+//   第 2 段：GtRead(GT 0x8BA) 取计数；非 0 则 GtAlloc(GT 0x2DB0) 取表，
+//     同样填表，每次迭代后 GtWrite(GT 0x8BE, 1)。
+//   任一段有计数即返回 1。
+// =========================================================================
+char __fastcall CollectTwoSyscallTables(__int64 a1, unsigned int a2, __int64 a3)
+{
+    char Result = 0;
+
+    if (!a3)
+        return Result;
+
+    {
+        unsigned int Count = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8B7);
+        if (Count)
+        {
+            unsigned int *pEntry = (unsigned int *)GtAlloc((GLOBAL_TABLE_INDEX)0x21A4) + 1;
+            Result = 1;
+            for (unsigned int i = Count; i; --i, pEntry += 12)
+            {
+                __int64 Rva = *pEntry;
+                *(pEntry - 1) = 0;
+                if ((_DWORD)Rva && (int)Rva + 16 <= (int)a2)
+                {
+                    *(pEntry - 1) = 1;
+                    *(__int64 *)(pEntry + 1) = Rva + a3;
+                    *(_OWORD *)(pEntry + 3) = *(_OWORD *)(Rva + a1);
+                }
+                GtWrite((GLOBAL_TABLE_INDEX)0x8BD, 1);
+            }
+        }
+    }
+    {
+        unsigned int Count = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8BA);
+        if (Count)
+        {
+            unsigned int *pEntry = (unsigned int *)GtAlloc((GLOBAL_TABLE_INDEX)0x2DB0) + 1;
+            Result = 1;
+            for (unsigned int i = Count; i; --i, pEntry += 12)
+            {
+                __int64 Rva = *pEntry;
+                *(pEntry - 1) = 0;
+                if ((_DWORD)Rva && (int)Rva + 16 <= (int)a2)
+                {
+                    *(pEntry - 1) = 1;
+                    *(__int64 *)(pEntry + 1) = a3 + Rva;
+                    *(_OWORD *)(pEntry + 3) = *(_OWORD *)((unsigned int)Rva + a1);
+                }
+                GtWrite((GLOBAL_TABLE_INDEX)0x8BE, 1);
+            }
+        }
+    }
+    return Result;
+}
+
+// =========================================================================
+// CollectSyscallExportEntries — 收集系统调用导出条目
+// 对应原始驱动 0x140086690（176 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（35 行伪代码），按伪代码实现。
+// 【逻辑】GtAlloc(GT 0x39BC) 取表；逐 28 项：取 +4 处 RVA、清零 +0，
+//   若 RVA 有效且 RVA+16 <= 文件大小，则置 +0=1 并拷 16 字节节头到 +0x10
+//   （**注意：本函数不写 +8 的地址字段** —— 与其它 Collect* 不同）；
+//   结束后 GtWrite(GT 0x8BF, 1)；若有命中则 FillExportEntrySlot。
+// =========================================================================
+char __fastcall CollectSyscallExportEntries(__int64 a1, unsigned int a2, __int64 a3)
+{
+    char Result = 0;
+    char AnyHit = 0;
+    __int64 pTable;
+    unsigned int *pEntry;
+    __int64 Count;
+
+    pTable = (__int64)GtAlloc((GLOBAL_TABLE_INDEX)0x39BC);
+    if (!a3)
+        return Result;
+
+    pEntry = (unsigned int *)pTable + 1;
+    Count = 28;
+    do
+    {
+        __int64 Rva = *pEntry;
+        *(pEntry - 1) = 0;
+        if ((_DWORD)Rva && (int)Rva + 16 <= (int)a2)
+        {
+            *(pEntry - 1) = 1;
+            AnyHit = 1;
+            Result = 1;
+            *(_OWORD *)(pEntry + 3) = *(_OWORD *)(Rva + a1);
+        }
+        pEntry += 12;
+        --Count;
+    }
+    while (Count);
+
+    GtWrite((GLOBAL_TABLE_INDEX)0x8BF, 1);
+    if (AnyHit == 1)
+        FillExportEntrySlot(pTable);
+    return Result;
+}

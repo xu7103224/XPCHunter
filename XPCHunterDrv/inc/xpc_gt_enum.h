@@ -666,6 +666,11 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtExReleaseFastMutex = 0x8AC,             // 2220: ExReleaseFastMutex 函数地址(InitDriverModuleParsing)
     GtFileSystemReady10 = 0x8B0,              // 2224: Win10 文件系统过滤器就绪标志(InitFileSystemExportTable)
     GtFileSystemReady7 = 0x8B1,               // 2225: Win7 文件系统过滤器就绪标志(InitFileSystemExportTable)
+    // 【来源】FindSyscallTableDescriptor 的 GtWrite 立即数实测（0x140086065/0x140086076）：
+    //   0x8B4 存"描述符 RVA 相对文件的偏移"，0x8B5 存"该偏移 + 传入的基址"。
+    //   名字沿用 IDB 反编译输出的枚举成员名。
+    GtKeGetCurrentIrql = 0x8B4,              // 2228: 系统调用表描述符 RVA(FindSyscallTableDescriptor)
+    GtKeLowerIrql = 0x8B5,                   // 2229: 系统调用表描述符地址=RVA+基址(FindSyscallTableDescriptor)
     GtObjectListOffset = 0x8C0,                // 2240: 进程对象列表偏移(InitObjectCallback)
 
     // ---- Win32k 服务缓冲区 ----
