@@ -495,7 +495,7 @@ char CmdEnumDriverObjects(unsigned int *pOutputBuffer, unsigned int OutputSize, 
 // ===== 注册表操作函数（从 MissingFuncs.c 移入） =====
 
 // GetDeleteValueKeyCtx — 获取 DeleteValueKey 上下文
-// 对应原始驱动 sub_1400784DC
+// 对应原始驱动 sub_14001DB00（63 字节）
 __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
 {
     char *CurrentFiber;
@@ -508,7 +508,7 @@ __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
 }
 
 // GetSetValueKeyCtx — 获取 SetValueKey 上下文
-// 对应原始驱动 sub_1400784DC
+// 对应原始驱动 sub_14001DEA4（80 字节）
 __int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult)
 {
     char *FiberBase;

@@ -134,8 +134,10 @@ __int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __
 
 // ---- 9 个驱动节区打开函数 ----
 
-// OpenTcpIpDriverSection — 打开 tcpip.sys 驱动节区
-// 对应原始驱动 sub_1400537FC
+// WriteTcpIpSyscallEntry — 写入 TcpIp 系统调用表项
+// 对应原始驱动 sub_1400539B8（67 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x1400537FC 且描述为 "OpenTcpIpDriverSection" ——
+//   那是**被调用的** OpenTcpIpDriverSection 的信息；本函数真实地址 0x1400539B8。
 char WriteTcpIpSyscallEntry(unsigned int *pInputEntry)
 {
     __int64 SectionBase = OpenTcpIpDriverSection();

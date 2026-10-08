@@ -996,7 +996,7 @@ char FindThreadEntry(_DWORD *OutputBuffer, __int64 Target, unsigned int *OutInde
 }
 
 // ResetThreadStateIfMatch — 匹配时重置线程状态
-// 对应原始驱动 sub_14004CC10
+// 对应原始驱动 sub_14004CC0C（63 字节）
 // 检查 CSRSS 进程对象是否匹配，若匹配且线程状态为 2 则重置线程状态和扩展状态
 _QWORD *ResetThreadStateIfMatch(__int64 Process, __int64 OutputBuffer)
 {
@@ -1013,7 +1013,7 @@ _QWORD *ResetThreadStateIfMatch(__int64 Process, __int64 OutputBuffer)
 
 
 // EnumerateThreadListEntries — 枚举线程列表条目
-// 对应原始驱动 sub_14004E350
+// 对应原始驱动 sub_14004E328（1010 字节）
 // 遍历双向链表，从每个条目中提取线程信息。填充 544 字节每项的线程条目到输出缓冲区
 ULONG64 EnumerateThreadListEntries(
     unsigned int *ListHead,
@@ -1373,7 +1373,7 @@ __int64 ResetThreadStateFlag(__int64 Thread, __int64 FlagOffset)
 }
 
 // EnumerateFileMappingSectionEx — 枚举文件映射节区(扩展版)
-// 对应原始驱动 sub_14004E5C0
+// 对应原始驱动 sub_14004C0D8（715 字节）
 // 从 VAD 节点提取文件对象信息，填充到输出缓冲区
 void EnumerateFileMappingSectionEx(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
@@ -1481,7 +1481,7 @@ void EnumerateFileMappingSectionStub(__int64 VadNode, _DWORD *OutputBuffer, unsi
 }
 
 // EnumerateFileMappingSectionByIndex — 按索引枚举文件映射节区
-// 对应原始驱动 sub_14004E5C0 (V1 版本)
+// 对应原始驱动 sub_14004C940（653 字节） (V1 版本)
 // V1 文件映射节区遍历，使用不同的 VAD 节点偏移和格式
 void EnumerateFileMappingSectionByIndex(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
@@ -1685,7 +1685,7 @@ void EnumerateVadRecursiveV3(_QWORD *VirtualAddress, int Level, _DWORD *OutputBu
 }
 
 // EnumerateVadIterativeV3 — 迭代枚举 VAD 树 V3 (Win8.1 版本)
-// 对应原始驱动 sub_14004EF4C
+// 对应原始驱动 sub_14004EF38（258 字节）
 // 使用栈+迭代方式遍历 VAD 树，偏移 127 处检查有效性，调用 EnumerateFileMappingSectionStub
 void EnumerateVadIterativeV3(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
@@ -1770,7 +1770,7 @@ void EnumerateVadRecursiveV4(_QWORD *VirtualAddress, int Level, _DWORD *OutputBu
 }
 
 // EnumerateVadIterativeV4 — 迭代枚举 VAD 树 V4 (Win10+ 版本)
-// 对应原始驱动 sub_14004EDB0
+// 对应原始驱动 sub_14004ED68（257 字节）
 // 使用栈+迭代方式遍历 VAD 树，偏移 127 处检查有效性，左子节点在 *a1，右子节点在 a1[1]
 // 调用 EnumVadMemoryRegions
 void EnumerateVadIterativeV4(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize)
@@ -1824,7 +1824,7 @@ void EnumerateVadIterativeV4(_QWORD *VirtualAddress, __int64 Buffer, int BufferE
 }
 
 // EnumerateFileMappingSectionRecursiveV1 — 递归枚举文件映射节区 V1
-// 对应原始驱动 sub_14004E8C8
+// 对应原始驱动 sub_14004F0B4（204 字节）
 // 递归遍历旧版 VAD 树，调用 EnumerateFileMappingSectionByIndex
 void EnumerateFileMappingSectionRecursiveV1(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
@@ -1855,7 +1855,9 @@ void EnumerateFileMappingSectionRecursiveV1(_QWORD *VirtualAddress, int Level, _
 }
 
 // EnumerateFileMappingSectionIterativeV1 — 迭代枚举文件映射节区 V1
-// 对应原始驱动 sub_14004E860
+// 对应原始驱动 sub_14004F180（258 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x14004E860 —— 那落在
+//   另一个函数 EnumerateThreadListEntries 内（不是函数起始）。
 // 使用栈+迭代方式遍历旧版 VAD 树，调用 EnumerateFileMappingSectionByIndex
 void EnumerateFileMappingSectionIterativeV1(_QWORD *VirtualAddress, __int64 Buffer, int BufferElements, _DWORD *OutputBuffer, unsigned int BufferSize)
 {

@@ -6332,7 +6332,9 @@ __int64 InitImageNotifyWin7(void)
 
 // SelectMiniFilterCallbackByVersion — 根据版本选择 Minifilter 回调
 // 版本 <= 0x23F0 时调用 FindKernelDataSectionForImageNotify2，>= 0x42EE 时调用 MiniFilterPreCreate，否则调用 FindKernelDataSectionForImageNotify3
-// 对应原始驱动 sub_140014078
+// 对应原始驱动 sub_140014034（65 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x140014078 —— 那是**被调用的
+//   MiniFilterPreCreate** 的地址，不是本函数自身。本函数真实地址是 0x140014034。
 __int64 SelectMiniFilterCallbackByVersion(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0)
@@ -6344,7 +6346,8 @@ __int64 SelectMiniFilterCallbackByVersion(void)
 
 // SelectMiniFilterCleanupCallback — 选择 Minifilter 清理回调
 // 版本 >= 0x4A61 时调用 MiniFilterPostWrite，否则调用 MiniFilterPreCleanup
-// 对应原始驱动 sub_140014D08
+// 对应原始驱动 sub_140014CE0（65 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x140014D08（0x28 偏移差），已按 IDA 函数表更正。
 __int64 SelectMiniFilterCleanupCallback(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
@@ -6355,7 +6358,9 @@ __int64 SelectMiniFilterCleanupCallback(void)
 
 // SelectMiniFilterDirEnumCallback — 选择 Minifilter 目录枚举回调
 // 版本 < 0x23F0 时调用 FindKernelObjectFieldOffsetsWin8，>= 0x2800 时调用 FindKernelObjectFieldOffsetsWin10，否则调用 FindKernelObjectFieldOffsetsWin10Early
-// 对应原始驱动 sub_1400152D4
+// 对应原始驱动 sub_1400150E4（65 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x1400152D4 —— 那是**被调用的
+//   FindKernelObjectFieldOffsetsWin10** 的地址，本函数真实地址是 0x1400150E4。
 __int64 SelectMiniFilterDirEnumCallback(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
@@ -6367,7 +6372,9 @@ __int64 SelectMiniFilterDirEnumCallback(void)
 
 // SelectMiniFilterWriteReadCallback — 选择 Minifilter 写/读回调
 // 版本 > 0x23F0 时调用 FindKernelDataSectionForDeviceIoControl2，否则调用 FindKernelDataSectionForDeviceIoControl
-// 对应原始驱动 sub_1400146D4
+// 对应原始驱动 sub_1400146AC（65 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x1400146D4 —— 那是**被调用的
+//   FindKernelDataSectionForDeviceIoControl** 的地址，本函数真实地址是 0x1400146AC。
 unsigned __int64 SelectMiniFilterWriteReadCallback(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)

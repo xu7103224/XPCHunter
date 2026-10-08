@@ -2049,7 +2049,7 @@ __int64 FindReadableDiskSector(struct _DEVICE_OBJECT *DeviceObject, unsigned int
 // Op1/Op2/Op3 为操作码（1=读取、2=清除、3=恢复等）
 
 // ReadCallbackType1 — 读取回调类型1（PspCreateProcessNotifyRoutine 等）
-// 对应原始驱动 sub_14000E2B0
+// 对应原始驱动 sub_140070070（93 字节）
 char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
     char Result = 0;
@@ -2076,7 +2076,7 @@ char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char 
 }
 
 // ReadCallbackType2 — 读取回调类型2（PspCreateThreadNotifyRoutine 等）
-// 对应原始驱动 sub_14000E330
+// 对应原始驱动 sub_1400700D0（93 字节）
 char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
     char Result = 0;
@@ -2101,7 +2101,7 @@ char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char 
 }
 
 // ReadCallbackType3 — 读取回调类型3（PspLoadImageNotifyRoutine 等）
-// 对应原始驱动 sub_14000E3B0
+// 对应原始驱动 sub_140070130（93 字节）
 char ReadCallbackType3(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
     char Result = 0;
@@ -2126,7 +2126,7 @@ char ReadCallbackType3(char **TargetObject, unsigned __int64 ContextValue, char 
 }
 
 // CallbackType1Dispatcher — 回调类型1 分派器（PspCreateProcessNotifyRoutine 等）
-// 对应原始驱动 sub_14000E210
+// 对应原始驱动 sub_140070B3C（93 字节）
 char CallbackType1Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
 {
     char Result = 0;
@@ -2151,7 +2151,7 @@ char CallbackType1Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
 }
 
 // CallbackType2Dispatcher — 回调类型2 分派器（PspCreateThreadNotifyRoutine 等）
-// 对应原始驱动 sub_14000E290
+// 对应原始驱动 sub_140070B9C（93 字节）
 char CallbackType2Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
 {
     char Result = 0;
@@ -2176,7 +2176,7 @@ char CallbackType2Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
 }
 
 // CallbackType3Dispatcher — 回调类型3 分派器（PspLoadImageNotifyRoutine 等）
-// 对应原始驱动 sub_14000E310
+// 对应原始驱动 sub_140070BFC（93 字节）
 char CallbackType3Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
 {
     char Result = 0;
@@ -2201,7 +2201,7 @@ char CallbackType3Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
 }
 
 // CallbackType4Dispatcher — 回调类型4 分派器（CmCallback 等）
-// 对应原始驱动 sub_14000E390
+// 对应原始驱动 sub_140070C5C（93 字节）
 char CallbackType4Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
 {
     char Result = 0;
@@ -2226,7 +2226,7 @@ char CallbackType4Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
 }
 
 // CallbackType5Dispatcher — 回调类型5 分派器（ExFreeCallBack 等）
-// 对应原始驱动 sub_14000E410
+// 对应原始驱动 sub_140070CBC（93 字节）
 char CallbackType5Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
 {
     char Result = 0;
@@ -2253,7 +2253,7 @@ char CallbackType5Dispatcher(char **TargetObject, unsigned __int64 ContextValue,
 // ===== Stub 函数 =====
 // CheckBootSectorAndMbr — 检查引导扇区和 MBR
 // 委托给 SystemInfo.c 中的 CheckBootSectorAndMbrReal 实现
-// 对应原始驱动 sub_140039A20
+// 对应原始驱动 sub_14007C1BC（1515 字节）
 char CheckBootSectorAndMbr(__int64 Buffer, unsigned int Size)
 {
     if (!Buffer || !Size)
@@ -2263,7 +2263,7 @@ char CheckBootSectorAndMbr(__int64 Buffer, unsigned int Size)
 
 // CheckBootSectorErrors — 检查引导扇区错误
 // 委托给 SystemInfo.c 中的 CheckBootSectorErrorsReal 实现
-// 对应原始驱动 sub_140039B30
+// 对应原始驱动 sub_14007BC90（1322 字节）
 char CheckBootSectorErrors(__int64 Buffer, unsigned int Size)
 {
     if (!Buffer || !Size)

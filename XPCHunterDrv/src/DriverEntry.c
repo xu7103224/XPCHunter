@@ -903,7 +903,7 @@ void ValidateObjReferences(__int64 Object1, __int64 Object2)
 }
 
 // InitKernelMemoryContext — 初始化内核内存上下文
-// 对应原始驱动 sub_14006EAF0
+// 对应原始驱动 sub_14006BF2C（768 字节）
 // 注意：此函数实际为 ReadObjectTypeOffset 的别名
 __int64 InitKernelMemoryContext(void)
 {

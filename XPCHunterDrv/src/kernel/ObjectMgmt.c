@@ -603,7 +603,7 @@ char ObjectPreCallback(__int64 CallbackContext, unsigned int CallbackArg)
 }
 
 // QueryObjectNameInfo — 查询对象名称信息
-// 对应原始驱动 sub_14008434C
+// 对应原始驱动 sub_140084344（723 字节）
 // 通过对象头部获取名称信息，比较对象名称与目标名称
 char QueryObjectNameInfo(ULONG64 ObjectAddress, WORD *TargetName, ULONG NameLength, _QWORD *OutBuffer, _DWORD *OutSize)
 {

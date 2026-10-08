@@ -36,8 +36,11 @@ char ReadModuleFileToBuffer(const char *ModuleName, void **ppBuffer, unsigned in
 char ValidateEnumerationResult(__int64 pCheckFlagFunc, __int64 CurrentAddr, __int64 Offset);
 __int64 FindPESectionByOffset(unsigned int SectionOffset);
 
-// LookupModuleByName — 按名称查找模块
-// 对应原始驱动 sub_14000C2F8
+// ParseNtSectionsForModuleList1 — 解析模块链表的 NT 节区（填充 PE 节偏移/地址对）
+// 对应原始驱动 sub_1400455E4（447 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x14000C2F8 且名字写 LookupModuleByName ——
+//   两者都属于**另一个函数**（LookupModuleByName 在 IDA 中的地址是 0x14000C2F8）；
+//   本函数真实地址 0x1400455E4、真实名 ParseNtSectionsForModuleList1（均来自 IDA 函数表）。
 __int64 ParseNtSectionsForModuleList1(void)
 {
     __int64 KernelBase = GtRead(0x20);

@@ -1977,7 +1977,7 @@ void RestoreDiskIrpFunctionPointer(char State)
 }
 
 // 9. OpenDriveDeviceObject — 打开驱动器设备对象
-// 对应原始驱动 sub_14002DDA4
+// 对应原始驱动 sub_14002DD78（501 字节）
 // 构造 \DosDevices\X:\ 路径，通过 IoCreateFile 打开卷设备，获取文件对象，再通过 GetDeviceObjectFromFileObject 获取设备对象
 bool OpenDriveDeviceObject(WCHAR *DriveLetter, _QWORD *pDeviceObject, _QWORD *pFileDevice)
 {
@@ -2031,7 +2031,7 @@ bool OpenDriveDeviceObject(WCHAR *DriveLetter, _QWORD *pDeviceObject, _QWORD *pF
 }
 
 // 10. CreateFileObject — 创建文件对象
-// 对应原始驱动 sub_14002E01C
+// 对应原始驱动 sub_14002DFE4（1041 字节）
 // 创建文件对象，设置文件名、设备对象，并发送 IRP_MJ_CREATE 打开文件
 __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int FileAttributes,
     USHORT ShareAccess, int Disposition, int CreateOptions,
@@ -2187,7 +2187,7 @@ LABEL_15:
 }
 
 // 11. QueryDiskFsControlInfo — 查询磁盘 FS 控制信息
-// 对应原始驱动 sub_14005967C
+// 对应原始驱动 sub_140059658（789 字节）
 // 打开文件路径，通过 NtFsControlFile 获取磁盘分区信息，然后打开物理磁盘获取扩展信息，计算分区偏移，最后读取引导扇区数据
 __int64 QueryDiskFsControlInfo(__int16 *FilePath, __int64 Size, char **OutBuffer, __int64 *OutBufferSize)
 {
@@ -2330,7 +2330,7 @@ LABEL_29:
 }
 
 // 12. CmdQueryFileStandardInfo — 查询文件标准信息
-// 对应原始驱动 sub_14002EED8
+// 对应原始驱动 sub_14002EECC（75 字节）
 // 通过 IrpReadFile 查询文件标准信息（0x18 字节，类型 5），返回标准信息到输出参数
 __int64 CmdQueryFileStandardInfo(void *FileHandle, _QWORD *pStandardInfo)
 {
@@ -3490,6 +3490,8 @@ bool __fastcall SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING Uni
 // ===== Functions moved from MissingFuncs.c =====
 
 // CheckMbrBootablePartition — 检查 MBR 可引导分区
+// 对应原始驱动 sub_14007B824（45 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x14003BF64（那是 EnumerateDriverList 的地址），已更正。
 char CheckMbrBootablePartition(void *Buffer)
 {
     int Index;

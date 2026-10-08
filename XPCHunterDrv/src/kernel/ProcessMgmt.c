@@ -1115,7 +1115,7 @@ char BuildExportServiceTableForProcess(
 }
 
 // CopyValidServiceEntries — 复制有效服务条目
-// 对应原始驱动 sub_14000680C
+// 对应原始驱动 sub_140006800（170 字节）
 // 从全局表缓冲区中筛选出有效条目，写入目标结构
 char CopyValidServiceEntries(__int64 OutputBuffer, char Is64Bit)
 {
@@ -1230,7 +1230,7 @@ char ParseNtImageSectionHeadersForProcess(PRKPROCESS PROCESS, __int64 SectionInf
 }
 
 // ResolveWin32kServiceTable — 解析 win32k 服务表
-// 对应原始驱动 sub_140006608
+// 对应原始驱动 sub_1400065F0（241 字节）
 // 读取 user32.dll，查找 UserClientDllInitialize 导出函数，解析服务表大小并构建服务编号表
 void ResolveWin32kServiceTable(char IsWow64Process)
 {
@@ -1270,7 +1270,7 @@ void ResolveWin32kServiceTable(char IsWow64Process)
 }
 
 // WriteProcessMemoryBuffer — 写入进程内存缓冲区
-// 对应原始驱动 sub_1400071AC
+// 对应原始驱动 sub_140007188（262 字节）
 char WriteProcessMemoryBuffer(_QWORD *InputParams)
 {
     char Result;
@@ -1300,7 +1300,7 @@ char WriteProcessMemoryBuffer(_QWORD *InputParams)
 }
 
 // GetProcessImagePathByAttach — 通过附加(Attach)方式获取进程镜像路径
-// 对应原始驱动 sub_14004A3E0
+// 对应原始驱动 sub_14004A3D4（538 字节）
 // 附加到目标进程后获取其镜像路径
 char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **pImagePathBuffer, _DWORD *pImagePathSize)
 {
@@ -1384,7 +1384,7 @@ char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **pI
 }
 
 // ParseFilePathForSystemRoot — 解析文件路径中的系统根目录
-// 对应原始驱动 sub_14004B9A0
+// 对应原始驱动 sub_14004B990（366 字节）
 // 将 \SystemRoot\ 等系统路径前缀替换为实际系统根目录路径，\??\ 前缀则跳过前 4 字符
 char ParseFilePathForSystemRoot(__int16 **pPathString, _DWORD *pPathLength)
 {
@@ -1493,7 +1493,7 @@ char QueryObjectNameByAddress(unsigned __int64 ObjectAddress, _QWORD *pNameBuffe
 }
 
 // GetSectionObjectNameFromHandle — 从句柄获取节区对象名称
-// 对应原始驱动 sub_1400793F0
+// 对应原始驱动 sub_1400793E0（192 字节）
 // 附加到进程并通过句柄查询Section对象名称
 char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *pNameBuffer, _DWORD *pNameLength)
 {
@@ -1519,7 +1519,7 @@ char GetSectionObjectNameFromHandle(PRKPROCESS PROCESS, HANDLE Handle, _QWORD *p
 }
 
 // QueryDevicePathFromSymbolicLink — 从符号链接查询设备路径
-// 对应原始驱动 sub_140079970
+// 对应原始驱动 sub_140079958（554 字节）
 // 通过符号链接查询设备路径
 char QueryDevicePathFromSymbolicLink(__int64 SymLink, void **pPathBuffer, _DWORD *pPathLength)
 {
@@ -1622,7 +1622,7 @@ LABEL_19:
 }
 
 // IsProcessThreadInList — 检查进程或线程是否已在输出列表中
-// 对应原始驱动 sub_14004F2A0
+// 对应原始驱动 sub_14004F284（186 字节）
 // 遍历已填充的条目，按对象地址比较，防止重复枚举
 char IsProcessThreadInList(__int64 Process, __int64 Thread, __int64 ListHead, char CheckFlag)
 {
@@ -2322,7 +2322,7 @@ ULONG64 FindModuleInLoaderList(_QWORD **ModuleListHead, unsigned int EntryOffset
 // 真正的 ParseNtRelocationTable 位于 sub_1400068AC，已由 ParseNtRelocationTableEx 实现。
 
 // FindWin32kServiceTableByPattern — 通过模式扫描查找 Win32k 服务表
-// 对应原始驱动 sub_14002B980
+// 对应原始驱动 sub_140007840（212 字节）
 // 扫描 win32k 基址空间，查找服务表特征模式
 // 匹配模式: 48 8D ?? ?? ?? ?? 48 89 ?? 58 (lea reg, [rip+offset]; mov [rax+xx], rbx)
 // 验证匹配地址处的 10 个 QWORD 指针是否全部在镜像范围内
@@ -2461,7 +2461,7 @@ ULONG64 FindUser32ModuleInList(unsigned int *ModuleListHead, unsigned int EntryO
 }
 
 // ScanWin32kSectionForServiceTable — 扫描 Win32k 驱动节区查找服务表
-// 对应原始驱动 sub_140025130
+// 对应原始驱动 sub_1400075E4（604 字节）
 // 扫描 win32k 驱动 PE 节区，查找服务表入口
 // 遍历 PE 节表，匹配特定节特征（0x559/0x512/0x50E/0x558），返回服务表偏移
 // 反编译失败，从汇编分析实现

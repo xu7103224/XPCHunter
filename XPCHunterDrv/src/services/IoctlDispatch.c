@@ -1934,7 +1934,9 @@ __int64 CmdDiskSectorReadWrite(__int64 InputBuffer, __int64 InputSize, _DWORD *p
 }
 
 // CmdEnumObjectTypes — 枚举对象类型命令处理
-// 对应原始驱动 sub_14007EDC8
+// 对应原始驱动 sub_140088A60（275 字节）
+// 【⚠ 更正 2026-10-08】原注释写 0x14007EDC8（那是 CmdEnumObjectTypeInfo 的地址），
+//   已按 IDA 函数表更正为本函数真实地址。
 __int64 CmdEnumObjectTypes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
     return ((PCOMMAND_HANDLER)EnumObjectTypeInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
