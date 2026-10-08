@@ -697,7 +697,7 @@ __int64 InitSdstServiceCount(void);
 char InitSdstTable(void);
 char InitShutdownCallback(__int64 InputBuffer, ULONG64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
 __int64 InitSyscallNumberTable(void);
-char InitThreadCallback(void);
+char InitThreadCallback(__int64 InputBuffer, unsigned __int64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
 void InitThreadContextTable(void);
 __int64 InitThreadNotify(void);
 void InitUSBPortSyscallTable(void);

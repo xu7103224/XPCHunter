@@ -93,11 +93,30 @@ char DisableThreadProtect(unsigned int *Address, int ContextSize)
     return 0;
 }
 
-// InitThreadCallback — 初始化线程回调
-// 对应原始驱动 sub_140010A0C
-char InitThreadCallback(void)
+// InitThreadCallback — 线程回调（补全空壳）
+// 对应原始驱动 0x140010A0C（28 字节）
+// 【⚠ 修正记录 2026-10-08】原为无参 `return 1;` 空壳，与实物不符：
+//   原始是 **4 形参**的 TLV 回调，做实际的标志设置与字节复制。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（18 行伪代码），按伪代码实现。
+// 【参数】InputBuffer / BufferSize / OutputFlags / OutputBuffer
+// 【逻辑】若 InputBuffer+1 >= BufferSize（越界）→ 置 *OutputFlags |= 2；
+//   否则 OutputFlags[1] = 1，并把 InputBuffer 偏移 1 处的字节
+//   复制到 OutputBuffer 偏移 6 处，返回该字节。
+char InitThreadCallback(__int64 InputBuffer, unsigned __int64 BufferSize,
+                        _DWORD *OutputFlags, __int64 OutputBuffer)
 {
-    return 1;
+    char *BufferPos = (char *)(InputBuffer + 1);
+    char Result;
+
+    if ((unsigned __int64)BufferPos >= BufferSize)
+    {
+        *OutputFlags |= 2u;
+        return 0;
+    }
+    OutputFlags[1] = 1;
+    Result = *BufferPos;
+    *(_BYTE *)(OutputBuffer + 6) = *BufferPos;
+    return Result;
 }
 
 // ThreadCallbackRoutine — 线程回调例程
