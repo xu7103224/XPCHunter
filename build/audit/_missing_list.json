@@ -1,0 +1,252 @@
+[
+ {
+  "addr": 5368783900,
+  "name": "OpenMiniFilterVolumeFile",
+  "size": 515
+ },
+ {
+  "addr": 5368784416,
+  "name": "EnumMiniFilterContextList",
+  "size": 938
+ },
+ {
+  "addr": 5368812600,
+  "name": "CheckCommPortFilePathExists",
+  "size": 362
+ },
+ {
+  "addr": 5368813176,
+  "name": "OpenFileQueryInfo",
+  "size": 265
+ },
+ {
+  "addr": 5368813500,
+  "name": "QueryAllocFilePath",
+  "size": 220
+ },
+ {
+  "addr": 5368946012,
+  "name": "ParseRsdsDebugInfo",
+  "size": 491
+ },
+ {
+  "addr": 5369020012,
+  "name": "EnumerateFileMappingSection",
+  "size": 617
+ },
+ {
+  "addr": 5369038708,
+  "name": "ParseStorPortExportSections",
+  "size": 842
+ },
+ {
+  "addr": 5369058832,
+  "name": "ParseUSBPortSyscallStubs",
+  "size": 590
+ },
+ {
+  "addr": 5369064400,
+  "name": "ParseNtDebugSection",
+  "size": 1089
+ },
+ {
+  "addr": 5369135712,
+  "name": "FindKfdDeleteCalloutEntryExport",
+  "size": 202
+ },
+ {
+  "addr": 5369135916,
+  "name": "FindKfdDeregisterLayerCallbackExport",
+  "size": 300
+ },
+ {
+  "addr": 5369136216,
+  "name": "FindKfdGetOffloadEpochExport",
+  "size": 194
+ },
+ {
+  "addr": 5369136412,
+  "name": "FindKfdGetRefCalloutExport",
+  "size": 187
+ },
+ {
+  "addr": 5369136600,
+  "name": "FindKfdRegisterLayerCallbackExport",
+  "size": 292
+ },
+ {
+  "addr": 5369136892,
+  "name": "FindKfdUnregisterCalloutEntryExport",
+  "size": 210
+ },
+ {
+  "addr": 5369137104,
+  "name": "ScanKfdDriverSections",
+  "size": 550
+ },
+ {
+  "addr": 5369137656,
+  "name": "FindNmrRegisterProviderExport",
+  "size": 194
+ },
+ {
+  "addr": 5369137852,
+  "name": "ScanKernelMemoryDataSection",
+  "size": 912
+ },
+ {
+  "addr": 5369138764,
+  "name": "FindNsiDeregisterChangeNotificationEx",
+  "size": 224
+ },
+ {
+  "addr": 5369138988,
+  "name": "FindNsiDeregisterLegacyHandler",
+  "size": 210
+ },
+ {
+  "addr": 5369139200,
+  "name": "FindNsiGetModuleHandle",
+  "size": 194
+ },
+ {
+  "addr": 5369139396,
+  "name": "ScanNsiDeregisterDataSection",
+  "size": 369
+ },
+ {
+  "addr": 5369139768,
+  "name": "ScanNsiGetModuleDataSection",
+  "size": 715
+ },
+ {
+  "addr": 5369140484,
+  "name": "ScanKernelDataPartitionSection",
+  "size": 443
+ },
+ {
+  "addr": 5369140928,
+  "name": "FindSetWfpDeviceObject",
+  "size": 194
+ },
+ {
+  "addr": 5369141124,
+  "name": "ScanWfpDeviceObjectSection",
+  "size": 319
+ },
+ {
+  "addr": 5369141444,
+  "name": "FindWfpNblInfoDispatchTableClear",
+  "size": 211
+ },
+ {
+  "addr": 5369141656,
+  "name": "FindWfpStartMacShimExport",
+  "size": 183
+ },
+ {
+  "addr": 5369141840,
+  "name": "ScanWfpMacShimSections",
+  "size": 379
+ },
+ {
+  "addr": 5369142220,
+  "name": "FindWfpStartStreamShimExport",
+  "size": 194
+ },
+ {
+  "addr": 5369142416,
+  "name": "FindWfpStopStreamShimExport",
+  "size": 194
+ },
+ {
+  "addr": 5369142612,
+  "name": "ScanKfdDriverSectionV2",
+  "size": 982
+ },
+ {
+  "addr": 5369143596,
+  "name": "ScanKfdDriverSectionV3",
+  "size": 986
+ },
+ {
+  "addr": 5369144584,
+  "name": "ScanWfpStreamShimSections",
+  "size": 652
+ },
+ {
+  "addr": 5369145236,
+  "name": "ScanWfpNblInfoSections",
+  "size": 468
+ },
+ {
+  "addr": 5369170372,
+  "name": "ReadWriteCallbackPhysicalMemory",
+  "size": 374
+ },
+ {
+  "addr": 5369208904,
+  "name": "ScanPESectionPatternsEx",
+  "size": 600
+ },
+ {
+  "addr": 5369209564,
+  "name": "ValidatePeHeaderSignature",
+  "size": 74
+ },
+ {
+  "addr": 5369268476,
+  "name": "FindWin32kSectionByType",
+  "size": 356
+ },
+ {
+  "addr": 5369269108,
+  "name": "ScanProcessVadTree",
+  "size": 1834
+ },
+ {
+  "addr": 5369270944,
+  "name": "EnumProcessObjectTypes",
+  "size": 1346
+ },
+ {
+  "addr": 5369272292,
+  "name": "ScanProcessVadMemory",
+  "size": 2707
+ },
+ {
+  "addr": 5369275000,
+  "name": "ScanProcessVadForObjectTypes",
+  "size": 383
+ },
+ {
+  "addr": 5369275384,
+  "name": "DispatchEnumObjectTypes",
+  "size": 189
+ },
+ {
+  "addr": 5369277368,
+  "name": "ClassifyDataTypeV1",
+  "size": 321
+ },
+ {
+  "addr": 5369277692,
+  "name": "ClassifyDataTypeV2",
+  "size": 325
+ },
+ {
+  "addr": 5369284910,
+  "name": "__C_specific_handler",
+  "size": 6
+ },
+ {
+  "addr": 5369284994,
+  "name": "wcsrchr",
+  "size": 6
+ },
+ {
+  "addr": 5369285000,
+  "name": "_guard_check_icall_nop",
+  "size": 3
+ }
+]
