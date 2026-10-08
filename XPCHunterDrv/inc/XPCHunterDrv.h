@@ -806,7 +806,7 @@ __int64 MiniFilterPreShutdown(_QWORD *ServicePtr, int InputSize);
 __int64 MiniFilterPreVolumeDismount(PFLT_CALLBACK_DATA CallbackData, __int64 VolumeContext);
 __int64 MiniFilterPreVolumeMount(char *InputBuffer, int BufferSize);
 __int64 FindKernelDataSectionForDeviceIoControl2(void);
-NTSTATUS CmdPatchPeHeaderOnFlag(void);
+__int64 *MiniFilterQueryIdleRoutine(__int64 a1, __int64 a2, _DWORD *a3);
 bool CmdForEachCpuClearGdtBit(void *Address, int ContextSize);
 char CmdCollectGdtrEntries(int ProcessorNumber, unsigned int **ContextBuffer);
 char MiniFilterServerContext(void);

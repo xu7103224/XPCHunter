@@ -3103,13 +3103,28 @@ __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _D
     return Result;
 }
 
-// CmdPatchPeHeaderOnFlag — 查询空闲例程
-// 检查文件是否处于空闲状态（无活跃句柄），返回 STATUS_SUCCESS
-// 对应原始驱动 0x14001A210
-NTSTATUS CmdPatchPeHeaderOnFlag(void)
+// MiniFilterQueryIdleRoutine — 空闲查询例程（补全空壳）
+// 对应原始驱动 0x14001A210（48 字节）
+// 【⚠ 修正记录 2026-10-08】原名 `CmdPatchPeHeaderOnFlag`、注释称"检查文件是否
+//   处于空闲状态，需要 FltIsFileInUse" —— **名字与描述均与实物不符**。
+//   原始 IDA 名是 `MiniFilterQueryIdleRoutine`，实际功能是
+//   "取互斥量 → 若标志位 0x100 置位且 IRQL < 2 则 PatchPeHeaderMagic"。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（6 行伪代码），按伪代码实现。
+// 【参数】3 个（回调注册的上下文/缓冲/标志）
+// 【逻辑】AcquireMiniFilterMutexEx() 取互斥；
+//   若 (*a3 & 0x100) 且 KeGetCurrentIrql() < 2（PASSIVE_LEVEL 或 APC_LEVEL）
+//   → PatchPeHeaderMagic((__int64)a3)；
+//   返回 AcquireMiniFilterMutex() 的结果（释放互斥并返回其返回值）。
+__int64 *MiniFilterQueryIdleRoutine(__int64 a1, __int64 a2, _DWORD *a3)
 {
-    // 需要 FltIsFileInUse 检查文件是否被使用
-    return STATUS_SUCCESS;
+    AcquireMiniFilterMutexEx();
+    if ((*a3 & 0x100) != 0 && KeGetCurrentIrql() < 2u)
+        PatchPeHeaderMagic((__int64)a3);
+    AcquireMiniFilterMutex();
+    // 原始反汇编的尾调用是 `return AcquireMiniFilterMutex();`，但复刻中该函数
+    // 的返回类型是 void（见头文件），故此处调用后返回 0 —— 功能等价（调用方
+    // RegisterCallbackFunc 不使用该返回值）。差异已记录。
+    return 0;
 }
 
 // RegisterFilterUnloadCallback — 通知例程扩展
@@ -3134,7 +3149,7 @@ char MiniFilterActiveRoutine(void)
     RegisterCallbackFunc = (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, _DWORD *)))GtRead(GtNtDuplicateObjectPeSectionOffset | GtEprocessField42);
     if (RegisterCallbackFunc)
     {
-        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, _DWORD *))CmdPatchPeHeaderOnFlag);
+        RegisterCallbackFunc((__int64 *(__fastcall *)(__int64, __int64, _DWORD *))MiniFilterQueryIdleRoutine);
         GtWrite(GtMiniFilterNotifyRoutineReady, 0);
         return 1;
     }

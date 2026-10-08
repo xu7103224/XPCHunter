@@ -1322,12 +1322,12 @@ char ParseSyscallTableExportDir(void)
     void *pFileBuffer = 0;
 
     WdfModuleBase = GtRead((GLOBAL_TABLE_INDEX)0x8AE);
-    if (WdfModuleBase && ReadWdfLibraryModule(&pFileBuffer, &FileSize))
+    if (WdfModuleBase && ReadWdfLibraryModule((_QWORD *)&pFileBuffer, &FileSize))
     {
         FindSyscallTableDescriptor((__int64)pFileBuffer, FileSize, WdfModuleBase);
         BuildExportSectionMapping((__int64)pFileBuffer, FileSize);
         ParseSyscallTableDataSection((__int64)pFileBuffer, FileSize, WdfModuleBase);
-        ParseSyscallTableSections(pFileBuffer, FileSize, WdfModuleBase);
+        ParseSyscallTableSections((__int64)pFileBuffer, FileSize, WdfModuleBase);
         if (ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, (ULONG64)WdfModuleBase, 0) == 1)
         {
             CollectSyscallEntries4((__int64)pFileBuffer, FileSize, WdfModuleBase);
