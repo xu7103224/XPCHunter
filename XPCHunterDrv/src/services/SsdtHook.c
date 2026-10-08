@@ -1251,9 +1251,55 @@ char InitShadowSyscallExportTable(void)
     }
     return 1;
 }
+// InitWin32kSyscallTable — 初始化 Win32k 系统调用表（补全空壳）
+// 对应原始驱动 0x140053F04（231 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `GtWrite(就绪位,1); return 1;` 空壳 —— 静默失败型。
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（44 行伪代码），按伪代码实现。
+// 【逻辑】GtAlloc(GT 0x1A54) 取表 → GtRead(GT 0x322) 取 win32k 节基址；
+//   ReadWin32kDriverFile 读 win32k 驱动文件；
+//   ParseWin32kSyscallStubs 填表 → ParseNtExportDir 修正重定位；
+//   循环 28 项填 {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}；
+//   成功置就绪位(GT 0x324) 并 FillExportEntrySlot。
 char InitWin32kSyscallTable(void)
 {
-    GtWrite(GtCallbackField83, 1);
+    char Result = 0;
+    __int64 *pSyscallTable;
+    __int64 SectionBase;
+    unsigned int *pExportEntry;
+    __int64 EntryCount;
+    __int64 FuncRva;
+    unsigned int FileSize = 0;
+    char *pFileBuffer = 0;
+
+    pSyscallTable = GtAlloc((GLOBAL_TABLE_INDEX)0x1A54);
+    SectionBase = GtRead(GtCallbackField81);
+    if (SectionBase && ReadWin32kDriverFile((_QWORD *)&pFileBuffer, &FileSize))
+    {
+        if (ParseWin32kSyscallStubs((__int64)pFileBuffer, FileSize, (__int64)pSyscallTable) == 1
+            && ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, (ULONG64)SectionBase, 0) == 1)
+        {
+            pExportEntry = (unsigned int *)pSyscallTable + 1;
+            EntryCount = 28;
+            do
+            {
+                FuncRva = *pExportEntry;
+                *(pExportEntry - 1) = 0;
+                if ((_DWORD)FuncRva && (int)FuncRva + 16 <= (int)FileSize)
+                {
+                    *(pExportEntry - 1) = 1;
+                    *(_OWORD *)(pExportEntry + 3) = *(_OWORD *)&pFileBuffer[FuncRva];
+                }
+                pExportEntry += 12;
+                --EntryCount;
+            }
+            while (EntryCount);
+            Result = 1;
+            GtWrite(GtCallbackField83, 1);
+        }
+        ExFree(pFileBuffer);
+        if (Result == 1)
+            FillExportEntrySlot((__int64)pSyscallTable);
+    }
     return 1;
 }
 char ParseSyscallTableExportDir(void)
@@ -5617,4 +5663,148 @@ char __fastcall ParseShadowSyscallExportSections(__int64 pFileBuffer, unsigned i
         }
     }
     return Result;
+}
+
+// =========================================================================
+// ParseWin32kSyscallStubs — 解析 win32k.sys 的系统调用桩
+// 对应原始驱动 0x140053B2C（819 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（130 行伪代码），按伪代码实现。
+// 【与 ParseSyscallFileExportSections 同构，差异两处】
+//   1) SectionBase 取自 GtRead(GtCallbackField81)（不是 GtCallbackField70）；
+//   2) 段2 的上限是 0xC8（非 0x3E8），槽早退上限同为 0x28。
+// 【参数】FileBuffer / FileSize / pOutputTable（0x30 字节/项）
+// 【描述符字段】同权威映射：
+//   +0x38 段1 RVA / +0x40 1294 槽偏移 / +0x50 ==64 / +0x58 Dst 写索引
+//   +0x78 1298 RVA / +0x88 Flags / +0x90 Dst 读索引 / +0xDC ExtraFlags
+//   +0xF0 指令长度 / +0x118 类型指针
+// =========================================================================
+char __fastcall ParseWin32kSyscallStubs(__int64 FileBuffer, unsigned int FileSize, __int64 pOutputTable)
+{
+    __int64 PeHeaderOffset;
+    char Result = 0;
+    __int64 SectionDataRva;
+    char FoundSectionEnd;
+    int SectionIndex;
+    char HasReset;
+    int ResetCount;
+    char HasValidEntry = 0;
+    __int64 SectionBase;
+    PE_DECODE_CONTEXT Context;
+    __int64 Accumulated = 0;
+    _DWORD SectionEntry[112];
+    _DWORD Dst[16];
+
+    PeHeaderOffset = *(int *)(FileBuffer + 60);
+    SectionBase = GtRead(GtCallbackField81);
+    if (!SectionBase)
+        return Result;
+
+    SectionDataRva = *(unsigned int *)(PeHeaderOffset + FileBuffer + 40);
+    if ((unsigned int)SectionDataRva >= FileSize || (int)SectionDataRva + 4096 >= (int)FileSize)
+        return Result;
+
+    // ---- 段 1：定位目标节（上限 0x14）----
+    FoundSectionEnd = 0;
+    InitPESectionReadContext(FileBuffer + SectionDataRva, 4096, 2, 0, -1, 0, 0, (__int64)&Context);
+    SectionIndex = 0;
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
+    {
+        ULONG SectionOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
+        Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
+        __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        ULONG TargetRva;
+
+        if (SectionType == 1369)
+        {
+            TargetRva = SectionOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)FileBuffer;
+            if (TargetRva && TargetRva < FileSize)
+            {
+                SectionDataRva = TargetRva;
+                break;
+            }
+        }
+        else if (SectionType == 1296 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                 *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            FoundSectionEnd = 1;
+        }
+        else if (SectionType == 1368)
+        {
+            if (FoundSectionEnd == 1)
+            {
+                TargetRva = SectionOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)FileBuffer;
+                if (TargetRva && TargetRva < FileSize)
+                {
+                    SectionDataRva = TargetRva;
+                    break;
+                }
+            }
+            FoundSectionEnd = 0;
+        }
+        if ((unsigned int)++SectionIndex >= 0x14)
+            break;
+    }
+
+    if ((unsigned int)SectionDataRva >= FileSize || (int)SectionDataRva + 4096 >= (int)FileSize)
+        return Result;
+
+    // ---- 段 2：填表（上限 0xC8；首次命中后槽计数超 0x28 早退）----
+    InitPESectionReadContext(FileBuffer + (unsigned int)SectionDataRva, 4096, 2, 0, -1, 0, 0, (__int64)&Context);
+    memset(Dst, 0, sizeof(Dst));
+    HasReset = 0;
+    ResetCount = 0;
+
+    for (ULONG LoopIndex = 0; LoopIndex < 0xC8; LoopIndex++)
+    {
+        ULONG EntryOffset;
+        ULONG SectionFlags;
+        __int16 EntryType;
+
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
+            break;
+
+        EntryOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
+        Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
+        if (HasReset == 1 && (unsigned int)++ResetCount > 0x28)
+            break;
+
+        SectionFlags = *(ULONG *)((char *)SectionEntry + 0x50);
+        EntryType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (EntryType == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+        {
+            ULONG RvaField = *(ULONG *)((char *)SectionEntry + 0x78);
+            if (RvaField && *(ULONG *)((char *)SectionEntry + 0x50) == 64)
+            {
+                ULONG FuncRva = EntryOffset + RvaField - (ULONG)FileBuffer;
+                if (FuncRva && FuncRva < FileSize)
+                    Dst[*(ULONG *)((char *)SectionEntry + 0x58)] = FuncRva;
+            }
+        }
+        if (EntryType == 1139)
+            memset(Dst, 0, sizeof(Dst));
+
+        if (EntryType == 1294 &&
+            (SectionFlags & 0x14000) && (SectionFlags & 0x40) &&
+            (*(ULONG *)((char *)SectionEntry + 0xDC) & 0xF) != 4 &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 64 &&
+            (*(ULONG *)((char *)SectionEntry + 0x40) - 112) <= 0xD8 &&
+            (*(ULONG *)((char *)SectionEntry + 0x40) & 7) == 0)
+        {
+            ULONG ServiceIndex = (*(ULONG *)((char *)SectionEntry + 0x40) - 112) >> 3;
+            if (ServiceIndex <= 0x1B)
+            {
+                ULONG StubRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                if (StubRva && !*(_DWORD *)(pOutputTable + 48 * ServiceIndex + 4))
+                {
+                    HasReset = 1;
+                    *(_DWORD *)(pOutputTable + 48 * ServiceIndex + 4) = StubRva;
+                    HasValidEntry = 1;
+                    *(_QWORD *)(pOutputTable + 48 * ServiceIndex + 8) = SectionBase + StubRva;
+                }
+            }
+        }
+    }
+    return HasValidEntry;
 }
