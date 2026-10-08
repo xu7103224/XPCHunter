@@ -2168,3 +2168,379 @@ char ParseCallbackContextSections(
     }
     return Result;
 }
+
+// =========================================================================
+// ParseNtSectionHeaders2 — 解析 NT PE 节区头（磁盘信息版，4 参数）
+// 对应原始驱动 0x1400485F0（1303 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（170 行伪代码），按伪代码实现。
+// 【参数】ImageBase / ImageSize / ExportDataBase（填入 +8 时加的基址）/ OutputTable
+// 【描述符字段（权威映射）】+0x38 段1 RVA / +0x50 ==64 / +0x58 序号 /
+//   +0x78 1298 RVA / +0x88 Flags / +0xDC ExtraFlags / +0xF0 指令长度 /
+//   +0x118 类型指针。特有的是 `VirtualSize`(+0x40) 在本函数里当槽偏移用，
+//   `SectionField1`(+0x51?) 与 `NumberOfSections`(+0x58)、`Characteristics`(+0x78)
+//   的命名来自反编译，按位置逐一对应到权威偏移。
+// 【结构】三段：
+//   1) 上限 0x1E：找 1369/1296/1368 得 ExportDirRva；
+//   2) 按构建号 0x23F0 分两路：
+//      构建号 < 0x23F0（Win7 路径）：找 1285→其后 1296(64,序2,0x40000) 置标志，
+//        再遇 1368 且 +0x50 带 0x4000000 且有 +0x38 → 得 TargetRva；
+//      构建号 >= 0x23F0（Win8+ 路径）：找 1341(+0x50==32, 序1, +0x88==0x800000,
+//        +0x2C?==0xFFFF) 置标志，再遇 1296(64,序1,+0x88==64,标志置位) 后
+//        读下一项，若 1368 且 +0x50 带 0x4000000 且有 RVA → 得 TargetRva
+//        （并再读一项，若非 1368 则采用）；
+//   3) 上限 0x64：从 TargetRva 起扫，1298/+0x88==0x40000 → Dst[序] = RVA；
+//      1294（+0x50 带 0x14000/0x40、+0xDC 低4位!=4、+0x88==64、+0x40 落在 112..0x148
+//      且 8 对齐）→ 以 (槽偏移-112)>>3 为表索引（<=0x1B），
+//      把 Dst[+0x90] 写入 OutputTable[索引*0x30+4] 与 ExportDataBase+Dst 到 +8。
+// 【说明】本函数的 `Label_58` 是三段共用入口，实现中以 goto 忠实还原。
+// =========================================================================
+char __fastcall ParseNtSectionHeaders2(
+        __int64 ImageBase,
+        unsigned int ImageSize,
+        __int64 ExportDataBase,
+        __int64 OutputTable)
+{
+    char Result = 0;
+    ULONG ExportDirRva;
+    char FoundDataSection;
+    int SectionIndex;
+    char FoundTargetSection;
+    int SectionIndex2;
+    ULONG TargetRva = 0;
+    __int64 ExportDataBaseLocal;
+    __int64 SectionContext;
+    __int64 SectionDataRva = 0;
+    _DWORD SectionEntry[112];
+    ULONG LoopIndex;
+    ULONG SectionEntryArray[16];
+
+    ExportDirRva = *(unsigned int *)(*(int *)(ImageBase + 60) + ImageBase + 40);
+    ExportDataBaseLocal = ExportDataBase;
+    if ((unsigned int)ExportDirRva >= ImageSize)
+        return Result;
+    if ((int)ExportDirRva + 4096 >= (int)ImageSize)
+        return Result;
+
+    // ---- 段 1：定位导出目录（上限 0x1E）----
+    FoundDataSection = 0;
+    InitPESectionReadContext(ExportDirRva + ImageBase, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+    SectionIndex = 0;
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+    {
+        ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)SectionDataRva;
+        SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
+        __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        ULONG NewRva;
+
+        if (SectionType == 1369)
+        {
+            NewRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+            if (NewRva && NewRva < ImageSize)
+            {
+                ExportDirRva = NewRva;
+                break;
+            }
+        }
+        else if (SectionType == 1296 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                 *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            FoundDataSection = 1;
+        }
+        else if (SectionType == 1368)
+        {
+            if (FoundDataSection == 1)
+            {
+                NewRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                if (NewRva && NewRva < ImageSize)
+                {
+                    ExportDirRva = NewRva;
+                    break;
+                }
+            }
+            FoundDataSection = 0;
+        }
+        if ((unsigned int)++SectionIndex >= 0x1E)
+            break;
+    }
+
+    if ((unsigned int)ExportDirRva >= ImageSize || (int)ExportDirRva + 4096 >= (int)ImageSize)
+        return Result;
+
+    // ---- 段 2：按构建号分两路定位目标节 ----
+    InitPESectionReadContext(ImageBase + ExportDirRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+    FoundTargetSection = 0;
+    SectionIndex2 = 0;
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
+    {
+        // --- Win7 路径 ---
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+        {
+            ULONG CurrentRva3 = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)SectionDataRva;
+            SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
+            __int16 SectionType2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+            if (SectionType2 == 1285)
+            {
+                if (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+                {
+                    SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
+                    if (*(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1296 &&
+                        *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                        *(_DWORD *)((char *)SectionEntry + 0x58) == 2 &&
+                        *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+                    {
+                        FoundTargetSection = 1;
+                    }
+                }
+            }
+            else if (FoundTargetSection == 1 && SectionType2 == 1368 &&
+                     (*(ULONG64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0 &&
+                     *(ULONG *)((char *)SectionEntry + 0x38))
+            {
+                TargetRva = CurrentRva3 + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                goto L_SCAN_SLOTS;
+            }
+            if ((unsigned int)++SectionIndex2 >= 0x1F4)
+                return Result;
+        }
+    }
+    else
+    {
+        // --- Win8+ 路径 ---
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+        {
+            SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
+            __int16 SectionTypeWin7 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+            if (SectionTypeWin7 == 1341 &&
+                *(__int64 *)((char *)SectionEntry + 0x50) == 32 &&
+                *(_DWORD *)((char *)SectionEntry + 0x58) == 1 &&
+                *(__int64 *)((char *)SectionEntry + 0x88) == 0x800000 &&
+                *(_DWORD *)((char *)SectionEntry + 0x3C) == 0xFFFF)
+            {
+                FoundTargetSection = 1;
+            }
+            else if (SectionTypeWin7 == 1296 &&
+                     *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                     *(_DWORD *)((char *)SectionEntry + 0x58) == 1 &&
+                     *(__int64 *)((char *)SectionEntry + 0x88) == 64 &&
+                     FoundTargetSection == 1 &&
+                     !(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+            {
+                ULONG CurrentRva2 = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)SectionDataRva;
+                SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
+                if (*(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1368 &&
+                    (*(ULONG64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0 &&
+                    *(ULONG *)((char *)SectionEntry + 0x38))
+                {
+                    TargetRva = CurrentRva2 + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)ImageBase;
+                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry) &&
+                        *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) != 1368)
+                    {
+                        goto L_SCAN_SLOTS;
+                    }
+                }
+            }
+            if ((unsigned int)++SectionIndex2 >= 0x1F4)
+                return Result;
+        }
+    }
+    return Result;
+
+L_SCAN_SLOTS:
+    // ---- 段 3：填表（上限 0x64）----
+    if (!(TargetRva && TargetRva < ImageSize && TargetRva + 4096 < ImageSize))
+        return Result;
+
+    InitPESectionReadContext(ImageBase + TargetRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
+    memset(SectionEntryArray, 0, sizeof(SectionEntryArray));
+
+    for (LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
+    {
+        ULONG SectionCharacteristics;
+        ULONG SectionAddr;
+        __int16 SectionType3;
+
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+            break;
+
+        SectionCharacteristics = *(ULONG *)((char *)SectionEntry + 0x50);
+        SectionAddr = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)SectionDataRva;
+        SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
+        SectionType3 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+
+        if (SectionType3 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+        {
+            ULONG RvaField = *(ULONG *)((char *)SectionEntry + 0x78);
+            if (RvaField && *(ULONG *)((char *)SectionEntry + 0x50) == 64)
+            {
+                ULONG ExportRva = SectionAddr + RvaField - (ULONG)ImageBase;
+                if (ExportRva && ExportRva < ImageSize)
+                    SectionEntryArray[*(ULONG *)((char *)SectionEntry + 0x58)] = ExportRva;
+            }
+        }
+
+        if (SectionType3 == 1294 &&
+            (SectionCharacteristics & 0x14000) && (SectionCharacteristics & 0x40) &&
+            (*(ULONG *)((char *)SectionEntry + 0xDC) & 0xF) != 4 &&
+            *(__int64 *)((char *)SectionEntry + 0x88) == 64 &&
+            (*(ULONG *)((char *)SectionEntry + 0x40) - 112) <= 0xD8 &&
+            (*(ULONG *)((char *)SectionEntry + 0x40) & 7) == 0)
+        {
+            ULONG TableIndex = (*(ULONG *)((char *)SectionEntry + 0x40) - 112) >> 3;
+            if (TableIndex <= 0x1B)
+            {
+                ULONG ExportAddr = SectionEntryArray[*(ULONG *)((char *)SectionEntry + 0x90)];
+                if (ExportAddr && !*(_DWORD *)(OutputTable + 48 * TableIndex + 4))
+                {
+                    Result = 1;
+                    *(_DWORD *)(OutputTable + 48 * TableIndex + 4) = ExportAddr;
+                    *(_QWORD *)(OutputTable + 48 * TableIndex + 8) = ExportDataBaseLocal + ExportAddr;
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// =========================================================================
+// ParseExportDirForDiskInfo — 解析磁盘信息导出目录
+// 对应原始驱动 0x140048410（478 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（90 行伪代码），按伪代码实现。
+// 【参数】ImageBase / ImageSize / ExportDataBase（填入 +8 时加的基址）/ OutputTable
+// 【依赖】DecodeUnicodeChar(输入指针, 缓冲末尾, 输出结构体)
+//   ⚠ 第三个参数是 **0x30 字节的结构体**（IDA 栈帧给出的字段布局）：
+//     +0x00 宽字符（6 WORD）  +0x0C 字段大小(FieldSize)
+//     +0x10 字段偏移(FieldOffset)  +0x18 消耗字节数(CharsConsumed)
+//     +0x28 字段类型指针(pFieldType)
+//   本函数通过它逐条解析 NT 节区的"字段流"。
+// 【结构】两段：
+//   1) 上限 0x14：逐字段解码，遇类型 4302 且 (当前指针 + FieldSize) 落在文件内
+//      → 把它作为新的导出目录 RVA；
+//   2) 从该 RVA 起再逐字段解码：
+//      类型 4280 且 FieldOffset > ExportDirSize 且 (FieldOffset-ExportDirSize) < ImageSize
+//        且 FieldSize==52 → 置 FoundEntry；
+//      类型 4267 且同样范围有效 → ExportSize = FieldOffset - ExportDirSize；
+//      已置 FoundEntry 且类型 4280 且 FieldSize==116 → DataSize = FieldOffset - ExportDirSize，
+//        然后填 28 项：**第 15 项用 DataSize，其余用 ExportSize**
+//        （每项 +4=RVA、+8=ExportDataBase+RVA）。
+// =========================================================================
+char __fastcall ParseExportDirForDiskInfo(
+        __int64 ImageBase,
+        unsigned int ImageSize,
+        __int64 ExportDataBase,
+        __int64 OutputTable)
+{
+    __int64 NtHeaderOffset;
+    unsigned int EntryIndex = 0;
+    ULONG ExportDirRva;
+    unsigned int ExportDirSize;
+    unsigned __int8 *CurrentPos;
+    int SectionIndex;
+    unsigned __int64 SectionEnd;
+    unsigned __int8 *CurrentPos2;
+    unsigned int ExportSize = 0;
+    char FoundEntry = 0;
+    unsigned __int64 SectionEnd2;
+    int CurrentType;
+    unsigned int DataSize;
+    _QWORD *OutputEntry;
+    unsigned __int8 FieldBuf[0x30];
+    char Result = 0;
+
+    NtHeaderOffset = *(int *)(ImageBase + 60);
+    ExportDirRva = *(unsigned int *)(NtHeaderOffset + ImageBase + 40);
+    ExportDirSize = *(_DWORD *)(NtHeaderOffset + ImageBase + 48);
+    if ((unsigned int)ExportDirRva >= ImageSize || (int)ExportDirRva + 4096 >= (int)ImageSize)
+        return Result;
+
+    // ---- 段 1：定位导出目录（上限 0x14）----
+    CurrentPos = (unsigned __int8 *)(ImageBase + ExportDirRva);
+    SectionIndex = 0;
+    SectionEnd = ImageBase + ExportDirRva + 4096;
+    while (DecodeUnicodeChar(CurrentPos, SectionEnd, (_WORD *)FieldBuf))
+    {
+        ULONG ExportDirRvaNew;
+        CurrentPos += *(unsigned int *)(FieldBuf + 0x18);          // CharsConsumed
+        if (*(int *)(FieldBuf + 0x28) == 4302)
+        {
+            ExportDirRvaNew = (ULONG)(ULONG_PTR)CurrentPos
+                            + *(int *)(FieldBuf + 0x0C)            // FieldSize
+                            - (ULONG)ImageBase;
+            if (ExportDirRvaNew < ImageSize)
+            {
+                ExportDirRva = ExportDirRvaNew;
+                break;
+            }
+        }
+        if ((unsigned int)++SectionIndex >= 0x14)
+            break;
+    }
+
+    if ((unsigned int)ExportDirRva >= ImageSize || (int)ExportDirRva + 4096 >= (int)ImageSize)
+        return Result;
+
+    // ---- 段 2：填表 ----
+    CurrentPos2 = (unsigned __int8 *)(ImageBase + ExportDirRva);
+    SectionEnd2 = (unsigned __int64)(CurrentPos2 + 4096);
+    if (CurrentPos2 >= CurrentPos2 + 4096)
+        return Result;
+
+    while (DecodeUnicodeChar(CurrentPos2, SectionEnd2, (_WORD *)FieldBuf))
+    {
+        ULONG FieldOffset = *(unsigned int *)(FieldBuf + 0x10);
+        ULONG FieldSize   = *(unsigned int *)(FieldBuf + 0x0C);
+
+        CurrentType = *(int *)(FieldBuf + 0x28);
+
+        if (CurrentType == 4280 &&
+            FieldOffset > ExportDirSize &&
+            ImageSize > (FieldOffset - ExportDirSize) &&
+            FieldSize == 52)
+        {
+            FoundEntry = 1;
+        }
+        if (CurrentType == 4267 &&
+            FieldOffset > ExportDirSize &&
+            ImageSize > (FieldOffset - ExportDirSize))
+        {
+            ExportSize = FieldOffset - ExportDirSize;
+        }
+        if (FoundEntry == 1 && CurrentType == 4280 &&
+            FieldOffset > ExportDirSize &&
+            ImageSize > (FieldOffset - ExportDirSize) &&
+            FieldSize == 116)
+        {
+            DataSize = FieldOffset - ExportDirSize;
+            if (FieldOffset != ExportDirSize && ExportSize)
+            {
+                Result = 1;
+                OutputEntry = (_QWORD *)(OutputTable + 8);
+                do
+                {
+                    if (EntryIndex == 15)
+                    {
+                        *((_DWORD *)OutputEntry - 1) = DataSize;
+                        *OutputEntry = ExportDataBase + DataSize;
+                    }
+                    else
+                    {
+                        *((_DWORD *)OutputEntry - 1) = ExportSize;
+                        *OutputEntry = ExportDataBase + ExportSize;
+                    }
+                    ++EntryIndex;
+                    OutputEntry += 6;
+                }
+                while (EntryIndex <= 0x1B);
+            }
+            return Result;
+        }
+
+        CurrentPos2 += *(unsigned int *)(FieldBuf + 0x18);
+        if ((unsigned __int64)CurrentPos2 >= SectionEnd2)
+            return Result;
+    }
+    return Result;
+}

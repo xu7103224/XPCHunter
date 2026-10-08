@@ -1251,6 +1251,8 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
 char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 pTargetTable);
 char ParseCallbackFunctionSections(__int64 ImageBase, unsigned int ImageSize, __int64 SectionBase, __int64 pTargetTable, __int64 pAlternateTable, char IsVersion2);
 char ParseCallbackContextSections(__int64 ImageBase, unsigned int ImageSize, __int64 SectionBase, __int64 pTargetTable, __int64 pAlternateTable);
+char __fastcall ParseNtSectionHeaders2(__int64 ImageBase, unsigned int ImageSize, __int64 ExportDataBase, __int64 OutputTable);
+char __fastcall ParseExportDirForDiskInfo(__int64 ImageBase, unsigned int ImageSize, __int64 ExportDataBase, __int64 OutputTable);
 char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTable);
 __int64 InitObjectOperationLegacy(void);
 __int64 ResolveSyscallAddressesInProcess(void);

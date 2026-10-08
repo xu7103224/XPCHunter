@@ -1307,10 +1307,83 @@ char ParseSyscallTableExportDir(void)
     GtWrite(GtDisableHookProtectionAddr2 | GtEprocessField157, 1);
     return 1;
 }
+// InitDiskQueryExportTable — 初始化磁盘查询导出表（补全空壳）
+// 对应原始驱动 0x140048B08（439 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `GtWrite(就绪位,1); return 1;` 空壳 —— 静默失败型。
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（80 行伪代码），按伪代码实现。
+// 【逻辑】GtRead(GT 0x192) 取磁盘驱动基址 → GtAlloc(GT 0x1B02) 取导出表；
+//   ReadNtFileDiskInfo 读磁盘驱动文件；
+//   按构建号 0x1770 分两路：
+//     >= 0x1770 → ParseNtSectionHeaders2(fb, size, base, table)（Win8+ 路径）
+//     <  0x1770 → 用 ParsePESectionHeaders 查 ntoskrnl.exe 的 IofCompleteRequest
+//                 写到 GT 0x2B1，再调 ParseExportDirForDiskInfo（Win7 路径）
+//   两条路径均须 ParseNtExportDir 成功，然后循环 28 项填
+//   {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}，并置就绪位(GT 0x191)；
+//   最后（构建号 >= 0x1770 且就绪位已置时）FillExportEntrySlot。
 char InitDiskQueryExportTable(void)
 {
-    GtWrite(GtEprocessField135 | 0x100, 1);
-    return 1;
+    __int64 DiskImageBase;
+    __int64 *ExportTablePtr;
+    __int64 ExportTable;
+    char ParseResult;
+    unsigned int *EntryPtr;
+    __int64 EntryCount;
+    __int64 FuncRva;
+    unsigned int FileSize = 0;
+    char *FileBuffer = 0;
+    unsigned int FuncAddr = 0;
+
+    DiskImageBase = GtRead(GtEprocessField136 | 0x100);
+    ExportTablePtr = GtAlloc((GLOBAL_TABLE_INDEX)0x1B02);
+    ExportTable = (__int64)ExportTablePtr;
+    if (!DiskImageBase || !ExportTablePtr)
+        return 0;
+
+    if (ReadNtFileDiskInfo((void **)&FileBuffer, &FileSize))
+    {
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+        {
+            ParseResult = ParseNtSectionHeaders2((__int64)FileBuffer, FileSize, DiskImageBase, ExportTable);
+        }
+        else
+        {
+            WCHAR ModuleName[16];
+            char FuncName[24];
+            wcscpy(ModuleName, L"ntoskrnl.exe");
+            strcpy(FuncName, "IofCompleteRequest");
+            if (ParsePESectionHeaders((__int64)FileBuffer, FileSize, (__int64)ModuleName,
+                                      (unsigned __int8 *)FuncName, &FuncAddr) == 1)
+                GtWrite((GLOBAL_TABLE_INDEX)0x2B1, DiskImageBase + FuncAddr);
+            ParseResult = ParseExportDirForDiskInfo((__int64)FileBuffer, FileSize, DiskImageBase, ExportTable);
+        }
+        if (ParseResult == 1 &&
+            ParseNtExportDir((PUCHAR)FileBuffer, FileSize, (ULONG64)DiskImageBase, 0) == 1)
+        {
+            EntryPtr = (unsigned int *)(ExportTable + 4);
+            EntryCount = 28;
+            do
+            {
+                FuncRva = *EntryPtr;
+                *(EntryPtr - 1) = 0;
+                if ((_DWORD)FuncRva && (int)FuncRva + 16 <= (int)FileSize)
+                {
+                    *(EntryPtr - 1) = 1;
+                    *(_OWORD *)(EntryPtr + 3) = *(_OWORD *)&FileBuffer[FuncRva];
+                }
+                EntryPtr += 12;
+                --EntryCount;
+            }
+            while (EntryCount);
+            GtWrite((GLOBAL_TABLE_INDEX)0x191, 1);
+        }
+        ExFree(FileBuffer);
+    }
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
+    {
+        if ((unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x191))
+            return (char)FillExportEntrySlot(ExportTable);
+    }
+    return 0;
 }
 char ParsePESectionHeaders(__int64 PeBase, unsigned int PeSize, __int64 SectionName, unsigned __int8 *NameToMatch, unsigned int *OutOffset)
 {
