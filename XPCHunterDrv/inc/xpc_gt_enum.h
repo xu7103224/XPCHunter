@@ -560,7 +560,16 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtEprocessModuleEntryCount = 0x80F,     // 2063: EPROCESS 模块链表条目计数
     GtEprocessModuleListOffset = 0x810,     // 2064: EPROCESS 模块链表偏移(Win32k/非Win32k)
 
-    // ---- Fwps 调度表 (2048-2049) ----
+    // ---- Fwps 调度表 (2040-2049) ----
+    // 【来源】FindFwps* 族（0x14001B520~0x14001B990）的 GtRead/GtWrite 立即数实测。
+    //   0x7F8 = fwpkclnt.sys 模块基址；其余按"RVA / 基址+RVA"成对。
+    GtFwpsModuleBase = 0x7F8,           // 2040: fwpkclnt.sys 模块基址(FindFwps*)
+    GtFwpsTcpIpOffset = 0x7FA,          // 2042: TcpIp 调度表 RVA(FindFwpsTcpIpDispatchTableStr)
+    GtFwpsTcpIpAddress = 0x7FB,         // 2043: TcpIp 调度表地址(FindFwpsTcpIpDispatchTableStr)
+    GtFwpsTcpIpTableAddr = 0x7FC,       // 2044: TcpIp 调度表地址(FindFwpsTcpIpDispatchTable)
+    GtFwpsTcpIpEntryCount = 0x7FD,      // 2045: TcpIp 调度表条目数(FindFwpsTcpIpDispatchTable)
+    GtFwpsL2Offset = 0x7FE,             // 2046: L2 调度表 RVA(FindFwpsL2DispatchTable)
+    GtFwpsL2Address = 0x7FF,            // 2047: L2 调度表地址(FindFwpsL2DispatchTable)
     GtFwpsDispatchTableBase = 0x800,    // 2048: Fwps Win8 调度表基址(FindFwpsDispatchTableWin8)
     GtFwpsDispatchTableCount = 0x801,   // 2049: Fwps Win8 调度表条目数(FindFwpsDispatchTableWin8)
 

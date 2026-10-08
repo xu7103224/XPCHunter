@@ -3255,13 +3255,359 @@ char CmdInitFwpsDispatchTables(__int64 FilterObject, __int64 CallbackData,
     return Result;
 }
 
-// CmdInitFwpsDispatchTables2 — 获取修改写入锁
-// 获取文件修改写入的独占锁，防止并发修改
-// 对应原始驱动 0x14001BD44
-NTSTATUS CmdInitFwpsDispatchTables2(void)
+// =========================================================================
+// FindFwpsTcpIpDispatchTableStr — 按导出名查找 TcpIp 调度表
+// 对应原始驱动 0x14001B600（300 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（28 行伪代码），按伪代码实现。
+// 【逻辑】GtRead(GT 0x7F8) 取 fwpkclnt 模块基址；非 0 时
+//   依次尝试两个导出名 "FwpsTcpIpDispatchTableAndGlobalsSet0" /
+//   "FwpsTcpIpDispatchTableSet0"（前者失败才试后者）；
+//   命中且 RVA 有效（< 模块大小）→
+//   GtWrite(GT 0x7FA, RVA) 与 GtWrite(GT 0x7FB, 基址 + RVA)，返回 1。
+// =========================================================================
+char __fastcall FindFwpsTcpIpDispatchTableStr(__int64 ModuleBase, unsigned int ModuleSize)
 {
-    // 需要 FltAcquireForModifiedWrite 获取锁
-    return STATUS_SUCCESS;
+    char Result = 0;
+    __int64 FwpsBase;
+    unsigned int Value = 0;
+    char FuncName[48];
+
+    FwpsBase = GtRead(GtFwpsModuleBase);
+    if (!FwpsBase)
+        return Result;
+
+    strcpy(FuncName, "FwpsTcpIpDispatchTableAndGlobalsSet0");
+    if (LookupExportByName((PUCHAR)ModuleBase, ModuleSize, FuncName, &Value) == 1 ||
+        (strcpy(FuncName, "FwpsTcpIpDispatchTableSet0"),
+         LookupExportByName((PUCHAR)ModuleBase, ModuleSize, FuncName, &Value) == 1))
+    {
+        if (Value && Value < ModuleSize)
+        {
+            GtWrite(GtFwpsTcpIpOffset, Value);            // GT 0x7FA
+            GtWrite(GtFwpsTcpIpAddress, FwpsBase + Value);  // GT 0x7FB
+            return 1;
+        }
+    }
+    return Result;
+}
+
+// =========================================================================
+// FindFwpsL2DispatchTable — 按导出名查找 L2 调度表
+// 对应原始驱动 0x14001B520（224 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（22 行伪代码），按伪代码实现。
+// 【逻辑】与上者同构，但只尝试一个导出名 "FwpsL2DispatchTableAndGlobalsSet0"，
+//   命中写 GtWrite(GT 0x7FE, RVA) 与 GtWrite(GT 0x7FF, 基址 + RVA)。
+// =========================================================================
+char __fastcall FindFwpsL2DispatchTable(__int64 ModuleBase, unsigned int ModuleSize)
+{
+    char Result = 0;
+    __int64 FwpsBase;
+    unsigned int Value = 0;
+    char FuncName[48];
+
+    FwpsBase = GtRead(GtFwpsModuleBase);
+    if (!FwpsBase)
+        return Result;
+
+    strcpy(FuncName, "FwpsL2DispatchTableAndGlobalsSet0");
+    if (LookupExportByName((PUCHAR)ModuleBase, ModuleSize, FuncName, &Value) == 1 &&
+        Value && Value < ModuleSize)
+    {
+        GtWrite(GtFwpsL2Offset, Value);                 // GT 0x7FE
+        GtWrite(GtFwpsL2Address, FwpsBase + Value);     // GT 0x7FF
+        return 1;
+    }
+    return Result;
+}
+
+// =========================================================================
+// FindFwpsTcpIpDispatchTable — 扫描节区查找 TcpIp 调度表（按构建号两路）
+// 对应原始驱动 0x14001B990（629 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（80 行伪代码），按伪代码实现。
+// 【逻辑】GT 0x7FA 为 TcpIp 调度表 RVA；若为 0 先调
+//   FindFwpsTcpIpDispatchTableStr 补找。随后从该 RVA 起扫节区（上限 0x64）：
+//   ● 构建号 > 0x23F0 路径：遇 1296 且 +0x88==0x40000 且 +0x50!=0 且 +0x70==64
+//     → 算出 RVA；条目数按构建号 < 0x295A 取 42、否则取 44；
+//     写 GT 0x7FC（基址+RVA）与 GT 0x7FD（条目数）。
+//   ● 构建号 <= 0x23F0 路径：先记 1296（+0x88==0x40000、+0x50!=0、+0x70==64、
+//     +0x58==1）的首个匹配为 FirstMatchOffset；再遇 1340（+0x58==1、+0xDC==0）
+//     且 +0x50 >= 8 → 写 GT 0x7FC 与 GT 0x7FD（= +0x50 >> 3）。
+//   两路都遇 1349 提前结束。
+// =========================================================================
+char __fastcall FindFwpsTcpIpDispatchTable(__int64 a1, unsigned int a2)
+{
+    char Result = 0;
+    unsigned int TcpIpExportOffset;
+    __int64 FwpsBase;
+    __int64 CumulativeSize = 0;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
+
+    TcpIpExportOffset = (unsigned int)GtRead(GtFwpsTcpIpOffset);
+    if (!TcpIpExportOffset)
+    {
+        FindFwpsTcpIpDispatchTableStr(a1, a2);
+        TcpIpExportOffset = (unsigned int)GtRead(GtFwpsTcpIpOffset);
+    }
+    FwpsBase = GtRead(GtFwpsModuleBase);
+    if (!FwpsBase || !TcpIpExportOffset || TcpIpExportOffset >= a2)
+        return Result;
+
+    InitPESectionReadContext(a1 + TcpIpExportOffset, a2 - TcpIpExportOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
+    {
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
+        {
+            ULONG MatchSize;
+            __int16 SubType;
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                break;
+            MatchSize = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)CumulativeSize;
+            CumulativeSize += *(ULONG *)((char *)SectionEntry + 0xF0);
+            SubType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+            if (SubType == 1349)
+                break;
+            if (SubType == 1296 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
+                *(ULONG *)((char *)SectionEntry + 0x50) && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+            {
+                ULONG MatchOffset = MatchSize + *(ULONG *)((char *)SectionEntry + 0x50) - (ULONG)a1;
+                if (MatchOffset && MatchOffset < a2)
+                {
+                    unsigned int EntryCount = (unsigned int)GtRead(GtWindowsBuildNumber) < 0x295A ? 42 : 44;
+                    GtWrite(GtFwpsTcpIpTableAddr, FwpsBase + MatchOffset);   // GT 0x7FC
+                    GtWrite(GtFwpsTcpIpEntryCount, EntryCount);              // GT 0x7FD
+                    return 1;
+                }
+            }
+        }
+    }
+    else
+    {
+        unsigned int FirstMatchOffset = 0;
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
+        {
+            ULONG MatchSize;
+            __int16 SubType;
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                break;
+            MatchSize = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)CumulativeSize;
+            CumulativeSize += *(ULONG *)((char *)SectionEntry + 0xF0);
+            SubType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+            if (SubType == 1349)
+                break;
+            if (SubType == 1296)
+            {
+                if (*(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
+                    *(ULONG *)((char *)SectionEntry + 0x50) &&
+                    *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                    *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+                {
+                    ULONG MatchOffset = MatchSize + *(ULONG *)((char *)SectionEntry + 0x50) - (ULONG)a1;
+                    if (MatchOffset && MatchOffset < a2 && !FirstMatchOffset)
+                        FirstMatchOffset = MatchOffset;
+                }
+            }
+            else if (SubType == 1340 && SectionEntry[2] == 1 &&
+                     *(_DWORD *)((char *)SectionEntry + 0xDC) == 0)
+            {
+                ULONG EntrySize = *(ULONG *)((char *)SectionEntry + 0x50);
+                if (EntrySize >= 8)
+                {
+                    GtWrite(GtFwpsTcpIpTableAddr, FwpsBase + FirstMatchOffset);  // GT 0x7FC
+                    GtWrite(GtFwpsTcpIpEntryCount, EntrySize >> 3);              // GT 0x7FD
+                    return 1;
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// =========================================================================
+// FindFwpsDispatchTableWin8 — 扫描节区查找 Win8 Fwps 调度表
+// 对应原始驱动 0x14001B72C（611 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（80 行伪代码），按伪代码实现。
+// 【逻辑】与 FindFwpsTcpIpDispatchTable 同构（同样按构建号 0x23F0 分两路），
+//   差异：入口 RVA 取 GT 0x7FE（L2 调度表，为 0 则先调 FindFwpsL2DispatchTable）；
+//   写入目标是 GT 0x800（基址+RVA）与 GT 0x801（条目数）；
+//   高版本路径的条目数**固定为 12**；低版本路径为 +0x50 >> 3。
+// =========================================================================
+char __fastcall FindFwpsDispatchTableWin8(__int64 a1, unsigned int a2)
+{
+    char Result = 0;
+    unsigned int L2ExportOffset;
+    __int64 FwpsBase;
+    __int64 CumulativeSize = 0;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
+
+    L2ExportOffset = (unsigned int)GtRead(GtFwpsL2Offset);
+    if (!L2ExportOffset)
+    {
+        FindFwpsL2DispatchTable(a1, a2);
+        L2ExportOffset = (unsigned int)GtRead(GtFwpsL2Offset);
+    }
+    FwpsBase = GtRead(GtFwpsModuleBase);
+    if (!FwpsBase || !L2ExportOffset || L2ExportOffset >= a2)
+        return Result;
+
+    InitPESectionReadContext(a1 + L2ExportOffset, a2 - L2ExportOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
+    {
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
+        {
+            ULONG MatchSize;
+            __int16 SubType;
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                break;
+            MatchSize = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)CumulativeSize;
+            CumulativeSize += *(ULONG *)((char *)SectionEntry + 0xF0);
+            SubType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+            if (SubType == 1349)
+                break;
+            if (SubType == 1296 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
+                *(ULONG *)((char *)SectionEntry + 0x50) && *(__int64 *)((char *)SectionEntry + 0x70) == 64)
+            {
+                ULONG MatchOffset = MatchSize + *(ULONG *)((char *)SectionEntry + 0x50) - (ULONG)a1;
+                if (MatchOffset && MatchOffset < a2)
+                {
+                    GtWrite(GtFwpsDispatchTableBase, FwpsBase + MatchOffset);   // GT 0x800
+                    GtWrite(GtFwpsDispatchTableCount, 12);                      // GT 0x801
+                    return 1;
+                }
+            }
+        }
+    }
+    else
+    {
+        unsigned int FirstMatchOffset = 0;
+        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
+        {
+            ULONG MatchSize;
+            __int16 SubType;
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                break;
+            MatchSize = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)CumulativeSize;
+            CumulativeSize += *(ULONG *)((char *)SectionEntry + 0xF0);
+            SubType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+            if (SubType == 1349)
+                break;
+            if (SubType == 1296)
+            {
+                if (*(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
+                    *(ULONG *)((char *)SectionEntry + 0x50) &&
+                    *(__int64 *)((char *)SectionEntry + 0x70) == 64 &&
+                    *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+                {
+                    ULONG MatchOffset = MatchSize + *(ULONG *)((char *)SectionEntry + 0x50) - (ULONG)a1;
+                    if (MatchOffset && MatchOffset < a2 && !FirstMatchOffset)
+                        FirstMatchOffset = MatchOffset;
+                }
+            }
+            else if (SubType == 1340 && SectionEntry[2] == 1 &&
+                     *(_DWORD *)((char *)SectionEntry + 0xDC) == 0)
+            {
+                ULONG EntrySize = *(ULONG *)((char *)SectionEntry + 0x50);
+                if (EntrySize >= 8)
+                {
+                    GtWrite(GtFwpsDispatchTableBase, FwpsBase + FirstMatchOffset);  // GT 0x800
+                    GtWrite(GtFwpsDispatchTableCount, EntrySize >> 3);              // GT 0x801
+                    return 1;
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+// =========================================================================
+// InitFwpsDispatchTables — 初始化 Fwps 调度表（4 个 Find 的调度者）
+// 对应原始驱动 0x14001BE80（200 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（18 行伪代码），按伪代码实现。
+// 【逻辑】ReadNtoskrnlNlsFile 读 fwpkclnt.sys；
+//   对四个槽**各自"未填充才查找"**：
+//     GT 0x7FA 为空 → FindFwpsTcpIpDispatchTableStr
+//     GT 0x7FC 为空 → FindFwpsTcpIpDispatchTable
+//     GT 0x7FE 为空 → FindFwpsL2DispatchTable
+//     GT 0x800 为空 → FindFwpsDispatchTableWin8
+//   最后 ExFree 文件缓冲。
+// =========================================================================
+void InitFwpsDispatchTables(void)
+{
+    unsigned int FileSize = 0;
+    void *FileBuffer = 0;
+
+    if (ReadNtoskrnlNlsFile((_QWORD *)&FileBuffer, &FileSize))
+    {
+        if (!GtRead(GtFwpsTcpIpOffset))
+            FindFwpsTcpIpDispatchTableStr((__int64)FileBuffer, FileSize);
+        if (!GtRead(GtFwpsTcpIpTableAddr))
+            FindFwpsTcpIpDispatchTable((__int64)FileBuffer, FileSize);
+        if (!GtRead(GtFwpsL2Offset))
+            FindFwpsL2DispatchTable((__int64)FileBuffer, FileSize);
+        if (!GtRead(GtFwpsDispatchTableBase))
+            FindFwpsDispatchTableWin8((__int64)FileBuffer, FileSize);
+        ExFree(FileBuffer);
+    }
+}
+// MiniFilterAcquireForModWrite — 获取修改写调度表（补全空壳）
+// 对应原始驱动 0x14001BD44（316 字节）
+// 【⚠ 修正记录 2026-10-08】原名 `CmdInitFwpsDispatchTables2`、注释称"获取文件修改
+//   写入的独占锁，需要 FltAcquireForModifiedWrite" —— **名字与描述均与实物不符**。
+//   原始 IDA 名是 `MiniFilterAcquireForModWrite`，实际功能是
+//   "把 Fwps 修改写调度表复制到用户输出缓冲区"。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（47 行伪代码），按伪代码实现。
+// 【参数】FilterObject / CallbackData（未使用）/ OutputBuffer / BufferSize
+// 【逻辑】GT 0x7FC 为空则先调 InitFwpsDispatchTables 补齐；
+//   取 GT 0x7FC（表指针，须 > MmSystemRangeStart）与 GT 0x7FD（条目数，< 0x100）；
+//   取 *TablePtr 为表数据，须有效且 CheckMemoryValid(&TableData[8*EntryCount-1]) 通过；
+//   输出缓冲须非空、大小 >= 8*(EntryCount-1)+16、位于用户空间；
+//   ProbeForWrite + 清零后：*OutputBuffer = EntryCount，
+//   memmove(OutputBuffer+2, TableData, 8*EntryCount) —— 即把表项数组拷到 +8 处。
+char __fastcall MiniFilterAcquireForModWrite(__int64 FilterObject, __int64 CallbackData,
+                                            unsigned int *OutputBuffer, unsigned int BufferSize)
+{
+    char Result = 0;
+    void **TablePtr;
+    unsigned int TableCount;
+    unsigned int EntryCount;
+    char *TableData;
+
+    if (!GtRead(GtFwpsTcpIpTableAddr))
+        InitFwpsDispatchTables();
+
+    TablePtr = (void **)GtRead(GtFwpsTcpIpTableAddr);      // GT 0x7FC
+    TableCount = (unsigned int)GtRead(GtFwpsTcpIpEntryCount); // GT 0x7FD
+    EntryCount = TableCount;
+
+    if (!TablePtr || !TableCount)
+        return Result;
+    if (TablePtr <= (void **)MmSystemRangeStart || TableCount >= 0x100)
+        return Result;
+
+    TableData = (char *)*TablePtr;
+    if (TableData <= (char *)MmSystemRangeStart)
+        return Result;
+    if (CheckMemoryValid(TableData) != 1)
+        return Result;
+    if (CheckMemoryValid(&TableData[8 * EntryCount - 1]) != 1)
+        return Result;
+    if (!OutputBuffer)
+        return Result;
+    if (BufferSize < 8 * (unsigned __int64)(EntryCount - 1) + 16)
+        return Result;
+    if ((unsigned __int64)OutputBuffer >= MmUserProbeAddress)
+        return Result;
+    if ((unsigned __int64)OutputBuffer + BufferSize >= MmUserProbeAddress)
+        return Result;
+
+    ProbeForWrite(OutputBuffer, BufferSize, 8u);
+    memset(OutputBuffer, 0, BufferSize);
+    *OutputBuffer = EntryCount;
+    memmove(OutputBuffer + 2, TableData, 8LL * EntryCount);
+    return 1;
 }
 
 // CmdCollectGdtrEntries — 记录 GDTR 信息到上下文缓冲（补全空壳）

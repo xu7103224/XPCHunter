@@ -278,7 +278,7 @@ __int64 InitCommandHandlerTable(void)
     Table[206] = (PCOMMAND_HANDLER)CmdRestoreExportTable;
     Table[207] = (PCOMMAND_HANDLER)CmdInitSsdtTable;
     Table[208] = (PCOMMAND_HANDLER)CmdEnumKernelModules;
-    Table[209] = (PCOMMAND_HANDLER)CmdInitFwpsDispatchTables2;
+    Table[209] = (PCOMMAND_HANDLER)MiniFilterAcquireForModWrite;
     Table[210] = (PCOMMAND_HANDLER)CmdInitFwpsDispatchTables;
     Table[211] = (PCOMMAND_HANDLER)CmdCopyKernelArrayToUserBuffer;
     Table[212] = (PCOMMAND_HANDLER)CmdEnumKernelMemoryContext;
