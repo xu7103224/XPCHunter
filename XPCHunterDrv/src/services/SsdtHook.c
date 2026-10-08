@@ -1100,9 +1100,55 @@ char ParseStorPortExportDir(void)
     GtWrite(GtCallbackField61, 1);
     return 1;
 }
+// ParseSyscallFileExportDir — 解析系统调用文件导出目录（补全空壳）
+// 对应原始驱动 0x14003DBE0（231 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `GtWrite(就绪位,1); return 1;` 空壳 —— 静默失败型。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（44 行伪代码），按伪代码实现。
+// 【逻辑】GtAlloc(GT 0x63F8) 取导出表 → GtRead(GT 0x311) 取 ntoskrnl 基址；
+//   ReadSyscallDriverFile 读 mouclass.sys；
+//   ParseSyscallFileExportSections 填表 → ParseNtExportDir 修正重定位；
+//   随后循环 28 项填 {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}；
+//   成功则置就绪位(GT 0x319) 并 FillExportEntrySlot。
 char ParseSyscallFileExportDir(void)
 {
-    GtWrite(GtCallbackField72, 1);
+    char IsReady = 0;
+    __int64 *pExportTable;
+    __int64 NtoskrnlBase;
+    unsigned int *pSlot;
+    __int64 EntryCount;
+    __int64 RvaValue;
+    unsigned int FileSize = 0;
+    char *pFileBuffer = 0;
+
+    pExportTable = GtAlloc((GLOBAL_TABLE_INDEX)0x18F8);   // 实测立即数（伪代码显示为复合 GT 名）
+    NtoskrnlBase = GtRead(GtCallbackField70);
+    if (NtoskrnlBase && ReadSyscallDriverFile((_QWORD *)&pFileBuffer, &FileSize))
+    {
+        if (ParseSyscallFileExportSections((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1
+            && ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, (ULONG64)NtoskrnlBase, 0) == 1)
+        {
+            pSlot = (unsigned int *)pExportTable + 1;
+            EntryCount = 28;
+            do
+            {
+                RvaValue = *pSlot;
+                *(pSlot - 1) = 0;
+                if ((_DWORD)RvaValue && (int)RvaValue + 16 <= (int)FileSize)
+                {
+                    *(pSlot - 1) = 1;
+                    *(_OWORD *)(pSlot + 3) = *(_OWORD *)&pFileBuffer[RvaValue];
+                }
+                pSlot += 12;
+                --EntryCount;
+            }
+            while (EntryCount);
+            IsReady = 1;
+            GtWrite(GtCallbackField72, 1);
+        }
+        ExFree(pFileBuffer);
+        if (IsReady == 1)
+            FillExportEntrySlot((__int64)pExportTable);
+    }
     return 1;
 }
 // BuildSyscallExportTable — 构建系统调用导出表（补全空壳）
@@ -5216,4 +5262,165 @@ __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int
     GtWrite(GtIopfCompleteRequestAddr, 0);
     GtWrite(GtCallbackField106, 0);
     return GtWrite(GtIopfCallDriverAddr, 0);
+}
+
+// =========================================================================
+// ParseSyscallFileExportSections — 解析系统调用驱动文件的导出节区
+// 对应原始驱动 0x14003D7F4（819 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（130 行伪代码），按伪代码实现。
+// 【参数】PeBase = 文件缓冲；PeSize = 文件大小；OutTable = 0x30 字节/项的输出表
+// 【描述符字段（与同族解析器一致，已由权威映射核对）】
+//   +0x38 段1 RVA 字段 / +0x40 1294 槽偏移 / +0x50 ==64 判据 / +0x58 Dst 写索引
+//   +0x78 1298 RVA / +0x88 Flags / +0x90 Dst 读索引 / +0xDC ExtraFlags
+//   +0xF0 指令长度 / +0x118 类型指针
+// 【与同族（ParseCallbackFunctionSections 等）的差异】
+//   1) 本函数的 SectionBase 来自 GtRead(GT 0x317)，不是参数；
+//   2) 段2 多一个 **槽早退** 机制：首次命中后开始计数，超过 0x28 即跳出
+//      （即最多填 40 个槽位）；
+//   3) 命中时不检查 OutTable 槽是否已占用之外的额外条件，返回 IsReady。
+// =========================================================================
+char __fastcall ParseSyscallFileExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutTable)
+{
+    __int64 PeOffset;
+    char Result = 0;
+    __int64 InitSectionRva;
+    char FoundFlag;
+    int ScanCount;
+    char SlotFound;
+    int SlotCount;
+    PE_DECODE_CONTEXT PESectionContext;
+    __int64 ContextOffset = 0;
+    _DWORD SectionEntry[112];
+    __int64 SectionBase;
+    char IsReady = 0;
+
+    PeOffset = *(int *)(PeBase + 60);
+    SectionBase = GtRead(GtCallbackField70);
+    if (!SectionBase)
+        return Result;
+
+    InitSectionRva = *(unsigned int *)(PeOffset + PeBase + 40);
+    if ((unsigned int)InitSectionRva >= PeSize)
+        return Result;
+    if ((int)InitSectionRva + 4096 >= (int)PeSize)
+        return Result;
+
+    // ---- 段 1：定位目标节（上限 0x14）----
+    FoundFlag = 0;
+    InitPESectionReadContext(PeBase + InitSectionRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+    ScanCount = 0;
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+    {
+        ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
+        ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        ULONG TargetRva;
+
+        if (TypeValue == 1369)
+        {
+            TargetRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)PeBase;
+            if (TargetRva && TargetRva < PeSize)
+            {
+                InitSectionRva = TargetRva;
+                break;
+            }
+        }
+        else if (TypeValue == 1296 &&
+                 *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                 *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
+        {
+            FoundFlag = 1;
+        }
+        else if (TypeValue == 1368)
+        {
+            if (FoundFlag == 1)
+            {
+                TargetRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)PeBase;
+                if (TargetRva && TargetRva < PeSize)
+                {
+                    InitSectionRva = TargetRva;
+                    break;
+                }
+            }
+            FoundFlag = 0;
+        }
+        if ((unsigned int)++ScanCount >= 0x14)
+            break;
+    }
+
+    if ((unsigned int)InitSectionRva >= PeSize)
+        return Result;
+    if ((int)InitSectionRva + 4096 >= (int)PeSize)
+        return Result;
+
+    // ---- 段 2：填表（上限 0x3E8；首次命中后槽计数超 0x28 早退）----
+    {
+        _DWORD Dst[16];
+        InitPESectionReadContext(PeBase + (unsigned int)InitSectionRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
+        memset(Dst, 0, sizeof(Dst));
+        SlotFound = 0;
+        SlotCount = 0;
+
+        for (ULONG i = 0; i < 0x3E8; i++)
+        {
+            __int16 TypeValue2;
+            ULONG SizeValue;
+            ULONG RvaField;
+            ULONG FlagsField;
+            ULONG IndexField;
+            ULONG ExtraFlags;
+            ULONG EntryOffsetVal;
+
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+                break;
+
+            {
+                ULONG EntryRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
+                ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+
+                if (SlotFound == 1 && (unsigned int)++SlotCount > 0x28)
+                    break;
+
+                SizeValue     = *(ULONG *)((char *)SectionEntry + 0x50);
+                TypeValue2    = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+                RvaField      = *(ULONG *)((char *)SectionEntry + 0x78);
+                FlagsField    = *(ULONG *)((char *)SectionEntry + 0x88);
+                IndexField    = *(ULONG *)((char *)SectionEntry + 0x90);
+                ExtraFlags    = *(ULONG *)((char *)SectionEntry + 0xDC);
+                EntryOffsetVal= *(ULONG *)((char *)SectionEntry + 0x40);
+
+                if (TypeValue2 == 1298 && FlagsField == 0x40000)
+                {
+                    if (RvaField && SizeValue == 64)
+                    {
+                        ULONG v = EntryRva + RvaField - (ULONG)PeBase;
+                        if (v && v < PeSize)
+                            Dst[*(ULONG *)((char *)SectionEntry + 0x58)] = v;
+                    }
+                }
+                if (TypeValue2 == 1139)
+                    memset(Dst, 0, sizeof(Dst));
+
+                if (TypeValue2 == 1294 &&
+                    (SizeValue & 0x14000) && (SizeValue & 0x40) &&
+                    (ExtraFlags & 0xF) != 4 && FlagsField == 64 &&
+                    (EntryOffsetVal - 112) <= 0xD8 && (EntryOffsetVal & 7) == 0)
+                {
+                    ULONG SlotIndex = (EntryOffsetVal - 112) >> 3;
+                    if (SlotIndex <= 0x1B)
+                    {
+                        ULONG DstRva = Dst[IndexField];
+                        if (DstRva && !*(_DWORD *)(OutTable + 48 * SlotIndex + 4))
+                        {
+                            SlotFound = 1;
+                            *(_DWORD *)(OutTable + 48 * SlotIndex + 4) = DstRva;
+                            IsReady = 1;
+                            *(_QWORD *)(OutTable + 48 * SlotIndex + 8) = SectionBase + DstRva;
+                        }
+                    }
+                }
+            }
+        }
+        return IsReady;
+    }
 }

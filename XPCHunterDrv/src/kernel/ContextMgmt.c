@@ -976,6 +976,33 @@ bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize
     return Result;
 }
 
+// ReadSyscallDriverFile — 读取 mouclass.sys 供系统调用表解析
+// 对应原始驱动 0x14003DE1C（299 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（30 行伪代码），按伪代码实现。
+// 【路径（由伪代码 EncodedPath[N] = <十进制> 赋值序列按 DWORD 索引逐字节解码）】
+//   \SystemRoot\system32\drivers\mouclass.sys
+//   ⚠ 注：IDA 生成的函数注释写作 "mountmgr.sys" —— 与字节解码结果不符，
+//     以解码为准（mouclass = 鼠标类驱动，其导出表含系统调用相关桩）。
+// 【逻辑】与 ReadNtFileSyscall / ReadNtoskrnlForCallbackContext 同构：
+//   构造路径 → ReadFileRawData → ReadNtFileToBuffer → ExFree。
+bool __fastcall ReadSyscallDriverFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
+{
+    bool Result = 0;
+    void *pRawData = NULL;
+    size_t RawDataSize = 0;
+    WCHAR EncodedPath[64];
+
+    wcscpy(EncodedPath, L"\\SystemRoot\\system32\\drivers\\mouclass.sys");
+
+    if (!(unsigned int)ReadFileRawData(EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
+    {
+        Result = (ReadNtFileToBuffer((PUCHAR)pRawData, (ULONG)RawDataSize,
+                                     (PUCHAR *)pFileBuffer, (PULONG)pFileSize) == 1);
+        ExFree(pRawData);
+    }
+    return Result;
+}
+
 // ReadNtFileSyscall — 读取 nsiproxy.sys 供系统调用表解析
 // 对应原始驱动 0x140046D34（299 字节）
 // 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（30 行伪代码），按伪代码实现。
