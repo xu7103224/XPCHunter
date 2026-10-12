@@ -1514,6 +1514,8 @@ char __fastcall ScanWfpMacShimSections(__int64 PeBase, unsigned int PeSize);
 char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize);
 char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSize);
 char __fastcall ScanNsiGetModuleDataSection(__int64 PeBase, unsigned int PeSize);
+char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize);
+char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize);
 __int64 ScanProcessPESectionsV2(void);
 bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize);
 void Sha1FinalTransform(PSHA1_CONTEXT Context, __int64 DigestOut);
