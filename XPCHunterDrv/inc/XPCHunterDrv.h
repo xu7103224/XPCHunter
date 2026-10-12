@@ -558,6 +558,8 @@ __int64 GetDeleteValueKeyCtx(_QWORD *pContext);
 __int64 GetExportDirSize(__int64 PeBase, unsigned int PeSize);
 __int64 __fastcall FinalizeDataType(__int64 Context);
 __int64 __fastcall GetDataElementSize(__int64 Context);
+__int64 __fastcall ClassifyDataTypeV1(_QWORD *Context);
+__int64 __fastcall ClassifyDataTypeV2(_QWORD *Context);
 char GetExportEntrySignBit(PUCHAR ExportEntry);
 char GetIrpMonitorContext(__int64 DeviceObject, unsigned int IrpMajorFunc, _OWORD *pContextBuffer, _QWORD *pCallDriver);
 __int64 GetKernelObjectTypeInfo(__int64 ObjectHeader);
