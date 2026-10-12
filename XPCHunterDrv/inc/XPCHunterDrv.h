@@ -758,11 +758,11 @@ __int64 MatchObjectTypeFilterCallback(_QWORD *ObjectEntry, _QWORD *Context, __in
 __int64 MatchObjectTypeFilterCallbackV2(_QWORD *ObjectEntry, _QWORD *Context, __int64 TypeFilter);
 __int64 MatchSystemProcessName(_QWORD *Process);
 void Md5Final(PMD5_CONTEXT Context, PUCHAR Digest);
-void Md5Final2(PMD5_CONTEXT Context, PUCHAR Digest);
+void Md5Final2(PMD5_CONTEXT_LEGACY Context, PUCHAR Digest);
 void Md5Transform(ULONG State[4], PUCHAR Block);
 void Md5Transform2(ULONG State[4], PUCHAR Block);
 void Md5Update(PMD5_CONTEXT Context, PUCHAR Input, ULONG Length);
-void Md5Update2(PMD5_CONTEXT Context, PUCHAR Input, ULONG Length);
+void Md5Update2(PMD5_CONTEXT_LEGACY Context, PUCHAR Input, ULONG Length);
 unsigned int MemoryCompare(__int64 Buf1, char *Buf2, unsigned int Size);
 char CmdClearGdtPresentBit(int ProcessorNumber, __int64 ContextBuffer);
 char __fastcall MiniFilterAcquireForModWrite(__int64 FilterObject, __int64 CallbackData, unsigned int *OutputBuffer, unsigned int BufferSize);
@@ -1220,7 +1220,7 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
 // MissingFuncs.c 子函数声明
 __int64 ScanWin32kPatternLegacy(__int64 OutputBuffer, unsigned int EntryCount);
 __int64 ScanWin32kPatternWin10Plus(__int64 OutputBuffer, unsigned int EntryCount);
-void Md5Init(char *Context);
+void Md5Init(PMD5_CONTEXT_LEGACY Context);
 __int64 AesInitKeySchedule(void);
 __int64 AesKeyExpansion(int *KeySchedule, int *Key, int KeySize);
 __int64 AesDecryptBlocks(unsigned int *KeySchedule, unsigned char *Output, unsigned char *Input, unsigned int Length);

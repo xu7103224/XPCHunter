@@ -61,15 +61,31 @@ static const ULONG Md5_K[64] = {
 };
 
 // MD5 每轮位移
+// 【⚠ 缺陷修正 2026-10-08】此前构造为 [S11..S14,S21..S24,S31..S34,S41..S44]×4，
+// 即 [7,12,17,22,5,9,14,20,4,11,16,23,6,10,15,21] 重复四遍，**48 处与标准 MD5 不符**。
+// 原始驱动 Md5Transform(0x140003168)/Md5Transform2(0x140059CEC) 是**完全展开**的
+// 64 步（各 2077 字节，无位移表），其 64 条循环移位立即数由 capstone 独立提取：
+//   44 处 `rol` + 20 处 `ror`（等价 rol：ror 15→17, ror 10→22, ror 12→20,
+//                                 ror 11→21, ror 9→23）
+// 按步序还原得：第 1 轮 7,12,17,22 ×4；第 2 轮 5,9,14,20 ×4；
+//               第 3 轮 4,11,16,23 ×4；第 4 轮 6,10,15,21 ×4 —— 即标准 MD5。
 static const ULONG Md5_S[64] = {
-    MD5_S11, MD5_S12, MD5_S13, MD5_S14, MD5_S21, MD5_S22, MD5_S23, MD5_S24,
-    MD5_S31, MD5_S32, MD5_S33, MD5_S34, MD5_S41, MD5_S42, MD5_S43, MD5_S44,
-    MD5_S11, MD5_S12, MD5_S13, MD5_S14, MD5_S21, MD5_S22, MD5_S23, MD5_S24,
-    MD5_S31, MD5_S32, MD5_S33, MD5_S34, MD5_S41, MD5_S42, MD5_S43, MD5_S44,
-    MD5_S11, MD5_S12, MD5_S13, MD5_S14, MD5_S21, MD5_S22, MD5_S23, MD5_S24,
-    MD5_S31, MD5_S32, MD5_S33, MD5_S34, MD5_S41, MD5_S42, MD5_S43, MD5_S44,
-    MD5_S11, MD5_S12, MD5_S13, MD5_S14, MD5_S21, MD5_S22, MD5_S23, MD5_S24,
-    MD5_S31, MD5_S32, MD5_S33, MD5_S34, MD5_S41, MD5_S42, MD5_S43, MD5_S44
+    MD5_S11, MD5_S12, MD5_S13, MD5_S14,
+    MD5_S11, MD5_S12, MD5_S13, MD5_S14,
+    MD5_S11, MD5_S12, MD5_S13, MD5_S14,
+    MD5_S11, MD5_S12, MD5_S13, MD5_S14,
+    MD5_S21, MD5_S22, MD5_S23, MD5_S24,
+    MD5_S21, MD5_S22, MD5_S23, MD5_S24,
+    MD5_S21, MD5_S22, MD5_S23, MD5_S24,
+    MD5_S21, MD5_S22, MD5_S23, MD5_S24,
+    MD5_S31, MD5_S32, MD5_S33, MD5_S34,
+    MD5_S31, MD5_S32, MD5_S33, MD5_S34,
+    MD5_S31, MD5_S32, MD5_S33, MD5_S34,
+    MD5_S31, MD5_S32, MD5_S33, MD5_S34,
+    MD5_S41, MD5_S42, MD5_S43, MD5_S44,
+    MD5_S41, MD5_S42, MD5_S43, MD5_S44,
+    MD5_S41, MD5_S42, MD5_S43, MD5_S44,
+    MD5_S41, MD5_S42, MD5_S43, MD5_S44
 };
 
 // MD5 每轮索引
@@ -80,32 +96,33 @@ static const ULONG Md5_Id[64] = {
     0, 7, 14, 5, 12, 3, 10, 1, 8, 15, 6, 13, 4, 11, 2, 9
 };
 
-// 字节序反转
-static __forceinline void ByteReverse(ULONG *Buffer, ULONG Count)
-{
-    ULONG i;
-    for (i = 0; i < Count; i++)
-        Buffer[i] = (ULONG)ByteSwap64(Buffer[i]); // 实际应为 RtlUlongByteSwap
-}
+// 字节序反转 —— 直接用 wdm.h 已提供的 RtlUlongByteSwap（内部即 _byteswap_ulong）
 
-// 简化实现 — 实际复刻中需使用 RtlUlongByteSwap
-#undef RtlUlongByteSwap
-#define RtlUlongByteSwap(x) _byteswap_ulong(x)
+// ============================================================
+// MD5 族 2 —— Md5Transform2 / InitMd5Context / Md5Update / Md5Final
+// 布局：State@0x00  Buffer@0x10  Count(字节)@0x50
+//
+// 【与族 1 的关系】两族的 Md5Transform 是**逐字节等价**的同一段代码
+//   （族 2 起始 0x140059CEC，族 1 起始 0x140003168，指令序列仅地址重定位差异），
+//   但两族的**上下文结构体布局不同**，故四个包装函数各自独立实现、不可互相别名：
+//     族 2：State@0x00  Buffer@0x10           Count(字节)@0x50
+//     族 1：Count(字节)@0x00  Buffer@0x08     State@0x48
+// ============================================================
 
-// InitMd5Context — 初始化 MD5 上下文
-// 对应原始驱动 sub_140059CB4
+// InitMd5Context — 初始化 MD5 上下文（族 2）
+// 对应原始驱动 sub_140059CB4（53 字节）
+// 【原始行为】memset(Context, 0, 0x58)，随后写入 State@+0x00..+0x0C
 void InitMd5Context(PMD5_CONTEXT Context)
 {
-    Context->Count[0] = 0;
-    Context->Count[1] = 0;
+    memset(Context, 0, sizeof(MD5_CONTEXT));
     Context->State[0] = 0x67452301;
     Context->State[1] = 0xEFCDAB89;
     Context->State[2] = 0x98BADCFE;
     Context->State[3] = 0x10325476;
 }
 
-// Md5Transform — MD5 变换核心
-// 对应原始驱动 sub_14003168
+// Md5Transform — MD5 变换核心（两族共用同一实现体，参数即当前状态与 64 字节块）
+// 对应原始驱动 0x140003168（族 1）与 0x140059CEC（族 2），二者指令逐条等价
 void Md5Transform(ULONG State[4], PUCHAR Block)
 {
     ULONG a = State[0], b = State[1], c = State[2], d = State[3];
@@ -120,17 +137,14 @@ void Md5Transform(ULONG State[4], PUCHAR Block)
         ULONG f, g;
         if (i < 16) {
             f = (b & c) | (~b & d);
-            g = i;
         } else if (i < 32) {
             f = (d & b) | (~d & c);
-            g = (5 * i + 1) % 16;
         } else if (i < 48) {
             f = b ^ c ^ d;
-            g = (3 * i + 5) % 16;
         } else {
             f = c ^ (b | ~d);
-            g = (7 * i) % 16;
         }
+        g = Md5_Id[i];
         ULONG temp = d;
         d = c;
         c = b;
@@ -144,84 +158,169 @@ void Md5Transform(ULONG State[4], PUCHAR Block)
     State[3] += d;
 }
 
-// Md5Transform2 — MD5 变换（别名）
+// Md5Transform2 — 族 2 入口（原始驱动为独立副本，此处共享同一实现体）
 // 对应原始驱动 sub_140059CEC
 void Md5Transform2(ULONG State[4], PUCHAR Block)
 {
     Md5Transform(State, Block);
 }
 
-// Md5Update — MD5 更新
-// 对应原始驱动 sub_14005A50C
+// Md5Update — MD5 更新（族 2）
+// 对应原始驱动 sub_14005A50C（217 字节）
+// 【原始行为】计数是 **64 位字节计数**（`add [rcx+50h], edx` 直接按 Length 字节累加，
+//   不做 <<3、也不拆分 Count[0]/Count[1]）；缓冲自 +0x10 起；状态在 +0x00。
+// 【⚠ 缺陷修正】此前套用 RFC1321 的 `Count[0] += Length<<3` 位计数写法，
+//   与原始语义不符；且状态/缓冲偏移沿用了错误的 +0x00/+0x18。
 void Md5Update(PMD5_CONTEXT Context, PUCHAR Input, ULONG Length)
 {
-    ULONG index = (Context->Count[0] >> 3) & 0x3F;
-    Context->Count[0] += Length << 3;
-    if (Context->Count[0] < (Length << 3))
-        Context->Count[1]++;
-    Context->Count[1] += Length >> 29;
-
+    ULONG index = (ULONG)(Context->Count & 0x3F);
     ULONG partLen = 64 - index;
     ULONG i = 0;
+
+    Context->Count += Length;
+
     if (Length >= partLen)
     {
-        RtlCopyMemory(&Context->Buffer[index], Input, partLen);
-        Md5Transform(Context->State, Context->Buffer);
+        memmove(&Context->Buffer[index], Input, partLen);
+        Md5Transform2(Context->State, Context->Buffer);
         for (i = partLen; i + 63 < Length; i += 64)
-            Md5Transform(Context->State, &Input[i]);
+        {
+            memmove(Context->Buffer, &Input[i], 64);
+            Md5Transform2(Context->State, Context->Buffer);
+        }
         index = 0;
     }
-    RtlCopyMemory(&Context->Buffer[index], &Input[i], Length - i);
+    memmove(&Context->Buffer[index], &Input[i], Length - i);
 }
 
-// Md5Final — MD5 结束（输出 16 字节摘要）
-// 对应原始驱动 sub_14003984
+// Md5Final — MD5 结束（族 2，输出 16 字节摘要）
+// 对应原始驱动 sub_140059C14（160 字节）
+// 【原始行为】填 0x80 与 7 个 0 字节；块内偏移 >= 56 时先压一块再清零前 56 字节；
+//   位长按其**本机字节序**直接写回 Buffer 末 8 字节（+0x48 低位 / +0x4C 高位）后压缩；
+//   摘要取 State@+0x00。
 void Md5Final(PMD5_CONTEXT Context, PUCHAR Digest)
 {
-    UCHAR bits[8];
-    ULONG index, padLen;
-    UCHAR padding[64] = { 0x80 };
+    ULONG index = (ULONG)(Context->Count & 0x3F);
+    ULONG i;
 
-    RtlCopyMemory(bits, Context->Count, 8);
-    index = (Context->Count[0] >> 3) & 0x3F;
-    padLen = (index < 56) ? (56 - index) : (120 - index);
-    Md5Update(Context, padding, padLen);
-    Md5Update(Context, bits, 8);
+    Context->Buffer[index] = 0x80;
+    for (i = index + 1; i < 64; i++)
+        Context->Buffer[i] = 0;
+    if (index >= 56)
+    {
+        Md5Transform2(Context->State, Context->Buffer);
+        for (i = 0; i < 56; i++)
+            Context->Buffer[i] = 0;
+    }
+
+    // Buffer 末 8 字节 = 64 位位长（字节计数 << 3），小端直写
+    *(ULONG *)&Context->Buffer[56] = (ULONG)(Context->Count << 3);
+    *(ULONG *)&Context->Buffer[60] = (ULONG)(Context->Count >> 29);
+
+    Md5Transform2(Context->State, Context->Buffer);
     RtlCopyMemory(Digest, Context->State, 16);
 }
 
-// MD5 别名函数
-void Md5Final2(PMD5_CONTEXT Context, PUCHAR Digest)
+// ============================================================
+// MD5 族 1 —— Md5Init / Md5Update2 / Md5Final2
+// 布局：Count(字节)@0x00  Buffer@0x08  State@0x48
+// ============================================================
+
+// Md5Init — 初始化 MD5 上下文（族 1）
+// 对应原始驱动 sub_140003A28（54 字节）
+// 【原始行为】memset(Context, 0, 0x58)，随后写入 State@+0x48..+0x54
+void Md5Init(PMD5_CONTEXT_LEGACY Context)
 {
-    Md5Final(Context, Digest);
+    memset(Context, 0, sizeof(MD5_CONTEXT_LEGACY));
+    Context->State[0] = 0x67452301;
+    Context->State[1] = 0xEFCDAB89;
+    Context->State[2] = 0x98BADCFE;
+    Context->State[3] = 0x10325476;
 }
 
-void Md5Update2(PMD5_CONTEXT Context, PUCHAR Input, ULONG Length)
+// Md5Update2 — MD5 更新（族 1）
+// 对应原始驱动 sub_140003A60（217 字节）
+void Md5Update2(PMD5_CONTEXT_LEGACY Context, PUCHAR Input, ULONG Length)
 {
-    Md5Update(Context, Input, Length);
+    ULONG index = (ULONG)(Context->Count & 0x3F);
+    ULONG partLen = 64 - index;
+    ULONG i = 0;
+
+    Context->Count += Length;
+
+    if (Length >= partLen)
+    {
+        memmove(&Context->Buffer[index], Input, partLen);
+        Md5Transform(Context->State, Context->Buffer);
+        for (i = partLen; i + 63 < Length; i += 64)
+        {
+            memmove(Context->Buffer, &Input[i], 64);
+            Md5Transform(Context->State, Context->Buffer);
+        }
+        index = 0;
+    }
+    memmove(&Context->Buffer[index], &Input[i], Length - i);
+}
+
+// Md5Final2 — MD5 结束（族 1，输出 16 字节摘要）
+// 对应原始驱动 sub_140003988（160 字节）
+void Md5Final2(PMD5_CONTEXT_LEGACY Context, PUCHAR Digest)
+{
+    ULONG index = (ULONG)(Context->Count & 0x3F);
+    ULONG i;
+
+    Context->Buffer[index] = 0x80;
+    for (i = index + 1; i < 64; i++)
+        Context->Buffer[i] = 0;
+    if (index >= 56)
+    {
+        Md5Transform(Context->State, Context->Buffer);
+        for (i = 0; i < 56; i++)
+            Context->Buffer[i] = 0;
+    }
+
+    *(ULONG *)&Context->Buffer[56] = (ULONG)(Context->Count << 3);
+    *(ULONG *)&Context->Buffer[60] = (ULONG)(Context->Count >> 29);
+
+    Md5Transform(Context->State, Context->Buffer);
+    RtlCopyMemory(Digest, Context->State, 16);
 }
 
 // SHA1 初始化
-// 对应原始驱动 sub_140076500
+// 对应原始驱动 0x140076500（61 字节）
+// 【原始行为】memset(Context, 0, 0x60)，随后写入 State@+0x08..+0x18
 void Sha1InitContext(PSHA1_CONTEXT Context)
 {
+    memset(Context, 0, sizeof(SHA1_CONTEXT));
     Context->State[0] = SHA1_A;
     Context->State[1] = SHA1_B;
     Context->State[2] = SHA1_C;
     Context->State[3] = SHA1_D;
     Context->State[4] = SHA1_E;
-    Context->Count[0] = 0;
-    Context->Count[1] = 0;
 }
 
-// SHA1 变换（标准实现）
-// 对应原始驱动 sub_140076540
+// SHA1 变换
+// 对应原始驱动 0x140076540（4314 字节的完全展开 80 步）
+// 【原始行为 — 关键点】16 个初始消息字 **不做字节交换**：
+//   入口把 Block 的 0x40 字节 memmove 到栈上连续的 16 个 DWORD 槽
+//   （0x140076578 起，源 [rsi]、目标 [rbp+57h+Dst] = w[0]，长度 0x40），
+//   随后每条指令直接以 `mov r14d,[rbp+57h+var_68]`（= w[2]）之类按**小端原样**
+//   取值参与运算 —— 首轮 temp = rol(A,5) + f + E + w0 亦为原样相加。
+// 【独立验证】对整个 .text 扫描 `bswap`（opcode 0F C8..CF）仅 4 处，全部在其他
+//   函数内（ByteSwap64 / InitSyscallNumberTable×2 / HookSyscallNtOpenKey）；
+//   本函数 4314 字节内 bswap=0、movbe=0、xchg=0，也不存在 shl+shr 的字节反转序列。
+// 【结论】原始驱动的 SHA1 是**非标准变体**：输入不交换、输出交换
+//   （见 Sha1FinalTransform 出口的逐字节大端展开），因此其摘要不等于 RFC1321
+//   标准 SHA1（已用离线harness对照 4 组标准向量确认：本变体 ≠ 标准值）。
+//   但驱动内部（建表 / 查表、密钥派生）自洽，故这是正确的 1:1 复刻。
+// 【⚠ 缺陷修正】此前 `w[i] = RtlUlongByteSwap(((PULONG)Buffer)[i])` 引入了原始
+//   驱动**不存在**的输入字节交换，虽然能得出标准 SHA1 值，却与实物行为不符。
 void Sha1Transform(ULONG State[5], PUCHAR Buffer)
 {
     ULONG w[80], a, b, c, d, e, temp, i;
 
     for (i = 0; i < 16; i++)
-        w[i] = RtlUlongByteSwap(((PULONG)Buffer)[i]);
+        w[i] = ((PULONG)Buffer)[i];
 
     for (i = 16; i < 80; i++)
         w[i] = ROTL32(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
@@ -246,39 +345,62 @@ void Sha1Transform(ULONG State[5], PUCHAR Buffer)
 }
 
 // SHA1 更新
-// 对应原始驱动 sub_14007761C
+// 对应原始驱动 0x14007761C（187 字节）
+// 【原始行为】计数是**单个 64 位位计数**位于 +0x00：
+//   `mov r11,[rcx]` / `shr r11,3` / `and r11d,3Fh` 得块内字节偏移；
+//   `add [rcx], r9`（r9 = Length<<3）累加位长；缓冲自 +0x1C 起；状态在 +0x08。
 void Sha1Update(PSHA1_CONTEXT Context, PUCHAR Input, ULONG Length)
 {
-    ULONG i, index, partLen;
+    ULONG index, partLen, i;
 
-    index = (Context->Count[0] >> 3) & 0x3F;
-    Context->Count[0] += Length << 3;
-    if (Context->Count[0] < (Length << 3))
-        Context->Count[1]++;
-    Context->Count[1] += Length >> 29;
-
+    index = (ULONG)((Context->Count >> 3) & 0x3F);
     partLen = 64 - index;
-    if (Length >= partLen)
+
+    Context->Count += ((ULONGLONG)Length << 3);
+
+    if (index + Length > 0x3F)
     {
-        RtlCopyMemory(&Context->Buffer[index], Input, partLen);
+        memmove(&Context->Buffer[index], Input, partLen);
         Sha1Transform(Context->State, Context->Buffer);
         for (i = partLen; i + 63 < Length; i += 64)
             Sha1Transform(Context->State, &Input[i]);
         index = 0;
     }
-    RtlCopyMemory(&Context->Buffer[index], &Input[i], Length - i);
+    else
+    {
+        i = 0;
+    }
+    memmove(&Context->Buffer[index], &Input[i], Length - i);
 }
 
 // SHA1 结束变换
-// 对应原始驱动 sub_1400763E0
+// 对应原始驱动 0x1400763E0（288 字节）
+// 【原始行为】8 字节位长按**大端**写入：
+//   0x140076428 `mov rcx,[rbx]` 取 64 位位计数，随后连续 8 次 `shr rax,8` + 逐字节存栈，
+//   最低字节存入最高地址 —— 0x14007642E 先把 cl 存 var_59（bits[7]），
+//   0x140076473 最后存 var_60（bits[0]，此时已右移 56 位）。
+//   摘要输出自 0x1400764AC 起对每个 State 做逐字节右移展开（大端回写）。
+// 【语义适配】保留“先算摘要、再逐字大端写出”的分工，位长组装改为直接从
+//   64 位位计数取字节，不再假设 Count 是 ULONG[2]（见 xpc_structs.h 布局说明）。
+// 【⚠ 缺陷修正】原实现按 ULONG Count[2] 取 `Count[0]>>24` 填 bits[0]，
+//   在 64 位位计数布局下会取到错误的半字节段。
 void Sha1FinalTransform(PSHA1_CONTEXT Context, __int64 DigestOut)
 {
     UCHAR bits[8];
     ULONG index, padLen, i;
     UCHAR padding[64] = { 0x80 };
 
-    RtlCopyMemory(bits, Context->Count, 8);
-    index = (Context->Count[0] >> 3) & 0x3F;
+    // 64 位位计数按大端写入 8 字节（最低字节在最前、最高字节在最后）
+    bits[0] = (UCHAR)(Context->Count >> 56);
+    bits[1] = (UCHAR)(Context->Count >> 48);
+    bits[2] = (UCHAR)(Context->Count >> 40);
+    bits[3] = (UCHAR)(Context->Count >> 32);
+    bits[4] = (UCHAR)(Context->Count >> 24);
+    bits[5] = (UCHAR)(Context->Count >> 16);
+    bits[6] = (UCHAR)(Context->Count >>  8);
+    bits[7] = (UCHAR)(Context->Count       );
+
+    index = (ULONG)((Context->Count >> 3) & 0x3F);
     padLen = (index < 56) ? (56 - index) : (120 - index);
     Sha1Update(Context, padding, padLen);
     Sha1Update(Context, bits, 8);
@@ -288,12 +410,15 @@ void Sha1FinalTransform(PSHA1_CONTEXT Context, __int64 DigestOut)
 }
 
 // Sha1HashToDword — SHA1 哈希为 DWORD
-// 对应原始驱动 sub_1400053D4
+// 对应原始驱动 0x1400053D4（114 字节）
+// 【原始行为】栈上上下文为 0x60 字节，摘要缓冲 6 个 DWORD（仅前 5 个被填）；
+//   返回摘要第 0 个 DWORD。
 __int64 Sha1HashToDword(char *String)
 {
     SHA1_CONTEXT Context;
     ULONG Digest[5];
 
+    memset(&Context, 0, sizeof(Context));
     Sha1InitContext(&Context);
     Sha1Update(&Context, (PUCHAR)String, (ULONG)StringLength(String));
     Sha1FinalTransform(&Context, (__int64)Digest);
@@ -930,7 +1055,7 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
     int HexDigit;
     char HexByte;
     unsigned int j;
-    MD5_CONTEXT Md5Ctx;
+    MD5_CONTEXT_LEGACY Md5Ctx;
     unsigned char AesKey[16];
     unsigned char KeySchedule[0xC0];
     unsigned char Decrypted[0x84];
@@ -988,9 +1113,12 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
     AesDecryptBlocks((unsigned int *)KeySchedule, Decrypted, Decrypted, 0x80);
 
     // MD5 哈希解密后的前 100 字节
-    InitMd5Context(&Md5Ctx);
-    Md5Update(&Md5Ctx, Decrypted, 0x64);
-    Md5Final(&Md5Ctx, Md5Digest);
+    // 【原始调用目标】0x1400030A0/0x1400030B7/0x1400030C8 调用的是**族 1**三件套
+    //   （Md5Init / Md5Update2 / Md5Final2，布局 Count@0x00 Buffer@0x08 State@0x48），
+    //   故此处必须用族 1 函数与族 1 上下文，不可混用族 2。
+    Md5Init(&Md5Ctx);
+    Md5Update2(&Md5Ctx, Decrypted, 0x64);
+    Md5Final2(&Md5Ctx, Md5Digest);
 
     // 比较 MD5 摘要与解密数据中的预期值（偏移 0x64 处）
     for (j = 0; j < 16; j++)
@@ -1033,14 +1161,3 @@ FAIL:
 
 
 // ===== Functions moved from MissingFuncs.c =====
-
-// Md5Init — 初始化 MD5 上下文（原始驱动非标准布局）
-// 使用 0x58 字节上下文，状态值在偏移 0x48 处
-void Md5Init(char *Context)
-{
-    memset(Context, 0, 0x58);
-    *(ULONG *)(Context + 0x48) = 0x67452301;
-    *(ULONG *)(Context + 0x4C) = 0xEFCDAB89;
-    *(ULONG *)(Context + 0x50) = 0x98BADCFE;
-    *(ULONG *)(Context + 0x54) = 0x10325476;
-}

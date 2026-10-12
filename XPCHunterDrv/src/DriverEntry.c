@@ -653,19 +653,23 @@ void CleanupHashTable(void)
 }
 
 // InitGtKey — 生成加密密钥
-// 对应原始驱动 sub_140029F0C
+// 对应原始驱动 sub_140029F0C（179 字节）
+// 【尺寸依据】原始序言 `sub rsp,184h`，SHA1 上下文槽 var_88 为 0x60 字节
+//   （`_QWORD[12]`），摘要槽 var_28 为 0x18 字节（6 个 DWORD）。
+// 【⚠ 缺陷修正 2026-10-08】此前 `ULONG ShaContext[12]` 仅 0x30 字节，
+//   不足原始 0x60 —— 上下文会溢出覆盖相邻的 PathHash/摘要缓冲。
 __int64 InitGtKey(__int64 RegistryPath)
 {
     char PathHash[16];
-    ULONG ShaContext[12];
+    SHA1_CONTEXT ShaContext;
     ULONG KeyBytes[6];
     UCHAR *ByteCount;
     __int64 Count;
 
     *(ULONG64 *)PathHash = RegistryPath;
-    Sha1InitContext((PSHA1_CONTEXT)ShaContext);
-    Sha1Update((PSHA1_CONTEXT)ShaContext, PathHash, 8);
-    Sha1FinalTransform((PSHA1_CONTEXT)ShaContext, (__int64)KeyBytes);
+    Sha1InitContext(&ShaContext);
+    Sha1Update(&ShaContext, (PUCHAR)PathHash, 8);
+    Sha1FinalTransform(&ShaContext, (__int64)KeyBytes);
     ByteCount = (UCHAR *)KeyBytes;
     Count = 4;
     do
