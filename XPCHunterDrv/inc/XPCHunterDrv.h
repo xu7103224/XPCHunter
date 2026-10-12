@@ -908,6 +908,9 @@ char ReadKernelExportDirFile(_QWORD *OutBuffer, unsigned int *OutSize);
 __int64 ReadKernelMemoryToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, _QWORD *pOutputBuffer, int BufferSize);
 bool ReadKbdClassSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize);
 bool ReadIpsecSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize);
+UCHAR ParseRsdsDebugInfo(PUCHAR ImageBase, ULONG ImageSize, __int64 OutTable);
+UCHAR ParseUSBPortSyscallStubs(PUCHAR ImageBase, ULONG ImageSize, __int64 OutTable);
+UCHAR ParseNtDebugSection(PUCHAR ImageBase, ULONG ImageSize, __int64 OutTable);
 bool ReadNetioDriverFile(_QWORD *OutBuffer, unsigned int *OutSize);
 char __fastcall ReadModuleFileToBuffer( const char *ModuleName, void **ppBuffer, unsigned int *pFileSize, __int64 *pExportDirBase);
 
