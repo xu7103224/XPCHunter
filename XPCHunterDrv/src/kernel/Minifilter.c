@@ -4639,7 +4639,7 @@ char __fastcall ScanWfpDeviceObjectSection(__int64 PeBase, unsigned int PeSize)
     ULONG   Offset;
     ULONG   i;
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D4);
     if (!Offset)                                                  // 0x1400697B4
@@ -4701,7 +4701,7 @@ char __fastcall ScanWfpMacShimSections(__int64 PeBase, unsigned int PeSize)
     __int64 ModuleBase;
     ULONG   i;
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     // 【索引依据】原始序言 `mov ebp,7D1h; mov ecx,ebp` → 首读 0x7D1（配对 Find* 的
     //   导出偏移槽）；命中后写的是 0x7D3（本函数自己的结果槽）。两者不同，不可混用。
@@ -4771,7 +4771,7 @@ char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize
     __int64 ModuleBase;
     ULONG   i;
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     // 【索引依据】原始序言 `mov ecx,7CEh` → 首读 0x7CE（配对 Find* 的导出偏移槽）；
     //   命中后写 0x7D0（本函数的结果槽）。
@@ -4846,7 +4846,7 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
     ULONG   SavedOfs = 0;         // v8：阶段 1 记录的候选 RVA
     ULONG   SavedField = 0;       // v7：阶段 1 记录的 字段+0x8C
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     // 【索引依据】配对 Find 写的是 0x7B8(偏移)/0x7B9(地址)；本函数读的是 **0x7B8**（偏移）。
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7B8);            // 0x140069549
@@ -4869,7 +4869,8 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
     {
         USHORT Type;
         ULONG  Len, Cumul;
-        ULONG  F40, F50, F88, F8C;
+        ULONG  F40, F8C;
+        ULONG64 F50, F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x1400695CE
             break;
@@ -4936,7 +4937,7 @@ char __fastcall ScanNsiGetModuleDataSection(__int64 PeBase, unsigned int PeSize)
     ULONG   Cand2 = 0;            // v14：候选2
     ULONG   Cand2Saved = 0;       // v20：候选2 的上次值
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7CA);            // 0x14006927D
     if (!Offset)
@@ -5093,7 +5094,7 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
     ULONG64 SavedField = 0;       // v8（候选对应的 字段+0x8C / 字段+0x40）
     ULONG   SavedRva = 0;         // v9
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7BE);            // 0x14006881D
     if (!Offset)
@@ -5197,7 +5198,7 @@ char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize)
     ULONG   Cnt558 = 0;           // v16
     ULONG   Iter = 0;             // v17
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7C1);            // 0x14006A54D
     if (!Offset)
@@ -5319,7 +5320,7 @@ char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize)
     ULONG   Cnt = 0;              // v7
     ULONG   Rva = 0;              // v8
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7B2);            // 0x14006A7D2
     if (!Offset)
@@ -5339,7 +5340,8 @@ char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize)
     {
         USHORT Type;
         ULONG  Len, Cumul;
-        ULONG  F70, F74, F78, F88;
+        ULONG  F70, F74, F78;
+        ULONG64 F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x14006A857
             break;
@@ -5414,7 +5416,7 @@ char __fastcall ScanKernelMemoryDataSection(__int64 PeBase, unsigned int PeSize)
     ULONG   Rva3 = 0;             // v21
     UCHAR   M1 = 0, M2 = 0, M3 = 0;
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D7);            // 0x140068B01
     if (!Offset)
@@ -5471,7 +5473,8 @@ char __fastcall ScanKernelMemoryDataSection(__int64 PeBase, unsigned int PeSize)
     for (i = 0; ; )                                               // 0x140068C48
     {
         USHORT Type;
-        ULONG  Len, Cumul, F38, F50, F58, F78;
+        ULONG  Len, Cumul, F38, F58, F78;
+        ULONG64 F50;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
             break;
@@ -5549,7 +5552,8 @@ char __fastcall ScanKernelMemoryDataSection(__int64 PeBase, unsigned int PeSize)
     for (i = 0; i < 0x1E; ++i)                                    // 0x140068DC0
     {
         USHORT Type;
-        ULONG  Len, Cumul, F50, F78, F88;
+        ULONG  Len, Cumul, F78;
+        ULONG64 F50, F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
             return Result;
@@ -5582,14 +5586,19 @@ char __fastcall ScanKernelMemoryDataSection(__int64 PeBase, unsigned int PeSize)
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
 // 【GT 依据】寄存器跟踪提取：首读 0x7DA（配对 Find* 的偏移槽）→ 0x1A1（基址）；
 //   命中写 0x7DC / 0x7DD（本函数的两个结果槽）。
-// 【字段映射】描述符 0x120 布局；用到 +0x38(v29) +0x50(v30) +0x58(v31)
-//   +0x70(v32) +0x78(v33) +0x88(v34) +0xA0(v28，byte) +0xF0(v35) +0x118(v36)。
+// 【字段映射】描述符 0x120 布局；用到 +0x08 +0x20(byte) +0x38 +0x50 +0x58
+//   +0x70 +0x78 +0x88 +0xF0 +0x118。
+//   【⚠ 更正】原稿把 flags 字节写成 +0xA0、把 ==1 判别字段写成 +0x0C，均错。
+//   依据（两种独立方法一致）：① IDA 栈帧 var_140=[rsp+B0h]、var_158=[rsp+98h]，
+//   而描述符起点 = [rsp+90h]，故 rbp-0x50 = 描述符 +0x20、rbp-0x68 = +0x08；
+//   ② capstone 原始字节：`test byte ptr [rbp-0x50], 4`（=+0x20）、
+//   `cmp dword ptr [rbp-0x68], 1`（=+0x08）。
 // 【算法】四层（每层"先找 0x558 算 RVA，再按类型+条件推进"）：
 //   L1（上限 0x64）：类型 1349 直接返回 0；类型 0x558 且 RVA 合法 → v7；
 //   L2（上限 0x64）：类型 0x558 → 记 v12；否则若
-//       (类型 1065 且 (字段+0xA0 & 4) 且 字段+0x88==0x400000000 且 字段+0x70==1)
-//       或 (类型 1137 且 (字段+0xA0 & 4))，且 v12 合法 → v11 = v12，break；
-//   L3（上限 0x64）：类型 1245 且 字段+0x0C==1 → 若 字段+0x58==1 且
+//       (类型 1065 且 (字段+0x20 & 4) 且 字段+0x88==0x400000000 且 字段+0x70==1)
+//       或 (类型 1137 且 (字段+0x20 & 4))，且 v12 合法 → v11 = v12，break；
+//   L3（上限 0x64）：类型 1245 且 字段+0x08==1 → 若 字段+0x58==1 且
 //       (字段+0x88 & 0x10000) 且 (int)字段+0x78 > 0 且 !v16 → v16 = 字段+0x78；
 //       类型 1277 或 318 且 v16 非零 → 由 字段+0x38 算 RVA(v20) 进入 L4；
 //   L4（上限 0x1E）：类型 1296(0x510) 且 字段+0x88==0x40000 且 字段+0x78!=0
@@ -5603,7 +5612,7 @@ char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
     ULONG   i;
     ULONG   Rva1 = 0, Rva2 = 0, Save = 0, Rva3 = 0;
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7DA);            // 0x140069D99
     if (!Offset)
@@ -5647,7 +5656,7 @@ char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
                              2, 0, -1, 0, 0, (__int64)&Ctx);
     for (i = 0; ; )
     {
-        USHORT Type; ULONG Len, Cumul, F70, F78; ULONG64 F88; UCHAR A0;
+        USHORT Type; ULONG Len, Cumul, F70, F78; ULONG64 F88; UCHAR A20;
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry)) break;
         Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
         Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x140069EDF
@@ -5656,14 +5665,14 @@ char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
         F70  = *(ULONG *)((PUCHAR)Entry + 0x70);
         F78  = *(ULONG *)((PUCHAR)Entry + 0x78);
         F88  = *(ULONG64 *)((PUCHAR)Entry + 0x88);
-        A0   = *(UCHAR *)((PUCHAR)Entry + 0xA0);
+        A20  = *(UCHAR *)((PUCHAR)Entry + 0x20);
 
         if (Type == 0x558)                                        // 0x140069EFA
         {
             Rva2 = Cumul + *(ULONG *)((PUCHAR)Entry + 0x38) - (ULONG)(ULONG_PTR)PeBase;
         }
-        else if (((Type == 1065 && (A0 & 4) != 0 && F88 == 0x400000000ULL && F70 == 1)
-                  || (Type == 1137 && (A0 & 4) != 0))             // 0x140069F42
+        else if (((Type == 1065 && (A20 & 4) != 0 && F88 == 0x400000000ULL && F70 == 1)
+                  || (Type == 1137 && (A20 & 4) != 0))            // 0x140069F42
                  && Rva2 && Rva2 < PeSize)
         {
             Save = Rva2;                                          // 0x140069F52
@@ -5691,7 +5700,7 @@ char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
         F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
         F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
 
-        if (Type == 1245 && *(ULONG *)((PUCHAR)Entry + 0x0C) == 1)// 0x140069FE4
+        if (Type == 1245 && *(ULONG *)((PUCHAR)Entry + 0x08) == 1)// 0x140069FE4
         {
             if (F58 == 1 && (F88 & 0x10000ULL) != 0
                 && (int)F78 > 0 && !Rva3)                          // 0x140069FFE
@@ -5740,6 +5749,212 @@ char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
     }
 }
 
+// ScanKfdDriverSectionV3 — 四层嵌套扫描 KFD 驱动节区（V3，增强版）
+// 对应原始驱动 0x14006A12C（986 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写，并逐条与
+//   capstone 原始字节核对（见下方【字段映射】的两种独立证据）。
+// 【GT 依据】寄存器跟踪提取的调用序：
+//   读 0x7DA（配对 FindKfdGetRefCalloutExport 的偏移槽；为 0 时先调用它再读）
+//   → 读 0x1A1（KFD 驱动模块基址）→ 读 0x914 三次（Windows 构建号，做版本分支）；
+//   命中写 0x7DC / 0x7DD（本函数的两个结果槽，同 V2）。
+// 【字段映射】栈帧定案：上下文 = [rsp+40h]（v24，0x48 字节，ReadPtr 即 +0x08=v25），
+//   指令描述符 = [rsp+90h]（v26，0x120 字节）。故描述符字段为
+//   +0x08(==1 判别) +0x38 +0x50 +0x58 +0x78 +0x88 +0xF0(指令长度) +0x118(类型指针)。
+//   ① IDA 栈帧：var_158=[rsp+98h]=+0x08、var_110=[rsp+E0h]=+0x50、
+//      var_D8=[rsp+118h]=+0x88、var_E8=[rsp+108h]=+0x78、var_108=[rsp+E8h]=+0x58、
+//      var_128=[rsp+C8h]=+0x38、var_70=[rsp+180h]=+0xF0、var_48=[rsp+1A8h]=+0x118。
+//   ② capstone 原始字节：`cmp dword ptr [rbp-0x68], 1`（=+0x08）、
+//      `cmp qword ptr [rbp-0x20], 0x20`（=+0x50）、`test qword ptr [rbp+0x18], 0x10000`
+//      （=+0x88）、`mov edi, dword ptr [rbp+0x8]`（=+0x78）、
+//      `cmp dword ptr [rbp-0x18], ebx`（=+0x58，与 0 比较）。
+// 【与 V2 的差异】① L2 仅在第 2 个 1368 才推进（`++v11 == 2`），循环上限 0x32；
+//   ② L2 整体受构建号分支门控（Win10 19041-20270 即 0x4A61..0x4F7C，或 >=22621
+//      即 0x585D）；③ L3 的 1245 分支用 字段+0x50==32（V2 用 +0x58==1），且不写
+//      GT；④ 其余层次与 V2 同构（L1 上限 0x64、L3 上限 0x64、L4 上限 0x1E）。
+// 【算法】四层：
+//   L1（上限 0x64）：类型 1349 → break；类型 1368 且 RVA 合法 → v7，break；
+//   L2（门控，上限 0x32）：类型 1349 → 直接返回 0；类型 1368 且这是第 2 个
+//       且 RVA 合法 → v7，break；
+//   L3（上限 0x64）：类型 1245 且 字段+0x08==1 → 若 字段+0x50==32 且
+//       (字段+0x88 & 0x10000) 且 (int)字段+0x78 > 0 且 !v15 → v15 = 字段+0x78；
+//       类型 1277 或 318 且 v15 非零 → 由 字段+0x38 算 RVA(v19) 进入 L4；
+//   L4（上限 0x1E）：类型 1296(0x510) 且 字段+0x88==0x40000 且 字段+0x78!=0
+//       且 字段+0x50==64 且 !字段+0x58 → 算 RVA(v22)，合法则
+//       写 GT 0x7DC = v15、GT 0x7DD = 基址 + v22，返回 1。
+// 【返回值】0（未命中）；1（命中）；L2 读条目失败路径返回 0。
+char __fastcall ScanKfdDriverSectionV3(__int64 PeBase, unsigned int PeSize)
+{
+    char    Result = 0;
+    ULONG   Offset;
+    __int64 ModuleBase;
+    ULONG   BuildNumber;
+    ULONG   Rva1 = 0, Rva2 = 0, Rva3 = 0;
+    ULONG   i;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[112];          // 描述符：0x120 字节（ReadPESectionEntry 写 0x120）
+
+    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7DA);            // 0x14006A171
+    if (!Offset)
+    {
+        FindKfdGetRefCalloutExport(PeBase, PeSize);               // 0x14006A17D
+        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7DA);        // 0x14006A18A
+    }
+
+    ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // 0x14006A196
+    if (!ModuleBase || !Offset || Offset >= PeSize)               // 0x14006A1AC
+        return Result;
+
+    /* ---- L1（0x14006A1DE）：找 1368 ---- */
+    InitPESectionReadContext(PeBase + Offset, PeSize - Offset,    // 0x14006A1DE
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    for (i = 0; i < 0x64; ++i)                                    // 0x14006A1E5
+    {
+        USHORT Type;
+        ULONG  Len, Cumul, F38;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x14006A1F7
+            break;
+
+        Len   = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x14006A20B
+        Ctx.ReadPtr += Len;                                       // 0x14006A215
+        Type  = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006A21A
+        F38   = *(ULONG *)((PUCHAR)Entry + 0x38);
+
+        if (Type == 0x545)                                        // 0x14006A226（1349）
+            break;
+        if (Type == 0x558)                                        // 0x14006A23A（1368）
+        {
+            ULONG r = Cumul + F38 - (ULONG)(ULONG_PTR)PeBase;
+            if (r && r < PeSize) { Rva1 = r; break; }             // 0x14006A247
+        }
+    }
+
+    /* ---- L2（0x14006A2BC）：仅特定构建号，取第 2 个 1368 ---- */
+    // 原始条件对 GT 0x914 连读三次（寄存器跟踪序可见三连读），此处保持同序。
+    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);            // 0x14006A28A
+    if (((BuildNumber >= 0x4A61 && (ULONG)GtRead(GtWindowsBuildNumber) <= 0x4F7C)
+         || (ULONG)GtRead(GtWindowsBuildNumber) >= 0x585D)
+        && Rva1 && Rva1 < PeSize)                                 // 0x14006A2BC
+    {
+        int Seen1368 = 0;
+        int Count32  = 0;
+
+        InitPESectionReadContext(PeBase + Rva1, PeSize - Rva1,    // 0x14006A2BC
+                                 2, 0, -1, 0, 0, (__int64)&Ctx);
+        Rva1 = 0;                                                 // 0x14006A2C1
+        while (!(ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))    // 0x14006A2D9
+        {
+            USHORT Type;
+            ULONG  Len, Cumul, F38;
+
+            Len   = *(ULONG *)((PUCHAR)Entry + 0xF0);
+            Cumul = Len + (ULONG)Ctx.ReadPtr;                     // 0x14006A2E6
+            Ctx.ReadPtr += Len;                                   // 0x14006A2F0
+            Type  = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006A2F5
+            F38   = *(ULONG *)((PUCHAR)Entry + 0x38);
+
+            if (Type == 0x545)                                    // 0x14006A301
+                return Result;                                    // 注意：是 return 而非 break
+            if (Type == 0x558 && ++Seen1368 == 2)                 // 0x14006A326
+            {
+                ULONG r = Cumul + F38 - (ULONG)(ULONG_PTR)PeBase;
+                if (r && r < PeSize) { Rva1 = r; break; }         // 0x14006A333
+            }
+            if ((ULONG)(++Count32) >= 0x32)                       // 0x14006A32F
+                break;
+        }
+    }
+
+    /* ---- L3（0x14006A377）：1245 / 1277 / 318 ---- */
+    Rva3 = 0;                                                     // 0x14006A335（v15）
+    if (Rva1 && Rva1 < PeSize)                                    // 0x14006A342
+    {
+        InitPESectionReadContext(PeBase + Rva1, PeSize - Rva1,    // 0x14006A377
+                                 2, 0, -1, 0, 0, (__int64)&Ctx);
+        for (i = 0; ; )                                           // 0x14006A37C（v16，上限 0x64）
+        {
+            USHORT Type;
+            ULONG  Len, Cumul, F38;
+
+            if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))   // 0x14006A38E
+                break;
+
+            Len   = *(ULONG *)((PUCHAR)Entry + 0xF0);
+            Cumul = Len + (ULONG)Ctx.ReadPtr;                     // 0x14006A39F
+            Ctx.ReadPtr += Len;                                   // 0x14006A3A9
+            Type  = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006A3AE
+            F38   = *(ULONG *)((PUCHAR)Entry + 0x38);
+
+            if (Type == 1245 && *(ULONG *)((PUCHAR)Entry + 0x08) == 1)   // 0x14006A3BC/3C0
+            {
+                ULONG64 F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);
+                ULONG64 F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
+                ULONG   F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
+
+                if (F50 == 32 && (F88 & 0x10000ULL) != 0
+                    && (int)F78 > 0 && !Rva3)                     // 0x14006A3C2..3DB
+                    Rva3 = F78;                                   // 0x14006A3DD
+            }
+            else if ((Type == 1277 && Rva3) || (Type == 318 && Rva3))    // 0x14006A3FF
+            {
+                ULONG r = Cumul + F38 - (ULONG)(ULONG_PTR)PeBase;     // 0x14006A407
+                if (r && r < PeSize)                                  // 0x14006A409/40D
+                {
+                    /* ---- L4（0x14006A44A）：1296 ---- */
+                    ULONG k;
+
+                    InitPESectionReadContext(PeBase + r, PeSize - r, // 0x14006A44A
+                                             2, 0, -1, 0, 0, (__int64)&Ctx);
+                    for (k = 0; ; )                               // 0x14006A44F（v20，上限 0x1E）
+                    {
+                        USHORT T4;
+                        ULONG  L4, C4;
+
+                        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))  // 0x14006A462
+                            return Result;
+
+                        L4 = *(ULONG *)((PUCHAR)Entry + 0xF0);
+                        C4 = L4 + (ULONG)Ctx.ReadPtr;             // 0x14006A474
+                        Ctx.ReadPtr += L4;                        // 0x14006A47E
+                        T4 = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);
+
+                        if (T4 == 0x510                             // 0x14006A491（1296）
+                            && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000ULL)
+                        {
+                            ULONG64 F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);
+                            ULONG   F58 = *(ULONG *)((PUCHAR)Entry + 0x58);
+                            ULONG   F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
+
+                            if (F78)                              // 0x14006A493/498（v30）
+                            {
+                                if (F50 == 64 && !F58)            // 0x14006A49A/4A1
+                                {
+                                    ULONG r3 = C4 + F78 - (ULONG)(ULONG_PTR)PeBase;  // 0x14006A4A6
+                                    if (r3 && r3 < PeSize)        // 0x14006A4AB/4AF
+                                    {
+                                        GtWrite((GLOBAL_TABLE_INDEX)0x7DC, (__int64)Rva3);       // 0x14006A4C4
+                                        GtWrite((GLOBAL_TABLE_INDEX)0x7DD,
+                                                ModuleBase + (__int64)r3);                   // 0x14006A4D3
+                                        return 1;                 // 0x14006A4D8
+                                    }
+                                }
+                            }
+                        }
+                        if ((ULONG)(++k) >= 0x1E)                 // 0x14006A4B1/4B4/4B8
+                            return Result;
+                    }
+                    return Result;                                // 0x14006A462（读条目失败退出）
+                }
+            }
+            if ((ULONG)(++i) >= 0x64)                             // 0x14006A40F/411/414
+                return Result;
+        }
+    }
+
+    return Result;                                                // 0x14006A4DC
+}
+
 // FindWin32kSectionByType — 按节区类型 1298 查找 Win32k 数据节区
 // 对应原始驱动 0x1400888FC（356 字节）
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
@@ -5763,7 +5978,7 @@ __int64 FindWin32kSectionByType(void)
     __int64  result;             // = GtRead(0x4348)
     ULONG    i;
     PE_DECODE_CONTEXT Ctx;
-    _DWORD   Entry[20];
+    _DWORD   Entry[112];         // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
     Win32kBase   = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x20);      // 0x140088934（GtEprocessField22=32）
     Win32kSize   = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);        // 0x140088941（GtEprocessField23=33）

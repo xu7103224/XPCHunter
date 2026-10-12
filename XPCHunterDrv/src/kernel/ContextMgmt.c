@@ -1605,7 +1605,6 @@ L_INNER_LOOP:                                                // 0x140056CE2
         for (;;)                                             // L_d56
         {
             ULONG   Type;
-            ULONG64 Chk50;
             ULONG   Cand;                                    // edi
 
             if (ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)Desc) != 0)   // 0x140056D5F

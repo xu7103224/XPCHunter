@@ -1372,6 +1372,121 @@ __int64 ResetThreadStateFlag(__int64 Thread, __int64 FlagOffset)
     return result;
 }
 
+// EnumerateFileMappingSection — 枚举文件映射节区(V1)
+// 对应原始驱动 0x14004BE6C（617 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**，按伪代码 1:1 转写，
+//   并用 capstone 原始字节复核（见【与 Ex 版的差异】的偏移证据）。
+// 【与 EnumerateFileMappingSectionEx（0x14004C0D8）的差异】
+//   1) 文件对象指针取 a1+0x28（Ex 取 a1+72=0x48），有效性探测长度 0x47（Ex 用 +55=0x37）；
+//      capstone：`mov rbx, qword ptr [rcx + 0x28]`、`lea rcx, [rbx + 0x47]`；
+//   2) 节头指针取 *(v6+0x30)（Ex 取 *(FileObject+64) 并与 ~0xF 对齐）；
+//      capstone：`mov rbx, qword ptr [rbx + 0x30]`（无 and 掩码）；
+//   3) 无构建号门控的节区类型检查（Ex 有 `GtRead(0x914) < 0x47BA` 分支）；
+//   4) 入口判据用 FindThreadEntry(a2, VAD+0x18 << 12, ...) **仅单个** StartAddr，
+//      不使用 VAD+0x1C 的高位扩展。
+// 【参数】a1 = VAD 节点；a2 = 输出缓冲（每项 544 字节，首 DWORD 为已用项数）；
+//   a3 = 缓冲字节数。
+// 【布局】项基址 = 136 DWORD/项（544 字节）：+8 起始地址、+0x10 结束地址、
+//   +0x18 节头指针、+0x20 名称（最多 0x1FE 字节）、+2 命中位。
+// 【逻辑】
+//   1) 若 544*已用项数 + 552 > a3 → 直接返回（空间不足）；
+//   2) 取文件对象 v6 = *(a1+0x28)；三级有效性探测 + (*(v6+0x2C) & 0xA0)==0xA0；
+//   3) 取节头 v7 = *(v6+0x30)；要求 v7 > MmSystemRangeStart、探测 v7 与 v7+0xB7 有效、
+//      *v7==5 且 ((v7[1]-0xB8) & 0xFFDF)==0；
+//   4) 若 FindThreadEntry(...) == 1（未命中已有条目）：
+//      若 *(a1+0x1C) != *(a1+0x18) 且 QueryObjectNameString(v7, &Src, &NameLength)==1 →
+//        以当前已用项数 EntryIndex 填充新条目（基址 = *(a1+0x18)<<12、
+//        大小 = ((*(a1+0x1C)-*(a1+0x18)+1)<<12)、节头指针、名称），
+//        写 *a2 = EntryIndex+1，随后 ExFree(Src)；
+//      否则（命中已有条目）：用已命中索引 MatchIndex 定位条目，
+//        若名称不同且新名更长 → 覆盖名称，随后 ExFree(Src)。
+void __fastcall EnumerateFileMappingSection(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
+{
+    ULONG   EntryIndex;         // v3
+    __int64 FileObject;         // v6
+    _WORD  *SectionHeader;      // v7
+    void   *Src[2] = { 0, 0 };  // QueryObjectNameString 输出缓冲（[0]=缓冲指针）
+    unsigned int MatchIndex = 0;    // v17（FindThreadEntry 输出）
+    unsigned int NameLength = 0;    // v18
+    __int64 EntryOffset;
+    unsigned int StringLength;
+
+    EntryIndex = *OutputBuffer;
+    if ((unsigned int)(544 * (int)EntryIndex + 552) > BufferSize)   // 0x14004BE96
+        return;
+
+    FileObject = *(__int64 *)(VadNode + 0x28);                      // 0x14004BE9C
+    if (!FileObject)                                                // 0x14004BEA3
+        return;
+
+    if (MmIsAddressValid((PVOID)FileObject) != 1                     // 0x14004BEAC
+        || MmIsAddressValid((PVOID)(FileObject + 0x47)) != 1        // 0x14004BEBA
+        || (*(UCHAR *)(FileObject + 0x2C) & 0xA0) != 0xA0)          // 0x14004BECC
+        return;
+
+    SectionHeader = *(_WORD **)(FileObject + 0x30);                 // 0x14004BEE3
+    if ((ULONG64)SectionHeader <= (ULONG64)MmSystemRangeStart)      // 0x14004BEE7
+        return;
+    if (MmIsAddressValid(SectionHeader) != 1                        // 0x14004BEF3
+        || MmIsAddressValid((char *)SectionHeader + 0xB7) != 1      // 0x14004BF01
+        || *SectionHeader != 5                                      // 0x14004BF16
+        || ((SectionHeader[1] - 0xB8) & 0xFFDF) != 0)               // 0x14004BF24
+        return;
+
+    if ((unsigned int)FindThreadEntry(OutputBuffer,                 // 0x14004BF50
+                                      (unsigned __int64)*(unsigned int *)(VadNode + 0x18) << 12,
+                                      &MatchIndex, (__int64)SectionHeader) != 1)
+    {
+        /* 命中已有条目：仅当名称更长时覆盖 */
+        if ((unsigned int)QueryObjectNameString((ULONG64)SectionHeader, // 0x14004BF76
+                                                (_QWORD *)Src, &NameLength) != 1)
+            return;                                                 // 0x14004C018
+
+        EntryOffset = 136LL * MatchIndex;                            // 0x14004C028
+        HIWORD_LV(OutputBuffer[EntryOffset + 137]) = 0;              // 0x14004C035
+        StringLength = (ULONG)GetStringLength((_WORD *)&OutputBuffer[EntryOffset + 10]);  // 0x14004C03E
+        if (2LL * StringLength != NameLength                         // 0x14004C05B
+            || (unsigned int)StringCompare3Way((__int64)&OutputBuffer[EntryOffset + 10],
+                                               (unsigned __int16 *)Src[0], NameLength >> 1))
+        {
+            StringLength = (ULONG)GetStringLength((_WORD *)&OutputBuffer[EntryOffset + 10]);  // 0x14004C067
+            if (NameLength > 2 * (ULONG64)StringLength)              // 0x14004C077
+            {
+                LOBYTE_LV(OutputBuffer[EntryOffset + 2]) = 1;        // 0x14004C079
+                if (NameLength > 0x1FE)                              // 0x14004C08D
+                    NameLength = 510;
+                memmove(&OutputBuffer[EntryOffset + 10], Src[0], NameLength);  // 0x14004C099
+                *((_WORD *)&OutputBuffer[136 * (ULONG)MatchIndex + 10]
+                  + ((ULONG64)NameLength >> 1)) = 0;                 // 0x14004C0AE
+                HIWORD_LV(OutputBuffer[EntryOffset + 137]) = 0;      // 0x14004C0B4
+            }
+        }
+        ExFree(Src[0]);                                             // 0x14004C0BD
+        return;
+    }
+
+    /* 未命中已有条目：追加新条目 */
+    if (*(_DWORD *)(VadNode + 0x1C) != *(_DWORD *)(VadNode + 0x18)   // 0x14004BF61
+        && (unsigned int)QueryObjectNameString((ULONG64)SectionHeader,   // 0x14004BF76
+                                               (_QWORD *)Src, &NameLength) == 1)
+    {
+        EntryOffset = 136LL * EntryIndex;                            // 0x14004BF87
+        LOBYTE_LV(OutputBuffer[EntryOffset + 2]) = 1;                // 0x14004BF8E
+        *(__int64 *)&OutputBuffer[EntryOffset + 8] = (__int64)SectionHeader;   // 0x14004BF93
+        *(__int64 *)&OutputBuffer[EntryOffset + 4] =
+            (unsigned __int64)*(unsigned int *)(VadNode + 0x18) << 12;         // 0x14004BFA0
+        *(__int64 *)&OutputBuffer[EntryOffset + 6] =
+            (unsigned int)((*(_DWORD *)(VadNode + 0x1C) - *(_DWORD *)(VadNode + 0x18) + 1) << 12);  // 0x14004BFBB
+        if (NameLength > 0x1FE)                                      // 0x14004BFC5
+            NameLength = 510;
+        memmove(&OutputBuffer[EntryOffset + 10], Src[0], NameLength);  // 0x14004BFD7
+        *((_WORD *)&OutputBuffer[136 * EntryIndex + 10] + ((ULONG64)NameLength >> 1)) = 0;  // 0x14004BFEB
+        HIWORD_LV(OutputBuffer[EntryOffset + 137]) = 0;              // 0x14004BFF1
+        *OutputBuffer = EntryIndex + 1;                              // 0x14004BFFE
+        ExFree(Src[0]);                                             // 0x14004C0BD
+    }
+}
+
 // EnumerateFileMappingSectionEx — 枚举文件映射节区(扩展版)
 // 对应原始驱动 sub_14004C0D8（715 字节）
 // 从 VAD 节点提取文件对象信息，填充到输出缓冲区

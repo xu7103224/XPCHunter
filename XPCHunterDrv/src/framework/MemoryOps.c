@@ -202,6 +202,137 @@ char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *Sourc
     return Success;
 }
 
+// ReadWriteCallbackPhysicalMemory — 回调相关数据的物理内存读写通用函数
+// 对应原始驱动 0x1400709C4（374 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**，按伪代码 1:1 转写，
+//   并用 capstone 原始字节复核参数寄存器归属（见下）。
+// 【参数】（调用方 ReadCallbackType1 / CallbackType1Dispatcher 已证实为 6 参）
+//   VirtualAddress  = rcx：指向「对象指针」的指针
+//   FieldOffset     = edx：字段偏移（在对象内的偏移）
+//   ContextValue    = r8 ：写入值 / 待校验的 ntoskrnl 内地址
+//   FlagWriteQword  = r9b：== 1 时走写 QWORD 分支
+//   FlagCopyFromNtos= [rsp+0xA0]（第 5 参）：== 1 时走从 ntoskrnl 复制 16 字节分支
+//   FlagForceWrite  = [rsp+0xA8]（第 6 参）：ContextValue 为空时是否仍强制写入
+//   capstone：`mov sil, r9b`（r9 = 第 4 参）、`mov rbx, r8`（r8 = 第 3 参）、
+//   `mov r14d, edx`（edx = 第 2 参）、`cmp [rsp+78h+arg_20], 1`（第 5 参）、
+//   `cmp [rsp+78h+arg_28], 1`（第 6 参）。
+// 【GT 依据】寄存器跟踪提取的调用序：0x357 → 0x4C → 0x21 → 0x21（谓词中复读）。
+// 【逻辑】
+//   1) ObjectHeaderBase = GtRead(0x357)；为 0 直接返回其值；
+//   2) 若 FlagWriteQword == 1 且 VirtualAddress 非空：
+//      逐级 MmIsAddressValid(VirtualAddress)、MmIsAddressValid(*VirtualAddress)、
+//      MmIsAddressValid(对象 + FieldOffset + ObjectHeaderBase)；
+//      末级通过后：若 ContextValue 非空 → 再校验 MmIsAddressValid(ContextValue)，
+//      通过则写；若 ContextValue 为空 → 仅当 FlagForceWrite == 1 才写。
+//      写入 = WritePhysicalMemoryQword(目标地址, ContextValue)；
+//   3) 若 FlagCopyFromNtos == 1：
+//      NtoskrnlCopyBase = GtRead(0x4C)、NtoskrnlImageSize = GtRead(0x21)、
+//      NtosBase = GtRead(3)；三者齐备且 ContextValue > NtosBase 且
+//      RVA = (ULONG)(ContextValue - NtosBase) < ImageSize 且 ContextValue == NtosBase + RVA
+//      → 源缓冲 = NtoskrnlCopyBase + RVA；
+//        校验 MmIsAddressValid(ContextValue)、+15、源缓冲、源缓冲+15 全部有效
+//        → 读 16 字节到栈缓冲 v19，WritePhysicalMemoryBuffer(ContextValue, &v19, 0x10, 0, 0)。
+// 【返回值】最后一次操作的布尔结果（伪代码统一以 v10 承载返回）。
+char ReadWriteCallbackPhysicalMemory(char **VirtualAddress, unsigned int FieldOffset,
+                                     unsigned __int64 ContextValue, char FlagWriteQword,
+                                     char FlagCopyFromNtos, char FlagForceWrite)
+{
+    __int64 FieldOffsetCopy;
+    char    Result;
+    ULONG   ObjectHeaderBase;
+    char   *ObjectPtr;
+    char   *TargetAddress;
+    __int64 NtoskrnlCopyBase;
+    ULONG   NtoskrnlImageSize;
+    __int64 NtosBase;
+    ULONG   RvaOffset;
+    _OWORD  *SrcBuffer;      // 源 16 字节（ntoskrnl 镜像内）
+    _OWORD   Buf16;          // 栈上 16 字节中转缓冲
+
+    FieldOffsetCopy = FieldOffset;                                    // 0x1400709EC（r14d）
+    Result = (char)GtRead(GtEprocessExtField01);                      // 0x1400709EF（0x357）
+    ObjectHeaderBase = (ULONG)Result;                                 // 0x1400709F4（ebp）
+    if (!ObjectHeaderBase)                                            // 0x1400709F9
+        return Result;
+
+    if (FlagWriteQword == 1)                                          // 0x1400709FF（sil）
+    {
+        if (VirtualAddress)                                           // 0x140070A05
+        {
+            Result = MmIsAddressValid(VirtualAddress);                // 0x140070A0D
+            if ((UCHAR)Result == 1)                                   // 0x140070A13（cmp al, sil）
+            {
+                ObjectPtr = *VirtualAddress;                          // 0x140070A18
+                if (ObjectPtr)                                        // 0x140070A1B
+                {
+                    Result = MmIsAddressValid(ObjectPtr);             // 0x140070A23
+                    if ((UCHAR)Result == 1)                           // 0x140070A29
+                    {
+                        TargetAddress = &ObjectPtr[FieldOffsetCopy + ObjectHeaderBase];  // 0x140070A2E/30/33
+                        Result = MmIsAddressValid(TargetAddress);     // 0x140070A39
+                        if ((UCHAR)Result == 1)                       // 0x140070A3F
+                        {
+                            if (ContextValue)                         // 0x140070A44（test rbx, rbx）
+                            {
+                                Result = MmIsAddressValid((PVOID)ContextValue);  // 0x140070A4C
+                                if ((UCHAR)Result == 1)               // 0x140070A52
+                                    Result = WritePhysicalMemoryQword((unsigned __int64)TargetAddress,
+                                                                      ContextValue);   // 0x140070A69
+                            }
+                            else if (FlagForceWrite == 1)             // 0x140070A59（arg_28）
+                            {
+                                Result = WritePhysicalMemoryQword((unsigned __int64)TargetAddress,
+                                                                  ContextValue);           // 0x140070A69
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (FlagCopyFromNtos == 1)                                        // 0x140070A6E（arg_20）
+    {
+        NtoskrnlCopyBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x4C);  // 0x140070A7C（76 = GtEprocessField66）
+        NtoskrnlImageSize = (ULONG)GtRead(GtEprocessField23);          // 0x140070A8E（0x21）
+        NtosBase = (__int64)GtRead(GtNtoskrnlModuleBase);              // 0x140070A9B（3）
+
+        if (NtoskrnlCopyBase && NtoskrnlImageSize && NtosBase                    // 0x140070AA0/AA5/AA9
+            && ContextValue > (unsigned __int64)NtosBase)             // 0x140070AAE（cmp rbx, rax）
+        {
+            RvaOffset = (ULONG)(ContextValue - (unsigned __int64)NtosBase);      // 0x140070AB3
+            if (RvaOffset < NtoskrnlImageSize)                        // 0x140070AB9
+            {
+                if (ContextValue == (unsigned __int64)NtosBase + RvaOffset)      // 0x140070AC3
+                {
+                    SrcBuffer = (_OWORD *)(RvaOffset + NtoskrnlCopyBase);      // 0x140070AC5
+                    Result = MmIsAddressValid((PVOID)ContextValue);   // 0x140070ACC
+                    if ((UCHAR)Result == 1)                           // 0x140070AD4
+                    {
+                        Result = MmIsAddressValid((PVOID)(ContextValue + 15));   // 0x140070ADA
+                        if ((UCHAR)Result == 1)                       // 0x140070AE2
+                        {
+                            Result = MmIsAddressValid(SrcBuffer);     // 0x140070AE7
+                            if ((UCHAR)Result == 1)                   // 0x140070AEF
+                            {
+                                Result = MmIsAddressValid((char *)SrcBuffer + 15);   // 0x140070AF5
+                                if ((UCHAR)Result == 1)               // 0x140070AFD
+                                {
+                                    Buf16 = *SrcBuffer;               // 0x140070B17
+                                    Result = WritePhysicalMemoryBuffer(ContextValue, &Buf16,
+                                                                       0x10u, 0, 0);   // 0x140070B1D
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return Result;                                                    // 0x140070B22
+}
+
 // AtomicExchange16Bytes — 原子交换 16 字节
 // 对应原始驱动 sub_140082CB0
 // 通过 MDL 映射目标地址，提升 IRQL 到 2，原子交换 16 字节数据

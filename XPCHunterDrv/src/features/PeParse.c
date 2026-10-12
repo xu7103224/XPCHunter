@@ -2208,7 +2208,7 @@ char __fastcall ParseNtSectionHeaders2(
     int SectionIndex2;
     ULONG TargetRva = 0;
     __int64 ExportDataBaseLocal;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;  // 0x48 字节解码上下文（原 __int64 仅 8 字节，栈越界）
     __int64 SectionDataRva = 0;
     _DWORD SectionEntry[112];
     ULONG LoopIndex;

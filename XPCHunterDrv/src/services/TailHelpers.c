@@ -1875,7 +1875,7 @@ __int64 ParseNtSectionsForSsdtTable(void)
     int CumulativeOffset;
     unsigned short SectionType;
     unsigned int ValueField;
-    __int64 SectionContext;
+    PE_DECODE_CONTEXT SectionContext;  // 0x48 字节解码上下文（原 __int64 仅 8 字节，栈越界）
     char EntryBuffer[0x120];
     unsigned int SectionSize;
     __int64 CumulativeSize;
@@ -1904,7 +1904,7 @@ __int64 ParseNtSectionsForSsdtTable(void)
         NtoskrnlModuleBase &&
         NtoskrnlImageSize)
     {
-        SectionContext = 0;
+        RtlZeroMemory(&SectionContext, sizeof(SectionContext));
         InitPESectionReadContext(
             (__int64)(PUCHAR)(NtImageBase + BaseOffset),
             NtImageSize - BaseOffset,
@@ -2044,210 +2044,102 @@ __int64 FindReadableDiskSector(struct _DEVICE_OBJECT *DeviceObject, unsigned int
 }
 
 // ===== 回调控制操作子函数 =====
-// 以下函数用于读写/修改内核回调表条目（APC、CmCallback、PspCreateProcessNotify 等）
-// TargetObject 指向目标回调函数地址的指针，ContextValue 标识回调类型（GT 索引），
-// Op1/Op2/Op3 为操作码（1=读取、2=清除、3=恢复等）
+// 【⚠ 修正记录 2026-10-08】本族 8 个函数原为**伪造实现**（凭空写 MmIsAddressValid /
+//   置零逻辑，与原始驱动无关）。按 IDA 反汇编 + capstone 复核后重写：
+//   这 8 个函数**都是"读一个 GT 索引常量 → 尾调用 ReadWriteCallbackPhysicalMemory"**，
+//   唯一差异是所读 GT 索引与栈上传参的顺序。
+// 【参数语义】rcx = VirtualAddress，rdx = FieldOffset，r8 = ContextValue，r9b = 第 4 参，
+//   [rsp+0x20]（第 5 参）与 [rsp+0x28]（第 6 参）沿用调用者传入值。
+//   反汇编证据（0x140070070，与 0x140070B3C 完全同构）：
+//     mov rbp, rcx              ; 暂存 arg0(VirtualAddress)
+//     mov ecx, 0x35a            ; GtRead 索引
+//     mov bl, r9b               ; 暂存 arg3(第 4 参)
+//     mov dil, r8b              ; 暂存 arg2(第 3 参)
+//     mov rsi, rdx              ; 暂存 arg1(第 2 参)
+//     call GtRead               ; eax = GT 值
+//     mov r10b, [rsp+0x60]      ; 第 6 参（栈）
+//     mov r9b, dil              ; 目标 arg3 = 本函数 arg2
+//     mov r8,  rsi              ; 目标 arg2 = 本函数 arg1
+//     mov [rsp+0x28], r10b      ; 目标 arg5 = 本函数 arg4（第 5 栈参）
+//     mov edx, eax              ; 目标 arg1(FieldOffset) = GtRead 结果
+//     mov rcx, rbp              ; 目标 arg0 = 本函数 arg0
+//     mov [rsp+0x20], bl        ; 目标 arg4 = 本函数 arg3
+//     call ReadWriteCallbackPhysicalMemory
+//   ⇒ 参数映射为「整体后移一位、第 1 位插入 GT 值」：
+//     目标(0,1,2,3,4,5) = 本函数(0, GT, 1, 2, 3, 4)。
+//   因此包装函数的 Op1/Op2/Op3 依次对应目标的
+//   FlagWriteQword / FlagCopyFromNtos / FlagForceWrite。
 
-// ReadCallbackType1 — 读取回调类型1（PspCreateProcessNotifyRoutine 等）
-// 对应原始驱动 sub_140070070（93 字节）
-char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
+// ReadCallbackType1 — 读取回调类型1
+// 对应原始驱动 0x140070070（93 字节）
+// 【GT 依据】读 0x35A（GtEprocessExtField04）。
+char ReadCallbackType1(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (Op1 == 1)
-            {
-                // 读取回调函数地址
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (Op1 == 2 && Op2 == 1)
-            {
-                // 清除回调（置 0）
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField04);   // 0x140070087
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);  // 0x1400700B3
 }
 
-// ReadCallbackType2 — 读取回调类型2（PspCreateThreadNotifyRoutine 等）
-// 对应原始驱动 sub_1400700D0（93 字节）
-char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
+// ReadCallbackType2 — 读取回调类型2
+// 对应原始驱动 0x1400700D0（93 字节）
+// 【GT 依据】读 0x35B（GtEprocessExtField05）。
+char ReadCallbackType2(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (Op1 == 1)
-            {
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (Op1 == 2 && Op2 == 1)
-            {
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField05);   // 0x1400700E7
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);
 }
 
-// ReadCallbackType3 — 读取回调类型3（PspLoadImageNotifyRoutine 等）
-// 对应原始驱动 sub_140070130（93 字节）
-char ReadCallbackType3(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
+// ReadCallbackType3 — 读取回调类型3
+// 对应原始驱动 0x140070130（93 字节）
+// 【GT 依据】读 0x358（GtEprocessExtField02）。
+char ReadCallbackType3(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (Op1 == 1)
-            {
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (Op1 == 2 && Op2 == 1)
-            {
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField02);   // 0x140070147
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);
 }
 
-// CallbackType1Dispatcher — 回调类型1 分派器（PspCreateProcessNotifyRoutine 等）
-// 对应原始驱动 sub_140070B3C（93 字节）
-char CallbackType1Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+// CallbackType1Dispatcher — 回调类型1 分派器
+// 对应原始驱动 0x140070B3C（93 字节）
+// 【GT 依据】读 0x35F（GtEprocessExtField09）。
+char CallbackType1Dispatcher(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (LoByte == 1)
-            {
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (LoByte == 2 && Op2 == 1)
-            {
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField09);   // 0x140070B53
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);  // 0x140070B7F
 }
 
-// CallbackType2Dispatcher — 回调类型2 分派器（PspCreateThreadNotifyRoutine 等）
-// 对应原始驱动 sub_140070B9C（93 字节）
-char CallbackType2Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+// CallbackType2Dispatcher — 回调类型2 分派器
+// 对应原始驱动 0x140070B9C（93 字节）
+// 【GT 依据】读 0x359（GtEprocessExtField03）。
+char CallbackType2Dispatcher(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (LoByte == 1)
-            {
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (LoByte == 2 && Op2 == 1)
-            {
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField03);
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);
 }
 
-// CallbackType3Dispatcher — 回调类型3 分派器（PspLoadImageNotifyRoutine 等）
-// 对应原始驱动 sub_140070BFC（93 字节）
-char CallbackType3Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+// CallbackType3Dispatcher — 回调类型3 分派器
+// 对应原始驱动 0x140070BFC（93 字节）
+// 【GT 依据】读 0x35C（GtEprocessExtField06）。
+char CallbackType3Dispatcher(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (LoByte == 1)
-            {
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (LoByte == 2 && Op2 == 1)
-            {
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField06);
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);
 }
 
-// CallbackType4Dispatcher — 回调类型4 分派器（CmCallback 等）
-// 对应原始驱动 sub_140070C5C（93 字节）
-char CallbackType4Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+// CallbackType4Dispatcher — 回调类型4 分派器
+// 对应原始驱动 0x140070C5C（93 字节）
+// 【GT 依据】读 0x35E（GtEprocessExtField08）。
+char CallbackType4Dispatcher(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (LoByte == 1)
-            {
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (LoByte == 2 && Op2 == 1)
-            {
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField08);
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);
 }
 
-// CallbackType5Dispatcher — 回调类型5 分派器（ExFreeCallBack 等）
-// 对应原始驱动 sub_140070CBC（93 字节）
-char CallbackType5Dispatcher(char **TargetObject, unsigned __int64 ContextValue, char LoByte, char Op2, char Op3)
+// CallbackType5Dispatcher — 回调类型5 分派器
+// 对应原始驱动 0x140070CBC（93 字节）
+// 【GT 依据】读 0x35D（GtEprocessExtField07）。
+char CallbackType5Dispatcher(char **VirtualAddress, unsigned __int64 ContextValue, char Op1, char Op2, char Op3)
 {
-    char Result = 0;
-    if (TargetObject && ContextValue && MmIsAddressValid(TargetObject) == 1)
-    {
-        __int64 CallbackFunc = (__int64)*TargetObject;
-        if (CallbackFunc && (unsigned __int64)CallbackFunc > (unsigned __int64)MmSystemRangeStart)
-        {
-            if (LoByte == 1)
-            {
-                *TargetObject = (char *)CallbackFunc;
-                Result = 1;
-            }
-            else if (LoByte == 2 && Op2 == 1)
-            {
-                *TargetObject = NULL;
-                Result = 1;
-            }
-        }
-    }
-    return Result;
+    unsigned int FieldOffset = (unsigned int)GtRead(GtEprocessExtField07);
+    return ReadWriteCallbackPhysicalMemory(VirtualAddress, FieldOffset, ContextValue, Op1, Op2, Op3);
 }
 
 // ===== Stub 函数 =====

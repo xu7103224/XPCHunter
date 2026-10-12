@@ -67,7 +67,7 @@ void BuildSsdtHookTargets3(void);
 void BuildSsdtHookTargets4(void);
 char BuildSsdtEntryTableLegacy(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize);
 char BuildSsdtEntryTableEx(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize);
-char ParseStorPortExportDir(void);
+void ParseStorPortExportDir(void);
 char ParseSyscallFileExportDir(void);
 char BuildSyscallExportTable(void);
 char InitShadowSyscallExportTable(void);
@@ -773,7 +773,7 @@ char __fastcall ScanPESectionPatternsEx(_BYTE *PeBuffer, char *PatternBuffer,
     ULONG   MaxSearchSize = (ULONG)(BufferSize - 12);
     char    Result = 0;
     PE_DECODE_CONTEXT Ctx;
-    _DWORD  Entry[20];
+    _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
     ULONG   CurOfs;
     char    FoundMarker;
     int     PatternCount;

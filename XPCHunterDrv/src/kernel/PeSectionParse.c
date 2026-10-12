@@ -55,7 +55,7 @@ __int64 ParseNtSectionsForModuleList1(void)
     if (AltMatchOffset >= KernelSize)
         return 0;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;     // 0x48 字节解码上下文（原 __int64 仅 8 字节，栈越界）
     __int64 CumulativeSize = 0;
     // ReadPESectionEntry 只填充前 0x120 字节，但本函数会访问到 +0x1A0 处，
     // 故缓冲须大于 0x120（原声明 [72] 恰为 0x120，会越界读到相邻栈变量）
@@ -122,7 +122,7 @@ __int64 ParseNtSectionsForModuleList2(void)
     if (AltMatchOffset >= KernelSize)
         return 0;
 
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;     // 0x48 字节解码上下文（原 __int64 仅 8 字节，栈越界）
     __int64 CumulativeSize = 0;
     // 同 ParseNtSectionsForModuleList1：访问到 +0x1A0，缓冲须大于 0x120
     _DWORD SectionEntry[112];
@@ -383,7 +383,7 @@ __int64 FindPeSectionByTypeRsrc(
     int SectionIndex;
     int SectionOffset;
     __int16 SectionType;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;     // 0x48 字节解码上下文（原 __int64 仅 8 字节，栈越界）
     __int64 CumulativeSize;
     ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 SectionFlags;
@@ -445,7 +445,7 @@ __int64 FindPeSectionByType0x510(
     int SectionOffset;
     unsigned int TargetOffset;
     GLOBAL_TABLE_INDEX GtIndex;
-    __int64 ReadContext;
+    PE_DECODE_CONTEXT ReadContext;     // 0x48 字节解码上下文（原 __int64 仅 8 字节，栈越界）
     __int64 CumulativeSize;
     ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
     __int64 SectionChar;
@@ -1292,14 +1292,12 @@ __int64 FindPESectionByOffset(unsigned int SectionOffset)
     int ImageSize;
     __int64 Result;
     unsigned int i;
-    ULONG SectionEntry[14];         // 56字节节区条目缓冲区
+    ULONG SectionEntry[112];        // 描述符：原 [14] 仅 56 字节（ReadPESectionEntry 写 0x120）
+    PE_DECODE_CONTEXT Context;      // 0x48 字节解码上下文（原 char[16] 仅 16 字节，栈越界）
     int CurrentOffset;
     unsigned int ResultOffset;
-    char Context[16];               // ReadPESectionEntry 上下文（16字节）
-    __int64 *pCumulativeSize;       // 指向Context中偏移8的累积大小
-    ULONG SectionSize;
-    __int64 EntryPtr;
-    int EntrySize;
+    ULONG SectionSize;              // 描述符 +0xF0（指令长度）
+    int EntrySize;                  // 描述符 +0x38（RVA 候选字段）
 
     BaseOffset = GtRead(GtEprocessField22);
     MaxSize = (unsigned int)GtRead(GtEprocessField23);
@@ -1315,31 +1313,27 @@ __int64 FindPESectionByOffset(unsigned int SectionOffset)
         && SectionOffset
         && SectionOffset < MaxSize)
     {
-        // 初始化上下文
-        RtlZeroMemory(Context, sizeof(Context));
-        pCumulativeSize = (__int64 *)&Context[8];
         InitPESectionReadContext(
             (__int64)((ULONG64)SectionOffset + BaseOffset),
             (ULONG)(MaxSize - SectionOffset),
             2, 0, -1, 0, 0,
-            (__int64)Context);
+            (__int64)&Context);
 
         for (i = 0; i < 0x14; i++)
         {
-            Result = ReadPESectionEntry(Context, SectionEntry);
+            Result = ReadPESectionEntry((PUCHAR)&Context, SectionEntry);
             if (Result != 0)
                 break;
 
-            // 从节区条目中提取字段
-            SectionSize = *(ULONG *)((PUCHAR)SectionEntry + 0x30);
-            EntryPtr = (__int64)SectionEntry;
-            EntrySize = *(int *)((PUCHAR)SectionEntry + 0x38);   // 偏移0x38处为条目大小
-
-            CurrentOffset = (int)(SectionSize + *pCumulativeSize);
-            *pCumulativeSize += SectionSize;
+            // 累计位置 = 本条长度 + 读指针（自增前的值）；随后推进读指针
+            SectionSize = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            CurrentOffset = (int)((ULONG)Context.ReadPtr + SectionSize);
+            Context.ReadPtr += SectionSize;
+            EntrySize = *(int *)((PUCHAR)SectionEntry + 0x38);
 
             // 检查节区类型是否为1368(0x558)或1369(0x559)
-            if ((unsigned short)(*(USHORT *)(EntryPtr + 6) - 1368) <= 1)
+            // 类型取自描述符 +0x118 处指针所指向结构的 +6
+            if ((unsigned short)(*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 1)
             {
                 if (EntrySize)
                 {

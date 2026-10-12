@@ -68,7 +68,7 @@ void BuildSsdtHookTargets3(void);
 void BuildSsdtHookTargets4(void);
 char BuildSsdtEntryTableLegacy(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize);
 char BuildSsdtEntryTableEx(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize);
-char ParseStorPortExportDir(void);
+void ParseStorPortExportDir(void);
 char ParseSyscallFileExportDir(void);
 char BuildSyscallExportTable(void);
 char InitShadowSyscallExportTable(void);
@@ -1095,12 +1095,85 @@ char ValidateSyscallTableEntries(__int64 pTargetTable)
 {
     return ValidateSsdtHookTargetTable2(pTargetTable);
 }
-char ParseStorPortExportDir(void)
+// ParseStorPortExportDir — 解析 StorPort 驱动导出目录
+// 对应原始驱动 0x140050578（398 字节）
+// 【⚠ 修正记录 2026-10-08】原为 `GtWrite(就绪位,1); return 1;` 空壳 —— 静默失败型。
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**，按伪代码 1:1 转写。
+// 【GT 依据】调用序：GtAlloc(4388=0x1124) 取导出表 → 读 0x914（构建号）；
+//   构建号 >= 0x1770 用 0x309（GtCallbackField59）否则用 0x307（GtCallbackField57）
+//   作为 storport.sys 基址槽 → 读该槽得 v4；命中写 0x30C（v4 + RVA）与
+//   0x30B（就绪位 1）。
+// 【逻辑】1) ReadDiskPortDriverFile 读 storport.sys 到 v9/v8；
+//   2) ParsePESectionHeaders(v9, v8, "ntoskrnl.exe", "IofCompleteRequest", &v10)==1
+//      → GtWrite(0x30C, v4 + v10)；
+//   3) ParseStorPortExportSections(v9,v8,v1)==1 且 ParseNtExportDir(v9,v8,v4,0)==1
+//      → 循环 29 项：v7 = v1[12i+1]（表项 +4 的 RVA），清 v1[12i+0]=0，
+//        若 v7 非零且 (int)v7+16 <= v8 → 置 v1[12i+0]=1 并复制文件内 16 字节
+//        节头到 v1[12i+3]；随后置 v0=1、写就绪位 0x30B=1；
+//   4) ExFree(v9)；若 v0==1 → FillExportEntrySlot(v1)。
+void ParseStorPortExportDir(void)
 {
-    // 在原始驱动中，ParseStorPortExportDir 实际调用 GetDiskDriverSection 并初始化
-    // 这里标记 GT 索引为就绪
-    GtWrite(GtCallbackField61, 1);
-    return 1;
+    char  IsReady = 0;
+    __int64 *pExportTable;
+    ULONG BuildNumber;
+    GLOBAL_TABLE_INDEX BaseIndex;
+    __int64 StorportBase;
+    ULONG64 FileBuffer = 0;      // ReadDiskPortDriverFile 输出（文件缓冲）
+    unsigned int FileSize = 0;
+    unsigned int SectionOffset = 0;
+    unsigned int *pEntry;
+    __int64 EntryCount;
+    __int64 EntryRva;
+    _WORD NtName[16];
+    char FuncName[24];
+
+    pExportTable = GtAlloc((GLOBAL_TABLE_INDEX)0x1124);           // 0x1400505B1（4388）
+
+    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);            // 0x1400505B4（0x914）
+    BaseIndex = (GLOBAL_TABLE_INDEX)GtCallbackField57;            // 0x1400505B9（0x307）
+    if (BuildNumber >= 0x1770)                                    // 0x1400505C3
+        BaseIndex = (GLOBAL_TABLE_INDEX)GtCallbackField59;        // 0x1400505C5（0x309）
+
+    StorportBase = (__int64)GtRead(BaseIndex);                    // 0x1400505CF
+    if (!StorportBase || !ReadDiskPortDriverFile(&FileBuffer, &FileSize))  // 0x1400505E3
+        return;
+
+    strcpy((char *)NtName, "ntoskrnl.exe");                       // 0x140050608
+    ((char *)NtName)[12] = 0;                                     // 0x140050616（HIBYTE(v11[6])）
+    NtName[7] = 0;                                                // 0x140050616（v11[7]）
+
+    strcpy(FuncName, "IofCompleteRequest");                       // 0x14005061E
+    FuncName[19] = 0;                                             // 0x14005063A
+
+    if ((unsigned int)ParsePESectionHeaders((__int64)FileBuffer, FileSize,
+                                            (__int64)NtName, (unsigned __int8 *)FuncName,
+                                            &SectionOffset) == 1)  // 0x140050648
+        GtWrite(GtCallbackField62, StorportBase + SectionOffset);  // 0x140050655（0x30C）
+
+    if ((unsigned int)ParseStorPortExportSections((__int64)FileBuffer, FileSize,
+                                                  (__int64)pExportTable) == 1
+        && (unsigned int)ParseNtExportDir((PUCHAR)FileBuffer, FileSize,
+                                          (ULONG64)StorportBase, 0) == 1)  // 0x140050681
+    {
+        pEntry = (unsigned int *)pExportTable + 1;                // 0x140050683
+        for (EntryCount = 29; EntryCount; --EntryCount)           // 0x140050687
+        {
+            EntryRva = *pEntry;                                   // 0x14005068D（表项 +4）
+            *(pEntry - 1) = 0;                                    // 0x14005068F（表项 +0 命中位）
+            if ((_DWORD)EntryRva && (int)EntryRva + 16 <= (int)FileSize)  // 0x14005069C
+            {
+                *(pEntry - 1) = 1;                                // 0x14005069E
+                *(_OWORD *)(pEntry + 3) = *(_OWORD *)(FileBuffer + EntryRva);  // 0x1400506AD（表项 +16）
+            }
+            pEntry += 12;                                         // 0x1400506B2（每项 0x30 = 12 个 DWORD）
+        }
+        IsReady = 1;                                              // 0x1400506C4
+        GtWrite(GtCallbackField61, 1);                            // 0x1400506C6（0x30B 就绪位）
+    }
+
+    ExFree((void *)FileBuffer);                                   // 0x1400506CF
+    if (IsReady == 1)                                             // 0x1400506D7
+        FillExportEntrySlot((__int64)pExportTable);                // 0x1400506DC
 }
 // ParseSyscallFileExportDir — 解析系统调用文件导出目录（补全空壳）
 // 对应原始驱动 0x14003DBE0（231 字节）
@@ -5768,6 +5841,190 @@ char __fastcall ParseShadowSyscallExportSections(__int64 pFileBuffer, unsigned i
         }
     }
     return Result;
+}
+
+// =========================================================================
+// ParseStorPortExportSections — 解析 StorPort 驱动文件的导出节区
+// 对应原始驱动 0x140050774（842 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**，按伪代码 1:1 转写，
+//   并用 capstone 原始字节复核栈帧与字段偏移（见下）。
+// 【调用者】ParseStorPortExportDir（0x140050578）在 ReadDiskPortDriverFile 读到
+//   storport.sys 后调用本函数填 0x30 字节/项的导出表；成功后再调
+//   ParseNtExportDir 做重定位、循环 29 项回填节头。
+// 【GT 依据】寄存器跟踪提取：只读 0x309（GtCallbackField59 = storport.sys 基址）。
+// 【参数】PeBase = 文件缓冲；PeSize = 文件大小；pExportTable = 0x30 字节/项输出表。
+// 【字段映射】栈帧定案：上下文 = [rsp+50h]（+0x08 读指针 = [rsp+58h]），
+//   描述符 = [rsp+A0h]（0x120 字节，对齐后）。故描述符字段为
+//   +0x38 +0x40 +0x50 +0x58 +0x78 +0x88 +0xF0 +0x118（与同族解析器一致）。
+//   ① IDA 栈帧：v26=[rsp+E0h]=+0x40（1294 槽偏移字段）、v27=[rsp+F0h]=+0x50、
+//      v28=[rsp+F8h]=+0x58、v29=[rsp+118h]=+0x78、v30=[rsp+128h]=+0x88、
+//      v31=[rsp+130h]=+0x90、v32=[rsp+17Ch]=+0xDC、v33=[rsp+190h]=+0xF0、
+//      v34=[rsp+1B8h]=+0x118。
+//   ② capstone：`cmp qword ptr [rbp-0x10], 0x40`（+0x50）、
+//      `cmp qword ptr [rbp+0x28], 0x40000`（+0x88）、
+//      `mov eax, dword ptr [rbp+0x7c]`（+0xDC）、
+//      `mov r8d, dword ptr [rbp+rax*4+0xe0]`（Dst 数组，基址 = rbp+0xE0）。
+// 【算法】三段：
+//   段 1（上限 0x12C）：读条目；类型 1296 且 字段+0x50==64 时连续计数 v8，
+//     一旦 >= 4 则 v9=1；非 1296 时 v8=0，且若 v9==1：类型 1368 → 由
+//     字段+0x38（v25[14] = 描述符 +0x38）算 RVA(v13) 并进入段 2；否则 v9=0；
+//   段 2（上限 0xC8）：读条目；类型 1349 → break；v17 = 字段+0x50；
+//     类型 1298 且 字段+0x88==0x40000 且 字段+0x78 非零 且 字段+0x50==64 →
+//       算 RVA(v18) 存 Dst[字段+0x90]；
+//     类型 1139 或 1368 → 清空 Dst；
+//     类型 1294 且 (v17 & 0x14000) 且 (v17 & 0x40) 且 (字段+0xDC & 0xF)!=4
+//       且 字段+0x88==64 且 (字段+0x40-112)<=0xD8 且 (字段+0x40 & 7)==0 →
+//       槽索引 = (字段+0x40-112)>>3；若 <= 0x1B 且 Dst[字段+0x90] 非零
+//       且 pExportTable 对应槽 +4 为空 → 置已用、写 +4=RVA、+8=基址+RVA，
+//       Result=1。
+// 【返回值】Result（0 未命中；1 命中至少一项）。
+// =========================================================================
+char __fastcall ParseStorPortExportSections(__int64 PeBase, unsigned int PeSize, __int64 pExportTable)
+{
+    char    Result = 0;
+    __int64 StorportBase;
+    ULONG   ExportRva;
+    int     RunCount;           // v8：类型 1296 连续计数
+    char    Armed;              // v9：连续计数 >= 4 后的置位标志
+    int     OuterCount;         // v10：段 1 循环计数
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[112];         // 描述符：0x120 字节
+    _DWORD  Dst[16];            // 段 2 的中间槽数组
+    char    NameBuf[32];
+
+    StorportBase = (__int64)GtRead(GtCallbackField59);            // 0x1400507B9（0x309）
+    if (!StorportBase)
+        return Result;
+
+    strcpy(NameBuf, "StorPortInitialize");                        // 0x1400507D6
+    NameBuf[19] = 0;                                              // 0x1400507FE
+
+    ExportRva = (ULONG)FindExportByNameInPeBody((PUCHAR)PeBase, PeSize,
+                                                NameBuf, 0);      // 0x140050808
+    if (!ExportRva)                                               // 0x140050811
+        return Result;
+    if (ExportRva >= PeSize || ExportRva + 4096 >= PeSize)        // 0x140050827
+        return Result;
+
+    /* ---- 段 1（0x14005085F）：定位第 4 个连续 1296 之后的 1368 ---- */
+    InitPESectionReadContext(PeBase + ExportRva, 4096,             // 0x14005085F
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    RunCount = 0;                                                 // 0x140050864
+    Armed = 0;                                                    // 0x140050866
+    for (OuterCount = 0; ; )                                      // 0x140050869
+    {
+        USHORT Type;
+        ULONG  Len, Cumul, F38;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x14005087C
+            break;
+
+        Len   = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x14005088D
+        Ctx.ReadPtr += Len;                                       // 0x140050897
+        Type  = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14005089C
+        F38   = *(ULONG *)((PUCHAR)Entry + 0x38);
+
+        if (Type == 1296 && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 64)    // 0x1400508AF
+        {
+            if ((ULONG)(++RunCount) >= 4)                         // 0x1400508B6
+                Armed = 1;                                        // 0x1400508BC
+        }
+        else
+        {
+            RunCount = 0;                                         // 0x1400508C4
+            if (Armed == 1)                                       // 0x1400508CA
+            {
+                if (Type == 1368)                                 // 0x1400508D8
+                {
+                    ULONG r = Cumul + F38 - (ULONG)(ULONG_PTR)PeBase;   // 0x1400508E4
+                    if (r < PeSize)                               // 0x1400508E8
+                    {
+                        if (r && r + 4096 < PeSize)               // 0x1400508FE
+                        {
+                            /* ---- 段 2（0x140050936）：填导出表 ---- */
+                            ULONG i;
+
+                            InitPESectionReadContext(PeBase + r, 4096,    // 0x140050936
+                                                     2, 0, -1, 0, 0, (__int64)&Ctx);
+                            memset(Dst, 0, sizeof(Dst));          // 0x140050948
+                            for (i = 0; i < 0xC8; ++i)            // 0x14005094D
+                            {
+                                USHORT T2;
+                                ULONG  L2, C2, F40, F50, F58, F78, F90, FDC, F88;
+
+                                if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))  // 0x140050959
+                                    break;
+
+                                L2  = *(ULONG *)((PUCHAR)Entry + 0xF0);
+                                C2  = L2 + (ULONG)Ctx.ReadPtr;    // 0x140050971
+                                Ctx.ReadPtr += L2;                // 0x14005097B
+                                T2  = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x140050980
+                                if (T2 == 0x545)                  // 0x14005098C（1349）
+                                    break;
+                                F50 = *(ULONG *)((PUCHAR)Entry + 0x50);   // 0x140050992（v17 = v27）
+                                F88 = *(ULONG *)((PUCHAR)Entry + 0x88);   // v30
+                                F78 = *(ULONG *)((PUCHAR)Entry + 0x78);   // 0x1400509A8（v29）
+                                F58 = *(ULONG *)((PUCHAR)Entry + 0x58);   // v28：1298 的 Dst 写索引
+                                F90 = *(ULONG *)((PUCHAR)Entry + 0x90);   // v31：1294 的 Dst 读索引
+                                F40 = *(ULONG *)((PUCHAR)Entry + 0x40);   // 0x140050A1C（v26）
+                                FDC = *(ULONG *)((PUCHAR)Entry + 0xDC);   // 0x140050A0B（v32）
+
+                                if (T2 == 1298 && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000)  // 0x1400509A8
+                                {
+                                    if (*(ULONG *)((PUCHAR)Entry + 0x78))          // 0x1400509AF（v29）
+                                    {
+                                        if (F50 == 64)                     // 0x1400509B5（v27）
+                                        {
+                                            ULONG r2 = C2 + F78 - (ULONG)(ULONG_PTR)PeBase;  // 0x1400509BA
+                                            if (r2 && r2 < PeSize)         // 0x1400509BC/9C0
+                                                Dst[F58] = r2;             // 0x1400509C5（Dst[v28]）
+                                        }
+                                    }
+                                }
+                                if (T2 == 1139 || T2 == 1368)                  // 0x1400509DE
+                                    memset(Dst, 0, sizeof(Dst));               // 0x1400509ED
+
+                                if (T2 == 1294                                    // 0x140050A2F（v26 见下）
+                                    && (F50 & 0x14000) != 0                       // v17 & 0x14000
+                                    && (F50 & 0x40) != 0
+                                    && (FDC & 0xF) != 4
+                                    && F88 == 64
+                                    && (unsigned int)(F40 - 112) <= 0xD8
+                                    && (F40 & 7) == 0)
+                                {
+                                    ULONG SlotIndex = (F40 - 112) >> 3;       // 0x140050A31
+                                    if (SlotIndex <= 0x1B)                    // 0x140050A37
+                                    {
+                                        ULONG TargetRva = Dst[F90];           // 0x140050A3C
+                                        if (TargetRva)                        // 0x140050A47
+                                        {
+                                            if (!*(_DWORD *)(pExportTable + 48 * SlotIndex + 4))  // 0x140050A50
+                                            {
+                                                Result = 1;                   // 0x140050A5B
+                                                *(_DWORD *)(pExportTable + 48 * SlotIndex + 4) = TargetRva;   // 0x140050A5E
+                                                *(_QWORD *)(pExportTable + 48 * SlotIndex + 8) =
+                                                    StorportBase + TargetRva;                    // 0x140050A68
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        return Result;                            // 0x140050A77
+                    }
+                }
+                else
+                {
+                    Armed = 0;                                    // 0x140050AAA
+                }
+            }
+        }
+        if ((ULONG)(++OuterCount) >= 0x12C)                       // 0x140050AB7
+            return Result;
+    }
+
+    return Result;                                                // 0x140050A80
 }
 
 // =========================================================================
