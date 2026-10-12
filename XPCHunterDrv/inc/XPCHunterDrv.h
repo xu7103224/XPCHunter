@@ -783,6 +783,8 @@ char RegisterFormatNameCallback(void);
 char RegisterFormatPathCallback(void);
 __int64 MiniFilterFormatFileNameWithContext(void);
 __int64 MiniFilterFormatFileNameEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize);
+void MiniFilterNormalizeName(__int64 Param1, __int64 Object, UCHAR DoNormalize);
+UCHAR MiniFilterFormatFileNameWithPath(void);
 __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize);
 __int64 MiniFilterGenerateFileName(void);
 char __fastcall RemoveMiniFilterContextNode(_QWORD *ContextNode);
