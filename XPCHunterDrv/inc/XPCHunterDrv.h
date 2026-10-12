@@ -1520,6 +1520,8 @@ char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize);
 char __fastcall ScanKernelMemoryDataSection(__int64 PeBase, unsigned int PeSize);
 char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize);
 __int64 FindWin32kSectionByType(void);
+char __fastcall OpenFileQueryInfo(__int64 FilePath, __int64 Context);
+_QWORD *__fastcall QueryAllocFilePath(__int64 FileObject);
 char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize);
 __int64 ScanProcessPESectionsV2(void);
 bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize);
