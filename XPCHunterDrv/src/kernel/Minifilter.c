@@ -4597,6 +4597,93 @@ char __fastcall FindSetWfpDeviceObject(__int64 PeBase, unsigned int PeSize)
     return Result;
 }
 
+
+// FindWfpNblInfoDispatchTableClear — 按名查找 WfpNblInfoDispatchTableClear 导出并登记到 GT 0x7B2/0x7B3
+// 对应原始驱动 0x1400698C4（211 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，与本文件已实现的 14 个 Find* 族同构。
+char __fastcall FindWfpNblInfoDispatchTableClear(__int64 PeBase, unsigned int PeSize)
+{
+    char    Result = 0;
+    __int64 ModuleBase;
+    ULONG   Value = 0;
+    char    NameBuf[32];
+
+    ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
+    if (!ModuleBase)
+        return Result;
+
+    strcpy(NameBuf, "WfpNblInfoDispatchTableClear");
+
+    if (LookupExportByName((PUCHAR)PeBase, PeSize, NameBuf, &Value) == 1
+        && Value != 0 && Value < PeSize)
+    {
+        GtWrite((GLOBAL_TABLE_INDEX)0x7B2, (__int64)Value);
+        GtWrite((GLOBAL_TABLE_INDEX)0x7B3, ModuleBase + (__int64)Value);
+        return 1;
+    }
+    return Result;
+}
+
+// ScanWfpDeviceObjectSection — 扫描 WFP 设备对象节区（类型 1294）
+// 对应原始驱动 0x140069784（319 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
+// 【算法】先取 GT 0x7D4（SetWfpDeviceObject 的导出偏移）；为 0 则调
+//   FindSetWfpDeviceObject 再取一次，仍为 0 即返回 0；要求 < PeSize →
+//   以 (PeBase+偏移, PeSize-偏移) 初始化节区上下文，最多扫 0x14 条：
+//     · 类型 1349(0x545) → 结束；
+//     · 类型 1294(0x50E) 且 (字段+0x88 & 0x10000) 且 (字段+0x40 != 0)
+//       且 字段+0x50 == 64 且 字段+0x8C == 1 → 写 GT 0x7D6 = 字段+0x40，返回 1。
+char __fastcall ScanWfpDeviceObjectSection(__int64 PeBase, unsigned int PeSize)
+{
+    char    Result = 0;
+    ULONG   Offset;
+    ULONG   i;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[20];
+
+    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D4);
+    if (!Offset)                                                  // 0x1400697B4
+    {
+        FindSetWfpDeviceObject(PeBase, PeSize);                   // 0x1400697C7
+        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D4);
+        if (!Offset)
+            return Result;
+    }
+    if (Offset >= PeSize)                                         // 0x1400697DB
+        return Result;
+
+    InitPESectionReadContext(PeBase + Offset, PeSize - Offset,    // 0x14006980B
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+    for (i = 0; i < 0x14; ++i)                                    // 0x140069810
+    {
+        USHORT Type;
+        ULONG  Len;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x14006981F
+            break;
+
+        Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Ctx.ReadPtr += Len;                                       // 0x14006982F
+
+        Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);   // 0x14006983C
+        if (Type == 0x545)                                        // 0x140069848
+            break;
+
+        if (Type == 0x50E                                          // 0x14006987E
+            && (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x10000ULL) != 0
+            && *(ULONG *)((PUCHAR)Entry + 0x40) != 0
+            && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 64
+            && *(ULONG *)((PUCHAR)Entry + 0x8C) == 1)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)0x7D6,                          // 0x140069895
+                    *(__int64 *)((PUCHAR)Entry + 0x40));   // 注意：原为 (unsigned int)Value
+            return 1;
+        }
+    }
+    return Result;                                                // 0x14006989E
+}
+
 // FindFwpsDispatchTableWin8 — 扫描节区查找 Win8 Fwps 调度表
 // 对应原始驱动 0x14001B72C（611 字节）
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（80 行伪代码），按伪代码实现。
