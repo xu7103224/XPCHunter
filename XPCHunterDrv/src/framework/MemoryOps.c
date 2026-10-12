@@ -2813,3 +2813,614 @@ void __fastcall ScanProcessVadForObjectTypes(_OWORD *OutputBuffer,
     ExFree(ProcessInfoBuffer);                                               // 0x14008A3E1
     (void)v19; (void)Max;
 }
+
+// ScanProcessVadTree — 扫描目标进程 VAD 树，按对象类型索引定位 VAD 记录地址
+// 对应原始驱动 0x140088B74（1834 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（伪代码完整且带地址注释），
+//   按伪代码 1:1 转写（符合项目规则：可反编译者不手工逐条转写）。
+//   该函数是 _FINAL_GAP.json 的 A_definite_missing，源码中此前完全缺失。
+//
+// 【与 ScanProcessVadMemory(0x1400897E4) 的关系】同族：同样的 GT 前置校验、
+//   ValidateKernelObject → ReferenceObjectSafe → KeStackAttachProcess 骨架、
+//   以及同样的"输出 {进程对象, 创建时间, 地址, 对象类型索引} 并递增计数"收尾。
+//   差异：本函数**多一个入参 ObjectTypeIndex**（写入 ResultStruct2 的第 2 个 DWORD，
+//   即"类型索引"字段），且构建号分档更多（2600/7600-7601/9200/9600/3790/其他）。
+char __fastcall ScanProcessVadTree(unsigned __int64 ObjectAddress,
+                                   int ObjectTypeIndex,
+                                   _OWORD **ppOutputBuffer,
+                                   _DWORD *pEntryCount)
+{
+    __int64 (__fastcall *pGetProcessFunc)(unsigned __int64);
+    ULONG64 KernelBase;
+    ULONG   KernelSize;
+    ULONG64 *pMinAddress;
+    __int64 ObjectTypeCheckBase;
+    ULONG   VadRootOffset;
+    ULONG   VadTableOffset;
+    ULONG   CreateTimeOffset;
+    UCHAR   Result;
+    ULONG64 FoundAddress;
+    __int64 TargetProcess;
+    ULONG64 VadEndAddress;
+    ULONG   Build;
+    UCHAR   IsReferenced;
+    ULONG64 OutS1Lo, OutS1Hi, OutS2Lo, OutS2Hi;
+    struct _KAPC_STATE ApcState;
+
+    Result = 0;
+    pGetProcessFunc = (__int64 (__fastcall *)(unsigned __int64))GtRead((GLOBAL_TABLE_INDEX)0x4196);
+    KernelBase      = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    KernelSize      = (ULONG)GtRead(GtNtoskrnlImageSize);
+    pMinAddress     = (ULONG64 *)GtRead((GLOBAL_TABLE_INDEX)0x4168);
+    ObjectTypeCheckBase = (__int64)GtRead(GtObjectTypeCheckFlag);
+    VadRootOffset   = (ULONG)GtRead(GtEprocessField191);
+    VadTableOffset  = (ULONG)GtRead(GtEprocessField193);
+    CreateTimeOffset= (ULONG)GtRead(GtProcessCreateTime);
+
+    if (!pGetProcessFunc) return Result;
+    if (!KernelBase) return Result;
+    if (!KernelSize) return Result;
+    if (!pMinAddress) return Result;
+    if (!ObjectTypeCheckBase) return Result;
+    if (!VadRootOffset) return Result;
+    if (!VadTableOffset) return Result;
+    if (!CreateTimeOffset) return Result;
+
+    Result = 1;
+    if (!ObjectAddress) return Result;
+    if (!ValidateKernelObject(ObjectAddress, 0, 0, 0)) return Result;
+
+    OutS1Lo = ObjectAddress;
+    OutS1Hi = 0;
+    OutS2Lo = *(ULONG64 *)(CreateTimeOffset + ObjectAddress);
+    OutS2Hi = (ULONG64)(ULONG)ObjectTypeIndex;      // DWORD2(ResultStruct2) = ObjectTypeIndex
+    FoundAddress = 0;
+
+    TargetProcess = pGetProcessFunc(ObjectAddress);
+    IsReferenced = (UCHAR)ReferenceObjectSafe(TargetProcess);
+    KeStackAttachProcess((void *)TargetProcess, &ApcState);
+
+    if (CheckProcessObjectFlag(ObjectAddress))
+    {
+        __int64 *VadRoot;
+        VadEndAddress = *(ULONG64 *)(VadRootOffset + ObjectAddress);
+        VadRoot = (__int64 *)(*(ULONG64 *)(VadTableOffset + ObjectAddress));
+
+        if (CheckMemoryValid((void *)(VadEndAddress - 1)) == 1
+            && CheckMemoryValid(VadRoot) == 1)
+        {
+            Build = (ULONG)GtRead(GtWindowsBuildNumber);
+
+            if (Build == 2600)                                          // 0x140088D2F
+            {
+                __int64 *p = VadRoot;
+                for (; (ULONG64)p < VadEndAddress; ++p)
+                {
+                    if ((ULONG64)(p + 12) > VadEndAddress)              // 0x140088D4B
+                        break;
+                    if (ObjectAddress == (ULONG64)*p && p[1] == 0)      // 0x140088D56
+                    {
+                        ULONG64 v18 = p[3];                             // 0x140088D5B
+                        if (v18 > (ULONG64)VadRoot && v18 < VadEndAddress)   // 0x140088D67
+                        {
+                            ULONG64 v19 = p[4];                         // 0x140088D69
+                            if (v19 > KernelBase && v19 < KernelBase + KernelSize)  // 0x140088D7C
+                            {
+                                FoundAddress = p[2];                    // LABEL_112
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            else if (Build == 7600 || Build == 7601)                    // 0x140088DA8
+            {
+                __int64 *p = VadRoot;
+                for (; (ULONG64)p < VadEndAddress && (ULONG64)(p + 20) <= VadEndAddress; ++p)
+                {
+                    if ((ULONG)GtRead(GtWindowsBuildNumber) == 7600)    // 0x140089120
+                    {
+                        if (ObjectAddress == (ULONG64)*p)               // 0x140089129
+                        {
+                            ULONG64 v46 = p[7], v47 = p[8];             // 0x14008912F/133
+                            if (v46 == v47 && v47 >= (ULONG64)MmSystemRangeStart)  // 0x14008914B
+                            {
+                                ULONG64 v48 = p[10];                    // 0x14008914D
+                                ULONG64 v49 = KernelBase + KernelSize;  // 0x140089159
+                                if (v48 > KernelBase && v48 < v49)      // 0x140089154/15F
+                                {
+                                    ULONG64 v50 = p[11];                // 0x140089161
+                                    if (v50 > KernelBase && v50 < v49)  // 0x14008916D
+                                    {
+                                        FoundAddress = p[13];           // 0x14008920B
+                                        break;
+                                    }
+                                }
+                            }
+                            if (p[5] >= (__int64)MmSystemRangeStart)    // 0x140089181
+                            {
+                                ULONG64 v51 = p[1];                     // 0x140089183
+                                ULONG64 v52 = KernelBase + KernelSize;
+                                if (v51 > KernelBase && v51 < v52)      // 0x14008918A/195
+                                {
+                                    ULONG64 v53 = p[2];                 // 0x140089197
+                                    if (v53 > KernelBase && v53 < v52   // 0x1400891B3
+                                        && v46 > (ULONG64)VadRoot && v46 < VadEndAddress
+                                        && p[9] >= (__int64)MmSystemRangeStart)
+                                    {
+                                        FoundAddress = p[4];            // 0x140089211
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (p[1] == 0 && p[3] == 0)                    // 0x1400891BF
+                    {
+                        ULONG64 v54 = p[4];                             // 0x1400891C5
+                        if (v54 >= (ULONG64)MmSystemRangeStart          // 0x1400891FD
+                            && p[5] >= (__int64)MmSystemRangeStart
+                            && p[6] == 1
+                            && ObjectAddress == (ULONG64)p[9]
+                            && p[10] >= (__int64)MmSystemRangeStart
+                            && p[11] >= (__int64)MmSystemRangeStart
+                            && p[18] == (__int64)v54)
+                        {
+                            FoundAddress = p[5];                        // LABEL_145
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (Build == 9200)                                     // 0x140088DBA
+            {
+                __int64 *p = VadRoot + 10;
+                if ((ULONG64)p < VadEndAddress)
+                {
+                    while ((ULONG64)(p + 20) <= VadEndAddress)          // 0x140088DDE
+                    {
+                        if (ObjectAddress == (ULONG64)*p && p[-1] == (__int64)-6000000000LL)  // 0x140088DF7
+                        {
+                            ULONG64 v21 = p[1];                             // 0x140088DF9
+                            ULONG64 v22 = KernelBase + KernelSize;
+                            if (v21 > KernelBase && v21 < v22)              // 0x140088E00/0C
+                            {
+                                ULONG64 v23 = p[2];                         // 0x140088E0E
+                                if (v23 > KernelBase && v23 < v22)          // 0x140088E1A
+                                {
+                                    ULONG64 v24 = p[-2];                    // 0x140088E1C
+                                    if (v24 > KernelBase && v24 < v22       // 0x140088E31
+                                        && p[9] >= (__int64)MmSystemRangeStart)
+                                    {
+                                        FoundAddress = p[-6];               // 0x140088E42
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if ((ULONG64)++p >= VadEndAddress)                  // 0x140088E3A
+                            break;
+                    }
+                }
+            }
+            else if (Build == 9600)                                     // 0x140088E57
+            {
+                __int64 *p = VadRoot + 10;
+                for (; (ULONG64)p < VadEndAddress && (ULONG64)(p + 20) <= VadEndAddress; ++p)
+                {
+                    if (ObjectAddress != (ULONG64)*p)                       // 0x140088E7D
+                        continue;
+
+                    {
+                        __int64 HookFlag = (__int64)GtRead(GtNtCreateThreadHookSuccess);  // 0x140088E88
+                        ULONG64 v27 = p[1];                                 // 0x140088E8F
+                        if (HookFlag)                                       // 0x140088E96
+                        {
+                            if (v27 > KernelBase && v27 < KernelBase + KernelSize)  // 0x140088EEF
+                            {
+                                __int64 v28 = p[2];                         // 0x140088EF1
+                                if (v28 == 1)                               // 0x140088EF8
+                                {
+                                    if (p[3] > (__int64)MmSystemRangeStart
+                                        && *p == p[4])                      // 0x140088F11
+                                    {
+                                        FoundAddress = p[3];                // 0x140088F92
+                                        break;
+                                    }
+                                }
+                                else if (v28 == 0 && p[3] == 0 && p[4] == 0  // 0x140088F3D
+                                    && p[7] > (__int64)MmSystemRangeStart
+                                    && *p == p[6])
+                                {
+                                    FoundAddress = p[7];                // 0x140088F9B
+                                    break;
+                                }
+                            }
+                            else if (v27 == 1 && p[6] == 0)                // 0x140088F46
+                            {
+                                __int64 v29 = *p;                          // 0x140088F4C
+                                if (*p == p[3])                            // 0x140088F53
+                                {
+                                    ULONG64 v30 = p[5];                    // 0x140088F55
+                                    if (v30 > (ULONG64)MmSystemRangeStart  // 0x140088F7A
+                                        && (ULONG64)v29 != v30
+                                        && ((v29 ^ (__int64)v30) & 0xFFFFFFFF00000000LL) != 0)
+                                    {
+                                        FoundAddress = p[5];               // LABEL_145
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        else if (v27 > KernelBase                          // 0x140088ED5
+                            && v27 < KernelBase + KernelSize
+                            && p[2] > (__int64)MmSystemRangeStart
+                            && p[3] == 2
+                            && p[7] == 40)
+                        {
+                            FoundAddress = p[2];                        // 0x140088F89
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (Build < 0x1770 || Build > 0x1772)                  // 0x140088FBE
+            {
+                ULONG   v36 = (ULONG)GtRead(GtWindowsBuildNumber);      // 0x140089033
+                __int64 *p = VadRoot;
+                if (v36 == 3790)                                        // 0x140089043
+                {
+                    for (; (ULONG64)p < VadEndAddress; ++p)
+                    {
+                        if ((ULONG64)(p + 12) > VadEndAddress)          // 0x140089059
+                            break;
+                        if (ObjectAddress == (ULONG64)*p && p[1] == 0)  // 0x140089064
+                        {
+                            ULONG64 v39 = p[7];                         // 0x140089069
+                            if (v39 > (ULONG64)VadRoot && v39 < VadEndAddress)  // 0x140089075
+                            {
+                                ULONG64 v40 = p[8];                     // 0x140089077
+                                if (v40 > KernelBase && v40 < KernelBase + KernelSize)  // 0x14008908A
+                                {
+                                    FoundAddress = p[6];                // 0x140089094
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    for (; (ULONG64)p < VadEndAddress; ++p)
+                    {
+                        if ((ULONG64)(p + 12) > VadEndAddress)          // 0x1400890B1
+                            break;
+                        if (ObjectAddress == (ULONG64)*p && p[1] == 0)  // 0x1400890BC
+                        {
+                            ULONG64 v43 = p[4];                         // 0x1400890C1
+                            if (v43 > (ULONG64)VadRoot && v43 < VadEndAddress)  // 0x1400890CD
+                            {
+                                ULONG64 v44 = p[5];                     // 0x1400890CF
+                                if (v44 > KernelBase && v44 < KernelBase + KernelSize)  // 0x1400890E2
+                                {
+                                    FoundAddress = p[2];                // LABEL_112
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else                                                        // 0x1770..0x1772
+            {
+                __int64 *p = VadRoot;
+                for (; (ULONG64)p < VadEndAddress; ++p)
+                {
+                    if ((ULONG64)(p + 12) > VadEndAddress)              // 0x140088FDA
+                        break;
+                    if (ObjectAddress == (ULONG64)*p && p[1] == 0)      // 0x140088FE5
+                    {
+                        ULONG64 v34 = p[10];                            // 0x140088FEA
+                        if (v34 > (ULONG64)VadRoot && v34 < VadEndAddress)   // 0x140088FF6
+                        {
+                            ULONG64 v35 = p[11];                        // 0x140088FF8
+                            if (v35 > KernelBase && v35 < KernelBase + KernelSize)  // 0x14008900B
+                            {
+                                FoundAddress = p[8];                    // 0x140089015
+                                if (FoundAddress < (ULONG64)MmSystemRangeStart)  // 0x140089023
+                                    FoundAddress = 0;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (FoundAddress < *pMinAddress)                            // 0x140089226
+                FoundAddress = 0;
+            OutS2Hi = FoundAddress;                                     // 0x14008922A
+        }
+    }
+
+    KeUnstackDetachProcess(&ApcState);                                 // 0x140089239
+    if (IsReferenced == 1)                                             // 0x140089243
+        DereferenceObjectSafe(TargetProcess);
+
+    {
+        ULONG64 *o = (ULONG64 *)*ppOutputBuffer;                       // 0x140089253
+        o[0] = OutS1Lo; o[1] = OutS1Hi;
+        o[2] = OutS2Lo; o[3] = OutS2Hi;
+        *ppOutputBuffer += 2;                                          // 0x140089267
+        ++*pEntryCount;                                                // 0x140089270
+    }
+    return Result;                                                     // 0x14008927B
+}
+
+// EnumProcessObjectTypes — 枚举进程对象类型表，逐类型遍历对象链并扫描 VAD 树
+// 对应原始驱动 0x1400892A0（1346 字节）
+// 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（伪代码完整且带地址注释），
+//   按伪代码 1:1 转写（符合项目规则：可反编译者不手工逐条转写）。
+// 【原型】原始是可变参（表, 类型数, 输出缓冲, 计数指针, 上限）；此处按实际用到的
+//   5 个具名参数给出，与调用点 DispatchEnumObjectTypes 的实参一一对应。
+// 【说明】原始在每个"候选对象"处都用同一段 inline 查重（输出游标 -2 起、步长 4 qword
+//   向前回扫计数次），此处抽成文件内静态辅助 `VadEntryAlreadyStored` ——
+//   它是对**同一段原始指令**的忠实提取（不含任何原始没有的语义），仅消除重复书写。
+static BOOLEAN VadEntryAlreadyStored(const int *pEntryCount, _OWORD *pOutputStart, ULONG64 Value)
+{
+    int     n = *pEntryCount;
+    _OWORD *cur = pOutputStart - 2;
+    while (n)
+    {
+        if (*(ULONG64 *)cur == Value)
+            return TRUE;
+        cur -= 4;
+        if (--n == 0)
+            break;
+    }
+    return FALSE;
+}
+
+void __fastcall EnumProcessObjectTypes(_QWORD *pObjectTypeTable, unsigned int ObjectTypeCount,
+                                       _OWORD *OutputBuffer, int *pEntryCount, int MaxEntries)
+{
+    UCHAR (__fastcall *pCheck)(ULONG64);
+    ULONG   ObjectTypeCheckBase;
+    ULONG   Build;
+    ULONG   TypeIndex;
+
+    pCheck = (UCHAR (__fastcall *)(ULONG64))GtRead(GtObjectTypeCheckFlag);   // 0x1400892D5
+    ObjectTypeCheckBase = (ULONG)GtRead(GtCallbackField74);                  // 0x1400892DC
+
+    if (!pCheck || !ObjectTypeCheckBase || !pObjectTypeTable                  // 0x140089301
+        || pCheck((ULONG64)pObjectTypeTable) == 0)
+        return;
+
+    Build = (ULONG)GtRead(GtWindowsBuildNumber);                             // 0x14008931E
+
+    if (Build >= 0x23F0)
+    {
+        if (Build == 9200)                                                   // 0x1400893D3
+        {
+            for (TypeIndex = 0; TypeIndex < ObjectTypeCount; ++TypeIndex)    // 0x1400893CF
+            {
+                _QWORD **pSlot = (_QWORD **)&pObjectTypeTable[10 * (ULONG64)TypeIndex + 1];
+                ULONG    guard = 0;
+                _QWORD   *pObj = *pSlot;
+
+                while (pObj && pObj != (_QWORD *)pSlot && pCheck((ULONG64)pObj)
+                       && MaxEntries && guard <= 0x10000)                    // 0x140089418
+                {
+                    ULONG64 diff = (ULONG64)pObj - ObjectTypeCheckBase;      // 0x140089427
+                    if (!VadEntryAlreadyStored(pEntryCount, OutputBuffer, diff))
+                    {
+                        if (!ScanProcessVadTree(diff, (int)TypeIndex,
+                                               &OutputBuffer, (_DWORD *)pEntryCount))
+                        {
+                            TypeIndex = ObjectTypeCount;                     // 0x140089464
+                            break;
+                        }
+                    }
+                    pObj = (_QWORD *)*pObj;                                  // 0x140089457
+                    ++guard;
+                }
+                if (ObjectTypeCount == TypeIndex)                            // 0x140089468
+                    break;
+            }
+        }
+        else
+        {
+            for (TypeIndex = 0; TypeIndex < ObjectTypeCount; ++TypeIndex)    // 0x14008947F
+            {
+                _QWORD **pSlot = (_QWORD **)&pObjectTypeTable[88 * (ULONG64)TypeIndex + 1];
+                ULONG    guard = 0;
+                _QWORD   *pObj = *pSlot;
+
+                while (pObj && pObj != (_QWORD *)pSlot && pCheck((ULONG64)pObj)
+                       && MaxEntries && guard <= 0x10000)                    // 0x1400894BD
+                {
+                    ULONG64 diff = (ULONG64)pObj - ObjectTypeCheckBase;      // 0x1400894CC
+                    if (!VadEntryAlreadyStored(pEntryCount, OutputBuffer, diff))
+                    {
+                        if (!ScanProcessVadTree(diff, (int)TypeIndex,
+                                               &OutputBuffer, (_DWORD *)pEntryCount))
+                        {
+                            TypeIndex = ObjectTypeCount;                     // 0x140089509
+                            break;
+                        }
+                    }
+                    pObj = (_QWORD *)*pObj;                                  // 0x1400894FC
+                    ++guard;
+                }
+                if (ObjectTypeCount == TypeIndex)                            // 0x14008950D
+                    break;
+            }
+        }
+    }
+    else
+    {
+        for (TypeIndex = 0; TypeIndex < ObjectTypeCount; ++TypeIndex)        // 0x140089328
+        {
+            _QWORD **pSlot = (_QWORD **)&pObjectTypeTable[11 * (ULONG64)TypeIndex + 1];
+            ULONG    guard = 0;
+            _QWORD   *pObj = *pSlot;
+
+            while (pObj && pObj != (_QWORD *)pSlot && pCheck((ULONG64)pObj)
+                   && MaxEntries && guard <= 0x10000)                        // 0x140089363
+            {
+                ULONG64 diff = (ULONG64)pObj - ObjectTypeCheckBase;          // 0x140089372
+                if (!VadEntryAlreadyStored(pEntryCount, OutputBuffer, diff))
+                {
+                    if (!ScanProcessVadTree(diff, (int)TypeIndex,
+                                           &OutputBuffer, (_DWORD *)pEntryCount))
+                    {
+                        TypeIndex = ObjectTypeCount;                         // 0x1400893AF
+                        break;
+                    }
+                }
+                pObj = (_QWORD *)*pObj;                                      // 0x1400893A2
+                ++guard;
+            }
+            if (ObjectTypeCount == TypeIndex)                                // 0x1400893B3
+                break;
+        }
+    }
+
+    /* ---- 第二段：由进程列表反查类型槽 → 类型下标（0x140089528 起） ---- */
+    {
+        __int64 *pTypeInfo = (__int64 *)GtRead(GtObjectTypeInfoPtr);         // 0x140089528
+        ULONG    EprocF30  = (ULONG)GtRead(GtEprocessField30);               // 0x140089535
+        ULONG    CbF76     = (ULONG)GtRead(GtCallbackField76);               // 0x140089538
+        ULONG64  Step      = CbF76;
+        ULONG64 *ProcBuf;
+        ULONG    ProcCount, ProcIdx;
+        char     Ctx[8];
+
+        if (!pTypeInfo) return;                                              // 0x140089544
+        if (EprocF30 == 0xFFFFFFFF) return;                                  // 0x14008954D
+        if (Step == 0) return;                                               // 0x140089555
+
+        ProcBuf = (ULONG64 *)ExAlloc(1 /*PagedPool*/, 0x44610);              // 0x140089569
+        if (!ProcBuf) return;
+
+        Ctx[0] = 1;                                                          // 0x140089599
+        if (EnumProcessInformationWorker(Ctx, (__int64)ProcBuf, 0x44610))     // 0x14008959D
+        {
+            ProcCount = *((ULONG *)ProcBuf + 4);                              // 0x1400895AA
+            ProcIdx = 0;
+            if (ProcCount)
+            {
+                ULONG64 *p = ProcBuf + 4;                                     // 0x1400895BA
+                for (;;)
+                {
+                    ULONG64 ProcAddr = *p;                                    // 0x1400895C2
+
+                    if (pCheck(ProcAddr) == 1                                 // 0x1400895E2
+                        && pCheck(ProcAddr + Step + 7) == 1)
+                    {
+                        __int64 *SlotPtr = *(__int64 **)(Step + ProcAddr);    // 0x1400895E8
+                        if (SlotPtr)                                          // 0x1400895EF
+                        {
+                            ULONG Inner = (ULONG)GtRead(GtWindowsBuildNumber);
+                            int   TypeIdx = -1;
+
+                            if (Inner >= 0x23F0)                              // 0x140089604
+                            {
+                                if (Inner == 9200)                            // 0x14008964E
+                                {
+                                    if      (SlotPtr == pObjectTypeTable)           TypeIdx = 0;
+                                    else if (SlotPtr == pObjectTypeTable + 10)      TypeIdx = 1;
+                                    else if (SlotPtr == pObjectTypeTable + 20)      TypeIdx = 2;
+                                    else if (SlotPtr == pObjectTypeTable + 30)      TypeIdx = 3;
+                                    else if (SlotPtr == pObjectTypeTable + 40)      TypeIdx = 4;
+                                    else if (SlotPtr == pObjectTypeTable + 50)      TypeIdx = 5;
+                                    else if (SlotPtr == pObjectTypeTable + 60)      TypeIdx = 6;
+                                }
+                                else
+                                {
+                                    if      (SlotPtr == pObjectTypeTable)           TypeIdx = 0;
+                                    else if (SlotPtr == pObjectTypeTable + 88)      TypeIdx = 1;
+                                    else if (SlotPtr == pObjectTypeTable + 176)     TypeIdx = 2;
+                                    else if (SlotPtr == pObjectTypeTable + 264)     TypeIdx = 3;
+                                    else if (SlotPtr == pObjectTypeTable + 352)     TypeIdx = 4;
+                                    else if (SlotPtr == pObjectTypeTable + 440)     TypeIdx = 5;
+                                    else if (SlotPtr == pObjectTypeTable + 528)     TypeIdx = 6;
+                                    else if (SlotPtr == pObjectTypeTable + 90)      TypeIdx = 1;
+                                    else if (SlotPtr == pObjectTypeTable + 180)     TypeIdx = 2;
+                                    else if (SlotPtr == pObjectTypeTable + 270)     TypeIdx = 3;
+                                    else if (SlotPtr == pObjectTypeTable + 360)     TypeIdx = 4;
+                                    else if (SlotPtr == pObjectTypeTable + 450)     TypeIdx = 5;
+                                    else if (SlotPtr == pObjectTypeTable + 540)     TypeIdx = 6;
+                                }
+                            }
+                            else
+                            {
+                                if      (SlotPtr == pObjectTypeTable)           TypeIdx = 0;
+                                else if (SlotPtr == pObjectTypeTable + 11)      TypeIdx = 1;
+                                else if (SlotPtr == pObjectTypeTable + 22)      TypeIdx = 2;
+                            }
+
+                            if (TypeIdx >= 0)                                 // LABEL_100
+                            {
+                                if (!VadEntryAlreadyStored(pEntryCount, OutputBuffer, ProcAddr))
+                                {
+                                    if (!ScanProcessVadTree(ProcAddr, TypeIdx,
+                                                           &OutputBuffer, (_DWORD *)pEntryCount))
+                                        goto L_DONE;                      // LABEL_105
+                                }
+                            }
+                        }
+                    }
+
+                    ++ProcIdx;                                                // 0x1400897AE
+                    p += 7;                                                   // 0x1400897B1
+                    if (ProcIdx >= ProcCount)                                 // 0x1400897B8
+                        break;
+                }
+            }
+        }
+
+    L_DONE:
+        ExFree(ProcBuf);                                                      // 0x1400897C2
+    }
+}
+
+// DispatchEnumObjectTypes — 取当前进程对象类型表并按构建号选择枚举量后分发
+// 对应原始驱动 0x14008A3F8（189 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
+void __fastcall DispatchEnumObjectTypes(__int64 OutputBuffer, __int64 pEntryCount, int MaxEntries)
+{
+    char   *CurrentFiber;
+    int     FiberOffset;
+    __int64 ProcessPtr;
+    _QWORD *pObjectTypeTable;
+    ULONG   Build;
+    ULONG   EnumCount;
+
+    CurrentFiber = (char *)j_GetCurrentFiber();                                  // 0x14008A41F
+    FiberOffset = (int)GtRead((GLOBAL_TABLE_INDEX)(0x4000 | 0x01 | 0x100));      // Gt821|GtEprocessField02
+    if (FiberOffset == -1)                                                       // 0x14008A42A
+        return;
+
+    ProcessPtr = *(ULONG64 *)&CurrentFiber[FiberOffset];                         // 0x14008A42F
+    if (!ProcessPtr)                                                             // 0x14008A436
+        return;
+
+    pObjectTypeTable = (_QWORD *)(ProcessPtr + 192);                             // 0x14008A43D
+
+    if ((ULONG)GtRead(GtWindowsBuildNumber) == 9600                              // 0x14008A46E
+        && (ULONG64)pObjectTypeTable > (ULONG64)MmSystemRangeStart
+        && ((ULONG64)pObjectTypeTable[2] <= (ULONG64)MmSystemRangeStart
+            || (ULONG64)pObjectTypeTable[1] <= (ULONG64)MmSystemRangeStart
+            || (ULONG64)*pObjectTypeTable >= (ULONG64)MmSystemRangeStart))
+    {
+        pObjectTypeTable = (_QWORD *)*pObjectTypeTable;                          // 0x14008A470
+    }
+
+    Build = (ULONG)GtRead(GtWindowsBuildNumber);                                 // 0x14008A478
+    EnumCount = 7;                                                               // 0x14008A48A
+    if (Build != 9200)                                                           // 0x14008A494
+        EnumCount = 1;
+
+    EnumProcessObjectTypes(pObjectTypeTable, EnumCount,                           // 0x14008A49B
+                           (_OWORD *)OutputBuffer, (int *)pEntryCount, MaxEntries);
+}

@@ -503,6 +503,9 @@ void EnumerateVadIterativeV4(_QWORD *VirtualAddress, __int64 Buffer, int BufferE
 void EnumerateVadRecursiveV1(_QWORD *VirtualAddress, int Depth, _DWORD *OutputBuffer, unsigned int BufferSize);
 char __fastcall ScanProcessVadMemory(unsigned __int64 ObjectAddress, _OWORD **ppOutputBuffer, _DWORD *pEntryCount);
 void __fastcall ScanProcessVadForObjectTypes(_OWORD *OutputBuffer, int *pEntryCount, int MaxEntries);
+char __fastcall ScanProcessVadTree(unsigned __int64 ObjectAddress, int ObjectTypeIndex, _OWORD **ppOutputBuffer, _DWORD *pEntryCount);
+void __fastcall EnumProcessObjectTypes(_QWORD *pObjectTypeTable, unsigned int ObjectTypeCount, _OWORD *OutputBuffer, int *pEntryCount, int MaxEntries);
+void __fastcall DispatchEnumObjectTypes(__int64 OutputBuffer, __int64 pEntryCount, int MaxEntries);
 void EnumerateVadRecursiveV2(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateVadRecursiveV3(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
 void EnumerateVadRecursiveV4(_QWORD *VirtualAddress, int Level, _DWORD *OutputBuffer, unsigned int BufferSize);
