@@ -260,7 +260,7 @@ __int64 InitCommandHandlerTable(void)
     Table[184] = (PCOMMAND_HANDLER)CmdInitProcessCallback;
     // 185-190: NULL (memset 0x30 = 48 bytes = 6 entries)
     RtlZeroMemory(&Table[185], 0x30);
-    Table[191] = (PCOMMAND_HANDLER)CmdOpenFilterVolumeFile;
+    Table[191] = (PCOMMAND_HANDLER)MiniFilterInstanceSetup;   // 原始 0x1400129CC
     Table[192] = (PCOMMAND_HANDLER)MiniFilterInstanceQuery;
     Table[193] = (PCOMMAND_HANDLER)CmdEnumProcessListEx;
     Table[194] = (PCOMMAND_HANDLER)CmdEnumProcessListWin7;
@@ -311,7 +311,7 @@ __int64 InitCommandHandlerTable(void)
     Table[239] = (PCOMMAND_HANDLER)MiniFilterPreHardLink;
     Table[240] = (PCOMMAND_HANDLER)MiniFilterPreShutdown;
     Table[241] = (PCOMMAND_HANDLER)InitMiniFilterDriver;
-    Table[242] = (PCOMMAND_HANDLER)CmdEnumAleEndpointLayers;
+    Table[242] = (PCOMMAND_HANDLER)MiniFilterPreFastIo;        // 原始 0x14001B2B4
     Table[243] = (PCOMMAND_HANDLER)CmdInitFileSystemFilter;
     Table[244] = (PCOMMAND_HANDLER)CmdFileSystemFilterCallback;
     Table[245] = (PCOMMAND_HANDLER)CmdCallSystemRoutine;
