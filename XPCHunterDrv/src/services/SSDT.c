@@ -876,6 +876,29 @@ L_LABEL22:                                                             // 0x1400
     return Result;                                                     // 0x14007A27F
 }
 
+// ValidatePeHeaderSignature — 校验 PE 头签名（DOS 的 MZ 与 NT 的 ）
+// 对应原始驱动 0x14007A2DC（74 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（伪代码见下），按伪代码 1:1 转写。
+// 【逻辑】Buffer 非空 且 BufferSize > 0x40 且 *(WORD*)Buffer == 0x5A4D('MZ')
+//   → e_lfanew = *(int*)(Buffer+0x3C)；要求 e_lfanew < BufferSize
+//     且 e_lfanew+24 < BufferSize → 返回 (*(DWORD*)(Buffer+e_lfanew) == 0x4550)
+//   （0x4550 即 PE 签名的前 4 字节）；否则返回 0。
+char __fastcall ValidatePeHeaderSignature(__int64 Buffer, unsigned int BufferSize)
+{
+    char Result = 0;
+
+    if (!Buffer)
+        return Result;
+    if (BufferSize > 0x40 && *(USHORT *)Buffer == 0x5A4D)          // 'MZ'
+    {
+        __int64 e_lfanew = *(int *)(Buffer + 60);                  // [Buffer+0x3C]
+        if ((unsigned int)e_lfanew < BufferSize
+            && (unsigned __int64)(unsigned int)e_lfanew + 24 < BufferSize)
+            return (*(ULONG *)(e_lfanew + Buffer) == 0x4550) ? 1 : 0;   // PE signature
+    }
+    return Result;
+}
+
 // InitKernelRoutineTable — 初始化内核例程表
 // 对应原始驱动 sub_14000C8CC
 // 分配例程表，填充 PsExitSpecialApc、ExFreeCallBack 等关键内核例程地址

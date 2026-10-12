@@ -1507,6 +1507,7 @@ char ScanKernelPeExportData();
 char ScanKernelPeExportSection();
 bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char UsePESection);
 char __fastcall ScanPESectionPatternsEx(_BYTE *PeBuffer, char *PatternBuffer, int BufferSize, char UsePESectionParser);
+char __fastcall ValidatePeHeaderSignature(__int64 Buffer, unsigned int BufferSize);
 __int64 ScanProcessPESectionsV2(void);
 bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize);
 void Sha1FinalTransform(PSHA1_CONTEXT Context, __int64 DigestOut);
