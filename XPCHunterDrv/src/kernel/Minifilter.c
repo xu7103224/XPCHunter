@@ -4684,6 +4684,143 @@ char __fastcall ScanWfpDeviceObjectSection(__int64 PeBase, unsigned int PeSize)
     return Result;                                                // 0x14006989E
 }
 
+
+// ScanWfpMacShimSections — 扫描 WFP Mac Shim 数据节区（类型 1294 / characteristics 0x40000）
+// 对应原始驱动 0x140069A50（379 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
+// 【算法】取 GT 0x7D3；为 0 则调 FindWfpStartMacShimExport 再取；
+//   再取 GT 0x1A1 作模块基址；要求 基址 与 偏移 均非 0 且 偏移 < PeSize →
+//   以 (PeBase+偏移, PeSize-偏移) 初始化上下文，最多扫 0x1E 条：
+//     类型 0x545 结束；类型 0x50E 且 字段+0x88 == 0x40000 且 字段+0x40 非零
+//     且 字段+0x50 == 64 且 字段+0x8C == 1 → 算 RVA = 累计 + 字段+0x40 - PeBase，
+//     非 0 且 < PeSize 时写 GT 0x7D3 = 基址 + RVA，返回 1。
+char __fastcall ScanWfpMacShimSections(__int64 PeBase, unsigned int PeSize)
+{
+    char    Result = 0;
+    ULONG   Offset;
+    __int64 ModuleBase;
+    ULONG   i;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[20];
+
+    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D3);             // 0x140069A8A
+    if (!Offset)
+    {
+        FindWfpStartMacShimExport(PeBase, PeSize);                // 0x140069A96
+        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D3);
+    }
+
+    ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // 0x140069AAE
+    if (!ModuleBase || !Offset || Offset >= PeSize)               // 0x140069AC4
+        return Result;
+
+    InitPESectionReadContext(PeBase + Offset, PeSize - Offset,    // 0x140069AF6
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+    for (i = 0; i < 0x1E; ++i)                                    // 0x140069AFB
+    {
+        USHORT Type;
+        ULONG  Len;
+        ULONG  Cumul;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x140069B0A
+            break;
+
+        Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x140069B23
+        Ctx.ReadPtr += Len;                                       // 0x140069B2E
+
+        Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);   // 0x140069B33
+        if (Type == 0x545)                                        // 0x140069B3F
+            break;
+
+        if (Type == 0x50E                                          // 0x140069B57
+            && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000ULL)
+        {
+            ULONG v15 = *(ULONG *)((PUCHAR)Entry + 0x40);          // v15
+            if (v15                                                // 0x140069B62
+                && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 64        // v17
+                && *(ULONG *)((PUCHAR)Entry + 0x8C) == 1)          // v18
+            {
+                ULONG Rva = Cumul + v15 - (ULONG)(ULONG_PTR)PeBase;   // 0x140069B7C
+                if (Rva && Rva < PeSize)                          // 0x140069B7E/82
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x7D3,            // 0x140069B9A
+                            ModuleBase + (__int64)Rva);
+                    return 1;
+                }
+            }
+        }
+    }
+    return Result;                                                // 0x140069BA3
+}
+
+// ScanNsiDeregisterDataSection — 扫描 NSI 注销数据节区（类型 360 / characteristics 0x40000）
+// 对应原始驱动 0x1400690C4（369 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
+// 【算法】取 GT 0x7D0；为 0 则调 FindNsiDeregisterLegacyHandler 再取；
+//   再取 GT 0x1A1 作模块基址；要求均满足后初始化上下文，最多扫 0x1E 条：
+//     类型 0x545 结束；类型 360(0x168) 且 字段+0x88 == 0x40000 且 字段+0x40 非零
+//     且 字段+0x50 == 64 → 写 GT 0x7D0 = 基址 + RVA，返回 1。
+char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize)
+{
+    char    Result = 0;
+    ULONG   Offset;
+    __int64 ModuleBase;
+    ULONG   i;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[20];
+
+    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D0);             // 0x1400690FE
+    if (!Offset)
+    {
+        FindNsiDeregisterLegacyHandler(PeBase, PeSize);           // 0x14006910A
+        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D0);
+    }
+
+    ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // 0x140069122
+    if (!ModuleBase || !Offset || Offset >= PeSize)               // 0x140069138
+        return Result;
+
+    InitPESectionReadContext(PeBase + Offset, PeSize - Offset,    // 0x14006916A
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+    for (i = 0; i < 0x1E; ++i)                                    // 0x14006916F
+    {
+        USHORT Type;
+        ULONG  Len;
+        ULONG  Cumul;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x14006917E
+            break;
+
+        Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x140069197
+        Ctx.ReadPtr += Len;                                       // 0x1400691A2
+
+        Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);   // 0x1400691A7
+        if (Type == 0x545)                                        // 0x1400691B3
+            break;
+
+        if (Type == 360                                            // 0x1400691CB
+            && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000ULL)
+        {
+            ULONG v15 = *(ULONG *)((PUCHAR)Entry + 0x40);
+            if (v15 && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 64)   // 0x1400691D6/1E1
+            {
+                ULONG Rva = Cumul + v15 - (ULONG)(ULONG_PTR)PeBase;    // 0x1400691E6
+                if (Rva && Rva < PeSize)                          // 0x1400691E8/1EC
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x7D0,            // 0x140069204
+                            ModuleBase + (__int64)Rva);
+                    return 1;
+                }
+            }
+        }
+    }
+    return Result;                                                // 0x14006920D
+}
+
 // FindFwpsDispatchTableWin8 — 扫描节区查找 Win8 Fwps 调度表
 // 对应原始驱动 0x14001B72C（611 字节）
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（80 行伪代码），按伪代码实现。
