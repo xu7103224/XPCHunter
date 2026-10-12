@@ -4703,11 +4703,13 @@ char __fastcall ScanWfpMacShimSections(__int64 PeBase, unsigned int PeSize)
     PE_DECODE_CONTEXT Ctx;
     _DWORD  Entry[20];
 
-    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D3);             // 0x140069A8A
+    // 【索引依据】原始序言 `mov ebp,7D1h; mov ecx,ebp` → 首读 0x7D1（配对 Find* 的
+    //   导出偏移槽）；命中后写的是 0x7D3（本函数自己的结果槽）。两者不同，不可混用。
+    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D1);             // 0x140069A85
     if (!Offset)
     {
         FindWfpStartMacShimExport(PeBase, PeSize);                // 0x140069A96
-        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D3);
+        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D1);
     }
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // 0x140069AAE
@@ -4771,11 +4773,13 @@ char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize
     PE_DECODE_CONTEXT Ctx;
     _DWORD  Entry[20];
 
-    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D0);             // 0x1400690FE
+    // 【索引依据】原始序言 `mov ecx,7CEh` → 首读 0x7CE（配对 Find* 的导出偏移槽）；
+    //   命中后写 0x7D0（本函数的结果槽）。
+    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7CE);             // 0x1400690FE
     if (!Offset)
     {
         FindNsiDeregisterLegacyHandler(PeBase, PeSize);           // 0x14006910A
-        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D0);
+        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7CE);
     }
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // 0x140069122
@@ -4819,6 +4823,94 @@ char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize
         }
     }
     return Result;                                                // 0x14006920D
+}
+
+
+// ScanKernelDataPartitionSection — 扫描内核数据分区节区（类型 1296 两阶段匹配）
+// 对应原始驱动 0x140069504（443 字节）
+// 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
+// 【和同族 Scan*Section 的差异】本函数是**两阶段**匹配：
+//   阶段 1：类型 1296 且 字段+0x88 == 0x40000 且 字段+0x40 非零 且 字段+0x50 == 64
+//           → 记录候选 RVA(累计+字段+0x40-PeBase) 与 字段+0x8C（须尚未记录）；
+//   阶段 2：类型 1296 且 (字段+0x88 & 0x10000) 非零 且 (int)字段+0x40 > 0
+//           且 字段+0x50 == 32 且 已有候选 且 字段+0x8C == 阶段 1 记录的字段+0x8C
+//           → 写 GT 0x7BA = 字段+0x40、GT 0x7BB = 基址+候选RVA，返回 1。
+// 【注】`v14`（IDArbp-C0 处的 dword）在反汇编里于循环前取自描述符自身字段
+//   （0x1400695BB `mov r13d,[rsp+0x40]`），与后文 v19(字段+0x8C) 同一来源位置。
+char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSize)
+{
+    char    Result = 0;
+    ULONG   Offset;
+    __int64 ModuleBase;
+    ULONG   i;
+    ULONG   SavedOfs = 0;         // v8：阶段 1 记录的候选 RVA
+    ULONG   SavedField = 0;       // v7：阶段 1 记录的 字段+0x8C
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[20];
+
+    // 【索引依据】配对 Find 写的是 0x7B8(偏移)/0x7B9(地址)；本函数读的是 **0x7B8**（偏移）。
+    Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7B8);            // 0x140069549
+    if (!Offset)
+    {
+        FindKfdGetOffloadEpochExport(PeBase, PeSize);             // 0x140069555
+        Offset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7B8);
+    }
+
+    ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // 0x14006956E
+    if (!ModuleBase || !Offset || Offset >= PeSize)               // 0x140069584
+        return Result;
+
+    InitPESectionReadContext(PeBase + Offset, PeSize - Offset,    // 0x1400695B6
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    SavedField = 0;                                               // 0x1400695BB（取自描述符字段区）
+    SavedOfs = 0;
+
+    for (i = 0; i < 0x1E; ++i)                                    // 0x1400695C2
+    {
+        USHORT Type;
+        ULONG  Len, Cumul;
+        ULONG  F40, F50, F88, F8C;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x1400695CE
+            break;
+
+        Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x1400695E6
+        Ctx.ReadPtr += Len;                                       // 0x1400695F0
+
+        Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);   // 0x1400695F5
+        if (Type == 0x545)                                        // 0x140069601
+            break;
+
+        F40 = *(ULONG *)((PUCHAR)Entry + 0x40);
+        F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);
+        F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
+        F8C = *(ULONG *)((PUCHAR)Entry + 0x8C);
+
+        if (Type == 0x510)                                        // 0x140069614（1296）
+        {
+            if (F88 == 0x40000ULL && F40 != 0 && F50 == 64)        // 0x140069629
+            {
+                ULONG Rva = Cumul + F40 - (ULONG)(ULONG_PTR)PeBase;   // 0x14006962B
+                if (Rva && Rva < PeSize && !SavedOfs)              // 0x140069630/632/636
+                {
+                    SavedField = F8C;                              // 0x14006963A
+                    SavedOfs = Rva;                                // 0x14006963E
+                }
+            }
+            else if ((F88 & 0x10000ULL) != 0 && (int)F40 > 0       // 0x140069665
+                && F50 == 32 && SavedOfs && SavedField == F8C)
+            {
+                // 【顺序依据】原始 0x14006967D 先写 0x7BB（= F40），
+                //   0x14006968C 后写 0x7BA（= 基址 + 候选 RVA）。逐条核对过调用序。
+                GtWrite((GLOBAL_TABLE_INDEX)0x7BB, (__int64)F40);          // 0x14006967D
+                GtWrite((GLOBAL_TABLE_INDEX)0x7BA,
+                        ModuleBase + (__int64)SavedOfs);                   // 0x14006968C
+                return 1;
+            }
+        }
+    }
+    return Result;                                                // 0x140069695
 }
 
 // FindFwpsDispatchTableWin8 — 扫描节区查找 Win8 Fwps 调度表
