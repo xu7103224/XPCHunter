@@ -339,7 +339,7 @@ __int64 *__fastcall MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddres
                 }
                 else
                 {
-                    if (*PsProcessTypePtr == SectionHandle || SectionHandle == GtRead(GtEprocessField123 | 0x100))
+                    if (*PsProcessTypePtr == SectionHandle || SectionHandle == GtRead((GLOBAL_TABLE_INDEX)0x185))
                     {
                         IsExplorer = 0;
                     }
@@ -3637,13 +3637,13 @@ __int64 OpenWin32kSysSection(void)
     WCHAR PathBuffer[20];
 
     // L"\FileSystem\FltMgr" —— 与原始驱动逐 DWORD 一致（9 个 DWORD = 18 字符）
-    PathBuffer[0] = 0x005C; PathBuffer[1] = 0x0046;   // \F
+    PathBuffer[0] = 0x005C; PathBuffer[1] = 0x0046;   // backslash,F
     PathBuffer[2] = 0x0069; PathBuffer[3] = 0x006C;   // il
     PathBuffer[4] = 0x0065; PathBuffer[5] = 0x0053;   // eS
     PathBuffer[6] = 0x0079; PathBuffer[7] = 0x0073;   // ys
     PathBuffer[8] = 0x0074; PathBuffer[9] = 0x0065;   // te
-    PathBuffer[10] = 0x006D; PathBuffer[11] = 0x005C; // m\
-    PathBuffer[12] = 0x0046; PathBuffer[13] = 0x006C; // Fl
+    PathBuffer[10] = 0x006D; PathBuffer[11] = 0x005C; // m,backslash
+    PathBuffer[12] = 0x0046; PathBuffer[13] = 0x006C; // F,l
     PathBuffer[14] = 0x0074; PathBuffer[15] = 0x004D; // tM
     PathBuffer[16] = 0x0067; PathBuffer[17] = 0x0072; // gr
     PathBuffer[18] = 0;                               // 结尾（原始 [rsp+0x44]=0）
@@ -4238,9 +4238,9 @@ char CmdInitFwpsDispatchTables(__int64 Reserved1, __int64 Reserved2,
     if (TablePtr <= RangeStart)                                // 0x14001BC8C
         return Result;
 
-    if ((char)CheckMemoryValid(TablePtr, 1) != 1)              // 0x14001BC97
+    if ((char)CheckMemoryValid((void *)TablePtr) != 1)              // 0x14001BC97
         return Result;
-    if ((char)CheckMemoryValid(TablePtr - 1 + (ULONG64)EntryCount * 8, 1) != 1)  // 0x14001BCB4
+    if ((char)CheckMemoryValid((void *)(TablePtr - 1 + (ULONG64)EntryCount * 8)) != 1)  // 0x14001BCB4
         return Result;
 
     /* ---- 段 3：校验用户输出缓冲 ---- */

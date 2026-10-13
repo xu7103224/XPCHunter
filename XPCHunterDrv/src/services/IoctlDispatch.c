@@ -364,7 +364,7 @@ __int64 InitCommandHandlerTable(void)
 __int64 CmdReadProcessMemory(__int64 Address, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
     PEPROCESS CurrentProcess = IoGetCurrentProcess();
-    GtWrite(GtEprocessField123 | 0x100, (__int64)CurrentProcess);
+    GtWrite((GLOBAL_TABLE_INDEX)0x185, (__int64)CurrentProcess);
     ULONG64 CurrentProcessId = (ULONG64)PsGetCurrentProcessId();
     GtWrite(GtEprocessModuleEntrySize | GtEprocessField22, CurrentProcessId & 0xFFFFFFFFFFFFFFFCui64);
     ULONG PsExitSpecialApcAddr = (ULONG)GtRead(GtPsExitSpecialApcAddr);
@@ -398,7 +398,7 @@ __int64 CmdReadProcessMemory(__int64 Address, __int64 InputSize, _DWORD *pOutput
 // 对应原始驱动 sub_14007F118
 __int64 CmdResetProcessContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    GtWrite(GtEprocessField123 | 0x100, 0);
+    GtWrite((GLOBAL_TABLE_INDEX)0x185, 0);
     return GtWrite(GtEprocessModuleEntrySize | GtEprocessField22, 0);
 }
 
@@ -515,7 +515,7 @@ __int64 CmdProcessOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOut
                 TargetProcess = (struct _KPROCESS *)Process;
             SavedData.qword[1] = (__int64)TargetProcess;
         }
-        if ((struct _KPROCESS *)GtRead(GtEprocessField123 | 0x100) == TargetProcess)
+        if ((struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x185) == TargetProcess)
         {
             Result = 1;
         }

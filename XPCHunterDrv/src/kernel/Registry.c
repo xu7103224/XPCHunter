@@ -993,7 +993,7 @@ __int64 RegistryOperationDispatch(void *InputBuffer, int BufferSize)
                 TargetProcess = (struct _KPROCESS *)Process;
             InputCopy[1] = (__int64)TargetProcess;
         }
-        if ((struct _KPROCESS *)GtRead(GtEprocessField123 | 0x100) != TargetProcess
+        if ((struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x185) != TargetProcess
             && ValidateProcessObject(TargetProcess, 0) == 1)
         {
             if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0xA28)

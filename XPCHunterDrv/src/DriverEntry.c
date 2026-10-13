@@ -274,7 +274,7 @@ __int64 CheckProcessAccess(void)
     struct _KPROCESS *ProtectedProcess;
     bool Allowed;
 
-    ProtectedProcess = (struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField123 | 0x100));
+    ProtectedProcess = (struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x185);
     if (!ProtectedProcess || ProtectedProcess == IoGetCurrentProcess())
         return 1;
 

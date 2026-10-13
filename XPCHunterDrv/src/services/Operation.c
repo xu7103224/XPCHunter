@@ -1377,7 +1377,7 @@ __int64 RegistryOperation(char *pInputBuffer, int InputSize, unsigned int *pOutp
             if (Status >= 0)
                 pProcess = (struct _KPROCESS *)Process;
         }
-        if ((struct _KPROCESS *)GtRead(GtEprocessField123 | 0x100) != pProcess &&
+        if ((struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x185) != pProcess &&
             ValidateProcessObject(pProcess, 0) == 1)
         {
             if (GtRead(GtWindowsBuildNumber) < 0xA28)
@@ -1414,7 +1414,7 @@ __int64 RegistryProtectOperation(char *pInputBuffer, int InputSize, unsigned int
             if (Status >= 0)
                 pProcess = (struct _KPROCESS *)Process;
         }
-        if ((struct _KPROCESS *)GtRead(GtEprocessField123 | 0x100) != pProcess &&
+        if ((struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x185) != pProcess &&
             ValidateProcessObject(pProcess, 0) == 1)
         {
             if (GtRead(GtWindowsBuildNumber) < 0xA28)
@@ -1487,7 +1487,7 @@ __int64 ProcessOperation(char *pInputBuffer, int InputSize, unsigned int *pOutpu
             if (Status >= 0)
                 pProcess = (struct _KPROCESS *)Process;
         }
-        if ((struct _KPROCESS *)GtRead(GtEprocessField123 | 0x100) == pProcess)
+        if ((struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x185) == pProcess)
         {
             Result = 1;
         }
@@ -1737,7 +1737,7 @@ __int64 EnumRegistryOperation(char *pInputBuffer, int InputSize, _WORD *pOutputB
             if (Status >= 0)
                 pProcess = (struct _KPROCESS *)Process;
         }
-        CurrentProcess = GtRead(GtEprocessField123 | 0x100);
+        CurrentProcess = GtRead((GLOBAL_TABLE_INDEX)0x185);
         if (CurrentProcess)
         {
             if (pProcess == (struct _KPROCESS *)CurrentProcess)

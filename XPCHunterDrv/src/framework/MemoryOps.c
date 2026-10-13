@@ -1126,19 +1126,23 @@ UCHAR ReferenceObjectSafe(__int64 Object)
     ULONG CurrentRef;
 
     Result = 0;
-    RefFunc = (int (__fastcall *)(__int64))GtRead(16944);
-    FuncParam = GtRead(16960);
+    // 【GT 索引修正 2026-10-13】原写为十进制字面量 16944/16960/16916/16909，
+    //   即 0x4230/0x4240/0x4214/0x420D；原始实为 **0x4337/0x433A/0x430D/0x434C**。
+    //   两组索引在原驱动里都存在，属"取错了槽"而非笔误引起的越界。
+    //   发现方式：windows-driver-emulation skill 逐函数差分（原始读 0x4337，我方读 0x4230）。
+    RefFunc = (int (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x4337);   // 0x140077E12
+    FuncParam = GtRead((GLOBAL_TABLE_INDEX)0x433A);                              // 0x140077E1F
 
     if (RefFunc && FuncParam)
     {
-        if (RefFunc(Object) >= 0)
+        if (RefFunc(Object) >= 0)          // 0x140077E31
             return 1;
     }
     else
     {
-        AtomicFunc = (UCHAR (__fastcall *)(volatile signed __int32 *))GtRead(16916);
-        FuncParam = GtRead(16909);
-        RefOffset = (ULONG)GtRead(GtCallbackField77);
+        AtomicFunc = (UCHAR (__fastcall *)(volatile signed __int32 *))GtRead((GLOBAL_TABLE_INDEX)0x430D);  // 0x140077E3E
+        FuncParam = GtRead((GLOBAL_TABLE_INDEX)0x434C);                              // 0x140077E4B
+        RefOffset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x31E);                        // 0x140077E58
 
         if (AtomicFunc && FuncParam && RefOffset)
         {
@@ -1167,8 +1171,10 @@ void DereferenceObjectSafe(__int64 Object)
     volatile signed __int32 *RefCount;
     ULONG CurrentRef;
 
-    DerefFunc = (int (__fastcall *)(__int64))GtRead(16944);
-    FuncParam = GtRead(16960);
+    // 【GT 索引修正 2026-10-13】同 ReferenceObjectSafe：原 16944/16960
+    //   （= 0x4230/0x4240）应为 0x433A（本函数只取这一个，见 0x140077EE5）。
+    DerefFunc = (int (__fastcall *)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x433A);  // 0x140077EE5
+    FuncParam = GtRead((GLOBAL_TABLE_INDEX)0x434C);                               // 0x140077F0C
 
     if (DerefFunc && FuncParam)
     {
@@ -1176,20 +1182,23 @@ void DereferenceObjectSafe(__int64 Object)
     }
     else
     {
-        AtomicFunc = (UCHAR (__fastcall *)(volatile signed __int32 *))GtRead(16916);
-        FuncParam = GtRead(16909);
-        RefOffset = (ULONG)GtRead(GtCallbackField77);
+        // 原始 0x140077EFA 起：只读 0x434C，随后读 0x31E；不存在 16916/16909。
+        FuncParam = FuncParam;   // 复用上方已取的 0x434C
+        AtomicFunc = (UCHAR (__fastcall *)(volatile signed __int32 *))GtRead((GLOBAL_TABLE_INDEX)0x434C);  // 0x140077EFF
+        RefOffset = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x31E);                        // 0x140077F0C
 
-        if (AtomicFunc && FuncParam && RefOffset)
+        if (AtomicFunc && RefOffset)
         {
             RefCount = (volatile signed __int32 *)(Object + RefOffset);
-            if ((ULONG)GtRead(GtWindowsBuildNumber) != 2600)
+            if ((ULONG)GtRead(GtWindowsBuildNumber) != 0xA28)      // 0x140077F24/29
             {
                 CurrentRef = *RefCount & 0xFFFFFFFE;
                 if (CurrentRef == _InterlockedCompareExchange(RefCount, CurrentRef - 2, CurrentRef))
                     return;
+                AtomicFunc(RefCount);                              // 0x140077F4E
+                return;
             }
-            AtomicFunc(RefCount);
+            AtomicFunc(RefCount);                                  // 0x140077F33
         }
     }
 }
