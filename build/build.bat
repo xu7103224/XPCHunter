@@ -55,7 +55,7 @@ if errorlevel 1 (
 
 echo.
 echo Step 2: Linking...
-link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /fixed:no /driver /merge:.data=.text /manifest:no /ignore:4257 /ignore:4254 ^
+link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /fixed:no /driver /manifest:no /ignore:4257 /ignore:4254 ^
     /LIBPATH:"%WDK_S%\Lib\%WDK_VER%\km\x64" ^
     /LIBPATH:"%WDK_S%\Lib\%WDK_VER%\km\x64\crt" ^
     /out:"%BIN_DIR%\XPCHunterDrv.sys" ^
