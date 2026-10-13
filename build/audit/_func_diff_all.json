@@ -1,13 +1,13 @@
 {
  "tally": {
   "length_suspect": 17,
-  "identical": 463,
+  "identical": 464,
   "status_diff": 37,
   "both_blocked": 6,
   "ret_diff": 29,
   "gt_path_diff": 23,
   "gt_write_path_diff": 2,
-  "gt_index_mismatch": 16
+  "gt_index_mismatch": 15
  },
  "results": [
   {
@@ -6227,7 +6227,7 @@
    "name": "ReadThreadContext",
    "sym": "0x14007b640",
    "where": "XPCHunterDrv/src\\services\\TailHelpers.c:3682",
-   "verdict": "gt_index_mismatch",
+   "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
@@ -6247,7 +6247,7 @@
     "api": [],
     "gt_r": [
      [
-      2424,
+      2162,
       0
      ]
     ],
@@ -6878,7 +6878,7 @@
    "addr": "0x140033d08",
    "name": "ResolvePhysicalMemoryContext",
    "sym": "0x14007ba70",
-   "where": "XPCHunterDrv/src\\services\\TailHelpers.c:3810",
+   "where": "XPCHunterDrv/src\\services\\TailHelpers.c:3814",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -11350,7 +11350,7 @@
    "addr": "0x140051f88",
    "name": "ResolveDriverModuleNames",
    "sym": "0x14007b8b0",
-   "where": "XPCHunterDrv/src\\services\\TailHelpers.c:3755",
+   "where": "XPCHunterDrv/src\\services\\TailHelpers.c:3759",
    "verdict": "identical",
    "orig": {
     "api": [],

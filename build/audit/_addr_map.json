@@ -2972,11 +2972,11 @@
  "0x140051f88": [
   "ResolveDriverModuleNames",
   5369215152,
-  "XPCHunterDrv/src\\services\\TailHelpers.c:3755"
+  "XPCHunterDrv/src\\services\\TailHelpers.c:3759"
  ],
  "0x140033d08": [
   "ResolvePhysicalMemoryContext",
   5369215600,
-  "XPCHunterDrv/src\\services\\TailHelpers.c:3810"
+  "XPCHunterDrv/src\\services\\TailHelpers.c:3814"
  ]
 }

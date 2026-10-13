@@ -3693,7 +3693,11 @@ char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray)
     memset(Dst, 0, sizeof(Dst));
     ReadDebugRegisters(Dst);
     CurrentFiber = (char *)GetCurrentFiber();
-    FiberOffset = (int)GtRead(GtFwpsDispatchTableBase | GtEprocessField104);
+    // 【GT 索引修正 2026-10-13】原写 GtFwpsDispatchTableBase|GtEprocessField104
+    //   = 0x800 | 0x178 = 0x978；原始要的是 **0x872**（0x800|0x72）。
+    //   根因同 GtEprocessField123：宏 GtEprocessField104 -> GtEprocessField94(=0x178)
+    //   是按"索引"命名，与所需的值 0x72 冲突。此处直接写字面量。
+    FiberOffset = (int)GtRead((GLOBAL_TABLE_INDEX)0x872);   // 0x14002FBC5
     if (CurrentFiber && FiberOffset)
     {
         FiberContext[0] = *(_OWORD *)&CurrentFiber[FiberOffset];

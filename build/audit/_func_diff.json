@@ -1,34 +1,39 @@
 {
  "tally": {
-  "gt_path_diff": 1
+  "identical": 1
  },
  "results": [
   {
-   "addr": "0x1400800c0",
-   "name": "CmdCheckProcessAccess",
-   "sym": "0x140020480",
-   "where": "XPCHunterDrv/src\\services\\IoctlDispatch.c:484",
-   "verdict": "gt_path_diff",
+   "addr": "0x14002fb54",
+   "name": "ReadThreadContext",
+   "sym": "0x14007b640",
+   "where": "XPCHunterDrv/src\\services\\TailHelpers.c:3682",
+   "verdict": "identical",
    "orig": {
     "api": [],
-    "gt_r": [],
+    "gt_r": [
+     [
+      2162,
+      0
+     ]
+    ],
     "gt_w": [],
-    "instr": 23,
-    "status": "returned",
-    "ret": 18446737476639850496,
-    "stop": "",
-    "stopped_at": null
+    "instr": 127,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff88000029efc"
    },
    "reb": {
     "api": [],
     "gt_r": [
      [
-      389,
+      2162,
       0
      ]
     ],
     "gt_w": [],
-    "instr": 5,
+    "instr": 32,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
