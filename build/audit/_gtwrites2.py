@@ -38,13 +38,38 @@ def _res(name, d=0):
 
 _TOK=_re.compile(r'Gt(?:Read|Write|Alloc)\(\s*(?:\(GLOBAL_TABLE_INDEX\))?\s*([A-Za-z_]\w*|0x[0-9A-Fa-f]+|\d+)\s*(?:(\|)\s*(0x[0-9A-Fa-f]+|\d+)\s*)?')
 def my_gt(body):
+    """提取 GT 索引；支持 `A | B | C` 多项 OR 串联。"""
     out=set()
-    for m in _TOK.finditer(body):
-        tok=m.group(1)
-        v = int(tok,0) if (tok[0].isdigit()) else _res(tok)
-        if v is None: continue
-        if m.group(2) and m.group(3): v |= int(m.group(3),0)
-        out.add(v)
+    for m in re.finditer(r'Gt(?:Read|Write|Alloc)\(', body):
+        # 从 '(' 之后取第一个参数：截到 ',' 或 ')'（跳过可能出现的 (GLOBAL_TABLE_INDEX) 前缀）
+        j=m.end()
+        expr=''
+        depth=0
+        while j < len(body):
+            ch=body[j]
+            if ch=='(' : depth+=1
+            elif ch==')':
+                if depth==0: break
+                depth-=1
+            elif ch==',' and depth==0: break
+            expr+=ch
+            j+=1
+        expr=expr.replace('(GLOBAL_TABLE_INDEX)','').replace('(enum _GLOBAL_TABLE_INDEX)','')
+        # 取表达式的第一"项"：以 | 分隔，每项可能是名字/字面量（可含括号）
+        terms=[t.strip() for t in expr.split('|')]
+        v=None
+        for t in terms:
+            t=t.strip().strip('()')
+            if not t: continue
+            if re.fullmatch(r'0x[0-9A-Fa-f]+|\d+', t):
+                val=int(t,0)
+            else:
+                val=_res(t)
+            if val is None:
+                v=None; break        # 任一项无法解析则不猜
+            v = val if v is None else (v | val)
+        if v is not None:
+            out.add(v)
     return out
 
 md=Cs(CS_ARCH_X86,CS_MODE_64)
@@ -83,6 +108,25 @@ def body_of(path, decl_line):
                     return '\n'.join(out)
     return '\n'.join(out)
 
+
+
+# ---- 我方：带上"被调内部函数"的索引（传递一层）----
+def my_gt_closure(body, all_bodies_by_name):
+    s = my_gt(body)
+    for m in re.finditer(r'([A-Za-z_]\w*)\s*\(', body):
+        fn = m.group(1)
+        b = all_bodies_by_name.get(fn)
+        if b:
+            s |= my_gt(b)
+    return s
+
+# 预收集所有函数体（供传递闭包用）
+ALL_BODIES={}
+for _a,(_n,_s,_w) in json.load(open('build/audit/_addr_map.json',encoding='utf-8')).items():
+    _p,_l=_w.rsplit(':',1)
+    try: ALL_BODIES[_n]=body_of(_p,int(_l))
+    except Exception: pass
+
 amap=json.load(open('build/audit/_addr_map.json',encoding='utf-8'))
 rows=[]
 for a_hex,(name,sym,where) in amap.items():
@@ -92,7 +136,7 @@ for a_hex,(name,sym,where) in amap.items():
     if not oreads and not owrites: continue
     path,ln=where.rsplit(':',1)
     body=body_of(path,int(ln))
-    my=my_gt(body)
+    my=my_gt_closure(body, ALL_BODIES)
     oset=set(oreads)|set(owrites)
     overlap=oset & my
     rows.append((a_hex,name,sorted(oset),sorted(my),len(overlap),len(oset)))
