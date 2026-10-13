@@ -4,21 +4,21 @@
  },
  "results": [
   {
-   "addr": "0x14002fb54",
-   "name": "ReadThreadContext",
-   "sym": "0x14007b640",
-   "where": "XPCHunterDrv/src\\services\\TailHelpers.c:3682",
+   "addr": "0x1400188d8",
+   "name": "MiniFilterPreShutdown",
+   "sym": "0x140030270",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2376",
    "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
      [
-      2162,
-      0
+      3,
+      18446735277616529408
      ]
     ],
     "gt_w": [],
-    "instr": 127,
+    "instr": 16,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
@@ -28,12 +28,12 @@
     "api": [],
     "gt_r": [
      [
-      2162,
-      0
+      3,
+      18446735277616529408
      ]
     ],
     "gt_w": [],
-    "instr": 32,
+    "instr": 19,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
