@@ -79,17 +79,24 @@ bool InitMiniFilterDriver(__int64 Reserved, __int64 Reserved2, _DWORD *OutputBuf
     BufferSizeCopy = BufferSize;
     Result = 0;
 
-    if (!GtRead(2074))
-        ParseMiniFilterRegSections();
+    // 【GT 索引修正 2026-10-13】以下四个索引原先全部写错
+    //   （我方 0x81A/0x980/0x981/0x819，原始 0x89F/0x8A0/0x8A1/0x89E）。
+    //   发现方式：windows-driver-emulation skill 逐函数差分，运行时观测到
+    //   原始读 0x89F 而我方读 0x81A；逐条反汇编核对确认原始读序为
+    //   0x89F(懒初始化) / 0x8A0 / 0x8A1 / 0x89E。
+    //   原始汇编：`mov r14d,0x89f` → GtRead → test → 为空则 call 0x140011B80
+    //   → 再 GtRead(0x89F) 存入 r13；随后 0x8A0→r15、0x8A1→r12、0x89E→r14。
+    if (!GtRead((GLOBAL_TABLE_INDEX)0x89F))                   // 0x140011FA3
+        ParseMiniFilterRegSections();                          // 0x140011FAD
 
-    ListHead1 = (_QWORD **)GtRead(2074);
-    ListHead2 = (_QWORD **)GtRead(2176 | 0x100);
-    ListHead3 = (_QWORD **)GtRead(2177 | 0x100);
-    ListHead4 = GtRead(2073);
+    ListHead1 = (_QWORD **)GtRead((GLOBAL_TABLE_INDEX)0x89F);  // 0x140011FB5（r13）
+    ListHead2 = (_QWORD **)GtRead((GLOBAL_TABLE_INDEX)0x8A0);  // 0x140011FC2（r15）
+    ListHead3 = (_QWORD **)GtRead((GLOBAL_TABLE_INDEX)0x8A1);  // 0x140011FCF（r12）
+    ListHead4 = GtRead((GLOBAL_TABLE_INDEX)0x89E);             // 0x140011FDC（r14）
     ListHead4Ptr = (_QWORD **)ListHead4;
 
-    if ((!ListHead1 && !ListHead2 && !ListHead3 && !ListHead4) ||
-        !OutputBuffer || (ULONG)BufferSizeCopy < 0x130 ||
+    if ((!ListHead1 && !ListHead2 && !ListHead3 && !ListHead4) ||  // 0x140011FE4~1FF6
+        !OutputBuffer || (ULONG)BufferSizeCopy < 0x130 ||          // 0x140011FFC/2005
         (ULONG64)OutputBuffer >= MmUserProbeAddress ||
         (ULONG64)OutputBuffer + BufferSizeCopy >= MmUserProbeAddress)
         return Result;
@@ -177,8 +184,10 @@ char __fastcall RemoveMiniFilterContextNode(_QWORD *ContextNode)
     _QWORD *PrevNode;
     _QWORD *NextNode;
 
-    ValidateFlag = GtRead(GtObjectTypeCheckFlag);
-    ContextOffset = (unsigned int)GtRead(GtEprocessExtField10);
+    // 【GT 索引修正 2026-10-13】原为 GtObjectTypeCheckFlag(0x41DB) / GtEprocessExtField10(0x360)，
+    //   原始为 0x421D / 0x4238（见 0x140012453 / 0x140012460）。
+    ValidateFlag = GtRead((GLOBAL_TABLE_INDEX)0x421D);          // 0x140012453
+    ContextOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x4238);  // 0x140012460
     if (!ValidateFlag || !ContextOffset)
         return Result;
 
@@ -3589,18 +3598,47 @@ void InitFsFilterExportTable(void)
 // OpenWin32kSysSection — 打开 Win32k 系统节
 // 通过 \SystemRoot\System32\win32k.sys 路径打开节对象，获取节基址
 // 对应原始驱动 sub_1400174F8
+// OpenWin32kSysSection — 打开 win32k 的节对象
+// 对应原始驱动 0x1400174F8（124 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**：读 GtWin32kBase / GtWin32kSize
+//   做有效性检查后直接返回基址。注释称"返回 Win32k 基址作为节对象句柄"，
+//   与实物无关。
+//   发现方式：windows-driver-emulation skill 逐函数差分，运行时观测到
+//   原始读 GT 0x421D（= GtRtlInitUnicodeStringFunc）而我方读 0x80F；
+//   逐条反汇编核对后确认（原始函数体里根本没有 GtRead）。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写。
+// 【原始汇编】0x1400174F8（全部指令）：
+//   sub rsp,0x58 ; 存入 stack cookie
+//   [rsp+0x44] = 0                          ; 第 5 个栈参 = 0
+//   rcx = [rsp+0x20]                        ; 指向待构造的 Unicode 缓冲
+//   依次写入 9 个 DWORD，拼出 L"\FileSystem\FltMgr"（18 个字符）：
+//     0x46005C 0x6C0069 0x530065 0x730079 0x650074
+//     0x5C006D 0x6C0046 0x4D0074 0x720067
+//   call 0x140078F48                        ; = OpenFileSection(缓冲)
+//   校验 stack cookie ; add rsp,0x58 ; ret
+// 【说明】本函数**不访问全局表**：差分里看到的 GT 0x421D 读
+//   发生在被调用的 OpenFileSection（0x140078F48）内部——
+//   后者开头即读 0x421D/0x421A/0x4223/0x4160 四个函数指针槽
+//   （= GtRtlInitUnicodeStringFunc / GtIoCreateFileFunc /
+//      GtCloseHandleFunc / GtDriverObjectListHead，枚举值已逐一核对吻合）。
+// 【返回值】OpenFileSection 的返回值（文件节对象句柄；失败为 0）。
 __int64 OpenWin32kSysSection(void)
 {
-    __int64 Result = 0;
-    __int64 Win32kBase = GtRead(GtWin32kBase);
-    unsigned int Win32kSize = (unsigned int)GtRead(GtWin32kSize);
-    if (!Win32kBase || !Win32kSize)
-        return Result;
-    if (MmIsAddressValid((void *)Win32kBase) != 1)
-        return Result;
-    // 返回 Win32k 基址作为节对象句柄
-    Result = Win32kBase;
-    return Result;
+    WCHAR PathBuffer[20];
+
+    // L"\FileSystem\FltMgr" —— 与原始驱动逐 DWORD 一致（9 个 DWORD = 18 字符）
+    PathBuffer[0] = 0x005C; PathBuffer[1] = 0x0046;   // \F
+    PathBuffer[2] = 0x0069; PathBuffer[3] = 0x006C;   // il
+    PathBuffer[4] = 0x0065; PathBuffer[5] = 0x0053;   // eS
+    PathBuffer[6] = 0x0079; PathBuffer[7] = 0x0073;   // ys
+    PathBuffer[8] = 0x0074; PathBuffer[9] = 0x0065;   // te
+    PathBuffer[10] = 0x006D; PathBuffer[11] = 0x005C; // m\
+    PathBuffer[12] = 0x0046; PathBuffer[13] = 0x006C; // Fl
+    PathBuffer[14] = 0x0074; PathBuffer[15] = 0x004D; // tM
+    PathBuffer[16] = 0x0067; PathBuffer[17] = 0x0072; // gr
+    PathBuffer[18] = 0;                               // 结尾（原始 [rsp+0x44]=0）
+
+    return OpenFileSection((__int64)PathBuffer);      // 0x14001755D
 }
 
 // UnregisterCommPortCallback — 取消注册通信端口回调
