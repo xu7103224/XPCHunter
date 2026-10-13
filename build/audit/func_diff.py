@@ -198,10 +198,21 @@ def classify(a, b):
     """
     if a['status'] == 'stopped' and b['status'] == 'stopped'             and a['instr'] < 5 and b['instr'] < 5:
         return 'both_blocked'
-    if [i for i, _ in a['gt_r']] != [i for i, _ in b['gt_r']]:
-        return 'gt_read_diff'
-    if [i for i, _ in a['gt_w']] != [i for i, _ in b['gt_w']]:
-        return 'gt_write_diff'
+    # GT 序列比对要区分两种原因：
+    #   index_mismatch —— 两侧都读到了 GT，但**索引集合不同**：真缺陷。
+    #   path_diff      —— 一侧读到、另一侧在该参数下没走到：很可能是
+    #                    参数/环境导致的路径差异（假阳性），须人工核对，
+    #                    不能直接当缺陷。两者分开计数。
+    ra, rb = [i for i, _ in a['gt_r']], [i for i, _ in b['gt_r']]
+    wa, wb = [i for i, _ in a['gt_w']], [i for i, _ in b['gt_w']]
+    if ra != rb:
+        if ra and rb:
+            return 'gt_index_mismatch'
+        return 'gt_path_diff'
+    if wa != wb:
+        if wa and wb:
+            return 'gt_write_index_mismatch'
+        return 'gt_write_path_diff'
     if [n for n, _ in a['api']] != [n for n, _ in b['api']]:
         return 'api_diff'
     if a['status'] != b['status']:

@@ -1000,7 +1000,14 @@ char ValidateProcessObject(struct _KPROCESS *ProcessObject, struct _KPROCESS *Al
 }
 
 // BuildExportServiceTable — 构建导出服务表
-// 对应原始驱动 sub_1400063D0
+// 对应原始驱动 0x1400063E0（526 字节）
+// 【⚠ 地址修正 2026-10-13】原注释写 `sub_1400063D0`，但 0x1400063D0 实为
+//   **另一函数 ParseNtImageSectionHeaders (0x1400061B8) 的内部地址**。
+//   真实入口是 0x1400063E0（名 BuildExportServiceTable，526 字节），差 0x10 字节，系转写笔误。
+//   发现方式：逐函数差分报本函数为 gt_read_diff（GT 0x314），核对时发现
+//   原始并无以 0x1400063D0 为入口的函数。
+//   另：本函数 GT 索引与原始**完全一致**（0x314/0x312/0x313 即
+//   GtWin32kServiceCount / GtWin32kServiceTableSize32 / Size64 = 788/786/787），无需修改。
 // 读取用户态 DLL（win32k/其他），解析导出目录，构建服务表到缓冲区
 char BuildExportServiceTableForProcess(
     __int64 ImageBase,

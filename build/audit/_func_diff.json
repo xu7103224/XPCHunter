@@ -1,18 +1,18 @@
 {
  "tally": {
   "length_suspect": 4,
-  "identical": 103,
-  "status_diff": 9,
+  "identical": 105,
+  "status_diff": 10,
   "both_blocked": 1,
   "ret_diff": 6,
-  "gt_read_diff": 6,
-  "gt_write_diff": 1
+  "gt_path_diff": 3,
+  "gt_write_path_diff": 1
  },
  "results": [
   {
    "addr": "0x1400015c3",
    "name": "CallQuerySystemInformation",
-   "sym": "0x140074a90",
+   "sym": "0x140074b40",
    "where": "XPCHunterDrv/src\\features\\SystemInfo.c:27",
    "verdict": "length_suspect",
    "orig": {
@@ -130,7 +130,7 @@
   {
    "addr": "0x140003c3c",
    "name": "InitSdstTable",
-   "sym": "0x1400626b0",
+   "sym": "0x140062760",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:125",
    "verdict": "identical",
    "orig": {
@@ -167,7 +167,7 @@
   {
    "addr": "0x140003fc4",
    "name": "InitSyscallNumberTable",
-   "sym": "0x140062c60",
+   "sym": "0x140062d10",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:404",
    "verdict": "identical",
    "orig": {
@@ -204,7 +204,7 @@
   {
    "addr": "0x1400050dc",
    "name": "CheckSsdtHookIntegrity",
-   "sym": "0x140062b50",
+   "sym": "0x140062c00",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:364",
    "verdict": "identical",
    "orig": {
@@ -241,7 +241,7 @@
   {
    "addr": "0x1400051f0",
    "name": "ReadNtoskrnlFile",
-   "sym": "0x140064030",
+   "sym": "0x1400640e0",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:1031",
    "verdict": "identical",
    "orig": {
@@ -278,7 +278,7 @@
   {
    "addr": "0x140005374",
    "name": "CleanupNtoskrnlFile",
-   "sym": "0x140064270",
+   "sym": "0x140064320",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:1098",
    "verdict": "identical",
    "orig": {
@@ -342,7 +342,7 @@
   {
    "addr": "0x140005484",
    "name": "FindExportByNameInPeBody",
-   "sym": "0x140064810",
+   "sym": "0x1400648c0",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:1523",
    "verdict": "status_diff",
    "orig": {
@@ -369,7 +369,7 @@
   {
    "addr": "0x140005800",
    "name": "GetExportDirSize",
-   "sym": "0x140062ad0",
+   "sym": "0x140062b80",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:323",
    "verdict": "both_blocked",
    "orig": {
@@ -390,13 +390,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000062ad0"
+    "stopped_at": "0xff88000062b80"
    }
   },
   {
    "addr": "0x140005ac8",
    "name": "LookupExportByName",
-   "sym": "0x1400642f0",
+   "sym": "0x1400643a0",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:1169",
    "verdict": "status_diff",
    "orig": {
@@ -423,7 +423,7 @@
   {
    "addr": "0x140005c28",
    "name": "FindPESectionByName",
-   "sym": "0x14004f700",
+   "sym": "0x14004f7b0",
    "where": "XPCHunterDrv/src\\framework\\PEDecoder.c:2676",
    "verdict": "identical",
    "orig": {
@@ -444,13 +444,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800004f712"
+    "stopped_at": "0xff8800004f7c2"
    }
   },
   {
    "addr": "0x140005cb4",
    "name": "FindPESectionByNameReturnVa",
-   "sym": "0x14004f7c0",
+   "sym": "0x14004f870",
    "where": "XPCHunterDrv/src\\framework\\PEDecoder.c:2708",
    "verdict": "identical",
    "orig": {
@@ -471,13 +471,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800004f7d2"
+    "stopped_at": "0xff8800004f882"
    }
   },
   {
    "addr": "0x140005d4c",
    "name": "ReadNtFileToBuffer",
-   "sym": "0x140064450",
+   "sym": "0x140064500",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:1300",
    "verdict": "ret_diff",
    "orig": {
@@ -504,7 +504,7 @@
   {
    "addr": "0x140006008",
    "name": "ParseNtExportDir",
-   "sym": "0x1400646c0",
+   "sym": "0x140064770",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:1443",
    "verdict": "status_diff",
    "orig": {
@@ -529,20 +529,25 @@
    }
   },
   {
-   "addr": "0x1400063d0",
+   "addr": "0x1400063e0",
    "name": "BuildExportServiceTableForProcess",
-   "sym": "0x140056b50",
-   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1005",
-   "verdict": "gt_read_diff",
+   "sym": "0x140056c00",
+   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1012",
+   "verdict": "identical",
    "orig": {
     "api": [],
-    "gt_r": [],
+    "gt_r": [
+     [
+      788,
+      0
+     ]
+    ],
     "gt_w": [],
-    "instr": 1,
+    "instr": 17,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff880000063d0"
+    "stopped_at": "0xff88000029efc"
    },
    "reb": {
     "api": [],
@@ -563,8 +568,8 @@
   {
    "addr": "0x1400065f0",
    "name": "ResolveWin32kServiceTable",
-   "sym": "0x140056e80",
-   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1235",
+   "sym": "0x140056f30",
+   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1242",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -600,8 +605,8 @@
   {
    "addr": "0x1400068ac",
    "name": "ParseNtRelocationTableEx",
-   "sym": "0x140058050",
-   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1945",
+   "sym": "0x140058100",
+   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1952",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -621,13 +626,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory write (UC_ERR_WRITE_UNMAPPED)",
-    "stopped_at": "0xff8800005808c"
+    "stopped_at": "0xff8800005813c"
    }
   },
   {
    "addr": "0x14000700c",
    "name": "DisableProcessProtect",
-   "sym": "0x140054d80",
+   "sym": "0x140054e30",
    "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:30",
    "verdict": "status_diff",
    "orig": {
@@ -648,14 +653,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
    "addr": "0x140007290",
    "name": "FindModuleInLoaderList",
-   "sym": "0x140058680",
-   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2247",
+   "sym": "0x140058730",
+   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2254",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -691,8 +696,8 @@
   {
    "addr": "0x140007420",
    "name": "FindUser32ModuleInList",
-   "sym": "0x1400588b0",
-   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2389",
+   "sym": "0x140058960",
+   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2396",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -728,8 +733,8 @@
   {
    "addr": "0x1400075e4",
    "name": "ScanWin32kSectionForServiceTable",
-   "sym": "0x140058ae0",
-   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2468",
+   "sym": "0x140058b90",
+   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2475",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -749,14 +754,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000058b18"
+    "stopped_at": "0xff88000058bc8"
    }
   },
   {
    "addr": "0x140007914",
    "name": "ResolveWin32kServiceTableEx",
-   "sym": "0x140058370",
-   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2135",
+   "sym": "0x140058420",
+   "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2142",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -776,13 +781,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff880000583a2"
+    "stopped_at": "0xff88000058452"
    }
   },
   {
    "addr": "0x140007d54",
    "name": "DisableObjectProtectEx",
-   "sym": "0x14003e6d0",
+   "sym": "0x14003e780",
    "where": "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:93",
    "verdict": "identical",
    "orig": {
@@ -819,7 +824,7 @@
   {
    "addr": "0x1400083c4",
    "name": "QueryDriverObjectByPath",
-   "sym": "0x1400608e0",
+   "sym": "0x140060990",
    "where": "XPCHunterDrv/src\\services\\QueryDriver.c:333",
    "verdict": "identical",
    "orig": {
@@ -856,7 +861,7 @@
   {
    "addr": "0x140008504",
    "name": "EnumDeviceObjects",
-   "sym": "0x140060650",
+   "sym": "0x140060700",
    "where": "XPCHunterDrv/src\\services\\QueryDriver.c:145",
    "verdict": "identical",
    "orig": {
@@ -893,7 +898,7 @@
   {
    "addr": "0x140008e60",
    "name": "RemoveObjectListEntry",
-   "sym": "0x14003fd60",
+   "sym": "0x14003fe10",
    "where": "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1293",
    "verdict": "identical",
    "orig": {
@@ -951,13 +956,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
    "addr": "0x140009ad8",
    "name": "ObjectOperationDispatcher",
-   "sym": "0x1400782b0",
+   "sym": "0x140078360",
    "where": "XPCHunterDrv/src\\services\\TailHelpers.c:1205",
    "verdict": "status_diff",
    "orig": {
@@ -978,13 +983,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
    "addr": "0x140009bcc",
    "name": "CopySectionString",
-   "sym": "0x1400602f0",
+   "sym": "0x1400603a0",
    "where": "XPCHunterDrv/src\\services\\QueryDriver.c:59",
    "verdict": "identical",
    "orig": {
@@ -1005,13 +1010,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory write (UC_ERR_WRITE_UNMAPPED)",
-    "stopped_at": "0xff88000060316"
+    "stopped_at": "0xff880000603c6"
    }
   },
   {
    "addr": "0x14000a094",
    "name": "InitRegCallback",
-   "sym": "0x140060a30",
+   "sym": "0x140060ae0",
    "where": "XPCHunterDrv/src\\kernel\\Registry.c:9",
    "verdict": "identical",
    "orig": {
@@ -1085,7 +1090,7 @@
   {
    "addr": "0x14000c1e0",
    "name": "InitRegNotify",
-   "sym": "0x140060be0",
+   "sym": "0x140060c90",
    "where": "XPCHunterDrv/src\\kernel\\Registry.c:74",
    "verdict": "identical",
    "orig": {
@@ -1122,7 +1127,7 @@
   {
    "addr": "0x14000c738",
    "name": "InitRegFilter",
-   "sym": "0x140060ca0",
+   "sym": "0x140060d50",
    "where": "XPCHunterDrv/src\\kernel\\Registry.c:106",
    "verdict": "identical",
    "orig": {
@@ -1149,7 +1154,7 @@
   {
    "addr": "0x14000c8cc",
    "name": "InitKernelRoutineTable",
-   "sym": "0x140063cd0",
+   "sym": "0x140063d80",
    "where": "XPCHunterDrv/src\\services\\SSDT.c:905",
    "verdict": "identical",
    "orig": {
@@ -1261,7 +1266,7 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
@@ -1269,7 +1274,7 @@
    "name": "InitFileSystemFilterCallbacks",
    "sym": "0x14001a790",
    "where": "XPCHunterDrv/src\\DriverEntry.c:4333",
-   "verdict": "gt_read_diff",
+   "verdict": "gt_path_diff",
    "orig": {
     "api": [],
     "gt_r": [
@@ -1336,8 +1341,8 @@
   {
    "addr": "0x14000e510",
    "name": "CopyFsFilterEntryTable",
-   "sym": "0x140034810",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:7358",
+   "sym": "0x140034950",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:7420",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -1357,14 +1362,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory write (UC_ERR_WRITE_UNMAPPED)",
-    "stopped_at": "0xff88000034864"
+    "stopped_at": "0xff880000349a4"
    }
   },
   {
    "addr": "0x14000e634",
    "name": "ParseNtRelocSection",
-   "sym": "0x140034f80",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:7660",
+   "sym": "0x1400350c0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:7722",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -1427,7 +1432,7 @@
   {
    "addr": "0x14000eef4",
    "name": "PatchFsFilterDriverIndex",
-   "sym": "0x140079e00",
+   "sym": "0x140079eb0",
    "where": "XPCHunterDrv/src\\services\\TailHelpers.c:2611",
    "verdict": "identical",
    "orig": {
@@ -1501,7 +1506,7 @@
   {
    "addr": "0x14000f788",
    "name": "ValidateObjectTypeList",
-   "sym": "0x140040750",
+   "sym": "0x140040800",
    "where": "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1743",
    "verdict": "identical",
    "orig": {
@@ -1528,9 +1533,9 @@
   {
    "addr": "0x14000f8e4",
    "name": "InitObjectCallbackFiles",
-   "sym": "0x140041b60",
+   "sym": "0x140041c10",
    "where": "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2448",
-   "verdict": "gt_read_diff",
+   "verdict": "gt_path_diff",
    "orig": {
     "api": [],
     "gt_r": [],
@@ -1587,7 +1592,7 @@
   {
    "addr": "0x140010780",
    "name": "ProcessCallbackRoutine",
-   "sym": "0x140055040",
+   "sym": "0x1400550f0",
    "where": "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:147",
    "verdict": "ret_diff",
    "orig": {
@@ -1641,7 +1646,7 @@
   {
    "addr": "0x140010e1c",
    "name": "DecodeUtf8Buffer",
-   "sym": "0x14007f0c0",
+   "sym": "0x14007f170",
    "where": "XPCHunterDrv/src\\framework\\Utf8Decoder.c:390",
    "verdict": "identical",
    "orig": {
@@ -1662,13 +1667,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
    "addr": "0x140010eac",
    "name": "DecodeUnicodeChar",
-   "sym": "0x14007f020",
+   "sym": "0x14007f0d0",
    "where": "XPCHunterDrv/src\\framework\\Utf8Decoder.c:351",
    "verdict": "identical",
    "orig": {
@@ -1689,13 +1694,13 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory write (UC_ERR_WRITE_UNMAPPED)",
-    "stopped_at": "0xff8800007f02c"
+    "stopped_at": "0xff8800007f0dc"
    }
   },
   {
    "addr": "0x140010f74",
    "name": "DecodeUtf8Sequence",
-   "sym": "0x14007ecf0",
+   "sym": "0x14007eda0",
    "where": "XPCHunterDrv/src\\framework\\Utf8Decoder.c:200",
    "verdict": "identical",
    "orig": {
@@ -1716,14 +1721,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800007ee19"
+    "stopped_at": "0xff8800007eec9"
    }
   },
   {
    "addr": "0x140011b80",
    "name": "ParseMiniFilterRegSections",
-   "sym": "0x140033fc0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:7038",
+   "sym": "0x140034100",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:7100",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -1796,8 +1801,8 @@
   {
    "addr": "0x1400121d4",
    "name": "EnumMiniFilterVolumeList",
-   "sym": "0x140033c80",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6887",
+   "sym": "0x140033dc0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6949",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -1817,7 +1822,7 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000033c8f"
+    "stopped_at": "0xff88000033dcf"
    }
   },
   {
@@ -1881,7 +1886,7 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
@@ -1914,8 +1919,8 @@
   {
    "addr": "0x140012e0c",
    "name": "FindKernelDataSectionForOpenSection",
-   "sym": "0x140035940",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8346",
+   "sym": "0x140035a80",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8408",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -1951,8 +1956,8 @@
   {
    "addr": "0x1400130c4",
    "name": "FindKernelDataSectionForCreateFile",
-   "sym": "0x140035430",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8047",
+   "sym": "0x140035570",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8109",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -1988,8 +1993,8 @@
   {
    "addr": "0x1400132ec",
    "name": "FindKernelDataSectionForReadMemory",
-   "sym": "0x1400356a0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8177",
+   "sym": "0x1400357e0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8239",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2025,8 +2030,8 @@
   {
    "addr": "0x1400137bc",
    "name": "FindKernelDataSectionForWriteMemory",
-   "sym": "0x140035c10",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8675",
+   "sym": "0x140035d50",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8737",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2062,8 +2067,8 @@
   {
    "addr": "0x140013a68",
    "name": "FindKernelDataSectionDispatch",
-   "sym": "0x140036130",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:9028",
+   "sym": "0x140036270",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:9090",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2099,8 +2104,8 @@
   {
    "addr": "0x140013c48",
    "name": "FindKernelDataSectionByData",
-   "sym": "0x1400363b0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:9087",
+   "sym": "0x1400364f0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:9149",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2284,8 +2289,8 @@
   {
    "addr": "0x140014acc",
    "name": "FindKernelDataSectionForStringParam",
-   "sym": "0x140035ed0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8853",
+   "sym": "0x140036010",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:8915",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2395,7 +2400,7 @@
   {
    "addr": "0x1400152d4",
    "name": "FindKernelObjectFieldOffsetsWin10",
-   "sym": "0x14002dce0",
+   "sym": "0x14002dd40",
    "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:1143",
    "verdict": "identical",
    "orig": {
@@ -2432,7 +2437,7 @@
   {
    "addr": "0x140015a48",
    "name": "FindKernelObjectFieldOffsetsWin8",
-   "sym": "0x14002e460",
+   "sym": "0x14002e4c0",
    "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:1423",
    "verdict": "identical",
    "orig": {
@@ -2469,7 +2474,7 @@
   {
    "addr": "0x140015f34",
    "name": "FindKernelObjectFieldOffsetsWin10Early",
-   "sym": "0x14002e9b0",
+   "sym": "0x14002ea10",
    "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:1675",
    "verdict": "identical",
    "orig": {
@@ -2506,8 +2511,8 @@
   {
    "addr": "0x140016404",
    "name": "ResolveFltEnumerateFilters",
-   "sym": "0x140030600",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2807",
+   "sym": "0x140030660",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2817",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2543,8 +2548,8 @@
   {
    "addr": "0x1400174f8",
    "name": "OpenWin32kSysSection",
-   "sym": "0x140031960",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3625",
+   "sym": "0x1400319c0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3635",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2580,8 +2585,8 @@
   {
    "addr": "0x140017574",
    "name": "CopyServiceTableWithFilter",
-   "sym": "0x140032ea0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6767",
+   "sym": "0x140032fe0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6829",
    "verdict": "length_suspect",
    "orig": {
     "api": [],
@@ -2601,14 +2606,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory write (UC_ERR_WRITE_UNMAPPED)",
-    "stopped_at": "0xff88000033262"
+    "stopped_at": "0xff880000333a2"
    }
   },
   {
    "addr": "0x1400175d8",
    "name": "CopyServiceTablePartial",
-   "sym": "0x1400336b0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6798",
+   "sym": "0x1400337f0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6860",
    "verdict": "length_suspect",
    "orig": {
     "api": [],
@@ -2628,14 +2633,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory write (UC_ERR_WRITE_UNMAPPED)",
-    "stopped_at": "0xff880000338e2"
+    "stopped_at": "0xff88000033a22"
    }
   },
   {
    "addr": "0x14001763c",
    "name": "InitFsFilterExportTable",
-   "sym": "0x140031500",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3529",
+   "sym": "0x140031560",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3539",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2671,9 +2676,9 @@
   {
    "addr": "0x1400177b4",
    "name": "MiniFilterPreDelete",
-   "sym": "0x14002f110",
+   "sym": "0x14002f170",
    "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:1933",
-   "verdict": "gt_read_diff",
+   "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
@@ -2693,7 +2698,7 @@
     "api": [],
     "gt_r": [
      [
-      2200,
+      2185,
       0
      ]
     ],
@@ -2708,7 +2713,7 @@
   {
    "addr": "0x140017938",
    "name": "MiniFilterPreRename",
-   "sym": "0x14002ef30",
+   "sym": "0x14002ef90",
    "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:1884",
    "verdict": "identical",
    "orig": {
@@ -2735,8 +2740,8 @@
   {
    "addr": "0x140017a90",
    "name": "MiniFilterPreHardLink",
-   "sym": "0x14002f2a0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:1990",
+   "sym": "0x14002f300",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2000",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2772,8 +2777,8 @@
   {
    "addr": "0x140017d94",
    "name": "MiniFilterPreAcquire",
-   "sym": "0x14002f650",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2086",
+   "sym": "0x14002f6b0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2096",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2809,8 +2814,8 @@
   {
    "addr": "0x1400184b8",
    "name": "MiniFilterPreRelease",
-   "sym": "0x140031a10",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3672",
+   "sym": "0x140031a70",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3682",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2846,8 +2851,8 @@
   {
    "addr": "0x140018794",
    "name": "MiniFilterPreFlush",
-   "sym": "0x14002fd70",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2280",
+   "sym": "0x14002fdd0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2290",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2883,9 +2888,9 @@
   {
    "addr": "0x1400188d8",
    "name": "MiniFilterPreShutdown",
-   "sym": "0x14002fea0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2332",
-   "verdict": "gt_read_diff",
+   "sym": "0x14002ff00",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2342",
+   "verdict": "gt_path_diff",
    "orig": {
     "api": [],
     "gt_r": [
@@ -2915,8 +2920,8 @@
   {
    "addr": "0x140018d14",
    "name": "MiniFilterPreVolumeMount",
-   "sym": "0x14002ff60",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2400",
+   "sym": "0x14002ffc0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2410",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2936,14 +2941,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
    "addr": "0x140018e70",
    "name": "MiniFilterUnloadCleanup",
-   "sym": "0x140031d30",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3775",
+   "sym": "0x140031d90",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3785",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -2979,8 +2984,8 @@
   {
    "addr": "0x140018ea0",
    "name": "MiniFilterPreVolumeDismount",
-   "sym": "0x1400300f0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2468",
+   "sym": "0x140030150",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2478",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3016,7 +3021,7 @@
   {
    "addr": "0x140018f4c",
    "name": "RegisterMiniFilterRegistry",
-   "sym": "0x140060e80",
+   "sym": "0x140060f30",
    "where": "XPCHunterDrv/src\\kernel\\Registry.c:273",
    "verdict": "identical",
    "orig": {
@@ -3053,8 +3058,8 @@
   {
    "addr": "0x140019210",
    "name": "MiniFilterCommPortRecv",
-   "sym": "0x140031d70",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3790",
+   "sym": "0x140031dd0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3800",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3080,8 +3085,8 @@
   {
    "addr": "0x14001922c",
    "name": "MiniFilterCommPortSend",
-   "sym": "0x140031cb0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3731",
+   "sym": "0x140031d10",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3741",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3117,8 +3122,8 @@
   {
    "addr": "0x140019344",
    "name": "MiniFilterCommPortReply",
-   "sym": "0x140031db0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3818",
+   "sym": "0x140031e10",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3828",
    "verdict": "status_diff",
    "orig": {
     "api": [],
@@ -3138,14 +3143,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000031dc3"
+    "stopped_at": "0xff88000031e23"
    }
   },
   {
    "addr": "0x140019400",
    "name": "MiniFilterCommPortDisconnect",
-   "sym": "0x140030290",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2504",
+   "sym": "0x1400302f0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2514",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3181,8 +3186,8 @@
   {
    "addr": "0x140019784",
    "name": "MiniFilterCommPortConnect",
-   "sym": "0x140030340",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2562",
+   "sym": "0x1400303a0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2572",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3218,8 +3223,8 @@
   {
    "addr": "0x1400198d8",
    "name": "MiniFilterCommPortCleanup",
-   "sym": "0x1400302e0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2518",
+   "sym": "0x140030340",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2528",
    "verdict": "ret_diff",
    "orig": {
     "api": [],
@@ -3245,9 +3250,9 @@
   {
    "addr": "0x140019938",
    "name": "MiniFilterCommPortReplyDone",
-   "sym": "0x1400303a0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2580",
-   "verdict": "gt_write_diff",
+   "sym": "0x140030400",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2590",
+   "verdict": "gt_write_path_diff",
    "orig": {
     "api": [],
     "gt_r": [],
@@ -3277,8 +3282,8 @@
   {
    "addr": "0x140019a44",
    "name": "MiniFilterServerContext",
-   "sym": "0x140032e60",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6686",
+   "sym": "0x140032fa0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6748",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3314,8 +3319,8 @@
   {
    "addr": "0x140019a5c",
    "name": "MiniFilterClientContext",
-   "sym": "0x140032e80",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6697",
+   "sym": "0x140032fc0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6759",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3351,8 +3356,8 @@
   {
    "addr": "0x140019a78",
    "name": "MiniFilterContextCleanup",
-   "sym": "0x140030480",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2647",
+   "sym": "0x1400304e0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2657",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3405,8 +3410,8 @@
   {
    "addr": "0x140019dd8",
    "name": "CmdCreateFileForPathAdd",
-   "sym": "0x1400303c0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2590",
+   "sym": "0x140030420",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2600",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3479,8 +3484,8 @@
   {
    "addr": "0x14001a030",
    "name": "RegisterFormatNameCallback",
-   "sym": "0x1400304e0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2664",
+   "sym": "0x140030540",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2674",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3516,8 +3521,8 @@
   {
    "addr": "0x14001a068",
    "name": "RegisterFormatPathCallback",
-   "sym": "0x140031e20",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3842",
+   "sym": "0x140031e80",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3852",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3553,8 +3558,8 @@
   {
    "addr": "0x14001a0a0",
    "name": "MiniFilterGenerateFileName",
-   "sym": "0x140030520",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2682",
+   "sym": "0x140030580",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2692",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3590,8 +3595,8 @@
   {
    "addr": "0x14001a0e8",
    "name": "MiniFilterFormatFileNameWithContext",
-   "sym": "0x140031e60",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3867",
+   "sym": "0x140031ec0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3877",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3627,8 +3632,8 @@
   {
    "addr": "0x14001a130",
    "name": "MiniFilterFormatFileNameEx",
-   "sym": "0x140031eb0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3892",
+   "sym": "0x140031f10",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3902",
    "verdict": "ret_diff",
    "orig": {
     "api": [],
@@ -3654,8 +3659,8 @@
   {
    "addr": "0x14001a1a0",
    "name": "MiniFilterFormatFileNameWithPathEx",
-   "sym": "0x140031f30",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:3990",
+   "sym": "0x140031f90",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4000",
    "verdict": "ret_diff",
    "orig": {
     "api": [],
@@ -3681,8 +3686,8 @@
   {
    "addr": "0x14001a210",
    "name": "MiniFilterQueryIdleRoutine",
-   "sym": "0x140031fb0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4017",
+   "sym": "0x140032010",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4027",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3718,8 +3723,8 @@
   {
    "addr": "0x14001a240",
    "name": "MiniFilterActiveRoutine",
-   "sym": "0x140032140",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4077",
+   "sym": "0x1400321a0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4087",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3755,8 +3760,8 @@
   {
    "addr": "0x14001a39c",
    "name": "RegisterFilterUnloadCallback",
-   "sym": "0x1400320f0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4052",
+   "sym": "0x140032150",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4062",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3792,8 +3797,8 @@
   {
    "addr": "0x14001a3e4",
    "name": "MiniFilterNotifyRoutineEx2",
-   "sym": "0x140032180",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4104",
+   "sym": "0x1400321e0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4114",
    "verdict": "status_diff",
    "orig": {
     "api": [],
@@ -3813,7 +3818,7 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000032193"
+    "stopped_at": "0xff880000321f3"
    }
   },
   {
@@ -3846,8 +3851,8 @@
   {
    "addr": "0x14001b090",
    "name": "EnumerateAleEndpointLayer",
-   "sym": "0x140037c60",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:9645",
+   "sym": "0x140037da0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:9707",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3881,48 +3886,11 @@
    }
   },
   {
-   "addr": "0x14001b23c",
-   "name": "EnumerateAleEndpointLayers",
-   "sym": "0x140037fb0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:9799",
-   "verdict": "identical",
-   "orig": {
-    "api": [],
-    "gt_r": [
-     [
-      16925,
-      0
-     ]
-    ],
-    "gt_w": [],
-    "instr": 38,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000029efc"
-   },
-   "reb": {
-    "api": [],
-    "gt_r": [
-     [
-      16925,
-      0
-     ]
-    ],
-    "gt_w": [],
-    "instr": 42,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001bdb0"
-   }
-  },
-  {
    "addr": "0x14001b2b4",
    "name": "MiniFilterPreFastIo",
    "sym": "0x14002dc10",
    "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:1097",
-   "verdict": "identical",
+   "verdict": "status_diff",
    "orig": {
     "api": [],
     "gt_r": [],
@@ -3937,18 +3905,18 @@
     "api": [],
     "gt_r": [],
     "gt_w": [],
-    "instr": 15,
-    "status": "returned",
-    "ret": 0,
-    "stop": "",
-    "stopped_at": null
+    "instr": 16,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff88000080310"
    }
   },
   {
    "addr": "0x14001b520",
    "name": "FindFwpsL2DispatchTable",
-   "sym": "0x1400323b0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4249",
+   "sym": "0x1400324b0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4311",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -3984,8 +3952,8 @@
   {
    "addr": "0x14001b600",
    "name": "FindFwpsTcpIpDispatchTableStr",
-   "sym": "0x1400322a0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4216",
+   "sym": "0x1400323a0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4278",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -4021,8 +3989,8 @@
   {
    "addr": "0x14001b72c",
    "name": "FindFwpsDispatchTableWin8",
-   "sym": "0x140032730",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6372",
+   "sym": "0x140032830",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6434",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -4058,8 +4026,8 @@
   {
    "addr": "0x14001b990",
    "name": "FindFwpsTcpIpDispatchTable",
-   "sym": "0x140032460",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4285",
+   "sym": "0x140032560",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4347",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -4095,9 +4063,9 @@
   {
    "addr": "0x14001bc08",
    "name": "CmdInitFwpsDispatchTables",
-   "sym": "0x1400321f0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4181",
-   "verdict": "gt_read_diff",
+   "sym": "0x140032250",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:4213",
+   "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
@@ -4115,20 +4083,25 @@
    },
    "reb": {
     "api": [],
-    "gt_r": [],
+    "gt_r": [
+     [
+      2048,
+      0
+     ]
+    ],
     "gt_w": [],
     "instr": 12,
-    "status": "returned",
-    "ret": 0,
-    "stop": "",
-    "stopped_at": null
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff8800001bdb0"
    }
   },
   {
    "addr": "0x14001bd44",
    "name": "MiniFilterAcquireForModWrite",
-   "sym": "0x1400329e0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6505",
+   "sym": "0x140032c70",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6567",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -4154,7 +4127,44 @@
      ]
     ],
     "gt_w": [],
-    "instr": 13,
+    "instr": 10,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff8800001bdb0"
+   }
+  },
+  {
+   "addr": "0x14001be80",
+   "name": "InitFwpsDispatchTables",
+   "sym": "0x140032ae0",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6535",
+   "verdict": "identical",
+   "orig": {
+    "api": [],
+    "gt_r": [
+     [
+      2324,
+      19041
+     ]
+    ],
+    "gt_w": [],
+    "instr": 218,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff88000029efc"
+   },
+   "reb": {
+    "api": [],
+    "gt_r": [
+     [
+      2324,
+      19041
+     ]
+    ],
+    "gt_w": [],
+    "instr": 225,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
@@ -4164,8 +4174,8 @@
   {
    "addr": "0x14001c1b4",
    "name": "CmdForEachCpuClearGdtBit",
-   "sym": "0x140032d50",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6628",
+   "sym": "0x140032e90",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6690",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -4185,14 +4195,14 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000080260"
+    "stopped_at": "0xff88000080310"
    }
   },
   {
    "addr": "0x14001c274",
    "name": "CmdCollectAllCpuGdtEntries",
-   "sym": "0x140032dd0",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6657",
+   "sym": "0x140032f10",
+   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:6719",
    "verdict": "ret_diff",
    "orig": {
     "api": [],
