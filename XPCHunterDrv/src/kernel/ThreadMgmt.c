@@ -825,6 +825,8 @@ __int64 CmdEnumThreadsEx(void **Address, int InputSize, _DWORD *OutputBuffer, un
     ULONG64 ThreadEntry;
     PEPROCESS Process;
 
+    // C4700 修正：Result 原先只在部分路径赋值，参数校验失败时会带未初始化值返回。
+    Result = 0;
     Process = NULL;
     if (InputSize != 32 || !Address ||
         (ULONG64)Address >= MmUserProbeAddress ||

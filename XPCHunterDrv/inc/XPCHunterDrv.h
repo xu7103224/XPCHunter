@@ -15,8 +15,11 @@
 // ============================================================
 
 // ===== Auto-generated function declarations =====
-void AcquireMiniFilterMutex(void);
-void AcquireMiniFilterMutexEx(void);
+// noinline：原驱动里这两者是实体函数（0x14007182C / 0x140071874，各 72 字节），
+// 且各自读 GT 0x4274/0x4277 的函数指针做间接调用。若被内联消除，
+// 调用点会退化成"调用未定义导入桩"，运行时行为与原驱动不符。
+__declspec(noinline) void AcquireMiniFilterMutex(void);
+__declspec(noinline) void AcquireMiniFilterMutexEx(void);
 char AcquireVolumeChangeLock(__int64 DeviceObject);
 __int64 AdjustKernelModuleSectionPointers(void);
 __int64 __fastcall AllocBufferAndQuerySystemInfo( __int64 (__fastcall *QueryFunc)(__int64, __int64, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *),
@@ -1318,14 +1321,16 @@ char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, u
 char InitSessionStateTable(__int64 PeBase, unsigned int PeSize);
 
 // ===== Global table access functions =====
-extern __int64 GtRead(GLOBAL_TABLE_INDEX Index);
-extern __int64 GtWrite(GLOBAL_TABLE_INDEX Index, __int64 Value);
+// 【noinline 强制】见 GlobalTable.c 顶部说明：这三个是原驱动的实体函数，
+//   若被内联消除，产物结构与运行时 GT 访问序列都会与原驱动不符。
+extern __declspec(noinline) __int64 GtRead(GLOBAL_TABLE_INDEX Index);
+extern __declspec(noinline) __int64 GtWrite(GLOBAL_TABLE_INDEX Index, __int64 Value);
 
 // ===== Missing function declarations needed by MissingFuncs.c =====
 void ExFree(void *Buffer);
 char FindExportInFileByName(__int64 PeBase, unsigned int PeSize, __int64 OutEntry);
 char ComparePeModuleSignature(char *pSignature1, __int64 Signature2, unsigned int SignatureSize);
-__int64 *GtAlloc(enum _GLOBAL_TABLE_INDEX Index);
+__declspec(noinline) __int64 *GtAlloc(enum _GLOBAL_TABLE_INDEX Index);
 __int64 InitHookFunctionTable(void);
 __int64 ResolveKernelModuleFunctionAddrs(void);
 __int64 ScanKernelModulePESectionsEx(void);
