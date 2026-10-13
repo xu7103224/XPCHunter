@@ -3756,16 +3756,46 @@ char MiniFilterCommPortRecv(void)
     return 1;
 }
 
-// MiniFilterCommPortReply — 通信端口回复
-// 向用户态通信端口回复数据，完成 IRP 或发送命名管道响应
-// 对应原始驱动 0x140019344
-NTSTATUS MiniFilterCommPortReply(void)
+// MiniFilterCommPortReply — 通信端口回复（0x140019344）
+// 对应原始驱动 0x140019344（105 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**：
+//     `if (!GtRead(GtCommPortCallbackReady)) return STATUS_DEVICE_NOT_READY; return STATUS_SUCCESS;`
+//   注释称"需要 IRP 或命名管道上下文"，与实物无关。
+//   发现方式：windows-driver-emulation skill 逐函数差分，运行时观测到
+//   原始不读任何 GT 而我方读 0x8F2；反汇编核对后确认。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写。
+// 【原始汇编】0x140019344：
+//   rdi = r8（用户缓冲）；bl = 0（结果）
+//   rcx = *MmUserProbeAddress
+//   ① r8 >= rcx        → 返回 0     ; 越界
+//   ② r8 == 0          → 返回 0     ; 空指针
+//   ③ r8+4 >= rcx      → 返回 0     ; 4 字节写入会越界
+//   ④ r9d != 4         → 返回 0     ; 输入长度必须为 4
+//   ProbeForWrite(r8, 4, 4)          ; 校验可写
+//   ⑤ *rdi = (*(volatile ULONG64*)0x1400A84D9 != 0)   ; 注意：直接读绝对地址
+//   返回 1
+// 【说明】第 ⑤ 步读的 **不是** GT 表，而是绝对地址 0x1400A84D9
+//   （反汇编 `cmp qword ptr [rip+0x8f151], rbx`，rbx=0），
+//   这是原驱动自己的一个全局标志，不经过 GtRead —— 故运行时 GT 序列为空。
+__int64 MiniFilterCommPortReply(__int64 Address, __int64 Length, _DWORD *Output, int OutputSize)
 {
-    // 通信端口回复需要 IRP 或命名管道上下文
-    // 此处验证通信端口状态后返回
-    if (!GtRead(GtCommPortCallbackReady))
-        return STATUS_DEVICE_NOT_READY;
-    return STATUS_SUCCESS;
+    char   Result = 0;
+    ULONG64 ProbeLimit;
+
+    _DWORD *OutPtr = (_DWORD *)Address;               // rdi = r8（原始把 r8 视作输出缓冲）
+
+    ProbeLimit = *(ULONG64 *)MmUserProbeAddress;      // rcx = *MmUserProbeAddress
+    if ((unsigned __int64)Address >= ProbeLimit        // 0x140019361
+        || Address == 0                                // 0x140019366
+        || (unsigned __int64)Address + 4 >= ProbeLimit  // 0x14001936F
+        || OutputSize != 4)                            // 0x140019377
+        return 0;
+
+    ProbeForWrite((PVOID)Address, 4, 4);               // 0x140019382
+
+    *OutPtr = (*(volatile ULONG64 *)0x1400A84D9 != 0) ? 1 : 0;   // 0x140019388/38F/392
+    Result = 1;                                        // 0x140019394
+    return Result;
 }
 
 // RegisterFormatPathCallback — 注册带路径的文件名格式化回调
@@ -3958,14 +3988,49 @@ __int64 *MiniFilterQueryIdleRoutine(__int64 a1, __int64 a2, _DWORD *a3)
     return 0;
 }
 
-// RegisterFilterUnloadCallback — 通知例程扩展
-// 将文件操作通知发送到 GT 0x3400 缓冲区，扩展版本支持更多操作类型
-// 对应原始驱动 0x14001A39C
+// RegisterFilterUnloadCallback — 注册过滤卸载回调（0x14001A39C）
+// 对应原始驱动 0x14001A39C（69 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**：
+//     `if (!GtRead(GtCommPortCallbackReady)) return STATUS_SUCCESS; return ...;`
+//   —— 读错索引（0x8F2 而非 0x8F3），且两个分支返回同一常量，
+//   等于什么都不做。注释"将文件操作通知发送到 GT 0x3400 缓冲区"与实物无关。
+//   发现方式：windows-driver-emulation skill 逐函数差分，运行时观测到
+//   原始读 GT 0x8F3 而我方读 0x8F2；反汇编核对后确认。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写。
+// 【原始汇编】0x14001A39C：
+//   0x14001A3A2  ecx = 0x8F3 ; GtRead        ; 已注册标志
+//   0x14001A3AE  test eax,eax ; jne 返回 0    ; 已注册则直接返回 0（不做重复注册）
+//   0x14001A3B2  ecx = 0x41AB ; GtRead        ; 取注册函数指针
+//   0x14001A3BC  test rax,rax ; je 返回 0     ; 未解析到则返回 0
+//   0x14001A3C1  lea rcx,[rip-0x1B8]          ; -> 0x14001A210 (MiniFilterQueryIdleRoutine)
+//   0x14001A3C8  call rax                     ; 注册该回调
+//   0x14001A3CA  edx = 1 ; ecx = 0x8F3 ; GtWrite  ; 置已注册标志 = 1
+//   0x14001A3D7  bl = 1                       ; 返回 1
+// 【说明】本函数与 MiniFilterActiveRoutine（0x14001A240）是配对的一对：
+//   本函数**注册**回调并置标志位 1；后者**注销**回调并清标志位 0。
+//   两者读的是同一个指针槽（0x41AB）与同一个标志槽（0x8F3）。
+//   0x41AB 在枚举里被误标为 GtSyscallHash16811，语义实为
+//   "回调注册函数指针"，故此处以裸索引 + 注释书写。
 NTSTATUS RegisterFilterUnloadCallback(void)
 {
-    if (!GtRead(GtCommPortCallbackReady))
-        return STATUS_SUCCESS;
-    return STATUS_SUCCESS;
+    char Result = 0;
+    void (__fastcall *RegisterCallbackFunc)(__int64 *(__fastcall *)(__int64, __int64, _DWORD *));
+
+    if ((ULONG)GtRead(GtMiniFilterNotifyRoutineReady) == 0)       // 0x14001A3A2/3AE（0x8F3）
+    {
+        RegisterCallbackFunc =
+            (void (__fastcall *)(__int64 *(__fastcall *)(__int64, __int64, _DWORD *)))
+            GtRead((GLOBAL_TABLE_INDEX)0x41AB);                   // 0x14001A3B2
+        if (RegisterCallbackFunc)                                 // 0x14001A3BC
+        {
+            RegisterCallbackFunc(
+                (__int64 *(__fastcall *)(__int64, __int64, _DWORD *))
+                MiniFilterQueryIdleRoutine);                      // 0x14001A3C8（lea rcx,[rip-0x1B8]）
+            GtWrite(GtMiniFilterNotifyRoutineReady, 1);            // 0x14001A3CD/3D2（0x8F3 = 1）
+            Result = 1;                                           // 0x14001A3D7
+        }
+    }
+    return Result;
 }
 
 // MiniFilterActiveRoutine — 注册空闲查询例程
@@ -3987,14 +4052,36 @@ char MiniFilterActiveRoutine(void)
     return Result;
 }
 
-// MiniFilterNotifyRoutineEx2 — 通知例程扩展2
-// 通知例程的第二个扩展版本，支持额外的操作类型
-// 对应原始驱动 0x14001A3E4
-NTSTATUS MiniFilterNotifyRoutineEx2(void)
+// MiniFilterNotifyRoutineEx2 — Minifilter 通知例程（扩展 2，0x14001A3E4）
+// 对应原始驱动 0x14001A3E4（110 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**：只读 GT 0x8F2 后 `xor eax,eax`。
+//   发现方式同上（逐函数差分：原始读 0x8F3，我方读 0x8F2 且不返回值）。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写。
+// 【原始汇编】0x14001A3E4：与 0x140019344 同构，仅末段不同——
+//   校验（越界/空/加4越界/长度!=4）→ ProbeForWrite(r8,4,4)
+//   → 读 GT **0x8F3**（`mov ecx,0x8F3; call GtRead`）
+//   → *rdi = (GT 值 != 0)；返回 1。
+// 【与 MiniFilterCommPortReply 的差异】本函数读的是 GT 表索引 0x8F3
+//   （经 GtRead），而前者读的是绝对地址 0x1400A84D9。两者结果都写入 *r8。
+__int64 MiniFilterNotifyRoutineEx2(__int64 Address, __int64 Length, _DWORD *Output, int OutputSize)
 {
-    if (!GtRead(GtCommPortCallbackReady))
-        return STATUS_SUCCESS;
-    return STATUS_SUCCESS;
+    char   Result = 0;
+    ULONG64 ProbeLimit;
+
+    _DWORD *OutPtr = (_DWORD *)Address;               // rdi = r8
+
+    ProbeLimit = *(ULONG64 *)MmUserProbeAddress;
+    if ((unsigned __int64)Address >= ProbeLimit        // 0x14001A401
+        || Address == 0                                // 0x14001A406
+        || (unsigned __int64)Address + 4 >= ProbeLimit  // 0x14001A40F
+        || OutputSize != 4)                            // 0x14001A417
+        return 0;
+
+    ProbeForWrite((PVOID)Address, 4, 4);               // 0x14001A422
+
+    *OutPtr = ((ULONG)GtRead(GtMiniFilterNotifyRoutineReady) != 0) ? 1 : 0;  // 0x14001A428/434/437（0x8F3）
+    Result = 1;                                        // 0x14001A439
+    return Result;
 }
 
 // CmdHandleStreamProcessInput — 流句柄操作处理器（补全空壳）
