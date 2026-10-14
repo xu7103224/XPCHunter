@@ -6,8 +6,8 @@
   {
    "addr": "0x14006e52c",
    "name": "ScanKernelModulePageOrRsrcSection",
-   "sym": "0x14001b120",
-   "where": "XPCHunterDrv/src\\DriverEntry.c:4691",
+   "sym": "0x14001b3d0",
+   "where": "XPCHunterDrv/src\\DriverEntry.c:4782",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -37,7 +37,7 @@
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001cec0"
+    "stopped_at": "0xff8800001d430"
    }
   }
  ],
