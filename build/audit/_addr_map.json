@@ -1292,37 +1292,37 @@
  "0x1400015bf": [
   "ReadIdtr",
   5368755728,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3787"
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3793"
  ],
  "0x140038b08": [
   "DispatchParseNtExportSectionsV2",
   5368755744,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3795"
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3801"
  ],
  "0x1400382fc": [
   "ParseNtExportSectionsV4",
   5368755792,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3837"
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3843"
  ],
  "0x1400389a8": [
   "ValidateIoPortSection",
   5368756560,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3974"
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3980"
  ],
  "0x14007dab8": [
   "ScanKernelModulePESectionsEx",
   5368756960,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4067"
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4073"
  ],
  "0x14001239c": [
   "SkipContextEntries",
   5368758832,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4403"
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4409"
  ],
  "0x1400123c8": [
   "FindContextEntry",
   5368758896,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4427"
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4433"
  ],
  "0x14004abb4": [
   "CmdEnumHandles",

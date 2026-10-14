@@ -3687,12 +3687,18 @@ char ResolveIoPortContext(__int64 pContextTable)
     unsigned int IoPortSectionSize;
 
     Result = 0;
-    if (!GtRead((GLOBAL_TABLE_INDEX)(GtFwpsDispatchTableCount | GtEprocessField114)))
+    // 【GT 索引修正 2026-10-13】原始三个槽均为**常量**（见 0x140037F84）：
+    //   `mov ebx,0x87d` → GtRead ×3（首个为空则调 0x140038B08）
+    //   `mov ecx,0x87a` → GtRead ；`mov ecx,0x87b` → GtRead
+    //   原稿用宏组合，其中 `GtFwpsDispatchTableCount | GtEprocessField114`
+    //   实际算出 0x801（因 GtEprocessField114 -> GtPeDataSectionVa4 = 114 被宏链吃掉），
+    //   与原始的 0x87D 不符；另两个宏组合恰好等于 0x87A/0x87B，是对的。
+    if (!GtRead((GLOBAL_TABLE_INDEX)0x87D))
         DispatchParseNtExportSectionsV2();
 
-    IoPortSectionBase = GtRead((GLOBAL_TABLE_INDEX)(GtFwpsDispatchTableBase | GtEprocessField112));
-    IoPortSectionSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)(GtFwpsDispatchTableCount | GtEprocessField112));
-    TableSectionBase = GtRead((GLOBAL_TABLE_INDEX)(GtFwpsDispatchTableCount | GtEprocessField114));
+    IoPortSectionBase = GtRead((GLOBAL_TABLE_INDEX)0x87A);
+    IoPortSectionSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x87B);
+    TableSectionBase = GtRead((GLOBAL_TABLE_INDEX)0x87D);
 
     ProcessStart = GtRead(GtEprocessField76);
     ProcessSize = (unsigned int)GtRead(GtEprocessField77);
