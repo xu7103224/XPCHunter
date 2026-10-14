@@ -1,922 +1,922 @@
 {
  "0x140080ed4": [
   "DriverEntry",
-  5368775888,
+  5368776448,
   "XPCHunterDrv/src\\DriverEntry.c:30"
  ],
  "0x140081480": [
   "DriverUnload",
-  5368777728,
+  5368778288,
   "XPCHunterDrv/src\\DriverEntry.c:135"
  ],
  "0x1400823cc": [
   "DispatchCreateClose",
-  5368778288,
+  5368778848,
   "XPCHunterDrv/src\\DriverEntry.c:191"
  ],
  "0x1400823ec": [
   "DispatchDeviceControl",
-  5368778336,
+  5368778896,
   "XPCHunterDrv/src\\DriverEntry.c:201"
  ],
  "0x1400812b0": [
   "CheckProcessAccess",
-  5368778464,
+  5368779024,
   "XPCHunterDrv/src\\DriverEntry.c:272"
  ],
  "0x140033ee8": [
   "InitCallbackFunctions",
-  5368778560,
+  5368779120,
   "XPCHunterDrv/src\\DriverEntry.c:299"
  ],
  "0x1400680f8": [
   "InvokeRegisteredCallbackWithUserData",
-  5368778656,
+  5368779216,
   "XPCHunterDrv/src\\DriverEntry.c:319"
  ],
  "0x140010bb0": [
   "ImageLoadCallbackRoutine",
-  5368778864,
+  5368779424,
   "XPCHunterDrv/src\\DriverEntry.c:379"
  ],
  "0x14007d728": [
   "FreeDiskBufferContext",
-  5368778960,
+  5368779520,
   "XPCHunterDrv/src\\DriverEntry.c:560"
  ],
  "0x14000d084": [
   "FreeFsCallbackBuffer",
-  5368779024,
+  5368779584,
   "XPCHunterDrv/src\\DriverEntry.c:574"
  ],
  "0x14005343c": [
   "FreeDriverProtectBuffer",
-  5368779088,
+  5368779648,
   "XPCHunterDrv/src\\DriverEntry.c:588"
  ],
  "0x140053468": [
   "FreeDriverUnloadBuffer",
-  5368779152,
+  5368779712,
   "XPCHunterDrv/src\\DriverEntry.c:602"
  ],
  "0x140051b38": [
   "FreeServiceTableEntries",
-  5368779232,
+  5368779792,
   "XPCHunterDrv/src\\DriverEntry.c:628"
  ],
  "0x140082c70": [
   "CleanupHashTable",
-  5368779296,
+  5368779856,
   "XPCHunterDrv/src\\DriverEntry.c:642"
  ],
  "0x14001c32c": [
   "ValidateObjReferences",
-  5368779360,
+  5368779920,
   "XPCHunterDrv/src\\DriverEntry.c:874"
  ],
  "0x14006bf2c": [
   "InitKernelMemoryContext",
-  5368779520,
+  5368780080,
   "XPCHunterDrv/src\\DriverEntry.c:912"
  ],
  "0x140053264": [
   "InitWin32kServiceTableEntries",
-  5368779552,
+  5368780112,
   "XPCHunterDrv/src\\DriverEntry.c:950"
  ],
  "0x140021544": [
   "InitEprocessTokenOffset",
-  5368780048,
+  5368780608,
   "XPCHunterDrv/src\\DriverEntry.c:1070"
  ],
  "0x14001e9a8": [
   "InitAllHookSubsystems",
-  5368780144,
+  5368780704,
   "XPCHunterDrv/src\\DriverEntry.c:1096"
  ],
  "0x14002131c": [
   "InitEprocessFieldOffsets",
-  5368785552,
+  5368786112,
   "XPCHunterDrv/src\\DriverEntry.c:1182"
  ],
  "0x1400853fc": [
   "InitHandleTypeTable",
-  5368785936,
+  5368786496,
   "XPCHunterDrv/src\\DriverEntry.c:1260"
  ],
  "0x1400135ac": [
   "InitImageNotifyCallbackWin7",
-  5368786208,
+  5368786768,
   "XPCHunterDrv/src\\DriverEntry.c:1314"
  ],
  "0x14001efa0": [
   "InitProcessNotify",
-  5368786608,
+  5368787168,
   "XPCHunterDrv/src\\DriverEntry.c:1422"
  ],
  "0x14001f8e4": [
   "InitThreadNotify",
-  5368789552,
+  5368790112,
   "XPCHunterDrv/src\\DriverEntry.c:1666"
  ],
  "0x14001c3d4": [
   "GetWin7Sp1EprocessOffset",
-  5368789584,
+  5368790144,
   "XPCHunterDrv/src\\DriverEntry.c:1701"
  ],
  "0x1400215a4": [
   "InitEprocessOffsetsWin7",
-  5368789648,
+  5368790208,
   "XPCHunterDrv/src\\DriverEntry.c:1710"
  ],
  "0x1400278fc": [
   "InitEprocessOffsetsWin8",
-  5368792080,
+  5368792640,
   "XPCHunterDrv/src\\DriverEntry.c:1934"
  ],
  "0x140026e78": [
   "InitEprocessOffsetsWin81",
-  5368794352,
+  5368794912,
   "XPCHunterDrv/src\\DriverEntry.c:2108"
  ],
  "0x14002656c": [
   "InitEprocessOffsetsWin81_Update",
-  5368796912,
+  5368797472,
   "XPCHunterDrv/src\\DriverEntry.c:2376"
  ],
  "0x140024ddc": [
   "InitEprocessOffsetsWin10_10240",
-  5368799280,
+  5368799840,
   "XPCHunterDrv/src\\DriverEntry.c:2595"
  ],
  "0x140021f0c": [
   "InitEprocessOffsetsWin10_14393",
-  5368801856,
+  5368802416,
   "XPCHunterDrv/src\\DriverEntry.c:2823"
  ],
  "0x140022764": [
   "InitEprocessOffsetsWin10_15063",
-  5368804144,
+  5368804704,
   "XPCHunterDrv/src\\DriverEntry.c:2998"
  ],
  "0x1400231dc": [
   "InitEprocessOffsetsWin10_17134",
-  5368806736,
+  5368807296,
   "XPCHunterDrv/src\\DriverEntry.c:3267"
  ],
  "0x140023c2c": [
   "InitEprocessOffsetsWin10_18362",
-  5368809280,
+  5368809840,
   "XPCHunterDrv/src\\DriverEntry.c:3525"
  ],
  "0x1400244a8": [
   "InitEprocessOffsetsWin10_19041",
-  5368811552,
+  5368812112,
   "XPCHunterDrv/src\\DriverEntry.c:3700"
  ],
  "0x1400257f0": [
   "InitEprocessOffsetsWin11",
-  5368813968,
+  5368814528,
   "XPCHunterDrv/src\\DriverEntry.c:3910"
  ],
  "0x1400490d8": [
   "InitNsiEnumerateObjects",
-  5368817072,
+  5368817632,
   "XPCHunterDrv/src\\DriverEntry.c:4272"
  ],
  "0x14000dc28": [
   "InitFileSystemFilterCallbacks",
-  5368817472,
+  5368818032,
   "XPCHunterDrv/src\\DriverEntry.c:4362"
  ],
  "0x14000e3a0": [
   "ParseFsFilterDriverExport",
-  5368818784,
+  5368819344,
   "XPCHunterDrv/src\\DriverEntry.c:4456"
  ],
  "0x14000d7b0": [
   "ScanKernelMemForFsChanges",
-  5368819408,
+  5368819968,
   "XPCHunterDrv/src\\DriverEntry.c:4531"
  ],
  "0x14006db78": [
   "ScanKernelModuleDataSectionEx",
-  5368819456,
+  5368820016,
   "XPCHunterDrv/src\\DriverEntry.c:4555"
  ],
  "0x14006d974": [
   "ScanKernelModuleInitSection",
-  5368820144,
+  5368820704,
   "XPCHunterDrv/src\\DriverEntry.c:4670"
  ],
  "0x14006e52c": [
   "ScanKernelModulePageOrRsrcSection",
-  5368820688,
+  5368821248,
   "XPCHunterDrv/src\\DriverEntry.c:4777"
  ],
  "0x14006e26c": [
   "ScanKernelModuleSectionByType",
-  5368821312,
+  5368821872,
   "XPCHunterDrv/src\\DriverEntry.c:4896"
  ],
  "0x14006dd80": [
   "ScanKernelModuleSectionForWin10",
-  5368821920,
+  5368822480,
   "XPCHunterDrv/src\\DriverEntry.c:5004"
  ],
  "0x14006dfb4": [
   "ScanKernelModuleSectionForWin10RS3",
-  5368822528,
+  5368823088,
   "XPCHunterDrv/src\\DriverEntry.c:5125"
  ],
  "0x14000d960": [
   "ScanVadForModifiedPages",
-  5368823280,
+  5368823840,
   "XPCHunterDrv/src\\DriverEntry.c:5248"
  ],
  "0x140052320": [
   "ScanWin32kDriverForPatterns",
-  5368823312,
+  5368823872,
   "XPCHunterDrv/src\\DriverEntry.c:5258"
  ],
  "0x140029eec": [
   "GtAlloc",
-  5368830032,
+  5368830592,
   "XPCHunterDrv/src\\GlobalTable.c:41"
  ],
  "0x140029efc": [
   "GtRead",
-  5368830048,
+  5368830608,
   "XPCHunterDrv/src\\GlobalTable.c:48"
  ],
  "0x140029ff4": [
   "GtWrite",
-  5368830064,
+  5368830624,
   "XPCHunterDrv/src\\GlobalTable.c:55"
  ],
  "0x140035afc": [
   "ParseNtExportSectionsV3",
-  5369041920,
+  5369042480,
   "XPCHunterDrv/src\\features\\PeParse.c:1393"
  ],
  "0x14003e1f4": [
   "ParseNtFileForCallbackContext",
-  5369042736,
+  5369043296,
   "XPCHunterDrv/src\\features\\PeParse.c:1521"
  ],
  "0x140046fec": [
   "ParseNtSectionsForContextTable",
-  5369043552,
+  5369044112,
   "XPCHunterDrv/src\\features\\PeParse.c:1634"
  ],
  "0x1400355b4": [
   "ReadNtFileForCallbackTable",
-  5369044992,
+  5369045552,
   "XPCHunterDrv/src\\features\\PeParse.c:1763"
  ],
  "0x140033fa8": [
   "ParseCallbackFunctionSections",
-  5369045360,
+  5369045920,
   "XPCHunterDrv/src\\features\\PeParse.c:1799"
  ],
  "0x140034e7c": [
   "ParseCallbackContextSections",
-  5369046416,
+  5369046976,
   "XPCHunterDrv/src\\features\\PeParse.c:1987"
  ],
  "0x1400485f0": [
   "ParseNtSectionHeaders2",
-  5369047520,
+  5369048080,
   "XPCHunterDrv/src\\features\\PeParse.c:2197"
  ],
  "0x140048410": [
   "ParseExportDirForDiskInfo",
-  5369048928,
+  5369049488,
   "XPCHunterDrv/src\\features\\PeParse.c:2430"
  ],
  "0x140007ab0": [
   "ReturnFalseStub",
-  5369179680,
+  5369180240,
   "XPCHunterDrv/src\\features\\SystemInfo.c:12"
  ],
  "0x1400784c0": [
   "IdentityReturnParam",
-  5369179696,
+  5369180256,
   "XPCHunterDrv/src\\features\\SystemInfo.c:19"
  ],
  "0x1400015c3": [
   "CallQuerySystemInformation",
-  5369179712,
+  5369180272,
   "XPCHunterDrv/src\\features\\SystemInfo.c:27"
  ],
  "0x1400016f3": [
   "ReadMsr",
-  5369179952,
+  5369180512,
   "XPCHunterDrv/src\\features\\SystemInfo.c:84"
  ],
  "0x140001718": [
   "ByteSwap64",
-  5369179968,
+  5369180528,
   "XPCHunterDrv/src\\features\\SystemInfo.c:109"
  ],
  "0x14000171f": [
   "ReadGdtr",
-  5369179984,
+  5369180544,
   "XPCHunterDrv/src\\features\\SystemInfo.c:119"
  ],
  "0x140001723": [
   "SystemResetCommand",
-  5369180016,
+  5369180576,
   "XPCHunterDrv/src\\features\\SystemInfo.c:128"
  ],
  "0x140001727": [
   "ReadDebugRegisters",
-  5369180032,
+  5369180592,
   "XPCHunterDrv/src\\features\\SystemInfo.c:135"
  ],
  "0x140001751": [
   "ClearDebugRegisters",
-  5369180080,
+  5369180640,
   "XPCHunterDrv/src\\features\\SystemInfo.c:156"
  ],
  "0x140001767": [
   "AtomicWrite32NoWriteProtect",
-  5369180112,
+  5369180672,
   "XPCHunterDrv/src\\features\\SystemInfo.c:169"
  ],
  "0x14000178e": [
   "AtomicWrite64NoWriteProtect",
-  5369180144,
+  5369180704,
   "XPCHunterDrv/src\\features\\SystemInfo.c:185"
  ],
  "0x1400017b9": [
   "CopyMemoryNoWriteProtect",
-  5369180176,
+  5369180736,
   "XPCHunterDrv/src\\features\\SystemInfo.c:201"
  ],
  "0x14000158e": [
   "CheckVmxEnabled",
-  5369180224,
+  5369180784,
   "XPCHunterDrv/src\\features\\SystemInfo.c:216"
  ],
  "0x14003a900": [
   "BuildSystem32Path",
-  5369180256,
+  5369180816,
   "XPCHunterDrv/src\\features\\SystemInfo.c:243"
  ],
  "0x14003a584": [
   "BuildDriversPath",
-  5369180512,
+  5369181072,
   "XPCHunterDrv/src\\features\\SystemInfo.c:270"
  ],
  "0x14003a9a4": [
   "InitSystemPath",
-  5369180768,
+  5369181328,
   "XPCHunterDrv/src\\features\\SystemInfo.c:306"
  ],
  "0x14007a7f8": [
   "AllocExBufferAndQuerySystemInfo",
-  5369181728,
+  5369182288,
   "XPCHunterDrv/src\\features\\SystemInfo.c:419"
  ],
  "0x1400780b4": [
   "ForEachProcessor",
-  5369181968,
+  5369182528,
   "XPCHunterDrv/src\\features\\SystemInfo.c:555"
  ],
  "0x140047ab4": [
   "FreeAllocatedBuffers",
-  5369182576,
+  5369183136,
   "XPCHunterDrv/src\\features\\SystemInfo.c:688"
  ],
  "0x140047894": [
   "QuerySystemInfoAllocateBuffers",
-  5369182672,
+  5369183232,
   "XPCHunterDrv/src\\features\\SystemInfo.c:716"
  ],
  "0x140047c50": [
   "BuildSystemRootPath",
-  5369183296,
+  5369183856,
   "XPCHunterDrv/src\\features\\SystemInfo.c:811"
  ],
  "0x140003168": [
   "Md5Transform",
-  5368758432,
+  5368758992,
   "XPCHunterDrv/src\\framework\\Crypto.c:126"
  ],
  "0x140003a28": [
   "Md5Init",
-  5368759280,
+  5368759840,
   "XPCHunterDrv/src\\framework\\Crypto.c:232"
  ],
  "0x140003a60": [
   "Md5Update2",
-  5368759344,
+  5368759904,
   "XPCHunterDrv/src\\framework\\Crypto.c:243"
  ],
  "0x140003988": [
   "Md5Final2",
-  5368760528,
+  5368761088,
   "XPCHunterDrv/src\\framework\\Crypto.c:267"
  ],
  "0x140076500": [
   "Sha1InitContext",
-  5368761568,
+  5368762128,
   "XPCHunterDrv/src\\framework\\Crypto.c:292"
  ],
  "0x140076540": [
   "Sha1Transform",
-  5368761632,
+  5368762192,
   "XPCHunterDrv/src\\framework\\Crypto.c:318"
  ],
  "0x14007761c": [
   "Sha1Update",
-  5368762384,
+  5368762944,
   "XPCHunterDrv/src\\framework\\Crypto.c:352"
  ],
  "0x1400763e0": [
   "Sha1FinalTransform",
-  5368763440,
+  5368764000,
   "XPCHunterDrv/src\\framework\\Crypto.c:387"
  ],
  "0x1400053d4": [
   "Sha1HashToDword",
-  5368763744,
+  5368764304,
   "XPCHunterDrv/src\\framework\\Crypto.c:416"
  ],
  "0x140081314": [
   "GenerateEncryptionKey",
-  5368763888,
+  5368764448,
   "XPCHunterDrv/src\\framework\\Crypto.c:450"
  ],
  "0x1400813f0": [
   "AllocProcessInfoBuffer",
-  5368871856,
+  5368872416,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:8"
  ],
  "0x140042210": [
   "CallKernelFreeEntryV2",
-  5368872032,
+  5368872592,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:48"
  ],
  "0x140044b00": [
   "CleanupProcessMemoryEntry",
-  5368872400,
+  5368872960,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:115"
  ],
  "0x140042374": [
   "ClearKernelObjectEntry",
-  5368872672,
+  5368873232,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:161"
  ],
  "0x140042718": [
   "ClearSsdtRelatedEntry",
-  5368873168,
+  5368873728,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:247"
  ],
  "0x140042150": [
   "DispatchKernelMemoryCleanup",
-  5368873440,
+  5368874000,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:316"
  ],
  "0x1400429ec": [
   "FreeObjectByCallback",
-  5368873600,
+  5368874160,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:419"
  ],
  "0x140044c7c": [
   "FreeProcessMemoryEntry",
-  5368873696,
+  5368874256,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:433"
  ],
  "0x140045160": [
   "FreeProcessMemoryAllocation",
-  5368874016,
+  5368874576,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:480"
  ],
  "0x140044e5c": [
   "FreeProcessMemoryAllocationEx",
-  5368874288,
+  5368874848,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:519"
  ],
  "0x14004510c": [
   "FreeProcessMemoryBuffer",
-  5368874544,
+  5368875104,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:559"
  ],
  "0x14007e034": [
   "InitKernelObjectHeader",
-  5368874640,
+  5368875200,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:572"
  ],
  "0x140045370": [
   "UnlinkFromMemoryBlockList",
-  5368875024,
+  5368875584,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:619"
  ],
  "0x140045260": [
   "UnlinkProcessMemoryBlock",
-  5368875200,
+  5368875760,
   "XPCHunterDrv/src\\framework\\MemoryCleanup.c:650"
  ],
  "0x1400833d0": [
   "WritePhysicalMemoryDword",
-  5368882880,
+  5368883440,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:25"
  ],
  "0x140078070": [
   "CheckAddressInPhysicalMemoryRange",
-  5368882944,
+  5368883504,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:41"
  ],
  "0x1400831a4": [
   "WritePhysicalMemory",
-  5368882992,
+  5368883552,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:50"
  ],
  "0x140083180": [
   "WritePhysicalMemoryQword",
-  5368883456,
+  5368884016,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:128"
  ],
  "0x140082f3c": [
   "WritePhysicalMemoryBuffer",
-  5368883536,
+  5368884096,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:144"
  ],
  "0x1400709c4": [
   "ReadWriteCallbackPhysicalMemory",
-  5368883952,
+  5368884512,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:236"
  ],
  "0x140082cb0": [
   "AtomicExchange16Bytes",
-  5368884384,
+  5368884944,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:339"
  ],
  "0x14006e960": [
   "ReadObjectHeaderCreateInfo",
-  5368884720,
+  5368885280,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:394"
  ],
  "0x14006e990": [
   "ReadObjectHeaderName",
-  5368884768,
+  5368885328,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:404"
  ],
  "0x14006e9c0": [
   "ReadObjectHeaderType",
-  5368884816,
+  5368885376,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:412"
  ],
  "0x14006e9f0": [
   "ReadObjectHeaderQuota",
-  5368884864,
+  5368885424,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:420"
  ],
  "0x14006ea20": [
   "ReadObjectHeaderHandle",
-  5368884912,
+  5368885472,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:428"
  ],
  "0x14006eae8": [
   "ReadObjectTypeOffset",
-  5368884960,
+  5368885520,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:435"
  ],
  "0x14006eb18": [
   "ReadObjectBodyOffset",
-  5368885008,
+  5368885568,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:443"
  ],
  "0x1400715c0": [
   "CmdVirtualMemoryOp",
-  5368885056,
+  5368885616,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:494"
  ],
  "0x1400759f8": [
   "SwapKernelMemoryPointer",
-  5368885696,
+  5368886256,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:530"
  ],
  "0x140071470": [
   "CmdReadProcessMemoryEx",
-  5368885840,
+  5368886400,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:547"
  ],
  "0x14006e930": [
   "QueryKernelMemoryByAddress",
-  5368886160,
+  5368886720,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:582"
  ],
  "0x14006e7f8": [
   "AttachToProcessAndInitKernelMemory",
-  5368886352,
+  5368886912,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:603"
  ],
  "0x14006c510": [
   "CmdWriteKernelMemoryRange",
-  5368886752,
+  5368887312,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:617"
  ],
  "0x14006c42c": [
   "CmdCallKernelMemoryFunction",
-  5368886912,
+  5368887472,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:648"
  ],
  "0x140082e14": [
   "AtomicWrite16Bytes",
-  5368887120,
+  5368887680,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:677"
  ],
  "0x14004e71c": [
   "EnumerateVadWithBufferV1",
-  5368887424,
+  5368887984,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:722"
  ],
  "0x14004c65c": [
   "EnumVadMemoryRegions",
-  5368887536,
+  5368888096,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:737"
  ],
  "0x14004b4dc": [
   "ReadProcessMemoryBlock",
-  5368888288,
+  5368888848,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:815"
  ],
  "0x140006f00": [
   "WriteProcessMemoryValue",
-  5368888832,
+  5368889392,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:890"
  ],
  "0x14000bd24": [
   "ReadFileIntoBuffer",
-  5368889088,
+  5368889648,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:923"
  ],
  "0x140059bc4": [
   "CheckMemoryValid",
-  5368890160,
+  5368890720,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1110"
  ],
  "0x140077df4": [
   "ReferenceObjectSafe",
-  5368890240,
+  5368890800,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1125"
  ],
  "0x140077ecc": [
   "DereferenceObjectSafe",
-  5368890432,
+  5368890992,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1172"
  ],
  "0x14007ace8": [
   "ResolvePointerSafe",
-  5368890576,
+  5368891136,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1215"
  ],
  "0x140077a00": [
   "ExAlloc",
-  5368890640,
+  5368891200,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1239"
  ],
  "0x140077a34": [
   "ExFree",
-  5368890688,
+  5368891248,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1254"
  ],
  "0x140077f64": [
   "CheckAddressInSystemModuleRange",
-  5368890736,
+  5368891296,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1263"
  ],
  "0x1400711a8": [
   "ResolveModuleBaseAddress",
-  5368890960,
+  5368891520,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1310"
  ],
  "0x140070064": [
   "ReadObjectTypeOffsetByIndex",
-  5368891104,
+  5368891664,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1341"
  ],
  "0x140071244": [
   "QueryProcessMemoryRegions",
-  5368891120,
+  5368891680,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1349"
  ],
  "0x14004e964": [
   "EnumerateVadWithBufferV2",
-  5368887424,
+  5368887984,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1426"
  ],
  "0x14007ad54": [
   "GetKernelVirtualAddressRange",
-  5368891696,
+  5368892256,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1443"
  ],
  "0x14007aad8": [
   "ReadDiskSectorsWithAlloc",
-  5368891952,
+  5368892512,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1543"
  ],
  "0x14007aba4": [
   "ReleaseDiskBuffer",
-  5368892160,
+  5368892720,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1576"
  ],
  "0x140057924": [
   "ResolveModuleEnumBase",
-  5368892208,
+  5368892768,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1591"
  ],
  "0x14007a5f8": [
   "ResolveSyscallToAddress",
-  5368892368,
+  5368892928,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1615"
  ],
  "0x140078a30": [
   "ReadDiskSectors",
-  5368892560,
+  5368893120,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1646"
  ],
  "0x14004267c": [
   "CallKernelCleanupEntryV3",
-  5368893040,
+  5368893600,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1727"
  ],
  "0x1400426e0": [
   "ClearKernelMemoryPointer",
-  5368893136,
+  5368893696,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1743"
  ],
  "0x140052c1c": [
   "ResolveSyscallNumberTable",
-  5368893200,
+  5368893760,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1770"
  ],
  "0x140052fdc": [
   "FindSyscallNumbers",
-  5368893504,
+  5368894064,
   "XPCHunterDrv/src\\framework\\MemoryOps.c:1880"
  ],
  "0x14008a7e4": [
   "InitPESectionReadContext",
-  5369033568,
+  5369034128,
   "XPCHunterDrv/src\\framework\\PEDecoder.c:118"
  ],
  "0x14008a54c": [
   "ReadPESectionEntry",
-  5369033664,
+  5369034224,
   "XPCHunterDrv/src\\framework\\PEDecoder.c:155"
  ],
  "0x14008c2d4": [
   "DispatchInstructionDecode",
-  5369034608,
+  5369035168,
   "XPCHunterDrv/src\\framework\\PEDecoder.c:2358"
  ],
  "0x140005c28": [
   "FindPESectionByName",
-  5369034912,
+  5369035472,
   "XPCHunterDrv/src\\framework\\PEDecoder.c:2676"
  ],
  "0x140005cb4": [
   "FindPESectionByNameReturnVa",
-  5369035104,
+  5369035664,
   "XPCHunterDrv/src\\framework\\PEDecoder.c:2708"
  ],
  "0x140011128": [
   "ValidateUtf8Bytes",
-  5369222176,
+  5369222736,
   "XPCHunterDrv/src\\framework\\Utf8Decoder.c:96"
  ],
  "0x140010f74": [
   "DecodeUtf8Sequence",
-  5369222480,
+  5369223040,
   "XPCHunterDrv/src\\framework\\Utf8Decoder.c:200"
  ],
  "0x140010eac": [
   "DecodeUnicodeChar",
-  5369223120,
+  5369223680,
   "XPCHunterDrv/src\\framework\\Utf8Decoder.c:351"
  ],
  "0x140010e1c": [
   "DecodeUtf8Buffer",
-  5369223280,
+  5369223840,
   "XPCHunterDrv/src\\framework\\Utf8Decoder.c:390"
  ],
  "0x14007d7e8": [
   "StringLength",
-  5369223408,
+  5369223968,
   "XPCHunterDrv/src\\framework\\Utility.c:9"
  ],
  "0x14007d754": [
   "MemoryCompare",
-  5369223440,
+  5369224000,
   "XPCHunterDrv/src\\framework\\Utility.c:23"
  ],
  "0x14007d77c": [
   "StringCompare",
-  5369223488,
+  5369224048,
   "XPCHunterDrv/src\\framework\\Utility.c:46"
  ],
  "0x14007d7f8": [
   "StringCopy",
-  5369223552,
+  5369224112,
   "XPCHunterDrv/src\\framework\\Utility.c:68"
  ],
  "0x14007d7a4": [
   "StringCompareCaseInsensitiveV2",
-  5369223600,
+  5369224160,
   "XPCHunterDrv/src\\framework\\Utility.c:94"
  ],
  "0x14007da0c": [
   "StringCompare3Way",
-  5369223712,
+  5369224272,
   "XPCHunterDrv/src\\framework\\Utility.c:155"
  ],
  "0x14007d924": [
   "GetStringLength",
-  5369223856,
+  5369224416,
   "XPCHunterDrv/src\\framework\\Utility.c:194"
  ],
  "0x14007d89c": [
   "WStringCopy",
-  5369223888,
+  5369224448,
   "XPCHunterDrv/src\\framework\\Utility.c:208"
  ],
  "0x14007d9dc": [
   "WStringCopyN",
-  5369223936,
+  5369224496,
   "XPCHunterDrv/src\\framework\\Utility.c:230"
  ],
  "0x14007d8c8": [
   "WStringCompareCaseInsensitive",
-  5369223984,
+  5369224544,
   "XPCHunterDrv/src\\framework\\Utility.c:256"
  ],
  "0x14007d99c": [
   "WStringCompare",
-  5369224128,
+  5369224688,
   "XPCHunterDrv/src\\framework\\Utility.c:280"
  ],
  "0x14007d93c": [
   "WStringConcat",
-  5369224192,
+  5369224752,
   "XPCHunterDrv/src\\framework\\Utility.c:310"
  ],
  "0x14007d870": [
   "WStringFindChar",
-  5369224304,
+  5369224864,
   "XPCHunterDrv/src\\framework\\Utility.c:335"
  ],
  "0x14007da74": [
   "WStringFindLastChar",
-  5369224368,
+  5369224928,
   "XPCHunterDrv/src\\framework\\Utility.c:352"
  ],
  "0x1400828a0": [
   "CheckTmDllSection",
-  5369224448,
+  5369225008,
   "XPCHunterDrv/src\\framework\\Utility.c:384"
  ],
  "0x1400322d8": [
   "ReadNtFileForProcessContext",
-  5369224656,
+  5369225216,
   "XPCHunterDrv/src\\framework\\Utility.c:444"
  ],
  "0x140039a8c": [
   "ReadNtoskrnlToBuffer",
-  5369224864,
+  5369225424,
   "XPCHunterDrv/src\\framework\\Utility.c:482"
  ],
  "0x140074418": [
   "ReadProcessMemoryString",
-  5369225088,
+  5369225648,
   "XPCHunterDrv/src\\framework\\Utility.c:533"
  ],
  "0x140047b10": [
   "OpenDeviceTarget",
-  5369226304,
+  5369226864,
   "XPCHunterDrv/src\\framework\\Utility.c:882"
  ],
  "0x14007ca18": [
   "ReadModifyWriteDiskSector",
-  5369226576,
+  5369227136,
   "XPCHunterDrv/src\\framework\\Utility.c:928"
  ],
  "0x14007c7a8": [
   "WriteDiskSectorsWithMbr",
-  5369226912,
+  5369227472,
   "XPCHunterDrv/src\\framework\\Utility.c:992"
  ],
  "0x140074d5c": [
   "ReadKernelMemoryViaSwap",
-  5369228016,
+  5369228576,
   "XPCHunterDrv/src\\framework\\Utility.c:1249"
  ],
  "0x140075874": [
   "ReadKernelMemoryViaSwapEx",
-  5369228448,
+  5369229008,
   "XPCHunterDrv/src\\framework\\Utility.c:1335"
  ],
  "0x140035ee0": [
@@ -1306,3307 +1306,3307 @@
  ],
  "0x14007dab8": [
   "ScanKernelModulePESectionsEx",
-  5368756624,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:3992"
+  5368756960,
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4067"
  ],
  "0x14001239c": [
   "SkipContextEntries",
-  5368758272,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4287"
+  5368758832,
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4403"
  ],
  "0x1400123c8": [
   "FindContextEntry",
-  5368758336,
-  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4311"
+  5368758896,
+  "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4427"
  ],
  "0x14004abb4": [
   "CmdEnumHandles",
-  5368830096,
+  5368830656,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:32"
  ],
  "0x14004a044": [
   "ValidateProcessContext",
-  5368830208,
+  5368830768,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:48"
  ],
  "0x14004ac44": [
   "EnumerateProcessHandleTable",
-  5368830560,
+  5368831120,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:63"
  ],
  "0x140085194": [
   "EnumHandlesByType",
-  5368831168,
+  5368831728,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:181"
  ],
  "0x1400858b8": [
   "CmdEnumHandlesByPid",
-  5368831744,
+  5368832304,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:251"
  ],
  "0x140077db8": [
   "CheckHandleEntryValid",
-  5368832000,
+  5368832560,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:288"
  ],
  "0x14004fed8": [
   "EnumerateProcessHandleTableData",
-  5368832048,
+  5368832608,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:297"
  ],
  "0x140084154": [
   "CmdCloseProcessHandle",
-  5368832240,
+  5368832800,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:315"
  ],
  "0x140084b5c": [
   "CmdCloseProcessHandleEx",
-  5368832688,
+  5368833248,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:394"
  ],
  "0x140054c38": [
   "CmdEnumObjectHandles",
-  5368832848,
+  5368833408,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:421"
  ],
  "0x14004a5f0": [
   "GetProcessFromHandleEntry",
-  5368833168,
+  5368833728,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:458"
  ],
  "0x140071940": [
   "DispatchProcessHandleTableEnum",
-  5368833296,
+  5368833856,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:484"
  ],
  "0x14004aeb4": [
   "EnumerateSessionProcesses",
-  5368833664,
+  5368834224,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:549"
  ],
  "0x14007aac8": [
   "CompareInt16Equal",
-  5368834160,
+  5368834720,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:592"
  ],
  "0x14006c34c": [
   "AllocateNtHandleEntry",
-  5368834176,
+  5368834736,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:604"
  ],
  "0x14006c8f0": [
   "EnumHandleTableToBuffer",
-  5368834400,
+  5368834960,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:641"
  ],
  "0x14005505c": [
   "EnumObjectHandleTable",
-  5368834864,
+  5368835424,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:677"
  ],
  "0x140054d4c": [
   "EnumerateObjectHandles",
-  5368835728,
+  5368836288,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:796"
  ],
  "0x140055374": [
   "EnumObjectHandlesWin8Plus",
-  5368836592,
+  5368837152,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:914"
  ],
  "0x140085630": [
   "ResolveHandleEntry",
-  5368837216,
+  5368837776,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1005"
  ],
  "0x140071a78": [
   "TraverseProcessHandleTableWin10",
-  5368837840,
+  5368838400,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1163"
  ],
  "0x140054848": [
   "EnumProcessHandleTable",
-  5368838528,
+  5368839088,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1279"
  ],
  "0x140054ad0": [
   "ResolveSyscallTableEntry",
-  5368839664,
+  5368840224,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1398"
  ],
  "0x140054650": [
   "ResolveSyscallNumberFromKernel",
-  5368840048,
+  5368840608,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1453"
  ],
  "0x14004afa0": [
   "EnumerateAllProcesses",
-  5368840672,
+  5368841232,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1530"
  ],
  "0x140049e28": [
   "FindCsrssProcessEntry",
-  5368841888,
+  5368842448,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1716"
  ],
  "0x140049cd0": [
   "GetProcessVirtualizationContextFallback",
-  5368842272,
+  5368842832,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1768"
  ],
  "0x14004a704": [
   "ValidateProcessObjectBasic",
-  5368842624,
+  5368843184,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1952"
  ],
  "0x1400777b8": [
   "CallRegisteredCallback",
-  5368842768,
+  5368843328,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1976"
  ],
  "0x140079b84": [
   "GetObjectTableCode",
-  5368842816,
+  5368843376,
   "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1988"
  ],
  "0x140011f6c": [
   "InitMiniFilterDriver",
-  5368895136,
+  5368895696,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:65"
  ],
  "0x140012a80": [
   "RemoveMiniFilterContextNode",
-  5368895648,
+  5368896208,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:174"
  ],
  "0x140012b78": [
   "MiniFilterInstanceQuery",
-  5368896096,
+  5368896656,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:240"
  ],
  "0x140019ba0": [
   "MiniFilterTeardownRoutine",
-  5368896240,
+  5368896800,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:268"
  ],
  "0x140019ea0": [
   "MiniFilterFilterUnload",
-  5368896592,
+  5368897152,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:310"
  ],
  "0x140019ad8": [
   "MiniFilterNotifyRoutine",
-  5368897104,
+  5368897664,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:378"
  ],
  "0x140014078": [
   "MiniFilterPreCreate",
-  5368897248,
+  5368897808,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:397"
  ],
  "0x1400142a8": [
   "FindKernelDataSectionForImageNotify2",
-  5368897264,
+  5368897824,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:408"
  ],
  "0x1400144a8": [
   "FindKernelDataSectionForImageNotify3",
-  5368897792,
+  5368898352,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:477"
  ],
  "0x1400146d4": [
   "FindKernelDataSectionForDeviceIoControl",
-  5368898352,
+  5368898912,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:535"
  ],
  "0x1400148d4": [
   "FindKernelDataSectionForDeviceIoControl2",
-  5368898960,
+  5368899520,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:602"
  ],
  "0x140014d08": [
   "MiniFilterPostWrite",
-  5368899488,
+  5368900048,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:658"
  ],
  "0x140014ee4": [
   "MiniFilterPreCleanup",
-  5368900384,
+  5368900944,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:710"
  ],
  "0x140012620": [
   "EnumMiniFilterContextList",
-  5368900944,
+  5368901504,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:816"
  ],
  "0x14001241c": [
   "OpenMiniFilterVolumeFile",
-  5368902128,
+  5368902688,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1003"
  ],
  "0x1400129cc": [
   "MiniFilterInstanceSetup",
-  5368902560,
+  5368903120,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1067"
  ],
  "0x14001b2b4": [
   "MiniFilterPreFastIo",
-  5368902720,
+  5368903280,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1100"
  ],
  "0x1400152d4": [
   "FindKernelObjectFieldOffsetsWin10",
-  5368902928,
+  5368903488,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1146"
  ],
  "0x140015a48": [
   "FindKernelObjectFieldOffsetsWin8",
-  5368904864,
+  5368905424,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1426"
  ],
  "0x140015f34": [
   "FindKernelObjectFieldOffsetsWin10Early",
-  5368906208,
+  5368906768,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1678"
  ],
  "0x140017938": [
   "MiniFilterPreRename",
-  5368907504,
+  5368908064,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1887"
  ],
  "0x1400177b4": [
   "MiniFilterPreDelete",
-  5368907984,
+  5368908544,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:1936"
  ],
  "0x140017a90": [
   "MiniFilterPreHardLink",
-  5368908384,
+  5368908944,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2003"
  ],
  "0x140017d94": [
   "MiniFilterPreAcquire",
-  5368909120,
+  5368909680,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2099"
  ],
  "0x140018794": [
   "MiniFilterPreFlush",
-  5368910944,
+  5368911504,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2293"
  ],
  "0x1400188d8": [
   "MiniFilterPreShutdown",
-  5368911248,
+  5368911808,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2379"
  ],
  "0x140018c84": [
   "StoreVolumeMountCallback",
-  5368912080,
+  5368912640,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2514"
  ],
  "0x140018d14": [
   "MiniFilterPreVolumeMount",
-  5368912240,
+  5368912800,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2559"
  ],
  "0x140019280": [
   "CheckVolumeFileExists",
-  5368912512,
+  5368913072,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2598"
  ],
  "0x140018ea0": [
   "MiniFilterPreVolumeDismount",
-  5368912704,
+  5368913264,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2627"
  ],
  "0x140019400": [
   "MiniFilterCommPortDisconnect",
-  5368912896,
+  5368913456,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2663"
  ],
  "0x1400198d8": [
   "MiniFilterCommPortCleanup",
-  5368912960,
+  5368913520,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2677"
  ],
  "0x140019898": [
   "RegisterCommPortReplyCallback",
-  5368913056,
+  5368913616,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2696"
  ],
  "0x140019784": [
   "MiniFilterCommPortConnect",
-  5368913120,
+  5368913680,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2721"
  ],
  "0x140019938": [
   "MiniFilterCommPortReplyDone",
-  5368913184,
+  5368913744,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2739"
  ],
  "0x140019dd8": [
   "CmdCreateFileForPathAdd",
-  5368913216,
+  5368913776,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2749"
  ],
  "0x140019a78": [
   "MiniFilterContextCleanup",
-  5368913408,
+  5368913968,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2806"
  ],
  "0x14001a030": [
   "RegisterFormatNameCallback",
-  5368913504,
+  5368914064,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2823"
  ],
  "0x14001a0a0": [
   "MiniFilterGenerateFileName",
-  5368913568,
+  5368914128,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2841"
  ],
  "0x140019d0c": [
   "CleanupMiniFilter",
-  5368913648,
+  5368914208,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2859"
  ],
  "0x14007182c": [
   "AcquireMiniFilterMutex",
-  5368913760,
+  5368914320,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2892"
  ],
  "0x140071874": [
   "AcquireMiniFilterMutexEx",
-  5368913840,
+  5368914400,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2911"
  ],
  "0x140018394": [
   "ReadFsFilterDriverFile",
-  5368913904,
+  5368914464,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2926"
  ],
  "0x140016404": [
   "ResolveFltEnumerateFilters",
-  5368914112,
+  5368914672,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2966"
  ],
  "0x140016628": [
   "ResolveFltUnregisterFilter",
-  5368914272,
+  5368914832,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:2991"
  ],
  "0x1400172ac": [
   "ScanFltMgrExportTable",
-  5368914432,
+  5368914992,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3017"
  ],
  "0x1400166ec": [
   "ParseNtImageSections",
-  5368914864,
+  5368915424,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3115"
  ],
  "0x14001763c": [
   "InitFsFilterExportTable",
-  5368918560,
+  5368919120,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3688"
  ],
  "0x1400174f8": [
   "OpenWin32kSysSection",
-  5368918944,
+  5368919504,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3784"
  ],
  "0x140019a0c": [
   "UnregisterCommPortCallback",
-  5368919072,
+  5368919632,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3806"
  ],
  "0x14007a2a0": [
   "CheckProtectedEntry",
-  5368919120,
+  5368919680,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3821"
  ],
  "0x1400184b8": [
   "MiniFilterPreRelease",
-  5368919168,
+  5368919728,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3831"
  ],
  "0x14001922c": [
   "MiniFilterCommPortSend",
-  5368919840,
+  5368920400,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3890"
  ],
  "0x1400193b0": [
   "StartMiniFilter",
-  5368919920,
+  5368920480,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3911"
  ],
  "0x140018e70": [
   "MiniFilterUnloadCleanup",
-  5368920016,
+  5368920576,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3934"
  ],
  "0x140019210": [
   "MiniFilterCommPortRecv",
-  5368920080,
+  5368920640,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3949"
  ],
  "0x140019344": [
   "MiniFilterCommPortReply",
-  5368920144,
+  5368920704,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:3977"
  ],
  "0x14001a068": [
   "RegisterFormatPathCallback",
-  5368920256,
+  5368920816,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4001"
  ],
  "0x14001a0e8": [
   "MiniFilterFormatFileNameWithContext",
-  5368920320,
+  5368920880,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4026"
  ],
  "0x14001a130": [
   "MiniFilterFormatFileNameEx",
-  5368920400,
+  5368920960,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4051"
  ],
  "0x14001a1a0": [
   "MiniFilterFormatFileNameWithPathEx",
-  5368920528,
+  5368921088,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4149"
  ],
  "0x14001a210": [
   "MiniFilterQueryIdleRoutine",
-  5368920656,
+  5368921216,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4176"
  ],
  "0x14001a39c": [
   "RegisterFilterUnloadCallback",
-  5368920720,
+  5368921280,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4211"
  ],
  "0x14001a240": [
   "MiniFilterActiveRoutine",
-  5368920800,
+  5368921360,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4236"
  ],
  "0x14001a3e4": [
   "MiniFilterNotifyRoutineEx2",
-  5368920864,
+  5368921424,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4263"
  ],
  "0x14001bc08": [
   "CmdInitFwpsDispatchTables",
-  5368920976,
+  5368921536,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4362"
  ],
  "0x14001b600": [
   "FindFwpsTcpIpDispatchTableStr",
-  5368921296,
+  5368921856,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4427"
  ],
  "0x14001b520": [
   "FindFwpsL2DispatchTable",
-  5368921568,
+  5368922128,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4460"
  ],
  "0x14001b990": [
   "FindFwpsTcpIpDispatchTable",
-  5368921744,
+  5368922304,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:4496"
  ],
  "0x14001b72c": [
   "FindFwpsDispatchTableWin8",
-  5368922464,
+  5368923024,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6583"
  ],
  "0x14001be80": [
   "InitFwpsDispatchTables",
-  5368923168,
+  5368923728,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6684"
  ],
  "0x14001bd44": [
   "MiniFilterAcquireForModWrite",
-  5368923360,
+  5368923920,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6716"
  ],
  "0x14001c1b4": [
   "CmdForEachCpuClearGdtBit",
-  5368923920,
+  5368924480,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6839"
  ],
  "0x14001c274": [
   "CmdCollectAllCpuGdtEntries",
-  5368924048,
+  5368924608,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6868"
  ],
  "0x140019a44": [
   "MiniFilterServerContext",
-  5368924192,
+  5368924752,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6897"
  ],
  "0x140019a5c": [
   "MiniFilterClientContext",
-  5368924224,
+  5368924784,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6908"
  ],
  "0x140017574": [
   "CopyServiceTableWithFilter",
-  5368924256,
+  5368924816,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:6978"
  ],
  "0x1400175d8": [
   "CopyServiceTablePartial",
-  5368926320,
+  5368926880,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:7009"
  ],
  "0x140039120": [
   "ResolveContextMemoryBlocks",
-  5368927568,
+  5368928128,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:7040"
  ],
  "0x1400121d4": [
   "EnumMiniFilterVolumeList",
-  5368927808,
+  5368928368,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:7098"
  ],
  "0x140011b80": [
   "ParseMiniFilterRegSections",
-  5368928592,
+  5368929152,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:7249"
  ],
  "0x14000e510": [
   "CopyFsFilterEntryTable",
-  5368930896,
+  5368931456,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:7569"
  ],
  "0x14000e634": [
   "ParseNtRelocSection",
-  5368932800,
+  5368933360,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:7871"
  ],
  "0x140012c28": [
   "FindKernelInitSection",
-  5368934016,
+  5368934576,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:8174"
  ],
  "0x1400130a4": [
   "FindKernelDataSectionV2Dispatch",
-  5368934512,
+  5368935072,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:8232"
  ],
  "0x1400130c4": [
   "FindKernelDataSectionForCreateFile",
-  5368934560,
+  5368935120,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:8258"
  ],
  "0x1400132ec": [
   "FindKernelDataSectionForReadMemory",
-  5368935184,
+  5368935744,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:8388"
  ],
  "0x140012e0c": [
   "FindKernelDataSectionForOpenSection",
-  5368935856,
+  5368936416,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:8557"
  ],
  "0x1400137bc": [
   "FindKernelDataSectionForWriteMemory",
-  5368936544,
+  5368937104,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:8886"
  ],
  "0x14001356c": [
   "FindKernelDataSectionV3Dispatch",
-  5368937248,
+  5368937808,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9036"
  ],
  "0x140014acc": [
   "FindKernelDataSectionForStringParam",
-  5368937296,
+  5368937856,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9064"
  ],
  "0x140013e6c": [
   "FindKernelDataSectionByDebug",
-  5368937904,
+  5368938464,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9164"
  ],
  "0x140013a98": [
   "FindKernelDataSectionByCode",
-  5368938480,
+  5368939040,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9250"
  ],
  "0x140013c48": [
   "FindKernelDataSectionByData",
-  5368938912,
+  5368939472,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9298"
  ],
  "0x140014ac0": [
   "ClearImageNotifySectionOffset",
-  5368939488,
+  5368940048,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9370"
  ],
  "0x14001358c": [
   "InitImageNotifyWin7",
-  5368939504,
+  5368940064,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9378"
  ],
  "0x140014034": [
   "SelectMiniFilterCallbackByVersion",
-  5368939552,
+  5368940112,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9391"
  ],
  "0x140014ce0": [
   "SelectMiniFilterCleanupCallback",
-  5368939632,
+  5368940192,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9404"
  ],
  "0x1400150e4": [
   "SelectMiniFilterDirEnumCallback",
-  5368939680,
+  5368940240,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9417"
  ],
  "0x1400146ac": [
   "SelectMiniFilterWriteReadCallback",
-  5368939760,
+  5368940320,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9431"
  ],
  "0x14001a278": [
   "PatchPeHeaderMagic",
-  5368939808,
+  5368940368,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9443"
  ],
  "0x1400344bc": [
   "InitCallbackFunctionTable",
-  5368940144,
+  5368940704,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9545"
  ],
  "0x14001b4f4": [
   "FindAleEndpointDuplicate",
-  5368945488,
+  5368946048,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9912"
  ],
  "0x14001b364": [
   "CopyAleEndpointEntry",
-  5368945536,
+  5368946096,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:9944"
  ],
  "0x14001b23c": [
   "EnumerateAleEndpointLayers",
-  5368945984,
+  5368946544,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:10010"
  ],
  "0x140007d54": [
   "DisableObjectProtectEx",
-  5368970032,
+  5368970592,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:93"
  ],
  "0x140007f44": [
   "WalkObjectTypeList",
-  5368970496,
+  5368971056,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:153"
  ],
  "0x140084344": [
   "QueryObjectNameInfo",
-  5368971600,
+  5368972160,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:608"
  ],
  "0x140010460": [
   "EnableDeviceObjectProtection",
-  5368972320,
+  5368972880,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:706"
  ],
  "0x1400798b4": [
   "CheckObjectTypeFlag",
-  5368972400,
+  5368972960,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:722"
  ],
  "0x1400798f0": [
   "CheckObjectTypeFlagWrapper",
-  5368972432,
+  5368972992,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:733"
  ],
  "0x1400798f8": [
   "ValidateAddressWithSize",
-  5368972448,
+  5368973008,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:741"
  ],
  "0x140077b6c": [
   "ReadObjectNameFromCallback",
-  5368972544,
+  5368973104,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:757"
  ],
  "0x140077b30": [
   "ResolveObjectNamePointer",
-  5368972608,
+  5368973168,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:768"
  ],
  "0x140077c18": [
   "ResolveObjectHeaderPointer",
-  5368972672,
+  5368973232,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:787"
  ],
  "0x140079014": [
   "QueryObjectNameString",
-  5368972960,
+  5368973520,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:818"
  ],
  "0x140077864": [
   "QueryObjectNameWithRetry",
-  5368973872,
+  5368974432,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:947"
  ],
  "0x14006ebf8": [
   "MatchObjectTypeEntry",
-  5368974368,
+  5368974928,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1047"
  ],
  "0x14006d3a8": [
   "CmdEnumGdiObjects",
-  5368974416,
+  5368974976,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1060"
  ],
  "0x14006cda0": [
   "MatchObjectTypeFilterCallback",
-  5368975200,
+  5368975760,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1099"
  ],
  "0x14006d524": [
   "CopyObjectEntryToBuffer",
-  5368975328,
+  5368975888,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1216"
  ],
  "0x140008e60": [
   "RemoveObjectListEntry",
-  5368975696,
+  5368976256,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1293"
  ],
  "0x140009188": [
   "RemoveRawDriverObject",
-  5368975952,
+  5368976512,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1346"
  ],
  "0x14000934c": [
   "RemoveI8042prtDriverObject",
-  5368976080,
+  5368976640,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1362"
  ],
  "0x1400093c4": [
   "RemoveKbdClassDriverObject",
-  5368976208,
+  5368976768,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1378"
  ],
  "0x14000943c": [
   "RemoveMouClassDriverObject",
-  5368976336,
+  5368976896,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1394"
  ],
  "0x1400094b4": [
   "RemoveNdisDriverObject",
-  5368976464,
+  5368977024,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1410"
  ],
  "0x14000951c": [
   "RemoveTcpipDriverObject",
-  5368976592,
+  5368977152,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1426"
  ],
  "0x140009588": [
   "RemoveVolmgrDriverObject",
-  5368976720,
+  5368977280,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1442"
  ],
  "0x140078284": [
   "OpenMountPointManagerDevice",
-  5368976848,
+  5368977408,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1459"
  ],
  "0x14006cec8": [
   "EnumObjectTypeFilterCallback",
-  5368977440,
+  5368978000,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1570"
  ],
  "0x14006cbbc": [
   "CollectObjectDirAndTypeEntries",
-  5368977792,
+  5368978352,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1653"
  ],
  "0x14000f788": [
   "ValidateObjectTypeList",
-  5368978928,
+  5368979488,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1743"
  ],
  "0x14006ce34": [
   "MatchObjectTypeFilterCallbackV2",
-  5368979552,
+  5368980112,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1791"
  ],
  "0x140077ce8": [
   "QueryObjectNameByType",
-  5368979680,
+  5368980240,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1822"
  ],
  "0x14006ca34": [
   "EnumDriverPeImageEntries",
-  5368979904,
+  5368980464,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:1997"
  ],
  "0x14003bb38": [
   "EnumObjectTypeList",
-  5368980496,
+  5368981056,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2068"
  ],
  "0x140077bcc": [
   "QueryObjectTypeByAddress",
-  5368981168,
+  5368981728,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2192"
  ],
  "0x14006fa64": [
   "EnumObjectTypeDirectory",
-  5368981232,
+  5368981792,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2209"
  ],
  "0x140079654": [
   "QueryObjectTypeDirectoryPath",
-  5368982192,
+  5368982752,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2340"
  ],
  "0x14000f8e4": [
   "InitObjectCallbackFiles",
-  5368982896,
+  5368983456,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2448"
  ],
  "0x14006d4d0": [
   "FindMatchingEntryInArray",
-  5368982960,
+  5368983520,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2472"
  ],
  "0x14006d18c": [
   "TraverseHashTableWithCallback",
-  5368983008,
+  5368983568,
   "XPCHunterDrv/src\\kernel\\ObjectMgmt.c:2486"
  ],
  "0x14000700c": [
   "DisableProcessProtect",
-  5369054896,
+  5369055456,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:30"
  ],
  "0x1400503dc": [
   "EnumerateProcessListEntry",
-  5369055184,
+  5369055744,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:202"
  ],
  "0x140070d1c": [
   "CmdProcessMonitor",
-  5369055840,
+  5369056400,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:264"
  ],
  "0x14004ff98": [
   "EnumerateProcessList",
-  5369056448,
+  5369057008,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:302"
  ],
  "0x14004bb00": [
   "EnumerateProcessObjects",
-  5369056560,
+  5369057120,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:344"
  ],
  "0x140050078": [
   "ValidateAndEnumerateObject",
-  5369057648,
+  5369058208,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:482"
  ],
  "0x14004b398": [
   "ValidateProcessObjectEx",
-  5369057920,
+  5369058480,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:518"
  ],
  "0x14005017c": [
   "FillProcessInformationEntry",
-  5369058192,
+  5369058752,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:587"
  ],
  "0x14004f600": [
   "ValidateKernelObject",
-  5369058768,
+  5369059328,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:659"
  ],
  "0x14004f4c0": [
   "EnumProcessInformationWorker",
-  5369059728,
+  5369060288,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:794"
  ],
  "0x140010914": [
   "CheckProcessProtection",
-  5369059984,
+  5369060544,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:834"
  ],
  "0x14004a1fc": [
   "GetProcessImagePath",
-  5369060288,
+  5369060848,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:893"
  ],
  "0x14004a674": [
   "IsProcessObjectTerminated",
-  5369060768,
+  5369061328,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:957"
  ],
  "0x14004a7ac": [
   "ValidateProcessObject",
-  5369060896,
+  5369061456,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:977"
  ],
  "0x1400063e0": [
   "BuildExportServiceTableForProcess",
-  5369060976,
+  5369061536,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1012"
  ],
  "0x140006800": [
   "CopyValidServiceEntries",
-  5369061728,
+  5369062288,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1127"
  ],
  "0x140007188": [
   "WriteProcessMemoryBuffer",
-  5369061904,
+  5369062464,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1281"
  ],
  "0x14004a3d4": [
   "GetProcessImagePathByAttach",
-  5369062144,
+  5369062704,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1312"
  ],
  "0x14004b990": [
   "ParseFilePathForSystemRoot",
-  5369062624,
+  5369063184,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1396"
  ],
  "0x1400794a0": [
   "QueryObjectNameByAddress",
-  5369063104,
+  5369063664,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1479"
  ],
  "0x1400793e0": [
   "GetSectionObjectNameFromHandle",
-  5369063280,
+  5369063840,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1505"
  ],
  "0x140079958": [
   "QueryDevicePathFromSymbolicLink",
-  5369063488,
+  5369064048,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1531"
  ],
  "0x14004f284": [
   "IsProcessThreadInList",
-  5369064064,
+  5369064624,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1634"
  ],
  "0x14004fac4": [
   "EnumerateProcessInformation",
-  5369064144,
+  5369064704,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1674"
  ],
  "0x1400066e4": [
   "BuildPeServiceNumberTable",
-  5369065344,
+  5369065904,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1878"
  ],
  "0x1400068ac": [
   "ParseNtRelocationTableEx",
-  5369065648,
+  5369066208,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:1952"
  ],
  "0x1400075a4": [
   "ResolveWin32kServiceTableDispatch",
-  5369066400,
+  5369066960,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2131"
  ],
  "0x140007914": [
   "ResolveWin32kServiceTableEx",
-  5369066640,
+  5369067200,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2142"
  ],
  "0x14007955c": [
   "QueryObjectNameLegacy",
-  5369067424,
+  5369067984,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2229"
  ],
  "0x140007290": [
   "FindModuleInLoaderList",
-  5369067664,
+  5369068224,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2254"
  ],
  "0x140007420": [
   "FindUser32ModuleInList",
-  5369068192,
+  5369068752,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2396"
  ],
  "0x1400075e4": [
   "ScanWin32kSectionForServiceTable",
-  5369068720,
+  5369069280,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2475"
  ],
  "0x14007e6a4": [
   "InitProcessAndQueryInfo",
-  5369071888,
+  5369072448,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3014"
  ],
  "0x14007df2c": [
   "TraverseEprocessListAndInit",
-  5369072384,
+  5369072944,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3098"
  ],
  "0x14007fe80": [
   "ResolveSyscallAddressesWithAttach",
-  5369072656,
+  5369073216,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3164"
  ],
  "0x14000a094": [
   "InitRegCallback",
-  5369101888,
+  5369102448,
   "XPCHunterDrv/src\\kernel\\Registry.c:9"
  ],
  "0x14000a1a4": [
   "FindRegCallbackEntry",
-  5369102160,
+  5369102720,
   "XPCHunterDrv/src\\kernel\\Registry.c:46"
  ],
  "0x14000c1e0": [
   "InitRegNotify",
-  5369102320,
+  5369102880,
   "XPCHunterDrv/src\\kernel\\Registry.c:74"
  ],
  "0x14000c738": [
   "InitRegFilter",
-  5369102448,
+  5369103008,
   "XPCHunterDrv/src\\kernel\\Registry.c:106"
  ],
  "0x140018f4c": [
   "RegisterMiniFilterRegistry",
-  5369102912,
+  5369103472,
   "XPCHunterDrv/src\\kernel\\Registry.c:273"
  ],
  "0x1400575a0": [
   "FreeListAllocation",
-  5369103664,
+  5369104224,
   "XPCHunterDrv/src\\kernel\\Registry.c:453"
  ],
  "0x14003a6e8": [
   "CmdEnumDriverObjects",
-  5369103712,
+  5369104272,
   "XPCHunterDrv/src\\kernel\\Registry.c:471"
  ],
  "0x14001db00": [
   "GetDeleteValueKeyCtx",
-  5369104528,
+  5369105088,
   "XPCHunterDrv/src\\kernel\\Registry.c:499"
  ],
  "0x14001dea4": [
   "GetSetValueKeyCtx",
-  5369104592,
+  5369105152,
   "XPCHunterDrv/src\\kernel\\Registry.c:512"
  ],
  "0x140046048": [
   "CopyRegistryContextEntryArray",
-  5369106752,
+  5369107312,
   "XPCHunterDrv/src\\kernel\\Registry.c:941"
  ],
  "0x14007ea14": [
   "RegistryOperationDispatch",
-  5369107808,
+  5369108368,
   "XPCHunterDrv/src\\kernel\\Registry.c:969"
  ],
  "0x14004d2ac": [
   "EnumProcessThreadInfo",
-  5369209136,
+  5369209696,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:403"
  ],
  "0x14004d094": [
   "EnumerateThreadsInProcess",
-  5369209776,
+  5369210336,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:500"
  ],
  "0x14004b764": [
   "CmdEnumThreads",
-  5369210240,
+  5369210800,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:558"
  ],
  "0x14004d9ac": [
   "DecryptAndCompareStrings",
-  5369210992,
+  5369211552,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:641"
  ],
  "0x14004ce68": [
   "CmdEnumThreadsEx",
-  5369214016,
+  5369214576,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:818"
  ],
  "0x14004d714": [
   "FindThreadEntry",
-  5369214832,
+  5369215392,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:969"
  ],
  "0x14004e328": [
   "EnumerateThreadListEntries",
-  5369214976,
+  5369215536,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1020"
  ],
  "0x14004f03c": [
   "CleanupThreadWithBuffer",
-  5368887424,
+  5368887984,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1285"
  ],
  "0x14004ebac": [
   "EnumerateVadWithBufferV3",
-  5369216608,
+  5369217168,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1306"
  ],
  "0x14004ec24": [
   "EnumerateVadWithBufferV4",
-  5369216720,
+  5369217280,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1323"
  ],
  "0x14004cbd0": [
   "ResetThreadStateFlag",
-  5369216832,
+  5369217392,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1365"
  ],
  "0x14004c0d8": [
   "EnumerateFileMappingSectionEx",
-  5369216880,
+  5369217440,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1495"
  ],
  "0x14004c940": [
   "EnumerateFileMappingSectionByIndex",
-  5369216880,
+  5369217440,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1603"
  ],
  "0x14004e9dc": [
   "EnumerateVadRecursiveV2",
-  5369217648,
+  5369218208,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1690"
  ],
  "0x14004eaa8": [
   "EnumerateVadIterativeV2",
-  5369217872,
+  5369218432,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1721"
  ],
  "0x14004ee6c": [
   "EnumerateVadRecursiveV3",
-  5369218112,
+  5369218672,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1776"
  ],
  "0x14004ef38": [
   "EnumerateVadIterativeV3",
-  5369218400,
+  5369218960,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1807"
  ],
  "0x14004ec9c": [
   "EnumerateVadRecursiveV4",
-  5369218704,
+  5369219264,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1861"
  ],
  "0x14004ed68": [
   "EnumerateVadIterativeV4",
-  5369218928,
+  5369219488,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1893"
  ],
  "0x14004f0b4": [
   "EnumerateFileMappingSectionRecursiveV1",
-  5369217648,
+  5369218208,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1946"
  ],
  "0x14004f180": [
   "EnumerateFileMappingSectionIterativeV1",
-  5369217872,
+  5369218432,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:1979"
  ],
  "0x14004e794": [
   "EnumerateVadRecursiveV1",
-  5369217648,
+  5369218208,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:2032"
  ],
  "0x14004e860": [
   "EnumerateVadIterativeV1",
-  5369217872,
+  5369218432,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:2063"
  ],
  "0x14004cc4c": [
   "MatchSystemProcessName",
-  5369219168,
+  5369219728,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:2120"
  ],
  "0x1400571b0": [
   "CopyThreadContextTable",
-  5369220128,
+  5369220688,
   "XPCHunterDrv/src\\kernel\\ThreadMgmt.c:2167"
  ],
  "0x1400537fc": [
   "OpenTcpIpDriverSection",
-  5368823392,
+  5368823952,
   "XPCHunterDrv/src\\services\\DriverSection.c:137"
  ],
  "0x14001bf1c": [
   "ReadNtoskrnlNlsFile",
-  5368824688,
+  5368825248,
   "XPCHunterDrv/src\\services\\DriverSection.c:331"
  ],
  "0x140054158": [
   "ReadWin32kDriverFile",
-  5368824912,
+  5368825472,
   "XPCHunterDrv/src\\services\\DriverSection.c:359"
  ],
  "0x140086ea4": [
   "ReadWdfLibraryModule",
-  5368825120,
+  5368825680,
   "XPCHunterDrv/src\\services\\DriverSection.c:387"
  ],
  "0x140050bc0": [
   "ReadDiskPortDriverFile",
-  5368825344,
+  5368825904,
   "XPCHunterDrv/src\\services\\DriverSection.c:415"
  ],
  "0x14003d554": [
   "ReadKbdClassSysFile",
-  5368825552,
+  5368826112,
   "XPCHunterDrv/src\\services\\DriverSection.c:450"
  ],
  "0x14003a248": [
   "ReadIpsecSysFile",
-  5368825776,
+  5368826336,
   "XPCHunterDrv/src\\services\\DriverSection.c:478"
  ],
  "0x140055b50": [
   "ReadUSBPortDriverFile",
-  5368825984,
+  5368826544,
   "XPCHunterDrv/src\\services\\DriverSection.c:534"
  ],
  "0x140057304": [
   "ReadVolumeSysFile",
-  5368826208,
+  5368826768,
   "XPCHunterDrv/src\\services\\DriverSection.c:563"
  ],
  "0x1400815b0": [
   "InitCommandHandlerTable",
-  5368842880,
+  5368843440,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:83"
  ],
  "0x14007f384": [
   "CmdReadProcessMemory",
-  5368846480,
+  5368847040,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:364"
  ],
  "0x14007f118": [
   "CmdResetProcessContext",
-  5368846768,
+  5368847328,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:399"
  ],
  "0x14003105c": [
   "CmdQueryProcessInfo",
-  5368846800,
+  5368847360,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:407"
  ],
  "0x140071c8c": [
   "CmdGetModuleCount",
-  5368846896,
+  5368847456,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:417"
  ],
  "0x14004f340": [
   "CmdEnumKernelDrivers",
-  5368846992,
+  5368847552,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:430"
  ],
  "0x1400800c0": [
   "CmdCheckProcessAccess",
-  5368847312,
+  5368847872,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:484"
  ],
  "0x14007fd2c": [
   "CmdProcessOperation",
-  5368847328,
+  5368847888,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:492"
  ],
  "0x14004a0b0": [
   "CmdReadProcessMemoryBlock",
-  5368847552,
+  5368848112,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:547"
  ],
  "0x1400809cc": [
   "CmdThreadOperation",
-  5368847840,
+  5368848400,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:602"
  ],
  "0x1400807f0": [
   "CmdThreadMonitor",
-  5368847840,
+  5368848400,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:638"
  ],
  "0x14007ebc4": [
   "CmdKernelObjectMonitor",
-  5368848048,
+  5368848608,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:674"
  ],
  "0x14007e59c": [
   "CmdHandleMonitor",
-  5368848288,
+  5368848848,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:711"
  ],
  "0x14007e32c": [
   "CmdProtectStatus",
-  5368848528,
+  5368849088,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:748"
  ],
  "0x14003b0a0": [
   "CmdQuerySsdtInfo",
-  5368848832,
+  5368849392,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:806"
  ],
  "0x14005335c": [
   "CmdEnumKernelDriver",
-  5368849008,
+  5368849568,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:847"
  ],
  "0x1400516c0": [
   "CmdDriverLoadUnload",
-  5368849760,
+  5368850320,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:869"
  ],
  "0x14000f0f4": [
   "CmdInitObjectCallback",
-  5368850528,
+  5368851088,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1032"
  ],
  "0x14003a140": [
   "CmdEnumProcessContextWin7",
-  5368850544,
+  5368851104,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1039"
  ],
  "0x14003a3ac": [
   "CmdSetProcessContextWin7",
-  5368850800,
+  5368851360,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1046"
  ],
  "0x140039934": [
   "CmdEnumProcessContextWin8",
-  5368850816,
+  5368851376,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1053"
  ],
  "0x1400352bc": [
   "CmdReadPhysicalMemory",
-  5368851136,
+  5368851696,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1061"
  ],
  "0x14003888c": [
   "IoPortOperationDispatch",
-  5369186464,
+  5369187024,
   "XPCHunterDrv/src\\services\\TailHelpers.c:423"
  ],
  "0x140041094": [
   "KernelMemoryOperationDispatch",
-  5369187456,
+  5369188016,
   "XPCHunterDrv/src\\services\\TailHelpers.c:547"
  ],
  "0x140043fc0": [
   "ProcessMemoryOperationDispatch",
-  5369193840,
+  5369194400,
   "XPCHunterDrv/src\\services\\TailHelpers.c:1254"
  ],
  "0x140042814": [
   "CmdKernelMemoryOpDispatch",
-  5368851200,
+  5368851760,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1093"
  ],
  "0x140044f3c": [
   "CmdProcessMemoryOpDispatch",
-  5368851488,
+  5368852048,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1131"
  ],
  "0x140045b0c": [
   "CmdMemoryQueryOp",
-  5368852208,
+  5368852768,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1163"
  ],
  "0x1400496a8": [
   "CmdQuerySystemInfo",
-  5368852336,
+  5368852896,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1187"
  ],
  "0x1400534b8": [
   "CmdDriverProtectStatus",
-  5368853008,
+  5368853568,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1203"
  ],
  "0x140051b64": [
   "CmdDriverProtectOp",
-  5368853488,
+  5368854048,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1261"
  ],
  "0x14003590c": [
   "CmdThreadProtectStatus",
-  5368853824,
+  5368854384,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1300"
  ],
  "0x140085010": [
   "CmdEnumProcessHandles",
-  5368854240,
+  5368854800,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1340"
  ],
  "0x140084d3c": [
   "CmdQueryProcessInfoEx",
-  5368854576,
+  5368855136,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1389"
  ],
  "0x140009838": [
   "CmdEnumObjectAllTypes",
-  5368854800,
+  5368855360,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1427"
  ],
  "0x140009ad8": [
   "ObjectOperationDispatcher",
-  5369192800,
+  5369193360,
   "XPCHunterDrv/src\\services\\TailHelpers.c:1205"
  ],
  "0x140074ef8": [
   "CmdDeviceIoControlEx",
-  5368856576,
+  5368857136,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1533"
  ],
  "0x140073df4": [
   "CmdFsctlOperation",
-  5368856592,
+  5368857152,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1540"
  ],
  "0x1400749a0": [
   "CmdWriteProcessMemoryEx",
-  5368856624,
+  5368857184,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1554"
  ],
  "0x1400751d4": [
   "CmdDeviceIoControlSimple",
-  5368856640,
+  5368857200,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1561"
  ],
  "0x1400753a4": [
   "CmdDeviceIoControlWithBuffer",
-  5368857072,
+  5368857632,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1568"
  ],
  "0x14007562c": [
   "CmdDeviceIoControlWithString",
-  5368857088,
+  5368857648,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1575"
  ],
  "0x140074128": [
   "CmdOpenSectionObject",
-  5368857104,
+  5368857664,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1582"
  ],
  "0x14002d2ec": [
   "CmdCreateFileWithPath",
-  5368857120,
+  5368857680,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1595"
  ],
  "0x14002c430": [
   "CmdCloseHandle",
-  5368857376,
+  5368857936,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1602"
  ],
  "0x14002d12c": [
   "CmdQueryFileInfo",
-  5368857760,
+  5368858320,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1609"
  ],
  "0x14002d070": [
   "CmdOpenFileHandle",
-  5368857952,
+  5368858512,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1616"
  ],
  "0x14002d858": [
   "CmdReadFileSize",
-  5368858144,
+  5368858704,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1623"
  ],
  "0x14002d418": [
   "CmdWriteFile",
-  5368858288,
+  5368858848,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1630"
  ],
  "0x14002d8f0": [
   "CmdReadFile",
-  5368858576,
+  5368859136,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1637"
  ],
  "0x14002cd7c": [
   "CmdReadDirectory",
-  5368858864,
+  5368859424,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1644"
  ],
  "0x14002c96c": [
   "CmdEnumDirectory",
-  5368859232,
+  5368859792,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1651"
  ],
  "0x1400819c4": [
   "CmdEnableObjectCallback",
-  5368859248,
+  5368859808,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1658"
  ],
  "0x14002d52c": [
   "CmdRenameFile",
-  5368859376,
+  5368859936,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1665"
  ],
  "0x14002c528": [
   "CmdCopyFile",
-  5368859392,
+  5368859952,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1672"
  ],
  "0x14002c840": [
   "CmdOpenFileForEnum",
-  5368859408,
+  5368859968,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1679"
  ],
  "0x14002cedc": [
   "CmdDeleteFile",
-  5368859664,
+  5368860224,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1686"
  ],
  "0x14002d6d8": [
   "CmdSetFileAttributes",
-  5368859680,
+  5368860240,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1693"
  ],
  "0x14002cc50": [
   "CmdCheckFileExist",
-  5368860064,
+  5368860624,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1700"
  ],
  "0x140081a34": [
   "CmdPowerCallbackUnregister",
-  5368860336,
+  5368860896,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1707"
  ],
  "0x140081a42": [
   "CmdShutdownCallbackUnregister",
-  5368860352,
+  5368860912,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1714"
  ],
  "0x140081a50": [
   "CmdPowerCallbackRoutine",
-  5368860368,
+  5368860928,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1721"
  ],
  "0x140081a5e": [
   "CmdRegNotifyCallback",
-  5368860384,
+  5368860944,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1728"
  ],
  "0x140081a6c": [
   "CmdDisableThreadProtect",
-  5368860400,
+  5368860960,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1735"
  ],
  "0x140081a7a": [
   "CmdEnableThreadProtect",
-  5368860672,
+  5368861232,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1742"
  ],
  "0x14006ec24": [
   "CmdQuerySystemInfoEx",
-  5368860880,
+  5368861440,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1749"
  ],
  "0x140070190": [
   "CmdCallbackControl",
-  5368860896,
+  5368861456,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1756"
  ],
  "0x14002a358": [
   "CmdReadCpuMsr",
-  5368860912,
+  5368861472,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1763"
  ],
  "0x14002b304": [
   "CmdReadCpuId",
-  5368861184,
+  5368861744,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1770"
  ],
  "0x14002a45c": [
   "CmdReadCpuBaseAddr",
-  5368861264,
+  5368861824,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1777"
  ],
  "0x14002b36c": [
   "CmdReadCpuInfoEx",
-  5368861280,
+  5368861840,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1784"
  ],
  "0x14002b944": [
   "CmdReadCpuBaseAddrEx",
-  5368861552,
+  5368862112,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1791"
  ],
  "0x14002ba38": [
   "CmdStubAlwaysTrue",
-  5368861568,
+  5368862128,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1798"
  ],
  "0x14002b8dc": [
   "CmdGetKernelBaseLegacy",
-  5368861584,
+  5368862144,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1805"
  ],
  "0x140084e14": [
   "CmdQueryProcessNameByPid",
-  5368861680,
+  5368862240,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1812"
  ],
  "0x140084618": [
   "CmdEnumObjectDirectory",
-  5368861696,
+  5368862256,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1819"
  ],
  "0x1400543fc": [
   "CmdTerminateProcessByEProcess",
-  5368861952,
+  5368862512,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1832"
  ],
  "0x140083a84": [
   "CmdQueryObjectInfo",
-  5368861968,
+  5368862528,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1839"
  ],
  "0x1400331fc": [
   "CmdCheckProcessHideDetect",
-  5368862288,
+  5368862848,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1903"
  ],
  "0x140033c68": [
   "CmdFixProcessEProcess",
-  5368862496,
+  5368863056,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1910"
  ],
  "0x14007b854": [
   "CmdDiskReadSector",
-  5368862656,
+  5368863216,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1917"
  ],
  "0x14007c980": [
   "DiskOperationDispatcher",
-  5369186336,
+  5369186896,
   "XPCHunterDrv/src\\services\\TailHelpers.c:403"
  ],
  "0x14007b72c": [
   "CmdDiskSectorReadWrite",
-  5368862688,
+  5368863248,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1931"
  ],
  "0x140088a60": [
   "CmdEnumObjectTypes",
-  5368862880,
+  5368863440,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1940"
  ],
  "0x140029964": [
   "CmdEnumKernelObjectTable",
-  5368862896,
+  5368863456,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1947"
  ],
  "0x140029c74": [
   "CmdWriteKernelObjectField",
-  5368862912,
+  5368863472,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1954"
  ],
  "0x140081a88": [
   "CmdProcessCallbackRoutine",
-  5368862928,
+  5368863488,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1961"
  ],
  "0x1400106c0": [
   "CmdInitProcessCallback",
-  5368863312,
+  5368863872,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1968"
  ],
  "0x140062ed8": [
   "CmdEnumProcessListEx",
-  5368863504,
+  5368864064,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1975"
  ],
  "0x14005a5e8": [
   "CmdEnumProcessListWin7",
-  5368863520,
+  5368864080,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1982"
  ],
  "0x14005c6b0": [
   "CmdEnumProcessListWin8",
-  5368863536,
+  5368864096,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1989"
  ],
  "0x14005e354": [
   "CmdEnumProcessListWin10",
-  5368863552,
+  5368864112,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:1996"
  ],
  "0x140067278": [
   "CmdEnumKernelHandleTable",
-  5368863568,
+  5368864128,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2003"
  ],
  "0x14007edc8": [
   "CmdEnumObjectTypeInfo",
-  5368862880,
+  5368863440,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2016"
  ],
  "0x14007eccc": [
   "CmdLookupObjectTypeByAddr",
-  5368864016,
+  5368864576,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2023"
  ],
  "0x140071f6c": [
   "CmdCopyKernelArrayToUserBuffer",
-  5368864240,
+  5368864800,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2048"
  ],
  "0x140071fcc": [
   "CmdEnumKernelMemoryContext",
-  5368864528,
+  5368865088,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2055"
  ],
  "0x1400720b0": [
   "CmdCopyKernelDualArrayToUserBuffer",
-  5368864544,
+  5368865104,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2066"
  ],
  "0x1400721b0": [
   "CmdReadKernelMemoryToUserBuffer",
-  5368864928,
+  5368865488,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2073"
  ],
  "0x1400681dc": [
   "CmdInitKernelMemoryContext",
-  5368865184,
+  5368865744,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2080"
  ],
  "0x14006bbb8": [
   "CmdReadKernelMemoryRange",
-  5368865200,
+  5368865760,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2087"
  ],
  "0x14006ba98": [
   "CmdReadKernelMemoryRangeSize",
-  5368865456,
+  5368866016,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2094"
  ],
  "0x14006b708": [
   "CmdEnumKernelMemoryDetail",
-  5368865712,
+  5368866272,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2104"
  ],
  "0x14006ac54": [
   "CmdEnumObjectTypeDirectory",
-  5368865728,
+  5368866288,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2114"
  ],
  "0x14006b0ac": [
   "CmdEnumObjectTypeTable",
-  5368865744,
+  5368866304,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2121"
  ],
  "0x14006b49c": [
   "CmdEnumObjectTypeDetail",
-  5368865760,
+  5368866320,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2128"
  ],
  "0x140030268": [
   "CmdReadMsrValue",
-  5368865776,
+  5368866336,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2150"
  ],
  "0x140030f8c": [
   "CmdWriteMsrValue",
-  5368866112,
+  5368866672,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2157"
  ],
  "0x14002fdd4": [
   "CmdEnumProcessorInfo",
-  5368866352,
+  5368866912,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2164"
  ],
  "0x140030420": [
   "CmdSetProcessorField",
-  5368866368,
+  5368866928,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2171"
  ],
  "0x14000d704": [
   "CmdInitFileSystemCallback",
-  5368866384,
+  5368866944,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2178"
  ],
  "0x14000eb40": [
   "CmdInitFileSystemFilter",
-  5368866592,
+  5368867152,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2185"
  ],
  "0x14000daf0": [
   "CmdFileSystemFilterCallback",
-  5368866992,
+  5368867552,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2192"
  ],
  "0x1400776d8": [
   "CmdCallSystemRoutine",
-  5368867328,
+  5368867888,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2199"
  ],
  "0x140077758": [
   "CmdResetDriverState",
-  5368867440,
+  5368868000,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2206"
  ],
  "0x140086ab0": [
   "CmdEnumHookInfo",
-  5368867472,
+  5368868032,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2213"
  ],
  "0x140086fd0": [
   "CmdCheckBytePattern",
-  5368867488,
+  5368868048,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2220"
  ],
  "0x140086cd4": [
   "CmdGetHookEntryInfo",
-  5368867504,
+  5368868064,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2227"
  ],
  "0x140087074": [
   "CmdQueryHookStatus",
-  5368867952,
+  5368868512,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2234"
  ],
  "0x140087dcc": [
   "CmdEnumHookDetail",
-  5368868160,
+  5368868720,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2241"
  ],
  "0x140039c48": [
   "CmdSetProcessContextWin8",
-  5368868336,
+  5368868896,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2248"
  ],
  "0x14002ba3c": [
   "CmdReadKernelBase",
-  5368868352,
+  5368868912,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2255"
  ],
  "0x14002bb1c": [
   "CmdClearKernelBase",
-  5368868576,
+  5368869136,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2262"
  ],
  "0x14002be50": [
   "CmdEnumKernelModuleInfoEx",
-  5368868816,
+  5368869376,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2269"
  ],
  "0x14002bf90": [
   "CmdSetKernelModuleInfo",
-  5368868832,
+  5368869392,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2276"
  ],
  "0x140032180": [
   "CmdEnumProcessContextWin10",
-  5368868848,
+  5368869408,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2283"
  ],
  "0x140032480": [
   "CmdSetProcessContextWin10",
-  5368868336,
+  5368868896,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2290"
  ],
  "0x1400460b8": [
   "CmdEnumRegistryContext",
-  5368868864,
+  5368869424,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2297"
  ],
  "0x14004630c": [
   "CmdSetRegistryContext",
-  5368868880,
+  5368869440,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2304"
  ],
  "0x14003e71c": [
   "CmdEnumFileSystemContext",
-  5368868896,
+  5368869456,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2311"
  ],
  "0x14003e970": [
   "CmdSetFileSystemContext",
-  5368869120,
+  5368869680,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2318"
  ],
  "0x140055a60": [
   "CmdEnumUSBPortSyscallTable",
-  5368869136,
+  5368869696,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2325"
  ],
  "0x140055cbc": [
   "CmdInstallUSBPortSyscallHook",
-  5368869360,
+  5368869920,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2332"
  ],
  "0x140037bd8": [
   "CmdEnumObjectContext",
-  5368869376,
+  5368869936,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2339"
  ],
  "0x140037e54": [
   "CmdSetObjectContext",
-  5368869392,
+  5368869952,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2346"
  ],
  "0x1400474d8": [
   "CmdEnumProcessProtectContext",
-  5368869408,
+  5368869968,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2353"
  ],
  "0x140047734": [
   "CmdSetProcessProtectContext",
-  5368869632,
+  5368870192,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2360"
  ],
  "0x14003602c": [
   "CmdEnumCallbackContext",
-  5368869648,
+  5368870208,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2367"
  ],
  "0x1400362c8": [
   "CmdSetCallbackContext",
-  5368869888,
+  5368870448,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2374"
  ],
  "0x140057214": [
   "CmdEnumThreadContextWin10",
-  5368869904,
+  5368870464,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2381"
  ],
  "0x140057470": [
   "CmdSetThreadContextWin10",
-  5368870128,
+  5368870688,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2388"
  ],
  "0x140081ba0": [
   "CmdKernelNotifyRoutine",
-  5368870560,
+  5368871120,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2409"
  ],
  "0x140081c00": [
   "CmdKernelNotifyRoutineEx",
-  5368870576,
+  5368871136,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2416"
  ],
  "0x140081280": [
   "CmdRestoreDriverDispatch",
-  5368870592,
+  5368871152,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2423"
  ],
  "0x14007e1e0": [
   "CmdEnumRegistry",
-  5368870640,
+  5368871200,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2430"
  ],
  "0x14007e498": [
   "CmdRegistryProtect",
-  5368870672,
+  5368871232,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2444"
  ],
  "0x1400561bc": [
   "CmdEnumServices",
-  5368870896,
+  5368871456,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2451"
  ],
  "0x140055dec": [
   "CmdEnumServiceTable",
-  5368870912,
+  5368871472,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2458"
  ],
  "0x140036cf8": [
   "CmdEnumObjects",
-  5368870928,
+  5368871488,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2465"
  ],
  "0x1400363f8": [
   "CmdObjectOperation",
-  5368870976,
+  5368871536,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2472"
  ],
  "0x140088720": [
   "CmdEnumKernelInfo",
-  5368871040,
+  5368871600,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2479"
  ],
  "0x140084f34": [
   "CmdQueryMemoryInfo",
-  5368871056,
+  5368871616,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2486"
  ],
  "0x140070f74": [
   "CmdDeviceIoControl",
-  5368871264,
+  5368871824,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2496"
  ],
  "0x140057d40": [
   "CmdQueryModuleInfo",
-  5368871520,
+  5368872080,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2512"
  ],
  "0x140058890": [
   "ModuleOperationDispatch",
-  5369192656,
+  5369193216,
   "XPCHunterDrv/src\\services\\TailHelpers.c:1179"
  ],
  "0x14001ab5c": [
   "CmdMiniFilterStreamHandle",
-  5368871600,
+  5368872160,
   "XPCHunterDrv/src\\services\\IoctlDispatch.c:2527"
  ],
  "0x140072ec8": [
   "SendWriteMemoryIoControl",
-  5369016240,
+  5369016800,
   "XPCHunterDrv/src\\services\\Operation.c:4319"
  ],
  "0x14002da04": [
   "IrpSetupBufferMdl",
-  5369072944,
+  5369073504,
   "XPCHunterDrv/src\\services\\Protocol.c:29"
  ],
  "0x14002f1fc": [
   "IrpFileSystemControl",
-  5369073168,
+  5369073728,
   "XPCHunterDrv/src\\services\\Protocol.c:99"
  ],
  "0x140079cb4": [
   "CompleteIrpAndCleanupMdl",
-  5369073936,
+  5369074496,
   "XPCHunterDrv/src\\services\\Protocol.c:186"
  ],
  "0x14002e41c": [
   "IrpReadFileWithOffset",
-  5369074048,
+  5369074608,
   "XPCHunterDrv/src\\services\\Protocol.c:203"
  ],
  "0x14002e6ec": [
   "IrpReadFile",
-  5369074928,
+  5369075488,
   "XPCHunterDrv/src\\services\\Protocol.c:306"
  ],
  "0x14002ef18": [
   "IrpWriteFile",
-  5369075648,
+  5369076208,
   "XPCHunterDrv/src\\services\\Protocol.c:378"
  ],
  "0x140059334": [
   "SendDeviceIoControlIrp",
-  5369076400,
+  5369076960,
   "XPCHunterDrv/src\\services\\Protocol.c:487"
  ],
  "0x14002e8dc": [
   "CreateFileWithPath",
-  5369077152,
+  5369077712,
   "XPCHunterDrv/src\\services\\Protocol.c:620"
  ],
  "0x14007107c": [
   "QueryFileInfoByHandle",
-  5369078928,
+  5369079488,
   "XPCHunterDrv/src\\services\\Protocol.c:799"
  ],
  "0x140074258": [
   "CmdCreateFile",
-  5369079216,
+  5369079776,
   "XPCHunterDrv/src\\services\\Protocol.c:841"
  ],
  "0x140078f48": [
   "OpenFileSection",
-  5369079616,
+  5369080176,
   "XPCHunterDrv/src\\services\\Protocol.c:908"
  ],
  "0x14002dcd0": [
   "GetDeviceObjectFromFileObject",
-  5369079856,
+  5369080416,
   "XPCHunterDrv/src\\services\\Protocol.c:1014"
  ],
  "0x14002f680": [
   "ReadFileRawData",
-  5369080016,
+  5369080576,
   "XPCHunterDrv/src\\services\\Protocol.c:1070"
  ],
  "0x14002f7bc": [
   "ReadNtFilePartial",
-  5369080368,
+  5369080928,
   "XPCHunterDrv/src\\services\\Protocol.c:1132"
  ],
  "0x14007abd8": [
   "SwapPhysicalMemoryQword",
-  5369080656,
+  5369081216,
   "XPCHunterDrv/src\\services\\Protocol.c:1188"
  ],
  "0x140079c7c": [
   "WritePhysicalMemoryFromGt",
-  5369080800,
+  5369081360,
   "XPCHunterDrv/src\\services\\Protocol.c:1212"
  ],
  "0x1400591f0": [
   "OpenFileObjectByPath",
-  5369080912,
+  5369081472,
   "XPCHunterDrv/src\\services\\Protocol.c:1230"
  ],
  "0x140058aa4": [
   "OpenPhysicalDiskDevice",
-  5369081264,
+  5369081824,
   "XPCHunterDrv/src\\services\\Protocol.c:1270"
  ],
  "0x140058928": [
   "CalcDiskPartitionOffset",
-  5369081840,
+  5369082400,
   "XPCHunterDrv/src\\services\\Protocol.c:1345"
  ],
  "0x140058f80": [
   "QueryPhysicalDiskInfo",
-  5369081952,
+  5369082512,
   "XPCHunterDrv/src\\services\\Protocol.c:1376"
  ],
  "0x140058ce8": [
   "QueryDeviceObjectInfo",
-  5369082800,
+  5369083360,
   "XPCHunterDrv/src\\services\\Protocol.c:1476"
  ],
  "0x140058974": [
   "CheckAddressInModuleRange",
-  5369083488,
+  5369084048,
   "XPCHunterDrv/src\\services\\Protocol.c:1600"
  ],
  "0x140059970": [
   "QueryDiskFsControlInfoEx",
-  5369083760,
+  5369084320,
   "XPCHunterDrv/src\\services\\Protocol.c:1644"
  ],
  "0x14002e664": [
   "IrpReadCompletionRoutine",
-  5369084480,
+  5369085040,
   "XPCHunterDrv/src\\services\\Protocol.c:1759"
  ],
  "0x14002f964": [
   "GetIrpMonitorContext",
-  5369084624,
+  5369085184,
   "XPCHunterDrv/src\\services\\Protocol.c:1794"
  ],
  "0x14002fa68": [
   "ReleaseIrpMonitorContext",
-  5369084832,
+  5369085392,
   "XPCHunterDrv/src\\services\\Protocol.c:1826"
  ],
  "0x1400777f8": [
   "AllocateIrpStackAndCallDriver",
-  5369085024,
+  5369085584,
   "XPCHunterDrv/src\\services\\Protocol.c:1877"
  ],
  "0x14002f8e4": [
   "AcquireVolumeChangeLock",
-  5369085152,
+  5369085712,
   "XPCHunterDrv/src\\services\\Protocol.c:1896"
  ],
  "0x14002df70": [
   "NotifyVolumeDeviceChange",
-  5369085280,
+  5369085840,
   "XPCHunterDrv/src\\services\\Protocol.c:1917"
  ],
  "0x14007ac48": [
   "SwapDiskIrpFunctionPointer",
-  5369085408,
+  5369085968,
   "XPCHunterDrv/src\\services\\Protocol.c:1947"
  ],
  "0x14007acb0": [
   "RestoreDiskIrpFunctionPointer",
-  5369085552,
+  5369086112,
   "XPCHunterDrv/src\\services\\Protocol.c:1966"
  ],
  "0x14002dfe4": [
   "CreateFileObject",
-  5369085664,
+  5369086224,
   "XPCHunterDrv/src\\services\\Protocol.c:2036"
  ],
  "0x140059658": [
   "QueryDiskFsControlInfo",
-  5369086784,
+  5369087344,
   "XPCHunterDrv/src\\services\\Protocol.c:2192"
  ],
  "0x14002eecc": [
   "CmdQueryFileStandardInfo",
-  5369087648,
+  5369088208,
   "XPCHunterDrv/src\\services\\Protocol.c:2335"
  ],
  "0x140071e6c": [
   "SendDeviceIoControlWithRetry",
-  5369087728,
+  5369088288,
   "XPCHunterDrv/src\\services\\Protocol.c:2385"
  ],
  "0x140071f68": [
   "SwapKernelObjectPointerPreWin10",
-  5369087888,
+  5369088448,
   "XPCHunterDrv/src\\services\\Protocol.c:2422"
  ],
  "0x1400720bc": [
   "SwapKernelObjectPointerWin10",
-  5369088256,
+  5369088816,
   "XPCHunterDrv/src\\services\\Protocol.c:2494"
  ],
  "0x140075f48": [
   "DispatchIoControlByBuildNumber",
-  5369088464,
+  5369089024,
   "XPCHunterDrv/src\\services\\Protocol.c:2544"
  ],
  "0x140072b64": [
   "SendReadMemoryIoControl",
-  5369088528,
+  5369089088,
   "XPCHunterDrv/src\\services\\Protocol.c:2635"
  ],
  "0x1400731f4": [
   "SendIoControlWithBufferSwap",
-  5369089424,
+  5369089984,
   "XPCHunterDrv/src\\services\\Protocol.c:2898"
  ],
  "0x140075fa4": [
   "DispatchIoControlForServer2022",
-  5369090256,
+  5369090816,
   "XPCHunterDrv/src\\services\\Protocol.c:3073"
  ],
  "0x1400734ec": [
   "SendIoControlWithVersionCheck",
-  5369090352,
+  5369090912,
   "XPCHunterDrv/src\\services\\Protocol.c:3094"
  ],
  "0x14007601c": [
   "AllocBufferAndQuerySystemInfo",
-  5369090832,
+  5369091392,
   "XPCHunterDrv/src\\services\\Protocol.c:3157"
  ],
  "0x140072998": [
   "SendCreateFileIoControl",
-  5369091248,
+  5369091808,
   "XPCHunterDrv/src\\services\\Protocol.c:3211"
  ],
  "0x140073630": [
   "SendIoControlWithQueryBuffer",
-  5369091888,
+  5369092448,
   "XPCHunterDrv/src\\services\\Protocol.c:3287"
  ],
  "0x140073be4": [
   "SendIoControlWithStringParam",
-  5369092592,
+  5369093152,
   "XPCHunterDrv/src\\services\\Protocol.c:3398"
  ],
  "0x14007b824": [
   "CheckMbrBootablePartition",
-  5369093168,
+  5369093728,
   "XPCHunterDrv/src\\services\\Protocol.c:3495"
  ],
  "0x14007d024": [
   "SaveAndReplaceDiskExtension",
-  5369094320,
+  5369094880,
   "XPCHunterDrv/src\\services\\Protocol.c:3817"
  ],
  "0x14007d09c": [
   "SaveAndReplaceDiskExtension2",
-  5369094416,
+  5369094976,
   "XPCHunterDrv/src\\services\\Protocol.c:3847"
  ],
  "0x14007d168": [
   "SaveAndReplaceDiskExtension3",
-  5369094512,
+  5369095072,
   "XPCHunterDrv/src\\services\\Protocol.c:3877"
  ],
  "0x14007d2a4": [
   "SaveAndReplaceDiskExtension4",
-  5369094608,
+  5369095168,
   "XPCHunterDrv/src\\services\\Protocol.c:3907"
  ],
  "0x14007d31c": [
   "SaveAndReplaceDiskExtension5",
-  5369094704,
+  5369095264,
   "XPCHunterDrv/src\\services\\Protocol.c:3937"
  ],
  "0x14007d10c": [
   "LookupStorPortFunctionTable",
-  5369094800,
+  5369095360,
   "XPCHunterDrv/src\\services\\Protocol.c:3968"
  ],
  "0x14007d248": [
   "LookupStorPortFunctionTable2",
-  5369094864,
+  5369095424,
   "XPCHunterDrv/src\\services\\Protocol.c:3985"
  ],
  "0x14007d1e0": [
   "QueryDiskExtensionFunctionTable",
-  5369094928,
+  5369095488,
   "XPCHunterDrv/src\\services\\Protocol.c:4002"
  ],
  "0x14007d38c": [
   "SaveDiskDeviceContextByIndex",
-  5369095024,
+  5369095584,
   "XPCHunterDrv/src\\services\\Protocol.c:4029"
  ],
  "0x14007d438": [
   "SaveDiskDeviceContextByIndexV2",
-  5369095088,
+  5369095648,
   "XPCHunterDrv/src\\services\\Protocol.c:4046"
  ],
  "0x14007d3d8": [
   "SaveDiskDeviceContextByIndexEx",
-  5369095152,
+  5369095712,
   "XPCHunterDrv/src\\services\\Protocol.c:4063"
  ],
  "0x14007d484": [
   "SaveDiskDeviceContextByIndexV3",
-  5369095232,
+  5369095792,
   "XPCHunterDrv/src\\services\\Protocol.c:4080"
  ],
  "0x14007af28": [
   "SendIrpToDiskDevice",
-  5369095312,
+  5369095872,
   "XPCHunterDrv/src\\services\\Protocol.c:4099"
  ],
  "0x140075a9c": [
   "SendIoControlWithQuotaBuffer",
-  5369097648,
+  5369098208,
   "XPCHunterDrv/src\\services\\Protocol.c:4610"
  ],
  "0x140075c24": [
   "SendIoControlWithQuotaBufferEx",
-  5369097984,
+  5369098544,
   "XPCHunterDrv/src\\services\\Protocol.c:4659"
  ],
  "0x140075d94": [
   "AllocBufferAndSendIoControl",
-  5369098352,
+  5369098912,
   "XPCHunterDrv/src\\services\\Protocol.c:4728"
  ],
  "0x140076190": [
   "AllocDualBufferAndSendIoControl",
-  5369098720,
+  5369099280,
   "XPCHunterDrv/src\\services\\Protocol.c:4787"
  ],
  "0x140073934": [
   "SendDeviceIoControl",
-  5369099248,
+  5369099808,
   "XPCHunterDrv/src\\services\\Protocol.c:4904"
  ],
  "0x140009bcc": [
   "CopySectionString",
-  5369100096,
+  5369100656,
   "XPCHunterDrv/src\\services\\QueryDriver.c:59"
  ],
  "0x140008504": [
   "EnumDeviceObjects",
-  5369100960,
+  5369101520,
   "XPCHunterDrv/src\\services\\QueryDriver.c:145"
  ],
  "0x1400083c4": [
   "QueryDriverObjectByPath",
-  5369101552,
+  5369102112,
   "XPCHunterDrv/src\\services\\QueryDriver.c:333"
  ],
  "0x140003c3c": [
   "InitSdstTable",
-  5369108512,
+  5369109072,
   "XPCHunterDrv/src\\services\\SSDT.c:125"
  ],
  "0x140005448": [
   "LookupExportFuncAddr",
-  5369109568,
+  5369110128,
   "XPCHunterDrv/src\\services\\SSDT.c:307"
  ],
  "0x140005800": [
   "GetExportDirSize",
-  5369109616,
+  5369110176,
   "XPCHunterDrv/src\\services\\SSDT.c:323"
  ],
  "0x1400050dc": [
   "CheckSsdtHookIntegrity",
-  5369109744,
+  5369110304,
   "XPCHunterDrv/src\\services\\SSDT.c:364"
  ],
  "0x140003fc4": [
   "InitSyscallNumberTable",
-  5369110016,
+  5369110576,
   "XPCHunterDrv/src\\services\\SSDT.c:404"
  ],
  "0x140079de4": [
   "ScanPESectionPatterns",
-  5369114048,
+  5369114608,
   "XPCHunterDrv/src\\services\\SSDT.c:680"
  ],
  "0x14000c8cc": [
   "InitKernelRoutineTable",
-  5369114208,
+  5369114768,
   "XPCHunterDrv/src\\services\\SSDT.c:905"
  ],
  "0x1400051f0": [
   "ReadNtoskrnlFile",
-  5369115136,
+  5369115696,
   "XPCHunterDrv/src\\services\\SSDT.c:1031"
  ],
  "0x140005374": [
   "CleanupNtoskrnlFile",
-  5369115616,
+  5369116176,
   "XPCHunterDrv/src\\services\\SSDT.c:1098"
  ],
  "0x140021004": [
   "InitSdstServiceCount",
-  5369115712,
+  5369116272,
   "XPCHunterDrv/src\\services\\SSDT.c:1122"
  ],
  "0x140006198": [
   "IsExportForwarder",
-  5369115920,
+  5369116480,
   "XPCHunterDrv/src\\services\\SSDT.c:1145"
  ],
  "0x1400061a4": [
   "CheckExportEntryFlags",
-  5369115936,
+  5369116496,
   "XPCHunterDrv/src\\services\\SSDT.c:1153"
  ],
  "0x1400061b0": [
   "GetExportEntrySignBit",
-  5369115952,
+  5369116512,
   "XPCHunterDrv/src\\services\\SSDT.c:1161"
  ],
  "0x140005ac8": [
   "LookupExportByName",
-  5369115968,
+  5369116528,
   "XPCHunterDrv/src\\services\\SSDT.c:1169"
  ],
  "0x140005d4c": [
   "ReadNtFileToBuffer",
-  5369116320,
+  5369116880,
   "XPCHunterDrv/src\\services\\SSDT.c:1300"
  ],
  "0x140006008": [
   "ParseNtExportDir",
-  5369116928,
+  5369117488,
   "XPCHunterDrv/src\\services\\SSDT.c:1443"
  ],
  "0x140005484": [
   "FindExportByNameInPeBody",
-  5369117264,
+  5369117824,
   "XPCHunterDrv/src\\services\\SSDT.c:1523"
  ],
  "0x140060a68": [
   "CmdInitSsdtTable",
-  5369117632,
+  5369118192,
   "XPCHunterDrv/src\\services\\SSDT.c:1612"
  ],
  "0x1400538c8": [
   "CmdEnumSyscallEntries",
-  5369117776,
+  5369118336,
   "XPCHunterDrv/src\\services\\SSDT.c:1632"
  ],
  "0x1400539fc": [
   "CmdInstallSystemHook",
-  5369118064,
+  5369118624,
   "XPCHunterDrv/src\\services\\SSDT.c:1666"
  ],
  "0x14003d464": [
   "CmdEnumShadowSyscallEntries",
-  5369118400,
+  5369118960,
   "XPCHunterDrv/src\\services\\SSDT.c:1703"
  ],
  "0x14003d6c4": [
   "CmdInstallShadowHook",
-  5369118688,
+  5369119248,
   "XPCHunterDrv/src\\services\\SSDT.c:1737"
  ],
  "0x1400338a0": [
   "CmdEnumSyscallTable2",
-  5369119024,
+  5369119584,
   "XPCHunterDrv/src\\services\\SSDT.c:1774"
  ],
  "0x140033b38": [
   "CmdInstallSyscallHook2",
-  5369119472,
+  5369120032,
   "XPCHunterDrv/src\\services\\SSDT.c:1819"
  ],
  "0x140032d40": [
   "CmdEnumSyscallTable3",
-  5369119856,
+  5369120416,
   "XPCHunterDrv/src\\services\\SSDT.c:1856"
  ],
  "0x140032fe0": [
   "CmdInstallSyscallHook3",
-  5369120256,
+  5369120816,
   "XPCHunterDrv/src\\services\\SSDT.c:1894"
  ],
  "0x1400316e0": [
   "CmdEnumSyscallTable4",
-  5369120656,
+  5369121216,
   "XPCHunterDrv/src\\services\\SSDT.c:1934"
  ],
  "0x140031934": [
   "CmdInstallSyscallHook4",
-  5369120944,
+  5369121504,
   "XPCHunterDrv/src\\services\\SSDT.c:1968"
  ],
  "0x140050ac0": [
   "CmdEnumSyscallTable5",
-  5369121280,
+  5369121840,
   "XPCHunterDrv/src\\services\\SSDT.c:2007"
  ],
  "0x140050d64": [
   "CmdInstallSyscallHook5",
-  5369121584,
+  5369122144,
   "XPCHunterDrv/src\\services\\SSDT.c:2045"
  ],
  "0x14003dd2c": [
   "CmdEnumSyscallTable6",
-  5369121968,
+  5369122528,
   "XPCHunterDrv/src\\services\\SSDT.c:2082"
  ],
  "0x14003df8c": [
   "CmdInstallSyscallHook6",
-  5369122256,
+  5369122816,
   "XPCHunterDrv/src\\services\\SSDT.c:2116"
  ],
  "0x140046c2c": [
   "CmdEnumSyscallTable7",
-  5369122592,
+  5369123152,
   "XPCHunterDrv/src\\services\\SSDT.c:2153"
  ],
  "0x140046ea4": [
   "CmdInstallSyscallHook7",
-  5369122912,
+  5369123472,
   "XPCHunterDrv/src\\services\\SSDT.c:2188"
  ],
  "0x140054050": [
   "CmdEnumSyscallTable8",
-  5369123280,
+  5369123840,
   "XPCHunterDrv/src\\services\\SSDT.c:2226"
  ],
  "0x1400542b4": [
   "CmdInstallSyscallHook8",
-  5369123664,
+  5369124224,
   "XPCHunterDrv/src\\services\\SSDT.c:2261"
  ],
  "0x1400869c0": [
   "CmdEnumSyscallTable9",
-  5369124080,
+  5369124640,
   "XPCHunterDrv/src\\services\\SSDT.c:2299"
  ],
  "0x14008719c": [
   "CmdInstallSyscallHook9",
-  5369124368,
+  5369124928,
   "XPCHunterDrv/src\\services\\SSDT.c:2333"
  ],
  "0x140067dbc": [
   "CmdGetSsdtTableInfo",
-  5369124704,
+  5369125264,
   "XPCHunterDrv/src\\services\\SSDT.c:2367"
  ],
  "0x140068054": [
   "CmdRestoreSsdtTable",
-  5369124976,
+  5369125536,
   "XPCHunterDrv/src\\services\\SSDT.c:2407"
  ],
  "0x140067428": [
   "CmdQuerySsdtDetails",
-  5369125136,
+  5369125696,
   "XPCHunterDrv/src\\services\\SSDT.c:2437"
  ],
  "0x140067664": [
   "CmdSetSsdtEntry",
-  5369125664,
+  5369126224,
   "XPCHunterDrv/src\\services\\SSDT.c:2498"
  ],
  "0x1400608e4": [
   "CmdReadExportDirectory",
-  5369126240,
+  5369126800,
   "XPCHunterDrv/src\\services\\SSDT.c:2577"
  ],
  "0x140060af4": [
   "CmdUpdateExportEntry",
-  5369126608,
+  5369127168,
   "XPCHunterDrv/src\\services\\SSDT.c:2622"
  ],
  "0x140060c68": [
   "CmdRestoreExportTable",
-  5369126960,
+  5369127520,
   "XPCHunterDrv/src\\services\\SSDT.c:2681"
  ],
  "0x140028e60": [
   "CmdReadSsdtEntryTable",
-  5369127408,
+  5369127968,
   "XPCHunterDrv/src\\services\\SSDT.c:2728"
  ],
  "0x140029020": [
   "CmdReadSsdtEntryTableEx",
-  5369127728,
+  5369128288,
   "XPCHunterDrv/src\\services\\SSDT.c:2769"
  ],
  "0x140028b18": [
   "CmdDispatchSsdtByVersion",
-  5369128048,
+  5369128608,
   "XPCHunterDrv/src\\services\\SSDT.c:2810"
  ],
  "0x1400295b8": [
   "CmdFixSsdtEntryAddress",
-  5369128656,
+  5369129216,
   "XPCHunterDrv/src\\services\\SSDT.c:2820"
  ],
  "0x14002916c": [
   "CmdEnumSsdtEntryTable",
-  5369129072,
+  5369129632,
   "XPCHunterDrv/src\\services\\SSDT.c:2872"
  ],
  "0x140046444": [
   "DispatchFindExportTableOffset",
-  5369129472,
+  5369130032,
   "XPCHunterDrv/src\\services\\SSDT.c:2917"
  ],
  "0x140046490": [
   "FindExportTableOffsetV1",
-  5369129520,
+  5369130080,
   "XPCHunterDrv/src\\services\\SSDT.c:2928"
  ],
  "0x1400466bc": [
   "FindExportTableOffsetV2",
-  5369130496,
+  5369131056,
   "XPCHunterDrv/src\\services\\SSDT.c:3025"
  ],
  "0x14007cfdc": [
   "DispatchStorPortIoControl",
-  5369131856,
+  5369132416,
   "XPCHunterDrv/src\\services\\SSDT.c:3181"
  ],
  "0x140050578": [
   "ParseStorPortExportDir",
-  5369145344,
+  5369145904,
   "XPCHunterDrv/src\\services\\SsdtHook.c:1114"
  ],
  "0x14003dbe0": [
   "ParseSyscallFileExportDir",
-  5369146064,
+  5369146624,
   "XPCHunterDrv/src\\services\\SsdtHook.c:1187"
  ],
  "0x140046af4": [
   "BuildSyscallExportTable",
-  5369146608,
+  5369147168,
   "XPCHunterDrv/src\\services\\SsdtHook.c:1240"
  ],
  "0x14003cf4c": [
   "InitShadowSyscallExportTable",
-  5369147136,
+  5369147696,
   "XPCHunterDrv/src\\services\\SsdtHook.c:1287"
  ],
  "0x140053f04": [
   "InitWin32kSyscallTable",
-  5369147680,
+  5369148240,
   "XPCHunterDrv/src\\services\\SsdtHook.c:1338"
  ],
  "0x1400865c8": [
   "ParseSyscallTableExportDir",
-  5369148224,
+  5369148784,
   "XPCHunterDrv/src\\services\\SsdtHook.c:1393"
  ],
  "0x140048b08": [
   "InitDiskQueryExportTable",
-  5369148720,
+  5369149280,
   "XPCHunterDrv/src\\services\\SsdtHook.c:1428"
  ],
  "0x14003d7f4": [
   "ParseSyscallFileExportSections",
-  5369162448,
+  5369163008,
   "XPCHunterDrv/src\\services\\SsdtHook.c:5552"
  ],
  "0x14003d034": [
   "ParseShadowSyscallExportSections",
-  5369163280,
+  5369163840,
   "XPCHunterDrv/src\\services\\SsdtHook.c:5713"
  ],
  "0x140050774": [
   "ParseStorPortExportSections",
-  5369164080,
+  5369164640,
   "XPCHunterDrv/src\\services\\SsdtHook.c:5882"
  ],
  "0x140053b2c": [
   "ParseWin32kSyscallStubs",
-  5369164960,
+  5369165520,
   "XPCHunterDrv/src\\services\\SsdtHook.c:6043"
  ],
  "0x140050f70": [
   "FindWin32kServiceTable",
-  5369174896,
+  5369175456,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2004"
  ],
  "0x1400515c4": [
   "ParseServiceTableExportEntry",
-  5369175008,
+  5369175568,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2055"
  ],
  "0x14002bc2c": [
   "ParseNtoskrnlSectionsForKernelBase",
-  5369175264,
+  5369175824,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2088"
  ],
  "0x140085c64": [
   "ParseSyscallTableDataSection",
-  5369175872,
+  5369176432,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2275"
  ],
  "0x140086150": [
   "ParseSyscallTableSections",
-  5369176400,
+  5369176960,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2399"
  ],
  "0x140085e34": [
   "FindSyscallTableDescriptor",
-  5369177312,
+  5369177872,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2544"
  ],
  "0x140086908": [
   "BuildExportSectionMapping",
-  5369178016,
+  5369178576,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2658"
  ],
  "0x140086868": [
   "CollectSyscallEntries4",
-  5369178368,
+  5369178928,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2715"
  ],
  "0x140086740": [
   "CollectTwoSyscallTables",
-  5369178528,
+  5369179088,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2753"
  ],
  "0x140086690": [
   "CollectSyscallExportEntries",
-  5369178816,
+  5369179376,
   "XPCHunterDrv/src\\services\\SyscallTable.c:2812"
  ],
  "0x14002c030": [
   "CmdSetModuleInfoInternal",
-  5369185872,
+  5369186432,
   "XPCHunterDrv/src\\services\\TailHelpers.c:315"
  ],
  "0x14002f43c": [
   "IrpReadFileEx",
-  5369186720,
+  5369187280,
   "XPCHunterDrv/src\\services\\TailHelpers.c:462"
  ],
  "0x1400721a0": [
   "SendIoControlWithUnicodeString",
-  5369197648,
+  5369198208,
   "XPCHunterDrv/src\\services\\TailHelpers.c:1754"
  ],
  "0x140040630": [
   "ParseNtSectionsForSsdtTable",
-  5369198320,
+  5369198880,
   "XPCHunterDrv/src\\services\\TailHelpers.c:1865"
  ],
  "0x14007c1bc": [
   "CheckBootSectorAndMbr",
-  5369179680,
+  5369180240,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2149"
  ],
  "0x14007bc90": [
   "CheckBootSectorErrors",
-  5369179680,
+  5369180240,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2159"
  ],
  "0x14006d7d0": [
   "ValidateObjectTypeEntries",
-  5369198912,
+  5369199472,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2170"
  ],
  "0x14006fe60": [
   "QueryObjectDirectoryAndEnumerate",
-  5369199744,
+  5369200304,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2278"
  ],
  "0x140051214": [
   "ReadServiceTableEntries",
-  5369200208,
+  5369200768,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2341"
  ],
  "0x140041fb4": [
   "RemoveFromObjectTypeList",
-  5369200368,
+  5369200928,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2371"
  ],
  "0x140042914": [
   "RemoveFromObjectTypeListEx",
-  5369200576,
+  5369201136,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2409"
  ],
  "0x140042a48": [
   "RemoveObjectFromTypeList",
-  5369200816,
+  5369201376,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2458"
  ],
  "0x140042578": [
   "RemoveKernelObjectEntry",
-  5369201152,
+  5369201712,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2516"
  ],
  "0x14004501c": [
   "ReleaseProcessMemoryBlock",
-  5369201440,
+  5369202000,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2569"
  ],
  "0x14000eef4": [
   "PatchFsFilterDriverIndex",
-  5369201712,
+  5369202272,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2611"
  ],
  "0x1400310b4": [
   "QuerySsdHookByProcessInfo",
-  5369201856,
+  5369202416,
   "XPCHunterDrv/src\\services\\TailHelpers.c:2646"
  ],
  "0x140083f34": [
   "EnumObjectDirectoryEntries",
-  5369203184,
+  5369203744,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3036"
  ],
  "0x14008475c": [
   "EnumProcessHandleInfo",
-  5369203744,
+  5369204304,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3130"
  ],
  "0x14005831c": [
   "EnumProcessModules",
-  5369204576,
+  5369205136,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3254"
  ],
  "0x140087884": [
   "EnumSsdtHooks",
-  5369206352,
+  5369206912,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3508"
  ],
  "0x14001ac80": [
   "MiniFilterStreamHandleEx",
-  5369206688,
+  5369207248,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3547"
  ],
  "0x140080c18": [
   "PrepareFileForPageTableScan",
-  5369206784,
+  5369207344,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3566"
  ],
  "0x140083bfc": [
   "QueryObjectTypeInformation",
-  5369206832,
+  5369207392,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3580"
  ],
  "0x140057d9c": [
   "QueryProcessModuleInfo",
-  5369206992,
+  5369207552,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3619"
  ],
  "0x140087400": [
   "QuerySyscallHookStatus",
-  5369207120,
+  5369207680,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3640"
  ],
  "0x14007b518": [
   "ReadDiskSectorsWithPartition",
-  5369207264,
+  5369207824,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3668"
  ],
  "0x14002fb54": [
   "ReadThreadContext",
-  5369207312,
+  5369207872,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3682"
  ],
  "0x140051f88": [
   "ResolveDriverModuleNames",
-  5369207904,
+  5369208464,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3759"
  ],
  "0x140033d08": [
   "ResolvePhysicalMemoryContext",
-  5369208464,
+  5369209024,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3814"
  ],
  "0x14007cb4c": [
   "WriteDiskSectorsWithPartitionCheck",
-  5369208976,
+  5369209536,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3925"
  ],
  "0x14007f138": [
   "ZeroProcessMemoryPages",
-  5369209040,
+  5369209600,
   "XPCHunterDrv/src\\services\\TailHelpers.c:3941"
  ],
  "0x1400017e8": [
   "AesDecryptRounds",
-  5368765840,
+  5368766400,
   "BYNAME"
  ],
  "0x1400028b4": [
   "AesKeyExpansion",
-  5368764608,
+  5368765168,
   "BYNAME"
  ],
  "0x140002c30": [
   "AesInitKeySchedule",
-  5368764000,
+  5368764560,
   "BYNAME"
  ],
  "0x140002f4c": [
   "DecryptAesHexString",
-  5368772304,
+  5368772864,
   "BYNAME"
  ],
  "0x140005610": [
   "BuildExportIndexTable",
-  5369150048,
+  5369150608,
   "BYNAME"
  ],
  "0x1400058a4": [
   "ParsePESectionHeaders",
-  5369149648,
+  5369150208,
   "BYNAME"
  ],
  "0x1400061b8": [
   "ParseNtImageSectionHeaders",
-  5369049968,
+  5369050528,
   "BYNAME"
  ],
  "0x140006bd0": [
   "EnableProcessProtect",
-  5369070496,
+  5369071056,
   "BYNAME"
  ],
  "0x140008f7c": [
   "OpenDeviceObjectForEnum",
-  5368989360,
+  5368989920,
   "BYNAME"
  ],
  "0x140009df0": [
   "NormalizeModulePaths",
-  5368950320,
+  5368950880,
   "BYNAME"
  ],
  "0x14000a244": [
   "ParseExportDirAndBuildIndex",
-  5368961552,
+  5368962112,
   "BYNAME"
  ],
  "0x14000a544": [
   "ParseAndCompareExportEntries",
-  5368959888,
+  5368960448,
   "BYNAME"
  ],
  "0x14000a894": [
   "ParseNtExportDirTable",
-  5368957744,
+  5368958304,
   "BYNAME"
  ],
  "0x14000ad70": [
   "ParseExportDirectoryEntries",
-  5368962304,
+  5368962864,
   "BYNAME"
  ],
  "0x14000b090": [
   "ParseNtExportAuxData",
-  5368960784,
+  5368961344,
   "BYNAME"
  ],
  "0x14000b314": [
   "ParseExportEntriesDetailed",
-  5368958992,
+  5368959552,
   "BYNAME"
  ],
  "0x14000b6e0": [
   "ParseNtKernelFile",
-  5368949056,
+  5368949616,
   "BYNAME"
  ],
  "0x14000c4e0": [
   "FindExportByAddress",
-  5368946656,
+  5368947216,
   "BYNAME"
  ],
  "0x14000c608": [
   "FindExportEntryByName",
-  5368946768,
+  5368947328,
   "BYNAME"
  ],
  "0x14000cf20": [
   "CheckExportNamePrefixWin10V2",
-  5368966496,
+  5368967056,
   "BYNAME"
  ],
  "0x14000cf90": [
   "CheckExportNamePrefixCombined",
-  5368966256,
+  5368966816,
   "BYNAME"
  ],
  "0x14000dbc0": [
   "BuildFsFilterDriverPath1",
-  5368929552,
+  5368930112,
   "BYNAME"
  ],
  "0x14000e24c": [
   "InitFileSystemExportTable",
-  5368930080,
+  5368930640,
   "BYNAME"
  ],
  "0x14000e584": [
   "FindExportInFileByName",
-  5369035952,
+  5369036512,
   "BYNAME"
  ],
  "0x14000eadc": [
   "BuildFsFilterDriverPath2",
-  5368823632,
+  5368824192,
   "BYNAME"
  ],
  "0x1400164c8": [
   "FindPeExecutableSection",
-  5368957024,
+  5368957584,
   "BYNAME"
  ],
  "0x140018e28": [
   "FsFilterCreateCallback",
-  5368929472,
+  5368930032,
   "BYNAME"
  ],
  "0x14001ca5c": [
   "FindHookTargetDataSection",
-  5369035344,
+  5369035904,
   "BYNAME"
  ],
  "0x14001db40": [
   "ScanRegValueBodyForRef",
-  5369105824,
+  5369106384,
   "BYNAME"
  ],
  "0x14001dcc0": [
   "HookSyscallNtSetValueKey",
-  5369161920,
+  5369162480,
   "BYNAME"
  ],
  "0x14001e044": [
   "FixCreateFileRelocs",
-  5369036128,
+  5369036688,
   "BYNAME"
  ],
  "0x14001e340": [
   "ResolveCreateFileRelocs",
-  5369041056,
+  5369041616,
   "BYNAME"
  ],
  "0x1400209a8": [
   "FindOpenProcessTokenTarget",
-  5369175328,
+  5369175888,
   "BYNAME"
  ],
  "0x140021124": [
   "FindRenameKeyTargetEx",
-  5369105264,
+  5369105824,
   "BYNAME"
  ],
  "0x140028168": [
   "FindNtRenameKeyTarget",
-  5369104656,
+  5369105216,
   "BYNAME"
  ],
  "0x140028434": [
   "BuildHalExportTable",
-  5369161088,
+  5369161648,
   "BYNAME"
  ],
  "0x140028648": [
   "FindHalExportTableLegacy",
-  5369160480,
+  5369161040,
   "BYNAME"
  ],
  "0x1400287c4": [
   "FindHalInitSystemExport",
-  5369160064,
+  5369160624,
   "BYNAME"
  ],
  "0x140028934": [
   "FindHalDataSectionOffset",
-  5369160256,
+  5369160816,
   "BYNAME"
  ],
  "0x1400292cc": [
   "BuildInitSsdtHookTable",
-  5369142576,
+  5369143136,
   "BYNAME"
  ],
  "0x1400293b0": [
   "BuildSsdtHookTableLegacy",
-  5369151360,
+  5369151920,
   "BYNAME"
  ],
  "0x140029720": [
   "ResolveKernelObjectAddresses",
-  5368987360,
+  5368987920,
   "BYNAME"
  ],
  "0x14002a05c": [
   "DispatchCpuMsrBaseLookup",
-  5368875600,
+  5368876160,
   "BYNAME"
  ],
  "0x14002a5c8": [
   "ResolveKernelModuleBasePair",
-  5368966864,
+  5368967424,
   "BYNAME"
  ],
  "0x14002a644": [
   "ParseNtExportFunctions",
-  5369036960,
+  5369037520,
   "BYNAME"
  ],
  "0x14002ad88": [
   "ParseNtExportFunctionsV2",
-  5369038720,
+  5369039280,
   "BYNAME"
  ],
  "0x14002b494": [
   "CmdCheckModuleBaseChanged",
-  5368875504,
+  5368876064,
   "BYNAME"
  ],
  "0x14002b4fc": [
   "FindCpuMsrDifferences",
-  5368876304,
+  5368876864,
   "BYNAME"
  ],
  "0x14002b7d0": [
   "CopyKernelMemoryToTarget",
-  5368877248,
+  5368877808,
   "BYNAME"
  ],
  "0x14002bbb4": [
   "FindNtoskrnlExportsInThreadEnv",
-  5369166432,
+  5369166992,
   "BYNAME"
  ],
  "0x14002c1d8": [
   "WalkKernelModuleList",
-  5368966960,
+  5368967520,
   "BYNAME"
  ],
  "0x14002d1e8": [
   "CheckFilePathFilter",
-  5368929792,
+  5368930352,
   "BYNAME"
  ],
  "0x140030398": [
   "ValidateAndClearProcessContext",
-  5369071776,
+  5369072336,
   "BYNAME"
  ],
  "0x1400314b0": [
   "GetSsdtFunctionBase4",
-  5368823856,
+  5368824416,
   "BYNAME"
  ],
  "0x140031514": [
   "BuildSsdtHookTargets4",
-  5369144368,
+  5369144928,
   "BYNAME"
  ],
  "0x14003167c": [
   "CopySsdtHookTargetTable",
-  5369131920,
+  5369132480,
   "BYNAME"
  ],
  "0x1400317d0": [
   "ReadNtoskrnlFileToBuffer",
-  5369154992,
+  5369155552,
   "BYNAME"
  ],
  "0x140031a58": [
   "ParseNtImageSections2",
-  5369039840,
+  5369040400,
   "BYNAME"
  ],
  "0x140032594": [
   "ResolveContextTableMemory",
-  5369135952,
+  5369136512,
   "BYNAME"
  ],
  "0x1400326cc": [
   "ParseAtaPortInitForHookTargets",
-  5369158144,
+  5369158704,
   "BYNAME"
  ],
  "0x140032acc": [
   "DecryptDiskDeviceContextStr",
-  5368823744,
+  5368824304,
   "BYNAME"
  ],
  "0x140032b34": [
   "BuildSsdtHookTargets3",
-  5369143632,
+  5369144192,
   "BYNAME"
  ],
  "0x140032e40": [
   "ReadNtoskrnlFileToBuffer3",
-  5369155872,
+  5369156432,
   "BYNAME"
  ],
  "0x140033118": [
   "ValidateSsdtHookTargetTable",
-  5369134000,
+  5369134560,
   "BYNAME"
  ],
  "0x140033650": [
   "BuildSsdtHookTargets2",
-  5369142800,
+  5369143360,
   "BYNAME"
  ],
  "0x14003383c": [
   "GetSsdtFunctionBase2",
-  5368823632,
+  5368824192,
   "BYNAME"
  ],
  "0x1400339bc": [
   "ReadNtFileForSsdtTargets2",
-  5369156736,
+  5369157296,
   "BYNAME"
  ],
  "0x140035a18": [
   "ValidateSsdtHookTargetTable2",
-  5369134992,
+  5369135552,
   "BYNAME"
  ],
  "0x140036460": [
   "CmdObjectOperationByHandle",
-  5368985648,
+  5368986208,
   "BYNAME"
  ],
  "0x140036554": [
   "QueryObjectOperationByVersion",
-  5368986576,
+  5368987136,
   "BYNAME"
  ],
  "0x14003681c": [
   "DispatchObjectOperationInit",
-  5368986256,
+  5368986816,
   "BYNAME"
  ],
  "0x140036d54": [
   "CmdEnumObjectsEx",
-  5368983824,
+  5368984384,
   "BYNAME"
  ],
  "0x140036eb0": [
   "CmdEnumObjectsLegacy",
-  5368985152,
+  5368985712,
   "BYNAME"
  ],
  "0x14003765c": [
   "ParseNtExportSections",
-  5368988048,
+  5368988608,
   "BYNAME"
  ],
  "0x140037f84": [
@@ -4621,502 +4621,502 @@
  ],
  "0x140038b30": [
   "ParseNtExportSectionsWin10",
-  5368757520,
+  5368758080,
   "BYNAME"
  ],
  "0x140038e04": [
   "ParseNtExportSectionsV2",
-  5368756704,
+  5368757264,
   "BYNAME"
  ],
  "0x14003adbc": [
   "EnumerateDriverObjectTable",
-  5368964768,
+  5368965328,
   "BYNAME"
  ],
  "0x14003afdc": [
   "LookupDriverObjectEntry",
-  5368964016,
+  5368964576,
   "BYNAME"
  ],
  "0x14003b158": [
   "EnumerateDriverObjectsFull",
-  5368952752,
+  5368953312,
   "BYNAME"
  ],
  "0x14003b570": [
   "EnumerateKernelDrivers",
-  5368965264,
+  5368965824,
   "BYNAME"
  ],
  "0x14003bf64": [
   "EnumerateDriverList",
-  5368951392,
+  5368951952,
   "BYNAME"
  ],
  "0x14003c2e0": [
   "EnumerateKernelModules",
-  5368953840,
+  5368954400,
   "BYNAME"
  ],
  "0x14003c96c": [
   "EnumerateDriverFiles",
-  5368955360,
+  5368955920,
   "BYNAME"
  ],
  "0x14003cd2c": [
   "ValidateDriverObjectAddress",
-  5368964208,
+  5368964768,
   "BYNAME"
  ],
  "0x14003d388": [
   "OpenKbdClassDriverSection",
-  5368823504,
+  5368824064,
   "BYNAME"
  ],
  "0x14003db6c": [
   "OpenMountMgrDriverSection",
-  5368824304,
+  5368824864,
   "BYNAME"
  ],
  "0x14003eaa8": [
   "EnumerateProcessCallbackContext",
-  5368931984,
+  5368932544,
   "BYNAME"
  ],
  "0x14003edd4": [
   "CmdEnumFileSystemCallback",
-  5369185216,
+  5369185776,
   "BYNAME"
  ],
  "0x14003f060": [
   "ScanKernelPeExportData",
-  5368968912,
+  5368969472,
   "BYNAME"
  ],
  "0x14003f5e0": [
   "EnumProcessPeExportDataEx",
-  5368969456,
+  5368970016,
   "BYNAME"
  ],
  "0x14003f998": [
   "ReadWriteKernelMemory",
-  5368894336,
+  5368894896,
   "BYNAME"
  ],
  "0x14003fdc0": [
   "FindSsdtTableAddresses",
-  5369172656,
+  5369173216,
   "BYNAME"
  ],
  "0x1400400a0": [
   "ResolveSsdtNtOffset",
-  5369172128,
+  5369172688,
   "BYNAME"
  ],
  "0x1400401dc": [
   "ResolveSsdtTablePointer",
-  5369173520,
+  5369174080,
   "BYNAME"
  ],
  "0x1400403b4": [
   "ResolveSsdtTablePointerEx",
-  5369174096,
+  5369174656,
   "BYNAME"
  ],
  "0x1400407f8": [
   "FindSsdtSignatureInNtFile",
-  5369171632,
+  5369172192,
   "BYNAME"
  ],
  "0x14004093c": [
   "FindSsdtServiceTableV1",
-  5369170960,
+  5369171520,
   "BYNAME"
  ],
  "0x140040fb8": [
   "GetSsdtTableOffset",
-  5369165792,
+  5369166352,
   "BYNAME"
  ],
  "0x140042d10": [
   "FindKernelDataSectionOffset",
-  5369052960,
+  5369053520,
   "BYNAME"
  ],
  "0x140043084": [
   "ParseNtSectionsForRelocBase",
-  5369051616,
+  5369052176,
   "BYNAME"
  ],
  "0x140043238": [
   "ParseNtSectionsForModuleBase",
-  5369051088,
+  5369051648,
   "BYNAME"
  ],
  "0x14004341c": [
   "ParseProcessMemSections",
-  5369052144,
+  5369052704,
   "BYNAME"
  ],
  "0x140043870": [
   "FindKernelDataSectionPair",
-  5369054352,
+  5369054912,
   "BYNAME"
  ],
  "0x140043a84": [
   "FindKernelDataSectionOffsetWin10",
-  5369053824,
+  5369054384,
   "BYNAME"
  ],
  "0x1400457a4": [
   "CmdEnumProcessModules",
-  5368947648,
+  5368948208,
   "BYNAME"
  ],
  "0x140045a38": [
   "RemoveFromModuleLinkedList",
-  5368946448,
+  5368947008,
   "BYNAME"
  ],
  "0x140045b90": [
   "ParseKernelModuleSectionTable",
-  5368967280,
+  5368967840,
   "BYNAME"
  ],
  "0x140045ee4": [
   "BuildRegistryDriverPath",
-  5368929664,
+  5368930224,
   "BYNAME"
  ],
  "0x140046a80": [
   "BuildSyscallDriverPath",
-  5368824432,
+  5368824992,
   "BYNAME"
  ],
  "0x140047330": [
   "GetSyscallContextBase",
-  5369166320,
+  5369166880,
   "BYNAME"
  ],
  "0x140047dfc": [
   "BuildDevicePath",
-  5369183424,
+  5369183984,
   "BYNAME"
  ],
  "0x140047fdc": [
   "QueryDiskInfoAta",
-  5368772944,
+  5368773504,
   "BYNAME"
  ],
  "0x140048cc0": [
   "SendAtaScsiCommand",
-  5368774448,
+  5368775008,
   "BYNAME"
  ],
  "0x140049270": [
   "QuerySystemInfoPart1",
-  5369183888,
+  5369184448,
   "BYNAME"
  ],
  "0x1400494e8": [
   "QuerySystemInfoPart2",
-  5369184560,
+  5369185120,
   "BYNAME"
  ],
  "0x14004d78c": [
   "FindSystemRootEntry",
-  5369216224,
+  5369216784,
   "BYNAME"
  ],
  "0x14004f9f4": [
   "CmdEnumKernelModules",
-  5368947472,
+  5368948032,
   "BYNAME"
  ],
  "0x1400504d4": [
   "GetDiskDriverSection",
-  5368823968,
+  5368824528,
   "BYNAME"
  ],
  "0x140050708": [
   "DuplicateSyscallTableEntries",
-  5369145200,
+  5369145760,
   "BYNAME"
  ],
  "0x1400512bc": [
   "ReadNtOsKrnlAndParseServiceTable",
-  5369170096,
+  5369170656,
   "BYNAME"
  ],
  "0x1400512f0": [
   "ParseServiceTable",
-  5369165904,
+  5369166464,
   "BYNAME"
  ],
  "0x140051434": [
   "ParseServiceTableWin7",
-  5369108032,
+  5369108592,
   "BYNAME"
  ],
  "0x140051818": [
   "ReadNtOsKrnlFile",
-  5369170352,
+  5369170912,
   "BYNAME"
  ],
  "0x140051a2c": [
   "ReadWin32kFullDriverFile",
-  5369170592,
+  5369171152,
   "BYNAME"
  ],
  "0x140052724": [
   "ScanWin32kPatternWin10Plus",
-  5369168864,
+  5369169424,
   "BYNAME"
  ],
  "0x140053864": [
   "CopySyscallTable7",
-  5369145056,
+  5369145616,
   "BYNAME"
  ],
  "0x140055efc": [
   "BuildServiceTableFromNtKernel",
-  5369202624,
+  5369203184,
   "BYNAME"
  ],
  "0x140056a14": [
   "EnumServiceTableWin1020H1",
-  5369202144,
+  5369202704,
   "BYNAME"
  ],
  "0x1400579cc": [
   "ResolveServiceTableBase",
-  5369167728,
+  5369168288,
   "BYNAME"
  ],
  "0x140057aec": [
   "QueryProcessModuleFilePath",
-  5368968288,
+  5368968848,
   "BYNAME"
  ],
  "0x140060e38": [
   "FindNdisDeregisterProtocolExport",
-  5369152272,
+  5369152832,
   "BYNAME"
  ],
  "0x140060f04": [
   "FindNdisFRegisterFilterDriverExport",
-  5369152464,
+  5369153024,
   "BYNAME"
  ],
  "0x140060fd8": [
   "FindNdisIMInitializeDeviceInstanceEx",
-  5369152640,
+  5369153200,
   "BYNAME"
  ],
  "0x140061814": [
   "FindNdisIfRegisterInterfaceExport",
-  5369152848,
+  5369153408,
   "BYNAME"
  ],
  "0x1400618e0": [
   "FindNdisIfRegisterProviderExport",
-  5369153008,
+  5369153568,
   "BYNAME"
  ],
  "0x1400619ac": [
   "FindNdisMGetOffloadHandlersExport",
-  5369153200,
+  5369153760,
   "BYNAME"
  ],
  "0x140061b44": [
   "FindNdisMRegisterMiniportDriverExport",
-  5369153360,
+  5369153920,
   "BYNAME"
  ],
  "0x140061d3c": [
   "FindNdisRegisterTdiCallBackExport",
-  5369154832,
+  5369155392,
   "BYNAME"
  ],
  "0x140062278": [
   "FindKernelRdataSection",
-  5369154048,
+  5369154608,
   "BYNAME"
  ],
  "0x140062884": [
   "ParseNtKernelDataSections",
-  5369157616,
+  5369158176,
   "BYNAME"
  ],
  "0x140066650": [
   "InitKernelDataSectionTable",
-  5369137024,
+  5369137584,
   "BYNAME"
  ],
  "0x140067edc": [
   "InitTdiExportAndRelocTable",
-  5369140768,
+  5369141328,
   "BYNAME"
  ],
  "0x14006cfe4": [
   "ReadVolumeDataToBuffer",
-  5368983456,
+  5368984016,
   "BYNAME"
  ],
  "0x14006e750": [
   "ResolveAndStoreKernelModuleAddress",
-  5369185040,
+  5369185600,
   "BYNAME"
  ],
  "0x14006ea50": [
   "ReadObjectHeaderField",
-  5368886208,
+  5368886768,
   "BYNAME"
  ],
  "0x1400726c8": [
   "SendFsctlWithHookSwap",
-  5369093744,
+  5369094304,
   "BYNAME"
  ],
  "0x1400738a8": [
   "SendIoControlWithVersionBranch",
-  5369015136,
+  5369015696,
   "BYNAME"
  ],
  "0x140078638": [
   "CheckProcessObjectFlag",
-  5369069344,
+  5369069904,
   "BYNAME"
  ],
  "0x14007870c": [
   "ScanKernelModulePESections",
-  5369150592,
+  5369151152,
   "BYNAME"
  ],
  "0x14007a328": [
   "ComparePeHeaders",
-  5368951200,
+  5368951760,
   "BYNAME"
  ],
  "0x14007a410": [
   "BuildDevicePathFromObjects",
-  5368957248,
+  5368957808,
   "BYNAME"
  ],
  "0x14007a6b8": [
   "FindKernelPESectionByType",
-  5369166688,
+  5369167248,
   "BYNAME"
  ],
  "0x14007a9ec": [
   "FillExportEntrySlot",
-  5369151168,
+  5369151728,
   "BYNAME"
  ],
  "0x14007bb80": [
   "SendDiskDeviceInternalIrp",
-  5369093456,
+  5369094016,
   "BYNAME"
  ],
  "0x14007cd74": [
   "DispatchDiskIrpWithHookInit",
-  5369093232,
+  5369093792,
   "BYNAME"
  ],
  "0x14007d4e4": [
   "ProcessDiskSectorData",
-  5369227376,
+  5369227936,
   "BYNAME"
  ],
  "0x14007ddec": [
   "ResolveKernelModuleFunctionAddrs",
-  5369166992,
+  5369167552,
   "BYNAME"
  ],
  "0x14007eb18": [
   "EnumProcessAndInitObjects",
-  5368987152,
+  5368987712,
   "BYNAME"
  ],
  "0x14007f4b8": [
   "InitHookFunctionTable",
-  5369159568,
+  5369160128,
   "BYNAME"
  ],
  "0x14007f69c": [
   "ReadProcessMemoryWithAttach",
-  5369069520,
+  5369070080,
   "BYNAME"
  ],
  "0x14007fb40": [
   "ScanProcessPESectionsV2",
-  5369159072,
+  5369159632,
   "BYNAME"
  ],
  "0x14007ffa0": [
   "ResolveSyscallAddressesInProcess",
-  5368989088,
+  5368989648,
   "BYNAME"
  ],
  "0x14008020c": [
   "ClearProcessPageTableFlags",
-  5368893776,
+  5368894336,
   "BYNAME"
  ],
  "0x140080428": [
   "ProcessOperationWithAttach",
-  5369071296,
+  5369071856,
   "BYNAME"
  ],
  "0x140082720": [
   "CheckStringPrefixNt",
-  5369170080,
+  5369170640,
   "BYNAME"
  ],
  "0x14008280c": [
   "BuildJmpPatchStub",
-  5369161776,
+  5369162336,
   "BYNAME"
  ],
  "0x140082af0": [
   "LookupDriverHashTable",
-  5369168160,
+  5369168720,
   "BYNAME"
  ],
  "0x140083728": [
   "ResolvePESectionOffset",
-  5369050480,
+  5369051040,
   "BYNAME"
  ],
  "0x1400859f0": [
   "ValidateHookEntries",
-  5369167328,
+  5369167888,
   "BYNAME"
  ],
  "0x1400860e0": [
   "FilterActiveHookEntries",
-  5369166560,
+  5369167120,
   "BYNAME"
  ],
  "0x1400864ec": [
   "OpenWdfDriverSection",
-  5368824560,
+  5368825120,
   "BYNAME"
  ],
  "0x1400872c4": [
   "RestoreSyscallHookByIndex",
-  5369167856,
+  5369168416,
   "BYNAME"
  ],
  "0x1400881ec": [
   "InitSessionStateTable",
-  5369096720,
+  5369097280,
   "BYNAME"
  ],
  "0x14008c988": [
   "_guard_check_icall_nop",
-  5369229152,
+  5369229712,
   "BYNAME"
  ]
 }
