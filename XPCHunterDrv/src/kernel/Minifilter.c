@@ -3801,17 +3801,27 @@ __int64 OpenWin32kSysSection(void)
 }
 
 // UnregisterCommPortCallback — 取消注册通信端口回调
-// 清除 GT 通信端口回调标志，释放回调函数指针
-// 对应原始驱动 sub_140019A0C
+// 对应原始驱动 0x140019A0C（53 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**：
+//   读 GtCommPortCallbackReady(=0x8F2) 后置 0 返回 1。与原始无关。
+//   发现方式：差分报原始读 GT **0x42D1**（函数指针槽）。
+// 【原始逻辑】取 GT 0x42D1 的函数指针，若非 0 则
+//   以 `*（某个内核对象，见 rip+0xB39EE）` 为参数调用它；
+//   返回值 >= 0 则置 1（`cmovns`）。
+//   本函数**不写入任何 GT**。
 __int64 UnregisterCommPortCallback(void)
 {
-    __int64 Result = 0;
-    __int64 CommPortCallback = GtRead(GtCommPortCallbackReady);
-    if (!CommPortCallback)
+    char Result = 0;
+    __int64 (*Callback)(void *);
+    void   *Argument;
+
+    Callback = (__int64 (*)(void *))GtRead((GLOBAL_TABLE_INDEX)0x42D1);   // 0x140019A19
+    if (!Callback)                                                        // 0x140019A1E
         return Result;
-    // 清除通信端口回调
-    GtWrite(GtCommPortCallbackReady, 0);
-    Result = 1;
+
+    Argument = &g_CommPortContext;                                        // 0x140019A23（rip+0xB39EE → g_CommPortContext）
+    if (Callback(Argument) >= 0)                                          // 0x140019A2A/36（cmovns）
+        Result = 1;
     return Result;
 }
 
