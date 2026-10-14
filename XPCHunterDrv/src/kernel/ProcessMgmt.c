@@ -479,9 +479,15 @@ Done:
 
 // ValidateAndEnumerateObject — 验证并枚举对象
 // 对应原始驱动 sub_140050078
+// ValidateAndEnumerateObject — 验证并枚举对象
+// 对应原始驱动 0x140050078（258 字节）
+// 【⚠ GT 索引修正 2026-10-13】原写十进制 16748(=0x416C)，原始为 **0x4169**
+//   （依据原始读序 0x140050078：`0x4169 → 0x38 → 0x914 → 0x81C`，
+//     见 0x1400500下一行的 `mov ecx,0x4169; call GtRead`）。
+//   第二处 GtProcessOffset(=56=0x38) 经核对**正确**。
 char ValidateAndEnumerateObject(char *VirtualAddress, __int64 OutputBuffer, unsigned int BufferSize, __int64 Context)
 {
-    __int64 *ObjectTypeTable = (__int64 *)GtRead(16748);
+    __int64 *ObjectTypeTable = (__int64 *)GtRead((GLOBAL_TABLE_INDEX)0x4169);
     int ProcessOffset = (int)GtRead(GtProcessOffset);
     char TypeFlagValue;
     bool IsProcessMatch;
@@ -518,10 +524,13 @@ char ValidateAndEnumerateObject(char *VirtualAddress, __int64 OutputBuffer, unsi
 char ValidateProcessObjectEx(char *VirtualAddress, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     char *HeaderPtr = VirtualAddress - 48;
-    __int64 (*ObjectType)(char *) = (__int64 (*)(char *))GtRead(16752);
+    // 【GT 索引修正 2026-10-13】原写 16752(0x4170)/16960(0x4240)/16748(0x416C)；
+    //   原始读序为 `0x4196 → 0x914 → 0x4166 → 0x4169 → 0x81B → 0x81C`
+    //   （0x14004B398 起）。故第一处应为 **0x4196**、第三处应为 **0x4169**。
+    __int64 (*ObjectType)(char *) = (__int64 (*)(char *))GtRead((GLOBAL_TABLE_INDEX)0x4196);
     __int64 (*ObjectHeader)(char *) = ObjectType;
-    UCHAR Index16960 = (UCHAR)GtRead(16960);
-    __int64 Index16748 = GtRead(16748);
+    UCHAR Index16960 = (UCHAR)GtRead((GLOBAL_TABLE_INDEX)0x4166);
+    __int64 Index16748 = GtRead((GLOBAL_TABLE_INDEX)0x4169);
 
     if (!ObjectType) return 0;
     if ((ULONG64)VirtualAddress <= (ULONG64)MmSystemRangeStart) return 0;

@@ -1476,7 +1476,10 @@ __int64 QueryPhysicalDiskInfo(void *FileHandle, _QWORD *pDeviceObject, void **pP
 char QueryDeviceObjectInfo(__int64 DeviceObject, __int64 *pDeviceInfo)
 {
     unsigned int Result = 0;
-    __int64 (*SystemRoutineAddress)(__int64) = (__int64 (*)(__int64))GtRead(0x415F); // GtUninstallHookSyscallPeOffset|GtEprocessField77|0x100
+    // 【GT 索引修正 2026-10-13】原写 0x415F，原始为 **0x437F**
+    //   （依据原始 0x140058CE8 的 `mov ecx,0x437f; call GtRead`）；
+    //   第二处 GtCloseHandleFunc(=0x4223) 经核对正确。
+    __int64 (*SystemRoutineAddress)(__int64) = (__int64 (*)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x437F);
     void (*pCloseFunc)(__int64) = (void (*)(__int64))GtRead(GtCloseHandleFunc);
 
     if (!SystemRoutineAddress)
