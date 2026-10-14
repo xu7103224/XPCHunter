@@ -1,24 +1,24 @@
 {
  "tally": {
-  "identical": 1
+  "identical": 2
  },
  "results": [
   {
-   "addr": "0x14007dab8",
-   "name": "ScanKernelModulePESectionsEx",
-   "sym": "0x14000bae0",
-   "where": "XPCHunterDrv/src\\kernel\\ContextMgmt.c:4067",
+   "addr": "0x1400681dc",
+   "name": "CmdInitKernelMemoryContext",
+   "sym": "0x140026750",
+   "where": "XPCHunterDrv/src\\services\\IoctlDispatch.c:2080",
    "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
      [
-      32,
-      18446735277902856192
+      2000,
+      0
      ]
     ],
     "gt_w": [],
-    "instr": 17,
+    "instr": 9,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
@@ -28,16 +28,53 @@
     "api": [],
     "gt_r": [
      [
-      32,
-      18446735277902856192
+      2000,
+      0
      ]
     ],
     "gt_w": [],
-    "instr": 10,
+    "instr": 7,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001da90"
+    "stopped_at": "0xff8800001de10"
+   }
+  },
+  {
+   "addr": "0x14006bf2c",
+   "name": "InitKernelMemoryContext",
+   "sym": "0x140011530",
+   "where": "XPCHunterDrv/src\\DriverEntry.c:943",
+   "verdict": "identical",
+   "orig": {
+    "api": [],
+    "gt_r": [
+     [
+      2324,
+      19041
+     ]
+    ],
+    "gt_w": [],
+    "instr": 211,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff88000029efc"
+   },
+   "reb": {
+    "api": [],
+    "gt_r": [
+     [
+      2324,
+      19041
+     ]
+    ],
+    "gt_w": [],
+    "instr": 212,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff8800001de10"
    }
   }
  ],
