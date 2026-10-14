@@ -2391,7 +2391,7 @@ __int64 __fastcall SendDeviceIoControlWithRetry(__int64 Handle, unsigned int IoC
     __int64 (__fastcall *NtFsControlFunc)(__int64, _QWORD, _QWORD, __int64, _DWORD **, __int64) =
         (__int64 (__fastcall *)(__int64, _QWORD, _QWORD, __int64, _DWORD **, __int64))GtRead(GtNtFsControlFileFunc);
     void (*CloseHandleFunc)(void) = (void (*)(void))GtRead(GtCloseHandleFunc);
-    _QWORD *HandleValue = (_QWORD *)GtRead(GtEprocessField111 | 0x100);
+    _QWORD *HandleValue = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x179);  // 原 GtEprocessField111|0x100=0x16F，原始为 0x179
 
     if (NtFsControlFunc && CloseHandleFunc && HandleValue)
     {
@@ -3225,7 +3225,7 @@ bool __fastcall SendCreateFileIoControl(__int64 Handle, __int16 *FilePath)
     void (*CloseHandleFunc)(_DWORD *) = (void (*)(_DWORD *))GtRead(GtCloseHandleFunc);
     __int64 CallbackFunc = GtRead((enum _GLOBAL_TABLE_INDEX)384);
     __int64 (__fastcall *Callback)(_DWORD *, _WORD *, __int64, _QWORD) = (__int64 (__fastcall *)(_DWORD *, _WORD *, __int64, _QWORD))CallbackFunc;
-    _QWORD *HandleValue = (_QWORD *)GtRead(GtEprocessField111 | 0x100);
+    _QWORD *HandleValue = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x179);  // 原 GtEprocessField111|0x100=0x16F，原始为 0x179
 
     if (ServiceCount != -1 && NtFsControlFunc && CloseHandleFunc && CallbackFunc && HandleValue)
     {
@@ -3287,9 +3287,13 @@ bool __fastcall SendCreateFileIoControl(__int64 Handle, __int16 *FilePath)
 // SendIoControlWithQueryBuffer — 发送带查询缓冲区的IO控制命令
 // 对应原始驱动 sub_140073630
 // =========================================================================
+// SendIoControlWithQueryBuffer — 带查询缓冲的 IOCTL 发送
+// 对应原始驱动 0x140073630（631 字节）
+// 【读序修正 2026-10-13】原始读序：0x41C6 → 0x4223 → 0x17C → 0x179 → 0x914 → 0x914 → 0x197；
+//   原稿把 0x914（构建号）提到了最前。
 bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int CommandType, _BYTE *OutputBuffer, int BufferSize, size_t *ReturnSize)
 {
-    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+    ULONG BuildNumber;
     bool Result = 0;
 
     if (CommandType > 5)
@@ -3299,8 +3303,13 @@ bool __fastcall SendIoControlWithQueryBuffer(__int64 Handle, unsigned int Comman
     __int64 (__fastcall *NtFsControlFunc)(__int64, __int64, _QWORD, _QWORD, int *, _BYTE *) =
         (__int64 (__fastcall *)(__int64, __int64, _QWORD, _QWORD, int *, _BYTE *))GtRead(GtNtFsControlFileFunc);
     void (*CloseHandleFunc)(void) = (void (*)(void))GtRead(GtCloseHandleFunc);
-    __int64 QueryFuncPtr = GtRead(GtEprocessField114 | 0x100);
-    _QWORD *HandleValue = (_QWORD *)GtRead(GtEprocessField111 | 0x100);
+    // 【GT 索引修正 2026-10-13】原写 GtEprocessField114|0x100 = 0x72|0x100 = 0x172；
+    //   原始要 **0x17C**（依据原始 0x140073630 的槽序 0x41C6/0x4223/0x17C/0x179/0x914/0x197）。
+    //   根因同 ResolveIoPortContext：GtEprocessField114 经宏链解析为 114(0x72)，
+    //   而该处需要 0x7C。本次直接写字面量。
+    __int64 QueryFuncPtr = GtRead((GLOBAL_TABLE_INDEX)0x17C);
+    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);   // 原始第 5 位
+    _QWORD *HandleValue = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x179);  // 原 GtEprocessField111|0x100=0x16F，原始为 0x179
 
     if (ServiceCount == -1 || !NtFsControlFunc || !CloseHandleFunc || !QueryFuncPtr || !HandleValue)
         return Result;
@@ -3435,7 +3444,7 @@ bool __fastcall SendIoControlWithStringParam(__int64 Handle, PUNICODE_STRING Uni
     SavedCloseHandleFunc = CloseHandleFunc;
     IoControlFuncPtr = GtRead(GtEprocessField116 | 0x100);
     IoControlFunc = (__int64 (*)(__int64, unsigned __int16 *, _QWORD, __int64, __int64 *, __int64, bool))IoControlFuncPtr;
-    IoControlPtr = GtRead(GtEprocessField111 | 0x100);
+    IoControlPtr = GtRead((GLOBAL_TABLE_INDEX)0x179);  // 原 GtEprocessField111|0x100=0x16F，原始为 0x179
     pIoControl = (__int64 *)IoControlPtr;
     if (ServiceCount != -1 && pBuffer && CloseHandleFunc && IoControlFuncPtr && IoControlPtr)
     {
@@ -3703,7 +3712,7 @@ bool OpenSectionWithIoControl(__int64 DeviceHandle)
     FsControlFileFunc = (unsigned int (__fastcall *)(__int64, __int64, _QWORD, _QWORD, _DWORD **, _QWORD))GtRead(GtNtFsControlFileFunc);
     CloseHandleFunc = (void (__fastcall *)(_DWORD *))GtRead(GtCloseHandleFunc);
     OpenSectionFunc = (__int64 (__fastcall *)(_DWORD *))GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField117 | 0x100));
-    IoControlPtr = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField111 | 0x100));
+    IoControlPtr = GtRead((enum _GLOBAL_TABLE_INDEX)0x179);  // 原 GtEprocessField111|0x100=0x16F，原始为 0x179
     pIoControl = (_QWORD *)IoControlPtr;
     if (ServiceCount != -1 && FsControlFileFunc && CloseHandleFunc && OpenSectionFunc && IoControlPtr)
     {

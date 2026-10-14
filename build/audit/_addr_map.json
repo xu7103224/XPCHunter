@@ -3742,107 +3742,107 @@
  "0x140073630": [
   "SendIoControlWithQueryBuffer",
   5369104192,
-  "XPCHunterDrv/src\\services\\Protocol.c:3290"
+  "XPCHunterDrv/src\\services\\Protocol.c:3294"
  ],
  "0x140073be4": [
   "SendIoControlWithStringParam",
   5369104896,
-  "XPCHunterDrv/src\\services\\Protocol.c:3401"
+  "XPCHunterDrv/src\\services\\Protocol.c:3410"
  ],
  "0x14007b824": [
   "CheckMbrBootablePartition",
   5369105472,
-  "XPCHunterDrv/src\\services\\Protocol.c:3498"
+  "XPCHunterDrv/src\\services\\Protocol.c:3507"
  ],
  "0x14007d024": [
   "SaveAndReplaceDiskExtension",
   5369106624,
-  "XPCHunterDrv/src\\services\\Protocol.c:3820"
+  "XPCHunterDrv/src\\services\\Protocol.c:3829"
  ],
  "0x14007d09c": [
   "SaveAndReplaceDiskExtension2",
   5369106720,
-  "XPCHunterDrv/src\\services\\Protocol.c:3850"
+  "XPCHunterDrv/src\\services\\Protocol.c:3859"
  ],
  "0x14007d168": [
   "SaveAndReplaceDiskExtension3",
   5369106816,
-  "XPCHunterDrv/src\\services\\Protocol.c:3880"
+  "XPCHunterDrv/src\\services\\Protocol.c:3889"
  ],
  "0x14007d2a4": [
   "SaveAndReplaceDiskExtension4",
   5369106912,
-  "XPCHunterDrv/src\\services\\Protocol.c:3910"
+  "XPCHunterDrv/src\\services\\Protocol.c:3919"
  ],
  "0x14007d31c": [
   "SaveAndReplaceDiskExtension5",
   5369107008,
-  "XPCHunterDrv/src\\services\\Protocol.c:3940"
+  "XPCHunterDrv/src\\services\\Protocol.c:3949"
  ],
  "0x14007d10c": [
   "LookupStorPortFunctionTable",
   5369107104,
-  "XPCHunterDrv/src\\services\\Protocol.c:3971"
+  "XPCHunterDrv/src\\services\\Protocol.c:3980"
  ],
  "0x14007d248": [
   "LookupStorPortFunctionTable2",
   5369107168,
-  "XPCHunterDrv/src\\services\\Protocol.c:3988"
+  "XPCHunterDrv/src\\services\\Protocol.c:3997"
  ],
  "0x14007d1e0": [
   "QueryDiskExtensionFunctionTable",
   5369107232,
-  "XPCHunterDrv/src\\services\\Protocol.c:4005"
+  "XPCHunterDrv/src\\services\\Protocol.c:4014"
  ],
  "0x14007d38c": [
   "SaveDiskDeviceContextByIndex",
   5369107328,
-  "XPCHunterDrv/src\\services\\Protocol.c:4032"
+  "XPCHunterDrv/src\\services\\Protocol.c:4041"
  ],
  "0x14007d438": [
   "SaveDiskDeviceContextByIndexV2",
   5369107392,
-  "XPCHunterDrv/src\\services\\Protocol.c:4049"
+  "XPCHunterDrv/src\\services\\Protocol.c:4058"
  ],
  "0x14007d3d8": [
   "SaveDiskDeviceContextByIndexEx",
   5369107456,
-  "XPCHunterDrv/src\\services\\Protocol.c:4066"
+  "XPCHunterDrv/src\\services\\Protocol.c:4075"
  ],
  "0x14007d484": [
   "SaveDiskDeviceContextByIndexV3",
   5369107536,
-  "XPCHunterDrv/src\\services\\Protocol.c:4083"
+  "XPCHunterDrv/src\\services\\Protocol.c:4092"
  ],
  "0x14007af28": [
   "SendIrpToDiskDevice",
   5369107616,
-  "XPCHunterDrv/src\\services\\Protocol.c:4102"
+  "XPCHunterDrv/src\\services\\Protocol.c:4111"
  ],
  "0x140075a9c": [
   "SendIoControlWithQuotaBuffer",
   5369109952,
-  "XPCHunterDrv/src\\services\\Protocol.c:4613"
+  "XPCHunterDrv/src\\services\\Protocol.c:4622"
  ],
  "0x140075c24": [
   "SendIoControlWithQuotaBufferEx",
   5369110288,
-  "XPCHunterDrv/src\\services\\Protocol.c:4662"
+  "XPCHunterDrv/src\\services\\Protocol.c:4671"
  ],
  "0x140075d94": [
   "AllocBufferAndSendIoControl",
   5369110656,
-  "XPCHunterDrv/src\\services\\Protocol.c:4731"
+  "XPCHunterDrv/src\\services\\Protocol.c:4740"
  ],
  "0x140076190": [
   "AllocDualBufferAndSendIoControl",
   5369111024,
-  "XPCHunterDrv/src\\services\\Protocol.c:4790"
+  "XPCHunterDrv/src\\services\\Protocol.c:4799"
  ],
  "0x140073934": [
   "SendDeviceIoControl",
   5369111552,
-  "XPCHunterDrv/src\\services\\Protocol.c:4907"
+  "XPCHunterDrv/src\\services\\Protocol.c:4916"
  ],
  "0x140009bcc": [
   "CopySectionString",

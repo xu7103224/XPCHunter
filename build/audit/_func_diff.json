@@ -1,46 +1,6 @@
 {
- "tally": {
-  "identical": 1
- },
- "results": [
-  {
-   "addr": "0x14007cd74",
-   "name": "DispatchDiskIrpWithHookInit",
-   "sym": "0x140060c80",
-   "where": "BYNAME",
-   "verdict": "identical",
-   "orig": {
-    "api": [],
-    "gt_r": [
-     [
-      17279,
-      0
-     ]
-    ],
-    "gt_w": [],
-    "instr": 31,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000029efc"
-   },
-   "reb": {
-    "api": [],
-    "gt_r": [
-     [
-      17279,
-      0
-     ]
-    ],
-    "gt_w": [],
-    "instr": 26,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001e150"
-   }
-  }
- ],
+ "tally": {},
+ "results": [],
  "skipped_infra": [
   "0x140029eec",
   "0x140029efc",
