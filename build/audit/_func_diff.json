@@ -4,17 +4,17 @@
  },
  "results": [
   {
-   "addr": "0x1400188d8",
-   "name": "MiniFilterPreShutdown",
-   "sym": "0x140030270",
-   "where": "XPCHunterDrv/src\\kernel\\Minifilter.c:2376",
+   "addr": "0x14006e52c",
+   "name": "ScanKernelModulePageOrRsrcSection",
+   "sym": "0x14001b120",
+   "where": "XPCHunterDrv/src\\DriverEntry.c:4691",
    "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
      [
-      3,
-      18446735277616529408
+      32,
+      18446735277902856192
      ]
     ],
     "gt_w": [],
@@ -28,16 +28,16 @@
     "api": [],
     "gt_r": [
      [
-      3,
-      18446735277616529408
+      32,
+      18446735277902856192
      ]
     ],
     "gt_w": [],
-    "instr": 19,
+    "instr": 10,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001c200"
+    "stopped_at": "0xff8800001cec0"
    }
   }
  ],

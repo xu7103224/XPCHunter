@@ -4556,35 +4556,237 @@ __int64 ScanKernelModuleDataSectionEx(void)
 }
 
 // ScanKernelModuleInitSection — 扫描内核模块初始化节区
-// 扫描 ntoskrnl 的 INIT 节区，查找初始化数据并写入 GT 索引 24
-// 对应原始驱动 sub_14006D974
+// ScanKernelModuleInitSection — 扫描内核模块 INIT 节区（0x14006D974）
+// 对应原始驱动 0x14006D974（515 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**：读 GT 0x20/0x21 校验后 `return 1`。
+//   原始是完整的 PE 节区扫描器（栈帧 0x1C0、两段扫描、写 GT 0x431B/0x431C）。
+//   发现方式：差分报原始读 GT 0x4322/0x439F/0x41C5 并写 0x431B/0x431C，我方仅读 0x20/0x21。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写。
+// 【帧换算】描述符基址 = [rbp-0x70]；故 字段+0x38=[rbp-0x38]、
+//   字段+0x50=[rbp-0x20]、字段+0x58=[rbp-0x18]、字段+0x88=[rbp+0x18]、
+//   字段+0x08=[rbp+0x08]、字段+0xF0=[rbp+0x80]、字段+0x118=[rbp+0xA8]。
+// 【流程】
+//   ① rbx = GT 0x4322（目标绝对地址，非 0）；r15 = GT 0x20（映像基址）；
+//      esi = GT 0x21（大小）；rdi = GT 3（模块加载基址）；
+//      r13 = GT 0x439F；r12 = GT 0x41C5。全部须非 0，且 rbx > rdi、(rbx-rdi) < esi。
+//   ② 以 (r15 + (rbx-rdi), esi - (rbx-rdi)) 初始化读取上下文。
+//   ③ 循环（上限 0x100）：
+//      - 类型 0x558(1368) 且 (字段+0x50 & 0x4000000) 且 字段+0x38 != 0：
+//          rva = 累计 + 字段+0x38 - 基址；若 rva 等于 GT0x439F 或 GT0x41C5 →
+//          此时若"候选"(ebx) 已由下方 0x510 分支设过且 < 大小 →
+//            写 GT 0x431B = ebx、GT 0x431C = 模块基址 + ebx，返回；
+//          否则继续。
+//      - 类型 0x510(1296) 且 字段+0x50==0x40 且 字段+0x58==8 且
+//        字段+0x88==0x40000 且 字段+0x08 != 0 →
+//          候选 ebx = 字段+0x08 - 基址 + 累计（记下待上面的 0x558 分支确认）。
+// 【返回值】原始恒为 0（结果通过 GT 写出）。
 __int64 ScanKernelModuleInitSection(void)
 {
-    __int64 Result = 0;
-    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
-    if (!NtoskrnlBase || !NtoskrnlSize)
-        return Result;
-    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
-        return Result;
-    Result = 1;
-    return Result;
+    __int64  TargetAddr;        // rbx = GT 0x4322
+    __int64  ImageBase;         // r15 = GT 0x20
+    ULONG    ImageSize;         // esi = GT 0x21
+    __int64  ModuleBase;        // rdi = GT 3
+    ULONG    MatchA;            // r13d = GT 0x439F
+    ULONG    MatchB;            // r12d = GT 0x41C5
+    ULONG    Candidate = 0;     // ebx
+    ULONG    Rva;
+    ULONG    i;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD   Entry[112];
+
+    TargetAddr = GtRead((GLOBAL_TABLE_INDEX)0x4322);              // 0x14006D9B0
+    if (!TargetAddr)                                              // 0x14006D9B8
+        return 0;
+
+    ImageBase  = GtRead(GtEprocessField22);                       // 0x14006D9C6（0x20）
+    ImageSize  = (ULONG)GtRead(GtEprocessField23);                // 0x14006D9D3（0x21）
+    ModuleBase = GtRead(GtNtoskrnlModuleBase);                    // 0x14006D9E0（3）
+    MatchA     = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x439F);       // 0x14006D9ED
+    MatchB     = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x41C5);       // 0x14006D9FA
+
+    if (!ImageBase || !ImageSize || !ModuleBase)                  // 0x14006DA02/0A0B/0A13
+        return 0;
+    if (TargetAddr <= ModuleBase)                                 // 0x14006DA1C
+        return 0;
+    if (!MatchA || !MatchB)                                       // 0x14006DA25 / DA2E
+        return 0;
+    if ((ULONG)(TargetAddr - ModuleBase) >= ImageSize)            // 0x14006DA36/3A
+        return 0;
+
+    Rva = (ULONG)(TargetAddr - ModuleBase);                       // 0x14006DA42
+    /* 原始在此有一处恒定成立的自校验（`add rax,rdi; cmp rbx,rax; jne`），不表。 */
+
+    InitPESectionReadContext(ImageBase + Rva, ImageSize - Rva,    // 0x14006DA7C
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+    for (i = 0; i < 0x100; ++i)                                   // 0x14006DB69
+    {
+        USHORT Type;
+        ULONG  Len, F38;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x14006DA8F
+            return 0;
+
+        Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Ctx.ReadPtr += Len;                                       // 0x14006DAA6
+        Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006DAB2
+
+        if (Type == 0x558)                                        // 0x14006DABB（1368）
+        {
+            if ((*(ULONG64 *)((PUCHAR)Entry + 0x50) & 0x4000000ULL) != 0   // 0x14006DAC0
+                && (F38 = *(ULONG *)((PUCHAR)Entry + 0x38)) != 0)          // 0x14006DACA
+            {
+                ULONG r = (ULONG)Ctx.ReadPtr + F38 - (ULONG)ImageBase;    // 0x14006DAD1/DA74
+                if (r == MatchA || r == MatchB)                            // 0x14006DAD6/DADB
+                {
+                    if (Candidate && Candidate < ImageSize)                // 0x14006DAE4/DAE8
+                    {
+                        GtWrite((GLOBAL_TABLE_INDEX)0x431B, Candidate);    // 0x14006DAF4
+                        GtWrite((GLOBAL_TABLE_INDEX)0x431C,
+                                ModuleBase + Candidate);                   // 0x14006DB02
+                        return 0;
+                    }
+                }
+            }
+        }
+        else if (Type == 0x510)                                   // 0x14006DB37（1296）
+        {
+            if (*(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40             // 0x14006DB41
+                && *(ULONG *)((PUCHAR)Entry + 0x58) == 8               // 0x14006DB48
+                && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000ULL    // 0x14006DB4E
+                && *(ULONG *)((PUCHAR)Entry + 0x08) != 0)              // 0x14006DB58
+            {
+                Candidate = *(ULONG *)((PUCHAR)Entry + 0x08)
+                            - (ULONG)ImageBase + (ULONG)Ctx.ReadPtr;   // 0x14006DB5F/61/64
+            }
+        }
+    }
+    return 0;
 }
 
 // ScanKernelModulePageOrRsrcSection — 扫描内核模块 PAGE 或 RSRC 节区
-// 扫描 ntoskrnl 的 PAGE/RSRC 节区，查找页面相关的保护数据
-// 对应原始驱动 sub_14006E52C
+// ScanKernelModulePageOrRsrcSection — 扫描内核模块 PAGE/RSRC 节区（0x14006E52C）
+// 对应原始驱动 0x14006E52C（545 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**：读 GT 0x20/0x21 做有效性检查后
+//   直接 `return 1`，与原始函数体无关。注释称"扫描 ntoskrnl 的 PAGE/RSRC 节区，
+//   查找页面相关的保护数据"虽方向对，但没有任何扫描动作。
+//   发现方式：差分显示原始读 GT 0x4312 并写 GT 0x2E6，我方只读 0x20/0x21；
+//   逐条反汇编核对确认。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写（IDA 无伪代码）。
+// 【语义】两段式 PE 节区扫描：
+//   段 1：从 (GT20 + GT4312) 起，遍历最多 10 个条目，按类型 1368/1369(0x558/0x559)
+//         且 字段+0x38 非零 定位出"第一个候选 RVA"（记入 ebx）。
+//   段 2：从该 RVA 起再遍历最多 0x64 个条目，统计第 2 个满足
+//         「类型 1298(0x512) 且 字段+0x88==0x40000 且 字段+0x08 非零
+//           且 字段+0x50==64」的条目，算出其 RVA；
+//   命中则写 GT 0x2E6 = ntoskrnl基址(GT3) + 该 RVA。
+// 【原始汇编要点（含帧偏移 → 描述符字段的换算）】
+//   上下文 = [rsp+0x40]（0x48 字节）；描述符 = [rbp-0x70]；rbp = rsp+0x130
+//   → 描述符起始 = rsp+0xC0。
+//     字段+0x38 = [rbp-0x38]（段1判别）      → rsp+0xC0+0x38 = rbp-0x38 ✓
+//     字段+0x08 = [rbp+0x08]（段2判别，非零）→ 即描述符+0x08
+//     字段+0x50 = [rbp-0x20]（==64）         → 描述符+0x50
+//     字段+0x88 = [rbp+0x18]（==0x40000）    → 描述符+0x88
+//   （上述换算与 0x120 描述符布局逐项吻合。）
 __int64 ScanKernelModulePageOrRsrcSection(void)
 {
-    __int64 Result = 0;
-    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    unsigned int NtoskrnlSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
-    if (!NtoskrnlBase || !NtoskrnlSize)
-        return Result;
-    if (MmIsAddressValid((void *)NtoskrnlBase) != 1)
-        return Result;
-    Result = 1;
-    return Result;
+    __int64  NtoskrnlBase;      // rsi = GT 0x20
+    ULONG    NtoskrnlSize;      // edi = GT 0x21
+    __int64  Base3;             // r15 = GT 3
+    ULONG    StartRva;          // ebx = GT 0x4312
+    ULONG    CandidateRva = 0;  // ebx
+    ULONG    Cumul;             // rdx：累计读指针
+    ULONG    i;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD   Entry[112];
+
+    NtoskrnlBase = GtRead(GtEprocessField22);                    // 0x14006E563（0x20）
+    NtoskrnlSize = (ULONG)GtRead(GtEprocessField23);             // 0x14006E575（0x21）
+    Base3        = GtRead(GtNtoskrnlModuleBase);                 // 0x14006E582（3）
+
+    if (!NtoskrnlBase || !NtoskrnlSize || !Base3)                 // 0x14006E58A/593/59B
+        return 0;
+
+    StartRva = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4312);        // 0x14006E5A9
+    if (!StartRva || StartRva >= NtoskrnlSize)                   // 0x14006E5B1/5B9
+        return 0;
+
+    /* ---- 段 1：定位第一个候选 RVA（上限 10） ---- */
+    InitPESectionReadContext(NtoskrnlBase + StartRva,            // 0x14006E5F3
+                             NtoskrnlSize - StartRva,
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    Cumul = (ULONG)Ctx.ReadPtr;                                  // 初始化后即基址
+    for (i = 0; i < 0xA; ++i)                                    // 0x14006E655
+    {
+        USHORT Type;
+        ULONG  Len, Calculated;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))      // 0x14006E604
+            break;
+
+        Len  = *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Cumul += Len;                                            // 0x14006E613
+        Ctx.ReadPtr = Cumul;                                     // 同步读指针
+        Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006E62D
+
+        // 类型 0x558 或 0x559（原始：sub cx,0x558; cmp cx,1 → 即 (type-0x558)<=1）
+        if ((USHORT)(Type - 0x558) <= 1
+            && *(ULONG *)((PUCHAR)Entry + 0x38) != 0)            // 0x14006E641
+        {
+            ULONG F38 = *(ULONG *)((PUCHAR)Entry + 0x38);
+            Calculated = Cumul + F38 - (ULONG)NtoskrnlBase;      // 0x14006E648/64A
+            if (Calculated && Calculated < NtoskrnlSize)         // 0x14006E64C/650
+            {
+                CandidateRva = Calculated;                       // 0x14006E65D
+                break;
+            }
+        }
+    }
+
+    if (!CandidateRva)                                           // ebx 仍为 0 → 无候选
+        return 0;
+
+    /* ---- 段 2：从候选 RVA 起找第 2 个匹配条目（上限 0x64） ---- */
+    InitPESectionReadContext(NtoskrnlBase + CandidateRva,        // 0x14006E68C
+                             NtoskrnlSize - CandidateRva,
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    Cumul = (ULONG)Ctx.ReadPtr;
+    {
+        ULONG MatchCount = 0;                                    // r14d
+        for (i = 0; i < 0x64; ++i)                               // 0x14006E6FD
+        {
+            USHORT Type;
+            ULONG  Len, F8;
+
+            if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))  // 0x14006E69F
+                return 0;                                        // 0x14006E71D
+
+            Len  = *(ULONG *)((PUCHAR)Entry + 0xF0);
+            Cumul += Len;                                        // 0x14006E6AE
+            Ctx.ReadPtr = Cumul;
+            Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006E6C2
+
+            if (Type == 0x545)                                   // 0x14006E6CE（1349）
+                break;
+            if (Type == 0x512                                  // 0x14006E6D8（1298）
+                && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000ULL   // 0x14006E6DA
+                && (F8 = *(ULONG *)((PUCHAR)Entry + 0x08)) != 0       // 0x14006E6E4
+                && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40)        // 0x14006E6EB
+            {
+                if (++MatchCount == 2)                           // 0x14006E6F2/6F5
+                {
+                    ULONG Rva = Cumul + F8 - (ULONG)NtoskrnlBase;    // 0x14006E704/706
+                    if (Rva && Rva < NtoskrnlSize)               // 0x14006E708/70A
+                    {
+                        GtWrite((GLOBAL_TABLE_INDEX)0x2E6,       // 0x14006E718
+                                Base3 + (__int64)Rva);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    return 0;
 }
 
 // ScanKernelModuleSectionByType — 按类型扫描内核模块节区
