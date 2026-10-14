@@ -1457,9 +1457,13 @@ void ResolveSyscallTableEntry(void)
 // 对应原始驱动 sub_140054650
 // 附加到目标进程，从 PE 文件中解码 Unicode 字符串，查找匹配特殊标记的代码位置
 // =========================================================================
+// 【读序修正 2026-10-13】原始 0x140054650 的读序为
+//   `mov edi,0x29e; mov ecx,edi; call GtRead`（0x140054688）
+//   → 空则懒初始化后再读同槽 → 之后才读 0x61（0x1400546B2 的 `mov ecx,0x61`）。
+//   原稿把 0x61 提到了最前；索引集合相同，仅顺序不同。
 void ResolveSyscallNumberFromKernel(void)
 {
-    struct _KPROCESS *TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    struct _KPROCESS *TargetProcess;
     KAPC_STATE ApcState;
     int LoopCount = 0;
 
@@ -1473,6 +1477,7 @@ void ResolveSyscallNumberFromKernel(void)
     if (!KernelDataField12)
         return;
 
+    TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);   // 原始第 3 位（0x61）
     if (IoGetCurrentProcess() == TargetProcess)
         TargetProcess = 0;
     if (TargetProcess)

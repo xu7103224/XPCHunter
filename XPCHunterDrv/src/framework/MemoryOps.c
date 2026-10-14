@@ -1767,12 +1767,18 @@ char ResolveSyscallNumbers(void)
 // 在 ntoskrnl 的 .rdata 节区中搜索 NtAdjustPrivilegesToken 和
 // NtAllocateVirtualMemory 的导出地址，找到系统调用号表并写入 GT 0x62
 // =========================================================================
+// ResolveSyscallNumberTable — 解析系统调用号表
+// 对应原始驱动 0x140052C1C（958 字节）
+// 【读序修正 2026-10-13】原始读序为 **0x42 → 0x20 → 0x21 → 0x62**
+//   （见 0x140052C56 / CBB / CC8 / EE5），原稿写成 0x21 → 0x20 → 0x42。
+//   三个索引值本身正确（GtWin32kServiceEntryCount=66=0x42、
+//   GtEprocessField22=32=0x20、GtEprocessField23=33=0x21），仅顺序不同。
 char ResolveSyscallNumberTable(void)
 {
     char Result = 0;
-    unsigned int KernelImageSize = (unsigned int)GtRead(GtEprocessField23);
-    unsigned __int64 KernelImageBase = GtRead(GtEprocessField22);
     unsigned int ServiceCount = (unsigned int)GtRead(GtWin32kServiceEntryCount);
+    unsigned __int64 KernelImageBase = GtRead(GtEprocessField22);
+    unsigned int KernelImageSize = (unsigned int)GtRead(GtEprocessField23);
 
     if (!KernelImageBase || !KernelImageSize)
         return 0;

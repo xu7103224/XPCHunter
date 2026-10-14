@@ -2570,13 +2570,16 @@ __int64 ReleaseProcessMemoryBlock(_QWORD *pTargetEntry)
 {
     int IterationCount = 0;
     char Result = 0;
-    void (__fastcall *pFreeCallback)(_QWORD *) = (void (__fastcall *)(_QWORD *))GtRead(GtNtDeleteKeyPeSectionOffset);
+    // 【GT 索引修正 2026-10-13】原用 GtNtDeleteKeyPeSectionOffset(=0x4393)，
+    //   原始为 **0x43DF**（依据 0x14004501C 的 `mov ecx,0x43df; call GtRead`）；
+    //   第二处应为 **0x823**（`mov ecx,0x823`）。
+    void (__fastcall *pFreeCallback)(_QWORD *) = (void (__fastcall *)(_QWORD *))GtRead((GLOBAL_TABLE_INDEX)0x43DF);
     if (pFreeCallback && pTargetEntry && MmIsAddressValid(pTargetEntry) == 1)
     {
         pFreeCallback(pTargetEntry);
         Result = 1;
     }
-    _QWORD **pProcessMemListHead = (_QWORD **)GtRead(GtFwpsDispatchTableCount);
+    _QWORD **pProcessMemListHead = (_QWORD **)GtRead((GLOBAL_TABLE_INDEX)0x823);
     _QWORD **pSentinel = pProcessMemListHead;
     if (pProcessMemListHead && MmIsAddressValid(pProcessMemListHead) == 1)
     {
