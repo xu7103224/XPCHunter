@@ -32,212 +32,212 @@
  "0x1400680f8": [
   "InvokeRegisteredCallbackWithUserData",
   5368779216,
-  "XPCHunterDrv/src\\DriverEntry.c:319"
+  "XPCHunterDrv/src\\DriverEntry.c:322"
  ],
  "0x140010bb0": [
   "ImageLoadCallbackRoutine",
   5368779424,
-  "XPCHunterDrv/src\\DriverEntry.c:379"
+  "XPCHunterDrv/src\\DriverEntry.c:382"
  ],
  "0x14007d728": [
   "FreeDiskBufferContext",
   5368779520,
-  "XPCHunterDrv/src\\DriverEntry.c:560"
+  "XPCHunterDrv/src\\DriverEntry.c:563"
  ],
  "0x14000d084": [
   "FreeFsCallbackBuffer",
   5368779584,
-  "XPCHunterDrv/src\\DriverEntry.c:574"
+  "XPCHunterDrv/src\\DriverEntry.c:577"
  ],
  "0x14005343c": [
   "FreeDriverProtectBuffer",
   5368779648,
-  "XPCHunterDrv/src\\DriverEntry.c:588"
+  "XPCHunterDrv/src\\DriverEntry.c:591"
  ],
  "0x140053468": [
   "FreeDriverUnloadBuffer",
   5368779712,
-  "XPCHunterDrv/src\\DriverEntry.c:602"
+  "XPCHunterDrv/src\\DriverEntry.c:605"
  ],
  "0x140051b38": [
   "FreeServiceTableEntries",
   5368779792,
-  "XPCHunterDrv/src\\DriverEntry.c:628"
+  "XPCHunterDrv/src\\DriverEntry.c:631"
  ],
  "0x140082c70": [
   "CleanupHashTable",
   5368779856,
-  "XPCHunterDrv/src\\DriverEntry.c:642"
+  "XPCHunterDrv/src\\DriverEntry.c:645"
  ],
  "0x14001c32c": [
   "ValidateObjReferences",
   5368779920,
-  "XPCHunterDrv/src\\DriverEntry.c:874"
+  "XPCHunterDrv/src\\DriverEntry.c:877"
  ],
  "0x14006bf2c": [
   "InitKernelMemoryContext",
   5368780080,
-  "XPCHunterDrv/src\\DriverEntry.c:943"
+  "XPCHunterDrv/src\\DriverEntry.c:946"
  ],
  "0x140053264": [
   "InitWin32kServiceTableEntries",
   5368780800,
-  "XPCHunterDrv/src\\DriverEntry.c:1047"
+  "XPCHunterDrv/src\\DriverEntry.c:1050"
  ],
  "0x140021544": [
   "InitEprocessTokenOffset",
   5368781312,
-  "XPCHunterDrv/src\\DriverEntry.c:1167"
+  "XPCHunterDrv/src\\DriverEntry.c:1170"
  ],
  "0x14001e9a8": [
   "InitAllHookSubsystems",
   5368781408,
-  "XPCHunterDrv/src\\DriverEntry.c:1193"
+  "XPCHunterDrv/src\\DriverEntry.c:1196"
  ],
  "0x14002131c": [
   "InitEprocessFieldOffsets",
   5368786816,
-  "XPCHunterDrv/src\\DriverEntry.c:1279"
+  "XPCHunterDrv/src\\DriverEntry.c:1282"
  ],
  "0x1400853fc": [
   "InitHandleTypeTable",
   5368787200,
-  "XPCHunterDrv/src\\DriverEntry.c:1357"
+  "XPCHunterDrv/src\\DriverEntry.c:1360"
  ],
  "0x1400135ac": [
   "InitImageNotifyCallbackWin7",
   5368787472,
-  "XPCHunterDrv/src\\DriverEntry.c:1411"
+  "XPCHunterDrv/src\\DriverEntry.c:1414"
  ],
  "0x14001efa0": [
   "InitProcessNotify",
   5368787872,
-  "XPCHunterDrv/src\\DriverEntry.c:1519"
+  "XPCHunterDrv/src\\DriverEntry.c:1522"
  ],
  "0x14001f8e4": [
   "InitThreadNotify",
   5368790816,
-  "XPCHunterDrv/src\\DriverEntry.c:1763"
+  "XPCHunterDrv/src\\DriverEntry.c:1766"
  ],
  "0x14001c3d4": [
   "GetWin7Sp1EprocessOffset",
   5368790848,
-  "XPCHunterDrv/src\\DriverEntry.c:1798"
+  "XPCHunterDrv/src\\DriverEntry.c:1801"
  ],
  "0x1400215a4": [
   "InitEprocessOffsetsWin7",
   5368790912,
-  "XPCHunterDrv/src\\DriverEntry.c:1807"
+  "XPCHunterDrv/src\\DriverEntry.c:1810"
  ],
  "0x1400278fc": [
   "InitEprocessOffsetsWin8",
   5368793344,
-  "XPCHunterDrv/src\\DriverEntry.c:2031"
+  "XPCHunterDrv/src\\DriverEntry.c:2034"
  ],
  "0x140026e78": [
   "InitEprocessOffsetsWin81",
   5368795616,
-  "XPCHunterDrv/src\\DriverEntry.c:2205"
+  "XPCHunterDrv/src\\DriverEntry.c:2208"
  ],
  "0x14002656c": [
   "InitEprocessOffsetsWin81_Update",
   5368798176,
-  "XPCHunterDrv/src\\DriverEntry.c:2473"
+  "XPCHunterDrv/src\\DriverEntry.c:2476"
  ],
  "0x140024ddc": [
   "InitEprocessOffsetsWin10_10240",
   5368800544,
-  "XPCHunterDrv/src\\DriverEntry.c:2692"
+  "XPCHunterDrv/src\\DriverEntry.c:2695"
  ],
  "0x140021f0c": [
   "InitEprocessOffsetsWin10_14393",
   5368803120,
-  "XPCHunterDrv/src\\DriverEntry.c:2920"
+  "XPCHunterDrv/src\\DriverEntry.c:2923"
  ],
  "0x140022764": [
   "InitEprocessOffsetsWin10_15063",
   5368805408,
-  "XPCHunterDrv/src\\DriverEntry.c:3095"
+  "XPCHunterDrv/src\\DriverEntry.c:3098"
  ],
  "0x1400231dc": [
   "InitEprocessOffsetsWin10_17134",
   5368808000,
-  "XPCHunterDrv/src\\DriverEntry.c:3364"
+  "XPCHunterDrv/src\\DriverEntry.c:3367"
  ],
  "0x140023c2c": [
   "InitEprocessOffsetsWin10_18362",
   5368810544,
-  "XPCHunterDrv/src\\DriverEntry.c:3622"
+  "XPCHunterDrv/src\\DriverEntry.c:3625"
  ],
  "0x1400244a8": [
   "InitEprocessOffsetsWin10_19041",
   5368812816,
-  "XPCHunterDrv/src\\DriverEntry.c:3797"
+  "XPCHunterDrv/src\\DriverEntry.c:3800"
  ],
  "0x1400257f0": [
   "InitEprocessOffsetsWin11",
   5368815232,
-  "XPCHunterDrv/src\\DriverEntry.c:4007"
+  "XPCHunterDrv/src\\DriverEntry.c:4010"
  ],
  "0x1400490d8": [
   "InitNsiEnumerateObjects",
   5368818336,
-  "XPCHunterDrv/src\\DriverEntry.c:4369"
+  "XPCHunterDrv/src\\DriverEntry.c:4372"
  ],
  "0x14000dc28": [
   "InitFileSystemFilterCallbacks",
   5368818736,
-  "XPCHunterDrv/src\\DriverEntry.c:4459"
+  "XPCHunterDrv/src\\DriverEntry.c:4462"
  ],
  "0x14000e3a0": [
   "ParseFsFilterDriverExport",
   5368820048,
-  "XPCHunterDrv/src\\DriverEntry.c:4553"
+  "XPCHunterDrv/src\\DriverEntry.c:4556"
  ],
  "0x14000d7b0": [
   "ScanKernelMemForFsChanges",
   5368820672,
-  "XPCHunterDrv/src\\DriverEntry.c:4628"
+  "XPCHunterDrv/src\\DriverEntry.c:4631"
  ],
  "0x14006db78": [
   "ScanKernelModuleDataSectionEx",
   5368820720,
-  "XPCHunterDrv/src\\DriverEntry.c:4652"
+  "XPCHunterDrv/src\\DriverEntry.c:4655"
  ],
  "0x14006d974": [
   "ScanKernelModuleInitSection",
   5368821408,
-  "XPCHunterDrv/src\\DriverEntry.c:4767"
+  "XPCHunterDrv/src\\DriverEntry.c:4770"
  ],
  "0x14006e52c": [
   "ScanKernelModulePageOrRsrcSection",
   5368821952,
-  "XPCHunterDrv/src\\DriverEntry.c:4874"
+  "XPCHunterDrv/src\\DriverEntry.c:4877"
  ],
  "0x14006e26c": [
   "ScanKernelModuleSectionByType",
   5368822576,
-  "XPCHunterDrv/src\\DriverEntry.c:4993"
+  "XPCHunterDrv/src\\DriverEntry.c:4996"
  ],
  "0x14006dd80": [
   "ScanKernelModuleSectionForWin10",
   5368823184,
-  "XPCHunterDrv/src\\DriverEntry.c:5101"
+  "XPCHunterDrv/src\\DriverEntry.c:5104"
  ],
  "0x14006dfb4": [
   "ScanKernelModuleSectionForWin10RS3",
   5368823792,
-  "XPCHunterDrv/src\\DriverEntry.c:5222"
+  "XPCHunterDrv/src\\DriverEntry.c:5225"
  ],
  "0x14000d960": [
   "ScanVadForModifiedPages",
   5368824544,
-  "XPCHunterDrv/src\\DriverEntry.c:5345"
+  "XPCHunterDrv/src\\DriverEntry.c:5348"
  ],
  "0x140052320": [
   "ScanWin32kDriverForPatterns",
   5368824576,
-  "XPCHunterDrv/src\\DriverEntry.c:5375"
+  "XPCHunterDrv/src\\DriverEntry.c:5378"
  ],
  "0x140029eec": [
   "GtAlloc",
@@ -2123,6 +2123,11 @@
   "EnumerateAleEndpointLayers",
   5368958128,
   "XPCHunterDrv/src\\kernel\\Minifilter.c:10010"
+ ],
+ "0x1400457a4": [
+  "CmdEnumProcessModules",
+  5368959792,
+  "XPCHunterDrv/src\\kernel\\ModuleMgmt.c:191"
  ],
  "0x140007d54": [
   "DisableObjectProtectEx",
@@ -4902,11 +4907,6 @@
  "0x140043a84": [
   "FindKernelDataSectionOffsetWin10",
   5369065968,
-  "BYNAME"
- ],
- "0x1400457a4": [
-  "CmdEnumProcessModules",
-  5368959792,
   "BYNAME"
  ],
  "0x140045a38": [

@@ -622,9 +622,9 @@ __int64 CmdWriteKernelMemoryRange(void)
     __int64 *TargetSlot;
     __int64 NtHandleEntry;
 
-    if (!GtRead(2000)) InitKernelMemoryContext();
-    HandleTableSize = (ULONG)GtRead(2000);
-    HandleTablePtr = (_QWORD *)GtRead(1992);
+    if (!GtRead((GLOBAL_TABLE_INDEX)0x7D6)) InitKernelMemoryContext();
+    HandleTableSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x7D6);
+    HandleTablePtr = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x7BA);
 
     if (HandleTablePtr && (ULONG64)HandleTablePtr > (ULONG64)MmSystemRangeStart && HandleTableSize &&
         (HandleTableSize & 7) == 0 && *HandleTablePtr > (ULONG64)MmSystemRangeStart)

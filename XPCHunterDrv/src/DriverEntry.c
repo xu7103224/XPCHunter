@@ -315,7 +315,10 @@ __int64 InitCallbackFunctions(void)
 }
 
 // InvokeRegisteredCallbackWithUserData — 调用注册的回调
-// 对应原始驱动 sub_1400680F8
+// 对应原始驱动 0x1400680F8（227 字节）
+// 【⚠ GT 索引修正 2026-10-13】原用十进制 1996(=0x7CC)，
+//   原始为 **0x7BF**（依据 `mov esi,0x7bf` @0x140068115，随后
+//   `mov ecx,esi; call GtRead`，空则先调 0x14006BF2C 再重读 = 惰初始化）。
 char InvokeRegisteredCallbackWithUserData(unsigned int *Address, int InputSize)
 {
     char Result = 0;
@@ -324,11 +327,11 @@ char InvokeRegisteredCallbackWithUserData(unsigned int *Address, int InputSize)
     ULONG BuildNumber;
     ULONG64 Index1996;
 
-    Index1996 = GtRead(1996);
+    Index1996 = GtRead((GLOBAL_TABLE_INDEX)0x7BF);
     if (!Index1996)
     {
         InitKernelMemoryContext();
-        Index1996 = GtRead(1996);
+        Index1996 = GtRead((GLOBAL_TABLE_INDEX)0x7BF);
     }
     CallbackFuncAddr = Index1996;
     CallbackFuncPtr = (void (__fastcall *)(ULONG64, ULONG64))CallbackFuncAddr;

@@ -184,6 +184,10 @@ __int64 CmdEnumKernelModules(_OWORD *Address, int InputSize, volatile void *Outp
     ProcessInfoSize = *((__int64 *)Address + 2);
     return EnumProcessInformationWorker((char *)&Buffer, (__int64)OutputBuffer, (unsigned int)ProcessInfoSize);
 }
+// 【GT 索引修正 2026-10-13】原用十进制 2075/2076(=0x81B/0x81C)，
+//   原始为 **0x89C / 0x89D**（依据原始 0x1400457A4 的
+//   `mov r14d,0x89c` @0x1400457C3 与 `mov r14d,0x89d` @0x1400457E9，
+//   随后各 `mov ecx,r14d; call GtRead`，第一个槽共读 3 次=懒初始化）。
 __int64 CmdEnumProcessModules(__int64 DeviceObject, __int64 Irp, _DWORD *pOutputBuffer, unsigned int BufferSize)
 {
     ULONG64 RemainingSize = BufferSize;
@@ -194,18 +198,18 @@ __int64 CmdEnumProcessModules(__int64 DeviceObject, __int64 Irp, _DWORD *pOutput
     int Type1Count;
     _QWORD *pType1Node, *i;
 
-    pModuleList1 = (_QWORD *)GtRead(2075);
+    pModuleList1 = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x89C);
     if (!pModuleList1)
     {
         ParseNtSectionsForModuleList1();
-        pModuleList1 = (_QWORD *)GtRead(2075);
+        pModuleList1 = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x89C);
     }
 
-    pModuleList2 = (_QWORD *)GtRead(2076);
+    pModuleList2 = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x89D);
     if (!pModuleList2)
     {
         ParseNtSectionsForModuleList2();
-        pModuleList2 = (_QWORD *)GtRead(2076);
+        pModuleList2 = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x89D);
     }
 
     if ((RemainingSize & 3) != 0 || (ULONG)RemainingSize < 0x50 ||
