@@ -1,50 +1,13 @@
 {
  "tally": {
-  "identical": 2
+  "identical": 1
  },
  "results": [
   {
-   "addr": "0x1400681dc",
-   "name": "CmdInitKernelMemoryContext",
-   "sym": "0x140026750",
-   "where": "XPCHunterDrv/src\\services\\IoctlDispatch.c:2080",
-   "verdict": "identical",
-   "orig": {
-    "api": [],
-    "gt_r": [
-     [
-      2000,
-      0
-     ]
-    ],
-    "gt_w": [],
-    "instr": 9,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000029efc"
-   },
-   "reb": {
-    "api": [],
-    "gt_r": [
-     [
-      2000,
-      0
-     ]
-    ],
-    "gt_w": [],
-    "instr": 7,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001de10"
-   }
-  },
-  {
-   "addr": "0x14006bf2c",
-   "name": "InitKernelMemoryContext",
-   "sym": "0x140011530",
-   "where": "XPCHunterDrv/src\\DriverEntry.c:943",
+   "addr": "0x140052320",
+   "name": "ScanWin32kDriverForPatterns",
+   "sym": "0x14001c300",
+   "where": "XPCHunterDrv/src\\DriverEntry.c:5375",
    "verdict": "identical",
    "orig": {
     "api": [],
@@ -55,7 +18,7 @@
      ]
     ],
     "gt_w": [],
-    "instr": 211,
+    "instr": 181,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
@@ -70,11 +33,11 @@
      ]
     ],
     "gt_w": [],
-    "instr": 212,
+    "instr": 428,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001de10"
+    "stopped_at": "0xff8800001e150"
    }
   }
  ],
