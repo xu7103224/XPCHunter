@@ -397,31 +397,37 @@ __int64 ReadObjectHeaderCreateInfo(PVOID ***VirtualAddress, char Flags)
 }
 
 // ReadObjectHeaderName — 读取对象头名称
-// 对应原始驱动 sub_14006E990
+// 对应原始驱动 0x14006E990（48 字节）
+// 【⚠ GT 索引修正 2026-10-13】原写 GtEprocessExtField06(=860=0x35C)，原始为
+//   **0x358**(856)。依据原始汇编 `mov ecx,0x358; call GtRead`（0x14006E99D）后
+//   尾调用 0x14006EA50。本族五个包装函数各有独立的索引，原稿把它们错位了。
 __int64 ReadObjectHeaderName(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField06), Flags);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x358), Flags);
 }
 
 // ReadObjectHeaderType — 读取对象头类型
-// 对应原始驱动 sub_14006E9C0
+// 对应原始驱动 0x14006E9C0（48 字节）
+// 【⚠ GT 索引修正 2026-10-13】原写 GtEprocessExtField07(=861=0x35D)，原始为 **0x35F**。
 __int64 ReadObjectHeaderType(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField07), Flags);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x35F), Flags);
 }
 
 // ReadObjectHeaderQuota — 读取对象头配额
-// 对应原始驱动 sub_14006E9F0
+// 对应原始驱动 0x14006E9F0（48 字节）
+// 【⚠ GT 索引修正 2026-10-13】原写 GtEprocessExtField08(=862=0x35E)，原始为 **0x359**。
 __int64 ReadObjectHeaderQuota(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField08), Flags);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x359), Flags);
 }
 
 // ReadObjectHeaderHandle — 读取对象头句柄
-// 对应原始驱动 sub_14006EA20
+// 对应原始驱动 0x14006EA20（48 字节）
+// 【⚠ GT 索引修正 2026-10-13】原写 GtEprocessExtField09(=863=0x35F)，原始为 **0x35C**。
 __int64 ReadObjectHeaderHandle(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField09), Flags);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x35C), Flags);
 }
 
 // ReadObjectTypeOffset — 读取对象类型偏移
@@ -432,10 +438,11 @@ __int64 ReadObjectTypeOffset(PVOID ***VirtualAddress, char Flags)
 }
 
 // ReadObjectBodyOffset — 读取对象体偏移
-// 对应原始驱动 sub_14006EB18
+// 对应原始驱动 0x14006EB18（48 字节）
+// 【⚠ GT 索引修正 2026-10-13】原写 GtEprocessExtField10(=0x360)，原始为 **0x35D**。
 __int64 ReadObjectBodyOffset(PVOID ***VirtualAddress, char Flags)
 {
-    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField10), Flags);
+    return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x35D), Flags);
 }
 
 // ReadWriteVirtualMemory — 读写虚拟内存通用函数

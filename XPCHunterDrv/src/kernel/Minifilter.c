@@ -184,10 +184,13 @@ char __fastcall RemoveMiniFilterContextNode(_QWORD *ContextNode)
     _QWORD *PrevNode;
     _QWORD *NextNode;
 
-    // 【GT 索引修正 2026-10-13】原为 GtObjectTypeCheckFlag(0x41DB) / GtEprocessExtField10(0x360)，
-    //   原始为 0x421D / 0x4238（见 0x140012453 / 0x140012460）。
-    ValidateFlag = GtRead((GLOBAL_TABLE_INDEX)0x421D);          // 0x140012453
-    ContextOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x4238);  // 0x140012460
+    // 【⚠ 回退 2026-10-13】此处曾被一次针对 InitMiniFilterDriver 的批量替换误改
+    //   （该批次的文本模式与本函数相同，导致误命中）。本函数原始索引就是
+    //   0x41DB 与 0x360，见原始 0x140012A80 反汇编：
+    //     `mov ecx,0x41db; call GtRead` → 校验标志
+    //     `mov ecx,0x360;  call GtRead` → 上下文链表偏移
+    ValidateFlag = GtRead((GLOBAL_TABLE_INDEX)0x41DB);          // 校验标志
+    ContextOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x360);   // 上下文链表偏移
     if (!ValidateFlag || !ContextOffset)
         return Result;
 
