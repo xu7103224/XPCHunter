@@ -4,21 +4,21 @@
  },
  "results": [
   {
-   "addr": "0x140052320",
-   "name": "ScanWin32kDriverForPatterns",
-   "sym": "0x14001c300",
-   "where": "XPCHunterDrv/src\\DriverEntry.c:5375",
+   "addr": "0x140043084",
+   "name": "ParseNtSectionsForRelocBase",
+   "sym": "0x140056950",
+   "where": "BYNAME",
    "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
      [
-      2324,
-      19041
+      32,
+      18446735277902856192
      ]
     ],
     "gt_w": [],
-    "instr": 181,
+    "instr": 16,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
@@ -28,12 +28,12 @@
     "api": [],
     "gt_r": [
      [
-      2324,
-      19041
+      32,
+      18446735277902856192
      ]
     ],
     "gt_w": [],
-    "instr": 428,
+    "instr": 13,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",

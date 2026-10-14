@@ -1947,15 +1947,17 @@ unsigned __int64 DecodeObjectHandleEntry(__int64 HandleEntry)
 }
 
 // ValidateProcessObjectBasic — 验证进程对象基础
-// 对应原始驱动 sub_14004A704
+// 对应原始驱动 0x14004A704（168 字节）
 // 检查进程地址有效性、类型标志、关键字段是否在有效内存范围内
+// 【⚠ GT 索引修正 2026-10-13】与 IsProcessObjectTerminated 同类：第一处
+//   原写 16733(0x415D)，原始实为 **0x4271**（见 0x14004A71B）。
 bool ValidateProcessObjectBasic(char *VirtualAddress)
 {
     char Result = 1;
     __int64 (*GetCurrentProcess)(void);
     int Field64, Field34, Field44;
 
-    GetCurrentProcess = (__int64 (*)(void))GtRead(16733);
+    GetCurrentProcess = (__int64 (*)(void))GtRead((GLOBAL_TABLE_INDEX)0x4271);  // 原写 16733(0x415D)，应为 0x4271
     if (GetCurrentProcess && VirtualAddress == (char *)GetCurrentProcess())
         return Result;
 

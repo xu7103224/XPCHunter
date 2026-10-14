@@ -953,14 +953,20 @@ Fallback:
 }
 
 // IsProcessObjectTerminated — 检查进程对象是否已终止
-// 对应原始驱动 sub_14004A674
+// 对应原始驱动 0x14004A674（142 字节）
+// 【⚠ GT 索引修正 2026-10-13】第一处原写十进制字面量 16733
+//   （= 0x415D），原始实为 **0x4271**（函数指针槽）。
+//   依据：原始汇编 `mov ecx,0x4271; call GtRead; test rax,rax;
+//   je ...; call rax`（即取出指针后直接调用，见 0x14004A68B–A69C）。
+//   其余两处索引经核对**本就正确**：第二处 GtEprocessField64=74=0x4A、
+//   第三处 GtEprocessField44=54=0x36（原始 `lea ecx,[rbp+0x35]`，rbp=1）。
 bool IsProcessObjectTerminated(char *VirtualAddress)
 {
     char Result = 0;
     __int64 (*GetCurrentProcess)(void);
     int PathStr;
 
-    GetCurrentProcess = (__int64 (*)(void))GtRead(16733);
+    GetCurrentProcess = (__int64 (*)(void))GtRead((GLOBAL_TABLE_INDEX)0x4271);  // 原写 16733(0x415D)，应为 0x4271
     if (GetCurrentProcess && VirtualAddress == (char *)GetCurrentProcess())
         return Result;
 

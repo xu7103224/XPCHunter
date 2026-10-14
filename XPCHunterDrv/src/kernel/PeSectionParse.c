@@ -622,10 +622,11 @@ __int64 ParseNtSectionsForModuleBase(void)
     Result = 0;
     Offset1 = 0;
     Offset2 = 0;
-    BaseOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43C6);
+    // 【读序修正 2026-10-13】原始读序 0x20 → 0x21 → 3 → 0x43C6。
     NtImageBase = GtRead(GtEprocessField22);
     NtImageSize = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlModuleBase = GtRead(GtNtoskrnlModuleBase);
+    BaseOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43C6);
     NtoskrnlImageSize = (int)GtRead(GtNtoskrnlImageSize);
 
     if (BaseOffset &&
@@ -719,11 +720,14 @@ __int64 ParseNtSectionsForRelocBase(void)
     int SectionDataSize;
 
     Result = 0;
-    BaseOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43F9);
-    TargetRva = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43F0);
+    // 【读序修正 2026-10-13】原始读序为 0x20 → 0x21 → 3 → 0x43F9 → 0x43F0
+    //   （见原始 0x1400430C0/0CD/0DA/0E7/0F4），原稿把 0x43F9/0x43F0 提前了。
+    //   索引集合相同，仅顺序不同；此处按原始顺序调整以便差分逐项对齐。
     NtImageBase = GtRead(GtEprocessField22);
     NtImageSize = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlModuleBase = GtRead(GtNtoskrnlModuleBase);
+    BaseOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43F9);
+    TargetRva = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43F0);
     NtoskrnlImageSize = (int)GtRead(GtNtoskrnlImageSize);
 
     if (BaseOffset &&
@@ -821,10 +825,11 @@ __int64 ParseProcessMemSections(void)
     int FieldCount;
 
     Result = 0;
-    BaseOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43EA);
+    // 【读序修正】原始读序 0x20 → 0x21 → 3 → 0x43EA。
     NtImageBase = GtRead(GtEprocessField22);
     NtImageSize = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlModuleBase = GtRead(GtNtoskrnlModuleBase);
+    BaseOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x43EA);
     NtoskrnlImageSize = (int)GtRead(GtNtoskrnlImageSize);
     BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
 
