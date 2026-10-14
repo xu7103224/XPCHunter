@@ -43,25 +43,47 @@ for path in sorted(glob.glob(os.path.join(ROOT, '**', '*.c'), recursive=True)):
         if not ln.lstrip().startswith('//'):
             i += 1
             continue
+        # 注释块 = 连续以 // 开头的行，其中可以夹杂"只有 // 的行"。
+        # 关键约束：注释块结束后的**第一行非空行**必须是函数定义。
         blk_start = i
+        i += 1
         while i < len(lines) and lines[i].lstrip().startswith('//'):
             i += 1
         blk_end = i - 1
-        if i >= len(lines) or not lines[i].strip():
-            continue            # 注释块后是空行 -> 不是函数前言
-        dm = defre.match(lines[i])
+        # 允许注释块与函数定义之间存在：空行（<=1 个连续的）与
+        # 预处理指令（#define/#pragma 等，常写在长注释之后、函数之前）。
+        j = i
+        blanks = 0
+        while j < len(lines):
+            t = lines[j].strip()
+            if not t:
+                blanks += 1
+                if blanks > 1:
+                    break
+                j += 1
+                continue
+            if t.startswith('#'):       # 预处理指令，跳过
+                blanks = 0
+                j += 1
+                continue
+            break
+        if blanks > 1 or j >= len(lines):
+            continue
+        dm = defre.match(lines[j])
         if not dm:
             continue
         pending = None
-        for j in range(blk_start, blk_end + 1):
-            mm = addre.search(lines[j])
+        for j2 in range(blk_start, blk_end + 1):
+            mm = addre.search(lines[j2])
             if mm:
                 pending = int('0x' + mm.group(1), 16)
                 break
         if pending is not None:
             fn = dm.group(1)
             if fn in sym_addr:
-                pairs.setdefault(pending, []).append((fn, sym_addr[fn], f'{path}:{i+1}'))
+                pairs.setdefault(pending, []).append((fn, sym_addr[fn], f'{path}:{j+1}'))
+
+
 
 print(f'链接符号总数        : {len(sym_addr)}')
 print(f'建立映射的原始地址数  : {len(pairs)}')
@@ -85,6 +107,20 @@ def _resolve(cands):
 
 
 resolved = {a: (c[0] if len(c) == 1 else _resolve(c)) for a, c in pairs.items()}
+
+# ---- 补充通道：按 IDA 函数名直接与我方符号名配对 ----
+# 很多函数缺 `对应原始驱动 0x...` 注释，但其 IDA 名与我方符号名一致，
+# 可用名字直接建立映射（输出中标记 BYNAME，便于后续补注释）。
+_by_name = {}
+for _o in json.load(open('build/audit/_orig_funcs_ida.json', encoding='utf-8')):
+    if _o.get('lib'):
+        continue
+    if _o['name'] in sym_addr and _o['start'] not in resolved:
+        _by_name[_o['start']] = (_o['name'], sym_addr[_o['name']], 'BYNAME')
+for _a, _v in _by_name.items():
+    resolved[_a] = _v
+print(f'按名字补充映射              : {len(_by_name)} 个')
+
 
 multi = {k: v for k, v in pairs.items() if len(v) > 1}
 print(f'一对多、已排除「jmp 转发壳」后裁决: {len(multi)}')
