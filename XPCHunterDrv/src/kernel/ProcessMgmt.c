@@ -2614,11 +2614,17 @@ __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSi
 // ===== Functions moved from MissingFuncs.c =====
 
 // CheckProcessObjectFlag — 检查进程对象标志位，根据Windows版本检查进程保护标志（如PsProtectedProcess）
+// 对应原始驱动 0x140078638（209 字节）
+// 【读序修正 2026-10-13】原始首读 GT **0x31C**（= GtCallbackField75，
+//   见 0x14007864A），空则直接返回 0；其后才读 0x914（构建号）。
+//   原稿把 0x914 提到了最前（指数集合相同，仅顺序不同）。
+//   另：原始在 `构建号 == 0x2580` 时会额外读 GT 0x8EA（见 0x1400786CB）。
 __int64 CheckProcessObjectFlag(__int64 ProcessObject)
 {
     unsigned int FlagOffset, BuildNumber;
-    BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
     FlagOffset = (unsigned int)GtRead(GtCallbackField75);
+    if (!FlagOffset) return 0;
+    BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
     if (!FlagOffset) return 0;
     if (BuildNumber < 0x1770)
     {

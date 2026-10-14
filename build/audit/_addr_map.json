@@ -1427,52 +1427,52 @@
  "0x140071a78": [
   "TraverseProcessHandleTableWin10",
   5368840128,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1163"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1170"
  ],
  "0x140054848": [
   "EnumProcessHandleTable",
   5368840816,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1279"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1286"
  ],
  "0x140054ad0": [
   "ResolveSyscallTableEntry",
   5368841952,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1398"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1405"
  ],
  "0x140054650": [
   "ResolveSyscallNumberFromKernel",
   5368842336,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1453"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1460"
  ],
  "0x14004afa0": [
   "EnumerateAllProcesses",
   5368842960,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1530"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1537"
  ],
  "0x140049e28": [
   "FindCsrssProcessEntry",
   5368844176,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1716"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1723"
  ],
  "0x140049cd0": [
   "GetProcessVirtualizationContextFallback",
   5368844560,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1768"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1775"
  ],
  "0x14004a704": [
   "ValidateProcessObjectBasic",
   5368844912,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1954"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1961"
  ],
  "0x1400777b8": [
   "CallRegisteredCallback",
   5368845056,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1978"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1985"
  ],
  "0x140079b84": [
   "GetObjectTableCode",
   5368845104,
-  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1990"
+  "XPCHunterDrv/src\\kernel\\HandleMgmt.c:1997"
  ],
  "0x140011f6c": [
   "InitMiniFilterDriver",
@@ -2484,20 +2484,25 @@
   5369081024,
   "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2481"
  ],
+ "0x140078638": [
+  "CheckProcessObjectFlag",
+  5369081648,
+  "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:2622"
+ ],
  "0x14007e6a4": [
   "InitProcessAndQueryInfo",
   5369084192,
-  "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3020"
+  "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3026"
  ],
  "0x14007df2c": [
   "TraverseEprocessListAndInit",
   5369084688,
-  "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3104"
+  "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3110"
  ],
  "0x14007fe80": [
   "ResolveSyscallAddressesWithAttach",
   5369084960,
-  "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3170"
+  "XPCHunterDrv/src\\kernel\\ProcessMgmt.c:3176"
  ],
  "0x14000a094": [
   "InitRegCallback",
@@ -5117,11 +5122,6 @@
  "0x1400738a8": [
   "SendIoControlWithVersionBranch",
   5369027440,
-  "BYNAME"
- ],
- "0x140078638": [
-  "CheckProcessObjectFlag",
-  5369081648,
   "BYNAME"
  ],
  "0x14007870c": [

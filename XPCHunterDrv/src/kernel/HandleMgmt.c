@@ -1004,8 +1004,10 @@ __int64 EnumObjectHandlesWin8Plus(unsigned int *OutputBuffer, unsigned int MaxEn
 // 通过句柄值查询对象名称和类型信息，跨进程附加执行 IOCTL 查询
 char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsigned int BufferSize)
 {
-    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+    // 【读序修正 2026-10-13】原始首读为 GT 0x41DB（见 0x14008566D），
+    //   0x914（构建号）在其后第 7 位（0x1400856F5）。原稿把它提到了最前。
     char Result = 0;
+    ULONG BuildNumber;
     unsigned __int8 (__fastcall *CheckFunc)(_QWORD *);
     int (__fastcall *ValidateTypeFunc)(_QWORD, struct _KPROCESS **);
     struct _KPROCESS **ObjectTypeInfo;
@@ -1033,6 +1035,7 @@ char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsi
     ObjectTypeInfo = (struct _KPROCESS **)GtRead(GtObjectTypeInfoPtr);
     AttachProcessFunc = (void (__fastcall *)(struct _KPROCESS *, _BYTE *))GtRead(GtCreateObjectTypeFunc);
     DetachProcessFunc = (void (__fastcall *)(_BYTE *))GtRead(GtCloseObjectTypeFunc);
+    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);   // 0x1400856F5（原始第 7 位）
 
     if (CheckFunc && ValidateTypeFunc && CloseHandleFunc && AttachProcessFunc && DetachProcessFunc)
     {
@@ -1065,7 +1068,11 @@ char ResolveHandleEntry(unsigned __int16 *HandleEntry, _BYTE *OutputBuffer, unsi
                         Result = SendIoControlWithQueryBuffer(HandleValue2, 3, OutputBuffer, BufferSize, (size_t *)IoctlReturnBuf);
                         if (!Result)
                         {
-                            __int64 CallbackFunc = GtRead(GtEprocessField104 | 0x100);
+                            // 【GT 索引修正 2026-10-13】原写 GtEprocessField104|0x100
+                            //   = 0x68|0x100 = 0x168；原始为 **0x172**（0x72|0x100）。
+                            //   根因同 ReadThreadContext：宏 GtEprocessField104 -> GtEprocessField94(=0x68)
+                            //   按“索引”命名，而此处需要“值”0x72。
+                            __int64 CallbackFunc = GtRead((GLOBAL_TABLE_INDEX)0x172);
                             AttachProcessFunc = (void (__fastcall *)(struct _KPROCESS *, _BYTE *))CallbackFunc;
                             unsigned int ServiceCount = (ULONG)GtRead(GtSdstServiceCount);
                             if (CallbackFunc && ServiceCount != -1)
