@@ -1,24 +1,25 @@
 {
  "tally": {
-  "identical": 1
+  "identical": 1,
+  "gt_index_mismatch": 1
  },
  "results": [
   {
-   "addr": "0x14006e52c",
-   "name": "ScanKernelModulePageOrRsrcSection",
-   "sym": "0x14001b3d0",
-   "where": "XPCHunterDrv/src\\DriverEntry.c:4782",
+   "addr": "0x14006dd80",
+   "name": "ScanKernelModuleSectionForWin10",
+   "sym": "0x14001b8a0",
+   "where": "XPCHunterDrv/src\\DriverEntry.c:5004",
    "verdict": "identical",
    "orig": {
     "api": [],
     "gt_r": [
      [
-      32,
-      18446735277902856192
+      2066,
+      0
      ]
     ],
     "gt_w": [],
-    "instr": 16,
+    "instr": 18,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
@@ -28,16 +29,53 @@
     "api": [],
     "gt_r": [
      [
-      32,
-      18446735277902856192
+      2066,
+      0
      ]
     ],
     "gt_w": [],
-    "instr": 10,
+    "instr": 16,
     "status": "stopped",
     "ret": null,
     "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001d430"
+    "stopped_at": "0xff8800001d5d0"
+   }
+  },
+  {
+   "addr": "0x14006dfb4",
+   "name": "ScanKernelModuleSectionForWin10RS3",
+   "sym": "0x14001bb00",
+   "where": "XPCHunterDrv/src\\DriverEntry.c:5104",
+   "verdict": "gt_index_mismatch",
+   "orig": {
+    "api": [],
+    "gt_r": [
+     [
+      452,
+      0
+     ]
+    ],
+    "gt_w": [],
+    "instr": 18,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff88000029efc"
+   },
+   "reb": {
+    "api": [],
+    "gt_r": [
+     [
+      2324,
+      19041
+     ]
+    ],
+    "gt_w": [],
+    "instr": 4,
+    "status": "stopped",
+    "ret": null,
+    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
+    "stopped_at": "0xff8800001d5d0"
    }
   }
  ],
