@@ -443,7 +443,7 @@ __declspec(noinline) __int64 DispatchKernelMemoryCleanup(_QWORD *VirtualAddress)
 __int64 DispatchParseNtExportFunctions(void);
 __int64 DispatchWin32kPatternMatching(__int64 Buffer, unsigned int BufferSize);
 __int64 DuplicateUSBPortSyscallOutput(__int64 pSourceTable);
-__declspec(noinline) char EnableDeviceObjectProtection(void);
+__declspec(noinline) __int64 EnableDeviceObjectProtection(__int64 ObjectHandle, char Flag);
 __int64 EnableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __declspec(noinline) char EnableObjectCallback(PVOID ObjectName, SIZE_T Length);
 __declspec(noinline) char EnableObjectProtect(_OWORD *Address, int BufferSize);
@@ -1480,7 +1480,7 @@ char InitDiskQueryExportTable(void);
 void InitKernelDataSectionTable(void);
 char InitKernelObjectHeader(char *VirtualAddress);
 _QWORD *InitKernelRoutineTable(void);
-char InitObjectCallbackFiles(int ObjectName);
+char InitObjectCallbackFiles(int ObjectName, char Flag);
 WORD *InitSystemPath(void);
 void InitTdiExportAndRelocTable(void);
 __int64 MiniFilterTeardownRoutine(void *NameBuffer, size_t BufferSize, char IsAddOperation);

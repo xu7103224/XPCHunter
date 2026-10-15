@@ -17,7 +17,7 @@ char EnumGdiObjectEntries(unsigned int *OutputBuffer, _DWORD *pCount);
 void EnumDriverPeImageEntries(unsigned int *OutputBuffer, _DWORD *pCount);
 __int64 QueryObjectTypeDirectoryPath(void);
 bool ValidateKernelModuleAddressRange(__int64 LdrEntry);
-char InitObjectCallbackFiles(int ObjectName);
+char InitObjectCallbackFiles(int ObjectName, char Flag);
 
 // EnableObjectProtect — 启用对象保护
 // 对应原始驱动 sub_1400082AC
@@ -698,23 +698,6 @@ Done:
 Cleanup:
     if (*ObjectHeader) CloseHandleFunc(ObjectAddress);
     return IsMatch;
-}
-
-// EnableDeviceObjectProtection — 启用设备对象保护
-// 设置设备对象 DO_DEVICE_INITIALIZING 标志防止过早销毁
-// 对应原始驱动 sub_140010460
-char EnableDeviceObjectProtection(void)
-{
-    char Result = 0;
-    __int64 DeviceObject = GtRead(GtDriverObject);
-    if (!DeviceObject || (ULONG64)DeviceObject < (unsigned __int64)MmSystemRangeStart)
-        return Result;
-    if (MmIsAddressValid((void *)DeviceObject) != 1)
-        return Result;
-    // 设置 DO_DEVICE_INITIALIZING 标志
-    *(_DWORD *)DeviceObject |= 0x2;
-    Result = 1;
-    return Result;
 }
 
 // CheckObjectTypeFlag — 检查对象类型标志位
@@ -1879,7 +1862,7 @@ char EnableObjectCallback(PVOID ObjectName, SIZE_T Length)
         LastCharIndex = (unsigned __int64)(LengthAligned - 2) >> 1;
         if (*((WORD *)ObjectName + LastCharIndex))
             *((WORD *)ObjectName + LastCharIndex) = 0;
-        return InitObjectCallbackFiles((int)(ULONG_PTR)ObjectName);
+        return InitObjectCallbackFiles((int)(ULONG_PTR)ObjectName, 1);   // 原始 0x14000FBEB: mov dl,1
     }
     return Result;
 }
@@ -2440,26 +2423,136 @@ __int64 QueryObjectTypeDirectoryPath(void)
     return Result;
 }
 
-// InitObjectCallbackFiles — 初始化对象回调文件
-// 对应原始驱动 sub_14000F8E4
-// 复杂初始化函数 (0x2A4 字节)，调用 InstallObjectPreCallbackHooks,
-// DisableObjectCallbackWithFallback, RestoreObjectPreCallbackHooks,
-// CmdSetFileBasicInfo, CreateFileWithPath, EnableDeviceObjectProtection
-char InitObjectCallbackFiles(int ObjectName)
+// InitObjectCallbackFiles — 初始化对象回调文件（0x14000F8E4，共 676 字节 / 171 条指令）
+// 【⚠ 修正记录 2026-10-14】原为**伪造实现**（15 行：查构建号 GtRead(0x914) + 查 GtObjectTypeInfoPtr
+//   + 无参调用 EnableDeviceObjectProtection）。与原始函数体毫无关系，已按 capstone 反汇编逐条重写。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写（0x14000F8E4..0x14000FB87，171 条指令），
+//   以 `get_bytes` 取原始机器码逐条核对全部栈位移（判据 F），并用 xrefs_to 核对调用者。
+// 【调用者】唯一代码调用者 EnableObjectCallback(0x14000FB88)：rcx=用户态路径字符串，dl=1。
+// 【参数】rcx=路径字符串指针（int ObjectName，实为 __int16*），dl=标志（只判是否为 1）。
+// 【被调方】CreateFileWithPath(0x14002E8DC) 返回 0 表示成功（与既有调用点一致）。
+//   末尾五个栈参数依次为：DesiredAccess(r9) / FileAttributes / ShareAccess / Disposition / CreateOptions。
+// 【语义】三段：
+//   ① dl==1 时先以 CreateOptions=0x20 打开，成功→InitObjectCallbackEntries(句柄)→ZwClose。
+//   ② 再以 DesiredAccess=0x10100、ShareAccess=4 打开，成功则：
+//        · memset 0x28 字节的 FILE_BASIC_INFORMATION 缓冲，[+0x20]=0x80，调 CmdSetFileBasicInfo，
+//          返回非 0 则关句柄返回；
+//        · GtRead(0x914)(构建号) < 0x23F0 → InstallObjectPreCallbackHooks()；
+//          否则 ObReferenceObjectByHandle 取文件对象，把 Obj[+0x28] 指向的头块首 QWORD 与
+//          +0x10 处 QWORD 各清零，再 ObfDereferenceObject；
+//        · IrpFsctlVolumeDismount(句柄)，返回 0 或 0xC0000056(STATUS_DISK_FULL) 时置 bl=1；
+//          GtRead(0x914) < 0x23F0 → RestoreObjectPreCallbackHooks()；ZwClose(句柄)；
+//          bl==1 则直接返回 1，否则落入第三段。
+//   ③ 调 DisableObjectCallbackWithFallback(路径, &局部)——返回 1 时按
+//      CreateOptions 0x3020 → 0x2020 依次尝试（都以相对路径为第 2 参），
+//      0x3020 成功即带标志 1 去保护；0x3020 失败而 0x2020 成功也带标志 1；
+//      该函数返回非 1 或前两档皆失败时，改为以 CreateOptions 0x1020 → 0x20（绝对路径）
+//      尝试，成功则带标志 0 去保护；四档全败直接返回 0。
+//      保护点：EnableDeviceObjectProtection(句柄, 标志) 返回 0 时置返回值 1，随后 ZwClose。
+// 【返回值】成功路径返回 1；全部失败返回 0。
+char InitObjectCallbackFiles(int ObjectName, char Flag)
 {
-    // 检查构建版本是否支持
-    if ((ULONG)GtRead(GtWindowsBuildNumber) < 0xA28)
-        return 0;
+    __int16 *DeviceId = (__int16 *)(ULONG_PTR)ObjectName;   // rdi
+    char     RetCode = 0;                 // bl
+    char     Sil = 0;                     // sil（传给 EnableDeviceObjectProtection 的标志）
+    unsigned int ShareWrite = 0x80;       // r12d
+    unsigned int One = 1;                 // r15d
+    HANDLE   Handle = NULL;               // [rbp+0x48]
+    void    *FileObject = NULL;           // [rbp+0x50]
+    int      DeviceIdValue = 0;           // [rbp+0x58]
+    _BYTE    BasicInfo[0x28];             // Dst（0x60..0x87）
+    NTSTATUS DismountStatus;
+    __int64  Header;
 
-    // 检查对象类型指针是否已初始化
-    ULONG64 pObjectType = GtRead(GtObjectTypeInfoPtr);
-    if (!pObjectType)
-        return 0;
+    // ① 标志为 1 时先按 0x20 选项打开一次，成功后做首轮回调条目初始化
+    if (Flag == (char)One)
+    {
+        if ((unsigned int)CreateFileWithPath(DeviceId, 0, (void **)&Handle,
+                                             ShareWrite, ShareWrite, One, One, 0x20) == 0)
+        {
+            InitObjectCallbackEntries((__int64)Handle);
+            ZwClose(Handle);
+        }
+    }
 
-    // 启用设备对象保护
-    EnableDeviceObjectProtection();
+    // ② 以 DesiredAccess=0x10100、ShareAccess=4 再开一次
+    if ((unsigned int)CreateFileWithPath(DeviceId, 0, (void **)&Handle,
+                                         ShareWrite, 0x10100u, 4u, One, 0x20) == 0)
+    {
+        memset(BasicInfo, 0, 0x28);
+        *(ULONG *)(BasicInfo + 0x20) = ShareWrite;                 // [Dst+0x20] = 0x80
+        if ((int)CmdSetFileBasicInfo(Handle, (struct _IRP *)BasicInfo) != 0)
+            goto L_CLOSE;
 
-    return 1;
+        if ((ULONG)GtRead((GLOBAL_TABLE_INDEX)0x914) < 0x23F0)
+        {
+            InstallObjectPreCallbackHooks();
+        }
+        else if (ObReferenceObjectByHandle(Handle, 0, *IoFileObjectType,
+                                           KernelMode, &FileObject, 0) >= 0)
+        {
+            Header = *(__int64 *)((char *)FileObject + 0x28);
+            if (Header)
+            {
+                *(__int64 *)Header = 0;                            // and qword ptr [rax], 0
+                *(__int64 *)(Header + 0x10) = 0;                   // and qword ptr [rcx+10h], 0
+            }
+            ObfDereferenceObject(FileObject);
+        }
+
+        DismountStatus = (NTSTATUS)IrpFsctlVolumeDismount(Handle);
+        if (DismountStatus == 0 || DismountStatus == (NTSTATUS)0xC0000056)
+            RetCode = (char)One;                                   // mov bl, r15b
+
+        if ((ULONG)GtRead((GLOBAL_TABLE_INDEX)0x914) < 0x23F0)
+            RestoreObjectPreCallbackHooks();
+
+        ZwClose(Handle);
+        if (RetCode)
+            return RetCode;                                        // jnz loc_14000FB5D
+    }
+
+    // ③ 降级尝试：先按 DeviceId+相对路径（0x3020 → 0x2020），再按绝对路径（0x1020 → 0x20）
+    Handle = NULL;                                                 // and [rbp+Handle], 0
+    DeviceIdValue = 0;
+    if ((char)DisableObjectCallbackWithFallback(DeviceId, (_QWORD *)&DeviceIdValue) == (char)One)
+    {
+        if ((unsigned int)CreateFileWithPath(DeviceId, (const WCHAR *)&DeviceIdValue, (void **)&Handle,
+                                             ShareWrite, ShareWrite, One, One, 0x3020) == 0)
+        {
+            Sil = (char)One;
+            goto L_PROTECT;
+        }
+        if ((int)CreateFileWithPath(DeviceId, (const WCHAR *)&DeviceIdValue, (void **)&Handle,
+                                    ShareWrite, ShareWrite, One, One, 0x2020) == 0)
+        {
+            Sil = (char)One;
+            goto L_PROTECT;
+        }
+        // 前两档失败 → 落入 call5
+    }
+
+    if ((unsigned int)CreateFileWithPath(DeviceId, 0, (void **)&Handle,
+                                         ShareWrite, ShareWrite, One, One, 0x1020) != 0)
+    {
+        // 0x1020 失败 → call6
+        if ((unsigned int)CreateFileWithPath(DeviceId, 0, (void **)&Handle,
+                                             ShareWrite, ShareWrite, One, One, 0x20) != 0)
+            goto L_RETURN;                                         // 四档全败
+    }
+
+L_PROTECT:
+    // cmovz ebx, r15d：EnableDeviceObjectProtection 返回 0 时置返回值 1
+    if ((int)EnableDeviceObjectProtection((__int64)Handle, Sil) == 0)
+        RetCode = (char)One;
+    ZwClose(Handle);                                               // 0x14000FB57
+
+L_RETURN:
+    return RetCode;
+
+L_CLOSE:
+    ZwClose(Handle);                                               // 0x14000FA5A
+    return RetCode;
 }
 
 // QueryObjectNameLegacy — 旧版对象名称查询函数
@@ -4630,3 +4723,140 @@ __int64 (__fastcall *__fastcall DispatchObjectTypeQuery(__int64 ObjectTypeEntry)
     return result;
 }
 
+// EnableDeviceObjectProtection — 启用设备对象保护（0x140010460）
+// 对应原始驱动 0x140010460（606 字节）
+// 【⚠ 修正记录 2026-10-13】原为**伪造实现**（5 行：读 GtDriverObject 置 DO_DEVICE_INITIALIZING 位），
+//   与原始函数体无关。发现方式：差分报原始读 13 个 GT 槽（0x422F/0x41C6/0x4223/0x41DB/
+//   0x194/0x325/0x329/0x326/0x327/0x32A/0x195/0x2A3/0x32B）而我方只读 1 个。
+// 【逆向来源】人工阅读 capstone 反汇编逐条转写。
+// 【语义】对**进程对象**（非设备对象）设置保护：
+//   1) 取四个函数指针：0x422F→rsi、0x41C6→rdi、0x4223→r15、0x41DB→rbp，
+//      四者皆须非 0；
+//   2) 以 (第1参, 0x80000000, *rsi, &局部[+0x80]) 调用 rdi（打开对象），返回值须 >= 0；
+//   3) 调 0x14002DCD0(句柄, &局部[+0x88], 0) 取对象信息，须返回 1；
+//   4) 分支一：若 GT 0x194 非 0 且 `*(局部[0x88]+8) == GT0x194`：
+//        rsi = 局部[0x80][+0x18]（进程体）、rdi = 局部[0x80][+0x20]；两者非 0；
+//        `*(GT0x325 + rsi) = 1`；
+//        再 `rsi = *(GT0x329 + rsi)`；若非 0 且 rbp(rsi) 返回真：
+//          `*(GT0x326 + rsi) = 1`；第 2 参为 1 时 `*(WORD*)(GT0x327 + rsi) = 0`；
+//          置返回 0；
+//        再对 rdi 调 rbp，须为真；`rdi = *(GT0x32A + rdi)`；若非 0 且 rbp(rdi) 为真：
+//          `*(GT0x32B + rdi) = 1`（经 0x328 分支汇合）；
+//   5) 分支二：若 GT 0x195 非 0 且 `*(局部[0x88]+8) == GT0x195`：
+//        rdi = 局部[0x80][+0x18]；若非 0，按其首 WORD 与 0x502/0xD02 比较：
+//          0x502 分支：`(WORD - 0x502) <= 2` 则写 `*(GT0x32B + rdi) = 1`
+//          0x2A3 分支：`(WORD - 0xD02) <= 3` 则同上；
+//   6) 收尾：调 r15(局部[0x80])（关闭对象），返回 ebx（0 或 0xC0000001）。
+// 【返回值】0 表示已处理；0xC0000001(STATUS_UNSUCCESSFUL) 表示前置失败。
+__int64 EnableDeviceObjectProtection(__int64 ObjectHandle, char Flag)
+{
+    __int64  Result = 0xC0000001;             // ebx
+    __int64  FnOpen;                          // rsi = GT 0x422F
+    __int64  FnQuery;                         // rdi = GT 0x41C6
+    __int64  FnClose;                         // r15 = GT 0x4223
+    __int64  FnValidate;                      // rbp = GT 0x41DB
+    char     One = 1;                          // r14b
+    __int64  HandleSlot;                      // [rsp+0x80]
+    __int64  InfoSlot;                        // [rsp+0x88]
+    __int64 *ObjInfo;
+    __int64  ProcessBody;                     // rsi
+    __int64  Secondary;                       // rdi
+
+    FnOpen     = GtRead((GLOBAL_TABLE_INDEX)0x422F);            // 0x140010484
+    FnQuery    = GtRead((GLOBAL_TABLE_INDEX)0x41C6);            // 0x140010491
+    FnClose    = GtRead((GLOBAL_TABLE_INDEX)0x4223);            // 0x14001049E
+    FnValidate = GtRead((GLOBAL_TABLE_INDEX)0x41DB);            // 0x1400104AB
+
+    if (!FnOpen || !FnQuery || !FnClose || !FnValidate)          // 0x1400104B6..D4
+        return Result;
+
+    /* 打开对象：rdi(第1参, 0x80000000, *(ULONG64*)FnOpen, &HandleSlot) */
+    HandleSlot = 0;                                              // [rsp+0x80]
+    InfoSlot = 0;
+    if (((int (__fastcall *)(__int64, unsigned int, ULONG64, __int64 *,
+                             __int64, __int64))FnQuery)(
+             ObjectHandle,
+             0x80000000u,
+             *(ULONG64 *)FnOpen,                                 // 0x1400104DA（取 rsi 指向的值）
+             &HandleSlot, 0, 0) < 0)                             // 0x1400104FA
+        return Result;
+
+    /* 取对象信息 */
+    if ((char)GetDeviceObjectFromFileObject((ULONG64)HandleSlot, (ULONG64 *)&InfoSlot, 0) != 1)  // 0x14001051E（call 0x14002DCD0）
+        goto L_CLOSE;
+
+    /* ---- 分支一：GT 0x194 ---- */
+    if (GtRead((GLOBAL_TABLE_INDEX)0x194) != 0)                  // 0x140010535
+    {
+        ObjInfo = (__int64 *)InfoSlot;
+        if (ObjInfo && ObjInfo[1] == GtRead((GLOBAL_TABLE_INDEX)0x194))   // 0x14001054B
+        {
+            __int64 *Opened = (__int64 *)HandleSlot;
+            ProcessBody = Opened[3];   // +0x18                         // 0x14001055D
+            Secondary   = Opened[4];   // +0x20                         // 0x140010561
+            if (ProcessBody && Secondary)                            // 0x140010565/56E
+            {
+                *(ULONG *)(GtRead((GLOBAL_TABLE_INDEX)0x325) + ProcessBody) = 1;   // 0x140010583
+                {
+                    __int64 Next = *(__int64 *)(GtRead((GLOBAL_TABLE_INDEX)0x329) + ProcessBody);  // 0x140010593
+                    if (Next && ((char (__fastcall *)(__int64))FnValidate)(Next))               // 0x14001059F
+                    {
+                        *(ULONG *)(GtRead((GLOBAL_TABLE_INDEX)0x326) + Next) = 1;               // 0x1400105B1
+                        if (Flag == One)                                                     // 0x1400105B5
+                            *(WORD *)(GtRead((GLOBAL_TABLE_INDEX)0x327) + Next) = 0;           // 0x1400105C6
+                        Result = 0;                                                          // 0x1400105CB
+                    }
+                }
+                if (((char (__fastcall *)(__int64))FnValidate)(Secondary))                   // 0x1400105D1
+                {
+                    __int64 Leaf = *(__int64 *)(GtRead((GLOBAL_TABLE_INDEX)0x32A) + Secondary);  // 0x1400105E7
+                    if (Leaf && ((char (__fastcall *)(__int64))FnValidate)(Leaf))                // 0x1400105F7
+                    {
+                        *(ULONG *)(GtRead((GLOBAL_TABLE_INDEX)0x32B) + Leaf) = 1;                // 0x140010693/698
+                        Result = 0;                                                              // 0x140010693
+                    }
+                }
+                goto L_CLOSE;
+            }
+        }
+    }
+
+    /* ---- 分支二：GT 0x195 ---- */
+    if (GtRead((GLOBAL_TABLE_INDEX)0x195) != 0)                  // 0x140010610
+    {
+        ObjInfo = (__int64 *)InfoSlot;
+        if (ObjInfo && ObjInfo[1] == GtRead((GLOBAL_TABLE_INDEX)0x195))   // 0x140010622
+        {
+            __int64 *Opened = (__int64 *)HandleSlot;
+            __int64 Leaf = Opened[3];                                 // +0x18，0x140010630
+            if (Leaf)
+            {
+                USHORT Type = *(USHORT *)Leaf;                        // 0x140010639
+                if ((USHORT)(Type - 0x502) <= 2                        // 0x140010644/648
+                    || (USHORT)(Type - 0xD02) <= 3)                    // 0x140010683
+                {
+                    *(ULONG *)(GtRead((GLOBAL_TABLE_INDEX)0x32B) + Leaf) = 1;   // 0x140010698
+                    Result = 0;
+                }
+            }
+        }
+    }
+    else if (GtRead((GLOBAL_TABLE_INDEX)0x2A3) != 0)             // 0x14001064F
+    {
+        ObjInfo = (__int64 *)InfoSlot;
+        if (ObjInfo && ObjInfo[1] == GtRead((GLOBAL_TABLE_INDEX)0x2A3))   // 0x140010661
+        {
+            __int64 *Opened = (__int64 *)HandleSlot;
+            __int64 Leaf = Opened[3];                                 // 0x14001066F
+            if (Leaf && (USHORT)(*(USHORT *)Leaf - 0xD02) <= 3)        // 0x140010678/683
+            {
+                *(ULONG *)(GtRead((GLOBAL_TABLE_INDEX)0x32B) + Leaf) = 1;
+                Result = 0;
+            }
+        }
+    }
+
+L_CLOSE:
+    ((void (__fastcall *)(__int64))FnClose)(HandleSlot);          // 0x1400106A4
+    return Result;                                                // 0x1400106A7
+}

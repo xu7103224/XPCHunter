@@ -6070,7 +6070,10 @@ char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
     for (i = 0; ; )
     {
         USHORT Type; ULONG Len, Cumul, F38, F58, F78; ULONG64 F88;
-        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry)) break;
+        // 【修正 2026-10-15】此处原误写为 break —— 跳出 L3 循环后直接落到函数末尾，缺 return
+        //   （LTCG 重编译报 C4715）。原始 0x14006A086 为 `jnz loc_14006A0FE`，
+        //   而 loc_14006A0FE = `mov al, bl`（bl 恒为 0），语义等价于 return 0。
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry)) return Result;
         Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
         Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x140069FC3
         Ctx.ReadPtr += Len;                                       // 0x140069FCD

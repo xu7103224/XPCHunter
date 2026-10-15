@@ -2513,7 +2513,7 @@ __int64 EnableObjectCallbackOperation(char *pInputBuffer, int InputSize, unsigne
                 LastCharIndex = (unsigned __int64)(LengthAligned - 2) >> 1;
                 if (*((unsigned __int16 *)pInputBuffer + LastCharIndex))
                     *((unsigned __int16 *)pInputBuffer + LastCharIndex) = 0;
-                return InitObjectCallbackFiles((int)(ULONG_PTR)pInputBuffer);
+                return InitObjectCallbackFiles((int)(ULONG_PTR)pInputBuffer, 1);   // 原始 0x14000FBEB: mov dl,1
             }
         }
     }
