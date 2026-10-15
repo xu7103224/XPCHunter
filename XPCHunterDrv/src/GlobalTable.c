@@ -59,10 +59,44 @@ GT_NOINLINE __int64 GtWrite(GLOBAL_TABLE_INDEX Index, __int64 Value)
 }
 
 // InitGtCore — 初始化全局表核心条目
-// 对应原始驱动 sub_140029FC0
-HANDLE InitGtCore(__int64 NtBuildNumber, __int64 DriverObject)
+// 对应原始驱动 sub_140029FC0（49 字节）
+// 【⚠ 修正记录 2026-10-15】本函数此前有**三处**实质性错误，是实机加载
+//   失败（sc start 报错误 31 = ERROR_GEN_FAILURE，即 DriverEntry 返回
+//   STATUS_UNSUCCESSFUL）的直接原因：
+//     错误A（最致命）：原有形参顺序为 (NtBuildNumber, DriverObject)，而调用点
+//       传的是 (DriverObject, &NtBuildNumber)，于是 GT[1]（= 驱动对象指针，
+//       全驱动都靠它）被写成了 **栈局部变量的地址**。InitSdstTable 随即用
+//       `*(GT[1] + 40)` 去取模块链表头 —— 读到的是栈垃圾 → 找不到 ntoskrnl
+//       → 返回 0 → DriverEntry 走 `goto Cleanup1` 返回 0xC0000001 → 错误 31。
+//     错误B：GT[0] 被写成"构建号的值"。而 GT[0] 的语义是
+//       **`nt!NtBuildNumber` 这个内核数据符号的地址**（不是它的值）。
+//       证据：原始 DriverEntry 的 `mov rbx, cs:NtBuildNumber`（0x140080EF0）
+//       是读 IAT 槽内容 —— 即该内核符号的运行时地址；随后把它写入 GT[0]。
+//       InitSdstTable 正是拿 GT[0] 当**指针**做区间判断
+//       （`GT0 > ModuleBase && GT0 < ModuleEnd`）来识别哪个模块是 ntoskrnl。
+//     错误C：漏写 g_CurrentProcess / g_CurrentProcessId 两个槽。
+// 【原始反汇编（判据 F，get_bytes 核对 0x140029FC0..0x140029FF0，9 条指令）】
+//     sub rsp,28h
+//     mov cs:g_DriverObjectPtr, rcx      ; rcx=参数1=DriverObject → GT[1]
+//     mov cs:g_GlobalTable,     rdx      ; rdx=参数2=NtBuildNumber 地址 → GT[0]
+//     call cs:IoGetCurrentProcess
+//     mov cs:g_CurrentProcess,   rax     ; 0x1400A87F8 = GT + 0x308 = GT[97]
+//     call cs:PsGetCurrentProcessId
+//     mov cs:g_CurrentProcessId, rax     ; 0x1400AC8B0 = GT + 0x43C0 = GT[0x878]
+//     add rsp,28h ; retn
+//   g_DriverObjectPtr(0x1400A84F8) 紧邻 g_GlobalTable(0x1400A84F0)，即 GT[1]。
+// 【参数】rcx=DriverObject（→GT[1]），rdx=NtBuildNumber 的**地址**（→GT[0]）。
+// 【返回值】rax = PsGetCurrentProcessId() 的结果（原始返回该值）。
+HANDLE InitGtCore(__int64 DriverObject, __int64 NtBuildNumberAddress)
 {
-    GtWrite(GtNtBuildNumber, NtBuildNumber);
-    GtWrite(GtDriverObject, DriverObject);
-    return (HANDLE)DriverObject;
+    HANDLE ProcessId;
+
+    GtWrite(GtDriverObject, DriverObject);                     // g_DriverObjectPtr = rcx
+    GtWrite(GtNtBuildNumber, NtBuildNumberAddress);            // g_GlobalTable[0] = rdx
+
+    GtWrite(GtCurrentProcess, (__int64)IoGetCurrentProcess()); // g_CurrentProcess   = GT[97]
+    ProcessId = PsGetCurrentProcessId();
+    GtWrite(GtCurrentProcessId, (__int64)ProcessId);           // g_CurrentProcessId = GT[0x878]
+
+    return ProcessId;
 }

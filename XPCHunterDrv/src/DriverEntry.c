@@ -4,14 +4,32 @@
 
 #include "XPCHunterDrv.h"
 
+// nt!NtBuildNumber —— 内核数据符号（ntoskrnl.lib 导出的数据，非函数）。
+// 【为什么需要它】原始驱动的 DriverEntry 用 `mov rbx, cs:NtBuildNumber` 读取
+//   该符号的**运行时地址**（IAT 槽内容），再把它（而非构建号的值）写进 GT[0]。
+//   InitSdstTable 随后拿 GT[0] 当指针做区间判断来定位 ntoskrnl 模块。
+//   因此我方必须同样**引用该符号**，才能在 GT[0] 里放"地址"而非"值"。
+//   此前我方从未引用它（导入表中缺失，与原始不一致），是实机错误 31 的根因之一。
+// 【依据】2026-10-15 实机双机调试：原始驱动 STATE=RUNNING，我方报错误 31。
+// 【必须 dllimport】原始是 `mov rbx, cs:NtBuildNumber` —— 读 IAT 槽的**内容**，
+//   即 nt!NtBuildNumber 的运行时地址（该符号位于 ntoskrnl 内，故可被
+//   InitSdstTable 的区间判断命中）。若不加 dllimport，MSVC 会把
+//   `&NtBuildNumber` 编成 `lea rdx, <我方IAT槽地址>`（我方镜像内的地址，
+//   永远不在 ntoskrnl 区间内）→ 区间判断恒失败 → 错误 31。
+//   加 dllimport 后 `&NtBuildNumber` 编成 `mov rdx, [__imp_NtBuildNumber]`，
+//   与原始语义一致。依据：2026-10-15 用 IDA 反汇编我方产物 0x140010766 处
+//   实际生成的是 `lea rdx, NtBuildNumber`（0x140084088 = 我方导入槽）。
+__declspec(dllimport) extern ULONG NtBuildNumber;
+
 // 前向声明
 extern volatile PVOID g_Pointer;
 __int64 GetWindowsBuildNumber(void);
-BOOLEAN IsWindowsVersionSupported(ULONG BuildNumber);
+BOOLEAN IsWindowsVersionSupported(void);   // 原始 0x140082658 无参数，自行读 GT 0x914
 void InitGlobalMutex(void);
 __int64 InitGtKey(__int64 RegistryPath);
 ULONG64 InitDriverSection(_QWORD **pDriverList);
-__int64 InitGtCore(__int64 NtBuildNumber, __int64 DriverObject);
+// 原始 0x140029FC0：rcx=DriverObject（存 GT[1]），rdx=NtBuildNumber（存 GT[0]）
+HANDLE InitGtCore(__int64 DriverObject, __int64 NtBuildNumber);
 
 // 全局变量
 PDEVICE_OBJECT g_DeviceObject = NULL;
@@ -29,7 +47,7 @@ PCOMMAND_HANDLER g_CommandHandlerTable[CMD_OPCODE_COUNT];
 // 对应原始驱动 sub_140080ED4
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
-    ULONG NtBuildNumber;
+    ULONG BuildNumber;    // 构建号的**值**（与全局 extern NtBuildNumber 的地址区分）
     NTSTATUS Status;
     PWSTR Buffer;
     PVOID RegistryPathCopy;
@@ -40,11 +58,29 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     struct _UNICODE_STRING DestStr, SymStr;
     PDEVICE_OBJECT DeviceObject;
 
-    NtBuildNumber = (ULONG)GetWindowsBuildNumber();
-    GtWrite(GtWindowsBuildNumber, NtBuildNumber);
+    BuildNumber = (ULONG)GetWindowsBuildNumber();
+    GtWrite(GtWindowsBuildNumber, BuildNumber);
 
+    // 【⚠ 修正记录 2026-10-15】原实现有两处与原始不符（导致实机加载失败，错误 31）：
+    //   ① 传 `&NtBuildNumber`（栈地址）而非**构建号本身**；
+    //   ② 漏掉原始对 InitGtKey 的**第一次**调用（以 DriverObject 为入参），
+    //      且 InitGlobalMutex 与第二次 InitGtKey 的先后顺序颠倒。
+    // 【原始反汇编（get_bytes 核对 0x140080EF0..0x140080FD4）】
+    //     mov rbx, cs:NtBuildNumber     ; rbx = 构建号（内核导出数据符号的值）
+    //     mov rbp, rdx / mov rsi, rcx   ; rsi=DriverObject, rbp=RegistryPath
+    //     call GetWindowsBuildNumber
+    //     mov ecx,914h / mov edx,eax / call GtWrite      ; GT[0x914] = 构建号
+    //     mov rdx,rbx / mov rcx,rsi / call InitGtCore    ; InitGtCore(DriverObject, 构建号)
+    //     mov rcx,rsi / call InitGtKey                   ; ① InitGtKey(DriverObject)
+    //     call InitGlobalMutex
+    //     …累加 22 个内核导入地址…
+    //     call InitGtKey                                 ; ② InitGtKey(导入地址和)
+    // 注意：GT[0] 的语义是"符号地址"（不是构建号的值）；构建号的值走 GT[0x914]。
     InitGtCore((__int64)DriverObject, (__int64)&NtBuildNumber);
-    InitGtKey((__int64)&ZwCreateSection + (ULONG64)&ZwDeleteKey +
+    InitGtKey((__int64)DriverObject);                       // 0x140080F1C
+    InitGlobalMutex();                                      // 0x140080F21
+    Status = -1073741823;
+    InitGtKey((__int64)&ZwCreateSection + (ULONG64)&ZwDeleteKey +     // 0x140080FCF
               (ULONG64)&ZwEnumerateValueKey + (ULONG64)&ZwUnloadDriver +
               (ULONG64)&ZwOpenFile + (ULONG64)&ZwQueryKey +
               (ULONG64)&MmUnmapIoSpace + (ULONG64)&IoAttachDeviceByPointer +
@@ -55,14 +91,12 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
               (ULONG64)&ZwOpenSection + (ULONG64)&ZwMapViewOfSection +
               (ULONG64)&ZwLoadDriver + (ULONG64)&ZwEnumerateKey +
               (ULONG64)&ZwDeleteValueKey + (ULONG64)&ZwCreateKey);
-    InitGlobalMutex();
-    Status = -1073741823;
 
     Buffer = RegistryPath->Buffer;
     if (!Buffer || MmIsAddressValid(Buffer) != 1 || !RegistryPath->Length)
         return Status;
 
-    if (IsWindowsVersionSupported(NtBuildNumber) != 1)
+    if (IsWindowsVersionSupported() != 1)   // 0x14008100B
         return Status;
 
     RegistryPathCopy = ExAlloc(PagedPool, RegistryPath->Length + 2);
@@ -250,13 +284,55 @@ __int64 GetWindowsBuildNumber(void)
 }
 
 // IsWindowsVersionSupported — 检查 Windows 版本是否支持
-// 对应原始驱动 sub_140082658
-BOOLEAN IsWindowsVersionSupported(ULONG BuildNumber)
+// 对应原始驱动 sub_140082658（54 条指令 / 199 字节）
+// 【⚠ 修正记录 2026-10-15】原实现是**伪造实现**：
+//     `if (BuildNumber >= 2600) return TRUE;` —— 无条件放行任何 ≥ Vista 的构建号，
+//   且**自行接收一个参数**。而原始函数**无参数**，构建号由它自己读 GT[0x914] 取得，
+//   且是一个**显式白名单**（不是区间判断）。
+//   漏检后果：在任何"白名单外"的构建号上，原始会返回 0（DriverEntry 随即以
+//   0xC0000001 提前返回），我方却放行 → 继续走完整初始化 → 实机加载失败（错误 31）。
+// 【原始反汇编（判据 F，get_bytes 核对 0x140082658..0x14008271E）】
+//     mov ecx,914h / call GtRead        ; rax = 构建号
+//     xor r8d,r8d / lea ecx,[rax-1DB0h] / lea r10d,[r8+1] / mov r9d,r8d
+//     cmp ecx,r10d / setbe r9b          ; r9b = (build - 0x1DB0) <= 1
+//     cmp eax,23F0h / jz .. / cmp eax,2580h  ; → al = (build==0x23F0 || build==0x2580)
+//     or r9b,al
+//     ; 以下 8 个等值比较，任一命中 → ecx=1，再 or 进 r9b
+//     0x2800, 0x295A, 0x3839, 0x3AD7, 0x3FAB, 0x42EE, 0x4563,
+//     (build-0x47BA)<=1, (build-0x4A61)<=4
+//     ; 再 (build==0x4F7C) → or
+//     ; (build==0x55F0 || build==0x585D || build==0x5867) → r8d=1
+//     ; 返回 r8b | r9b
+// 【返回值】1 = 受支持；0 = 不受支持。
+BOOLEAN IsWindowsVersionSupported(void)
 {
-    // 支持 XP (2600) 到 Windows 11 (22631+)
-    if (BuildNumber >= 2600)
-        return TRUE;
-    return FALSE;
+    ULONG Build;
+    BOOLEAN Supported = FALSE;      // r9b
+
+    Build = (ULONG)GtRead(GtWindowsBuildNumber);          // 0x140082661
+
+    // 低位区间：0x1DB0..0x1DB1
+    if ((ULONG)(Build - 0x1DB0) <= 1) Supported = TRUE;   // 0x14008267C
+    // 等值：0x23F0 / 0x2580
+    if (Build == 0x23F0 || Build == 0x2580) Supported = TRUE;   // 0x140082680..91
+
+    // 直接等值白名单
+    if (Build == 0x2800 || Build == 0x295A || Build == 0x3839 ||
+        Build == 0x3AD7 || Build == 0x3FAB || Build == 0x42EE ||
+        Build == 0x4563)
+        Supported = TRUE;                                 // 0x140082697..CD
+    // 区间：0x47BA..0x47BB
+    if ((ULONG)(Build - 0x47BA) <= 1) Supported = TRUE;   // 0x1400826D8
+    // 区间：0x4A61..0x4A65
+    if ((ULONG)(Build - 0x4A61) <= 4) Supported = TRUE;   // 0x1400826E6
+    // 等值：0x4F7C
+    if (Build == 0x4F7C) Supported = TRUE;                // 0x1400826F1/6F4
+
+    // 高段：0x55F0 / 0x585D / 0x5867
+    if (Build == 0x55F0 || Build == 0x585D || Build == 0x5867)
+        Supported = TRUE;                                 // 0x140082711
+
+    return Supported;
 }
 
 // CheckProcessAccess — 检查进程访问权限（补全空壳）
@@ -682,7 +758,9 @@ __int64 InitGtKey(__int64 RegistryPath)
         --Count;
     } while (Count);
     *((UCHAR *)KeyBytes) -= 32;
-    GtWrite(GtEncryptionKey, *(ULONG *)KeyBytes);
+    // 【修正 2026-10-16】原始 0x140029FA0 `mov cs:g_EncryptionKey, rax`，
+    //   而 g_EncryptionKey = GT[0x877]。（此前误写 GtEncryptionKey=0x1E0）
+    GtWrite(GtPoolTag, *(ULONG *)KeyBytes);
     return *(ULONG *)KeyBytes;
 }
 

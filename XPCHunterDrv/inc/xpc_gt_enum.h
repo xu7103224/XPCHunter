@@ -112,6 +112,26 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtEprocessField85 = 95,
     GtEprocessField86 = 96,
     GtCurrentEprocess = 97,          // 当前 EPROCESS 指针(ReadFileIntoBuffer/InitWin32kServiceTableEntries)
+    // 【2026-10-15 实机调试新增】原始 InitGtCore(0x140029FC0) 把 IoGetCurrentProcess()
+    //   的结果存到 g_CurrentProcess（0x1400A87F8 = g_GlobalTable + 0x308 → 索引 97），
+    //   与 GtCurrentEprocess 同槽；把 PsGetCurrentProcessId() 的结果存到
+    //   g_CurrentProcessId（0x1400AC8B0 = g_GlobalTable + 0x43C0 → 索引 0x878）。
+    //   此前我方枚举缺这两个名字，且 InitGtCore 未写 PID 槽 —— 实机加载报错误 31。
+    GtCurrentProcess = 97,           // 别名(GtCurrentEprocess)：InitGtCore 当前进程
+    GtCurrentProcessId = 0x878,      // InitGtCore: g_CurrentProcessId（InitHandleTypeTable 亦读此槽）
+    // 【2026-10-16 实机调试新增·根因修复】GT 0x877 就是 ExAlloc/ExFree 用作**池标签**的槽。
+    //   证据（判据 F，两条独立链）：
+    //     ① ExAlloc(0x140077A00): `mov ecx,877h; call GtRead` → 把返回值当第 3 参
+    //        (r8d=Tag) 传给 ExAllocatePoolWithTag；ExFree 同理。
+    //     ② InitGtKey(0x140029F0C) 末尾 `mov cs:g_EncryptionKey, rax`，
+    //        而 g_EncryptionKey 在 0x1400AC8A8 = g_GlobalTable(0x1400A84F0) + 0x43B8
+    //        → 索引 0x43B8/8 = 0x877。
+    //   ⚠ 此前我方 `GtEncryptionKey` 被写成 0x1E0（那是 GenerateEncryptionKey 用的
+    //     另一个槽，见 0x14008135E `mov ecx,1E0h`），导致 InitGtKey 从未写 0x877：
+    //     池标签恒为 0 → ExAllocatePoolWithTag 返回 NULL → DriverEntry 在
+    //     `if (!RegistryPathCopy) return STATUS_UNSUCCESSFUL` 处提前返回 →
+    //     实机 sc start 报错误 31。修复：InitGtKey 改写入本槽。
+    GtPoolTag = 0x877,               // ExAlloc/ExFree 的池标签（由 InitGtKey 写入）
     GtEprocessField88 = 98,
     GtPspTerminateThreadAddr = 99,    // PspTerminateThreadByPointer 函数地址(InitKernelRoutineTable)
     GtPspExitThreadAddr = 100,          // PspExitThread 函数地址(InitKernelRoutineTable)

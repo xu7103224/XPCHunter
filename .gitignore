@@ -57,3 +57,14 @@ __pycache__/
 # Build log output
 build/*.log
 build/*.txt
+
+# 双机调试签名产物（含测试私钥，禁止提交）
+build/sign/*.pfx
+build/sign/*.pvk
+build/sign/*.cer
+build/sign/*.sys
+build/sign/probe*/
+build/sign/*.log
+build/sign/*.ps1
+build/sign/*.bat
+build/sign/*.txt

@@ -2335,15 +2335,25 @@ LABEL_29:
 // 12. CmdQueryFileStandardInfo — 查询文件标准信息
 // 对应原始驱动 sub_14002EECC（75 字节）
 // 通过 IrpReadFile 查询文件标准信息（0x18 字节，类型 5），返回标准信息到输出参数
+// 【⚠ 修正记录 2026-10-16】原实现有两处实质错误（实机导致 DriverEntry 失败、sc start 报错误 31）：
+//   ① 缓冲区只声明 8 字节，而 IrpReadFile 会写入 0x18(24) 字节 → 栈越界 16 字节；
+//   ② 返回给调用方的 `StandardInfo` 是初始化为 0 的**局部变量**，从未从 IRP 缓冲区回填，
+//      于是文件大小恒为 0，ReadFileRawData 后续判断全错。
+// 【原始反汇编（判据 F，get_bytes 核对 0x14002EECC..0x14002EF16）】
+//     mov r9d, 5 / mov rbx, rdx / lea rdx, [rsp+48h+var_28]  ; 缓冲区 var_28，spans 0x20..0x38 = 0x18 字节
+//     lea r8d, [r9+13h]                                       ; Length = 5+0x13 = 0x18
+//     call IrpReadFile
+//     test eax, eax / jnz loc_14002EF04                       ; 非 0 则跳过回填
+//     mov rcx, [rsp+48h+var_20]                               ; ★ 取 缓冲区+8 处 8 字节
+//     mov [rbx], rcx                                          ; ★ 写回 *pStandardInfo
 __int64 CmdQueryFileStandardInfo(void *FileHandle, _QWORD *pStandardInfo)
 {
-    _BYTE IrpBuffer[8];
-    __int64 StandardInfo = 0;
+    _BYTE IrpBuffer[0x18];          // 原始为 0x18 字节（r8d = 5+0x13）
     ULONG Status;
 
     Status = (ULONG)IrpReadFile(FileHandle, (struct _IRP *)IrpBuffer, 0x18, 5);
     if (!Status)
-        *pStandardInfo = StandardInfo;
+        *pStandardInfo = *(_QWORD *)(IrpBuffer + 8);   // 原始：[rsp+var_20] = 缓冲区+8
     return Status;
 }
 

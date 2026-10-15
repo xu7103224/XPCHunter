@@ -174,7 +174,12 @@ char InitSdstTable(void)
 
     if (ModuleListHead != (ULONG64 *)CurrentEntry)
     {
-        NtBuildNumberPtr = (ULONG64)&NtBuildNumber;
+        // 【⚠ 修正记录 2026-10-15】原写 `&NtBuildNumber`（**栈局部**的地址），
+            //   而原始是取该值本身 —— 即 `nt!NtBuildNumber` 符号的**内核地址**
+            //   （GT[0] 存的正是这个地址，见 InitGtCore）。后者才可能落在
+            //   ntoskrnl 模块区间内；栈地址永远不在，故区间判断恒失败
+            //   → Success=0 → DriverEntry 返回 0xC0000001 → 实机错误 31。
+            NtBuildNumberPtr = NtBuildNumber;
         while (CurrentEntry > (ULONG64)MmSystemRangeStart)
         {
             ModuleBase = *(ULONG64 *)(CurrentEntry + 48);
@@ -225,7 +230,12 @@ LABEL_24:
                         if (Success == 1)
                             break;
                     }
-                    NtBuildNumberPtr = (ULONG64)&NtBuildNumber;
+                    // 【⚠ 修正记录 2026-10-15】原写 `&NtBuildNumber`（**栈局部**的地址），
+            //   而原始是取该值本身 —— 即 `nt!NtBuildNumber` 符号的**内核地址**
+            //   （GT[0] 存的正是这个地址，见 InitGtCore）。后者才可能落在
+            //   ntoskrnl 模块区间内；栈地址永远不在，故区间判断恒失败
+            //   → Success=0 → DriverEntry 返回 0xC0000001 → 实机错误 31。
+            NtBuildNumberPtr = NtBuildNumber;
                 }
             }
             CurrentEntry = *(ULONG64 *)CurrentEntry;
