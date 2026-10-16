@@ -142,6 +142,10 @@ typedef enum _GLOBAL_TABLE_INDEX {
     //   此前该函数误用 `GtEprocessField136 | 0x100`（宏重映射成 GtObCallbackEntry2=0x188，
     //   |0x100 仍为 392），而原始读的是 402 —— 一个此前未命名的独立槽。
     GtDiskImageBase = 0x192,             // 402: 磁盘驱动镜像基址(InitDiskQueryExportTable)
+    // 【2026-10-16 新增】EnumerateProcessHandleTable(0x14004AC44) 的首读：
+    //   `mov ecx,18Dh; call GtRead` —— 句柄表信息槽，此前未命名，
+    //   我方曾误读 0x41A0(16800) 导致 gt_index_mismatch。
+    GtHandleTableInfo = 0x18D,           // 397: 句柄表信息(EnumerateProcessHandleTable)
     GtSavedDeviceObject = 0x194,         // 404: 保存的设备对象指针(DisableObjectCallback)
     GtSavedDeviceObject2 = 0x195,        // 405: 保存的设备对象指针2(EnableDeviceObjectProtection)
     GtExFreeCallBackAddr = 102,         // ExFreeCallBack 函数地址(InitKernelRoutineTable)

@@ -83,20 +83,27 @@ char EnumerateProcessHandleTable(_DWORD *OutputBuffer, unsigned int BufferSize)
     struct _KPROCESS *pProcessObject;
     _QWORD *TableListPtr;
     __int64 TypeCounter;
+    ULONG   EntryIndexSrc;   // GtEprocessField28 的原始读入值（兼作上限比较）
 
     HasItems = 0;
-    Process = (ULONG)GtRead(0x41A0);
-    ObjectTableOffset = (ULONG)GtRead(GtProcessOffset);
-    CheckFunc = (UCHAR (*)(struct _KPROCESS *))GtRead(GtObjectTypeCheckFlag);
+    // 【修正 2026-10-16】按原始读序（0x14004AC60..0x14004AC87）改为：
+    //   GT[0x18D](397) → GT[0x38](56) → GT[0x41DB](16859)。
+    //   原实现首读 0x41A0(16800)、且把 0x38 放在第 2 位，均与原始不符
+    //   （差分报 gt_index_mismatch：原始首读 397，我方 16800）。
+    // 原始读序（0x14004AC60 起）严格为：
+    //   0x18D(397) → 0x38(56) → 0x41DB(16859) → [四项校验] → 0x44/0x45/0x46(68/69/70)
+    Process  = (ULONG)GtRead(GtHandleTableInfo);          // 0x14004AC6D
+    EntryIndexSrc = GtRead(GtEprocessField28);             // 0x14004AC7A（构建/版本判定）
+    CheckFunc = (UCHAR (__fastcall *)(struct _KPROCESS *))GtRead(GtObjectTypeCheckFlag);  // 0x14004AC87
 
-    if (!Process || ObjectTableOffset == -1 || ObjectTableOffset <= Process || !CheckFunc)
+    if (!Process || Process == 0xFFFFFFFF || Process >= (ULONG)EntryIndexSrc || !CheckFunc)
         return HasItems;
 
-    EntryCount = ObjectTableOffset - Process;
-    TableListArray[0] = GtRead(GtEprocessField58);
-    TableListArray[1] = GtRead(GtEprocessField59);
-    EntryIndex = (ULONG)GtRead(GtEprocessField28) == 1 ? 1 : 32;
-    SecondTableList = GtRead(GtEprocessField60);
+    EntryCount    = (ULONG)EntryIndexSrc - Process;
+    TableListArray[0] = GtRead(GtEprocessField58);         // 0x14004ACBB
+    TableListArray[1] = GtRead(GtEprocessField59);         // 0x14004ACCA
+    SecondTableList  = GtRead(GtEprocessField60);          // 0x14004ACD9
+    EntryIndex    = (ULONG)GtRead(GtEprocessField28) == 1 ? 1 : 32;
     EntryCountCopy = EntryIndex;
     TableListPtr = TableListArray;
     TypeCounter = 2;
