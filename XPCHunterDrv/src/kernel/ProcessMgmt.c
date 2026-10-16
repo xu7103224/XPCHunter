@@ -362,11 +362,8 @@ char EnumerateProcessObjects(
     WORD NameBuffer[8];
     __int64 ProcessName;
     __int64 (*GetProcessNameFunc)(struct _KPROCESS *);
-    ULONG BuildNumber;
 
     TargetProcess = AlternateProcess ? AlternateProcess : PROCESS;
-    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
-
     Field64 = (ULONG)GtRead(GtEprocessField64) - 1;
     if (MmIsAddressValid(PROCESS) != 1) return 0;
     if (MmIsAddressValid((char *)PROCESS + Field64) != 1) return 0;
@@ -439,9 +436,10 @@ char EnumerateProcessObjects(
         }
         else
         {
-            if (BuildNumber >= 0x3839)
+            /* 原始 0x14004BD4F 在此就地读 GT[0x914] */
+            if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x3839)
             {
-                GetProcessNameFunc = (__int64 (*)(struct _KPROCESS *))GtRead(16777);
+                GetProcessNameFunc = (__int64 (*)(struct _KPROCESS *))GtRead(16775);
                 if (GetProcessNameFunc)
                 {
                     strcpy((char *)NameBuffer, "MemCompression");
@@ -454,7 +452,7 @@ char EnumerateProcessObjects(
                         *((__int64 *)Entry + 9) = 7209071;
                         goto Done;
                     }
-                    if (BuildNumber >= 0x42EE)
+                    if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x42EE)
                     {
                         strcpy((char *)NameBuffer, "Registry");
                         if (StringCompareCaseInsensitiveV2(ProcessName, (__int64)NameBuffer) == 0)
@@ -605,7 +603,6 @@ char FillProcessInformationEntry(
     __int64 Offset;
 
     CreateTimeOffset = (int)GtRead(GtProcessCreateTime);
-    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     Field51 = (int)GtRead(GtEprocessField51);
     Field52 = (int)GtRead(GtEprocessField52);
     Field41 = (int)GtRead(GtObjectTypeField41);
@@ -685,7 +682,6 @@ char ValidateKernelObject(ULONG64 ObjectAddr, ULONG64 AltAddr, _QWORD *OutContex
     if (ObjectAddr <= (ULONG64)MmSystemRangeStart) return Result;
 
     ObjectType = (int)GtRead(GtObjectTypeCount) - 1;
-    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
     if (MmIsAddressValid((PVOID)(ObjectAddr - 48)) != 1 ||
         MmIsAddressValid((PVOID)(ObjectType + ObjectAddr)) != 1 ||
         ObjectAddr <= (ULONG64)MmSystemRangeStart)
