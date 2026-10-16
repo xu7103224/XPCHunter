@@ -98,3 +98,51 @@ PY
 - 0x29B70 的 `+8` 折叠（`FindCpuMsrBaseLegacy/Win10`）
 - 上述字段的**语义偏移**仍需逐函数按原始核对（部分函数只改了 +6，其他字段偏移可能仍错）
 - 实机加载验证：本轮部署时 Guest SSH 不可达（`guest exec` 全部 exit=1），未能完成加载测试
+
+---
+
+# 追加：实机验证 R4（2026-10-17 03:30）——驱动首次成功加载，卡在 DriverEntry
+
+## 结果
+`sc start RTR4` **不再蓝屏**（NULL 折叠已全部消除），但 **DriverEntry 不返回**（SCM 侧超时）。
+调试器现场证据：
+```
+lm m rtR4*            → rtR4 已加载（fffff804`2ae50000 ~ fffff804`2af26000）
+!drvobj \Driver\RTR4  → Dispatch 例程仍为 nt!IopInvalidDeviceRequest
+                        DriverUnload: 00000000   → 说明 DriverEntry 未执行到
+                        `DriverObject->MajorFunction[...] = ...`（我方 DriverEntry 第 154-156 行）
+Host CPU 15.6%        → 是**等待**而非自旋
+```
+GT 进度（g_GlobalTable 运行时 0xfffff8042aef0060，逐槽读取）：
+```
+GT[0x914] build        = 0x47BA (18362)   ✓ 早期步骤完成
+GT[0x61]  EPROCESS     = ffffc088`9de8e380 ✓ InitGtCore 完成
+GT[0x20]  KernelBase   = ffffd287`5ca00000 ✓ 内核模块扫描完成
+GT[0x21]  KernelSize   = 0xAB2000          ✓
+GT[0x415E] syscall 槽   = 0xB1A0E87F        ← 半写/异常
+GT[0x177] NtImageSize  = 0                  ✗ 未写
+GT[0x7BF] callback     = 0                  ✗ 未写
+GT[0x7B2..0x7D7] 全部 = 0                  ✗ InitKernelMemoryContext 扫描器一个都没跑
+```
+→ 卡点在 **DriverEntry 第 128-133 行之间**（InitSyscallNumberTable / BuildHookTable 一带），
+   该路径需要**读取 ntoskrnl 文件**。
+
+## 阻塞机理（已定位到代码）
+文件读取走 GT 解析出来的辅助函数（`TailHelpers.c:316+`，设备 `\Device\Ip` 的 FSCTL 读取）：
+```c
+Irp = IrpFsControlFunc(0x128030, InputBuffer, SectionHandle, 0x10, 0, 0, &EventObj, &IoStatusBlock);
+IoctlResult = AllocateIrpStackAndCallDriver(0, SectionHandle, Irp);
+if (IoctlResult == 0x103 /*STATUS_PENDING*/)
+    KeWaitForSingleObjectFunc(&EventObj, 0, 0, 0, 0);      // ← 永久等待
+```
+`Protocol.c` 的 IRP 读路径同样是 `if (CallResult == STATUS_PENDING) KeWaitForSingleObject(&Event, ...)`
+（事件为 SynchronizationEvent 且已设入 `Irp->UserEvent`，写法正确）。
+**若下层驱动永不完成该 IRP，等待即永久挂起** —— 与「驱动已加载、DriverEntry 不返回、CPU 空闲」完全吻合。
+
+## 下一轮定位方向（按优先级）
+1. 复核 `AllocateIrpStackAndCallDriver` 与 IRP 派发前的监控/挂钩三步：
+   `GetIrpMonitorContext` / `AcquireVolumeChangeLock` / `SwapDiskIrpFunctionPointer`
+   （原始用 pCallDriver 挂钩再派发；任一步错都会让 IRP 不被派发 → 永久 PENDING）
+2. 复核 `TailHelpers.c` 的 `IrpFsControlFunc`（GT 解析出的函数指针）参数与事件传递
+3. `ModuleMgmt.c:1463`（`ScanFileForPeSectionInfo`）的 `InitPESectionReadContext` 调用
+   仍有 8 实参但无上下文（`ReadContext` 从未初始化），需按原始重写后再修
