@@ -3509,17 +3509,21 @@ __int64 InitHookFunctionTable(void)
     // 从汇编分析：附加到目标进程，扫描 PE 节区
     // 查找类型 0x48E(1166) 节区，然后找类型 0x558(1368) 节区
     // 写入 GT[0x23F](575) = KiInsertQueueApc 函数地址
-    __int64 TargetProcess = GtRead(GtEprocessField61);
+    // 【修正 2026-10-16】按原始 GT 读序（_gtseq 提取）修正：
+    //   0x61(GtCurrentEprocess=97) → 0x41CB → 0x20(PE缓冲基址) → 0x21(PE大小) → 写 0x23F。
+    //   原实现首读 GtEprocessField61(=71)、并误用 GtEprocessExtField11(=0x361)，
+    //   差分报 gt_index_mismatch（原始首读 97，我方 71）。
+    __int64 TargetProcess = GtRead(GtCurrentEprocess);          // 0x61 = 97
     __int64 CurrentProcess = (__int64)IoGetCurrentProcess();
     KAPC_STATE ApcState;
 
     if (TargetProcess != CurrentProcess && TargetProcess)
         KeStackAttachProcess((PRKPROCESS)TargetProcess, &ApcState);
 
-    __int64 SectionBase = GtRead(GtEprocessExtField11);
-    __int64 SectionSize = GtRead(GtEprocessField21);
-    __int64 NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    __int64 NtoskrnlSize = GtRead(GtNtoskrnlImageSize);
+    __int64 SectionBase = GtRead(GtSyscallHash16843);           // 0x41CB = 16843
+    __int64 SectionSize = GtRead(GtNtoskrnlPeFileBase);         // 0x20 = 32
+    __int64 NtoskrnlBase = GtRead(GtNtoskrnlPeFileSize);        // 0x21 = 33
+    __int64 NtoskrnlSize = (__int64)(ULONG)GtRead(GtNtoskrnlPeFileSize);  // 0x21（第二次）
 
     if (SectionBase && SectionSize && (unsigned int)NtoskrnlBase && NtoskrnlSize)
     {
