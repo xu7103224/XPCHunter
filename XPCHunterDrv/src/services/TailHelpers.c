@@ -484,7 +484,7 @@ int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, voi
     __int64 FileDeviceObject;
     _OWORD BufferArray;
 
-    Status = ObReferenceObjectByHandle(FileHandle, 0, (POBJECT_TYPE)IoFileObjectType, 0, &Object, 0);
+    Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, 0);
     if (Status)
         return (unsigned int)Status;
     FileObject = Object;

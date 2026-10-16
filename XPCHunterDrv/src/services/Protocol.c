@@ -117,7 +117,7 @@ __int64 IrpFileSystemControl(void *FileHandle, struct _IRP *FsctlBuffer, ULONG B
     struct _KEVENT Event;
     _OWORD BufferArray;
 
-    Status = ObReferenceObjectByHandle(FileHandle, 0, (POBJECT_TYPE)IoFileObjectType, 0, &Object, NULL);
+    Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, NULL);
     if (Status)
         return Status;
 
@@ -227,7 +227,7 @@ __int64 IrpReadFileWithOffset(
     __int64 FileDeviceObject;
     _OWORD BufferArray;
 
-    Status = ObReferenceObjectByHandle(FileHandle, 0, (POBJECT_TYPE)IoFileObjectType, 0, &Object, NULL);
+    Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, NULL);
     if (Status)
         return Status;
 
@@ -323,7 +323,7 @@ __int64 IrpReadFile(void *FileHandle, struct _IRP *AssociatedIrp, ULONG Length, 
     _OWORD BufferArray;
     char FileDeviceObject[8];
 
-    Status = ObReferenceObjectByHandle(FileHandle, 0, (POBJECT_TYPE)IoFileObjectType, 0, &Object, 0);
+    Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, 0);
     if (!Status)
     {
         Status = -1073741823;
@@ -403,7 +403,7 @@ __int64 IrpWriteFile(
     char FileDeviceObject[8];
     _OWORD BufferArray;
 
-    Status = ObReferenceObjectByHandle(FileHandle, 0, (POBJECT_TYPE)IoFileObjectType, 0, &Object, NULL);
+    Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, NULL);
     if (Status < 0)
         return (ULONG)Status;
 
@@ -781,7 +781,7 @@ __int64 CreateFileWithPath(
                     if (!Status)
                     {
                         Status = ObOpenObjectByPointer(Object, 0x200, NULL,
-                            DesiredAccess | 0x100000, (POBJECT_TYPE)IoFileObjectType,
+                            DesiredAccess | 0x100000, *IoFileObjectType,
                             KernelMode, FileHandle);
                         if (Status >= 0) Status = 0;
                         ObfDereferenceObject(Object);
@@ -1245,7 +1245,7 @@ bool OpenFileObjectByPath(PCWSTR SourceString, __int64 DeviceObjectBase, HANDLE 
     if (IoCreateFile(pHandle, 0xC0000000, &ObjectAttributes, &IoStatusBlock,
         0, 0x80, 3, 1, 0, 0, 0, CreateFileTypeNone, 0, 0x100) >= 0)
     {
-        if (ObReferenceObjectByHandle(*pHandle, 0, (POBJECT_TYPE)IoFileObjectType, 0, &Object, 0) >= 0 && Object)
+        if (ObReferenceObjectByHandle(*pHandle, 0, *IoFileObjectType, 0, &Object, 0) >= 0 && Object)
         {
             Result = (DeviceObjectBase == *((__int64 *)Object + 1));
             ObfDereferenceObject(Object);
@@ -1303,7 +1303,7 @@ __int64 OpenPhysicalDiskDevice(__int16 *DevicePath, void *DeviceHandle, void **p
 
         if (Status < 0)
         {
-            if (ObReferenceObjectByHandle(DeviceHandle, 0, (POBJECT_TYPE)IoFileObjectType, 0, &Object, 0) >= 0 && Object)
+            if (ObReferenceObjectByHandle(DeviceHandle, 0, *IoFileObjectType, 0, &Object, 0) >= 0 && Object)
             {
                 ObfDereferenceObject(Object);
 
@@ -1440,7 +1440,7 @@ __int64 QueryPhysicalDiskInfo(void *FileHandle, _QWORD *pDeviceObject, void **pP
                 {
                     PVOID Object;
                     Status = ObReferenceObjectByHandle(*pPhysicalHandle, 0,
-                        (POBJECT_TYPE)IoFileObjectType, 0, &Object, 0);
+                        *IoFileObjectType, 0, &Object, 0);
                     if (Status >= 0 && Object)
                     {
                         __int64 InfoBuffer = *((__int64 *)Object + 1);
@@ -2022,7 +2022,7 @@ bool OpenDriveDeviceObject(WCHAR *DriveLetter, _QWORD *pDeviceObject, _QWORD *pF
     if (!IoCreateFile(&FileHandle, 0x100000, &ObjAttributes, &IoStatus,
         0, 0, 3, 1, 0x21, 0, 0, CreateFileTypeNone, 0, 0x100))
     {
-        if (!ObReferenceObjectByHandle(FileHandle, 1, (POBJECT_TYPE)IoFileObjectType, 0, &FileObject, 0))
+        if (!ObReferenceObjectByHandle(FileHandle, 1, *IoFileObjectType, 0, &FileObject, 0))
         {
             DeviceObjectFromFileObject = GetDeviceObjectFromFileObject((__int64)FileObject, pFileDevice, pDeviceObject);
             ObfDereferenceObject(FileObject);
@@ -2055,7 +2055,7 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     int DesiredAccessLevel = 576;
 
     PVOID Object;
-    int Result = ObCreateObject((KPROCESSOR_MODE)0, (POBJECT_TYPE)IoFileObjectType, (POBJECT_ATTRIBUTES)&AccessMode, (KPROCESSOR_MODE)0, 0, ObjectSize, 0, 0, (PVOID *)&Object);
+    int Result = ObCreateObject((KPROCESSOR_MODE)0, *IoFileObjectType, (POBJECT_ATTRIBUTES)&AccessMode, (KPROCESSOR_MODE)0, 0, ObjectSize, 0, 0, (PVOID *)&Object);
     if (Result < 0)
         return (ULONG)Result;
 
