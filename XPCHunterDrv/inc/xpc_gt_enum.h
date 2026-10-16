@@ -138,6 +138,10 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtPsExitSpecialApcAddr = 101,       // PsExitSpecialApc 函数地址(InitKernelRoutineTable)
     GtSavedObPreCallback1 = 0x189,      // 393: 保存的对象前置回调函数指针1(ObjectPreCallback)
     GtSavedObPreCallback2 = 0x18A,      // 394: 保存的对象前置回调函数指针2(ObjectPreCallback)
+    // 【2026-10-16 新增】InitDiskQueryExportTable(0x140048B08) 的首读：`mov ecx,192h`。
+    //   此前该函数误用 `GtEprocessField136 | 0x100`（宏重映射成 GtObCallbackEntry2=0x188，
+    //   |0x100 仍为 392），而原始读的是 402 —— 一个此前未命名的独立槽。
+    GtDiskImageBase = 0x192,             // 402: 磁盘驱动镜像基址(InitDiskQueryExportTable)
     GtSavedDeviceObject = 0x194,         // 404: 保存的设备对象指针(DisableObjectCallback)
     GtSavedDeviceObject2 = 0x195,        // 405: 保存的设备对象指针2(EnableDeviceObjectProtection)
     GtExFreeCallBackAddr = 102,         // ExFreeCallBack 函数地址(InitKernelRoutineTable)

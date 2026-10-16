@@ -1438,7 +1438,10 @@ char InitDiskQueryExportTable(void)
     char *FileBuffer = 0;
     unsigned int FuncAddr = 0;
 
-    DiskImageBase = GtRead(GtEprocessField136 | 0x100);
+    // 【修正 2026-10-16】原始 0x140048B2B 为 `mov ecx,192h; call GtRead`（GT[0x192]=402）。
+    //   原写 `GtEprocessField136 | 0x100`：该宏被重映射为 GtObCallbackEntry2(0x188)，
+    //   或上 0x100 仍是 392 ≠ 402，属真实取错槽。
+    DiskImageBase = GtRead(GtDiskImageBase);
     ExportTablePtr = GtAlloc((GLOBAL_TABLE_INDEX)0x1B02);
     ExportTable = (__int64)ExportTablePtr;
     if (!DiskImageBase || !ExportTablePtr)
