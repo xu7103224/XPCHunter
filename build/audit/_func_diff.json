@@ -1,43 +1,33 @@
 {
  "tally": {
-  "identical": 1
+  "ret_diff": 1
  },
  "results": [
   {
-   "addr": "0x140052c1c",
-   "name": "ResolveSyscallNumberTable",
-   "sym": "0x14002d780",
-   "where": "XPCHunterDrv/src\\framework\\MemoryOps.c:1776",
-   "verdict": "identical",
+   "addr": "0x14000158e",
+   "name": "CheckVmxEnabled",
+   "sym": "0x1400771a0",
+   "where": "XPCHunterDrv/src\\features\\SystemInfo.c:216",
+   "verdict": "ret_diff",
    "orig": {
     "api": [],
-    "gt_r": [
-     [
-      66,
-      0
-     ]
-    ],
+    "gt_r": [],
     "gt_w": [],
-    "instr": 18,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff88000029efc"
+    "instr": 6,
+    "status": "returned",
+    "ret": 1,
+    "stop": "",
+    "stopped_at": null
    },
    "reb": {
     "api": [],
-    "gt_r": [
-     [
-      66,
-      0
-     ]
-    ],
+    "gt_r": [],
     "gt_w": [],
-    "instr": 9,
-    "status": "stopped",
-    "ret": null,
-    "stop": "Invalid memory read (UC_ERR_READ_UNMAPPED)",
-    "stopped_at": "0xff8800001e150"
+    "instr": 12,
+    "status": "returned",
+    "ret": 0,
+    "stop": "",
+    "stopped_at": null
    }
   }
  ],
