@@ -3060,6 +3060,7 @@ __int64 __fastcall FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSiz
         InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)PESectionContext);
         for (LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
         {
+            *(ULONG64 *)((PUCHAR)PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((unsigned int)ReadPESectionEntry((PUCHAR)PESectionContext, (PULONG)SectionEntry))
                 break;
             CurrentRva = (int)(EntrySize2 + ContextOffset);
@@ -3529,6 +3530,7 @@ __int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionB
     InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)&PESectionContext);
     for (LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
     {
+            *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
             break;
         CurrentRva = (int)(EntrySize2 + ContextOffset);
@@ -3857,6 +3859,7 @@ LABEL_FOUND_SECTION:
             memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
             for (EntryIndex = 0; EntryIndex < 0x1F4; ++EntryIndex)
             {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                     break;
                 ComputedOffset2 = (int)(SectionFileOffset + AccumulatedOffset);

@@ -1924,6 +1924,7 @@ __int64 ParseNtSectionsForSsdtTable(void)
         SectionIndex = 0;
         while (SectionIndex < 0xC8)
         {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)EntryBuffer))
@@ -2984,6 +2985,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     EntryCount = 0;
     while (EntryCount < 0x1E)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x50 >> 2];

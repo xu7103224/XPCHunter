@@ -359,6 +359,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
         InitPESectionReadContext(SectionCount + NtoskrnlDataBase, Result - SectionCount, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         for (i = 0; i < 0x10; i++)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)ReadEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, ReadEntry))
                 break;
             AccumulatedOffset += ReadEntry[60];
@@ -1415,6 +1416,7 @@ __int64 ParseNtSectionsForShadowSsdt(void)
         SectionIndex = 0;
         while (SectionIndex < 0xA)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -2124,6 +2126,7 @@ __int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSiz
     InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 2, 0, -1, 0, 0, (__int64)&PeContext);
     while (1)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x50 >> 2];
@@ -2201,6 +2204,7 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
 
     while (PhaseCount < 0x64)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x50 >> 2];

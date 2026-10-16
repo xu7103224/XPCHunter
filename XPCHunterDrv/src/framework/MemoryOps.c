@@ -2294,6 +2294,7 @@ __int64 ReadWriteKernelMemory(void)
     // 遍历 PE 节区，最多 0xC8 个
     for (SectionIndex = 0; SectionIndex < 0xC8; SectionIndex++)
     {
+            *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         ULONG64 TypePtr;
         USHORT EntryType;
 

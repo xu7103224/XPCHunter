@@ -1412,6 +1412,7 @@ __int64 FindPeExecutableSection(void)
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x14; SectionIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
         if ((_DWORD)result)
             break;
@@ -1468,6 +1469,7 @@ __int64 ScanFileForPeSectionInfo(void)
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x100; SectionIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
             break;
 
@@ -3854,6 +3856,7 @@ LABEL_FOUND_SECTION:
             memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
             for (EntryIndex = 0; EntryIndex < 0x3E8; ++EntryIndex)
             {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                     break;
                 ComputedOffset2 = (int)(SectionFileOffset + AccumulatedOffset);
@@ -4127,6 +4130,7 @@ char ScanKernelPeExportSection()
 
         for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
         {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
@@ -4217,6 +4221,7 @@ char ScanKernelPeExportData()
     SectionIndex = 0;
     while (SectionIndex < 5)
     {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
 
@@ -4335,6 +4340,7 @@ char EnumProcessPeExportData()
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
@@ -4425,6 +4431,7 @@ char EnumProcessPeExportDataByIndex()
         SectionIndex = 0;
         while (SectionIndex < 0xC8)
         {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
@@ -4519,6 +4526,7 @@ char EnumProcessPeExportDataEx()
     SectionIndex = 0;
     while (SectionIndex < 0x190)
     {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
 

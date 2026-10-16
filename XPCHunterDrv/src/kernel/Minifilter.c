@@ -628,6 +628,7 @@ __int64 FindKernelDataSectionForDeviceIoControl2(void)
 
     for (ULONG i = 0; i < 0x200; i++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
         int CalculatedSize = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
@@ -681,6 +682,7 @@ __int64 MiniFilterPostWrite(void)
 
     for (ULONG i = 0; i < 0x100; i++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
         /* 【重大修正 2026-10-17】下列字段都是**描述符内的槽**，旧移植把它们另立为独立局部
            且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成绝对地址 [6]
@@ -764,6 +766,7 @@ __int64 MiniFilterPreCleanup(void)
 
     for (SectionIndex = 0; SectionIndex < 0x100; SectionIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         Result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
         if ((_DWORD)Result)
             break;
@@ -3058,6 +3061,7 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
             (__int64)&ReadContext);
         for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)result)
                 break;
@@ -3189,6 +3193,7 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
 
         for (ScanIndex = 0; ScanIndex < 20; ++ScanIndex)        // 0x1400167BF  cmp esi,14h
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)&Desc + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if (ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)Desc))   // 0x1400167C7
                 break;
 
@@ -4538,6 +4543,7 @@ char __fastcall FindFwpsTcpIpDispatchTable(__int64 a1, unsigned int a2)
     {
         for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             ULONG MatchSize;
             __int16 SubType;
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
@@ -6628,6 +6634,7 @@ char __fastcall FindFwpsDispatchTableWin8(__int64 a1, unsigned int a2)
     {
         for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             ULONG MatchSize;
             __int16 SubType;
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
@@ -7327,6 +7334,7 @@ void ParseMiniFilterRegSections(void)
     CumulativeSize = 0;
     for (SectionIndex = 0; SectionIndex < 0x1E; SectionIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)PeSectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, PeSectionEntry))
             break;
 
@@ -7788,6 +7796,7 @@ __int64 EnumFileSystemCallbackEntries(void)
         // 第一层：最多 0xC8(200) 轮
         for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                 break;
 
@@ -7974,6 +7983,7 @@ char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 Outp
     RelocSectionIndex = 0;
     while (1)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
             return Result;
         CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);

@@ -801,6 +801,7 @@ __int64 FindRenameKeyTargetEx(
             InitPESectionReadContext(TargetBase + (unsigned int)Result, (ULONG)(TargetSize - Result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
             for (i = 0; i < 0x3E8; ++i)
             {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;

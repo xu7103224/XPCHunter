@@ -1,0 +1,31 @@
+定位并修复 DriverEntry 死循环根因（读指针不前进）+ 解码约定混用（0x7E AV）
+
+【死循环根因（本轮实证定位）】
+- 原始函数在 ReadPESectionEntry 循环里会**把 ReadPtr + 本条长度写回上下文的 +0x08 槽**推进循环。
+  实证：原版 HookSyscallNtDeleteKey @0x14001D850 里有 `mov [rsp+var_190], rcx`，
+  而 var_190 正是上下文 +0x08 —— IDA 因把上下文当成 char[8]，把这个槽误命名成 CumulativeSize2。
+- 我方移植把这些槽当作**独立局部变量**（CumulativeSize2 / SectionDataPtr / EntryDataPtr 等），
+  读指针永不前进 → ReadPESectionEntry 反复解码同一条目 → DriverEntry 死循环。
+- 修正：HookSyscallNtDeleteKey 按原始语义重写；另按自动化审计（"有循环调用 ReadPESectionEntry
+  但从不推进读指针"→ 144 个函数）批量修补 82+ 处，在循环体首插入
+  `*(ULONG64*)((PUCHAR)&Ctx + 0x08) += *(unsigned int*)((PUCHAR)Desc + 0xF0);`
+  语义等价于"每轮解码前推进上一轮长度"，首轮为 0。
+
+【0x7E AV 根因（本轮第二处）】
+- SetDecoderStateFlags / SerializeDataToBuffer 把 ContextArray 入参当成"真实上下文"使用：
+  `CTX_Q(Context, CTX_OFF_PARAM4)`(0x28) 应为 `CTXARR_OPERAND`(0x18) → 取到垃圾指针
+  → `mov dword [rdx+0x28], 7` 写入非法地址（实机 0x7E；这是 RVA 0x11E92 之后的第二处 AV）。
+
+【临时诊断设施（后续必须清理：grep -n '【临时】' 全部删除）】
+- DbgMark(行号) / DbgMark2：把进度写入 C:\kd_tmp\prog.txt
+  （FILE_WRITE_THROUGH + ZwFlushBuffersFile，可抗硬复位）并同步写 GT[0x4F80] 内存槽；
+  DriverEntry 与 InitAllHookSubsystems 的每个调用前都有打点。
+- GT 快探针：GT[0x4F90]=当前读指针、GT[0x4F91]=循环计数（无 I/O，可被调试器读）。
+- 探针实测确认：修复后循环的读指针正常推进（+4/+5/+2/+2/+7…）。
+
+【前线进展】
+DriverEntry 已越过 HookSyscallNtCreateKey / NtDeleteKey、DisableHookProtection、
+NtQuerySystemInfo、NtQueryInformationProcess / NtQueryInformationThread 等，
+卡点持续前移（每修一处即前进一段）。
+
+构建产物 679424 字节（非退化）。

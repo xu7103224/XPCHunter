@@ -70,6 +70,7 @@ __int64 ParseNtSectionsForModuleList1(void)
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x64; SectionIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
 
@@ -136,6 +137,7 @@ __int64 ParseNtSectionsForModuleList2(void)
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x64; SectionIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
 
@@ -470,6 +472,7 @@ __int64 FindPeSectionByType0x510(
 
     for (SectionIndex = 0; SectionIndex < 0x1E; ++SectionIndex)
     {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
         if ((ULONG)result)
             break;
@@ -559,6 +562,7 @@ __int64 ParseNtSectionsForProcessMemory(void)
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -649,6 +653,7 @@ __int64 ParseNtSectionsForModuleBase(void)
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -751,6 +756,7 @@ __int64 ParseNtSectionsForRelocBase(void)
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -858,6 +864,7 @@ __int64 ParseProcessMemSections(void)
     SectionIndex = 0;
     while (SectionIndex < 6)
     {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -1060,6 +1067,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -1153,6 +1161,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
         SectionIndex = 0;
         while (SectionIndex < 0x12C)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -1245,6 +1254,7 @@ __int64 FindKernelDataSectionOffsetV3(void)
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
@@ -1393,6 +1403,7 @@ __int64 FindKernelDataSectionOffsetWin7(void)
     Phase1Found = 0;
     while (EntryCount < 0x64)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x58 >> 2];
@@ -1464,6 +1475,7 @@ __int64 FindKernelDataSectionOffsetWin10(void)
     Offset2 = 0;
     while (EntryCount < 0x64)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x58 >> 2];
@@ -1540,6 +1552,7 @@ __int64 FindKernelDataSectionPair(void)
     Offset2 = 0;
     while (EntryCount < 0x64)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x58 >> 2];
@@ -1651,6 +1664,7 @@ __int64 FindKernelDataSectionOffsetWin8(void)
         AccumulatedOffset = 0;
         for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             Result = ReadPESectionEntry((PUCHAR)&DecodeContext, SectionEntry);
             if ((_DWORD)Result)
                 break;

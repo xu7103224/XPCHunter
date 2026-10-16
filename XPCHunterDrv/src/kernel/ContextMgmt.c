@@ -2854,6 +2854,7 @@ __int64 LookupMsrTableEntry(void)
     Phase1Count = 0;
     while (Phase1Count < 5)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -3023,6 +3024,7 @@ __int64 ParseMsrRelatedSections(void)
     Phase1Count = 0;
     while (Phase1Count < 0x64)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             return Result;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -3154,6 +3156,7 @@ __int64 ParseMsrTableFromSections(void)
     Phase1Count = 0;
     while (Phase1Count < 0x14)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -3366,6 +3369,7 @@ LABEL_23:
                 FoundFlag = 0;
                 for (i = 0; i < 0x64; i++)
                 {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
                     result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
                     if ((_DWORD)result)
                         break;

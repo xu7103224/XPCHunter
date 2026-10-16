@@ -2519,6 +2519,7 @@ __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSi
 
         for (SectionIndex = 0; SectionIndex < 30; SectionIndex++)
         {
+            *(ULONG64 *)((PUCHAR)Context + 0x08) += *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             Status = (int)ReadPESectionEntry(Context, SectionInfo);
             if (Status != 0)
                 break;

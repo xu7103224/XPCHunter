@@ -62,6 +62,7 @@ __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, _
             SectionIndex = 0;
             while (1)
             {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                     goto LABEL_13;
                 MatchSize = (int)(SectionSize + CumulativeSize);
@@ -212,6 +213,7 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
             (__int64)&ReadContext);
         for (LoopIndex1 = 0; LoopIndex1 < 0x3E8; ++LoopIndex1)
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)Result)
                 break;
@@ -442,6 +444,7 @@ __int64 ParseNtExportFunctions(void)
     Phase1Count = 0;
     while (Phase1Count < 0xC8)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             return Result;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -739,6 +742,7 @@ __int64 ParseNtExportFunctionsV2(void)
     Phase1Count = 0;
     while (Phase1Count < 0xC8)
     {
+            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
@@ -1084,6 +1088,7 @@ LABEL_8:
             FoundRelocSection = 0;
             for (LoopIndex = 0; LoopIndex < 0x1F4; ++LoopIndex)
             {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                     break;
                 SectionEnd2 = (int)(SectionSize + CumulativeSize);
@@ -1346,6 +1351,7 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
         LoopIndex = 0;
         while (1)
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)Result)
                 return Result;
@@ -1529,6 +1535,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
     memset(Dst, 0, sizeof(Dst));
     for (ULONG LoopIndex = 0; LoopIndex < 0xC8; LoopIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
             break;
 
@@ -1647,6 +1654,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
     memset(SlotAddresses, 0, sizeof(SlotAddresses));
     for (ULONG I = 0; I < 0x3E8; I++)
     {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
         ULONG ComputedOffset2 = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
@@ -1761,6 +1769,7 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
 
     for (ULONG EntryIndex = 0; EntryIndex < 0xC8; EntryIndex++)
     {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             return Result;
         AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
@@ -1943,6 +1952,7 @@ char ParseCallbackFunctionSections(
         BaseRva = 0;
         for (LoopIndex = 0; LoopIndex < 0x3E8; ++LoopIndex)
         {
+            *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             ULONG EntryRva;
             __int16 TypeValue2;
             ULONG SizeValue;
@@ -2130,6 +2140,7 @@ char ParseCallbackContextSections(
         BaseRva = 0;
         for (LoopIndex = 0; LoopIndex < 0x3E8; ++LoopIndex)
         {
+            *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             ULONG EntryRva;
             __int16 TypeValue2;
             ULONG SizeValue;
@@ -2347,6 +2358,7 @@ char __fastcall ParseNtSectionHeaders2(
         // --- Win7 路径 ---
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             ULONG CurrentRva3 = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)SectionDataRva;
             SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
             __int16 SectionType2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);

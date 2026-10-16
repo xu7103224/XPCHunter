@@ -603,7 +603,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
 {
     PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
     PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
+    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTXARR_OPERAND);   /* 【修正 2026-10-17】入参是 ContextArray，操作数记录在 +0x18（原误用真实上下文的 +0x28 → 垃圾指针 → 实机 0x7E AV）*/
     PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     INT DataType = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
     ULONG64 Value;
@@ -702,7 +702,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
 // ============================================================
 __int64 SetDecoderStateFlags(PUCHAR Context)
 {
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
+    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTXARR_OPERAND);   /* 【修正 2026-10-17】入参是 ContextArray，操作数记录在 +0x18（原误用真实上下文的 +0x28 → 垃圾指针 → 实机 0x7E AV）*/
     ULONG64 Flags = CTX_Q(OutputContext, 0x20);
     INT Mode = CTX_D(CTX_Q(Context, CTXARR_DESC) + 4, 0);  // 偏移 0x04 = 数据类型
 
