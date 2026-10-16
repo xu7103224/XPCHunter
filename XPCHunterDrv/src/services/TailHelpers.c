@@ -288,8 +288,11 @@ __int64 ResolveKernelModuleIndexAddress(int ModuleId, int GtIndex)
 char CmdEnumFileSystemCallback()
 {
     char Result;
-
+    // 【修正 2026-10-16】原先依赖 KernelMemoryOperationDispatch 里的局部 BuildNumber，
+    //   那个局部已按原始实现改为**就地懒读**（不再在函数入口读一次），
+    //   故本函数必须自己读。原始此处也是自行读 GT[0x914]。
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+
     Result = 0;
     if (BuildNumber == 2600 ||
         BuildNumber == 3790)
@@ -638,8 +641,6 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
     __int64 *pSsdt2TableSaved;
     __int64 *pSsdt3TableSaved;
     __int64 Ssdt3End;
-    ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
-
     OutputSize = BufferSize;
     IsWin7 = (int)GtRead(GtEprocessField28);
     pSsdt1Table = (__int64 *)GtRead(GtEprocessField80);
@@ -737,9 +738,13 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
             pOutput += 6;
             if (pSsdt1Table && Ssdt1End)
             {
-                if ((unsigned int)BuildNumber < 0x1771 || (unsigned int)BuildNumber > 0x1DB1)
+                /* 【修正 2026-10-16】原始在此处**就地**读 GT[0x914] 两次（0x1400413B7 / 0x1400413CC），
+                   而不是在函数入口读一次复用 —— 入口读取会让首个 GT 索引变成 0x914，
+                   与原始（首读 0x26 = GtEprocessField28）不一致，差分判为 gt_index_mismatch。 */
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1771 ||
+                    (unsigned int)GtRead(GtWindowsBuildNumber) > 0x1DB1)
                 {
-                    if ((unsigned int)BuildNumber >= 0x23F0)
+                    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)   /*0x1400413E4*/
                         Ssdt1End = (unsigned __int64)(pSsdt1Table + 64);
                 }
                 else
@@ -775,7 +780,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
             pSsdt2Table = pSsdt2TableSaved;
             if (pSsdt2TableSaved && Ssdt2End)
             {
-                if ((unsigned int)BuildNumber >= 0x23F0)
+                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)   /*0x140041687*/
                     Ssdt2End = (unsigned __int64)(pSsdt2TableSaved + 64);
                 while ((unsigned __int64)pSsdt2Table < Ssdt2End && MmIsAddressValid(pSsdt2Table))
                 {
@@ -830,8 +835,8 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                     pCallbackList = pCallbackListSaved;
                     if (pCallbackListSaved && CallbackListSize)
                     {
-                        if (BuildNumber == 2600
-                            || BuildNumber == 3790)
+                        if ((unsigned int)GtRead(GtWindowsBuildNumber) == 2600   /*0x1400419BA*/
+                            || (unsigned int)GtRead(GtWindowsBuildNumber) == 3790)
                         {
                             pCallbackList2 = &pCallbackListSaved[(unsigned int)GtRead(GtKernelDataField39)];
                             while (pCallbackList < pCallbackList2 && MmIsAddressValid(pCallbackList))
@@ -849,7 +854,7 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                 pCallbackList += 8;
                             }
                         }
-                        else if ((unsigned int)BuildNumber >= 0x1770 && MmIsAddressValid(pCallbackListSaved) == 1)
+                        else if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770 && MmIsAddressValid(pCallbackListSaved) == 1)   /*lazy*/
                         {
                             EntryCount = 0;
                             pListStart = pCallbackListSaved;
@@ -938,8 +943,8 @@ __int64 KernelMemoryOperationDispatch(void *InputBuffer, int BufferSize)
                                     }
                                 }
                             }
-                            if (BuildNumber == 9200
-                                && BuildNumber == 9600)
+                            if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200   /*lazy*/
+                                && (unsigned int)GtRead(GtWindowsBuildNumber) == 9600)
                             {
                                 pEnumList3 = pOldEnumList;
                                 if (pOldEnumList)
