@@ -1038,67 +1038,67 @@ _QWORD *InitKernelRoutineTable(void)
 // ReadNtoskrnlFile — 从磁盘读取 ntoskrnl.exe 文件
 // 对应原始驱动 sub_1400051F0
 // 解析 PE 头，分配缓冲区，调用 ParseNtExportDir 构建导出表索引
+// 【⚠ 重大修正 2026-10-16】原实现在成功路径上**无条件 ExFree(Src)**，而原始是把
+//   `Src` 写入 GT[GtEprocessField22]（槽 32）后**刻意保留**（生命周期内不释放），
+//   只释放 RawFileData。悬空指针随即被 BuildHookTable 取出并传给 GetExportDirSize，
+//   读 [Src+0x3C] 时页面已回收/未映射 → BSOD 0x50（Arg1 为页对齐的池地址）。
+//   原始控制流（LABEL_10 只 ExFree(RawFileData)）：成功时 Src 与展开缓冲均保留。
 char ReadNtoskrnlFile(void)
 {
     char Success = 0;
     WORD *FileBufferPtr;
     __int64 NtoskrnlBase = 0;
-    int *ImageBuffer, *ImageBufferEnd;
+    int *ImageBuffer;
     char *PeSignature;
     ULONG OptHeaderOffset;
     char *NtHeaders;
     __int64 SectionHeader = 0, SectionHeadersEnd = 0;
-    size_t FileSize;
-    void *Src, *FileBuffer;
+    size_t FileSize = 0;        /* 展开后镜像大小（ReadNtFileToBuffer 出参） */
+    size_t RawFileSize = 0;     /* 原始文件大小（ReadFileRawData 出参） */
+    void *Src = NULL, *RawFileData = NULL;
 
     FileBufferPtr = (WORD *)GtAlloc(GtPathBuffer00);
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
-    NtoskrnlBase = NtoskrnlBase;
 
     if (!*(ULONG64 *)FileBufferPtr || !NtoskrnlBase)
         return Success;
-    if (ReadFileRawData(FileBufferPtr, &FileBuffer, (ULONG *)&FileSize, 1))
+    if (ReadFileRawData(FileBufferPtr, &RawFileData, (ULONG *)&RawFileSize, 1))
         return Success;
-    if (ReadNtFileToBuffer((PUCHAR)FileBuffer, (ULONG)FileSize, (PUCHAR *)&Src, (PULONG)&FileSize) != 1)
-    {
-        ExFree(FileBuffer);
-        return Success;
-    }
 
-    ImageBuffer = ExAlloc(PagedPool, (ULONG)(FileSize + 256));
-    ImageBufferEnd = ImageBuffer;
-    if (!ImageBuffer)
+    if (ReadNtFileToBuffer((PUCHAR)RawFileData, (ULONG)RawFileSize, (PUCHAR *)&Src, (PULONG)&FileSize) == 1)
     {
+        ImageBuffer = ExAlloc(PagedPool, (ULONG)(FileSize + 256));
+        if (ImageBuffer)
+        {
+            memmove(ImageBuffer, Src, (ULONG)FileSize);
+            memset((char *)ImageBuffer + (ULONG)FileSize, 0, 0x100);
+
+            if (ParseNtExportDir((PUCHAR)ImageBuffer, (ULONG)FileSize, NtoskrnlBase, 0) == 1)
+            {
+                GtWrite(GtEprocessField22, (__int64)Src);
+                GtWrite(GtEprocessField23, (ULONG)FileSize);
+                PeSignature = (char *)Src + *((int *)Src + 15);
+                OptHeaderOffset = *((WORD *)PeSignature + 3);
+                NtHeaders = &PeSignature[*((WORD *)PeSignature + 10)];
+                GtWrite(GtEprocessField24, (__int64)PeSignature);
+                GtWrite(GtEprocessField25, OptHeaderOffset);
+                GtWrite(GtEprocessField26, (__int64)(NtHeaders + 24));
+                GtWrite(GtEprocessField66, (__int64)ImageBuffer);
+                SectionHeader = (__int64)ImageBuffer + ImageBuffer[15];
+                SectionHeadersEnd = *(WORD *)(SectionHeader + 20) + SectionHeader + 24;
+                GtWrite(GtEprocessField67, SectionHeader);
+                GtWrite(GtEprocessField68, SectionHeadersEnd);
+                Success = 1;
+                /* 成功：Src 与 ImageBuffer 保留（槽 32/66 引用），只释放原始文件缓冲 */
+                ExFree(RawFileData);
+                return Success;
+            }
+            ExFree(ImageBuffer);
+        }
         ExFree(Src);
-        ExFree(FileBuffer);
-        return Success;
     }
 
-    memmove(ImageBuffer, Src, (ULONG)FileSize);
-    memset((char *)ImageBufferEnd + (ULONG)FileSize, 0, 0x100);
-
-    if (ParseNtExportDir((PUCHAR)ImageBufferEnd, (ULONG)FileSize, NtoskrnlBase, 0) == 1)
-    {
-        GtWrite(GtEprocessField22, (__int64)Src);
-        GtWrite(GtEprocessField23, (ULONG)FileSize);
-        PeSignature = (char *)Src + *((int *)Src + 15);
-        OptHeaderOffset = *((WORD *)PeSignature + 3);
-        NtHeaders = &PeSignature[*((WORD *)PeSignature + 10)];
-        GtWrite(GtEprocessField24, (__int64)PeSignature);
-        GtWrite(GtEprocessField25, OptHeaderOffset);
-        GtWrite(GtEprocessField26, (__int64)(NtHeaders + 24));
-        GtWrite(GtEprocessField66, (__int64)ImageBufferEnd);
-        SectionHeader = (__int64)ImageBufferEnd + ImageBufferEnd[15];
-        SectionHeadersEnd = *(WORD *)(SectionHeader + 20) + SectionHeader + 24;
-        GtWrite(GtEprocessField67, SectionHeader);
-        GtWrite(GtEprocessField68, SectionHeadersEnd);
-        Success = 1;
-    }
-    else
-        ExFree(ImageBufferEnd);
-
-    ExFree(Src);
-    ExFree(FileBuffer);
+    ExFree(RawFileData);
     return Success;
 }
 
@@ -1344,7 +1344,7 @@ char ReadNtFileToBuffer(PUCHAR Src, ULONG MaxCount, PUCHAR *OutBuffer, PULONG Ou
     ULONG  SectionAlignment;            // v16 = v8[14]
     ULONG  SizeOfImage;                 // v17 = v8[20]
     ULONG  VaMask, RawMask;             // v19 / v22
-    ULONG  ImageLimit, RawLimit;        // v20 / (v18+v21 限制)
+    ULONG  ImageLimit;                  // v20
     ULONG  i;                           // v23
     PUCHAR pSect;                       // v24
     PUCHAR Buffer;                      // v34/v35
@@ -1373,81 +1373,85 @@ char ReadNtFileToBuffer(PUCHAR Src, ULONG MaxCount, PUCHAR *OutBuffer, PULONG Ou
     SizeOfImage      = pNt[20];   // OptionalHeader + 0x38
     SizeOfHeaders    = pNt[21];   // OptionalHeader + 0x3C
 
-    if (HeaderEnd > SizeOfImage || FileAlignment > 0x10000 || SectionAlignment > 0x10000)
+    /* 【修正 2026-10-16】原写 `HeaderEnd > SizeOfImage`（v8[20]），原始是与
+       **SizeOfHeaders**（v8[21]）比较：`v13 <= v14`。两者是不同的 OptionalHeader 字段。 */
+    if (HeaderEnd > SizeOfHeaders || FileAlignment > 0x10000 || SectionAlignment > 0x10000)
         return Result;
 
     VaMask  = SectionAlignment - 1;                                  // v19
     RawMask = FileAlignment - 1;                                     // v22
     ImageLimit = ~VaMask & (VaMask + SizeOfImage);                   // v20：SizeOfImage 按 SectionAlignment 上对齐
-    RawLimit   = *((ULONG *)pSectionLast + 3);                       // v18 = 最后一项 +0x0C = SizeOfRawData
 
-    if (RawLimit > ImageLimit)
-        return Result;
+    /* 末节表项 +0x0C = VirtualAddress(v18)、+0x08 = VirtualSize(v21)：
+       原始要求 v18 <= ImageLimit 且 v21 < ImageLimit 且 v18+v21 <= ImageLimit
+       （均取 uint32，故此处的 > / >= 与原始 <= / < 等价）。 */
     {
-        ULONG LastVa = *((ULONG *)pSectionLast + 2);                 // v21 = 最后一项 +0x08 = VirtualAddress
-        if (LastVa >= ImageLimit || RawLimit + LastVa > ImageLimit)
+        ULONG LastVa       = *((ULONG *)pSectionLast + 3);           // v18 = 末节 VirtualAddress
+        ULONG LastVirtSize = *((ULONG *)pSectionLast + 2);           // v21 = 末节 VirtualSize
+        if (LastVa > ImageLimit
+            || LastVirtSize >= ImageLimit
+            || LastVa + LastVirtSize > ImageLimit)
+        {
             return Result;
+        }
     }
     if (RawMask > VaMask)
         return Result;
 
-    /* ② 逐节校验：VA 须按 SectionAlignment 对齐、Raw 须按 FileAlignment 对齐且不越界 */
+    /* ② 逐节校验并**就地改写** PointerToRawData 与 SizeOfRawData 为按 FileAlignment 对齐值
+       （原始 sub_140005D4C 的循环：v24 指向节表 +0x14(PointerToRawData)）
+       【修正 2026-10-16】原实现有三处与原始不符：
+         ① 误把对齐值写回 VirtualSize(+0x08) —— 原始从不改 VirtualSize；
+         ② 非末节用"前一节"比较 —— 原始比较的是**下一节** VirtualAddress(v24[8])；
+         ③ 未把对齐后的 PointerToRawData 写回。
+       三者叠加导致 i>=1 时几乎必然 break → i<SectionCount → 返回 0 → 实机错误 31。 */
     i = 0;
     pSect = pSection0;
     if (SectionCount)
     {
         do
         {
-            ULONG Va      = *(ULONG *)(pSect + 0x0C);   // v26 = VirtualAddress
-            ULONG RawSize = *(ULONG *)(pSect + 0x10);   // v27 = SizeOfRawData
-            ULONG RawPtr  = *(ULONG *)(pSect + 0x14);   // v28 = PointerToRawData
+            ULONG Va     = *(ULONG *)(pSect + 0x0C);   // v26 = VirtualAddress
+            ULONG RawPtr;                              // v27 = PointerToRawData
+            ULONG RawSize;                             // v28 = SizeOfRawData
 
             if (Va > ImageLimit || (Va & VaMask) != 0)
                 break;
-            if (RawSize > SrcSize)
-                break;
-            if (RawPtr > SrcSize || RawPtr + RawSize > SrcSize)
+
+            RawPtr  = *(ULONG *)(pSect + 0x14);
+            if (RawPtr > SrcSize)
                 break;
 
-            /* 非最后一项：还要求下一节的 VA 落在本节 VA+VirtualSize 之内（原始对 +0x10 与 +0x08 的比较） */
+            RawSize = *(ULONG *)(pSect + 0x10);
+            if (RawSize > SrcSize || RawSize + RawPtr > SrcSize)
+                break;
+
             if (pSect != pSectionLast)
             {
-                ULONG NextVa = *(ULONG *)(pSect + 40 + 0x0C);          // v30 = 下一节 VirtualAddress
+                ULONG NextVa = *(ULONG *)(pSect + 40 + 0x0C);
                 if (Va > NextVa || Va + *(ULONG *)(pSect + 0x08) > NextVa)
                     break;
             }
 
-            /* 用 FileAlignment 上对齐 SizeOfRawData，越界则回退为剩余空间 */
             {
-                ULONG AlignedRaw = ~RawMask & (RawMask + RawSize);
-                if (AlignedRaw > SrcSize)
-                {
-                    ULONG Adj = RawSize;
-                    if (AlignedRaw > SrcSize - AlignedRaw)
-                        Adj = SrcSize - AlignedRaw;
-                    *(ULONG *)(pSect + 0x10) = Adj;
-                }
-                else
-                    *(ULONG *)(pSect + 0x10) = AlignedRaw;
-            }
+                ULONG AlignedPtr  = ~RawMask & RawPtr;             // v31
+                ULONG AlignedSize = ~RawMask & (RawMask + RawSize); // v32
+                *(ULONG *)(pSect + 0x14) = AlignedPtr;
+                *(ULONG *)(pSect + 0x10) = AlignedSize;
+                if (AlignedPtr > SrcSize || (int)AlignedSize < 0)
+                    break;
+                if (AlignedSize > SrcSize - AlignedPtr)
+                    AlignedSize = SrcSize - AlignedPtr;
+                *(ULONG *)(pSect + 0x10) = AlignedSize;
 
-            /* 用 SectionAlignment 上对齐 VirtualSize（+0x08） */
-            {
-                ULONG VirtSize = *(ULONG *)(pSect + 0x08);
-                ULONG AlignedVirt = ~VaMask & (VaMask + VirtSize);
-                if (i == 0)
+                if (pSect == pSectionLast)
                 {
-                    if (AlignedVirt > ImageLimit - Va)
-                        AlignedVirt = ImageLimit - Va;
-                    *(ULONG *)(pSect + 0x08) = AlignedVirt;
+                    if (AlignedSize > ImageLimit - Va)
+                        AlignedSize = ImageLimit - Va;
+                    *(ULONG *)(pSect + 0x10) = AlignedSize;
                 }
-                else
-                {
-                    PUCHAR pPrev = pSect - 40;
-                    if (AlignedVirt > (*(ULONG *)(pPrev + 0x0C) + *(ULONG *)(pPrev + 0x10)) - Va)
-                        break;
-                    *(ULONG *)(pSect + 0x08) = AlignedVirt;
-                }
+                else if (AlignedSize > *(ULONG *)(pSect + 40 + 0x0C) - Va)
+                    break;
             }
 
             ++i;
@@ -1472,12 +1476,18 @@ char ReadNtFileToBuffer(PUCHAR Src, ULONG MaxCount, PUCHAR *OutBuffer, PULONG Ou
         memmove(Buffer, pBase, HeaderSize);
     }
 
+    /* 原始：每节拷贝长度 = min(VirtualSize(+0x08), SizeOfRawData(+0x10))，
+       目标偏移 = VirtualAddress(+0x0C)，源偏移 = PointerToRawData(+0x14)。
+       【修正 2026-10-16】原实现只用了 SizeOfRawData，未与 VirtualSize 取小值。 */
     for (i = 0; i < SectionCount; i++)
     {
         PUCHAR p = pSection0 + 40 * i;
+        ULONG VirtSize = *(ULONG *)(p + 0x08);
+        ULONG RawSize  = *(ULONG *)(p + 0x10);
+        ULONG CopySize = (VirtSize < RawSize) ? VirtSize : RawSize;
         memmove(Buffer + *(ULONG *)(p + 0x0C),
                 pBase   + *(ULONG *)(p + 0x14),
-                *(ULONG *)(p + 0x10));
+                CopySize);
     }
 
     Result = 1;

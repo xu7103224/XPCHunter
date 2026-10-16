@@ -117,6 +117,7 @@ __int64 IrpFileSystemControl(void *FileHandle, struct _IRP *FsctlBuffer, ULONG B
     struct _KEVENT Event;
     _OWORD BufferArray;
 
+    Object = NULL;   /* 【修正 2026-10-16】空指针保护：防止 ObReferenceObjectByHandle 未写入时使用栈垃圾 */
     Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, NULL);
     if (Status)
         return Status;
@@ -152,7 +153,9 @@ __int64 IrpFileSystemControl(void *FileHandle, struct _IRP *FsctlBuffer, ULONG B
     Irp->Tail.Overlay.Thread = KeGetCurrentThread();
     Irp->Tail.Overlay.OriginalFileObject = (PFILE_OBJECT)Object;
 
-    StackLocation[-1].MajorFunction = IRP_MJ_FILE_SYSTEM_CONTROL;
+    StackLocation[-1].MajorFunction = 6;   /* 【修正 2026-10-16】原始 0x14002F321 为 `mov byte ptr [rcx-48h], 6`
+                                             （IRP_MJ_SET_INFORMATION）；原写 IRP_MJ_FILE_SYSTEM_CONTROL(0x0D) 系误判。
+                                             参数布局（SetFile.ReplaceIfExists / Create.Options）亦印证是 SET_INFORMATION。 */
     StackLocation[-1].DeviceObject = (PDEVICE_OBJECT)DeviceObject;
     FileObject = (struct _FILE_OBJECT *)Object;
     StackLocation[-1].Parameters.CreatePipe.Parameters = NULL;
@@ -163,11 +166,11 @@ __int64 IrpFileSystemControl(void *FileHandle, struct _IRP *FsctlBuffer, ULONG B
     if (FsControlCode == 10)
         StackLocation[-1].Parameters.SetFile.ReplaceIfExists = (BOOLEAN)FsctlBuffer->Type;
 
-    IrpMonitorContext = GetIrpMonitorContext(DeviceObject, IRP_MJ_FILE_SYSTEM_CONTROL, &BufferArray, (_QWORD *)&pCallDriver);
+    IrpMonitorContext = GetIrpMonitorContext(DeviceObject, 6, &BufferArray, (_QWORD *)&pCallDriver);
     VolumeChangeLock = AcquireVolumeChangeLock(DeviceObject);
     DiskFunctionState = SwapDiskIrpFunctionPointer();
     CallResult = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObject, (ULONG_PTR)Irp);
-    ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObject, IRP_MJ_FILE_SYSTEM_CONTROL, &BufferArray);
+    ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObject, 6, &BufferArray);
 
     if (CallResult == STATUS_PENDING)
         KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
@@ -177,7 +180,7 @@ __int64 IrpFileSystemControl(void *FileHandle, struct _IRP *FsctlBuffer, ULONG B
     Status = IoStatus;
 
 Cleanup:
-    ObfDereferenceObject(Object);
+    if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
     return Status;
 }
 
@@ -227,6 +230,7 @@ __int64 IrpReadFileWithOffset(
     __int64 FileDeviceObject;
     _OWORD BufferArray;
 
+    Object = NULL;   /* 【修正 2026-10-16】空指针保护：防止 ObReferenceObjectByHandle 未写入时使用栈垃圾 */
     Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, NULL);
     if (Status)
         return Status;
@@ -264,7 +268,10 @@ __int64 IrpReadFileWithOffset(
     Irp->Tail.Overlay.OriginalFileObject = (PFILE_OBJECT)Object;
     Irp->Overlay.AllocationSize.QuadPart = 0;
 
-    *(WORD *)&CurrentStackLocation[-1].MajorFunction = IRP_MJ_READ | (0x100); // MajorFunction=2, MinorFunction=0x100
+    /* 【修正 2026-10-16】原始 0x14002E561 为 `mov word ptr [rcx-48h], 10Ch`
+       （MajorFunction=0x0C IRP_MJ_DIRECTORY_CONTROL，MinorFunction=0x01 QUERY_DIRECTORY）。
+       原写 `IRP_MJ_READ|0x100`（=0x103）系把 0x10C 误抄为 "READ|0x100"。 */
+    *(WORD *)&CurrentStackLocation[-1].MajorFunction = 0x10C;
     CurrentStackLocation[-1].DeviceObject = (PDEVICE_OBJECT)DeviceObjectCopy;
     CurrentStackLocation[-1].FileObject = (PFILE_OBJECT)Object;
     CurrentStackLocation[-1].Parameters.Read.Length = Length;
@@ -277,11 +284,11 @@ __int64 IrpReadFileWithOffset(
     if (UseSecondary == 1)
         CurrentStackLocation[-1].Flags |= 2;
 
-    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, IRP_MJ_READ, &BufferArray, (_QWORD *)&pCallDriver);
+    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, 0x0C, &BufferArray, (_QWORD *)&pCallDriver);
     VolumeChangeLock = AcquireVolumeChangeLock(DeviceObjectCopy);
     DiskFunctionState = SwapDiskIrpFunctionPointer();
     Status = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
-    ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObjectCopy, IRP_MJ_READ, &BufferArray);
+    ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObjectCopy, 0x0C, &BufferArray);
 
     if (Status == STATUS_PENDING)
     {
@@ -296,7 +303,7 @@ __int64 IrpReadFileWithOffset(
         *pBytesRead = IoStatus[2];
 
 Cleanup:
-    ObfDereferenceObject(Object);
+    if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
     return (ULONG)Status;
 }
 
@@ -318,11 +325,19 @@ __int64 IrpReadFile(void *FileHandle, struct _IRP *AssociatedIrp, ULONG Length, 
     PVOID Object;
     __int64 DeviceObjectForFile;
     __int64 (__fastcall *pCallDriver)(__int64, ULONG_PTR, __int64);
-    unsigned int IoStatus;
+    IO_STATUS_BLOCK IoStatus;   /* 【修正 2026-10-16】原为 4 字节 unsigned int，但 IrpReadCompletionRoutine
+                                   向 UserIosb 整块拷入 16 字节 IO_STATUS_BLOCK：溢出 12 字节盖掉相邻的
+                                   Object 槽（Information=0x18 落上去），导致 ObfDereferenceObject(0x18)
+                                   访问 0x18-0x30 触发 BSOD 0x50（Arg1=ffffffff`ffffffe8）。
+                                   原始反汇编中该槽位到 Event 之间恰为 0x10 字节，即原实现保留了 16 字节。 */
     struct _KEVENT Event;
     _OWORD BufferArray;
     char FileDeviceObject[8];
 
+    Object = NULL;   /* 【修正 2026-10-16】必须先清零：实测 BSOD 0x50 源于
+                        ObReferenceObjectByHandle 返回 0 但未写入 Object 时，
+                        仍以栈垃圾调用 ObfDereferenceObject（栈上残留路径字符串）。
+                        原始代码依赖编译器/调用约定保证，此处显式初始化并加 NULL 保护。 */
     Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, 0);
     if (!Status)
     {
@@ -364,17 +379,21 @@ __int64 IrpReadFile(void *FileHandle, struct _IRP *AssociatedIrp, ULONG Length, 
                     KeWaitForSingleObject(&Event, Executive, 0, 0, 0);
                 NotifyVolumeDeviceChange(VolumeChangeLock, DeviceObject);
                 RestoreDiskIrpFunctionPointer(DiskFunctionState);
-                Status = IoStatus;
+                Status = IoStatus.Status;
             }
         }
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
     }
     return Status;
 }
 
-// IrpWriteFile — IRP 写入文件
+// IrpWriteFile — 通过 IRP 读取文件内容（函数名沿用原始，实际发 **IRP_MJ_READ**）
 // 对应原始驱动 sub_14002EF18
-// 通过 IRP 发送 IRP_MJ_WRITE 到文件设备，支持偏移量指定
+// 【⚠ 重大修正 2026-10-16】原实现发的是 IRP_MJ_WRITE(4)，导致**把零缓冲区写进文件**：
+//   实测把 Guest 的 C:\Windows\System32\ntoskrnl.exe 头 16 字节清零 → 之后所有加载失败。
+//   原始反汇编 0x14002F081: `mov word ptr [rcx-48h], 3`（=IRP_MJ_READ），
+//   且 Flags |= 0x100（IRP_READ_OPERATION）、MonitorContext 传 3 —— 三处均为 3。
+//   调用方（ReadFileRawData / ReadNtFilePartial / FileDiskOperation）全部按"读入 Buffer"语义使用。
 __int64 IrpWriteFile(
     void *FileHandle,
     LARGE_INTEGER *ByteOffset,
@@ -403,6 +422,7 @@ __int64 IrpWriteFile(
     char FileDeviceObject[8];
     _OWORD BufferArray;
 
+    Object = NULL;   /* 【修正 2026-10-16】空指针保护：防止 ObReferenceObjectByHandle 未写入时使用栈垃圾 */
     Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, NULL);
     if (Status < 0)
         return (ULONG)Status;
@@ -430,7 +450,7 @@ __int64 IrpWriteFile(
     Irp = IoAllocateIrp(*(UCHAR *)(DeviceObjectForFile + 76), FALSE);
     if (!Irp)
     {
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
         return (ULONG)Status;
     }
 
@@ -438,7 +458,7 @@ __int64 IrpWriteFile(
     if (Status < 0)
     {
         IoFreeIrp(Irp);
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
         return (ULONG)Status;
     }
 
@@ -458,18 +478,18 @@ __int64 IrpWriteFile(
     Irp->Tail.Overlay.Thread = KeGetCurrentThread();
     Irp->Tail.Overlay.OriginalFileObject = (PFILE_OBJECT)Object;
 
-    *(WORD *)&StackLocation[-1].MajorFunction = IRP_MJ_WRITE;
+    *(WORD *)&StackLocation[-1].MajorFunction = IRP_MJ_READ;   /* 【修正 2026-10-16】原始为 3 (IRP_MJ_READ) */
     StackLocation[-1].DeviceObject = (PDEVICE_OBJECT)DeviceObjectCopy;
     FileObjectPtr = (struct _FILE_OBJECT *)Object;
     StackLocation[-1].Parameters.Read.Length = Length;
     StackLocation[-1].FileObject = FileObjectPtr;
     StackLocation[-1].Parameters.Read.ByteOffset = *ByteOffset;
 
-    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, IRP_MJ_WRITE, &BufferArray, (_QWORD *)&pCallDriver);
+    IrpMonitorContext = GetIrpMonitorContext(DeviceObjectCopy, IRP_MJ_READ, &BufferArray, (_QWORD *)&pCallDriver);
     VolumeChangeLock = AcquireVolumeChangeLock(DeviceObjectCopy);
     DiskFunctionState = SwapDiskIrpFunctionPointer();
     CallResult = (int)AllocateIrpStackAndCallDriver(pCallDriver, DeviceObjectCopy, (ULONG_PTR)Irp);
-    ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObjectCopy, IRP_MJ_WRITE, &BufferArray);
+    ReleaseIrpMonitorContext(IrpMonitorContext, DeviceObjectCopy, IRP_MJ_READ, &BufferArray);
 
     if (CallResult == STATUS_PENDING)
         KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
@@ -477,7 +497,7 @@ __int64 IrpWriteFile(
     NotifyVolumeDeviceChange(VolumeChangeLock, DeviceObjectCopy);
     RestoreDiskIrpFunctionPointer(DiskFunctionState);
 
-    ObfDereferenceObject(Object);
+    if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
     return (ULONG)IoStatusBlock->Status;
 }
 
@@ -499,7 +519,10 @@ __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, 
     __int64 SavedDeviceProcedure;
     _QWORD *pCdbBuffer;
     UCHAR CurrentIrql;
-    int IoStatusBlock;
+    IO_STATUS_BLOCK IoStatusBlock;   /* 【修正 2026-10-16】必须为完整的 16 字节 IO_STATUS_BLOCK：
+                                        CompleteIrpAndCleanupMdl 向 UserIosb 整块拷入 16 字节，
+                                        4 字节声明会溢出覆盖紧随其后的 Event（等待线程挂死）。
+                                        原始反汇编中该槽到 Event 之间亦为 0x10 字节。 */
     struct _KEVENT Event;
 
     Status = -1073741670;
@@ -596,7 +619,7 @@ __int64 SendDeviceIoControlIrp(_QWORD *DeviceInfo, int Direction, void *Buffer, 
     if (Status == STATUS_PENDING)
     {
         KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-        Status = IoStatusBlock;
+        Status = IoStatusBlock.Status;
     }
 
     __writecr8(CurrentIrql);
@@ -784,7 +807,7 @@ __int64 CreateFileWithPath(
                             DesiredAccess | 0x100000, *IoFileObjectType,
                             KernelMode, FileHandle);
                         if (Status >= 0) Status = 0;
-                        ObfDereferenceObject(Object);
+                        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
                     }
                 }
                 if (AllocatedPath) ExFree(AllocatedPath);
@@ -1077,6 +1100,11 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
     ULONG FileSize;
     void *AllocBuffer;
     IO_STATUS_BLOCK IoStatusBlock;
+    int FsctlResult;   /* 【修正 2026-10-16】必须是**有符号**：原实现复用无符号 ULONG Status 做
+                          `if (Status >= 0)`，该判断恒为真，于是 QueryDiskFsControlInfo 失败
+                          （返回 0xC0000001）时仍执行 ExFree(FsctlBuffer)，而 *OutBuffer 已被该函数
+                          置 0 → ExFreePool(NULL) 在 nt!ExFreeHeapPool+0x80e 触发 BSOD 0x7E。
+                          原始反汇编（sub_14002F680）此处用独立的 `int FsctlResult`（eax）判符号。 */
 
     Status = (ULONG)CreateFileWithPath(FilePath, 0, &Handle, 0x100020, 0x80, 1, 1, 0x20);
     if (Status != 0)
@@ -1090,11 +1118,11 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
     }
 
     FileSize = FileInfo[0];
-    Status = (ULONG)QueryDiskFsControlInfo(FilePath, 0, &FsctlBuffer, &FsctlBufferSize);
-    if (Status >= 0)
+    FsctlResult = (int)QueryDiskFsControlInfo(FilePath, 0, &FsctlBuffer, &FsctlBufferSize);
+    if (FsctlResult >= 0)
     {
         if (FsctlBufferSize >= FileSize &&
-            (!RequirePeHeader || *(WORD *)FsctlBuffer == IMAGE_DOS_SIGNATURE))
+            (!RequirePeHeader || ValidatePeHeaderSignature((__int64)FsctlBuffer, FileSize) == 1))
         {
             *OutBuffer = FsctlBuffer;
             *OutSize = FileSize;
@@ -1107,8 +1135,10 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
     AllocBuffer = ExAlloc(PagedPool, FileSize);
     if (!AllocBuffer)
     {
+        /* 原始：v8 保持 -1073741670(STATUS_INSUFFICIENT_RESOURCES)，跳 LABEL_13 关闭句柄 */
+        Status = (ULONG)STATUS_INSUFFICIENT_RESOURCES;
         ZwClose(Handle);
-        return STATUS_UNSUCCESSFUL;
+        return Status;
     }
 
     Status = (ULONG)IrpWriteFile(Handle, 0, FileSize, AllocBuffer, (LARGE_INTEGER *)1, &IoStatusBlock);
@@ -1248,7 +1278,7 @@ bool OpenFileObjectByPath(PCWSTR SourceString, __int64 DeviceObjectBase, HANDLE 
         if (ObReferenceObjectByHandle(*pHandle, 0, *IoFileObjectType, 0, &Object, 0) >= 0 && Object)
         {
             Result = (DeviceObjectBase == *((__int64 *)Object + 1));
-            ObfDereferenceObject(Object);
+            if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
             if (!Result)
                 ZwClose(*pHandle);
         }
@@ -1305,8 +1335,7 @@ __int64 OpenPhysicalDiskDevice(__int16 *DevicePath, void *DeviceHandle, void **p
         {
             if (ObReferenceObjectByHandle(DeviceHandle, 0, *IoFileObjectType, 0, &Object, 0) >= 0 && Object)
             {
-                ObfDereferenceObject(Object);
-
+                if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
                 Status = -1073741823;
                 if (CheckMemoryValid((PVOID)0xFFFFF78000000030) == 1 &&
                     MEMORY[0xFFFFF78000000032] == 58 &&
@@ -1447,7 +1476,7 @@ __int64 QueryPhysicalDiskInfo(void *FileHandle, _QWORD *pDeviceObject, void **pP
                         if (InfoBuffer)
                         {
                             *pDeviceObject = InfoBuffer;
-                            ObfDereferenceObject(Object);
+                            if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
                         }
                         else
                         {
@@ -2081,7 +2110,7 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     if (!InfoBuffer)
     {
         InfoSize[1] = 0;
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
         return (ULONG)Result;
     }
 
@@ -2112,7 +2141,7 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
         *((_WORD *)Object + 44) = 0;
         InfoSize = Object;
         InfoSize[1] = 0;
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
         return (ULONG)Result;
     }
 
@@ -2130,7 +2159,9 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     Irp->Cancel = 0;
     Irp->CancelRoutine = 0;
 
-    int CreateIoStatus = 0;
+    IO_STATUS_BLOCK CreateIoStatus = { 0 };   /* 【修正 2026-10-16】原为 int（4 字节），
+                                    IrpReadCompletionRoutine 向 UserIosb 整块拷入 16 字节会溢出相邻栈槽；
+                                    原始反汇编中该槽到 ObjAttributes 之间恰为 0x10 字节。 */
     Irp->UserIosb = (PIO_STATUS_BLOCK)&CreateIoStatus;
     Irp->UserEvent = &Event;
 
@@ -2164,7 +2195,7 @@ __int64 CreateFileObject(__int64 UnicodeString, unsigned int DesiredAccess, int 
     NotifyVolumeDeviceChange(VolumeChangeLock, (__int64)DeviceObject);
     RestoreDiskIrpFunctionPointer(SwapDiskFuncRet);
 
-    if (CreateIoStatus)
+    if (CreateIoStatus.Status)
     {
 LABEL_15:
         Result = -1073741823;
@@ -2173,7 +2204,7 @@ LABEL_15:
         *((_WORD *)Object + 44) = 0;
         InfoSize = Object;
         InfoSize[1] = 0;
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
         return (ULONG)Result;
     }
 
@@ -4137,7 +4168,9 @@ __int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, vo
     int CallStatus;
     __int64 SavedTable1, SavedTable2, SavedTable3, SavedTable4, SavedTable5;
     struct _KEVENT Event;
-    char IoStatusBuffer;
+    IO_STATUS_BLOCK IoStatusBuffer;   /* 【修正 2026-10-16】原为 char（1 字节），
+                                    CompleteIrpAndCleanupMdl 向 UserIosb 整块拷入 16 字节会溢出相邻栈槽；
+                                    原始反汇编中该槽到 v59 之间恰为 0x10 字节。 */
     _OWORD FunctionTable1, FunctionTable2, FunctionTable3, FunctionTable4, FunctionTable5, FunctionTable6;
     __int64 (*pCallDriver)(__int64, ULONG_PTR, __int64);
     ULONG_PTR IrpAddress;

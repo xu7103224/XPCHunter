@@ -1,6 +1,8 @@
 import struct,sys
 from capstone import *
-P='samples/PCHunter_2024.09.02/View++_Driver64.sys'
+import os
+P=os.environ.get('GTSEQ_PE','samples/PCHunter_2024.09.02/View++_Driver64.sys')
+GT_READS=set()
 d=open(P,'rb').read()
 pe=struct.unpack_from('<I',d,0x3c)[0]
 n=struct.unpack_from('<H',d,pe+6)[0]
@@ -15,6 +17,9 @@ def off(va):
         if sva<=va<sva+max(vsz,rsz): return ra+(va-sva)
 md=Cs(CS_ARCH_X86, CS_MODE_64)
 CALLS={'0x140029efc':'R','0x140029ff4':'W'}
+GR=os.environ.get('GTSEQ_R'); GW=os.environ.get('GTSEQ_W')
+if GR: CALLS[GR]='R'
+if GW: CALLS[GW]='W'
 def seq(a,ln=1200):
     raw=d[off(a):off(a)+ln]
     regs={}; out=[]

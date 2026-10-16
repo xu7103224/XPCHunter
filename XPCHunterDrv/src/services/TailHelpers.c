@@ -484,6 +484,7 @@ int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, voi
     __int64 FileDeviceObject;
     _OWORD BufferArray;
 
+    Object = NULL;   /* 【修正 2026-10-16】空指针保护：防止 ObReferenceObjectByHandle 未写入时使用栈垃圾 */
     Status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, 0, &Object, 0);
     if (Status)
         return (unsigned int)Status;
@@ -502,14 +503,14 @@ int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, voi
     Irp = IoAllocateIrp(*(_BYTE *)(DeviceObjectForFile + 76), 0);
     if (!Irp)
     {
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
         return (unsigned int)Status;
     }
     Status = (int)IrpSetupBufferMdl(Irp, DeviceObject, Buffer, Length, (char)Timeout, 0, (_DWORD *)&BufferMdl);
     if (Status < 0)
     {
         IoFreeIrp(Irp);
-        ObfDereferenceObject(Object);
+        if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
         return (unsigned int)Status;
     }
     KeInitializeEvent(&Event, SynchronizationEvent, 0);
@@ -540,7 +541,7 @@ int IrpReadFileEx(void *FileHandle, LARGE_INTEGER *ByteOffset, ULONG Length, voi
         KeWaitForSingleObject(&Event, Executive, 0, 0, 0);
     NotifyVolumeDeviceChange(VolumeChangeLock, DeviceObjectCopy);
     RestoreDiskIrpFunctionPointer(DiskFunctionState);
-    ObfDereferenceObject(Object);
+    if (Object) ObfDereferenceObject(Object);   /* 【修正】空指针保护 */
     return (unsigned int)IoStatusBlock->Status;
 }
 
