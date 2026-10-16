@@ -25,27 +25,56 @@ __int64 ClassifyPESectionType(PUCHAR Context);
 // ============================================================
 // 上下文偏移常量（基于 PE_DECODE_CONTEXT 结构）
 // ============================================================
-#define DEC_CTX_DECODE_TABLE_PTR    0x00  // QWORD: 解码表指针
-#define DEC_CTX_BUFFER_BASE         0x08  // QWORD: 缓冲区基址
-#define DEC_CTX_BUFFER_END          0x10  // QWORD: 缓冲区结束
-#define DEC_CTX_MODE                0x18  // DWORD: 模式
-#define DEC_CTX_MODE_DUP            0x1C  // DWORD: 模式副本
-#define DEC_CTX_ADDR_SIZE           0x20  // DWORD: 地址大小模式
-#define DEC_CTX_OPERAND_SIZE        0x24  // DWORD: 操作数大小模式
-#define DEC_CTX_STATE_FLAGS         0x28  // DWORD: 状态标志
-#define DEC_CTX_LAST_OPCODE_BYTE    0x2C  // BYTE: 最后操作码字节
-#define DEC_CTX_OPERANDS            0x30  // 操作数数组 (3 * 56 = 168 字节)
-#define DEC_CTX_OPERAND_COUNT       0xD8  // DWORD: 操作数计数
-#define DEC_CTX_EXTRA_FIELD         0xDC  // DWORD: 额外字段
-#define DEC_CTX_INSTRUCTION_COUNT   0xE0  // DWORD: 指令计数
-#define DEC_CTX_PARAM4              0xE8  // QWORD: 参数 4
-#define DEC_CTX_PARAM5              0xF0  // QWORD: 参数 5
-#define DEC_CTX_PARAM6              0xF8  // QWORD: 参数 6
-#define DEC_CTX_PARAM7              0x100 // QWORD: 参数 7
-#define DEC_CTX_FUNC_TABLE          0x108 // QWORD: 解码函数表指针 (由 ReadPESectionEntry 设置)
-#define DEC_CTX_EXTRA_ENTRY         0x110 // QWORD: 额外条目
-#define DEC_CTX_CUR_TABLE_ENTRY     0x118 // QWORD: 当前解码表条目 (由 DispatchInstructionDecode 设置)
-#define DEC_CTX_SUB_DECODE_TABLE    0x160 // QWORD: 子解码表指针 (MultiByte 子表)
+// 【⚠ 重大修正 2026-10-17】以下偏移全部改为**仿真器实测值**：在模拟内核里执行原始
+//   ReadPESectionEntry 并对描述符缓冲区挂内存写钩子，逐条记录「哪个 RIP 写了哪个偏移」。
+//   实测写入序列（第一条条目）：
+//     init : +0x28=0xFF  +0x24=3  +0x20=0  +0x00=Mode  +0x04=ModeDup  +0x08=AddrSize
+//            +0x110=ExtraField  +0x10=Param6  +0x18=Param7  +0x108=函数表
+//     loop : +0x20=0x40  +0x2C=type5  +0x08=2  +0xE4=opcode  +0x2A=count  +0xE8=readptr+param4
+//     dispatch: +0x118=当前表项  +0x30/+0x68/+0xA0=三个操作数记录
+//     handlers: +0xD8  +0xDC=0x44  +0xF4  +0xE0  +0x58  +0x50/0x40  +0x88/0x90  +0x48/0x80  +0xF0=消耗量
+//   载荷字段位于**操作数记录**内：+0x38=op0+0x08、+0x50=op0+0x20、+0x78=op1+0x10、+0x88=op1+0x20。
+//   （此前把 Mode 写在 +0x18、状态标志写在 +0x28、消耗量写在 +0xE0，与调用方读取的偏移全错位。）
+#define DEC_CTX_DECODE_TABLE_PTR    0x00  // QWORD: 解码表指针（上下文偏移，与描述符 +0x00 同值巧合）
+#define DEC_CTX_BUFFER_BASE         0x08  // QWORD: 缓冲区基址（上下文偏移）
+#define DEC_CTX_BUFFER_END          0x10  // QWORD: 缓冲区结束（上下文偏移）
+#define DEC_CTX_MODE                0x00  // DWORD: 模式（init 写；类型 0/1 会改写 +0x04/+0x08）
+#define DEC_CTX_MODE_DUP            0x04  // DWORD: 模式副本
+#define DEC_CTX_ADDR_SIZE           0x08  // DWORD: 地址大小（init 写 ctx.AddrSize；类型 5 置 2）
+#define DEC_CTX_PARAM6_DESC         0x10  // QWORD: init 写 ctx.Param6
+#define DEC_CTX_PARAM7_DESC         0x18  // QWORD: init 写 ctx.Param7
+#define DEC_CTX_STATE_FLAGS         0x20  // DWORD: 类型状态标志（0x40=已见类型5 等）
+#define DEC_CTX_OPERAND_SIZE        0x24  // DWORD: 操作数大小（init=3；类型 2 置 subtype-9）
+#define DEC_CTX_SUBTYPE_BYTE        0x28  // BYTE: 子类型字节（init=0xFF，随后逐类型写入）
+#define DEC_CTX_INSTR_COUNT_WORD    0x2A  // WORD: 本次已消费的指令字节数（尾部写）
+#define DEC_CTX_TYPE5_VALUE         0x2C  // DWORD: 类型 5 的取值
+#define DEC_CTX_OPERANDS            0x30  // 操作数记录数组：3 × 0x38（+0x30/+0x68/+0xA0）
+#define DEC_CTX_PREFIX_FLAGS        0xD8  // DWORD: 前缀/操作数标志（Classify 读 & 0x300）
+#define DEC_CTX_MODRM_BYTE          0xDC  // DWORD: ModRM 相关字节
+#define DEC_CTX_IMM_VALUE           0xE0  // DWORD: 立即数解析结果
+#define DEC_CTX_READPTR_PARAM4      0xE8  // QWORD: 读指针 + ctx.Param4（尾部写）
+#define DEC_CTX_CONSUMED            0xF0  // DWORD: 本条目的消耗字节数（**调用方按此推进读指针**）
+#define DEC_CTX_IMM_FLAG            0xF4  // DWORD: 立即数标志
+#define DEC_CTX_STATUS_ACC          0x100 // DWORD: 错误/结束累加器（|=2 错误、|=4 到界；==2 走特殊返回）
+#define DEC_CTX_FUNC_TABLE          0x108 // QWORD: 解码函数表指针（init 写）
+#define DEC_CTX_EXTRA_FIELD         0x110 // DWORD: ctx.ExtraField（init 写）
+#define DEC_CTX_CUR_TABLE_ENTRY     0x118 // QWORD: 当前解码表条目（Dispatch 写；调用方读 +6 取子类型）
+// 【修正 2026-10-17】+0xF8 是原始描述符的「本次读取长度」字段（DecodeOpcodeReadByte 等写 1/2/4），
+//   旧代码把它当「上下文暂存槽」使用 —— 语义冲突，已废弃暂存用法。
+#define DEC_CTX_READ_FLAG           0xF8  // DWORD: 本次读取长度（1/2/4）
+
+// ============================================================
+// 解码器入参 ContextArray 的真实布局（0x28 字节，DispatchInstructionDecode 栈上构建）
+// 【⚠ 重大修正 2026-10-17】原始解码器的入参 a1 就是这个 5 元素数组，而不是描述符：
+//     a1[0] 读指针   a1[1] 结束边界   a1[2] 表条目（回写）   a1[3] 操作数记录   a1[4] 描述符
+//   旧代码把 a1 当描述符按 DEC_CTX_* 去读（+0x08/+0x10/+0xF8），于是
+//   **把"结束边界"当成"读指针"、把"表条目"当成"结束边界"** —— 解码器第一步就越界返回 -1。
+// ============================================================
+#define CTXARR_READ_PTR             0x00  // QWORD: a1[0] = 当前读指针
+#define CTXARR_END_PTR              0x08  // QWORD: a1[1] = 结束边界
+#define CTXARR_TABLE                0x10  // QWORD: a1[2] = 当前表条目（解码器回写）
+#define CTXARR_OPERAND              0x18  // QWORD: a1[3] = 操作数记录指针
+#define CTXARR_DESC                 0x20  // QWORD: a1[4] = 0x120 字节指令描述符
 
 // ============================================================
 // PE 解码上下文（PE_DECODE_CONTEXT，0x48 字节）的真实偏移
@@ -66,7 +95,6 @@ __int64 ClassifyPESectionType(PUCHAR Context);
 
 // 输出上下文额外偏移
 #define DEC_CTX_LAST_OPCODE_SAVE    0xE4  // BYTE: 保存的最后操作码字节
-#define DEC_CTX_INSTR_IDX           0xEA  // WORD: 指令索引
 #define DEC_CTX_RESULT_PTR          0xE8  // QWORD: 结果指针 (与 PARAM4 重叠)
 
 // 操作数字段偏移 (每个 56 字节)
@@ -166,7 +194,7 @@ __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
     RtlZeroMemory(SectionInfo, 0x120);
 
     // 初始化输出结构体
-    SET_B(SectionInfo, DEC_CTX_LAST_OPCODE_BYTE, 0xFF);
+    SET_B(SectionInfo, DEC_CTX_SUBTYPE_BYTE, 0xFF);
     SET_D(SectionInfo, DEC_CTX_OPERAND_SIZE, 3);
     SET_D(SectionInfo, DEC_CTX_ADDR_SIZE, 0);
 
@@ -180,9 +208,11 @@ __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
     //   注意：原始驱动把这三个值分别写入描述符的 +0x110/+0x10/+0x18，本重建的目标
     //   偏移尚未按原始布局改正（见审计报告 P0-1 的 0x120 描述符布局表）。
     SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, CTX_D(Context, CTX_OFF_EXTRA_FIELD));
-    SET_Q(SectionInfo, DEC_CTX_PARAM5, CTX_Q(Context, CTX_OFF_PARAM4));
-    SET_Q(SectionInfo, DEC_CTX_PARAM6, CTX_Q(Context, CTX_OFF_PARAM6));
+    SET_Q(SectionInfo, DEC_CTX_PARAM6_DESC, CTX_Q(Context, CTX_OFF_PARAM6));
+    SET_Q(SectionInfo, DEC_CTX_PARAM7_DESC, CTX_Q(Context, CTX_OFF_PARAM7));
     SET_Q(SectionInfo, DEC_CTX_FUNC_TABLE, (ULONG64)g_PeDecodeFunctionTable);
+    /* 【我方内部】把上下文指针存入描述符 +0xF8，供各子解码器取回（原始驱动不使用该槽） */
+    /* 【已废弃】旧代码在此把上下文指针暂存到描述符 +0xF8；原始该槽是「读取长度」字段，不可占用 */
 
     BufferPos = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
     DecodeTablePtr = CTX_Q(Context, DEC_CTX_DECODE_TABLE_PTR);
@@ -211,14 +241,14 @@ __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
             // Type 5: 设置 64 位标志
             SET_D(SectionInfo, DEC_CTX_STATE_FLAGS,
                   CTX_D(SectionInfo, DEC_CTX_STATE_FLAGS) | 0x40);
-            CTX_D(SectionInfo, DEC_CTX_LAST_OPCODE_BYTE) = *(USHORT *)(TableEntry + 8) - 50;
-            if ((CTX_D(SectionInfo, DEC_CTX_LAST_OPCODE_BYTE) & 8) != 0)
+            CTX_D(SectionInfo, DEC_CTX_TYPE5_VALUE) = *(USHORT *)(TableEntry + 8) - 50;
+            if ((CTX_D(SectionInfo, DEC_CTX_TYPE5_VALUE) & 8) != 0)
                 SET_D(SectionInfo, DEC_CTX_ADDR_SIZE, 2);
             goto LABEL_CONTINUE;
         }
 
         NewFlags = CTX_D(SectionInfo, DEC_CTX_STATE_FLAGS) & 0xFFFFFFBF;
-        SET_B(SectionInfo, DEC_CTX_LAST_OPCODE_BYTE, (UCHAR)TypeField);
+        SET_B(SectionInfo, DEC_CTX_SUBTYPE_BYTE, (UCHAR)TypeField);
         SET_D(SectionInfo, DEC_CTX_STATE_FLAGS, NewFlags);
 
         if (TypeField)
@@ -279,21 +309,21 @@ LABEL_CONTINUE:
         ++BufferPos;
         if (BufferPos >= (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END))
         {
-            CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) |= 4;
+            CTX_D(SectionInfo, DEC_CTX_STATUS_ACC) |= 4;
             break;
         }
     }
 
     // 循环结束后的处理
-    if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD))
+    if (CTX_D(SectionInfo, DEC_CTX_STATUS_ACC))
     {
-        if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) == 2)
+        if (CTX_D(SectionInfo, DEC_CTX_STATUS_ACC) == 2)
         {
             ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
                           CTX_Q(Context, CTX_OFF_PARAM4);
-            SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, 0);
-            SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT, 1);
-            SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
+            SET_D(SectionInfo, DEC_CTX_STATUS_ACC, 0);
+            SET_D(SectionInfo, DEC_CTX_CONSUMED, 1);
+            SET_Q(SectionInfo, DEC_CTX_READPTR_PARAM4, ResultBase);
             SET_Q(SectionInfo, 0x118, DecodeTablePtr + 2880);
             return 0;
         }
@@ -304,8 +334,8 @@ LABEL_CONTINUE:
         SET_B(SectionInfo, DEC_CTX_LAST_OPCODE_SAVE, *BufferPos);
         ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
                       CTX_Q(Context, CTX_OFF_PARAM4);
-        SET_W(SectionInfo, DEC_CTX_INSTR_IDX, ByteIndex);
-        SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
+        SET_W(SectionInfo, DEC_CTX_INSTR_COUNT_WORD, ByteIndex);
+        SET_Q(SectionInfo, DEC_CTX_READPTR_PARAM4, ResultBase);
 
         DispatchResult = (int)DispatchInstructionDecode(
             (ULONG64)(BufferPos + 1),
@@ -315,11 +345,11 @@ LABEL_CONTINUE:
 
         if (DispatchResult == -1)
         {
-            CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) |= 4;
+            CTX_D(SectionInfo, DEC_CTX_STATUS_ACC) |= 4;
         }
         else
         {
-            SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT,
+            SET_D(SectionInfo, DEC_CTX_CONSUMED,
                   ByteIndex + DispatchResult + 1);
             if ((CTX_D(SectionInfo, DEC_CTX_STATE_FLAGS) & 4) != 0)
                 ClassifyPESectionType((PUCHAR)SectionInfo);
@@ -330,17 +360,17 @@ LABEL_CONTINUE:
     return Result;
 
 LABEL_ERROR:
-    CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) |= 2;
+    CTX_D(SectionInfo, DEC_CTX_STATUS_ACC) |= 2;
     // 继续执行到函数末尾的错误处理
-    if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD))
+    if (CTX_D(SectionInfo, DEC_CTX_STATUS_ACC))
     {
-        if (CTX_D(SectionInfo, DEC_CTX_EXTRA_FIELD) == 2)
+        if (CTX_D(SectionInfo, DEC_CTX_STATUS_ACC) == 2)
         {
             ULONG64 ResultBase = CTX_Q(Context, DEC_CTX_BUFFER_BASE) +
                           CTX_Q(Context, CTX_OFF_PARAM4);
-            SET_D(SectionInfo, DEC_CTX_EXTRA_FIELD, 0);
-            SET_D(SectionInfo, DEC_CTX_INSTRUCTION_COUNT, 1);
-            SET_Q(SectionInfo, DEC_CTX_PARAM4, ResultBase);
+            SET_D(SectionInfo, DEC_CTX_STATUS_ACC, 0);
+            SET_D(SectionInfo, DEC_CTX_CONSUMED, 1);
+            SET_Q(SectionInfo, DEC_CTX_READPTR_PARAM4, ResultBase);
             SET_Q(SectionInfo, 0x118, DecodeTablePtr + 2880);
             return 0;
         }
@@ -386,7 +416,7 @@ __int64 ClassifyPESectionType(PUCHAR Context)
         if ((BitTest >> Result) & 1)
         {
 CHECK_64BIT_MODE:
-            Result = CTX_D(Context, DEC_CTX_EXTRA_FIELD) & 0x300;
+            Result = CTX_D(Context, DEC_CTX_PREFIX_FLAGS) & 0x300;   /* 原始 Classify 读描述符 +0xD8 */
             if (Result == 0x300)
                 goto CHECK_STATE_FLAGS;
             return Result;
@@ -408,8 +438,9 @@ CHECK_STATE_FLAGS:
     // fall through
 
 SET_DEFAULT_TYPE:
-    SET_Q(Context, DEC_CTX_CUR_TABLE_ENTRY, (ULONG64)&g_PeDecodeTableMode0[0x190]);  // unk_14009932C
-    return (ULONG64)&g_PeDecodeTableMode0[0x190];
+    /* 原始 lea rax, unk_14009932C = 0x99250 + 0xDC → Legacy2 表内部偏移 */
+    SET_Q(Context, DEC_CTX_CUR_TABLE_ENTRY, (ULONG64)&g_PeDecodeTableLegacy2[0xDC]);
+    return (ULONG64)&g_PeDecodeTableLegacy2[0xDC];
 }
 
 // ============================================================
@@ -430,8 +461,8 @@ __int64 CalcPESectionFieldSize(PUCHAR Context)
         Result = 2;
 
     // 缓冲区边界检查
-    if (CTX_Q(Context, DEC_CTX_BUFFER_BASE) + (INT)Result >
-        CTX_Q(Context, DEC_CTX_BUFFER_END))
+    if (CTX_Q(Context, CTXARR_READ_PTR) + (INT)Result >
+        CTX_Q(Context, CTXARR_END_PTR))
         return (ULONG64)-1;
 
     return Result;
@@ -446,8 +477,8 @@ __int64 CalcPESectionFieldSizeAlt(PUCHAR Context)
 {
     ULONG64 Result = CTX_D(Context, DEC_CTX_OPERAND_SIZE) != 0 ? 4 : 2;
 
-    if (CTX_Q(Context, DEC_CTX_BUFFER_BASE) + (INT)Result >
-        CTX_Q(Context, DEC_CTX_BUFFER_END))
+    if (CTX_Q(Context, CTXARR_READ_PTR) + (INT)Result >
+        CTX_Q(Context, CTXARR_END_PTR))
         return (ULONG64)-1;
 
     return Result;
@@ -460,54 +491,41 @@ __int64 CalcPESectionFieldSizeAlt(PUCHAR Context)
 // ============================================================
 __int64 ReadPESectionField(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
-    INT OperandSize = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
-    ULONG64 Value;
-    ULONG FieldSize;
-    ULONG64 Flags;
+    /* 【ContextArray 约定】Context[0]读指针 [1]结束 [2]表条目 [3]操作数记录 [4]描述符
+       原始 sub_14008A87C 逐条对照：读 v1[2]=描述符+0x08（地址大小），
+       记录写 +0xF8(长度) / 操作数记录 +0x20(标志) +0x18(大小) +0x08(值) */
+    PUCHAR *Args = (PUCHAR *)Context;
+    PUCHAR BufferBase = Args[0];
+    PUCHAR BufferEnd = Args[1];
+    PUCHAR OperandOut = Args[3];
+    PUCHAR DecodeContext = Args[4];
+    INT AddrSize = CTX_D(DecodeContext, DEC_CTX_ADDR_SIZE);
 
-    if (!OperandSize)
+    if (!AddrSize)
     {
-        // word 模式 (2 字节)
         if (BufferBase + 1 >= BufferEnd)
             return (ULONG64)-1;
-
-        FieldSize = 2;
-        SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 2);
-        Value = *(USHORT *)BufferBase;
-        Flags = 0x200000;
+        SET_D(DecodeContext, DEC_CTX_READ_FLAG, 2);
+        CTX_Q(OperandOut, 0x20) |= 0x200000;
+        SET_D(OperandOut, 0x18, 2);
+        SET_Q(OperandOut, 0x08, (ULONG64)*(USHORT *)BufferBase);
+        return 2;
     }
-    else
+    if (BufferBase + 3 >= BufferEnd)
+        return (ULONG64)-1;
+    SET_D(DecodeContext, DEC_CTX_READ_FLAG, 4);
+    if (AddrSize != 2)
     {
-        // dword 或 qword 模式
-        if (BufferBase + 3 >= BufferEnd)
-            return (ULONG64)-1;
-
-        FieldSize = 4;
-        SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 4);
-
-        if (OperandSize != 2)
-        {
-            // dword
-            Value = *(ULONG *)BufferBase;
-            Flags = 0x800000;
-        }
-        else
-        {
-            // qword
-            Value = *(ULONG64 *)BufferBase;
-            Flags = 0x2000000;
-            FieldSize = 8;
-        }
+        CTX_Q(OperandOut, 0x20) |= 0x800000;
+        SET_D(OperandOut, 0x18, 4);
+        SET_Q(OperandOut, 0x08, (ULONG64)*(ULONG *)BufferBase);
+        return 4;
     }
-
-    CTX_Q(OutputContext, 0x20) |= Flags;  // 输出标志
-    SET_D(OutputContext, 6, FieldSize);    // 设置大小
-    SET_Q(OutputContext, 8, Value);        // 设置值
-    return FieldSize;
+    /* 原始 64 位分支仍只读 4 字节，但按 8 字节记录 */
+    CTX_Q(OperandOut, 0x20) |= 0x2000000;
+    SET_D(OperandOut, 0x18, 8);
+    SET_Q(OperandOut, 0x08, (ULONG64)*(ULONG *)BufferBase);
+    return 4;
 }
 
 // ============================================================
@@ -516,19 +534,18 @@ __int64 ReadPESectionField(PUCHAR Context)
 // ============================================================
 __int64 ReadPESectionFieldByte(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    /* 【ContextArray 约定】原始 sub_14008A904 */
+    PUCHAR *Args = (PUCHAR *)Context;
+    PUCHAR OperandOut = Args[3];
+    PUCHAR DecodeContext = Args[4];
 
-    if (BufferBase >= BufferEnd)
+    if (Args[0] >= Args[1])
         return (ULONG64)-1;
 
-    ULONG64 Value = *BufferBase;
-    SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 1);
-    CTX_Q(OutputContext, 0x20) |= 0x100000;  // 设置标志
-    SET_D(OutputContext, 6, 1);               // 大小 = 1
-    SET_Q(OutputContext, 8, Value);           // 值
+    SET_D(DecodeContext, DEC_CTX_READ_FLAG, 1);
+    CTX_Q(OperandOut, 0x20) |= 0x100000;
+    SET_D(OperandOut, 0x18, 1);
+    SET_Q(OperandOut, 0x08, (ULONG64)*(UCHAR *)Args[0]);
     return 1;
 }
 
@@ -539,69 +556,42 @@ __int64 ReadPESectionFieldByte(PUCHAR Context)
 // ============================================================
 __int64 ReadPESectionAsmField(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
-    INT OperandSize = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
-    ULONG64 Value;
-    ULONG FieldSize;
-    ULONG64 Flags;
+    /* 【ContextArray 约定】原始 sub_14008A93C：按描述符 +0x08（地址大小）选 2/4/8 字节 */
+    PUCHAR *Args = (PUCHAR *)Context;
+    PUCHAR BufferBase = Args[0];
+    PUCHAR BufferEnd = Args[1];
+    PUCHAR OperandOut = Args[3];
+    PUCHAR DecodeContext = Args[4];
+    ULONG OpSize = CTX_D(DecodeContext, DEC_CTX_ADDR_SIZE);
 
-    if (OperandSize == 1)
+    if (OpSize != 1)
     {
-        // 32 位模式
-        if (BufferBase + 3 >= BufferEnd)
-            return (ULONG64)-1;
-
-        FieldSize = 4;
-        SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 4);
-        Value = *(ULONG *)BufferBase;
-        Flags = 0x1000000;
-        SET_D(OutputContext, 6, 4);
-    }
-    else if (OperandSize == 2)
-    {
-        // 64 位模式
-        if (BufferBase + 3 >= BufferEnd && BufferBase + 1 < BufferEnd)
+        if (OpSize == 2)
         {
-            // word 回退
-            FieldSize = 2;
-            SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 2);
-            Value = *(USHORT *)BufferBase;
-            Flags = 0x400000;
-            SET_D(OutputContext, 6, 2);
+            if (BufferBase + 3 >= BufferEnd)
+                return (ULONG64)-1;
+            SET_D(DecodeContext, DEC_CTX_READ_FLAG, 4);
+            CTX_Q(OperandOut, 0x20) |= 0x4000000;
+            SET_D(OperandOut, 0x18, 8);
+            /* 原始 v5 = (int)**a1 —— 有符号 32 位扩展 */
+            SET_Q(OperandOut, 0x08, (ULONG64)(LONG64)*(INT *)BufferBase);
+            return 4;
         }
-        else if (BufferBase + 3 < BufferEnd)
-        {
-            // qword (4 字节读取 + 符号扩展)
-            FieldSize = 4;
-            SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 4);
-            Value = *(INT *)BufferBase;  // 符号扩展
-            Flags = 0x4000000;
-            SET_D(OutputContext, 6, 8);
-        }
-        else
-        {
-            return (ULONG64)-1;
-        }
-    }
-    else
-    {
-        // 16 位模式
         if (BufferBase + 1 >= BufferEnd)
             return (ULONG64)-1;
-
-        FieldSize = 2;
-        SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 2);
-        Value = *(USHORT *)BufferBase;
-        Flags = 0x400000;
-        SET_D(OutputContext, 6, 2);
+        SET_D(DecodeContext, DEC_CTX_READ_FLAG, 2);
+        CTX_Q(OperandOut, 0x20) |= 0x400000;
+        SET_D(OperandOut, 0x18, 2);
+        SET_Q(OperandOut, 0x08, (ULONG64)*(USHORT *)BufferBase);
+        return 2;
     }
-
-    CTX_Q(OutputContext, 0x20) |= Flags;
-    SET_Q(OutputContext, 8, Value);
-    return FieldSize;
+    if (BufferBase + 3 >= BufferEnd)
+        return (ULONG64)-1;
+    SET_D(DecodeContext, DEC_CTX_READ_FLAG, 4);
+    CTX_Q(OperandOut, 0x20) |= 0x1000000;
+    SET_D(OperandOut, 0x18, 4);
+    SET_Q(OperandOut, 0x08, (ULONG64)*(ULONG *)BufferBase);
+    return 4;
 }
 
 // ============================================================
@@ -611,10 +601,10 @@ __int64 ReadPESectionAsmField(PUCHAR Context)
 // ============================================================
 __int64 SerializeDataToBuffer(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
     PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     INT DataType = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
     ULONG64 Value;
     ULONG FieldSize;
@@ -630,7 +620,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
                 return (ULONG64)-1;
 
             FieldSize = 6;
-            SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 6);
+            SET_D(DecodeContext, DEC_CTX_STATUS_ACC, 6);
             CTX_D(DecodeContext, 0xFC) = 1;  // 额外标志
             // 读取 4 字节 + 2 字节
             CTX_D(OutputContext, 8) = *(ULONG *)BufferBase;  // 低 32 位
@@ -644,7 +634,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
                 return (ULONG64)-1;
 
             FieldSize = 4;
-            SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 4);
+            SET_D(DecodeContext, DEC_CTX_STATUS_ACC, 4);
             Value = *(ULONG *)BufferBase;
             Flags = 0x10000;
             OutputSize = 4;
@@ -661,7 +651,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
             return (ULONG64)-1;
 
         FieldSize = 8;
-        SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 8);
+        SET_D(DecodeContext, DEC_CTX_STATUS_ACC, 8);
         Value = *(ULONG64 *)BufferBase;
         Flags = 0x20000;
         OutputSize = 8;
@@ -680,7 +670,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
                 return (ULONG64)-1;
 
             FieldSize = 4;
-            SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 4);
+            SET_D(DecodeContext, DEC_CTX_STATUS_ACC, 4);
             CTX_D(DecodeContext, 0xFC) = 1;
             Value = *(ULONG *)BufferBase;
             Flags = 0x40000000;
@@ -692,7 +682,7 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
                 return (ULONG64)-1;
 
             FieldSize = 2;
-            SET_D(DecodeContext, DEC_CTX_EXTRA_FIELD, 2);
+            SET_D(DecodeContext, DEC_CTX_STATUS_ACC, 2);
             Value = *(USHORT *)BufferBase;
             Flags = 0x8000;
             OutputSize = 2;
@@ -714,7 +704,7 @@ __int64 SetDecoderStateFlags(PUCHAR Context)
 {
     PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTX_OFF_PARAM4);
     ULONG64 Flags = CTX_Q(OutputContext, 0x20);
-    INT Mode = CTX_D(CTX_Q(Context, DEC_CTX_PARAM6) + 4, 0);  // 偏移 0x04 = 数据类型
+    INT Mode = CTX_D(CTX_Q(Context, CTXARR_DESC) + 4, 0);  // 偏移 0x04 = 数据类型
 
     Flags |= 0x100000000LL;
 
@@ -740,9 +730,9 @@ __int64 SetDecoderStateFlags(PUCHAR Context)
 // 对应原始驱动 sub_14008AED0
 __int64 DecodeOpcodeTable16_32_64(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     int DispatchResult;
@@ -754,7 +744,8 @@ __int64 DecodeOpcodeTable16_32_64(PUCHAR Context)
     CTX_B(DecodeContext, DEC_CTX_LAST_OPCODE_SAVE) = OpcodeByte;
 
     ULONG64 TableBase;
-    UCHAR Mode = CTX_B(DecodeContext, DEC_CTX_LAST_OPCODE_BYTE);
+    /* 原始读 v1[40] = 描述符 +0x28（子类型字节），非 +0x2C */
+    UCHAR Mode = CTX_B(DecodeContext, DEC_CTX_SUBTYPE_BYTE);
 
     if (Mode)
     {
@@ -797,7 +788,8 @@ __int64 DecodeOpcodeTable16_32_64(PUCHAR Context)
     goto DISPATCH;
 
 USE_DEFAULT:
-    TableEntry = (ULONG64)&g_PeDecodeTableMode0[0x190];  // unk_140099250 + 4*5*OpcodeByte
+    /* 原始 v5 = (char *)&unk_140099250 + 20 * opcode（Legacy2 表按操作码索引） */
+    TableEntry = (ULONG64)&g_PeDecodeTableLegacy2[0] + 20 * OpcodeByte;
 
 DISPATCH:
     DispatchResult = (int)DispatchInstructionDecode(
@@ -815,9 +807,9 @@ DISPATCH:
 // 对应原始驱动 sub_14008AFA0
 __int64 DecodeOpcodeTableWithPrefix(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     ULONG PrefixIndex;
@@ -829,18 +821,21 @@ __int64 DecodeOpcodeTableWithPrefix(PUCHAR Context)
     OpcodeByte = *BufferBase;
     CTX_B(DecodeContext, DEC_CTX_LAST_OPCODE_SAVE) = OpcodeByte;
 
+    /* 原始：r8 = off_14009E250[opcode>>4]（16 项指针表，指向 320 字节子表）
+              r8 ? r8 + 20*(opcode&0xF) : &unk_140096A30（默认表首项） */
     PrefixIndex = OpcodeByte >> 4;
-    TableEntry = (ULONG64)g_PeMultiByteTable1[PrefixIndex];
+    TableEntry = g_PeDecodeTablePrefixPtrA[PrefixIndex];
     if (TableEntry)
         TableEntry += 20 * (OpcodeByte & 0xF);
     else
-        TableEntry = (ULONG64)&g_PeDecodeTableMode0[0x324];  // unk_140096A30
+        TableEntry = (ULONG64)g_PeDecodeTableDefault;
 
-    // 根据模式选择不同的前缀表
-    UCHAR Mode = CTX_B(DecodeContext, DEC_CTX_LAST_OPCODE_BYTE);
-    if (Mode == 0)
+    /* 原始读 v1[40] = 描述符 +0x28（子类型字节） */
+    UCHAR SubType = CTX_B(DecodeContext, DEC_CTX_SUBTYPE_BYTE);
+    if (SubType == 0)
     {
-        ULONG64 AltTable = (ULONG64)g_PeMultiByteTable2[PrefixIndex];
+        /* 原始：r11 = off_14009E2D0[opcode>>4] */
+        ULONG64 AltTable = g_PeDecodeTablePrefixPtrB[PrefixIndex];
         if (AltTable)
         {
             ULONG64 AltEntry = AltTable + 20 * (OpcodeByte & 0xF);
@@ -854,9 +849,11 @@ __int64 DecodeOpcodeTableWithPrefix(PUCHAR Context)
             }
         }
     }
-    else if (Mode == 3)
+    else if (SubType == 3)
     {
-        ULONG64 AltTable = (ULONG64)CTX_Q(DecodeContext, DEC_CTX_CUR_TABLE_ENTRY);  // 子解码表
+        /* 原始：r11 = qword_1400CCEC0[opcode>>4]（.data 虚拟填充区，全 0 → 该分支在
+           原始驱动中恒不生效，属死代码；此处按原样保留结构） */
+        ULONG64 AltTable = g_PeDecodeTableSubtypePtr[PrefixIndex];
         if (AltTable)
         {
             ULONG64 AltEntry = AltTable + 20 * (OpcodeByte & 0xF);
@@ -884,9 +881,9 @@ __int64 DecodeOpcodeTableWithPrefix(PUCHAR Context)
 // 对应原始驱动 sub_14008B080
 __int64 DecodeOpcodeTableDirect(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     ULONG PrefixIndex;
@@ -899,8 +896,23 @@ __int64 DecodeOpcodeTableDirect(PUCHAR Context)
     CTX_B(DecodeContext, DEC_CTX_LAST_OPCODE_SAVE) = OpcodeByte;
 
     PrefixIndex = OpcodeByte >> 4;
-    // qword_1400CCF40 — 直接指针表 (全为 NULL)
-    TableEntry = (ULONG64)&g_PeDecodeTableMode0[0x324];  // unk_140096A30
+    /* 原始：v3 = qword_1400CCF40[opcode>>4]；该表位于 .data 虚拟填充区（全 0），
+       故 v3 == 0 恒成立 → 表条目 = &unk_140096A30（默认表首项，**不带索引**） */
+    TableEntry = g_PeDecodeTableDirectPtr[PrefixIndex];
+    if (TableEntry)
+    {
+        ULONG64 AltEntry = TableEntry + 20 * (OpcodeByte & 0xF);
+        if (*(USHORT *)(AltEntry + 4) != 0xFFFF)
+        {
+            CTX_D(DecodeContext, DEC_CTX_ADDR_SIZE) = CTX_D(DecodeContext, DEC_CTX_MODE);
+            CTX_D(DecodeContext, DEC_CTX_STATE_FLAGS) &= ~2u;
+            TableEntry = AltEntry;
+        }
+    }
+    else
+    {
+        TableEntry = (ULONG64)g_PeDecodeTableDefault;
+    }
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)(BufferBase + 1),
@@ -918,9 +930,9 @@ __int64 DecodeOpcodeTableDirect(PUCHAR Context)
 // 基于前一个操作码字节和当前字节的 reg 域计算解码表偏移
 __int64 DecodeOpcodeTableWithOffset(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     UCHAR PrevOpcode;
     ULONG64 TableEntry;
@@ -933,22 +945,16 @@ __int64 DecodeOpcodeTableWithOffset(PUCHAR Context)
     OpcodeByte = *BufferBase;
     PrevOpcode = CTX_B(DecodeContext, DEC_CTX_LAST_OPCODE_SAVE);
 
-    // 计算偏移: 160 * PrevOpcode + 20 * ((OpcodeByte >> 3) & 7) - 20480
-    // 重新映射到 g_PeDecodeTableOneByte[0] 作为基址
-    // unk_14009E350 偏移 = g_PeDecodeTableOneByte - 0x14009E350 + PrevOpcode*160
-    // 但直接用公式计算
-    ULONG Offset = (ULONG)(160 * PrevOpcode + 20 * ((OpcodeByte >> 3) & 7) - 20480);
-    TableEntry = (ULONG64)&g_PeDecodeTableOneByte[0] + Offset - 0x3400;  // 调整到正确的基址
-
-    // 由于 IDA 地址计算复杂，简化：使用 g_PeDecodeTableOneByte 作为基址
-    // 实际偏移 = (PrevOpcode - 0x100) * 160 + 20 * ((OpcodeByte >> 3) & 7)
-    // 其中 PrevOpcode 是 0x100-0x1FF 范围的 opcode
-    TableEntry = (ULONG64)&g_PeDecodeTableOneByte[0]
-               + 160 * (PrevOpcode - 0x80)
+    /* 【原始算法】v4 = &unk_14009E350 + 160*desc[0xE4] + 20*((byte>>3)&7) - 20480
+       0x14009E350 - 0x5000 = 0x140099350 = Legacy2 表 + 0x100，即 2D 表
+       [上一个操作码][modrm.reg3]（每行 8 项 × 20 字节 = 160 字节） */
+    TableEntry = (ULONG64)&g_PeDecodeTableLegacy2[0x100]
+               + 160 * (ULONG)PrevOpcode
                + 20 * ((OpcodeByte >> 3) & 7);
 
-    CTX_Q(Context, 0x10) = TableEntry;  // 保存表条目指针
+    CTX_Q(Context, CTXARR_TABLE) = TableEntry;  // 原始：a1[2] = 表条目
 
+    /* 原始：v5 = (*v4 != 0)，读指针**不前进**（Dispatch 传的是 v1 而非 v1+1） */
     HasEntry = *(USHORT *)TableEntry != 0;
 
     DispatchResult = (int)DispatchInstructionDecode(
@@ -966,9 +972,9 @@ __int64 DecodeOpcodeTableWithOffset(PUCHAR Context)
 // 对应原始驱动 sub_14008B180
 __int64 DecodeOpcodeTableGroup1(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     UCHAR PrevOpcode;
     int RegIndex;
@@ -984,13 +990,16 @@ __int64 DecodeOpcodeTableGroup1(PUCHAR Context)
     RegIndex = (OpcodeByte >> 3) & 7;
 
     // 计算 Grp1 偏移
+    // 【原始】cmp dl,0C0h / cmp al,r8b(1) / cmp al,3 —— 前两条比较都是**8 位截断**
+    //   （(BYTE)(prev+0x40) <= 1 → prev ∈ {0xC0,0xC1}；(BYTE)(prev+0x30) <= 3 → prev ∈ {0xD0..0xD3}）
+    //   第三支（else）原始从栈参数取值（未初始化），此处按默认表索引 0 处理
     ULONG64 BaseOffset;
     if (PrevOpcode >= 0xC0)
     {
-        if (PrevOpcode + 64 <= 1)
-            BaseOffset = 8 * PrevOpcode - 1536;
-        else if (PrevOpcode + 48 <= 3)
-            BaseOffset = 8 * PrevOpcode - 1648;
+        if ((UCHAR)(PrevOpcode + 0x40) <= 1)
+            BaseOffset = 8 * PrevOpcode - 1536;   // 0xC0/0xC1 → 0 / 8
+        else if ((UCHAR)(PrevOpcode + 0x30) <= 3)
+            BaseOffset = 8 * PrevOpcode - 1648;   // 0xD0..0xD3 → 16..47
         else
             BaseOffset = 0;
         HasEntry = 0;
@@ -1022,9 +1031,9 @@ __int64 DecodeOpcodeTableGroup1(PUCHAR Context)
 // 对应原始驱动 sub_14008B238
 __int64 DecodeOpcodeTableGroup2(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     UCHAR PrevOpcode;
     ULONG64 TableEntry;
@@ -1061,9 +1070,9 @@ __int64 DecodeOpcodeTableGroup2(PUCHAR Context)
 // 对应原始驱动 sub_14008B2B0
 __int64 DecodeOpcodeTableGroup3(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     UCHAR PrevOpcode;
     ULONG64 TableEntry;
@@ -1102,9 +1111,9 @@ __int64 DecodeOpcodeTableGroup3(PUCHAR Context)
 // 处理 0xC0-0xFF 范围的多字节操作码
 __int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedParam)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     UCHAR PrevOpcode;
     CHAR *SubTable;
@@ -1132,7 +1141,9 @@ __int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedPara
         CTX_D(DecodeContext, 0x68) = *(USHORT *)(SubTable + 10);  // offset 0x68
     }
 
-    SET_Q(DecodeContext, DEC_CTX_SUB_DECODE_TABLE, (ULONG64)SubTable);
+    /* 原始：*((_QWORD *)DecodeContext + 35) = pDecodeEntry → 描述符 +0x118（= DEC_CTX_CUR_TABLE_ENTRY），
+       旧代码写的 0x160 越出描述符范围 */
+    SET_Q(DecodeContext, DEC_CTX_CUR_TABLE_ENTRY, (ULONG64)SubTable);
 
     // 64 位模式检查
     if (CTX_D(DecodeContext, DEC_CTX_MODE) == 2)
@@ -1145,10 +1156,12 @@ __int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedPara
         }
     }
 
+    /* 原始：TotalSize = *pDecodeEntry ? (pDecodeEntry[1] != 0) : 0 —— 初值即 HasEntry，
+       既作为读指针偏移，也计入最终返回值 */
     TotalSize = 0;
-    OpIndex = 0;
     if (*(UCHAR *)SubTable)
-        OpIndex = *(UCHAR *)(SubTable + 1) != 0;
+        TotalSize = *(UCHAR *)(SubTable + 1) != 0;
+    OpIndex = 0;
 
     UCHAR *OpPtr = (UCHAR *)SubTable;
     while (1)
@@ -1160,10 +1173,10 @@ __int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedPara
         PUCHAR FuncContext = (PUCHAR)CTX_Q(Context, 0);
         // 设置函数分发参数
         ULONG64 FuncContextArray[6];
-        FuncContextArray[0] = (ULONG64)(BufferBase + TotalSize + OpIndex);
+        FuncContextArray[0] = (ULONG64)(BufferBase + TotalSize);
         FuncContextArray[1] = (ULONG64)BufferEnd;
         FuncContextArray[2] = (ULONG64)SubTable;
-        FuncContextArray[3] = (ULONG64)Param2;
+        FuncContextArray[3] = CTX_Q(Context, CTXARR_OPERAND);  /* 原始 v14[3] = pContext[3] */
         FuncContextArray[4] = (ULONG64)DecodeContext;
         FuncContextArray[5] = 0;
 
@@ -1189,9 +1202,9 @@ __int64 DecodeMultiByteOpcode(PUCHAR Context, ULONG64 Param2, ULONG64 UnusedPara
 // 对应原始驱动 sub_14008B588
 __int64 DecodeOpcodeTableGroup4(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     BOOLEAN HasEntry;
@@ -1217,9 +1230,9 @@ __int64 DecodeOpcodeTableGroup4(PUCHAR Context)
 // 对应原始驱动 sub_14008B5EC
 __int64 DecodeOpcodeByPrefixGroup(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     int HasEntry;
@@ -1238,19 +1251,19 @@ __int64 DecodeOpcodeByPrefixGroup(PUCHAR Context)
         if ((OpcodeByte & 7) != 0)
         {
             if ((OpcodeByte & 7) == 1)
-                TableEntry = (ULONG64)&g_PeDecodeTableGrp5[0] + 20 * RegIndex;  // unk_14009EDF0
+                TableEntry = (ULONG64)&g_PeDecodeTablePrefixM3[0] + 20 * RegIndex;  /* 原 unk_14009EDF0（mod==3,rm==1）*/
             else
                 goto USE_DEFAULT;
         }
         else
         {
-            TableEntry = (ULONG64)&g_PeDecodeTableGrp4[0] + 20 * RegIndex;  // unk_14009ED50
+            TableEntry = (ULONG64)&g_PeDecodeTablePrefixM1[0] + 20 * RegIndex;  /* 原 unk_14009ED50（mod==3,rm==0）*/
         }
     }
     else
     {
 USE_DEFAULT:
-        TableEntry = (ULONG64)&g_PeDecodeTableGrp6[0] + 20 * RegIndex;  // unk_14009ECB0
+        TableEntry = (ULONG64)&g_PeDecodeTablePrefixM0[0] + 20 * RegIndex;  /* 原 unk_14009ECB0（mod!=3 或 rm>=2）*/
     }
 
     CTX_Q(Context, 0x10) = TableEntry;
@@ -1269,9 +1282,9 @@ USE_DEFAULT:
 // 对应原始驱动 sub_14008B6A8
 __int64 DecodeOpcodeTableGroup5(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     BOOLEAN HasEntry;
@@ -1297,9 +1310,9 @@ __int64 DecodeOpcodeTableGroup5(PUCHAR Context)
 // 对应原始驱动 sub_14008B70C
 __int64 DecodeOpcodeTableGroup6(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     BOOLEAN HasEntry;
@@ -1325,9 +1338,9 @@ __int64 DecodeOpcodeTableGroup6(PUCHAR Context)
 // 对应原始驱动 sub_14008B484
 __int64 DecodeOpcodeWithModrm(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR ModrmByte;
     ULONG64 ModrmState;
     int ImmediateSize;
@@ -1359,8 +1372,10 @@ __int64 DecodeOpcodeWithModrm(PUCHAR Context)
     if (NextByte >= BufferEnd)
         return (ULONG64)-1;
 
-    TableEntry = (ULONG64)&g_PeDecodeTableOpcodeByte[0] + 20 * *NextByte;
-    CTX_Q(Context, 0x10) = TableEntry;
+    /* 原始：pDecodeTable = (char *)&unk_14009F610 + 20 * *pNextByte
+       （0x9F610 = 256 项 × 20 字节的 ModRM 操作码分发表） */
+    TableEntry = (ULONG64)&g_PeDecodeTableModrmOpcode[0] + 20 * *NextByte;
+    CTX_Q(Context, CTXARR_TABLE) = TableEntry;
 
     if (!*(UCHAR *)TableEntry || !*(UCHAR *)(TableEntry + 1))
         HasEntry = 0;
@@ -1382,9 +1397,9 @@ __int64 DecodeOpcodeWithModrm(PUCHAR Context)
 // 对应原始驱动 sub_14008BA3C
 __int64 DecodeOneByteOpcodeTable(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     BOOLEAN HasEntry;
@@ -1410,9 +1425,9 @@ __int64 DecodeOneByteOpcodeTable(PUCHAR Context)
 // 对应原始驱动 sub_14008BAA0
 __int64 DecodeTwoByteOpcode0F(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     int RegIndex;
@@ -1444,9 +1459,9 @@ __int64 DecodeTwoByteOpcode0F(PUCHAR Context)
 // 对应原始驱动 sub_14008BB14
 __int64 DecodeTwoByteOpcode0F38(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     int RegIndex;
@@ -1478,9 +1493,9 @@ __int64 DecodeTwoByteOpcode0F38(PUCHAR Context)
 // 对应原始驱动 sub_14008BB88
 __int64 DecodeTwoByteOpcode0F3A(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     int RegIndex;
@@ -1512,9 +1527,9 @@ __int64 DecodeTwoByteOpcode0F3A(PUCHAR Context)
 // 对应原始驱动 sub_14008BBFC
 __int64 DecodeModrmOpcodeTable(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     int RegIndex;
@@ -1550,9 +1565,9 @@ __int64 DecodeModrmOpcodeTable(PUCHAR Context)
 // 对应原始驱动 sub_14008BC98
 __int64 DecodeOpcodeByte(PUCHAR Context)
 {
-    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_BASE);
-    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, DEC_CTX_BUFFER_END);
-    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, DEC_CTX_PARAM6);
+    PUCHAR BufferBase = (PUCHAR)CTX_Q(Context, CTXARR_READ_PTR);
+    PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
+    PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
     UCHAR OpcodeByte;
     ULONG64 TableEntry;
     BOOLEAN HasEntry;
@@ -1626,18 +1641,17 @@ __int64 DecodeCheckBound8Byte(PUCHAR *Context)
 // ============================================================
 __int64 DecodeOpcodeReadByte(PUCHAR *Context)
 {
+    /* 【ContextArray 约定】原始 sub_14008BF20 */
     PUCHAR OperandOut = (PUCHAR)Context[3];
     PUCHAR DecodeCtx = (PUCHAR)Context[4];
-    UCHAR ByteValue;
 
     if (Context[0] >= Context[1])
         return (ULONG64)-1;
 
-    ByteValue = *Context[0];
-    SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 1);
+    SET_D(DecodeCtx, DEC_CTX_READ_FLAG, 1);
     CTX_Q(OperandOut, 0x20) |= 0x80000;
-    SET_D(OperandOut, 6, 1);
-    SET_Q(OperandOut, 8, (ULONG64)ByteValue);
+    SET_D(OperandOut, 0x18, 1);
+    SET_Q(OperandOut, 0x08, (ULONG64)*(UCHAR *)Context[0]);
     return 1;
 }
 
@@ -1647,18 +1661,17 @@ __int64 DecodeOpcodeReadByte(PUCHAR *Context)
 // ============================================================
 __int64 DecodeReadWordImmediate(PUCHAR *Context)
 {
+    /* 【ContextArray 约定】原始 sub_14008C008 */
     PUCHAR OperandOut = (PUCHAR)Context[3];
     PUCHAR DecodeCtx = (PUCHAR)Context[4];
-    USHORT WordValue;
 
     if (Context[0] + 1 >= Context[1])
         return (ULONG64)-1;
 
-    WordValue = *(USHORT *)Context[0];
-    SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 2);
+    SET_D(DecodeCtx, DEC_CTX_READ_FLAG, 2);
     CTX_Q(OperandOut, 0x20) |= 0x200000;
-    SET_D(OperandOut, 6, 2);
-    SET_Q(OperandOut, 8, (ULONG64)WordValue);
+    SET_D(OperandOut, 0x18, 2);
+    SET_Q(OperandOut, 0x08, (ULONG64)*(USHORT *)Context[0]);
     return 2;
 }
 
@@ -1681,7 +1694,7 @@ __int64 DecodeReadSizeDependentImmediate(PUCHAR *Context)
         if (Context[0] + 3 >= Context[1])
             return (ULONG64)-1;
         FieldSize = 4;
-        SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 4);
+        SET_D(DecodeCtx, DEC_CTX_STATUS_ACC, 4);
         Value = (ULONG64)*(ULONG *)Context[0];
         CTX_Q(OperandOut, 0x20) |= 0x800000;
     }
@@ -1691,7 +1704,7 @@ __int64 DecodeReadSizeDependentImmediate(PUCHAR *Context)
         if (Context[0] + 7 >= Context[1])
             return (ULONG64)-1;
         FieldSize = 8;
-        SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 8);
+        SET_D(DecodeCtx, DEC_CTX_STATUS_ACC, 8);
         Value = *(ULONG64 *)Context[0];
         CTX_Q(OperandOut, 0x20) |= 0x2000000;
     }
@@ -1701,7 +1714,7 @@ __int64 DecodeReadSizeDependentImmediate(PUCHAR *Context)
         if (Context[0] + 1 >= Context[1])
             return (ULONG64)-1;
         FieldSize = 2;
-        SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 2);
+        SET_D(DecodeCtx, DEC_CTX_STATUS_ACC, 2);
         Value = (ULONG64)*(USHORT *)Context[0];
         CTX_Q(OperandOut, 0x20) |= 0x200000;
     }
@@ -1727,7 +1740,7 @@ __int64 DecodeReadImmediateValue(PUCHAR *Context)
     if (Context[0] >= Context[1])
         return (ULONG64)-1;
 
-    SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 1);
+    SET_D(DecodeCtx, DEC_CTX_STATUS_ACC, 1);
 
     if (OperandSize == 1)
     {
@@ -1787,27 +1800,27 @@ __int64 DecodeOpcodeWithPrefix(PUCHAR *Context)
     Context[0] = BufferPos + 1;
 
     // 更新模式标志：编码前缀字节到模式标志位
-    NewModeFlags = (PrefixByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xFFFFFC00)
+    NewModeFlags = (PrefixByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xFFFFFC00)
                  | (2 * (PrefixByte & 0x38 | (2 * (PrefixByte & 0xC0))));
-    SET_D(DecodeCtx, DEC_CTX_MODE_DUP, NewModeFlags);
+    SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewModeFlags);
 
     // 检查是否需要设置 64 位标志
     if ((CTX_D(Context[2], 4) & 0x2000000) != 0)
-        SET_D(DecodeCtx, DEC_CTX_MODE_DUP, NewModeFlags | 0x300);
+        SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewModeFlags | 0x300);
 
     // REX 前缀处理
     if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
     {
         OperandSize = CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE);
-        CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) |= ((OperandSize >> 2) & 1) << 7;
+        CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) |= ((OperandSize >> 2) & 1) << 7;
 
-        NewModeFlags = CTX_D(DecodeCtx, DEC_CTX_MODE_DUP);
+        NewModeFlags = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS);
         ULONG RegField = (NewModeFlags >> 8) & 3;
 
         if ((RegField == 3 || (NewModeFlags & 0xF) != 4) &&
             (RegField != 0 || (NewModeFlags & 0xF) != 5))
         {
-            CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) = NewModeFlags | (8 * (OperandSize & 1));
+            CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) = NewModeFlags | (8 * (OperandSize & 1));
         }
     }
 
@@ -1847,25 +1860,25 @@ __int64 DecodeOpcodeWithPrefixEx(PUCHAR *Context)
     PrefixByte = *BufferPos;
     Context[0] = BufferPos + 1;
 
-    NewModeFlags = (PrefixByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xFFFFFC00)
+    NewModeFlags = (PrefixByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xFFFFFC00)
                  | (2 * (PrefixByte & 0x38 | (2 * (PrefixByte & 0xC0))));
-    SET_D(DecodeCtx, DEC_CTX_MODE_DUP, NewModeFlags);
+    SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewModeFlags);
 
     if ((CTX_D(Context[2], 4) & 0x2000000) != 0)
-        SET_D(DecodeCtx, DEC_CTX_MODE_DUP, NewModeFlags | 0x300);
+        SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewModeFlags | 0x300);
 
     if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
     {
         OperandSize = CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE);
-        CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) |= ((OperandSize >> 2) & 1) << 7;
+        CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) |= ((OperandSize >> 2) & 1) << 7;
 
-        NewModeFlags = CTX_D(DecodeCtx, DEC_CTX_MODE_DUP);
+        NewModeFlags = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS);
         ULONG RegField = (NewModeFlags >> 8) & 3;
 
         if ((RegField == 3 || (NewModeFlags & 0xF) != 4) &&
             (RegField != 0 || (NewModeFlags & 0xF) != 5))
         {
-            CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) = NewModeFlags | (8 * (OperandSize & 1));
+            CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) = NewModeFlags | (8 * (OperandSize & 1));
         }
     }
 
@@ -1893,21 +1906,21 @@ __int64 DecodeModrmByte(ULONG64 BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx)
         return (ULONG64)-1;
 
     ModrmByte = *(PUCHAR)BufferPos;
-    NewFlags = (ModrmByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xFFFFFC00)
+    NewFlags = (ModrmByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xFFFFFC00)
              | (2 * (ModrmByte & 0x38 | (2 * (ModrmByte & 0xC0))));
-    SET_D(DecodeCtx, DEC_CTX_MODE_DUP, NewFlags);
+    SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewFlags);
 
     // REX 扩展
     if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
     {
-        if ((NewFlags & 0xF) != 5 || (CTX_D(DecodeCtx, DEC_CTX_MODE) & 0x300) != 0)
-            CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) = NewFlags | (8 * (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) & 1));
-        CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) |= ((CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) >> 1) & 1) << 7;
+        if ((NewFlags & 0xF) != 5 || (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) != 0)
+            CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) = NewFlags | (8 * (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) & 1));
+        CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) |= ((CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) >> 1) & 1) << 7;
     }
 
     // RIP 相对寻址 (mod=00, rm=101 in 64-bit mode)
-    if ((CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xF) == 5 &&
-        (CTX_D(DecodeCtx, DEC_CTX_MODE) & 0x300) == 0)
+    if ((CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF) == 5 &&
+        (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) == 0)
     {
         if (BufferPos + 4 < BufferEnd)
         {
@@ -1935,21 +1948,21 @@ __int64 DecodeModrmByteSimple(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR Decode
         return (ULONG64)-1;
 
     ModrmByte = *BufferPos;
-    NewFlags = (ModrmByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xFFFFFC00)
+    NewFlags = (ModrmByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xFFFFFC00)
              | (2 * (ModrmByte & 0x38 | (2 * (ModrmByte & 0xC0))));
-    SET_D(DecodeCtx, DEC_CTX_MODE_DUP, NewFlags);
+    SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewFlags);
 
     // REX 扩展
     if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
     {
-        CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) = NewFlags
+        CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) = NewFlags
             | (8 * (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) & 1))
             | (((CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) >> 1) & 1) << 7);
     }
 
     // RIP 相对寻址
-    if ((CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xF) == 5 &&
-        (CTX_D(DecodeCtx, DEC_CTX_MODE) & 0x300) == 0)
+    if ((CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF) == 5 &&
+        (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) == 0)
     {
         return (ULONG64)(BufferPos + 4) < BufferEnd ? 5 : -1;
     }
@@ -1964,8 +1977,8 @@ __int64 DecodeModrmByteSimple(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR Decode
 // ============================================================
 __int64 DecodeImmediateOperandValue(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx, PULONG pSize)
 {
-    ULONG ModeField = CTX_D(DecodeCtx, DEC_CTX_MODE) & 0xF;
-    ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_MODE) >> 8) & 3;
+    ULONG ModeField = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF;
+    ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) >> 8) & 3;
     ULONG TotalSize = 0;
     ULONG DecodedSize = 0;
     ULONG Value;
@@ -2078,8 +2091,8 @@ SET_VALUE:
 // ============================================================
 __int64 DecodeImmediateOperandSize(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx, PULONG pSize)
 {
-    ULONG ModeField = CTX_D(DecodeCtx, DEC_CTX_MODE) & 0xF;
-    ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_MODE) >> 8) & 3;
+    ULONG ModeField = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF;
+    ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) >> 8) & 3;
     ULONG TotalSize = 0;
     ULONG DecodedSize = 0;
 
@@ -2252,7 +2265,7 @@ __int64 SetupDecodedInstructionState(
     PUCHAR OperandOut,
     PUCHAR DecodeCtx)
 {
-    ULONG ModeFlags = CTX_D(DecodeCtx, DEC_CTX_MODE_DUP);
+    ULONG ModeFlags = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS);
     ULONG RegField = (ModeFlags >> 4) & 0xF;
     ULONG RmField = ModeFlags & 0xF;
     ULONG AddrSizeField = (ModeFlags >> 8) & 3;
@@ -2272,7 +2285,7 @@ __int64 SetupDecodedInstructionState(
         }
     }
 
-    if (RmField != 5 || (CTX_D(DecodeCtx, DEC_CTX_MODE) & 0x300) != 0)
+    if (RmField != 5 || (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) != 0)
     {
         SET_D(OperandOut, 0x28, RmField);
         CTX_Q(OperandOut, 0x20) |= SizeFlag | 1;
@@ -2376,7 +2389,7 @@ __int64 DispatchInstructionDecode(
     SET_D(DecodeCtx, 0xA0, *(USHORT *)(TableEntry + 12));   // Operand 2 初始值
 
     // 设置地址大小
-    if (CTX_D(DecodeCtx, DEC_CTX_MODE) == 2)
+    if (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) == 2)
     {
         ULONG EntryFlags = *(ULONG *)(TableEntry + 16);
         if ((EntryFlags & 0x400000) != 0 ||
@@ -2435,9 +2448,9 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
     PUCHAR DecodeCtx = (PUCHAR)ContextArray[4];
     PUCHAR OperandOut = (PUCHAR)ContextArray[3];
     ULONG OpFlags = CTX_D(OperandOut, 0) & 0xFE0;
-    ULONG ModeField = CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xF;
-    ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) >> 4) & 0xF;
-    ULONG AddrField = (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) >> 8) & 3;
+    ULONG ModeField = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF;
+    ULONG RegField = (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) >> 4) & 0xF;
+    ULONG AddrField = (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) >> 8) & 3;
     ULONG TableEntryFlags = *(USHORT *)(CTX_Q(DecodeCtx, DEC_CTX_CUR_TABLE_ENTRY) + 4);
     INT IsModrmAddr = 0;
     int Is32BitMode;
@@ -2477,7 +2490,7 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
 
             case 1120:  // 0x460
             {
-                INT RegCount = (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) >> 4) & 7;
+                INT RegCount = (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) >> 4) & 7;
                 if (RegCount >= 5)
                     RegCount = 5;
                 CTX_Q(OperandOut, 0x20) |= 0x1000;
@@ -2498,7 +2511,7 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             default:
                 if (OpFlags == 1216 && AddrField == 3)  // 0x4C0
                 {
-                    ModeField = CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) & 0xF;
+                    ModeField = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF;
                 LABEL_SPECIAL:
                     CTX_Q(OperandOut, 0x20) |= 0x200;
                 LABEL_SET_REG:
@@ -2563,7 +2576,7 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             }
             if (ModeField == 5)
             {
-                if (CTX_D(DecodeCtx, DEC_CTX_MODE) == 2)
+                if (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) == 2)
                     CTX_Q(OperandOut, 0x20) |= 0x40000;
                 else
                     CTX_Q(OperandOut, 0x20) |= 0x10000;
@@ -2628,18 +2641,17 @@ LABEL_MODRM_ADDR:
 // ============================================================
 __int64 DecodeReadDwordImmediate(PUCHAR *Context)
 {
+    /* 【ContextArray 约定】原始 sub_14008C058 */
     PUCHAR OperandOut = (PUCHAR)Context[3];
     PUCHAR DecodeCtx = (PUCHAR)Context[4];
-    ULONG DwordValue;
 
     if (Context[0] + 3 >= Context[1])
         return (ULONG64)-1;
 
-    DwordValue = *(ULONG *)Context[0];
-    SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 4);
+    SET_D(DecodeCtx, DEC_CTX_READ_FLAG, 4);
     CTX_Q(OperandOut, 0x20) |= 0x800000;
-    SET_D(OperandOut, 6, 4);
-    SET_Q(OperandOut, 8, (ULONG64)DwordValue);
+    SET_D(OperandOut, 0x18, 4);
+    SET_Q(OperandOut, 0x08, (ULONG64)*(ULONG *)Context[0]);
     return 4;
 }
 
@@ -2649,18 +2661,17 @@ __int64 DecodeReadDwordImmediate(PUCHAR *Context)
 // ============================================================
 __int64 DecodeReadQwordImmediate(PUCHAR *Context)
 {
+    /* 【ContextArray 约定】原始 sub_14008C0A8（与 Word/Dword 同族，8 字节） */
     PUCHAR OperandOut = (PUCHAR)Context[3];
     PUCHAR DecodeCtx = (PUCHAR)Context[4];
-    ULONG64 QwordValue;
 
     if (Context[0] + 7 >= Context[1])
         return (ULONG64)-1;
 
-    QwordValue = *(ULONG64 *)Context[0];
-    SET_D(DecodeCtx, DEC_CTX_EXTRA_FIELD, 8);
+    SET_D(DecodeCtx, DEC_CTX_READ_FLAG, 8);
     CTX_Q(OperandOut, 0x20) |= 0x2000000;
-    SET_D(OperandOut, 6, 8);
-    SET_Q(OperandOut, 8, QwordValue);
+    SET_D(OperandOut, 0x18, 8);
+    SET_Q(OperandOut, 0x08, *(ULONG64 *)Context[0]);
     return 8;
 }
 
