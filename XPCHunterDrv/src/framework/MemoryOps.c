@@ -2310,7 +2310,7 @@ __int64 ReadWriteKernelMemory(void)
         // SectionEntry + 0x118: 指向类型结构体的指针
         // 该指针指向的偏移 +6 处为 WORD 类型值
         TypePtr = *(ULONG64 *)(SectionEntry + 0x118);
-        EntryType = *(USHORT *)(TypePtr + 6);
+        EntryType = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         // 如果类型为 0x545，退出循环
         if (EntryType == 0x545)

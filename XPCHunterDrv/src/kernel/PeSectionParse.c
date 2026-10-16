@@ -215,7 +215,7 @@ void ScanProcessPESections(void)
         LoopCount = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)SectionEntry))
         {
-            if (*(_WORD *)(pSectionEntryBase + 6) == 0x512)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x512)
             {
                 if ((AccumulatedOffset & 0x40000) != 0)
                 {
@@ -232,7 +232,7 @@ void ScanProcessPESections(void)
                     }
                 }
             }
-            else if (*(_WORD *)(pSectionEntryBase + 6) == 0x558)
+            else if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x558)
             {
                 if ((SectionFileOffset & 0x4000000) != 0)
                 {
@@ -411,7 +411,7 @@ __int64 FindPeSectionByTypeRsrc(
     {
         SectionOffset = EntryCumulSize + (ULONG)CumulativeSize;
         CumulativeSize += EntryCumulSize;
-        SectionType = *(__int16 *)(EntryDataPtr + 6);
+        SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         if (SectionType == 1349)
         {
@@ -477,7 +477,7 @@ __int64 FindPeSectionByType0x510(
         SectionOffset = EntryCumulSize + (ULONG)CumulativeSize;
         CumulativeSize += EntryCumulSize;
 
-        if (*(__int16 *)(EntryDataPtr + 6) != 1296)
+        if (*(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 1296)
             continue;
         if (SectionChar != 64)
             continue;
@@ -575,7 +575,7 @@ __int64 ParseNtSectionsForProcessMemory(void)
             FieldFlags = *(__int64 *)&EntryBuffer[0x28];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
 
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x512 &&
                 FieldFlags == 0x40000 &&
@@ -665,7 +665,7 @@ __int64 ParseNtSectionsForModuleBase(void)
             FieldFlags = *(__int64 *)&EntryBuffer[0x28];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
 
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x512 &&
                 FieldFlags == 0x40000 &&
@@ -768,7 +768,7 @@ __int64 ParseNtSectionsForRelocBase(void)
             FieldCount = *(int *)&EntryBuffer[0x30];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
 
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x558 &&
                 (SectionFlags & 0x4000000) != 0 &&
@@ -871,7 +871,7 @@ __int64 ParseProcessMemSections(void)
         CumulativeOffset = (int)CumulativeSize;
 
         SectionDataSize = *(int *)&EntryBuffer[0x38];
-        SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
         if (SectionType == 0x558 && SectionDataSize)
         {
@@ -924,7 +924,7 @@ __int64 ParseProcessMemSections(void)
 
             FieldFlags = *(__int64 *)&EntryBuffer[0x28];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x510 &&
                 FieldFlags == 0x40000 &&
@@ -981,7 +981,7 @@ __int64 ParseProcessMemSections(void)
             FieldFlags = *(__int64 *)&EntryBuffer[0x28];
             FieldCount = *(int *)&EntryBuffer[0x30];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x50E &&
                 FieldFlags == 0x40000 &&
@@ -1074,7 +1074,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
 
             SectionFlags = *(__int64 *)&EntryBuffer[0x20];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x558 &&
                 (SectionFlags & 0x4000000) != 0 &&
@@ -1168,7 +1168,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
             FieldValueSize = *(__int64 *)&EntryBuffer[0x20];
             FieldFlags = *(__int64 *)&EntryBuffer[0x28];
             ValueField = *(unsigned int *)&EntryBuffer[0x10];
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x510 &&
                 FieldFlags == 0x40000 &&
@@ -1260,7 +1260,7 @@ __int64 FindKernelDataSectionOffsetV3(void)
             FieldValueSize = *(__int64 *)&EntryBuffer[0x20];
             FieldFlags = *(__int64 *)&EntryBuffer[0x28];
             ValueField = *(unsigned int *)&EntryBuffer[0x10];
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x512 &&
                 FieldFlags == 0x40000 &&
@@ -1400,7 +1400,7 @@ __int64 FindKernelDataSectionOffsetWin7(void)
         CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x30 >> 2];
         EntryBuffer[0x190 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
         if (SectionType == 0x558)
         {
@@ -1471,7 +1471,7 @@ __int64 FindKernelDataSectionOffsetWin10(void)
         CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x30 >> 2];
         EntryBuffer[0x190 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
         if (SectionType == 0x512)
         {
@@ -1547,7 +1547,7 @@ __int64 FindKernelDataSectionPair(void)
         CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x30 >> 2];
         EntryBuffer[0x190 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
         if (SectionType == 0x510)
         {

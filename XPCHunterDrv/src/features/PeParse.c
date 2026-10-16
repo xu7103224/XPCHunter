@@ -66,7 +66,7 @@ __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, _
                     goto LABEL_13;
                 MatchSize = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
-                if (*(_WORD *)(SectionDataPtr + 6) == 1368)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368)
                 {
                     if (EntryCharacteristics)
                         break;
@@ -87,7 +87,7 @@ LABEL_13:
                 return result;
             MatchSize2 = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
-            SubType = *(_WORD *)(SectionDataPtr + 6);
+            SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             result = EntryFlags;
             if (SubType == 1298 && FieldValue2 == 0x40000 && EntryFlags)
             {
@@ -215,9 +215,21 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
             Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)Result)
                 break;
+            /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
+               栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
+               SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
+               另立为独立局部且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成
+               绝对地址 [6] → 实机 0x7E。 */
+            SectionType    = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
+            EntryFlags     = *(int *)((PUCHAR)SectionEntry + 0x40);
+            SectionFlags   = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+            EntrySize      = *(unsigned int *)((PUCHAR)SectionEntry + 0x78);
+            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0x88);
+            EntryCumulSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+            EntryDataPtr   = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
             Offset1 = (int)(EntryCumulSize + CumulativeSize);
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
             {
                 if (EntrySize)
                 {
@@ -237,9 +249,21 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
+            /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
+               栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
+               SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
+               另立为独立局部且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成
+               绝对地址 [6] → 实机 0x7E。 */
+            SectionType    = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
+            EntryFlags     = *(int *)((PUCHAR)SectionEntry + 0x40);
+            SectionFlags   = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+            EntrySize      = *(unsigned int *)((PUCHAR)SectionEntry + 0x78);
+            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0x88);
+            EntryCumulSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+            EntryDataPtr   = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
                 Offset2 = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
                 {
                     if (EntrySize)
                     {
@@ -260,9 +284,21 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
+            /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
+               栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
+               SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
+               另立为独立局部且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成
+               绝对地址 [6] → 实机 0x7E。 */
+            SectionType    = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
+            EntryFlags     = *(int *)((PUCHAR)SectionEntry + 0x40);
+            SectionFlags   = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+            EntrySize      = *(unsigned int *)((PUCHAR)SectionEntry + 0x78);
+            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0x88);
+            EntryCumulSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+            EntryDataPtr   = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
                 Offset3 = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (SectionFlags & 0x4000000) != 0)
                 {
                     if (EntrySize)
                     {
@@ -283,8 +319,20 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
+            /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
+               栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
+               SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
+               另立为独立局部且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成
+               绝对地址 [6] → 实机 0x7E。 */
+            SectionType    = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
+            EntryFlags     = *(int *)((PUCHAR)SectionEntry + 0x40);
+            SectionFlags   = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+            EntrySize      = *(unsigned int *)((PUCHAR)SectionEntry + 0x78);
+            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0x88);
+            EntryCumulSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+            EntryDataPtr   = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
                 CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1294
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1294
                     && (SectionFlags & 0x40000) != 0
                     && EntryFlags
                     && (SectionType & 0x40) != 0)
@@ -296,6 +344,18 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                         Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                         if ((_DWORD)Result)
                             break;
+            /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
+               栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
+               SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
+               另立为独立局部且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成
+               绝对地址 [6] → 实机 0x7E。 */
+            SectionType    = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
+            EntryFlags     = *(int *)((PUCHAR)SectionEntry + 0x40);
+            SectionFlags   = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+            EntrySize      = *(unsigned int *)((PUCHAR)SectionEntry + 0x78);
+            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0x88);
+            EntryCumulSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+            EntryDataPtr   = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
                         CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
                         CumulativeSize += EntryCumulSize;
                         if (SectionType == 0x40000)
@@ -389,9 +449,9 @@ __int64 ParseNtExportFunctions(void)
         CumulativeSize += SectionSize;
         SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0xFE)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0xFE)
             HasDiscardable = 1;
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x558)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x558)
         {
             SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
             if (SectionAlignment & 0x4000000)
@@ -430,7 +490,7 @@ __int64 ParseNtExportFunctions(void)
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
         if (!HasCodeSection)
         {
-            if (*(unsigned short *)(SectionDataPtr + 6) == 0x430)
+            if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x430)
             {
                 if (!HasDiscardable)
                 {
@@ -449,7 +509,7 @@ __int64 ParseNtExportFunctions(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x4DB)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x4DB)
             {
                 if (!HasDiscardable)
                 {
@@ -466,11 +526,11 @@ __int64 ParseNtExportFunctions(void)
             }
             else
             {
-                if (*(unsigned short *)(SectionDataPtr + 6) == 0xFE)
+                if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0xFE)
                     HasDiscardable = 1;
             }
         }
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0xFE)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0xFE)
         {
             if (Phase1Offset && (unsigned int)Phase1Offset < DataDirRva)
             {
@@ -482,7 +542,7 @@ __int64 ParseNtExportFunctions(void)
                     return Result;
             }
         }
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x512)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512)
         {
             if (CumulativeSize == 0x40000)
             {
@@ -501,7 +561,7 @@ __int64 ParseNtExportFunctions(void)
                 }
             }
         }
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x53D)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x53D)
         {
             if (CumulativeSize == 0x800000)
             {
@@ -514,7 +574,7 @@ __int64 ParseNtExportFunctions(void)
         }
         else if (HasCodeSection)
         {
-            if (*(unsigned short *)(SectionDataPtr + 6) == 0x512)
+            if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512)
             {
                 if (CumulativeSize == 0x40000 && EntrySize)
                 {
@@ -532,7 +592,7 @@ __int64 ParseNtExportFunctions(void)
                             CumulativeSize += SectionSize;
                             SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
                             *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-                            if (*(unsigned short *)(SectionDataPtr + 6) == 0x512 &&
+                            if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512 &&
                                 CumulativeSize == 0x40000 && EntrySize)
                             {
                                 SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
@@ -543,7 +603,7 @@ __int64 ParseNtExportFunctions(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x418)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x418)
             {
                 if (CumulativeSize == 0x40000 && EntrySize)
                 {
@@ -573,7 +633,7 @@ __int64 ParseNtExportFunctions(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x4DA)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x4DA)
             {
                 if (CumulativeSize == 0x40000 && EntrySize)
                 {
@@ -591,7 +651,7 @@ __int64 ParseNtExportFunctions(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x13E)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x13E)
             {
                 if (Dst[1] == 1)
                 {
@@ -618,7 +678,7 @@ __int64 ParseNtExportFunctions(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x510)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x510)
             {
                 if (SectionAlignment == 0x40 && CumulativeSize == 0x40)
                 {
@@ -686,9 +746,9 @@ __int64 ParseNtExportFunctionsV2(void)
         CumulativeSize += SectionSize;
         SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0xFE)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0xFE)
             HasDiscardable = 1;
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x558)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x558)
         {
             SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
             if (SectionAlignment & 0x4000000)
@@ -705,7 +765,7 @@ __int64 ParseNtExportFunctionsV2(void)
                 }
             }
         }
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x4D7)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x4D7)
         {
             SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
             if (SectionAlignment == 0x20 && CumulativeSize == 0x20)
@@ -741,7 +801,7 @@ __int64 ParseNtExportFunctionsV2(void)
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
         if (!HasCodeSection)
         {
-            if (*(unsigned short *)(SectionDataPtr + 6) == 0x430)
+            if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x430)
             {
                 SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
                 if (SectionAlignment & 0x4000)
@@ -757,7 +817,7 @@ __int64 ParseNtExportFunctionsV2(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x4DB)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x4DB)
             {
                 SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
                 if (SectionAlignment & 0x4000)
@@ -769,7 +829,7 @@ __int64 ParseNtExportFunctionsV2(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x510)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x510)
             {
                 SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
                 if (SectionAlignment == 0x20 && (CumulativeSize & 0x4000))
@@ -779,7 +839,7 @@ __int64 ParseNtExportFunctionsV2(void)
                 }
             }
         }
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0xFE)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0xFE)
         {
             if (Phase1Offset && (unsigned int)Phase1Offset < ImageSize)
             {
@@ -793,7 +853,7 @@ __int64 ParseNtExportFunctionsV2(void)
         }
         else if (HasCodeSection)
         {
-            if (*(unsigned short *)(SectionDataPtr + 6) == 0x512)
+            if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512)
             {
                 if (CumulativeSize == 0x40000)
                 {
@@ -814,7 +874,7 @@ __int64 ParseNtExportFunctionsV2(void)
                                 CumulativeSize += SectionSize;
                                 SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
                                 *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-                                if (*(unsigned short *)(SectionDataPtr + 6) == 0x512 &&
+                                if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512 &&
                                     CumulativeSize == 0x40000 && EntrySize)
                                 {
                                     SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
@@ -826,7 +886,7 @@ __int64 ParseNtExportFunctionsV2(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x418)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x418)
             {
                 if (CumulativeSize == 0x40000)
                 {
@@ -857,7 +917,7 @@ __int64 ParseNtExportFunctionsV2(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x4DA)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x4DA)
             {
                 if (CumulativeSize == 0x40000)
                 {
@@ -880,7 +940,7 @@ __int64 ParseNtExportFunctionsV2(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x510)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x510)
             {
                 SectionAlignment = *(__int64 *)&EntryBuffer[0x28];
                 if (SectionAlignment == 0x40 && CumulativeSize == 0x40)
@@ -893,7 +953,7 @@ __int64 ParseNtExportFunctionsV2(void)
                     }
                 }
             }
-            else if (*(unsigned short *)(SectionDataPtr + 6) == 0x53D)
+            else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x53D)
             {
                 if (CumulativeSize == 0x800000)
                 {
@@ -982,7 +1042,7 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
             {
                 SectionEnd = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
-                SectionType = *(_WORD *)(SectionDataPtr2 + 6);
+                SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (SectionType == 1369)
                 {
                     TargetRva = (unsigned int)(SectionEnd + FieldValue - PeBase);
@@ -1028,7 +1088,7 @@ LABEL_8:
                     break;
                 SectionEnd2 = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
-                SectionType2 = *(_WORD *)(SectionDataPtr2 + 6);
+                SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (SectionType2 == 1298 && SectionDataPtr == 0x40000 && FieldValueB && SectionCharacteristics == 64)
                 {
                     RelocRva = (unsigned int)(SectionEnd2 + FieldValueB - PeBase);
@@ -1186,7 +1246,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     {
         SectionEnd2 = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
-        if ((unsigned __int16)(*(_WORD *)(SectionDataPtr + 6) - 1368) <= 1u)
+        if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 1u)
         {
             if (FieldValue)
             {
@@ -1211,7 +1271,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
         {
             SectionEnd3 = SectionSize + (int)CumulativeSize;
             CumulativeSize += SectionSize;
-            SectionType = *(_WORD *)(SectionDataPtr + 6);
+            SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SectionType == 1298 && SectionFlags == 0x40000)
             {
                 if (FieldValue4 && SectionCharacteristics == 64)
@@ -1291,9 +1351,9 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
                 return Result;
             CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) != 1368 || (SectionFlags & 0x4000000) == 0 || !EntrySize)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 1368 || (SectionFlags & 0x4000000) == 0 || !EntrySize)
             {
-                if (*(_WORD *)(EntryDataPtr + 6) == 1066 && (SectionTypeInner & 0x200000000LL) != 0)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1066 && (SectionTypeInner & 0x200000000LL) != 0)
                 {
                     Result = 1;
                     if (EntryField2 == 16 && FoundFirstMatch == 1)

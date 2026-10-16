@@ -719,7 +719,7 @@ bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char 
         {
             int TargetRva2 = (int)(EntryCumulSize + (ULONG)SectionEntry);
             SectionEntry += EntryCumulSize;
-            short SectionType = *(WORD *)(EntryDataPtr + 6);
+            short SectionType = *(WORD *)(*(ULONG64 *)((PUCHAR)SectionChar + 0x118) + 6);
             if (SectionType == 1139 && EntryCumulSize == 7) { TargetRva = 1; }
             else
             {
@@ -752,13 +752,13 @@ CheckFound:
         Result = 0;
         if (SectionType2 && MemoryCompare((__int64)Pattern, (char *)TargetData, (ULONG)SectionType2)) return Result;
         InitPESectionReadContext((__int64)&TargetData[(ULONG)SectionType2], 12, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
-        if (!ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar) && *(WORD *)(EntryDataPtr + 6) == 1296 && EntryCumulSize == 7 &&
+        if (!ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar) && *(WORD *)(*(ULONG64 *)((PUCHAR)SectionChar + 0x118) + 6) == 1296 && EntryCumulSize == 7 &&
             EntryField == 64 && SectionAlignment == 0x40000)
         {
             if (EntrySize && *(ULONG *)&Pattern[(ULONG)SectionType2 + 3] == EntrySize)
             {
                 SectionEntry += 7;
-                if (!ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar) && *(WORD *)(EntryDataPtr + 6) == 1368)
+                if (!ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar) && *(WORD *)(*(ULONG64 *)((PUCHAR)SectionChar + 0x118) + 6) == 1368)
                     return EntryCumulSize == 5;
             }
         }
@@ -3027,7 +3027,7 @@ char __fastcall FindExportTableOffsetV1(__int64 ImageBase, unsigned int ImageSiz
                 {
                     ComputedOffset = SectionFileOffset + (int)AccumulatedOffset;
                     AccumulatedOffset += SectionFileOffset;
-                    if (*(_WORD *)(pSectionEntryBase + 6) == 1369)
+                    if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1369)
                     {
                         if (SectionDataSize)
                         {
@@ -3052,7 +3052,7 @@ char __fastcall FindExportTableOffsetV1(__int64 ImageBase, unsigned int ImageSiz
                 {
                     ComputedOffset2 = SectionFileOffset + (int)AccumulatedOffset;
                     AccumulatedOffset += SectionFileOffset;
-                    SectionType = *(_WORD *)(pSectionEntryBase + 6);
+                    SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                     if (SectionType == 1298 && SectionAlignment == 0x40000 && RawDataSize && SectionCharacteristics == 64 && !FieldFlags)
                     {
                         ExportDirRva = ComputedOffset2 + RawDataSize - (unsigned int)ImageBase;
@@ -3132,7 +3132,7 @@ char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSiz
                 {
                     ComputedOffset = SectionFileOffset + (int)AccumulatedOffset;
                     AccumulatedOffset += SectionFileOffset;
-                    SectionType = *(_WORD *)(pSectionEntryBase + 6);
+                    SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                     if (SectionType == 1369)
                     {
                         SectionRva = ComputedOffset + SectionDataSize - (unsigned int)ImageBase;
@@ -3174,7 +3174,7 @@ char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSiz
                     {
                         ComputedOffset2 = SectionFileOffset + (int)AccumulatedOffset;
                         AccumulatedOffset += SectionFileOffset;
-                        SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+                        SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                         if (SectionType2 == 1298 && SectionAlignment == 0x40000 && RawDataSize && SectionCharacteristics == 64)
                             IsDataSection = 1;
                         if (SectionType2 == 1368)
@@ -3202,7 +3202,7 @@ char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSiz
                     {
                         ComputedOffset3 = SectionFileOffset + (int)AccumulatedOffset;
                         AccumulatedOffset += SectionFileOffset;
-                        SectionType3 = *(_WORD *)(pSectionEntryBase + 6);
+                        SectionType3 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                         if ((unsigned __int16)(SectionType3 - 1139) <= 1u)
                         {
                             ++InitSectionCount;

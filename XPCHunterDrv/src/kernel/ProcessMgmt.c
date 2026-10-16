@@ -2528,7 +2528,7 @@ __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSi
             AccumulatedOffset += SectionOffset;
 
             // 检查节特征是否为 0x559
-            if (*(USHORT *)(CharTablePtr + 6) == 0x559)
+            if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6) == 0x559)
             {
                 VirtualAddress = *(PULONG)((ULONG64)SectionInfo + 0x38);
                 if (VirtualAddress != 0)
@@ -2571,7 +2571,7 @@ __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSi
         CharTablePtr = *(ULONG64 *)((ULONG64)SectionInfo + 0x118);
         AccumulatedOffset += SectionOffset;
 
-        USHORT Characteristics = *(USHORT *)(CharTablePtr + 6);
+        USHORT Characteristics = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
         ULONG64 SizeField = *(ULONG64 *)((ULONG64)SectionInfo + 0x88);
         ULONG VaField = *(PULONG)((ULONG64)SectionInfo + 0x78);
         ULONG64 PtrField = *(ULONG64 *)((ULONG64)SectionInfo + 0x50);

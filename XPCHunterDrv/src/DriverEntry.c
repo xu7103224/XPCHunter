@@ -1539,7 +1539,7 @@ __int64 InitImageNotifyCallbackWin7(void)
         }
         else
         {
-            if (*(USHORT *)(SectionEntry + 6) == 0x42A)
+            if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x42A)
             {
                 IsPageSection = 1;
                 break;
@@ -2330,7 +2330,7 @@ __int64 InitEprocessOffsetsWin81(void)
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionEntryBuf))
                 break;
             SectionCharacteristics += SectionVirtualSize;
-            if (*(_WORD *)(SectionEntryPtr + 6) == 373 && (CharacteristicsFlags & 4) != 0 && SectionNameCheck == 65601)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntryBuf + 0x118) + 6) == 373 && (CharacteristicsFlags & 4) != 0 && SectionNameCheck == 65601)
             {
                 SectionFound = 1;
                 IsWin81Update = SectionCharaCheck == 24904;

@@ -1940,7 +1940,7 @@ __int64 ParseNtSectionsForSsdtTable(void)
             FieldFlags = *(__int64 *)&EntryBuffer[0x28];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
 
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x545)
                 break;
@@ -2991,7 +2991,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
         CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x28 >> 2];
         EntryBuffer[0x188 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
         if (SectionType == 0x559 && EntryBuffer[0x108 >> 2])
         {
             int Offset = (int)EntryBuffer[0x108 >> 2] - (int)PeFileBuffer + (int)CumulativeSize;
@@ -3016,7 +3016,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
             CumulativeSize += SectionSize;
             SectionDataPtr = EntryBuffer[0x28 >> 2];
             EntryBuffer[0x188 >> 2] = (ULONG)CumulativeSize;
-            SectionType = *(unsigned short *)(SectionDataPtr + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
             if (SectionType == 0x512)
             {
                 __int64 B8 = EntryBuffer[0xB8 >> 2];

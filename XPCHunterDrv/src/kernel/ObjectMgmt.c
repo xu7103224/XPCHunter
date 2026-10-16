@@ -3001,7 +3001,7 @@ __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, int ImageSi
     {
         CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
-        TypeValue = *(_WORD *)(TypePtr + 6);
+        TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
         if (TypeValue == 1349)
         {
             if (PrevOffset && PrevOffset < MaxOffset)
@@ -3064,7 +3064,7 @@ __int64 __fastcall FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSiz
                 break;
             CurrentRva = (int)(EntrySize2 + ContextOffset);
             ContextOffset += EntrySize2;
-            TypeValue = *(_WORD *)(TypePtr + 6);
+            TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (TypeValue == 1349)
                 break;
             if (TypeValue == 1298 && Flags2 == 0x40000)
@@ -3533,7 +3533,7 @@ __int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionB
             break;
         CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
-        TypeValue = *(_WORD *)(TypePtr + 6);
+        TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
         if (TypeValue == 1349)
             break;
         if (TypeValue == 1368 && (FlagsField & 0x4000000) != 0 && EntryOffset)
@@ -3579,7 +3579,7 @@ __int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int Section
     {
         CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
-        TypeValue = *(_WORD *)(TypePtr + 6);
+        TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
         if ((unsigned __int16)(TypeValue - 1340) > 7u)
         {
             if (TypeValue == 1368 && (FlagsField & 0x4000000) != 0)
@@ -3822,7 +3822,7 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
             {
                 ComputedOffset = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
-                SectionType = *(_WORD *)(pSectionEntryBase + 6);
+                SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (SectionType == 1369)
                 {
                     SectionRva = (unsigned int)(ComputedOffset + SectionDataSize - PeBase);
@@ -3861,7 +3861,7 @@ LABEL_FOUND_SECTION:
                     break;
                 ComputedOffset2 = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
-                SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+                SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (SectionType2 == 1349)
                     break;
                 SectionFlags = (int)SectionCharacteristics;

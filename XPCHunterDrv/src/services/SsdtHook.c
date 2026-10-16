@@ -2086,7 +2086,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
                     return 0;
                 int SectionEnd = (int)(EntryField + CumulativeSize2);
                 CumulativeSize2 += EntryField;
-                __int16 TargetRva = *(_WORD *)(EntrySize + 6);
+                __int16 TargetRva = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
                 if (TargetRva == 1296 && CumulativeSize == 64 && RvaOffset == 8 && SectionChar == 64)
                 {
                     SectionBaseCopy = 1;
@@ -2121,7 +2121,7 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
                     return 0;
                 int SectionType = (int)(EntryDataPtr2 + EntryBase2);
                 EntryBase2 += EntryDataPtr2;
-                __int16 SectionType2 = *(_WORD *)(SectionInfoPtr2 + 6);
+                __int16 SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry2 + 0x118) + 6);
                 if (SectionType2 == 1349)
                     return 0;
                 if (SectionType2 == 1298 && SectionType2 == 0x40000 && EntrySize2 == 64 && SectionChar2 == 1
@@ -2385,7 +2385,7 @@ char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize)
                 break;
             int SectionIndex = (int)(EntryCumulSize + CumulativeSize);
             CumulativeSize += EntryCumulSize;
-            __int16 SectionOffset = *(_WORD *)(EntryDataPtr + 6);
+            __int16 SectionOffset = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SectionOffset == 1349)
                 break;
             if (SectionOffset == 1298 && SectionAlignment == 0x40000)
@@ -2524,7 +2524,7 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
                 break;
             int SectionType = (int)(EntrySize + FieldValue2);
             FieldValue2 += EntrySize;
-            __int16 SectionType2 = *(_WORD *)(SectionAlignment + 6);
+            __int16 SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
             if (SectionType2 == 1349)
                 break;
             if (SectionType2 == 1294 && RvaOffset == 0x40000 && EntryField == 64)
@@ -3151,7 +3151,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
             {
                 unsigned int SectionEnd = (unsigned int)(EntryDataSize + EntryBase);
                 EntryBase += EntryDataSize;
-                __int16 SectionType = *(_WORD *)(SectionInfoPtr + 6);
+                __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry + 0x118) + 6);
                 if (SectionType == 1369)
                 {
                     unsigned int TargetRva = (unsigned int)(SectionEnd + EntryField - ImageBase);
@@ -3202,7 +3202,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
             {
                 unsigned int SectionEnd2 = (unsigned int)(EntryDataSize2 + EntryBase2);
                 EntryBase2 += EntryDataSize2;
-                __int16 SectionType2 = *(_WORD *)(SectionInfoPtr2 + 6);
+                __int16 SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry2 + 0x118) + 6);
                 if (SectionType2 == 1298 && SectionAlignment2 == 0x40000 && FieldValue2 && EntrySize2 == 64 && !SectionChar2)
                     TargetRva2 = (unsigned int)(SectionEnd2 + FieldValue2 - ImageBase);
                 if (SectionType2 == 1327 && (SectionFlags2 & 0x10) != 0 && TargetRva2)
@@ -3257,7 +3257,7 @@ char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __
                     return Result;
                 int CurrentRva = (int)(EntrySize2 + ContextOffset);
                 ContextOffset += EntrySize2;
-                __int16 TypeValue = *(_WORD *)(TypePtr + 6);
+                __int16 TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (TypeValue == 1349)
                     return FoundFlag;
                 int SizeValue = EntrySize;
@@ -3493,7 +3493,7 @@ __int64 ScanProcessPESectionsV2(void)
                 break;
             unsigned int CurrentEnd = EntrySize + (unsigned int)EntryBase;
             EntryBase += EntrySize;
-            __int16 TypeValue = *(_WORD *)(EntryTypePtr + 6);
+            __int16 TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
             if (TypeValue == 0x42A && (*(char *)((char *)SectionEntry + 0x20) & 4) != 0)
             {
@@ -3559,7 +3559,7 @@ __int64 InitHookFunctionTable(void)
                 break;
             unsigned int CurrentEnd = EntrySize + (unsigned int)EntryBase;
             EntryBase += EntrySize;
-            __int16 TypeValue = *(_WORD *)(EntryTypePtr + 6);
+            __int16 TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
             if (TypeValue == 0x48E && (*(char *)((char *)SectionEntry + 0x20) & 4) != 0)
             {
@@ -3696,7 +3696,7 @@ char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSi
                 return Result;
             int CurrentOffset = EntryCumulSize + (unsigned int)CumulativeSize;
             CumulativeSize += EntryCumulSize;
-            if (*(WORD *)(EntryDataPtr + 6) == 1369)
+            if (*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1369)
             {
                 if (EntrySize)
                 {
@@ -3704,7 +3704,7 @@ char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSi
                     break;
                 }
             }
-            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3FAB && *(WORD *)(EntryDataPtr + 6) == 1368 && EntrySize)
+            if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3FAB && *(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && EntrySize)
             {
                 Phase1Result = (unsigned int)(CumulativeSize + EntrySize - ImageBase);
                 break;
@@ -3722,7 +3722,7 @@ char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSi
                     return Result;
                 int Phase2Current = EntryCumulSize + (unsigned int)CumulativeSize;
                 CumulativeSize += EntryCumulSize;
-                if (*(WORD *)(EntryDataPtr + 6) == 1298 && SectionFlags == 0x40000)
+                if (*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && SectionFlags == 0x40000)
                 {
                     if (EntrySize2 && EntryCumulSize == 64)
                     {
@@ -4008,7 +4008,7 @@ char __fastcall ParseNdisGetVersionSection(unsigned int Rva, __int64 ImageBase, 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
             CumulativeSize += EntryCumulSize;
-            __int16 TypeValue = *(__int16 *)(EntryDataPtr + 6);
+            __int16 TypeValue = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (TypeValue == 1349)
                 break;
             if ((unsigned __int16)(TypeValue - 1340) <= 7u && SectionEntry[2] == 1 && Value > 0x60000 && !Value_4)
@@ -4110,7 +4110,7 @@ __int64 InitHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 Unuse
                 break;
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1298 && FieldValue == 0x40000)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && FieldValue == 0x40000)
             {
                 if (EntryFlags)
                 {
@@ -4160,7 +4160,7 @@ __int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __
             if ((_DWORD)result)
                 return result;
             CumulativeSize += SectionSize;
-            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SubType == 1349)
                 return result;
             if (SubType == 1072 && (FieldValue2 & 0x1000000000LL) != 0 && !ExtraField)
@@ -4214,10 +4214,10 @@ __int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __
             CumulativeSize += SectionSize;
             if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x55F0)
             {
-                if (*(_WORD *)(SectionDataPtr + 6) == 1349)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                     break;
             }
-            if (((*(_WORD *)(SectionDataPtr + 6) == 1072 && (FieldValue2 & 0x1000000000LL) != 0 && !ExtraField) || (*(_WORD *)(SectionDataPtr + 6) == 1243 && FieldValue2 == 64)) && FieldValue == 0x40000)
+            if (((*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1072 && (FieldValue2 & 0x1000000000LL) != 0 && !ExtraField) || (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1243 && FieldValue2 == 64)) && FieldValue == 0x40000)
             {
                 unsigned int MatchOffset = (unsigned int)(CumulativeSize + SectionEntry[16] - ImageBase);
                 if (MatchOffset > 0x20 && MatchOffset < ImageSize)
@@ -4274,7 +4274,7 @@ __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64
                 break;
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1368)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368)
             {
                 if (EntryFlags)
                 {
@@ -4296,7 +4296,7 @@ __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64
                     break;
                 int MatchSize2 = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
-                __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+                __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (SubType != 1296 && SubType != 1239)
                     continue;
                 if (FieldValue == 0x40000 && FieldFlags)
@@ -4344,7 +4344,7 @@ __int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 return Result;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1368 && LoopIndex > 6)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && LoopIndex > 6)
             {
                 unsigned int TargetOffset = (unsigned int)(ReadContext.ReadPtr + *(_DWORD *)(ReadContext.ReadPtr - 4) - ImageBase);
                 if (TargetOffset < MaxOffset)
@@ -4390,7 +4390,7 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
                 return Result;
             int MatchSize = (int)(SectionSize + ReadContext.ReadPtr);
             ReadContext.ReadPtr += SectionSize;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1368 && (FieldValue & 0x4000000) != 0)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (FieldValue & 0x4000000) != 0)
             {
                 if (EntrySize)
                 {
@@ -4405,7 +4405,7 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
                                 return Result;
                             int MatchSize2 = (int)(SectionSize + ReadContext.ReadPtr);
                             ReadContext.ReadPtr += SectionSize;
-                            if (*(_WORD *)(SectionDataPtr + 6) == 1296 && (FieldValue2 & 0x40000) != 0)
+                            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1296 && (FieldValue2 & 0x40000) != 0)
                             {
                                 unsigned int TargetOffset2 = (unsigned int)(MatchSize2 + FieldSize - ImageBase);
                                 if (TargetOffset2 && TargetOffset2 < MaxOffset)
@@ -4451,7 +4451,7 @@ __int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 
                 break;
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
-            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SubType == 1349)
             {
                 if ((_DWORD)TargetOffset && (unsigned int)TargetOffset < ImageSize)
@@ -4599,7 +4599,7 @@ __int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __
                 break;
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1296 && FieldValue == 0x40000)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1296 && FieldValue == 0x40000)
             {
                 if (EntryFlags)
                 {
@@ -4618,12 +4618,13 @@ __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __i
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
-    __int64 FieldValue = 0;
-    int EntryFlags = 0;
-    int SectionSize = 0;
-    __int64 FieldValue2 = 0;
-    unsigned int SectionSize2 = 0;
-    __int64 SectionDataPtr = 0;
+    /* 下列 6 个"字段"由描述符 SectionEntry 逐轮填充（见循环内注释），不再初始化为 0 */
+    __int64 FieldValue;
+    int EntryFlags;
+    int SectionSize;
+    __int64 FieldValue2;
+    unsigned int SectionSize2;
+    __int64 SectionDataPtr;
 
     SectionOffset = (unsigned int)GtRead(GtNtCreateThreadPeSectionOffset);
     if (SectionOffset && SectionOffset < ImageSize)
@@ -4633,9 +4634,21 @@ __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __i
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
+            /* 【重大修正 2026-10-17】以下 6 个"局部变量"在原始驱动里**就是描述符 SectionEntry
+               数组内的字段**（原始反汇编 0x14001CF34：SectionSize2=+0xF0、SectionDataPtr=+0x118、
+               FieldValue=+0x50、EntryFlags=+0x58、SectionSize=+0x78、FieldValue2=+0x88）。
+               旧移植把它们另立为初始化为 0 的独立局部且从不赋值，MSVC/LTCG 据此把
+               `*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成**绝对地址 [6]** —— 实机加载即 0x7E 蓝屏。
+               现改为每次读取后从描述符取字段（与原始一致）。 */
+            SectionSize2   = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+            SectionDataPtr = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
+            FieldValue     = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+            EntryFlags     = *(int *)((PUCHAR)SectionEntry + 0x58);
+            SectionSize    = *(int *)((PUCHAR)SectionEntry + 0x78);
+            FieldValue2    = *(__int64 *)((PUCHAR)SectionEntry + 0x88);
             int MatchSize = (int)(SectionSize2 + CumulativeSize);
             CumulativeSize += SectionSize2;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1245 && FieldValue == 64 && EntryFlags == 1 && FieldValue2 == 0x40000)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1245 && FieldValue == 64 && EntryFlags == 1 && FieldValue2 == 0x40000)
             {
                 if (SectionSize)
                 {
@@ -4675,7 +4688,7 @@ __int64 HookSyscallNtOpenProcess(__int64 ImageBase, unsigned int ImageSize, __in
                 break;
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1368)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368)
             {
                 if (EntryFlags)
                 {
@@ -4727,7 +4740,7 @@ __int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 
             {
                 ResultValue = SectionEntry[16];
             }
-            else if ((unsigned __int16)(*(_WORD *)(SectionDataPtr + 6) - 1368) <= 1u && (FieldValue & 0x4000000) != 0)
+            else if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 1u && (FieldValue & 0x4000000) != 0)
             {
                 unsigned int TargetOffset = (unsigned int)(MatchSize + SectionEntry[14] - ImageBase);
                 if (TargetOffset && TargetOffset < ImageSize)
@@ -4761,7 +4774,7 @@ __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += SectionSize;
-            if (*(_WORD *)(SectionDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((FieldValue & 0x40) != 0 && !EntryFlags && (FieldValue2 & 0x4000) != 0 && FieldFlags && (FieldValue2 & 0x40) != 0)
             {
@@ -4796,7 +4809,7 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
                 break;
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
-            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SubType == 1349)
                 break;
             if (SubType == 1296 && (FieldValue & 0x20) != 0 && !EntryFlags && (FieldValue2 & 0x40000) != 0)
@@ -4850,7 +4863,7 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
                 break;
             __int64 CumulativeSize = SectionSize + CumulativeSize2;
             CumulativeSize2 = CumulativeSize;
-            __int16 SubType = *(_WORD *)(SectionDataPtr + 6);
+            __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SubType == 1166)
             {
                 FoundFlag = 1;
@@ -4973,7 +4986,7 @@ __int64 HookSyscallNtOpenFile(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5007,7 +5020,7 @@ __int64 HookSyscallNtReadFile(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5042,7 +5055,7 @@ __int64 HookSyscallNtWriteFile(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
             {
                 if (MatchOffset != -1)
                     ResultOffset = MatchOffset;
@@ -5079,7 +5092,7 @@ __int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5113,7 +5126,7 @@ __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5160,7 +5173,7 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
                 break;
             __int64 CumulativeSize = EntryCumulSize + TotalCumulSize;
             TotalCumulSize = CumulativeSize;
-            __int16 SectionType = *(_WORD *)(EntryDataPtr + 6);
+            __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SectionType == 1294 && (SectionFlags & 0x4000) != 0 && EntryFlags == 16)
             {
                 FoundMarker = 1;
@@ -5196,7 +5209,7 @@ __int64 HookSyscallNtQueryInformationProcess(__int64 TargetBase, unsigned int Ta
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            __int16 SectionType = *(_WORD *)(EntryDataPtr + 6);
+            __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SectionType == 1349)
                 break;
             if (SectionType == 1296 && (SectionFlags & 0x40) != 0 && (SectionType2 & 0x14000) != 0 && EntrySize)
@@ -5231,7 +5244,7 @@ __int64 HookSyscallNtSetInformationProcess(__int64 TargetBase, unsigned int Targ
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5264,7 +5277,7 @@ __int64 HookSyscallNtQueryInformationThread(__int64 TargetBase, unsigned int Tar
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if (((SectionFlags & 8) != 0 && !EntryFlags || (SectionFlags & 0x20) != 0 && !EntryFlags) && (SectionType & 0x10000) != 0 && EntrySize)
             {
@@ -5298,7 +5311,7 @@ __int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int Targe
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 8) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5332,7 +5345,7 @@ __int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5382,7 +5395,7 @@ __int64 HookSyscallNtSuspendThread(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5416,7 +5429,7 @@ __int64 HookSyscallNtResumeThread(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5457,7 +5470,7 @@ __int64 HookSyscallNtOpenThreadToken(__int64 TargetBase, unsigned int TargetSize
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5491,7 +5504,7 @@ __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize)
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
             CumulativeSize += EntryCumulSize;
-            if (*(_WORD *)(EntryDataPtr + 6) == 1349)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
             if ((SectionFlags & 0x40) != 0 && !EntryFlags && (SectionType & 0x10000) != 0 && EntrySize && (SectionType & 0x40) != 0 && EntryField == 1)
             {
@@ -5530,7 +5543,7 @@ __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int
                     break;
                 int CurrentOffset1 = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1141 && (SectionFlags & 0x40000) != 0 && EntrySize < TargetSize)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1141 && (SectionFlags & 0x40000) != 0 && EntrySize < TargetSize)
                 {
                     unsigned int MatchOffset1 = (unsigned int)(CurrentOffset1 + EntrySize - TargetBase);
                     if (MatchOffset1 && MatchOffset1 < (unsigned int)TargetSize)
@@ -5553,7 +5566,7 @@ __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int
                     break;
                 int CurrentOffset2 = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1296 && (SectionFlags & 0x40) != 0 && (SectionType2 & 0x40000) != 0 && EntrySize2 < TargetSize)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1296 && (SectionFlags & 0x40) != 0 && (SectionType2 & 0x40000) != 0 && EntrySize2 < TargetSize)
                 {
                     unsigned int MatchOffset2 = (unsigned int)(CurrentOffset2 + EntrySize2 - TargetBase);
                     if (MatchOffset2 && MatchOffset2 < (unsigned int)TargetSize)

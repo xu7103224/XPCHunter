@@ -806,7 +806,7 @@ __int64 FindRenameKeyTargetEx(
                     break;
                 CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
                 CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1245 && SectionFlags == 0x40000)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1245 && SectionFlags == 0x40000)
                 {
                     if (EntrySize)
                     {
@@ -817,7 +817,7 @@ __int64 FindRenameKeyTargetEx(
                             if (!(_DWORD)Result)
                             {
                                 CumulativeSize += EntryCumulSize;
-                                if (*(_WORD *)(EntryDataPtr + 6) == 321)
+                                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 321)
                                 {
                                     if (SectionEntry[14])
                                     {
@@ -826,7 +826,7 @@ __int64 FindRenameKeyTargetEx(
                                         {
                                             FinalOffset = (int)(EntryCumulSize + CumulativeSize);
                                             CumulativeSize += EntryCumulSize;
-                                            if (*(_WORD *)(EntryDataPtr + 6) == 1296)
+                                            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1296)
                                             {
                                                 if (EntrySize && SectionFlags == 0x40000)
                                                 {

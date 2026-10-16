@@ -362,7 +362,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, ReadEntry))
                 break;
             AccumulatedOffset += ReadEntry[60];
-            if (*(_WORD *)(SectionInfoPtr + 6) == 1340 && (*(_QWORD *)&ReadEntry[34] & 0x800000LL) != 0 && !ReadEntry[29])
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry + 0x118) + 6) == 1340 && (*(_QWORD *)&ReadEntry[34] & 0x800000LL) != 0 && !ReadEntry[29])
                 return ReadEntry[28];
         }
     }
@@ -1342,7 +1342,7 @@ bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int Target
             break;
         CurrentOffset = (int)(EntryDataPtr + CumulSize);
         CumulSize += EntryDataPtr;
-        if (*(_WORD *)(FieldPtr + 6) == 1298 && SectionType == 0x40000 && EntryCumulSize && EntryFlags == 64)
+        if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && SectionType == 0x40000 && EntryCumulSize && EntryFlags == 64)
         {
             ++MatchCount;
             *((_DWORD *)&RelocOut + EntrySize) = CurrentOffset + EntryCumulSize - SectionOffset;
@@ -1432,7 +1432,7 @@ __int64 ParseNtSectionsForShadowSsdt(void)
             FieldCount = *(int *)&EntryBuffer[0x30];
             SectionDataSize = *(int *)&EntryBuffer[0x38];
 
-            SectionType = *(unsigned short *)(pSectionEntryBase + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
             if (SectionType == 0x50E &&
                 FieldFlags == 0x40000 &&
@@ -1690,7 +1690,7 @@ bool __fastcall FindSsdtTableAddresses(
             ComputedOffset = EntryCumulativeSize + (int)CumulativeOffset;
             CumulativeOffset += EntryCumulativeSize;
 
-            if ((unsigned __int16)(*(_WORD *)(EntryDataPointer + 6) - 1368) <= 2u)
+            if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6) - 1368) <= 2u)
             {
                 if (SubSectionAddress)
                 {
@@ -1714,7 +1714,7 @@ bool __fastcall FindSsdtTableAddresses(
                         {
                             ComputedOffset2 = EntryCumulativeSize + (int)CumulativeOffset;
                             CumulativeOffset += EntryCumulativeSize;
-                            SectionType2 = *(_WORD *)(EntryDataPointer + 6);
+                            SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
 
                             if (SectionType2 == 1298 && AlignmentValue == 0x40000 && AddressFieldValue && SizeFieldValue == 64)
                             {
@@ -1816,7 +1816,7 @@ char __fastcall ResolveSsdtTablePointer(
             ComputedOffset = SectionEntrySize + (int)RootTableOffsetAccum;
             RootTableOffsetAccum += SectionEntrySize;
 
-            if (*(_WORD *)(pSectionEntryBase + 6) == 1298 && TableFieldFlags == 0x40000)
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && TableFieldFlags == 0x40000)
             {
                 if (FieldFlags)
                 {
@@ -1832,7 +1832,7 @@ char __fastcall ResolveSsdtTablePointer(
                 }
             }
 
-            SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+            SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if ((SectionType2 == 1065
                 && SectionFileOffset == 0x40000
                 && (FieldFlagsByte & 4) != 0
@@ -1920,7 +1920,7 @@ char __fastcall ResolveSsdtTablePointerEx(
             ComputedOffset = SectionEntrySize + (int)RootOffsetAccum;
             RootOffsetAccum += SectionEntrySize;
 
-            if ((unsigned __int16)(*(_WORD *)(pSectionEntryBase + 6) - 1368) <= 2u)
+            if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 2u)
             {
                 if (SubSectionFieldCount)
                 {
@@ -1945,7 +1945,7 @@ char __fastcall ResolveSsdtTablePointerEx(
                             ComputedOffset2 = SectionEntrySize + (int)RootOffsetAccum;
                             RootOffsetAccum += SectionEntrySize;
 
-                            if (*(_WORD *)(pSectionEntryBase + 6) == 1298 && TableFieldFlags == 0x40000)
+                            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && TableFieldFlags == 0x40000)
                             {
                                 if (FieldFlags)
                                 {
@@ -1961,7 +1961,7 @@ char __fastcall ResolveSsdtTablePointerEx(
                                 }
                             }
 
-                            SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+                            SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                             if ((SectionType2 == 1065
                                 && SectionFileOffset == 0x40000
                                 && (FieldFlagsByte & 4) != 0
@@ -2131,7 +2131,7 @@ __int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSiz
         CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x20 >> 2];
         EntryBuffer[0x48 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
         if (SectionType == 0x545)
             continue;
@@ -2208,7 +2208,7 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
         CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x20 >> 2];
         EntryBuffer[0x48 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
         if (SectionType == 0x53E)
         {

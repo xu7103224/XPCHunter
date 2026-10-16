@@ -4600,7 +4600,7 @@ char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
     {
         CurrentOffset = EntryCumulSize + (int)CumulativeSize;
         CumulativeSize += EntryCumulSize;
-        SectionType = *(_WORD *)(EntryDataPtr + 6);
+        SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
         if (SectionType == 1298 && FieldValue == 0x40000 && EntrySize && InfoBuffer == 64)
         {
             if (!SectionOffset1)
@@ -4640,7 +4640,7 @@ LABEL_CHECK:
             {
                 CurrentOffset = EntryCumulSize + (int)CumulativeSize;
                 CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1245 && FieldValue == 0x40000)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1245 && FieldValue == 0x40000)
                 {
                     if (EntrySize && InfoBuffer == 32 && SectionEntry[2] == 1)
                     {

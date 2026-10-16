@@ -631,7 +631,7 @@ __int64 FindKernelDataSectionForDeviceIoControl2(void)
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
         int CalculatedSize = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
-        short SectionFlags = *(WORD *)(SectionDataPtr + 6);
+        short SectionFlags = *(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         if (SectionFlags == 483 && EntryFlags == 65601)
             FoundMatchFlag = 1;
@@ -682,10 +682,20 @@ __int64 MiniFilterPostWrite(void)
     for (ULONG i = 0; i < 0x100; i++)
     {
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
+        /* 【重大修正 2026-10-17】下列字段都是**描述符内的槽**，旧移植把它们另立为独立局部
+           且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成绝对地址 [6]
+           → 实机加载 0x7E。类型指针偏移 0x118 已由多个原始函数交叉确认。
+           （其余字段偏移尚待按原始逐函数核对，见待办「MSR/PostWrite 字段偏移」） */
+        SectionDataPtr = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
+        EntryFlags     = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+        FieldValue     = *(ULONG *)((PUCHAR)SectionEntry + 0x78);
+        SubType        = *(ULONG *)((PUCHAR)SectionEntry + 0x40);
+        SectionSize    = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        SectionCharacteristics = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
         int CalculatedSize = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
 
-        if (*(WORD *)(SectionDataPtr + 6) == 1368 && (EntryFlags & 0x4000000) != 0 && (result = FieldValue) != 0)
+        if (*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (EntryFlags & 0x4000000) != 0 && (result = FieldValue) != 0)
         {
             result = CalculatedSize + FieldValue - (ULONG)KernelBase;
             if (((ULONG)result == ExistingPostWriteOffset1 || (ULONG)result == ExistingPostWriteOffset2) &&
@@ -7325,7 +7335,7 @@ void ParseMiniFilterRegSections(void)
 
         // 从 SectionDataPtr 获取 section flags
         SectionDataPtr = *(__int64 *)&PeSectionEntry[12];
-        SectionFlags = *(WORD *)(SectionDataPtr + 6);
+        SectionFlags = *(WORD *)(*(ULONG64 *)((PUCHAR)PeSectionEntry + 0x118) + 6);
 
         if (SectionFlags == 0x558)
         {
@@ -7357,7 +7367,7 @@ void ParseMiniFilterRegSections(void)
         CumulativeSize += SectionRawSize;
 
         SectionDataPtr = *(__int64 *)&PeSectionEntry[12];
-        SectionFlags = *(WORD *)(SectionDataPtr + 6);
+        SectionFlags = *(WORD *)(*(ULONG64 *)((PUCHAR)PeSectionEntry + 0x118) + 6);
 
         if (SectionFlags == 0x558)
         {
@@ -7417,7 +7427,7 @@ void ParseMiniFilterRegSections(void)
             CumulativeSize += SectionRawSize;
 
             SectionDataPtr = *(__int64 *)&PeSectionEntry[12];
-            SectionFlags = *(WORD *)(SectionDataPtr + 6);
+            SectionFlags = *(WORD *)(*(ULONG64 *)((PUCHAR)PeSectionEntry + 0x118) + 6);
 
             if (SectionFlags == 0x512)
             {
@@ -7707,59 +7717,65 @@ char EnumerateProcessCallbackContext(void)
 }
 
 
+// EnumerateProcessCallbackContext — 枚举进程回调节区（原 0x14003EAA8，809 字节）
+// 【逆向来源】IDA 反编译失败，按反汇编逐条重建（含 0x14003EAA8~0x14003EDD1 全量）
+// 【⚠ 重大修正 2026-10-17】旧移植版有 6 个局部变量（SectionDataPtr / SectionCharacteristics /
+//   ModeField / ModeField2 / FieldValue / FieldValue2 / SectionFlags）**声明后从未赋值**，
+//   MSVC/LTCG 据此把 `*(WORD *)(SectionDataPtr + 6)` 折叠成**绝对地址 [6]**：
+//   实机加载即 0x7E 蓝屏，故障指令 `cmp word ptr [6], si`（我方镜像 RVA 0x11E92）。
+//   现全部改为**直接读描述符字段**（与原始一致）：
+//     +0xF0 → 本条消耗长度      +0x118 → 类型结构体指针（+6 为类型号）
+//     +0x50 → 与 0x40 / 0x40000 比较   +0x58 → 与 2 / 1 比较
+//     +0x90 → 与 4 比较         +0x88 → 与 0x40000 比较
+//     +0x78 → 第一段 RVA 基值   +0x40 → 第二段 RVA 基值
+//     +0x28 → 按位测试 bit2
+//   另修正两处：EntrySize 应取 +0xF0（旧版误取 +0x30，即操作数 0 记录）；
+//   构建号判断方向（原始为 `Loaded < 0x55F0` 时才检查 0x545 结束）。
+// 【GT】0x61=当前 EPROCESS、0x42D0=CurrentOffset、0x43A8=SectionBase、0x20=SectionSize、
+//   0x21=NtoskrnlBase、3=NtoskrnlImageBase、0x914=构建号、写 0x2B8 / 0x2BA。
 __int64 EnumFileSystemCallbackEntries(void)
 {
     __int64 Result;
     struct _KPROCESS *TargetProcess;
     struct _KPROCESS *pTargetProcess;
-    unsigned int CurrentOffset;
-    __int64 SectionBase;
-    unsigned int SectionSize;
-    __int64 NtoskrnlBase;
-    __int64 NtoskrnlImageBase;
-    int ModuleInfo;
-    int SectionIndex;
-    int FieldIndex;
-    int ComputedRva;
-    __int64 RootOffsetAccum;
-    __int64 SectionDataPtr;
-    int ModeField;
-    int ModeField2;
-    __int64 SectionCharacteristics;
-    __int64 SectionDataPtr2;
-    int EntrySize;
-    int SectionFlags;
-    int FieldValue;
-    int FieldValue2;
-    __int64 SectionEntry[56];           // 描述符：原 [8] 仅 64 字节
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 char[8] 仅 8 字节，会被写坏栈）
+    ULONG    CurrentOffset;
+    ULONG64  SectionBase;
+    ULONG    SectionSize;
+    ULONG64  NtoskrnlBase;
+    ULONG64  NtoskrnlImageBase;
+    ULONG    SectionIndex;
+    ULONG    FieldIndex;
+    ULONG    ComputedRva;
+    ULONG64  RootOffsetAccum;
+    ULONG64  TypePtr;
+    USHORT   Type;
+    __int64  SectionEntry[56];          // 描述符：0x120 字节
+    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节读取上下文
     struct _KAPC_STATE ApcState;
 
     Result = 0;
-    TargetProcess = (struct _KPROCESS *)GtRead(GtCurrentEprocess);
+    TargetProcess = (struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)GtCurrentEprocess);
     pTargetProcess = TargetProcess;
     if (TargetProcess)
         KeStackAttachProcess(TargetProcess, &ApcState);
 
-    CurrentOffset = (unsigned int)GtRead(0x42D0);
-    SectionBase = GtRead(0x43A8);
-    SectionSize = (unsigned int)GtRead(0x20);
-    NtoskrnlBase = GtRead(0x21);
-    NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
-    ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
+    CurrentOffset     = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x42D0);
+    SectionBase       = GtRead((GLOBAL_TABLE_INDEX)0x43A8);
+    SectionSize       = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x20);
+    NtoskrnlBase      = GtRead((GLOBAL_TABLE_INDEX)0x21);
+    NtoskrnlImageBase = GtRead((GLOBAL_TABLE_INDEX)GtNtoskrnlModuleBase);
 
     if (CurrentOffset
-        && CurrentOffset < (unsigned int)NtoskrnlBase
+        && CurrentOffset < (ULONG)NtoskrnlBase
         && SectionBase
-        && (unsigned int)SectionBase < (unsigned int)NtoskrnlBase
+        && (ULONG)SectionBase < (ULONG)NtoskrnlBase
         && SectionSize
         && NtoskrnlBase
-        && NtoskrnlImageBase
-        && ModuleInfo)
+        && NtoskrnlImageBase)
     {
         InitPESectionReadContext(
             (__int64)(SectionBase + CurrentOffset),
-            (unsigned int)NtoskrnlBase - CurrentOffset,
+            (ULONG)NtoskrnlBase - CurrentOffset,
             2,
             0,
             -1,
@@ -7767,98 +7783,94 @@ __int64 EnumFileSystemCallbackEntries(void)
             0,
             (__int64)&ReadContext);
 
-        SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
-        {
-            EntrySize = (int)SectionEntry[6];
-            RootOffsetAccum += EntrySize;
-            SectionDataPtr2 = SectionDataPtr;
+        RootOffsetAccum = 0;
 
-            // 检查是否到达终止类型 (0x545 = 1349)
-            if (*(_WORD *)(SectionDataPtr + 6) == 0x545)
+        // 第一层：最多 0xC8(200) 轮
+        for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
+        {
+            if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                 break;
 
-            // 检查是否为 SSDT 表类型 (0x512 = 1298)
-            if (*(_WORD *)(SectionDataPtr + 6) == 0x512)
+            RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            TypePtr = *(ULONG64 *)((PUCHAR)SectionEntry + 0x118);
+            Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+            if (Type == 0x545)                                    // 1349：结束
+                break;
+            if (Type != 0x512)                                    // 非 1298：下一轮
+                continue;
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40)
+                continue;
+            if (*(ULONG *)((PUCHAR)SectionEntry + 0x58) != 2)
+                continue;
+            if (*(ULONG *)((PUCHAR)SectionEntry + 0x90) != 4)
+                continue;
+
+            // 第二层条目
+            if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                continue;
+            RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            TypePtr = *(ULONG64 *)((PUCHAR)SectionEntry + 0x118);
+            if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 0x512)
+                continue;
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40)
+                continue;
+            if (*(ULONG *)((PUCHAR)SectionEntry + 0x58) != 1)
+                continue;
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) != 0x40000)
+                continue;
+
+            ComputedRva = *(ULONG *)((PUCHAR)SectionEntry + 0x78)
+                        - SectionSize + (ULONG)RootOffsetAccum;
+
+            // 第三层条目：确认类型 0x558，之后才校验算出的 RVA
+            if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                continue;
+            RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 0x558)
+                continue;
+            if (!ComputedRva || ComputedRva >= (ULONG)NtoskrnlBase)
+                continue;
+
+            GtWrite((GLOBAL_TABLE_INDEX)GtKernelDataField38, NtoskrnlImageBase + ComputedRva);
+            Result = 0;
+
+            // 第三层：最多 0x12C(300) 轮
+            for (FieldIndex = 0; FieldIndex < 0x12C; ++FieldIndex)
             {
-                // 检查字段条件: FieldValueSize == 64, FieldCount == 2, FieldFlags == 4
-                if (SectionCharacteristics == 64 && ModeField == 2 && ModeField2 == 4)
-                {
-                    // 读取下一个条目
-                                if (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
-                    {
-                        EntrySize = (int)SectionEntry[6];
-                        RootOffsetAccum += EntrySize;
-                        SectionDataPtr2 = SectionDataPtr;
+                ULONG Loaded;
+                ULONG Rva2;
 
-                        // 再次检查 Type 0x512
-                        if (*(_WORD *)(SectionDataPtr + 6) == 0x512)
-                        {
-                            // 检查字段条件: FieldValueSize == 64, FieldCount == 1, FieldFileOffset == 0x40000
-                            if (SectionCharacteristics == 64 && ModeField == 1 && ModeField2 == 0x40000)
-                            {
-                                ComputedRva = FieldValue - (int)SectionSize + (int)RootOffsetAccum;
+                if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
+                    break;
 
-                                // 读取下一个条目确认 Type 0x558
-                    if (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
-                                {
-                                    EntrySize = (int)SectionEntry[6];
-                                    RootOffsetAccum += EntrySize;
-                                    SectionDataPtr2 = SectionDataPtr;
+                RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+                Loaded = (ULONG)GtRead((GLOBAL_TABLE_INDEX)GtWindowsBuildNumber);
+                TypePtr = *(ULONG64 *)((PUCHAR)SectionEntry + 0x118);
 
-                                    if (*(_WORD *)(SectionDataPtr + 6) == 0x558 && ComputedRva)
-                                    {
-                                        if ((unsigned int)ComputedRva < (unsigned int)NtoskrnlBase)
-                                        {
-                                            GtWrite(GtKernelDataField38, NtoskrnlImageBase + ComputedRva);
-                                            Result = 0;
+                // 原始：Load < 0x55F0 时才把 0x545 当作结束标记
+                if (Loaded < 0x55F0 && *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x545)
+                    break;
 
-                                            // 第二遍扫描：查找偏移地址
-                                            FieldIndex = 0;
-                                            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
-                                            {
-                                                EntrySize = (int)SectionEntry[6];
-                                                RootOffsetAccum += EntrySize;
-                                                SectionDataPtr2 = SectionDataPtr;
+                Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+                if (Type != 0x4B1 && Type != 0x175 && Type != 0x472)
+                    continue;
+                if ((*(UCHAR *)((PUCHAR)SectionEntry + 0x28) & 4) == 0)
+                    continue;
+                if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40000)
+                    continue;
 
-                                                // 检查是否达到构建号边界
-                                                if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x55F0)
-                                                {
-                                                    if (*(_WORD *)(SectionDataPtr + 6) == 0x545)
-                                                        break;
-                                                }
+                Rva2 = *(ULONG *)((PUCHAR)SectionEntry + 0x40)
+                     - SectionSize + (ULONG)RootOffsetAccum;
+                if (!Rva2 || Rva2 >= (ULONG)NtoskrnlBase)
+                    continue;
 
-                                                // 检查类型匹配: 0x4B1(1201), 0x175(373), 0x472(1138)
-                                                if (*(_WORD *)(SectionDataPtr + 6) == 0x4B1
-                                                    || *(_WORD *)(SectionDataPtr + 6) == 0x175
-                                                    || *(_WORD *)(SectionDataPtr + 6) == 0x472)
-                                                {
-                                                    if ((SectionFlags & 4) != 0 && SectionCharacteristics == 0x40000)
-                                                    {
-                                                        ComputedRva = FieldValue2 - (int)SectionSize + (int)RootOffsetAccum;
-                                                        if (ComputedRva && (unsigned int)ComputedRva < (unsigned int)NtoskrnlBase)
-                                                        {
-                                                            GtWrite(GtKernelDataField40, NtoskrnlImageBase + ComputedRva);
-                                                            Result = 1;
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-
-                                                if ((unsigned int)++FieldIndex >= 0x12C)
-                                                    break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                GtWrite((GLOBAL_TABLE_INDEX)GtKernelDataField40, NtoskrnlImageBase + Rva2);
+                Result = 1;
+                break;
             }
 
-            if ((unsigned int)++SectionIndex >= 0xC8)
-                break;
+            break;      // 原始：第三层结束即结束第一层
         }
     }
 
@@ -7867,6 +7879,7 @@ __int64 EnumFileSystemCallbackEntries(void)
 
     return Result;
 }
+
 
 
 

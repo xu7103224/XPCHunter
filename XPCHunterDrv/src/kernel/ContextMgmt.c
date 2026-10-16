@@ -2859,10 +2859,10 @@ __int64 LookupMsrTableEntry(void)
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
-        SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
+        SectionDataPtr = *(__int64 *)&EntryBuffer[0x118];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (*(unsigned short *)(SectionDataPtr + 6) >= 0x558 &&
-            *(unsigned short *)(SectionDataPtr + 6) <= 0x559)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) >= 0x558 &&
+            *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) <= 0x559)
         {
             int Offset = *(int *)&EntryBuffer[0x20] - (int)ImageBase + (int)CumulativeSize;
             if (Offset && (unsigned int)Offset < ImageSize)
@@ -2888,9 +2888,9 @@ __int64 LookupMsrTableEntry(void)
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
-        SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
+        SectionDataPtr = *(__int64 *)&EntryBuffer[0x118];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (Phase1Count < 10 && *(unsigned short *)(SectionDataPtr + 6) == 0x418)
+        if (Phase1Count < 10 && *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x418)
         {
             // 检查 CumulativeSize == 0x40000 和 var_108 == 0x80000 和 var_110 == 0
             if (CumulativeSize == 0x40000 &&
@@ -2903,9 +2903,9 @@ __int64 LookupMsrTableEntry(void)
                 SectionSize = *(unsigned int *)&EntryBuffer[0x38];
                 CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
                 CumulativeSize += SectionSize;
-                SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
+                SectionDataPtr = *(__int64 *)&EntryBuffer[0x118];
                 *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-                if (*(unsigned short *)(SectionDataPtr + 6) == 0x13E)
+                if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x13E)
                 {
                     int Offset = *(int *)&EntryBuffer[0x20] - (int)ImageBase + (int)CumulativeSize;
                     if (Offset && (unsigned int)Offset < ImageSize)
@@ -2917,7 +2917,7 @@ __int64 LookupMsrTableEntry(void)
                 }
             }
         }
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0x512)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512)
         {
             if (CumulativeSize == 0x40000)
             {
@@ -2938,7 +2938,7 @@ __int64 LookupMsrTableEntry(void)
                 }
             }
         }
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x50E)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x50E)
         {
             if (CumulativeSize == 0x40000)
             {
@@ -3028,14 +3028,14 @@ __int64 ParseMsrRelatedSections(void)
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
-        SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
+        SectionDataPtr = *(__int64 *)&EntryBuffer[0x118];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0x558)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x558)
         {
             FieldValue = *(int *)&EntryBuffer[0x20];
             Phase1Offset = FieldValue - (int)ImageBase + (int)CumulativeSize;
         }
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x53D)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x53D)
         {
             SectionType = *(unsigned int *)&EntryBuffer[0x28];
             MiscInfo = *(__int64 *)&EntryBuffer[0x30];
@@ -3055,9 +3055,9 @@ __int64 ParseMsrRelatedSections(void)
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
-        SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
+        SectionDataPtr = *(__int64 *)&EntryBuffer[0x118];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0x512)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512)
         {
             if (CumulativeSize == 0x40000)
             {
@@ -3078,7 +3078,7 @@ __int64 ParseMsrRelatedSections(void)
                 }
             }
         }
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x50E)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x50E)
         {
             if (SectionAlignment == 0x40000)
             {
@@ -3159,9 +3159,9 @@ __int64 ParseMsrTableFromSections(void)
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
-        SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
+        SectionDataPtr = *(__int64 *)&EntryBuffer[0x118];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0x558)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x558)
         {
             FieldValue = *(int *)&EntryBuffer[0x20];
             int Offset = FieldValue - (int)ImageBase + (int)CumulativeSize;
@@ -3184,9 +3184,9 @@ __int64 ParseMsrTableFromSections(void)
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
-        SectionDataPtr = *(__int64 *)&EntryBuffer[0x48];
+        SectionDataPtr = *(__int64 *)&EntryBuffer[0x118];
         *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-        if (*(unsigned short *)(SectionDataPtr + 6) == 0x512)
+        if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x512)
         {
             if (CumulativeSize == 0x40000)
             {
@@ -3207,7 +3207,7 @@ __int64 ParseMsrTableFromSections(void)
                 }
             }
         }
-        else if (*(unsigned short *)(SectionDataPtr + 6) == 0x50E)
+        else if (*(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6) == 0x50E)
         {
             if (SectionAlignment == 0x40000)
             {
@@ -3372,7 +3372,7 @@ LABEL_23:
                     MatchSize2 = SectionSize + (int)CumulativeSize;
                     result = SectionDataPtr;
                     CumulativeSize += SectionSize;
-                    if (*(_WORD *)(SectionDataPtr + 6) == 1368 && (FieldValue & 0x4000000) != 0)
+                    if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (FieldValue & 0x4000000) != 0)
                     {
                         result = EntryFlags;
                         if (EntryFlags)
@@ -3409,13 +3409,13 @@ LABEL_23:
                     break;
                 MatchSize = SectionSize + (int)CumulativeSize;
                 CumulativeSize += SectionSize;
-                if (*(_WORD *)(SectionDataPtr + 6) == 1369 && (FieldValue & 0x4000000) != 0)
+                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1369 && (FieldValue & 0x4000000) != 0)
                     goto LABEL_22;
                 result = GtRead(GtWindowsBuildNumber);
                 if ((unsigned int)result >= 0x3FAB)
                 {
                     result = SectionDataPtr;
-                    if (*(_WORD *)(SectionDataPtr + 6) == 1368 && (FieldValue & 0x4000000) != 0)
+                    if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (FieldValue & 0x4000000) != 0)
                     {
                         MatchSize = (int)CumulativeSize;
 LABEL_22:
@@ -4165,7 +4165,7 @@ __int64 ParseNtExportSectionsV2(void)
         PeContext.ReadPtr += SectionSize;
         SectionDataPtr = EntryBuffer[0x48 >> 2];
         EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
         if (SectionType == 0xFE || SectionType == 0x558)
         {
             if (SectionType == 0x558)
@@ -4199,7 +4199,7 @@ next_phase1:
             PeContext.ReadPtr += SectionSize;
             SectionDataPtr = EntryBuffer[0x48 >> 2];
             EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
-            SectionType = *(unsigned short *)(SectionDataPtr + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
             if (SectionType == 0x512)
             {
                 __int64 B8 = EntryBuffer[0x120 >> 2];
@@ -4255,7 +4255,7 @@ next_phase1:
                 PeContext.ReadPtr += SectionSize;
                 SectionDataPtr = EntryBuffer[0x48 >> 2];
                 EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
-                SectionType = *(unsigned short *)(SectionDataPtr + 6);
+                SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
                 if (SectionType == 0x559 && EntryBuffer[0xD0 >> 2])
                 {
                     int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)PeContext.ReadPtr;
@@ -4330,7 +4330,7 @@ __int64 ParseNtExportSectionsWin10(void)
         PeContext.ReadPtr += SectionSize;
         SectionDataPtr = EntryBuffer[0x48 >> 2];
         EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
-        SectionType = *(unsigned short *)(SectionDataPtr + 6);
+        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
         if (SectionType == 0xFE || SectionType == 0x558)
         {
             if (SectionType == 0x558)
@@ -4364,7 +4364,7 @@ win10_next_phase1:
             PeContext.ReadPtr += SectionSize;
             SectionDataPtr = EntryBuffer[0x48 >> 2];
             EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
-            SectionType = *(unsigned short *)(SectionDataPtr + 6);
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
             if (SectionType == 0x512)
             {
                 __int64 B8 = EntryBuffer[0x130 >> 2];

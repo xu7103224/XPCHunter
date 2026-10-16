@@ -334,7 +334,7 @@ __int64 FindCpuMsrBaseLegacy(int MsrAddress)
             {
                 pCurrentEntry = (_QWORD *)((__int64)SectionDataPtr + SectionEntryOffset);
                 SectionDataPtr = pCurrentEntry;
-                EntryType = *(__int16 *)(SectionTypeInfo + 6);
+                EntryType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntryBuffer + 0x118) + 6);
 
                 if (EntryType == 225)
                 {
@@ -409,7 +409,7 @@ __int64 FindCpuMsrBaseWin10(int MsrAddress)
             {
                 CurrentOffset = SectionEntryOffset + (int)SectionDataPtr;
                 SectionDataPtr += SectionEntryOffset;
-                EntryType = *(__int16 *)(SectionTypeInfo + 6);
+                EntryType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntryBuffer + 0x118) + 6);
 
                 if (EntryType == 225 || (unsigned __int16)(EntryType - 1348) <= 1u)
                 {

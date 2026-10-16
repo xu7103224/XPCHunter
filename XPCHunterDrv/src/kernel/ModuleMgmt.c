@@ -1419,7 +1419,7 @@ __int64 FindPeExecutableSection(void)
         int CalculatedSize = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
 
-        if (*(WORD *)(SectionDataPtr + 6) == 1292 && EntryFlags == 0x40000)
+        if (*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1292 && EntryFlags == 0x40000)
         {
             if (FieldValue && EntryField2 == 64 && EntryCharacteristics == 1)
             {
@@ -3819,7 +3819,7 @@ char ParseKernelModuleSectionTable(__int64 FileBuffer, unsigned int FileSize, __
             {
                 ComputedOffset = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
-                SectionType = *(_WORD *)(pSectionEntryBase + 6);
+                SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (SectionType == 1369)
                 {
                     SectionRva = (unsigned int)(ComputedOffset + SectionDataSize - FileBuffer);
@@ -3858,7 +3858,7 @@ LABEL_FOUND_SECTION:
                     break;
                 ComputedOffset2 = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
-                SectionType2 = *(_WORD *)(pSectionEntryBase + 6);
+                SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
                 if (SectionType2 == 1349)
                     break;
                 SectionFlags = (int)SectionCharacteristics;
@@ -4132,7 +4132,7 @@ char ScanKernelPeExportSection()
 
             ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
             SectionFileOffset += SectionAlignedSize;
-            SectionType = *(__int16 *)(pSectionEntryBase + 6);
+            SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
             if (SectionType == 1349)
                 break;
@@ -4222,7 +4222,7 @@ char ScanKernelPeExportData()
 
         ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
         SectionFileOffset += SectionAlignedSize;
-        SectionType = *(__int16 *)(pSectionEntryBase + 6);
+        SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         if (SectionType == 0x559 && SectionDataSize)
         {
@@ -4259,7 +4259,7 @@ char ScanKernelPeExportData()
 
         ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
         SectionFileOffset += SectionAlignedSize;
-        SectionType = *(__int16 *)(pSectionEntryBase + 6);
+        SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         if (SectionType == 0x4DB &&
             FieldFlags == 0x40000 &&
@@ -4340,7 +4340,7 @@ char EnumProcessPeExportData()
 
             ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
             SectionFileOffset += SectionAlignedSize;
-            SectionType = *(__int16 *)(pSectionEntryBase + 6);
+            SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
             if (SectionType == 0x545)
                 break;
@@ -4430,7 +4430,7 @@ char EnumProcessPeExportDataByIndex()
 
             ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
             SectionFileOffset += SectionAlignedSize;
-            SectionType = *(__int16 *)(pSectionEntryBase + 6);
+            SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
             if (SectionType == 0x545)
                 break;
@@ -4524,7 +4524,7 @@ char EnumProcessPeExportDataEx()
 
         ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
         SectionFileOffset += SectionAlignedSize;
-        SectionType = *(__int16 *)(pSectionEntryBase + 6);
+        SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         // 检查 Type 是否在 0x53C-0x543 范围内
         if ((unsigned int)(SectionType - 0x53C) <= 7)
