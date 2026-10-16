@@ -2711,20 +2711,26 @@ __int64 ReadProcessMemoryWithAttach(__int64 ProcessHandle)
     char AttachFlags;
     struct _KTHREAD *CurrentThread;
     __int64 AttachContext;
-    __int64 ObjectTypeField21 = GtRead(GtObjectTypeField21);
-    __int64 PspExitNormalApcAddrVal = GtRead(GtPspExitNormalApcAddr);
-    __int64 ExFreeCallBackAddrVal = GtRead(GtExFreeCallBackAddr);
-    __int64 PsExitSpecialApcAddrVal = GtRead(GtPsExitSpecialApcAddr);
+    // 【修正 2026-10-16】按原始读序（_gtseq 提取，0x14007F6B1..0x14007F712）重排并去掉多余的提前读取：
+    //   0x41C0 → 0x41C3 → 0x4169 → 0x41CC → 0x4232 → 0x4223 → 0x237
+    //   原实现把 4 个槽放在**变量初始化器**里（等价于函数最开头读取），
+    //   且在最前面多读了一次 0x914，导致我方首读 0x237 而非原始的首读 0x41C0。
+    __int64 ObjectTypeField21 = 0;      // = GT[0x237]，见下方按序读取
+    __int64 PspExitNormalApcAddrVal = 0;
+    __int64 ExFreeCallBackAddrVal = 0;
+    __int64 PsExitSpecialApcAddrVal = 0;
 
     Result = 0;
-    BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
-    AttachToProcessFunc = (unsigned int (__fastcall *)(__int64, struct _KTHREAD **))GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField182 | 0x100));
-    KeAttachProcessFunc = (__int64 (__fastcall *)(struct _KTHREAD *, __int64, _QWORD, __int64, _QWORD, char, __int64 *))GtRead((GLOBAL_TABLE_INDEX)(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54));
-    pContextFlags = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtEprocessField95 | 0x100));
-    ContextFlags = GtRead((GLOBAL_TABLE_INDEX)(GtTotalSize | GtSubsystemConfigBase | GtPathBuffer00 | 0x100));
-    DeregisterFunc = (void (__fastcall *)(__int64))GtRead(GtRegisterObjectCallbacksFunc);
-    CloseHandleFunc = (void (__fastcall *)(struct _KTHREAD *))GtRead(GtCloseHandleFunc);
+    AttachResult = 0;
+    AttachToProcessFunc = (unsigned int (__fastcall *)(__int64, struct _KTHREAD **))GtRead(GtSyscallHash16832);  // 0x41C0
+    KeAttachProcessFunc = (__int64 (__fastcall *)(struct _KTHREAD *, __int64, _QWORD, __int64, _QWORD, char, __int64 *))GtRead(GtSyscallHash16835);  // 0x41C3
+    pContextFlags = (_QWORD *)GtRead(GtSyscallHash16745);                 // 0x4169
+    ContextFlags  = GtRead(GtSyscallHash16844);                           // 0x41CC
+    DeregisterFunc = (void (__fastcall *)(__int64))GtRead(GtRegisterObjectCallbacksFunc);  // 0x4232
+    CloseHandleFunc = (void (__fastcall *)(struct _KTHREAD *))GtRead(GtCloseHandleFunc);   // 0x4223
+    ObjectTypeField21 = GtRead(GtObjectTypeField21);                      // 0x237
     DetachProcessFunc = (void (__fastcall *)(__int64, _QWORD))ObjectTypeField21;
+    BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);             // 0x914（原始在 0x14007F7xx 处）
     if (!DetachProcessFunc)
     {
         ResolveSyscallAddressesInProcess();
