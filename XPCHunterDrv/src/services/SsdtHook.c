@@ -1607,70 +1607,88 @@ __int64 BuildExportIndexTable(
 {
     unsigned int EntryCount = 0;
 
-    // 清零输出表
+    // 清零输出表（每条目 12 字节，仅清标志字节）
     if (MaxEntries)
     {
         for (unsigned int i = 0; i < MaxEntries; i++)
             OutTable[12 * i] = 0;
     }
 
+    /* 【⚠ 重大修正 2026-10-16】原实现把 IMAGE_EXPORT_DIRECTORY 的字段整体读错位了一步：
+         把 +0x20(AddressOfNames) 当作"序数表"、把 +0x24(AddressOfNameOrdinals) 当作"名字表"，
+         于是对**函数机器码**求哈希（应为对**函数名**求哈希），写入的偏移值也是错的。
+       结果是索引表与 InitSyscallNumberTable 预计算的"名字哈希"永不匹配 →
+       BuildHookTable 填不出 GT[0x4158+1] 等 rva 槽（实测 GT[0x4159]=0，而原始为 0x66EDC0）→
+       FindNtOpenThreadTargetWin8 立即返回 0 → InitAllHookSubsystems 置 Success=0 → sc start 错误 31。
+       下列偏移均按原始 sub_140005610 反汇编逐条核对：
+         +0x18 NumberOfNames        +0x14 NumberOfFunctions
+         +0x1C AddressOfFunctions   +0x20 AddressOfNames   +0x24 AddressOfNameOrdinals
+       循环语义（原始）：遍历名字表取 NameRva → 由序数表取 OrdinalIndex →
+       AddressOfFunctions[OrdinalIndex] 得函数 RVA → 对名字串求哈希 →
+       条目 = {1, hash(名字), 函数 RVA}。 */
     __int64 PeHeader = *(int *)(PeBase + 60);
-    unsigned int ExportDirRva = *(unsigned int *)(PeHeader + PeBase + 136);
-    unsigned int ExportDirSize = *(unsigned int *)(PeHeader + PeBase + 140);
-    unsigned int AddressOfNames = *(unsigned int *)(PeHeader + PeBase + 140);
-    unsigned int AddressOfOrdinals = AddressOfNames + ExportDirSize;
+    unsigned int ExportDirRva = *(unsigned int *)(PeHeader + PeBase + 136);   // 0x88
+    unsigned int ExportDirSize = *(unsigned int *)(PeHeader + PeBase + 140);  // 0x8C
+    unsigned int ExportDirEnd = ExportDirRva + ExportDirSize;
 
     if (ExportDirRva < PeSize && ExportDirRva + 40 < PeSize
-        && ExportDirSize < PeSize && AddressOfOrdinals < PeSize)
+        && ExportDirSize < PeSize && ExportDirEnd < PeSize)
     {
-        unsigned int NumberOfNames = *(unsigned int *)(ExportDirRva + PeBase + 24);
-        unsigned int NumberOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 20);
-        unsigned int AddressOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 28);
-        unsigned int AddressOfNameOrdinals = *(unsigned int *)(ExportDirRva + PeBase + 32);
-        unsigned int AddressOfNamePointers = *(unsigned int *)(ExportDirRva + PeBase + 36);
+        unsigned int NumberOfNames = *(unsigned int *)(ExportDirRva + PeBase + 0x18);
+        unsigned int NumberOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 0x14);
 
-        if (MaxEntries == NumberOfNames
-            && AddressOfFunctions >= ExportDirRva
-            && AddressOfFunctions + 4 * NumberOfNames < AddressOfOrdinals
-            && 4 * NumberOfNames < ExportDirSize
-            && AddressOfNameOrdinals >= ExportDirRva
-            && AddressOfNameOrdinals + 2 * NumberOfNames < AddressOfOrdinals
-            && AddressOfNamePointers >= ExportDirRva
-            && AddressOfNamePointers + 4 * NumberOfFunctions < AddressOfOrdinals
-            && 4 * NumberOfFunctions < ExportDirSize)
+        if (MaxEntries == NumberOfNames)
         {
-            unsigned int *pFuncTable = (unsigned int *)(PeBase + AddressOfFunctions);
-            unsigned __int16 *pOrdTable = (unsigned __int16 *)(PeBase + AddressOfNameOrdinals);
-            __int64 NameTableBase = PeBase + AddressOfNamePointers;
-
-            if (NumberOfNames)
+            unsigned int AddressOfNames = *(unsigned int *)(ExportDirRva + PeBase + 0x20);
+            if (AddressOfNames >= ExportDirRva)
             {
-                do
+                unsigned int AddressOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 0x1C);
+                unsigned int AddressOfNameOrdinals = *(unsigned int *)(ExportDirRva + PeBase + 0x24);
+
+                if (4 * NumberOfNames + AddressOfNames < ExportDirEnd
+                    && 4 * NumberOfNames < ExportDirSize
+                    && AddressOfNameOrdinals >= ExportDirRva
+                    && AddressOfNameOrdinals + 2 * NumberOfNames < ExportDirEnd
+                    && AddressOfFunctions >= ExportDirRva
+                    && AddressOfFunctions + 4 * NumberOfFunctions < ExportDirEnd
+                    && 4 * NumberOfFunctions < ExportDirSize)
                 {
-                    unsigned int FuncRva = *pFuncTable;
-                    if (FuncRva >= ExportDirRva && FuncRva < AddressOfOrdinals)
+                    unsigned int *pNameTable = (unsigned int *)(PeBase + AddressOfNames);
+                    unsigned __int16 *pOrdinalTable = (unsigned __int16 *)(PeBase + AddressOfNameOrdinals);
+                    __int64 FuncTableBase = PeBase + AddressOfFunctions;
+                    unsigned int Remaining = NumberOfNames;
+
+                    if (Remaining)
                     {
-                        unsigned __int16 OrdinalIndex = *pOrdTable;
-                        if (OrdinalIndex < NumberOfFunctions)
+                        do
                         {
-                            unsigned int NameRva = *(unsigned int *)(NameTableBase + 4LL * OrdinalIndex);
-                            if (NameRva < PeSize && (NameRva < ExportDirRva || NameRva >= AddressOfOrdinals))
+                            unsigned int NameRva = *pNameTable;
+                            if (NameRva >= ExportDirRva && NameRva < ExportDirEnd)
                             {
-                                char *pName = (char *)(PeBase + FuncRva);
-                                if (!FilterFunc || FilterFunc(PeBase + FuncRva) == 1)
+                                unsigned __int16 OrdinalIndex = *pOrdinalTable;
+                                if (OrdinalIndex < NumberOfFunctions)
                                 {
-                                    unsigned int HashValue = (unsigned int)Sha1HashToDword(pName);
-                                    OutTable[12 * EntryCount] = 1;
-                                    *(unsigned int *)&OutTable[12 * EntryCount + 4] = HashValue;
-                                    *(unsigned int *)&OutTable[12 * EntryCount + 8] = NameRva;
-                                    EntryCount++;
+                                    unsigned int FuncRva = *(unsigned int *)(FuncTableBase + 4LL * OrdinalIndex);
+                                    if (FuncRva < PeSize
+                                        && (FuncRva < ExportDirRva || FuncRva >= ExportDirEnd))
+                                    {
+                                        char *pName = (char *)(PeBase + NameRva);
+                                        if (!FilterFunc || FilterFunc((__int64)pName) == 1)
+                                        {
+                                            unsigned int HashValue = (unsigned int)Sha1HashToDword(pName);
+                                            OutTable[12 * EntryCount] = 1;
+                                            *(unsigned int *)&OutTable[12 * EntryCount + 4] = HashValue;
+                                            *(unsigned int *)&OutTable[12 * EntryCount + 8] = FuncRva;
+                                            EntryCount++;
+                                        }
+                                    }
                                 }
                             }
-                        }
+                            pNameTable++;
+                            pOrdinalTable++;
+                        } while (--Remaining);
                     }
-                    pFuncTable++;
-                    pOrdTable++;
-                } while (--NumberOfNames);
+                }
             }
         }
     }
@@ -4309,9 +4327,11 @@ __int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __
     unsigned int SectionOffset = 0;
     __int64 SectionBase = 0;
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize = 0;
+    /* 【修正 2026-10-16】CumulativeSize 即上下文读指针（原始 ctx+0x08）：由 += 条目[0xF0] 推进 */
     _DWORD SectionEntry[72];
-    __int64 SectionDataPtr = 0;
+    /* 【修正 2026-10-16】同 FindNtOpenThreadTargetWin8：SectionDataPtr 是描述符 +0x118，
+       由 ReadPESectionEntry 填充；原声明为独立局部且从不赋值 → 恒 0 → 扫描永不匹配。 */
+#define SectionDataPtr PE_DESC_SECTION_DATA(SectionEntry)
 
     Result = 0;
     SectionOffset = (unsigned int)GtRead(GtTotalSize | GtEprocessField79 | 0x100);
@@ -4326,30 +4346,36 @@ __int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __
                 return Result;
             if (*(_WORD *)(SectionDataPtr + 6) == 1368 && LoopIndex > 6)
             {
-                unsigned int TargetOffset = (unsigned int)(CumulativeSize + *(_DWORD *)(CumulativeSize - 4) - ImageBase);
+                unsigned int TargetOffset = (unsigned int)(ReadContext.ReadPtr + *(_DWORD *)(ReadContext.ReadPtr - 4) - ImageBase);
                 if (TargetOffset < MaxOffset)
                     return BaseAddress + TargetOffset;
                 return Result;
             }
-            CumulativeSize += SectionEntry[60];
+            ReadContext.ReadPtr += SectionEntry[60];
         }
     }
     return Result;
 }
+#undef SectionDataPtr
 __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
     __int64 Result = 0;
     unsigned int SectionOffset = 0;
     __int64 SectionBase = 0;
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize = 0;
+    /* 【修正 2026-10-16】CumulativeSize 即上下文读指针（原始 ctx+0x08）：由 += 条目[0xF0] 推进 */
     _DWORD SectionEntry[72];
-    int EntrySize = 0;
-    __int64 FieldValue = 0;
-    int FieldSize = 0;
-    __int64 FieldValue2 = 0;
-    unsigned int SectionSize = 0;
-    __int64 SectionDataPtr = 0;
+    /* 【修正 2026-10-16】下述"字段"不是独立局部变量：原始把它们**别名**到 SectionEntry
+       （0x120 字节指令描述符）的对应偏移，由 ReadPESectionEntry 就地填充。原实现声明为
+       独立局部且**从不赋值**（恒为 0）→ 节区扫描永远不匹配 → 本函数返回 0 →
+       InitAllHookSubsystems 置 Success=0 → sc start 报错误 31。
+       偏移见 PE_INSN_DESCRIPTOR（inc/XPCHunterDrv.h），由原始 sub_14001D300 反汇编逐条推出。 */
+#define EntrySize      PE_DESC_ENTRY_SIZE(SectionEntry)
+#define FieldValue     PE_DESC_FIELD_VALUE(SectionEntry)
+#define FieldSize      PE_DESC_FIELD_SIZE(SectionEntry)
+#define FieldValue2    PE_DESC_FIELD_VALUE2(SectionEntry)
+#define SectionSize    PE_DESC_SECTION_SIZE(SectionEntry)
+#define SectionDataPtr PE_DESC_SECTION_DATA(SectionEntry)
 
     Result = 0;
     SectionOffset = (unsigned int)GtRead(GtTotalSize | GtEprocessField79 | 0x100);
@@ -4362,8 +4388,8 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 return Result;
-            int MatchSize = (int)(SectionSize + CumulativeSize);
-            CumulativeSize += SectionSize;
+            int MatchSize = (int)(SectionSize + ReadContext.ReadPtr);
+            ReadContext.ReadPtr += SectionSize;
             if (*(_WORD *)(SectionDataPtr + 6) == 1368 && (FieldValue & 0x4000000) != 0)
             {
                 if (EntrySize)
@@ -4371,14 +4397,14 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
                     unsigned int TargetOffset = (unsigned int)(MatchSize + EntrySize - ImageBase);
                     if (TargetOffset && TargetOffset < ImageSize)
                     {
-                        CumulativeSize = 0;
+                        ReadContext.ReadPtr = 0;
                         InitPESectionReadContext(ImageBase + TargetOffset, ImageSize - TargetOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
                         for (int LoopIndex2 = 0; LoopIndex2 < 0x46; ++LoopIndex2)
                         {
                             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                                 return Result;
-                            int MatchSize2 = (int)(SectionSize + CumulativeSize);
-                            CumulativeSize += SectionSize;
+                            int MatchSize2 = (int)(SectionSize + ReadContext.ReadPtr);
+                            ReadContext.ReadPtr += SectionSize;
                             if (*(_WORD *)(SectionDataPtr + 6) == 1296 && (FieldValue2 & 0x40000) != 0)
                             {
                                 unsigned int TargetOffset2 = (unsigned int)(MatchSize2 + FieldSize - ImageBase);
@@ -4395,6 +4421,12 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
     }
     return Result;
 }
+#undef EntrySize
+#undef FieldValue
+#undef FieldSize
+#undef FieldValue2
+#undef SectionSize
+#undef SectionDataPtr
 __int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 TargetOffset = 0;
@@ -5259,7 +5291,7 @@ __int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int Targe
     __int64 EntryDataPtr = 0;
 
     ResultOffset = -1;
-    SectionOffset = (unsigned int)GtRead(GtTotalSize | GtEprocessField115 | 0x100);
+    SectionOffset = (unsigned int)GtRead(GtTotalSize | GtPeSectionEndVa3 | 0x100);   /* 【修正 2026-10-16】原写 GtEprocessField115(=0x73) 得 0x4173（哈希槽），原始为 0x417D */
     if (SectionOffset && SectionOffset < TargetSize)
     {
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
@@ -5293,7 +5325,7 @@ __int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize)
     __int64 EntryDataPtr = 0;
 
     ResultOffset = -1;
-    SectionOffset = (unsigned int)GtRead(GtTotalSize | GtEprocessField109 | 0x100);
+    SectionOffset = (unsigned int)GtRead(GtTotalSize | GtPeCodeDataSectionVa | 0x100);   /* 【修正 2026-10-16】原写 GtEprocessField109(=0x6D) 得 0x416D（哈希槽），原始为 0x4177 */
     if (SectionOffset && SectionOffset < TargetSize)
     {
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);

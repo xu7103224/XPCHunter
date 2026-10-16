@@ -2105,18 +2105,23 @@ __int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSiz
 {
     __int64 Result = 0;
     __int64 PeScanBaseOffset;
-    __int64 PeContext;
+    PE_DECODE_CONTEXT PeContext;        /* 【修正 2026-10-16】原为 __int64（8 字节）——上下文实为 0x48 字节，
+                                           且必须与 ReadPESectionEntry 使用同一变量 */
     unsigned int SectionSize;
-    __int64 CumulativeSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
     ULONG EntryBuffer[0x80];
+    /* 【修正 2026-10-16】原始驱动的"累计值"就是上下文里的读指针（ctx+0x08），
+       由调用方 `+= 条目[0xF0]` 推进；原实现用独立局部（且不推进上下文）→ 读指针不前进、
+       且 Init 把上下文写进了描述符数组 EntryBuffer、读取却用未初始化的 PeContext，
+       实测读出栈垃圾 0xAB2000 → BSOD 0x7E（ReadPESectionEntry 读 [r9] 越界）。 */
+#define CumulativeSize (PeContext.ReadPtr)
 
     PeScanBaseOffset = GtRead(GtNtoskrnlPeScanBaseOffset);
     if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
         goto done;
 
-    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 3, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 2, 0, -1, 0, 0, (__int64)&PeContext);
     while (1)
     {
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
@@ -2167,6 +2172,7 @@ done:
     GtWrite(GtOpenProcessTokenOffset, Result);
     return Result;
 }
+#undef CumulativeSize
 
 // FindOpenProcessTokenTarget -- 查找 NtOpenProcess Token 目标（新版）
 // 两阶段扫描：先搜索子类型 0x53E 的 Magic 值标记位置，再搜索子类型 0x558 定位第二阶段基址
@@ -2175,20 +2181,21 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
 {
     __int64 Result = 0;
     __int64 PeScanBaseOffset;
-    __int64 PeContext;
+    PE_DECODE_CONTEXT PeContext;        /* 【修正 2026-10-16】见 FindOpenProcessTokenOffset：上下文须为 0x48 字节，
+                                           且 Init 与 Read 必须同一变量；累计值即上下文读指针 */
     unsigned int SectionSize;
-    __int64 CumulativeSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
     unsigned int PhaseCount;
     ULONG EntryBuffer[0x80];
     unsigned char PhaseMarker;
+#define CumulativeSize (PeContext.ReadPtr)
 
     PeScanBaseOffset = GtRead(GtNtoskrnlPeScanBaseOffset);
     if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
         goto done2;
 
-    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 3, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 2, 0, -1, 0, 0, (__int64)&PeContext);
     PhaseCount = 0;
     PhaseMarker = 0;
 
@@ -2222,7 +2229,7 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
                 if (Offset && (unsigned int)Offset < TargetSize)
                 {
                     // 切换到第二阶段：重新初始化上下文
-                    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + Offset), TargetSize - Offset, 3, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+                    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + Offset), TargetSize - Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
                     PhaseCount = 0;
                     PhaseMarker = 0;
                     continue;
@@ -2267,6 +2274,7 @@ done2:
     GtWrite(GtOpenProcessTokenOffset, Result);
     return Result;
 }
+#undef CumulativeSize
 
 
 // ParseSyscallTableDataSection — 解析系统调用表数据节区

@@ -2836,8 +2836,7 @@ __int64 LookupMsrTableEntry(void)
     int Phase1Offset;
     unsigned int Phase1Count;
     int Dst[16];
-    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
-                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    __int64 PeContext;      // ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
     char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
@@ -3006,8 +3005,7 @@ __int64 ParseMsrRelatedSections(void)
     unsigned int BaseOffset;
     unsigned int Offset1;
     unsigned int Offset2;
-    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
-                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    __int64 PeContext;      // ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
     char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
@@ -3138,8 +3136,7 @@ __int64 ParseMsrTableFromSections(void)
     unsigned int BaseOffset;
     unsigned int Offset1;
     unsigned int Offset2;
-    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
-                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    __int64 PeContext;      // ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
     char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
@@ -4133,10 +4130,10 @@ __int64 ParseNtExportSectionsV2(void)
     __int64 PeFileBase;
     unsigned int PeFileSize;
     unsigned int ExportDirSize;
-    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
-                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    PE_DECODE_CONTEXT PeContext;   /* 【修正 2026-10-16】上下文须为 0x48 字节，且 Init 与 Read 必须
+                                      使用同一变量；原始驱动的"累计值"就是上下文读指针（ctx+0x08）。 */
+    /* 累计值即上下文读指针（ctx+0x08），与原始同体：由 += 条目[0xF0] 推进 */
     unsigned int SectionSize;
-    __int64 CumulativeSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
     unsigned int Phase1Count;
@@ -4157,17 +4154,17 @@ __int64 ParseNtExportSectionsV2(void)
         return 0;
 
     // Phase1：在 PE 文件导出目录范围内搜索 0xFE / 0x558 节区
-    InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + ExportDirSize), PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+    InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + ExportDirSize), PeFileSize - ExportDirSize, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Count = 0;
     while (Phase1Count < 0xC8)
     {
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x38 >> 2];
-        CumulativeSize = EntryBuffer[0x40 >> 2];
-        CumulativeSize += SectionSize;
+        PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
+        PeContext.ReadPtr += SectionSize;
         SectionDataPtr = EntryBuffer[0x48 >> 2];
-        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+        EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
         SectionType = *(unsigned short *)(SectionDataPtr + 6);
         if (SectionType == 0xFE || SectionType == 0x558)
         {
@@ -4177,7 +4174,7 @@ __int64 ParseNtExportSectionsV2(void)
                 if (!(F0 & 0x4000000) || !EntryBuffer[0xD0 >> 2] || Phase1Offset)
                     goto next_phase1;
             }
-            int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
+            int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)PeContext.ReadPtr;
             if (Offset && (unsigned int)Offset < PeFileSize)
             {
                 Phase1Offset = (unsigned int)Offset;
@@ -4191,17 +4188,17 @@ next_phase1:
     // Phase2：在 Phase1 找到的偏移处继续搜索 0x512 / 0x53C 节区
     if (Phase1Offset)
     {
-        InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + Phase1Offset), PeFileSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+        InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + Phase1Offset), PeFileSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
         Phase2Count = 0;
         while (Phase2Count < 0x1F4)
         {
             if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                 break;
             SectionSize = EntryBuffer[0x38 >> 2];
-            CumulativeSize = EntryBuffer[0x40 >> 2];
-            CumulativeSize += SectionSize;
+            PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
+            PeContext.ReadPtr += SectionSize;
             SectionDataPtr = EntryBuffer[0x48 >> 2];
-            EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+            EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
             SectionType = *(unsigned short *)(SectionDataPtr + 6);
             if (SectionType == 0x512)
             {
@@ -4209,7 +4206,7 @@ next_phase1:
                 unsigned int C8 = EntryBuffer[0x110 >> 2];
                 if (B8 == 0x40000 && C8 && EntryBuffer[0xE8 >> 2] == 0x40)
                 {
-                    int Offset = (int)C8 - (int)PeFileBase + (int)CumulativeSize;
+                    int Offset = (int)C8 - (int)PeFileBase + (int)PeContext.ReadPtr;
                     if (Offset && (unsigned int)Offset < PeFileSize)
                     {
                         Phase1Offset = (unsigned int)Offset;
@@ -4247,21 +4244,21 @@ next_phase1:
         Phase1Offset = (unsigned int)GtRead(GtNtosExportSectionOffset);
         if (Phase1Offset)
         {
-            InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + Phase1Offset), PeFileSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+            InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + Phase1Offset), PeFileSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
             Phase3Count = 0;
             while (Phase3Count < 0xA)
             {
                 if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                     break;
                 SectionSize = EntryBuffer[0x38 >> 2];
-                CumulativeSize = EntryBuffer[0x40 >> 2];
-                CumulativeSize += SectionSize;
+                PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
+                PeContext.ReadPtr += SectionSize;
                 SectionDataPtr = EntryBuffer[0x48 >> 2];
-                EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+                EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
                 SectionType = *(unsigned short *)(SectionDataPtr + 6);
                 if (SectionType == 0x559 && EntryBuffer[0xD0 >> 2])
                 {
-                    int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
+                    int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)PeContext.ReadPtr;
                     if (Offset && (unsigned int)Offset < PeFileSize)
                     {
                         GtWrite(GtNtosExportSectionOffset2, Offset);
@@ -4277,6 +4274,7 @@ next_phase1:
     Result = Phase1Offset;
     return Result;
 }
+#undef CumulativeSize
 
 // ParseNtExportSectionsWin10 -- 解析 NT 导出节区（Win10）
 // Win10 专用版本：先按名称查找 .data 节，再执行三阶段扫描
@@ -4286,10 +4284,10 @@ __int64 ParseNtExportSectionsWin10(void)
     __int64 NtoskrnlBase;
     __int64 PeFileBase;
     unsigned int PeFileSize;
-    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>）又被取址当解码上下文，
-                            //   不能只改类型；需与 CumulativeSize 家族同一轮按"角色拆分"处理
+    PE_DECODE_CONTEXT PeContext;   /* 【修正 2026-10-16】上下文须为 0x48 字节，且 Init 与 Read 必须
+                                      使用同一变量；原始驱动的"累计值"就是上下文读指针（ctx+0x08）。 */
+    /* 累计值即上下文读指针（ctx+0x08），与原始同体：由 += 条目[0xF0] 推进 */
     unsigned int SectionSize;
-    __int64 CumulativeSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
     unsigned int Phase1Offset = 0;
@@ -4321,17 +4319,17 @@ __int64 ParseNtExportSectionsWin10(void)
         return 0;
 
     // Phase1：搜索 0xFE / 0x558 节区
-    InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + ExportDirSize), PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+    InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + ExportDirSize), PeFileSize - ExportDirSize, 2, 0, -1, 0, 0, (__int64)&PeContext);
     unsigned int Phase1Count = 0;
     while (Phase1Count < 0xC8)
     {
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x38 >> 2];
-        CumulativeSize = EntryBuffer[0x40 >> 2];
-        CumulativeSize += SectionSize;
+        PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
+        PeContext.ReadPtr += SectionSize;
         SectionDataPtr = EntryBuffer[0x48 >> 2];
-        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+        EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
         SectionType = *(unsigned short *)(SectionDataPtr + 6);
         if (SectionType == 0xFE || SectionType == 0x558)
         {
@@ -4341,7 +4339,7 @@ __int64 ParseNtExportSectionsWin10(void)
                 if (!(F0 & 0x4000000) || !EntryBuffer[0xE0 >> 2] || Phase1Offset)
                     goto win10_next_phase1;
             }
-            int Offset = (int)EntryBuffer[0xE0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
+            int Offset = (int)EntryBuffer[0xE0 >> 2] - (int)PeFileBase + (int)PeContext.ReadPtr;
             if (Offset && (unsigned int)Offset < PeFileSize)
             {
                 Phase1Offset = (unsigned int)Offset;
@@ -4355,17 +4353,17 @@ win10_next_phase1:
     // Phase2：搜索 0x512 / 0x42E 节区
     if (Phase1Offset)
     {
-        InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + Phase1Offset), PeFileSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)&EntryBuffer);
+        InitPESectionReadContext((__int64)((PUCHAR)PeFileBase + Phase1Offset), PeFileSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
         Phase2Count = 0;
         while (Phase2Count < 0x1F4)
         {
             if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                 break;
             SectionSize = EntryBuffer[0x38 >> 2];
-            CumulativeSize = EntryBuffer[0x40 >> 2];
-            CumulativeSize += SectionSize;
+            PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
+            PeContext.ReadPtr += SectionSize;
             SectionDataPtr = EntryBuffer[0x48 >> 2];
-            EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
+            EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
             SectionType = *(unsigned short *)(SectionDataPtr + 6);
             if (SectionType == 0x512)
             {
@@ -4373,7 +4371,7 @@ win10_next_phase1:
                 unsigned int C8 = EntryBuffer[0x120 >> 2];
                 if (B8 == 0x40000 && C8 && EntryBuffer[0xF8 >> 2] == 0x40)
                 {
-                    int Offset = (int)C8 - (int)PeFileBase + (int)CumulativeSize;
+                    int Offset = (int)C8 - (int)PeFileBase + (int)PeContext.ReadPtr;
                     if (Offset && (unsigned int)Offset < PeFileSize)
                     {
                         Phase1Offset = (unsigned int)Offset;
@@ -4403,6 +4401,7 @@ win10_next_phase1:
     Result = Phase1Offset;
     return Result;
 }
+#undef CumulativeSize
 
 // SkipContextEntries — 跳过上下文条目 (0x14001239C)
 // 根据条目计数偏移遍历上下文表，计算跳过后的下一个条目指针

@@ -1,12 +1,17 @@
 // GlobalTable.c — 全局表操作
 // 1:1 复刻自 View++_Driver64.sys（PCHunter 驱动）
-// 全局表是驱动核心数据存储，16384 个 64 位条目，用于存储所有运行时数据
+// 全局表是驱动核心数据存储，容量 GT_TABLE_CAPACITY(0x5000) 个 64 位条目，用于存储所有运行时数据
 
 #include "XPCHunterDrv.h"
 
-// 全局表 g_GlobalTable：16384 个 64 位条目
-// 对应原始驱动中的 qword_1400A84F0
-volatile __int64 g_GlobalTable[GT_TOTAL_SIZE] = {0};
+// 全局表 g_GlobalTable：对应原始驱动 0x1400A84F0 起的 .data 区
+// 【⚠ 重大修正 2026-10-16】容量必须用 GT_TABLE_CAPACITY(0x5000) 而非 GT_TOTAL_SIZE(0x4000)：
+//   GtTotalSize 只是索引用基数，代码实际会访问 > 16384 的槽位 ——
+//     InitSyscallNumberTable 末项 GtSyscallHashEntryEnd = 0x4479 = 17529；
+//     FindNtOpenThreadTargetWin8 首行 GtRead(0x4159) = 16729；
+//     GtUninstallHookSyscallPeOffset = 0x4228 = 16936 等。
+//   用 0x4000 作数组长会越界读写相邻全局变量，实测在 GtRead `[rcx+rax*8]` 触发 BSOD 0x50。
+volatile __int64 g_GlobalTable[GT_TABLE_CAPACITY] = {0};
 
 // 全局同步对象
 KMUTEX g_GlobalMutex;               // 全局互斥体(用于 XpchAcquireGlobalLock/XpchReleaseGlobalLock)

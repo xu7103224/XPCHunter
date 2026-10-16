@@ -691,6 +691,33 @@ typedef struct _PE_DECODE_CONTEXT
     ULONG   Reserved44;       // +0x44 原始驱动未写入
 } PE_DECODE_CONTEXT, *PPE_DECODE_CONTEXT;
 
+// ============================================================
+// PE_INSN_DESCRIPTOR — ReadPESectionEntry 输出的 0x120 字节指令描述符
+// 【来源】原始 sub_14008A54C（ReadPESectionEntry）与各调用方的反汇编核对。
+// 调用方（FindNtOpenThreadTargetWin8 / HookSyscallNtOpenKey / UninstallHookSyscall …）
+// 并不是各自声明独立局部变量，而是直接把描述符的相应偏移当字段读 —— 早期重建成
+// 独立局部且从不赋值（恒 0），导致节区扫描从不匹配、Hook 初始化失败（错误 31）。
+// 偏移按调用方反汇编给出的描述符内偏移逐条填列（描述符基址 = rbp-0x70）：
+//   +0x38 EntrySize      调用方 var_118
+//   +0x50 FieldValue     调用方 var_100（qword）
+//   +0x78 FieldSize      调用方 var_D8
+//   +0x88 FieldValue2    调用方 var_C8（qword）
+//   +0xF0 SectionSize    a2[60]，本次已消费的指令字节数（调用方按此推进读指针）
+//   +0x118 SectionDataPtr a2+0x118，当前解码表条目指针
+// ============================================================
+typedef struct _PE_INSN_DESCRIPTOR
+{
+    UCHAR   Raw[0x120];
+} PE_INSN_DESCRIPTOR, *PPE_INSN_DESCRIPTOR;
+
+// 描述符内的字段访问宏（与原始调用方的反汇编偏移一一对应）
+#define PE_DESC_ENTRY_SIZE(d)        (*(int          *)((PUCHAR)(d) + 0x38))
+#define PE_DESC_FIELD_VALUE(d)       (*(__int64      *)((PUCHAR)(d) + 0x50))
+#define PE_DESC_FIELD_SIZE(d)        (*(int          *)((PUCHAR)(d) + 0x78))
+#define PE_DESC_FIELD_VALUE2(d)      (*(__int64      *)((PUCHAR)(d) + 0x88))
+#define PE_DESC_SECTION_SIZE(d)      (*(unsigned int *)((PUCHAR)(d) + 0xF0))
+#define PE_DESC_SECTION_DATA(d)      (*(__int64      *)((PUCHAR)(d) + 0x118))
+
 __declspec(noinline) void InitPESectionReadContext(__int64 Base, ULONG Size, INT Mode, LONG64 Param5, INT ExtraField, LONG64 Param6, LONG64 Param7, __int64 Context);
 
 __int64 InitPhysicalMemoryContextTable(int DeviceIndex, __int64 pOutputTable);

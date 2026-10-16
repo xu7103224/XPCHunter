@@ -1320,7 +1320,18 @@ typedef enum _GLOBAL_TABLE_INDEX {
 #define GT_COMMAND_HANDLER_BASE    ((int)GtCommandHandlerBase)
 
 // 全局表大小
+// 【⚠ 重大修正 2026-10-16】GtTotalSize(0x4000) 只是**索引用基数**（例如
+//   `GtTotalSize|GtEprocessField79|0x100 == 0x4159`，与原始一致），它**不是**数组容量。
+//   原实现直接拿它当数组长度（g_GlobalTable[GT_TOTAL_SIZE]），于是：
+//     · InitSyscallNumberTable 写到的最后一个索引是 GtSyscallHashEntryEnd = 0x4479 = 17529；
+//     · FindNtOpenThreadTargetWin8 首行读 GtRead(0x4159) = 16729；
+//     · GtUninstallHookSyscallPeOffset = 0x4228 = 16936 等；
+//   全部 > 16384 —— 越界读写（分别是 +1145、+345 个条目），实测触发 BSOD 0x50
+//   （GtRead 内 `[rcx+rax*8]` 越界访问）。原始驱动的 g_GlobalTable 从 0x1400A84F0
+//   一直延伸到 .data 末尾（≈18918 个条目），故此处按原始容量给足。
 #define GT_TOTAL_SIZE              ((int)GtTotalSize)
+// 数组真实容量：覆盖代码可产生的最大索引（0x4000|0xFFF|0x400 上界 0x4FFF）
+#define GT_TABLE_CAPACITY          0x5000
 
 // ---- 缺失的 GT 别名定义（rename 脚本回退后补充） ----
 // 以下值从 IDA 反编译确认，部分与新枚举条目重叠，用宏定义兼容旧代码引用

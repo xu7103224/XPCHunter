@@ -2954,13 +2954,14 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     __int64 PeFileBuffer;
     unsigned int PeFileSize;
     unsigned int ExportDirSize;
-    __int64 PeContext;
+    PE_DECODE_CONTEXT PeContext;        /* 【修正 2026-10-16】上下文须 0x48 字节，且 Init 与 Read 同一变量 */
     unsigned int SectionSize;
-    __int64 CumulativeSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
     unsigned int EntryCount;
     ULONG EntryBuffer[0x80];
+    /* 【修正 2026-10-16】"累计值"即上下文读指针（原始 ctx+0x08），由调用方 += 条目[0xF0] 推进 */
+#define CumulativeSize (PeContext.ReadPtr)
 
     TableSize = (unsigned int)GtRead(GtWindowsBuildNumber);
     if (TableSize >= 0x2800)
@@ -2979,7 +2980,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
         goto cleanup;
 
     // Phase1: 搜索 Type 0x559 节区
-    InitPESectionReadContext((__int64)(PUCHAR)PeFileBuffer + ExportDirSize, PeFileSize - ExportDirSize, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)(PUCHAR)&EntryBuffer);
+    InitPESectionReadContext((__int64)(PUCHAR)PeFileBuffer + ExportDirSize, PeFileSize - ExportDirSize, 2, 0, -1, 0, 0, (__int64)&PeContext);
     EntryCount = 0;
     while (EntryCount < 0x1E)
     {
@@ -3004,7 +3005,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     if (EntryCount < 0x1E)
     {
         int FirstOffset = EntryCount;
-        InitPESectionReadContext((__int64)(PUCHAR)PeFileBuffer + FirstOffset, PeFileSize - FirstOffset, 2, (LONG64)&PeContext, -1, 0, 0, (__int64)(PUCHAR)&EntryBuffer);
+        InitPESectionReadContext((__int64)(PUCHAR)PeFileBuffer + FirstOffset, PeFileSize - FirstOffset, 2, 0, -1, 0, 0, (__int64)&PeContext);
         EntryCount = 0;
         while (EntryCount < 0x1E)
         {
@@ -3039,6 +3040,7 @@ cleanup:
         ExFree((void *)PeFileBuffer);
     return Result;
 }
+#undef CumulativeSize
 
 // EnumObjectDirectoryEntries -- 枚举对象目录条目 (0x140083F34)
 // 遍历对象目录，获取每个对象的名称、句柄和进程映像路径

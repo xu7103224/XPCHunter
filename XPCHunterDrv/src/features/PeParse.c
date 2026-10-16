@@ -40,13 +40,16 @@ __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, _
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize;
     _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-    int EntryCharacteristics;
-    __int64 FieldValue;
-    unsigned int EntryFlags;
-    __int64 FieldValue2;
-    int EntrySize;
-    unsigned int SectionSize;
-    __int64 SectionDataPtr;
+    /* 【修正 2026-10-16】以下"字段"原始是 SectionEntry 描述符的偏移（ReadPESectionEntry 就地填充），
+       不是独立局部变量。原实现声明为独立局部且从不赋值（恒 0）→ 扫描条件永不成立。
+       偏移来源：原始 sub_14001D1EC 反汇编（描述符基址 rbp-0x148）。 */
+#define EntryCharacteristics PE_DESC_ENTRY_SIZE(SectionEntry)   /* +0x38 */
+#define FieldValue           PE_DESC_FIELD_VALUE(SectionEntry)  /* +0x50 */
+#define EntryFlags           PE_DESC_FIELD_SIZE(SectionEntry)   /* +0x78 */
+#define FieldValue2          PE_DESC_FIELD_VALUE2(SectionEntry) /* +0x88 */
+#define SectionSize          PE_DESC_SECTION_SIZE(SectionEntry) /* +0xF0 */
+#define SectionDataPtr       PE_DESC_SECTION_DATA(SectionEntry) /* +0x118 */
+#define EntrySize            PE_DESC_ENTRY_SIZE(SectionEntry)   /* +0x38（同 EntryCharacteristics） */
 
     result = GtRead(GtFindHookTargetDataPeOffset);
     if ((_DWORD)result && (unsigned int)result < ModuleSize)
@@ -109,6 +112,13 @@ LABEL_13:
     }
     return result;
 }
+#undef EntryCharacteristics
+#undef FieldValue
+#undef EntryFlags
+#undef FieldValue2
+#undef SectionSize
+#undef SectionDataPtr
+#undef EntrySize
 
 char ComparePeModuleSignature(char *pSignature1, __int64 Signature2, unsigned int SignatureSize)
 {
