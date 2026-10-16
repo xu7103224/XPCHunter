@@ -1,0 +1,217 @@
+{
+ "original": {
+  "path": "E:/Work/Dev/Windows/wmprotected/APK/XPCHunter/samples/PCHunter_2024.09.02/View++_Driver64.sys",
+  "size": 689664,
+  "image_base": "0x140000000",
+  "entry_rva": 864256,
+  "sections": [
+   ".text",
+   ".rdata",
+   ".data",
+   ".pdata",
+   "INIT",
+   ".rsrc",
+   ".reloc"
+  ],
+  "mapping": {
+   "base": "0xfffff88000000000",
+   "size": "0xd6000",
+   "relocs_applied": 163,
+   "relocs_failed": 0,
+   "imports_resolved": 44,
+   "imports_unresolved": 47,
+   "in_ps_loaded_module_list": true
+  },
+  "emu": {
+   "completed": false,
+   "status_name": "",
+   "instructions": 99,
+   "unique_instructions": 99,
+   "api_call_count": 4,
+   "apis_called": [
+    "IoGetCurrentProcess",
+    "MmGetSystemRoutineAddress",
+    "RtlGetVersion",
+    "RtlInitUnicodeString"
+   ],
+   "stop_reason": "control flow reached address 0: DriverEntry called through an import slot that this emulator left NULL -- the call at 0xfffff88000029fdf was ntoskrnl.exe!PsGetCurrentProcessId. Unresolved imports: FLT",
+   "bugcheck": "",
+   "driver_object": {
+    "address": 18446737476639789120,
+    "type": 4,
+    "size": 336,
+    "driver_start": 18446735827372343296,
+    "driver_size": 876544,
+    "driver_section": 18446737476639788800,
+    "driver_name": "\\Driver\\View++_Driver64",
+    "driver_unload": 0,
+    "driver_init": 18446735827373207552,
+    "default_dispatch": 18446736377128157840,
+    "major_functions": {},
+    "major_functions_installed": 0
+   }
+  },
+  "imports_by_dll": {
+   "FLTMGR.SYS": 8,
+   "ntoskrnl.exe": 80,
+   "HAL.dll": 3
+  },
+  "detected_subsystems": [
+   "minifilter (file system filter)"
+  ],
+  "api_calls": [
+   [
+    "RtlInitUnicodeString",
+    [
+     "0xfffff0000000ee08",
+     "0xfffff0000000ef38",
+     "0x2b992ddfa232",
+     "0x0",
+     "0x0",
+     "0x0",
+     "0x0",
+     "0x0"
+    ]
+   ],
+   [
+    "MmGetSystemRoutineAddress",
+    [
+     "0xfffff0000000ee08",
+     "0xfffff0000000ef38",
+     "0x2b992ddfa232",
+     "0x0",
+     "0x1c001a",
+     "0xfffffa0000001340",
+     "0x0",
+     "0x0"
+    ]
+   ],
+   [
+    "RtlGetVersion",
+    [
+     "0xfffff0000000ee18",
+     "0xfffff0000000ef38",
+     "0x2b992ddfa232",
+     "0x0",
+     "0x1c001a",
+     "0xfffffa0000001340",
+     "0x114",
+     "0x0"
+    ]
+   ],
+   [
+    "IoGetCurrentProcess",
+    [
+     "0xfffffa0000001040",
+     "0xfffff80000002240",
+     "0x2b992ddfa232",
+     "0x0",
+     "0xfffffa00000012a0",
+     "0xfffff88000080f19",
+     "0xfffff80000002240",
+     "0x0"
+    ]
+   ]
+  ]
+ },
+ "rebuilt": {
+  "path": "E:/Work/Dev/Windows/wmprotected/APK/XPCHunter/build/bin/Release/x64/XPCHunterDrv.sys",
+  "size": 642560,
+  "image_base": "0x140000000",
+  "entry_rva": 802816,
+  "sections": [
+   ".text",
+   ".rdata",
+   ".data",
+   ".pdata",
+   "INIT",
+   ".reloc"
+  ],
+  "mapping": {
+   "base": "0xfffff88000000000",
+   "size": "0xc6000",
+   "relocs_applied": 20,
+   "relocs_failed": 0,
+   "imports_resolved": 44,
+   "imports_unresolved": 49,
+   "in_ps_loaded_module_list": true
+  },
+  "emu": {
+   "completed": true,
+   "status_name": "STATUS_UNSUCCESSFUL",
+   "instructions": 3489,
+   "unique_instructions": 569,
+   "api_call_count": 3,
+   "apis_called": [
+    "KeInitializeMutex",
+    "MmIsAddressValid",
+    "RtlGetVersion"
+   ],
+   "stop_reason": "DriverEntry returned",
+   "bugcheck": "",
+   "driver_object": {
+    "address": 18446737476639789104,
+    "type": 4,
+    "size": 336,
+    "driver_start": 18446735827372343296,
+    "driver_size": 811008,
+    "driver_section": 18446737476639788800,
+    "driver_name": "\\Driver\\XPCHunterDrv",
+    "driver_unload": 0,
+    "driver_init": 18446735827373146112,
+    "default_dispatch": 18446736377128157856,
+    "major_functions": {},
+    "major_functions_installed": 0
+   }
+  },
+  "imports_by_dll": {
+   "ntoskrnl.exe": 82,
+   "HAL.dll": 3,
+   "FLTMGR.SYS": 8
+  },
+  "detected_subsystems": [
+   "minifilter (file system filter)"
+  ],
+  "api_calls": [
+   [
+    "RtlGetVersion",
+    [
+     "0xfffff0000000ee48",
+     "0xfffffa0000001290",
+     "0x2b992ddfa232",
+     "0x0",
+     "0x0",
+     "0x0",
+     "0x0",
+     "0x0"
+    ]
+   ],
+   [
+    "KeInitializeMutex",
+    [
+     "0xfffff880000bc2e0",
+     "0x0",
+     "0x78",
+     "0xc05a28dd",
+     "0x0",
+     "0x0",
+     "0x0",
+     "0x0"
+    ]
+   ],
+   [
+    "MmIsAddressValid",
+    [
+     "0xfffffa00000012a0",
+     "0x0",
+     "0x78",
+     "0xc05a28dd",
+     "0x0",
+     "0x0",
+     "0x0",
+     "0x0"
+    ]
+   ]
+  ]
+ }
+}

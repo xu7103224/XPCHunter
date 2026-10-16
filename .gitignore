@@ -68,3 +68,6 @@ build/sign/*.log
 build/sign/*.ps1
 build/sign/*.bat
 build/sign/*.txt
+
+# 诊断期源文件备份（不入库，避免与权威源码混淆）
+*.probe_backup
