@@ -332,7 +332,16 @@ __int64 FindCpuMsrBaseLegacy(int MsrAddress)
             LoopCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)SectionContext, (PULONG)SectionEntryBuffer))
             {
-                pCurrentEntry = (_QWORD *)((__int64)SectionDataPtr + SectionEntryOffset);
+                /* 【重大修正 2026-10-17】原始 0x14002A0A0 的栈帧表明：
+                   · `SectionDataPtr`（IDB 命名）落在 **上下文 +0x08 槽** = 上下文的读指针
+                   · `SectionEntryOffset` 落在 **描述符 +0xF0** = 本条消耗长度
+                   · `SectionTypeInfo` 落在 **描述符 +0x118** = 类型结构体指针
+                   原始语义：pCurrentEntry = 读指针 + 本条长度，并**写回读指针**推进循环。
+                   旧移植把 SectionDataPtr 另立为恒 0 的独立局部 → `pCurrentEntry[1]`
+                   被折叠成绝对地址 [8]（实机 0x7E 同类成因）。 */
+                SectionEntryOffset = *(unsigned int *)((PUCHAR)SectionEntryBuffer + 0xF0);
+                pCurrentEntry = (_QWORD *)(*(ULONG64 *)((PUCHAR)SectionContext + 0x08) + SectionEntryOffset);
+                *(ULONG64 *)((PUCHAR)SectionContext + 0x08) = (ULONG64)pCurrentEntry;   /* 写回读指针 */
                 SectionDataPtr = pCurrentEntry;
                 EntryType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntryBuffer + 0x118) + 6);
 
@@ -407,8 +416,11 @@ __int64 FindCpuMsrBaseWin10(int MsrAddress)
             LoopCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, (PULONG)SectionEntryBuffer))
             {
-                CurrentOffset = SectionEntryOffset + (int)SectionDataPtr;
-                SectionDataPtr += SectionEntryOffset;
+                /* 同 FindCpuMsrBaseLegacy：描述符 +0xF0 = 本条长度，读指针 += 长度并写回 */
+                SectionEntryOffset = *(unsigned int *)((PUCHAR)SectionEntryBuffer + 0xF0);
+                SectionDataPtr = (__int64)(*(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) + SectionEntryOffset);
+                *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) = (ULONG64)SectionDataPtr;   /* 写回读指针 */
+                CurrentOffset = (int)(ULONG_PTR)SectionDataPtr;
                 EntryType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntryBuffer + 0x118) + 6);
 
                 if (EntryType == 225 || (unsigned __int16)(EntryType - 1348) <= 1u)

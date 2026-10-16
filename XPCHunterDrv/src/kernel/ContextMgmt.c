@@ -2849,7 +2849,7 @@ __int64 LookupMsrTableEntry(void)
 
     // 阶段1：搜索 EntryType 0x558/0x559 的节区
     PeContext = 0;
-    InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Offset = 0;
     Phase1Count = 0;
     while (Phase1Count < 5)
@@ -2879,7 +2879,7 @@ __int64 LookupMsrTableEntry(void)
         return Result;
     memset(Dst, 0, sizeof(Dst));
     PeContext = 0;
-    InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Count = 0;
     while (Phase1Count < 0x100)
     {
@@ -3018,7 +3018,7 @@ __int64 ParseMsrRelatedSections(void)
     if (!ImageBase || !ImageSize || !NtoskrnlBase || !BaseOffset || BaseOffset >= ImageSize || !Offset1 || !Offset2)
         return Result;
     PeContext = 0;
-    InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Offset = 0;
     Phase1Count = 0;
     while (Phase1Count < 0x64)
@@ -3046,7 +3046,7 @@ __int64 ParseMsrRelatedSections(void)
     }
     memset(Dst, 0, sizeof(Dst));
     PeContext = 0;
-    InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     LoopIndex = 0;
     while (LoopIndex < 0x100)
     {
@@ -3149,7 +3149,7 @@ __int64 ParseMsrTableFromSections(void)
     if (!ImageBase || !ImageSize || !NtoskrnlBase || !BaseOffset || BaseOffset >= ImageSize || !Offset1 || !Offset2)
         return Result;
     PeContext = 0;
-    InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Offset = 0;
     Phase1Count = 0;
     while (Phase1Count < 0x14)
@@ -3175,7 +3175,7 @@ __int64 ParseMsrTableFromSections(void)
     }
     memset(Dst, 0, sizeof(Dst));
     PeContext = 0;
-    InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     LoopIndex = 0;
     while (LoopIndex < 0x100)
     {

@@ -432,7 +432,7 @@ __int64 ParseNtExportFunctions(void)
     if (!PeFileData || (unsigned int)PeFileData >= DataDirRva)
         return Result;
     PeContext = 0;
-    InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, 0, -1, 0, 0, (__int64)&PeContext);
     HasDiscardable = 0;
     HasCodeSection = 0;
     Found418 = 0;
@@ -478,7 +478,7 @@ __int64 ParseNtExportFunctions(void)
     LoopIndex = 0;
     SavedEntryCount = 0;
     PeContext = 0;
-    InitPESectionReadContext((__int64)(ImageSize + Phase1Offset), DataDirRva + ImageSize - (ImageSize + Phase1Offset), 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(ImageSize + Phase1Offset), DataDirRva + ImageSize - (ImageSize + Phase1Offset), 2, 0, -1, 0, 0, (__int64)&PeContext);
     while (LoopIndex < 0x1F4)
     {
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
@@ -732,7 +732,7 @@ __int64 ParseNtExportFunctionsV2(void)
     if (!PeFileData || (unsigned int)PeFileData >= ImageSize)
         return Result;
     PeContext = 0;
-    InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, 0, -1, 0, 0, (__int64)&PeContext);
     HasDiscardable = 0;
     Phase1Offset = 0;
     Phase1Type = 0;
@@ -785,7 +785,7 @@ __int64 ParseNtExportFunctionsV2(void)
     memset(Dst, 0, sizeof(Dst));
     Phase1Count = 0;
     PeContext = 0;
-    InitPESectionReadContext((__int64)(DataDirRva + Phase1Offset), ImageSize + DataDirRva - (DataDirRva + Phase1Offset), 2, (LONG64)&PeContext, -1, 0, 0, 0);
+    InitPESectionReadContext((__int64)(DataDirRva + Phase1Offset), ImageSize + DataDirRva - (DataDirRva + Phase1Offset), 2, 0, -1, 0, 0, (__int64)&PeContext);
     HasCodeSection = 0;
     HasDiscardable = 0;
     LoopIndex = 0;
