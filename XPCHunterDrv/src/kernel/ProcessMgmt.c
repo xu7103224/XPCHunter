@@ -2911,17 +2911,27 @@ __int64 ProcessOperationWithAttach(struct _KPROCESS *TargetProcess)
     __int64 FlagsOffset;
     char SavedServiceFlag;
     __int64 AttachContext;
-    __int64 PspExitThreadAddr = GtRead(GtPspExitThreadAddr);
-    __int64 KiInsertQueueApcFunc = GtRead(GtKiInsertQueueApcFunc);
+    // 【修正 2026-10-16】按原始读序（_gtseq 提取，0x140080449..）重排：
+    //   0x27(39) → 0x41C3 → 0x186(390) → 0x4166 → 0x4232 → 0x64(100)×2
+    //   → 0x23F(575)×2 → 0x352 → 0x914
+    //   原实现把两个槽写在**变量初始化器**里（等价于函数最开头），且首读
+    //   用了别的槽，导致差分报 gt_index_mismatch（原始首读 39，我方 100）。
+    __int64 PspExitThreadAddr = 0;      // 见下方按序读取
+    __int64 KiInsertQueueApcFunc = 0;
 
     Result = 0;
-    ServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
-    KeAttachProcessFunc = (int (__fastcall *)(struct _KPROCESS *, __int64, _QWORD, __int64, _QWORD, _BYTE, __int64 *))GtRead((enum _GLOBAL_TABLE_INDEX)(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54));
-    KeDetachProcessFunc = (int (__fastcall *)(__int64, _QWORD))GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField124 | 0x100));
+    ProcessFlagsOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x27);          // 0x27 = 39
+    KeAttachProcessFunc = (int (__fastcall *)(struct _KPROCESS *, __int64, _QWORD, __int64, _QWORD, _BYTE, __int64 *))GtRead(GtSyscallHash16835);  // 0x41C3
+    KeDetachProcessFunc = (int (__fastcall *)(__int64, _QWORD))GtRead((GLOBAL_TABLE_INDEX)0x186);   // 0x186 = 390
     if (!KeDetachProcessFunc)
         KeDetachProcessFunc = (int (__fastcall *)(__int64, _QWORD))ResolveSyscallAddressesWithAttach();
-    pContextFlags = (_QWORD *)GtRead((enum _GLOBAL_TABLE_INDEX)(GtTotalSize | GtExFreeCallBackAddr | 0x100));
-    RegisterFuncPtr = GtRead(GtRegisterObjectCallbacksFunc);
+    pContextFlags = (_QWORD *)GtRead(GtObjectTypeQueryFunc2);                    // 0x4166
+    RegisterFuncPtr = GtRead(GtRegisterObjectCallbacksFunc);                    // 0x4232
+    PspExitThreadAddr = GtRead((GLOBAL_TABLE_INDEX)0x64);                       // 0x64 = 100
+    ServiceCount = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x64);              // 0x64（第二次）
+    KiInsertQueueApcFunc = GtRead(GtKiInsertQueueApcFunc);                      // 0x23F = 575
+    (void)GtRead(GtKiInsertQueueApcFunc);                                       // 0x23F（第二次）
+    (void)GtRead(GtCallbackField124);                                          // 0x352 = 850
     DeregisterFunc = (void (__fastcall *)(__int64))RegisterFuncPtr;
     if (ServiceCount != -1 && KeAttachProcessFunc && KeDetachProcessFunc && pContextFlags && RegisterFuncPtr)
     {
