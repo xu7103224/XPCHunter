@@ -1399,8 +1399,13 @@ L1400159B6:
     FoundA = Value[0];
 L1400159BB:
     if (PairA == 1 && FoundA == 1 && PairB == 1) goto L1400159F4;
-    ScanStart = PeBase + SectionOff;
-    ScanEnd = ScanLimit;
+    /* 【修正 2026-10-17】原始 0x1400159CE..0x1400159DD 只是从栈上恢复 rsi/rcx/rdi
+       （循环体用的 PeBase、ScanEnd 上限、SectionOff 局部），紧接着就是 `inc r13`。
+       **原始并不重置 ScanStart**。旧代码在此多了
+       `ScanStart = PeBase + SectionOff;`（外加 `ScanEnd = ScanLimit;`），
+       等于每轮都把扫描游标拨回节区起点，外层 `++ScanStart` 只能走到 offset+1，
+       于是无限循环。实机症状：DriverEntry 在 FindKernelObjectFieldOffsetsWin10
+       内死转（kd 栈顶 rtZ9+0x309d6），sc start 永不返回。 */
 L1400159E3:
     ScanStart += 1;
     if (ScanStart < ScanEnd) goto L140015445;

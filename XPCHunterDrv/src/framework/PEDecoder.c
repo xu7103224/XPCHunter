@@ -971,7 +971,12 @@ __int64 DecodeOpcodeTableWithOffset(PUCHAR Context)
     CTX_Q(Context, CTXARR_TABLE) = TableEntry;  // 原始：a1[2] = 表条目
 
     /* 原始：v5 = (*v4 != 0)，读指针**不前进**（Dispatch 传的是 v1 而非 v1+1） */
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase,
@@ -1069,7 +1074,12 @@ __int64 DecodeOpcodeTableGroup2(PUCHAR Context)
                - 39360;
     CTX_Q(Context, 0x10) = TableEntry;
 
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase,
@@ -1109,7 +1119,12 @@ __int64 DecodeOpcodeTableGroup3(PUCHAR Context)
         TableEntry = (ULONG64)&g_PeDecodeTableGrp3[0] + 20 * (RegIndex + 8);
 
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase,
@@ -1232,7 +1247,12 @@ __int64 DecodeOpcodeTableGroup4(PUCHAR Context)
     OpcodeByte = *BufferBase;
     TableEntry = (ULONG64)&g_PeDecodeTableGrp4[0] + 20 * ((OpcodeByte >> 3) & 7);
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1312,7 +1332,12 @@ __int64 DecodeOpcodeTableGroup5(PUCHAR Context)
     OpcodeByte = *BufferBase;
     TableEntry = (ULONG64)&g_PeDecodeTableGrp5[0] + 20 * ((OpcodeByte >> 3) & 7);
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1340,7 +1365,12 @@ __int64 DecodeOpcodeTableGroup6(PUCHAR Context)
     OpcodeByte = *BufferBase;
     TableEntry = (ULONG64)&g_PeDecodeTableGrp6[0] + 20 * ((OpcodeByte >> 3) & 7);
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1427,7 +1457,12 @@ __int64 DecodeOneByteOpcodeTable(PUCHAR Context)
     OpcodeByte = *BufferBase;
     TableEntry = (ULONG64)&g_PeDecodeTableOneByte[0] + 20 * ((OpcodeByte >> 3) & 7);
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1461,7 +1496,12 @@ __int64 DecodeTwoByteOpcode0F(PUCHAR Context)
 
     TableEntry = (ULONG64)&g_PeDecodeTableTwoByte0F[0] + 20 * RegIndex;
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1495,7 +1535,12 @@ __int64 DecodeTwoByteOpcode0F38(PUCHAR Context)
 
     TableEntry = (ULONG64)&g_PeDecodeTableTwoByte38[0] + 20 * RegIndex;
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1529,7 +1574,12 @@ __int64 DecodeTwoByteOpcode0F3A(PUCHAR Context)
 
     TableEntry = (ULONG64)&g_PeDecodeTableTwoByte3A[0] + 20 * RegIndex;
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1595,7 +1645,12 @@ __int64 DecodeOpcodeByte(PUCHAR Context)
     OpcodeByte = *BufferBase;
     TableEntry = (ULONG64)&g_PeDecodeTableOpcodeByte[0] + 20 * ((OpcodeByte >> 3) & 7);
     CTX_Q(Context, 0x10) = TableEntry;
-    HasEntry = *(USHORT *)TableEntry != 0;
+    /* 【修正 2026-10-17】原始为 AND 语义：byte0!=0 && byte1!=0
+       （原始 `cmp [r8],bl; jz` + `cmp [r8+1],bl; jz`，两处跳转都不成立才置 1）。
+       旧代码 `*(USHORT*)TableEntry != 0` 是 OR 语义，对 byte0==0 的条目
+       （例如 Legacy2 表的 `00 21 ff`）会多算 1 字节 → 解码流从该条起整体错位，
+       实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目。 */
+    HasEntry = (*(UCHAR *)TableEntry != 0) && (*(UCHAR *)((PUCHAR)TableEntry + 1) != 0);
 
     DispatchResult = (int)DispatchInstructionDecode(
         (ULONG64)BufferBase, (ULONG64)BufferEnd, TableEntry, (ULONG64)DecodeContext);
@@ -1742,55 +1797,58 @@ __int64 DecodeReadSizeDependentImmediate(PUCHAR *Context)
 
 // ============================================================
 // DecodeReadImmediateValue — 解码读取立即数
-// 对应原始驱动 sub_14008BF68
-// 根据当前操作数大小读取立即数，更新解码状态标志和值字段
+// 对应原始驱动 sub_14008BF68（36 条指令，逐条核对）
+// 【修正 2026-10-17】旧实现与原始语义整体不符：
+//   - 选择依据：原始读 **描述符 +0x08（AddrSize）**，旧代码读 +0x24（OperandSize）
+//   - 读取宽度：原始**恒读 1 个有符号字节**，旧代码按 4/8/2 字节读
+//   - 写入偏移：原始写描述符 +0xF8=1（读取长度）与操作数记录 +0x18（大小）
+//     +0x20（标志）、+0x08（值）；旧代码把长度写进 +0x100，并把大小写进 +0x06
+//   - 返回值：原始**恒返回 1**（仅越界时返回 -1），旧代码返回 4/8/2
+//   该返回值直接进 DispatchInstructionDecode 的长度累加，故旧实现每个
+//   `00 21 FF` 之类的表项都会多算 1 字节，导致解码流整体错位
+//   （实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目）。
 // ============================================================
 __int64 DecodeReadImmediateValue(PUCHAR *Context)
 {
+    ULONG64 BufferEnd = Context[1];
     PUCHAR OperandOut = (PUCHAR)Context[3];
     PUCHAR DecodeCtx = (PUCHAR)Context[4];
-    INT OperandSize = CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE);
+    INT AddrSize;
     ULONG64 Value;
-    ULONG FieldSize;
+    ULONG Result = 1;
 
     if (Context[0] >= Context[1])
         return (ULONG64)-1;
 
-    SET_D(DecodeCtx, DEC_CTX_STATUS_ACC, 1);
+    SET_D(DecodeCtx, DEC_CTX_READ_FLAG, 1);
 
-    if (OperandSize == 1)
+    AddrSize = CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE);
+    if (AddrSize == 1)
     {
-        // 32 位模式: 读取4字节
-        if (Context[0] + 3 >= Context[1])
-            return (ULONG64)-1;
-        Value = (ULONG64)*(ULONG *)Context[0];
-        FieldSize = 4;
+        /* movsx eax,byte [rax] → 32 位符号扩展后零扩展入 rax */
+        Value = (ULONG64)(ULONG)(INT)(*(signed char *)Context[0]);
+        SET_D(OperandOut, 0x18, 4);
+        SET_Q(OperandOut, 0x08, Value);
         CTX_Q(OperandOut, 0x20) |= 0x400000000LL;
-        SET_D(OperandOut, 6, 4);
     }
-    else if (OperandSize == 2)
+    else if (AddrSize == 2)
     {
-        // 64 位模式: 读取8字节
-        if (Context[0] + 7 >= Context[1])
-            return (ULONG64)-1;
-        Value = *(ULONG64 *)Context[0];
-        FieldSize = 8;
+        /* movsx rcx,byte [rax] → 完整 64 位符号扩展 */
+        Value = (ULONG64)(LONG64)(*(signed char *)Context[0]);
+        SET_D(OperandOut, 0x18, 8);
         CTX_Q(OperandOut, 0x20) |= 0x1000000000LL;
-        SET_D(OperandOut, 6, 8);
+        SET_Q(OperandOut, 0x08, Value);
     }
     else
     {
-        // 16 位模式: 读取2字节
-        if (Context[0] + 1 >= Context[1])
-            return (ULONG64)-1;
-        Value = (ULONG64)*(USHORT *)Context[0];
-        FieldSize = 2;
+        /* movsx ecx + movzx eax,cx → 符号扩展至 16 位 */
+        Value = (ULONG64)(USHORT)(INT)(*(signed char *)Context[0]);
+        SET_D(OperandOut, 0x18, 2);
+        SET_Q(OperandOut, 0x08, Value);
         CTX_Q(OperandOut, 0x20) |= 0x200000000LL;
-        SET_D(OperandOut, 6, 2);
     }
 
-    SET_Q(OperandOut, 8, Value);
-    return FieldSize;
+    return Result;
 }
 
 // ============================================================
@@ -2405,7 +2463,13 @@ __int64 DispatchInstructionDecode(
     SET_D(DecodeCtx, 0xA0, *(USHORT *)(TableEntry + 12));   // Operand 2 初始值
 
     // 设置地址大小
-    if (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) == 2)
+    /* 【修正 2026-10-17】原始 0x14008C322 是 `cmp [r9], r8d`（r8d=2），比较的是
+       **描述符 +0x00（Mode）**，不是 +0xD8（前缀标志）。旧代码读 +0xD8 恒 != 2，
+       于是总走 else 分支把 desc+0x08 置 1；原始对 64 位模式且表项 +0x10 含
+       0x400000/0x200000 的条目会置 2。desc+0x08 正是 ReadPESectionAsmField
+       判定的 OpSize：置 2 时它 OR 0x4000000，置 1 时 OR 0x1000000 —— 实机表现为
+       FindNtOpenThreadTargetWin8 拿到的 Entry[0x50] 缺 bit26，`& 0x4000000` 判定失败。 */
+    if (CTX_D(DecodeCtx, DEC_CTX_MODE) == 2)
     {
         ULONG EntryFlags = *(ULONG *)(TableEntry + 16);
         if ((EntryFlags & 0x400000) != 0 ||
@@ -2592,7 +2656,10 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
             }
             if (ModeField == 5)
             {
-                if (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) == 2)
+                /* 【修正 2026-10-17】原始 0x14008B954 是 `cmp dword ptr [rdi], 2`
+                   （rdi = 描述符，[rdi] = **Mode**），旧代码误读 +0xD8（前缀标志）。
+                   原始在 Mode==2 时置 bit18（0x40000），否则置 bit16（0x10000）。 */
+                if (CTX_D(DecodeCtx, DEC_CTX_MODE) == 2)
                     CTX_Q(OperandOut, 0x20) |= 0x40000;
                 else
                     CTX_Q(OperandOut, 0x20) |= 0x10000;
