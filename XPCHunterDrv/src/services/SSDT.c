@@ -810,6 +810,7 @@ char __fastcall ScanPESectionPatternsEx(_BYTE *PeBuffer, char *PatternBuffer,
         PatternCount = 0;
         while (!(ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))        // 0x14007A0E1
         {
+            *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(unsigned int *)((PUCHAR)Entry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             USHORT Type;
             ULONG  EntryLen = *(ULONG *)((PUCHAR)Entry + 0xF0);
 
@@ -3025,6 +3026,7 @@ char __fastcall FindExportTableOffsetV1(__int64 ImageBase, unsigned int ImageSiz
                 SectionIndex = 0;
                 while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
                 {
+                    *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                     ComputedOffset = SectionFileOffset + (int)AccumulatedOffset;
                     AccumulatedOffset += SectionFileOffset;
                     if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1369)
@@ -3050,6 +3052,7 @@ char __fastcall FindExportTableOffsetV1(__int64 ImageBase, unsigned int ImageSiz
                 EntryIndex = 0;
                 while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
                 {
+                    *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                     ComputedOffset2 = SectionFileOffset + (int)AccumulatedOffset;
                     AccumulatedOffset += SectionFileOffset;
                     SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -3130,6 +3133,7 @@ char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSiz
                 SectionIndex = 0;
                 while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
                 {
+                    *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                     ComputedOffset = SectionFileOffset + (int)AccumulatedOffset;
                     AccumulatedOffset += SectionFileOffset;
                     SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -3172,6 +3176,7 @@ char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSiz
                     EntryIndex = 0;
                     while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
                     {
+                        *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                         ComputedOffset2 = SectionFileOffset + (int)AccumulatedOffset;
                         AccumulatedOffset += SectionFileOffset;
                         SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -3200,6 +3205,7 @@ char __fastcall FindExportTableOffsetV2(__int64 ImageBase, unsigned int ImageSiz
                     ScanIndex = 0;
                     while (!(unsigned int)ReadPESectionEntry(SectionContext, SectionEntry))
                     {
+                        *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                         ComputedOffset3 = SectionFileOffset + (int)AccumulatedOffset;
                         AccumulatedOffset += SectionFileOffset;
                         SectionType3 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);

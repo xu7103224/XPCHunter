@@ -2836,7 +2836,7 @@ __int64 LookupMsrTableEntry(void)
     int Phase1Offset;
     unsigned int Phase1Count;
     int Dst[16];
-    __int64 PeContext;      // ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
+    PE_DECODE_CONTEXT PeContext;// ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
     char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
@@ -2848,7 +2848,7 @@ __int64 LookupMsrTableEntry(void)
         return Result;
 
     // 阶段1：搜索 EntryType 0x558/0x559 的节区
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Offset = 0;
     Phase1Count = 0;
@@ -2879,7 +2879,7 @@ __int64 LookupMsrTableEntry(void)
     if (!Phase1Offset)
         return Result;
     memset(Dst, 0, sizeof(Dst));
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Count = 0;
     while (Phase1Count < 0x100)
@@ -3006,7 +3006,7 @@ __int64 ParseMsrRelatedSections(void)
     unsigned int BaseOffset;
     unsigned int Offset1;
     unsigned int Offset2;
-    __int64 PeContext;      // ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
+    PE_DECODE_CONTEXT PeContext;// ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
     char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
@@ -3018,7 +3018,7 @@ __int64 ParseMsrRelatedSections(void)
     Offset2 = (unsigned int)GtRead(0x86E);
     if (!ImageBase || !ImageSize || !NtoskrnlBase || !BaseOffset || BaseOffset >= ImageSize || !Offset1 || !Offset2)
         return Result;
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Offset = 0;
     Phase1Count = 0;
@@ -3047,7 +3047,7 @@ __int64 ParseMsrRelatedSections(void)
         ++Phase1Count;
     }
     memset(Dst, 0, sizeof(Dst));
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     LoopIndex = 0;
     while (LoopIndex < 0x100)
@@ -3138,7 +3138,7 @@ __int64 ParseMsrTableFromSections(void)
     unsigned int BaseOffset;
     unsigned int Offset1;
     unsigned int Offset2;
-    __int64 PeContext;      // ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
+    PE_DECODE_CONTEXT PeContext;// ⚠ 别名变量（同原始栈槽双角色）；待按原始偏移重写
     char EntryBuffer[448];              // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [80] 仅 80 字节
 
     Result = 0;
@@ -3150,7 +3150,7 @@ __int64 ParseMsrTableFromSections(void)
     Offset2 = (unsigned int)GtRead(0x86E);
     if (!ImageBase || !ImageSize || !NtoskrnlBase || !BaseOffset || BaseOffset >= ImageSize || !Offset1 || !Offset2)
         return Result;
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)((char *)ImageBase + BaseOffset), ImageSize - BaseOffset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     Phase1Offset = 0;
     Phase1Count = 0;
@@ -3177,7 +3177,7 @@ __int64 ParseMsrTableFromSections(void)
         ++Phase1Count;
     }
     memset(Dst, 0, sizeof(Dst));
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)((char *)ImageBase + Phase1Offset), ImageSize - Phase1Offset, 2, 0, -1, 0, 0, (__int64)&PeContext);
     LoopIndex = 0;
     while (LoopIndex < 0x100)
@@ -4134,9 +4134,10 @@ __int64 ParseNtExportSectionsV2(void)
     __int64 PeFileBase;
     unsigned int PeFileSize;
     unsigned int ExportDirSize;
-    PE_DECODE_CONTEXT PeContext;   /* 【修正 2026-10-16】上下文须为 0x48 字节，且 Init 与 Read 必须
-                                      使用同一变量；原始驱动的"累计值"就是上下文读指针（ctx+0x08）。 */
-    /* 累计值即上下文读指针（ctx+0x08），与原始同体：由 += 条目[0xF0] 推进 */
+    PE_DECODE_CONTEXT PeContext;   /* 上下文须为 0x48 字节，且 Init 与 Read 必须使用同一变量 */
+    /* 【⚠ 修正 2026-10-17】「累计值」必须是独立局部：旧实现把它写在上下文读指针槽里
+       （PeContext.ReadPtr = EntryBuffer[..]），会把 64 位读指针截断成 32 位 → 实机 0x7E。 */
+    __int64 CumulativeSize = 0;
     unsigned int SectionSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
@@ -4165,10 +4166,11 @@ __int64 ParseNtExportSectionsV2(void)
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x38 >> 2];
-        PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
-        PeContext.ReadPtr += SectionSize;
+        CumulativeSize = EntryBuffer[0x40 >> 2];
+        PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正 2026-10-17】推进读指针（64 位）：原实现把累计量写进读指针槽 */
+        CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x48 >> 2];
-        EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
+        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
         SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
         if (SectionType == 0xFE || SectionType == 0x558)
         {
@@ -4178,7 +4180,7 @@ __int64 ParseNtExportSectionsV2(void)
                 if (!(F0 & 0x4000000) || !EntryBuffer[0xD0 >> 2] || Phase1Offset)
                     goto next_phase1;
             }
-            int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)PeContext.ReadPtr;
+            int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
             if (Offset && (unsigned int)Offset < PeFileSize)
             {
                 Phase1Offset = (unsigned int)Offset;
@@ -4199,10 +4201,11 @@ next_phase1:
             if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                 break;
             SectionSize = EntryBuffer[0x38 >> 2];
-            PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
-            PeContext.ReadPtr += SectionSize;
+            CumulativeSize = EntryBuffer[0x40 >> 2];
+            PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正 2026-10-17】推进读指针（64 位）：原实现把累计量写进读指针槽 */
+            CumulativeSize += SectionSize;
             SectionDataPtr = EntryBuffer[0x48 >> 2];
-            EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
+            EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
             SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
             if (SectionType == 0x512)
             {
@@ -4210,7 +4213,7 @@ next_phase1:
                 unsigned int C8 = EntryBuffer[0x110 >> 2];
                 if (B8 == 0x40000 && C8 && EntryBuffer[0xE8 >> 2] == 0x40)
                 {
-                    int Offset = (int)C8 - (int)PeFileBase + (int)PeContext.ReadPtr;
+                    int Offset = (int)C8 - (int)PeFileBase + (int)CumulativeSize;
                     if (Offset && (unsigned int)Offset < PeFileSize)
                     {
                         Phase1Offset = (unsigned int)Offset;
@@ -4255,14 +4258,15 @@ next_phase1:
                 if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                     break;
                 SectionSize = EntryBuffer[0x38 >> 2];
-                PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
-                PeContext.ReadPtr += SectionSize;
+                CumulativeSize = EntryBuffer[0x40 >> 2];
+                PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正 2026-10-17】推进读指针（64 位）：原实现把累计量写进读指针槽 */
+                CumulativeSize += SectionSize;
                 SectionDataPtr = EntryBuffer[0x48 >> 2];
-                EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
+                EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
                 SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
                 if (SectionType == 0x559 && EntryBuffer[0xD0 >> 2])
                 {
-                    int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)PeContext.ReadPtr;
+                    int Offset = (int)EntryBuffer[0xD0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
                     if (Offset && (unsigned int)Offset < PeFileSize)
                     {
                         GtWrite(GtNtosExportSectionOffset2, Offset);
@@ -4288,9 +4292,10 @@ __int64 ParseNtExportSectionsWin10(void)
     __int64 NtoskrnlBase;
     __int64 PeFileBase;
     unsigned int PeFileSize;
-    PE_DECODE_CONTEXT PeContext;   /* 【修正 2026-10-16】上下文须为 0x48 字节，且 Init 与 Read 必须
-                                      使用同一变量；原始驱动的"累计值"就是上下文读指针（ctx+0x08）。 */
-    /* 累计值即上下文读指针（ctx+0x08），与原始同体：由 += 条目[0xF0] 推进 */
+    PE_DECODE_CONTEXT PeContext;   /* 上下文须为 0x48 字节，且 Init 与 Read 必须使用同一变量 */
+    /* 【⚠ 修正 2026-10-17】「累计值」必须是独立局部：旧实现把它写在上下文读指针槽里
+       （PeContext.ReadPtr = EntryBuffer[..]），会把 64 位读指针截断成 32 位 → 实机 0x7E。 */
+    __int64 CumulativeSize = 0;
     unsigned int SectionSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
@@ -4330,10 +4335,11 @@ __int64 ParseNtExportSectionsWin10(void)
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
         SectionSize = EntryBuffer[0x38 >> 2];
-        PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
-        PeContext.ReadPtr += SectionSize;
+        CumulativeSize = EntryBuffer[0x40 >> 2];
+        PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正 2026-10-17】推进读指针（64 位）：原实现把累计量写进读指针槽 */
+        CumulativeSize += SectionSize;
         SectionDataPtr = EntryBuffer[0x48 >> 2];
-        EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
+        EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
         SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
         if (SectionType == 0xFE || SectionType == 0x558)
         {
@@ -4343,7 +4349,7 @@ __int64 ParseNtExportSectionsWin10(void)
                 if (!(F0 & 0x4000000) || !EntryBuffer[0xE0 >> 2] || Phase1Offset)
                     goto win10_next_phase1;
             }
-            int Offset = (int)EntryBuffer[0xE0 >> 2] - (int)PeFileBase + (int)PeContext.ReadPtr;
+            int Offset = (int)EntryBuffer[0xE0 >> 2] - (int)PeFileBase + (int)CumulativeSize;
             if (Offset && (unsigned int)Offset < PeFileSize)
             {
                 Phase1Offset = (unsigned int)Offset;
@@ -4364,10 +4370,11 @@ win10_next_phase1:
             if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                 break;
             SectionSize = EntryBuffer[0x38 >> 2];
-            PeContext.ReadPtr = EntryBuffer[0x40 >> 2];
-            PeContext.ReadPtr += SectionSize;
+            CumulativeSize = EntryBuffer[0x40 >> 2];
+            PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正 2026-10-17】推进读指针（64 位）：原实现把累计量写进读指针槽 */
+            CumulativeSize += SectionSize;
             SectionDataPtr = EntryBuffer[0x48 >> 2];
-            EntryBuffer[0x40 >> 2] = (ULONG)PeContext.ReadPtr;
+            EntryBuffer[0x40 >> 2] = (ULONG)CumulativeSize;
             SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
             if (SectionType == 0x512)
             {
@@ -4375,7 +4382,7 @@ win10_next_phase1:
                 unsigned int C8 = EntryBuffer[0x120 >> 2];
                 if (B8 == 0x40000 && C8 && EntryBuffer[0xF8 >> 2] == 0x40)
                 {
-                    int Offset = (int)C8 - (int)PeFileBase + (int)PeContext.ReadPtr;
+                    int Offset = (int)C8 - (int)PeFileBase + (int)CumulativeSize;
                     if (Offset && (unsigned int)Offset < PeFileSize)
                     {
                         Phase1Offset = (unsigned int)Offset;

@@ -1689,6 +1689,7 @@ bool __fastcall FindSsdtTableAddresses(
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionInfo))
         {
+            *(ULONG64 *)((PUCHAR)ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             ComputedOffset = EntryCumulativeSize + (int)CumulativeOffset;
             CumulativeOffset += EntryCumulativeSize;
 
@@ -1714,6 +1715,7 @@ bool __fastcall FindSsdtTableAddresses(
                         FieldCount = 0;
                         while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionInfo))
                         {
+                            *(ULONG64 *)((PUCHAR)ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                             ComputedOffset2 = EntryCumulativeSize + (int)CumulativeOffset;
                             CumulativeOffset += EntryCumulativeSize;
                             SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
@@ -1813,6 +1815,7 @@ char __fastcall ResolveSsdtTablePointer(
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
             SectionFileOffset = FieldFileOffset;
             ComputedOffset = SectionEntrySize + (int)RootTableOffsetAccum;
@@ -1918,6 +1921,7 @@ char __fastcall ResolveSsdtTablePointerEx(
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
             ComputedOffset = SectionEntrySize + (int)RootOffsetAccum;
             RootOffsetAccum += SectionEntrySize;
@@ -1942,6 +1946,7 @@ char __fastcall ResolveSsdtTablePointerEx(
                         FieldIndex = 0;
                         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
                         {
+                            *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                             pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
                             SectionFileOffset = FieldFileOffset;
                             ComputedOffset2 = SectionEntrySize + (int)RootOffsetAccum;
@@ -2103,79 +2108,89 @@ char ParseNtoskrnlSectionsForKernelBase(__int64 PeBase, unsigned int PeSize)
 // FindOpenProcessTokenOffset -- 查找 NtOpenProcess Token 偏移（旧版）
 // 读取 GT 17260 获取扫描基址偏移，遍历 PE 节区搜索子类型 0x419（标志 0x40，入口标志 1）
 // 或子类型 0x512（标志 0x40，类型 0x10000），匹配值写入全局表 0x33E
+// FindOpenProcessTokenOffset — 查找 NtOpenProcess Token 偏移
+// 对应原始驱动 0x140020864（326 字节）
+// 【⚠ 重写 2026-10-17】旧实现与原始有三处结构性不符，实机触发 0x7E(0xC0000005)：
+//   ① 伪造了 CumulativeSize/SectionDataPtr/Entry[+0x48] 写回整段（原始**没有**这些代码），
+//      且用 `#define CumulativeSize (PeContext.ReadPtr)` 把累计量别名到上下文读指针，
+//      于是 `CumulativeSize = Entry[..]` 把 64 位读指针**截断成 32 位** → 下一次
+//      ReadPESectionEntry 读 [0x45] → 蓝屏（栈帧 rtZ8+0x12b98 → rtZ8+0x54249）。
+//   ② 判定写成 `Entry[+0xF0] != 7`，原始为 `== 7`（0x140020915 `cmp [rbp+80h],7; jne loop`）。
+//   ③ 字段偏移整体错位 +0x90：原始用 +0x50/+0x58/+0x70/+0x74/+0x78/+0x88。
+//   ④ 读指针推进位置：原始是**读完即推进**（0x1400208FB `add [rsp+48h],rax`，64 位 add）。
+// 【原始控制流（逐条转写）】
+//   0x14002088F GT 0x436C → PeScanBaseOffset；0 或 >=TargetSize 则跳过扫描
+//   0x1400208DA InitPESectionReadContext(TargetAddress+ofs, TargetSize-ofs, 2,0,-1,0,0,&ctx)
+//   0x1400208E8 循环：ReadPESectionEntry → 失败退出
+//   0x1400208F5 ctx.ReadPtr += Entry[0xF0]（64 位）
+//   0x140020907 Type = *(WORD*)(Entry[0x118]+6)；Type==0x545 退出
+//   0x140020915 Entry[0xF0] != 7 → 继续下一轮
+//   0x14002091E Type==0x419：(Entry[0x50]&0x40) && Entry[0x58]==1 && (Entry[0x88]&0x2000000)
+//               && Entry[0x70]!=0 && Entry[0x74]==0 → Result = Entry[0x70]，退出
+//   0x14002094D Type==0x512：(Entry[0x50]&0x40) && (Entry[0x88]&0x10000) && (int)Entry[0x78] > 0
+//               → Result = Entry[0x78]，退出
+//   0x140020978 GT 0x33E = Result（Result 初值 -1，即 0xFFFFFFFF）
 __int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSize)
 {
-    __int64 Result = 0;
-    __int64 PeScanBaseOffset;
-    PE_DECODE_CONTEXT PeContext;        /* 【修正 2026-10-16】原为 __int64（8 字节）——上下文实为 0x48 字节，
-                                           且必须与 ReadPESectionEntry 使用同一变量 */
-    unsigned int SectionSize;
-    __int64 SectionDataPtr;
-    unsigned short SectionType;
-    ULONG EntryBuffer[0x80];
-    /* 【修正 2026-10-16】原始驱动的"累计值"就是上下文里的读指针（ctx+0x08），
-       由调用方 `+= 条目[0xF0]` 推进；原实现用独立局部（且不推进上下文）→ 读指针不前进、
-       且 Init 把上下文写进了描述符数组 EntryBuffer、读取却用未初始化的 PeContext，
-       实测读出栈垃圾 0xAB2000 → BSOD 0x7E（ReadPESectionEntry 读 [r9] 越界）。 */
-#define CumulativeSize (PeContext.ReadPtr)
+    unsigned int Result = 0xFFFFFFFFu;   // ebx：0x140020896 `or ebx,0FFFFFFFFh`
+    unsigned int PeScanBaseOffset;
+    PE_DECODE_CONTEXT PeContext;
+    ULONG Entry[0x120 / 4];              // 0x120 字节描述符
 
-    PeScanBaseOffset = GtRead(GtNtoskrnlPeScanBaseOffset);
-    if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
-        goto done;
-
-    InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset), (ULONG)(TargetSize - PeScanBaseOffset), 2, 0, -1, 0, 0, (__int64)&PeContext);
-    while (1)
+    PeScanBaseOffset = (unsigned int)GtRead(GtNtoskrnlPeScanBaseOffset);   // 0x14002088F（GT 0x436C）
+    if (PeScanBaseOffset && PeScanBaseOffset < TargetSize)                 // 0x14002089E/8A6
     {
-            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-        if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
-            break;
-        SectionSize = EntryBuffer[0x50 >> 2];
-        CumulativeSize = EntryBuffer[0x48 >> 2];
-        CumulativeSize += SectionSize;
-        SectionDataPtr = EntryBuffer[0x20 >> 2];
-        EntryBuffer[0x48 >> 2] = (ULONG)CumulativeSize;
-        SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
-
-        if (SectionType == 0x545)
-            continue;
-
-        if (EntryBuffer[0x50 >> 2] != 7)
+        InitPESectionReadContext((__int64)((PUCHAR)TargetAddress + PeScanBaseOffset),
+                                 (ULONG)(TargetSize - PeScanBaseOffset),
+                                 2, 0, -1, 0, 0, (__int64)&PeContext);      // 0x1400208DA
+        while (1)
         {
-            // 子类型 0x419（标志 0x40，入口标志 1）
-            if (SectionType == 0x419)
+            unsigned short Type;
+
+            if (ReadPESectionEntry((PUCHAR)&PeContext, Entry))             // 0x1400208E8
+                break;
+
+            PeContext.ReadPtr += *(unsigned int *)((PUCHAR)Entry + 0xF0);  // 0x1400208FB ★ 64 位推进
+            Type = *(unsigned short *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);  // 0x140020907
+
+            if (Type == 0x545)                                             // 0x140020910
+                break;
+            if (*(unsigned int *)((PUCHAR)Entry + 0xF0) != 7)              // 0x140020915
+                continue;
+
+            if (Type == 0x419)                                             // 0x14002091E
             {
-                __int64 F0 = EntryBuffer[0xE0 >> 2];
-                unsigned int E8 = EntryBuffer[0xE8 >> 2];
-                __int64 B8 = EntryBuffer[0x118 >> 2];
-                unsigned int D0 = EntryBuffer[0x100 >> 2];
-                unsigned int CC = EntryBuffer[0x104 >> 2];
-                if (F0 & 0x40 && E8 == 1 && (B8 & 0x2000000) && D0)
+                if ((*(unsigned char *)((PUCHAR)Entry + 0x50) & 0x40)      // 0x140020928
+                    && *(unsigned int *)((PUCHAR)Entry + 0x58) == 1        // 0x14002092E
+                    && (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x2000000))   // 0x140020934
                 {
-                    if (CC == 0)
-                        Result = D0;
-                    continue;
+                    unsigned int V70 = *(unsigned int *)((PUCHAR)Entry + 0x70);   // 0x14002093E
+                    if (V70 && *(unsigned int *)((PUCHAR)Entry + 0x74) == 0)      // 0x140020941/945
+                    {
+                        Result = V70;                                      // 0x140020976
+                        break;
+                    }
                 }
             }
-            // 子类型 0x512（标志 0x40，类型 0x10000）
-            else if (SectionType == 0x512)
+            else if (Type == 0x512)                                        // 0x14002094D
             {
-                __int64 F0 = EntryBuffer[0xE0 >> 2];
-                __int64 B8 = EntryBuffer[0x118 >> 2];
-                unsigned int C8 = EntryBuffer[0x108 >> 2];
-                if ((F0 & 0x40) && (B8 & 0x10000) && C8 > 0)
+                if ((*(unsigned char *)((PUCHAR)Entry + 0x50) & 0x40)      // 0x140020957
+                    && (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x10000))     // 0x14002095D
                 {
-                    Result = C8;
-                    break;
+                    unsigned int V78 = *(unsigned int *)((PUCHAR)Entry + 0x78);   // 0x14002096B
+                    if ((int)V78 > 0)                                      // 0x14002096E
+                    {
+                        Result = V78;
+                        break;
+                    }
                 }
             }
         }
     }
 
-done:
-    GtWrite(GtOpenProcessTokenOffset, Result);
+    GtWrite(GtOpenProcessTokenOffset, Result);                             // 0x14002097A（GT 0x33E）
     return Result;
 }
-#undef CumulativeSize
 
 // FindOpenProcessTokenTarget -- 查找 NtOpenProcess Token 目标（新版）
 // 两阶段扫描：先搜索子类型 0x53E 的 Magic 值标记位置，再搜索子类型 0x558 定位第二阶段基址
@@ -2184,15 +2199,18 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
 {
     __int64 Result = 0;
     __int64 PeScanBaseOffset;
-    PE_DECODE_CONTEXT PeContext;        /* 【修正 2026-10-16】见 FindOpenProcessTokenOffset：上下文须为 0x48 字节，
-                                           且 Init 与 Read 必须同一变量；累计值即上下文读指针 */
+    PE_DECODE_CONTEXT PeContext;        /* 上下文须为 0x48 字节，且 Init 与 Read 必须同一变量 */
     unsigned int SectionSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
     unsigned int PhaseCount;
     ULONG EntryBuffer[0x80];
     unsigned char PhaseMarker;
-#define CumulativeSize (PeContext.ReadPtr)
+    /* 【⚠ 修正 2026-10-17】累计量必须是**独立局部**。旧实现用
+       `#define CumulativeSize (PeContext.ReadPtr)` 把它别名到上下文读指针，于是
+       `CumulativeSize = Entry[..]` 会把 64 位内核读指针**截断成 32 位** → 实机
+       0x7E(0xC0000005)（rtZ8+0x54249 处 `movzx eax,byte [r9]` 读 [0x45]）。 */
+    __int64 CumulativeSize = 0;
 
     PeScanBaseOffset = GtRead(GtNtoskrnlPeScanBaseOffset);
     if (!PeScanBaseOffset || PeScanBaseOffset >= TargetSize)
@@ -2204,9 +2222,9 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
 
     while (PhaseCount < 0x64)
     {
-            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
+        PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 读完即推进读指针（64 位） */
         SectionSize = EntryBuffer[0x50 >> 2];
         CumulativeSize = EntryBuffer[0x48 >> 2];
         CumulativeSize += SectionSize;
@@ -2581,6 +2599,7 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
     ScanCount = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
         Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -2626,6 +2645,7 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
     ScanCount2 = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
         Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
 

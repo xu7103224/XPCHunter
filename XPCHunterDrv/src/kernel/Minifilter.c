@@ -6244,6 +6244,7 @@ char __fastcall ScanKfdDriverSectionV3(__int64 PeBase, unsigned int PeSize)
         Rva1 = 0;                                                 // 0x14006A2C1
         while (!(ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))    // 0x14006A2D9
         {
+            *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(unsigned int *)((PUCHAR)Entry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             USHORT Type;
             ULONG  Len, Cumul, F38;
 
@@ -7952,6 +7953,7 @@ char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 Outp
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             SectionEnd = (int)(*(unsigned int *)((char *)SectionEntry + 0xF0) + CumulativeOffset);
             CumulativeOffset += *(unsigned int *)((char *)SectionEntry + 0xF0);
             if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1369)

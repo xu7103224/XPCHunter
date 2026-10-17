@@ -47,63 +47,13 @@ PCOMMAND_HANDLER g_CommandHandlerTable[CMD_OPCODE_COUNT];
 // 对应原始驱动 sub_140080ED4
 
 /* ============================================================
- * 【临时诊断·待移除】DbgMark — 记录 __LINE__ 到两处：
  *   ① GT[0x4F80]（内存，可用调试器读；等待型挂起时可用）
  *   ② C:\kd_tmp\prog.txt（回写式追加 + 刷盘，硬复位后仍可读）
  * ============================================================ */
-void DbgMark(ULONG Line)
-{
-    UNICODE_STRING Path;
-    OBJECT_ATTRIBUTES Oa;
-    IO_STATUS_BLOCK Iosb;
-    HANDLE Handle = NULL;
-    char LineBuf[24], Rev[24];
-    ULONG Len = 0, v = Line, k;
-
-    GtWrite((GLOBAL_TABLE_INDEX)0x4F80, (__int64)Line);   /* ① 内存标记 */
-
-    RtlInitUnicodeString(&Path, L"\\??\\C:\\kd_tmp\\prog.txt");
-    InitializeObjectAttributes(&Oa, &Path, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    if (!NT_SUCCESS(ZwCreateFile(&Handle, FILE_APPEND_DATA | SYNCHRONIZE, &Oa, &Iosb, NULL,
-                                 FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                 FILE_OPEN_IF,
-                                 FILE_SYNCHRONOUS_IO_NONALERT | FILE_WRITE_THROUGH, NULL, 0)))
-        return;
-
-    do { LineBuf[Len++] = (char)('0' + (v % 10)); v /= 10; } while (v);
-    for (k = 0; k < Len; k++) Rev[k] = LineBuf[Len - 1 - k];
-    Rev[Len] = '\r'; Rev[Len + 1] = '\n';
-    ZwWriteFile(Handle, NULL, NULL, NULL, &Iosb, Rev, Len + 2, NULL, NULL);
-    ZwFlushBuffersFile(Handle, &Iosb);         /* 立刻落盘，防硬复位丢失 */
-    ZwClose(Handle);
-}
 
 
-/* 【临时诊断·待移除】DbgMark2 — 追加 "<a>,<b>\r\n"（十六进制）到同一文件 */
-void DbgMark2(ULONG64 A, ULONG64 B)
-{
-    UNICODE_STRING Path; OBJECT_ATTRIBUTES Oa; IO_STATUS_BLOCK Iosb; HANDLE Handle = NULL;
-    char Buf[48]; ULONG Len = 0; int k; char Hex[] = "0123456789abcdef";
-    RtlInitUnicodeString(&Path, L"\??\C:\kd_tmp\prog.txt");
-    InitializeObjectAttributes(&Oa, &Path, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    if (!NT_SUCCESS(ZwCreateFile(&Handle, FILE_APPEND_DATA | SYNCHRONIZE, &Oa, &Iosb, NULL,
-                                 FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                 FILE_OPEN_IF, FILE_SYNCHRONOUS_IO_NONALERT | FILE_WRITE_THROUGH, NULL, 0)))
-        return;
-    for (k = 60; k >= 0; k -= 4) { Buf[Len++] = Hex[(A >> k) & 0xF]; }
-    Buf[Len++] = ','; Buf[Len++] = '0'; Buf[Len++] = 'x';
-    for (k = 28; k >= 0; k -= 4) { Buf[Len++] = Hex[(B >> k) & 0xF]; }
-    Buf[Len++] = '\r'; Buf[Len++] = '\n';
-    ZwWriteFile(Handle, NULL, NULL, NULL, &Iosb, Buf, Len, NULL, NULL);
-    ZwFlushBuffersFile(Handle, &Iosb);
-    ZwClose(Handle);
-}
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
-    /* 【临时】写入本方运行时地址（用全局符号定位，便于无符号求模块基址） */
-    DbgMark((ULONG)((ULONG64)&g_DeviceNameBuffer & 0xFFFFFFFF));
-    DbgMark((ULONG)(((ULONG64)&g_DeviceNameBuffer >> 32) & 0xFFFFFFFF));
-    /* 【临时】写入本方运行时地址，便于无符号求模块基址 */
     ULONG BuildNumber;    // 构建号的**值**（与全局 extern NtBuildNumber 的地址区分）
     NTSTATUS Status;
     PWSTR Buffer;
@@ -116,7 +66,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     PDEVICE_OBJECT DeviceObject;
 
     BuildNumber = (ULONG)GetWindowsBuildNumber();
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     GtWrite(GtWindowsBuildNumber, BuildNumber);
 
     // 【⚠ 修正记录 2026-10-15】原实现有两处与原始不符（导致实机加载失败，错误 31）：
@@ -134,7 +83,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     //     …累加 22 个内核导入地址…
     //     call InitGtKey                                 ; ② InitGtKey(导入地址和)
     // 注意：GT[0] 的语义是"符号地址"（不是构建号的值）；构建号的值走 GT[0x914]。
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitGtCore((__int64)DriverObject, (__int64)&NtBuildNumber);
     InitGtKey((__int64)DriverObject);                       // 0x140080F1C
     InitGlobalMutex();                                      // 0x140080F21
@@ -160,12 +108,9 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     RegistryPathCopy = ExAlloc(PagedPool, RegistryPath->Length + 2);
     RegistryPathCopyPtr = RegistryPathCopy;
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     if (!RegistryPathCopy) return Status;
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     memset(RegistryPathCopy, 0, RegistryPath->Length + 2);
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     memmove(RegistryPathCopyPtr, RegistryPath->Buffer, RegistryPath->Length & 0xFFFE);
 
     BackslashPos = wcsrchr((const wchar_t *)RegistryPathCopyPtr, L'\\');
@@ -174,76 +119,54 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     else
         DriverNameStart = BackslashPos + 1;
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitSdstServiceCount();
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     GenerateEncryptionKey(L"View++ByLinxer");
 
     // Copy device name template "\\Device\\"
     DevNameIdx = 0;
     do { g_DeviceNameBuffer[DevNameIdx] = L"\\Device\\"[DevNameIdx]; } while (g_DeviceNameBuffer[DevNameIdx++]);
     DevNameIdx--;
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     wcsncat(g_DeviceNameBuffer, DriverNameStart, 256 - DevNameIdx);
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitProcessNotify();
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitThreadNotify();
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     if (InitSdstTable() != 1 || ReadNtoskrnlFile() != 1) goto Cleanup1;
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitSyscallNumberTable();
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     BuildHookTable();
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     if (InitAllHookSubsystems() != 1) goto Cleanup2;
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitImageNotify();
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitDriverSection((_QWORD **)DriverObject->DriverSection);
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     KeInitializeEvent(&g_Event, SynchronizationEvent, TRUE);
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     RtlInitUnicodeString(&DestStr, L"\\Device\\View++ByLinxer");
     Status = IoCreateDevice(DriverObject, 0, &DestStr, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     if (Status < 0) goto Cleanup2;
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     ValidateObjReferences((__int64)DriverObject, (__int64)DeviceObject);
 
     // Copy symlink name template "\\DosDevices\\"
     SymNameIdx = 0;
     do { g_SymlinkNameBuffer[SymNameIdx] = L"\\DosDevices\\"[SymNameIdx]; } while (g_SymlinkNameBuffer[SymNameIdx++]);
     SymNameIdx--;
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     wcsncat(g_SymlinkNameBuffer, DriverNameStart, 256 - SymNameIdx);
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     RtlInitUnicodeString(&SymStr, L"\\DosDevices\\View++ByLinxer");
     Status = IoCreateSymbolicLink(&SymStr, &DestStr);
     if (Status < 0) { IoDeleteDevice(DeviceObject); goto Cleanup2; }
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     GtWrite(GtRegPathStringPtr, (__int64)RegistryPathCopyPtr);
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     InitCommandHandlerTable();
     DriverObject->DriverUnload = (PDRIVER_UNLOAD)DriverUnload;
     DriverObject->MajorFunction[IRP_MJ_CREATE] = (PDRIVER_DISPATCH)DispatchCreateClose;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = (PDRIVER_DISPATCH)DispatchCreateClose;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = (PDRIVER_DISPATCH)DispatchDeviceControl;
 
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     if (Status >= 0) return Status;
 
 Cleanup2:
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     CleanupNtoskrnlFile();
 Cleanup1:
-    DbgMark(__LINE__);   /* 【临时】进度标记(早期) */
     ExFree(RegistryPathCopyPtr);
     return Status;
 }
@@ -1378,11 +1301,8 @@ __int64 InitAllHookSubsystems(void)
     {
         ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
         Success = 1;
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtCreateKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtDeleteKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         DisableHookProtection(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
         if (BuildNumber == 9600)
         {
@@ -1397,55 +1317,32 @@ __int64 InitAllHookSubsystems(void)
             GtWrite(GtEprocessField27, ThreadHookResult);
         else
             Success = 0;
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtQuerySystemInfo(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
         if (BuildNumber >= 0x1DB0)
             HookSyscallNtQueryInformationProcess(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtQueryInformationThread(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtOpenThreadToken(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtSuspendProcess(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtResumeProcess();
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtSetInformationProcess(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtWriteFile(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtSetInformationThread(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtOpenFile(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtDuplicateObject(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtClose(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtReadFile(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtOpenProcessToken(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtCreateToken(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtSuspendThread(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtResumeThread(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         GtWrite(GtEprocessField63, 0);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         InstallHookSyscall(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
         if (BuildNumber >= 0x4A61)
             InitHookSyscall(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtOpenKeyEx(ExportDirVa, ExportDirSize);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtOpenKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         HookSyscallNtLoadDriver(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         UninstallHookSyscall(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-        DbgMark(__LINE__);   /* 【临时】进度标记 */
         EnableHookProtection(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
         if (Success == 1)
         {
@@ -5071,7 +4968,6 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
     __int64  Base3;             // r15 = GT 3
     ULONG    StartRva;          // ebx = GT 0x4312
     ULONG    CandidateRva = 0;  // ebx
-    ULONG    Cumul;             // rdx：累计读指针
     ULONG    i;
     PE_DECODE_CONTEXT Ctx;
     _DWORD   Entry[112];
@@ -5091,7 +4987,6 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
     InitPESectionReadContext(NtoskrnlBase + StartRva,            // 0x14006E5F3
                              NtoskrnlSize - StartRva,
                              2, 0, -1, 0, 0, (__int64)&Ctx);
-    Cumul = (ULONG)Ctx.ReadPtr;                                  // 初始化后即基址
     for (i = 0; i < 0xA; ++i)                                    // 0x14006E655
     {
         USHORT Type;
@@ -5101,8 +4996,12 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
             break;
 
         Len  = *(ULONG *)((PUCHAR)Entry + 0xF0);
-        Cumul += Len;                                            // 0x14006E613
-        Ctx.ReadPtr = Cumul;                                     // 同步读指针
+        /* 【⚠ 修正 2026-10-17】原始 0x14006E613/628 是 **64 位** `add rdx,rax` 后整体写回
+           （mov rdx,[rsp+48h]; add rdx,rax; mov [rsp+48h],rdx），不经过任何 32 位累计量。
+           旧移植写成 `Cumul(ULONG) += Len; Ctx.ReadPtr = Cumul;`，把内核读指针**截断成低 32 位**
+           → 下一次 ReadPESectionEntry 读 [0x45] → 实机 0x7E(0xC0000005)，栈帧 rtZ8+0x12b98。
+           原始也没有独立的累计变量：下面的算术直接用读指针低 32 位（edx = rdx 的低半）。 */
+        Ctx.ReadPtr += Len;
         Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006E62D
 
         // 类型 0x558 或 0x559（原始：sub cx,0x558; cmp cx,1 → 即 (type-0x558)<=1）
@@ -5110,7 +5009,7 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
             && *(ULONG *)((PUCHAR)Entry + 0x38) != 0)            // 0x14006E641
         {
             ULONG F38 = *(ULONG *)((PUCHAR)Entry + 0x38);
-            Calculated = Cumul + F38 - (ULONG)NtoskrnlBase;      // 0x14006E648/64A
+            Calculated = (ULONG)Ctx.ReadPtr + F38 - (ULONG)NtoskrnlBase;  // 0x14006E648/64A
             if (Calculated && Calculated < NtoskrnlSize)         // 0x14006E64C/650
             {
                 CandidateRva = Calculated;                       // 0x14006E65D
@@ -5126,7 +5025,6 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
     InitPESectionReadContext(NtoskrnlBase + CandidateRva,        // 0x14006E68C
                              NtoskrnlSize - CandidateRva,
                              2, 0, -1, 0, 0, (__int64)&Ctx);
-    Cumul = (ULONG)Ctx.ReadPtr;
     {
         ULONG MatchCount = 0;                                    // r14d
         for (i = 0; i < 0x64; ++i)                               // 0x14006E6FD
@@ -5138,8 +5036,7 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
                 return 0;                                        // 0x14006E71D
 
             Len  = *(ULONG *)((PUCHAR)Entry + 0xF0);
-            Cumul += Len;                                        // 0x14006E6AE
-            Ctx.ReadPtr = Cumul;
+            Ctx.ReadPtr += Len;                                  /* 0x14006E6AE/6BD：原始为 64 位 add */
             Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);  // 0x14006E6C2
 
             if (Type == 0x545)                                   // 0x14006E6CE（1349）
@@ -5151,7 +5048,7 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
             {
                 if (++MatchCount == 2)                           // 0x14006E6F2/6F5
                 {
-                    ULONG Rva = Cumul + F8 - (ULONG)NtoskrnlBase;    // 0x14006E704/706
+                    ULONG Rva = (ULONG)Ctx.ReadPtr + F8 - (ULONG)NtoskrnlBase;  // 0x14006E704/706
                     if (Rva && Rva < NtoskrnlSize)               // 0x14006E708/70A
                     {
                         GtWrite((GLOBAL_TABLE_INDEX)0x2E6,       // 0x14006E718

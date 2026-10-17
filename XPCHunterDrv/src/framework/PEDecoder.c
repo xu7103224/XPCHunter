@@ -182,7 +182,6 @@ void InitPESectionReadContext(
 // ============================================================
 __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
 {
-    GtWrite((GLOBAL_TABLE_INDEX)0x4F92, 0x1000 | (__int64)__LINE__);   /* 【临时】ReadPESectionEntry 入口 */
     ULONG Result = (ULONG)-1;
     ULONG ByteIndex = 0;
     PUCHAR BufferPos;
@@ -225,11 +224,6 @@ __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
 
     while (1)
     {
-        if ((ByteIndex & 0xFFFF) == 0) {   /* 【临时】前缀循环探针 */
-            GtWrite((GLOBAL_TABLE_INDEX)0x4F96, (__int64)ByteIndex);
-            GtWrite((GLOBAL_TABLE_INDEX)0x4F97, (__int64)BufferPos);
-            GtWrite((GLOBAL_TABLE_INDEX)0x4F98, (__int64)CTX_Q(Context, DEC_CTX_BUFFER_END));
-        }
         UCHAR OpcodeByte = *BufferPos;
         TableEntry = DecodeTablePtr + 20 * OpcodeByte;
         TypeField = *(USHORT *)(TableEntry + 4);
@@ -381,7 +375,6 @@ LABEL_ERROR:
             return 0;
         }
     }
-    GtWrite((GLOBAL_TABLE_INDEX)0x4F94, (__int64)__LINE__);   /* 【临时】ReadPESectionEntry 出口 */
     return Result;
 }
 
@@ -2423,7 +2416,6 @@ __int64 DispatchInstructionDecode(
 
     // 遍历操作码序列
     while (OpcodeSeq[OperandIndex] != 0xFF)
-        if (FuncIndex < 0x40) GtWrite((GLOBAL_TABLE_INDEX)0x4F95, (__int64)FuncIndex);   /* 【临时】当前解码子函数序号 */
     {
         FuncIndex = OpcodeSeq[OperandIndex];
         ContextArray[3] = 56LL * OperandIndex + DecodeCtx + 0x30;

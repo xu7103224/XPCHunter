@@ -4598,6 +4598,7 @@ char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
     EntryIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         CurrentOffset = EntryCumulSize + (int)CumulativeSize;
         CumulativeSize += EntryCumulSize;
         SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -4638,6 +4639,7 @@ LABEL_CHECK:
             EntryIndex = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
             {
+                *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 CurrentOffset = EntryCumulSize + (int)CumulativeSize;
                 CumulativeSize += EntryCumulSize;
                 if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1245 && FieldValue == 0x40000)

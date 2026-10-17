@@ -217,6 +217,7 @@ void ScanProcessPESections(void)
         LoopCount = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x512)
             {
                 if ((AccumulatedOffset & 0x40000) != 0)
@@ -411,6 +412,7 @@ __int64 FindPeSectionByTypeRsrc(
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         SectionOffset = EntryCumulSize + (ULONG)CumulativeSize;
         CumulativeSize += EntryCumulSize;
         SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);

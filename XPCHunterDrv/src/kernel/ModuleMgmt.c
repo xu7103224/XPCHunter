@@ -3819,6 +3819,7 @@ char ParseKernelModuleSectionTable(__int64 FileBuffer, unsigned int FileSize, __
             SectionIndex = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             {
+                *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 ComputedOffset = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
                 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);

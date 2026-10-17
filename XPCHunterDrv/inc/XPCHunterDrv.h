@@ -1245,8 +1245,6 @@ __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Con
 
 
 // WDM driver entry points
-void DbgMark(ULONG Line);   /* 【临时诊断·待移除】进度标记 */
-void DbgMark2(ULONG64 A, ULONG64 B);   /* 【临时诊断·待移除】双值探针 */
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath);
 void DriverUnload(PDRIVER_OBJECT DriverObject);
 NTSTATUS DispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);

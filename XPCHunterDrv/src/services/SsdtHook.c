@@ -2580,6 +2580,7 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             int SectionBase = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             {
+                *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 int LoopIndex = (int)(EntryDataPtr + CumulativeSize);
                 CumulativeSize += EntryDataPtr;
                 if ((unsigned __int16)(*(_WORD *)(SectionInfoPtr + 6) - 1368) <= 1u)
@@ -3153,6 +3154,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
             unsigned int SectionIndex = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, ReadEntry))
             {
+                *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)ReadEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 unsigned int SectionEnd = (unsigned int)(EntryDataSize + EntryBase);
                 EntryBase += EntryDataSize;
                 __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry + 0x118) + 6);
@@ -3204,6 +3206,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
             unsigned int ScanIndex = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, ReadEntry2))
             {
+                *(ULONG64 *)((PUCHAR)&DecodeContext2 + 0x08) += *(unsigned int *)((PUCHAR)ReadEntry2 + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 unsigned int SectionEnd2 = (unsigned int)(EntryDataSize2 + EntryBase2);
                 EntryBase2 += EntryDataSize2;
                 __int16 SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry2 + 0x118) + 6);
@@ -3363,6 +3366,7 @@ char ParseAtaPortInitForHookTargets(__int64 ImageBase, unsigned int ImageSize, _
 
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)Context, Entry))
         {
+            *(ULONG64 *)((PUCHAR)Context + 0x08) += *(unsigned int *)((PUCHAR)Entry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             unsigned int EntrySize = Entry[15];
             __int64 EntryBase = Context[1];
             int SectionEnd = (int)(EntrySize + EntryBase);
@@ -4060,7 +4064,6 @@ bool __fastcall ReadNtFileForHookTable(_QWORD *pFileBuffer, unsigned int *pFileS
 }// ============================================================
 void BuildHookTable(void)
 {
-    DbgMark(__LINE__);   /* 【临时】BuildHookTable 入口 */
     __int64 ImageBase = 0;
     __int64 ExportDirVa = 0;
     unsigned int ExportDirSize = 0;
@@ -4082,7 +4085,6 @@ void BuildHookTable(void)
                 {
                     for (enum _GLOBAL_TABLE_INDEX TableIndex = GtSyscallHashTable; (unsigned int)TableIndex < (GtTotalSize | GtEprocessField114 | 0x400); TableIndex = (enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 3))
                     {
-                    DbgMark(__LINE__);   /* 【临时】循环体内 */
                         int FuncAddress = (int)GtRead(TableIndex);
                         unsigned int ExportOffset = (unsigned int)LookupExportFuncAddr((__int64)ExportRva, ExportCount, FuncAddress);
                         if (ExportOffset)
@@ -4792,6 +4794,7 @@ __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
         InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += SectionSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -4806,7 +4809,6 @@ __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
 }
 __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FA0, 1000);   /* 【临时】NtCreateKey 入口 */
     __int64 result;
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
@@ -4822,16 +4824,12 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
     if ((_DWORD)result && (unsigned int)result < ImageSize)
     {
         InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FA2, 1000);   /* 【临时】Init 之后 */
         for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
         {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FA3, 1000 + LoopIndex);   /* 【临时】循环轮次 */
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FA5, (__int64)*(unsigned char *)(*(ULONG64 *)((PUCHAR)&ReadContext + 0x08)));   /* 【临时】当前字节 */
             *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)result)
                 break;
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FA4, (__int64)(int)result);   /* 【临时】ReadPESectionEntry 返回 */
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
             __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -4853,11 +4851,9 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
         }
     }
     return result;
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FA6, 1000);   /* 【临时】NtCreateKey 出口 */
 }
 __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FB0, 2000);   /* 【临时】NtDeleteKey 入口 */
     __int64 MatchOffset = 0;
     char FoundFlag = 0;
     __int64 result;
@@ -4883,16 +4879,11 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
         if (EndAddress > (unsigned __int64)(SectionBase + 4096))
             SectionEnd = (int)(SectionBase + 4096);
         InitPESectionReadContext(SectionBase, (ULONG)(SectionEnd - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FB2, 2000);   /* 【临时】Init 之后 */
         while (1)
         {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FB3, (__int64)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));   /* 【临时】读指针 */
             result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
             if ((_DWORD)result)
                 break;
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FB4, 2000 + (__int64)(int)result);   /* 【临时】解码返回 */
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FB5, (__int64)*(unsigned int *)((PUCHAR)SectionEntry + 0xF0));   /* 【临时】本条长度 */
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FB6, (__int64)*(unsigned short *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6));   /* 【临时】类型 */
             /* 【重大修正 2026-10-17】原始 0x14001D850 循环里有 `mov [rsp+var_190], rcx`，其中
                var_190 = 上下文 +0x08（IDA 误命名为 CumulativeSize2）——即**把 ReadPtr + 本条长度
                写回上下文读指针**，循环靠它推进。旧移植把 CumulativeSize2 当作独立局部，读指针
@@ -5028,6 +5019,7 @@ __int64 HookSyscallNtOpenFile(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5062,6 +5054,7 @@ __int64 HookSyscallNtReadFile(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5097,6 +5090,7 @@ __int64 HookSyscallNtWriteFile(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
             {
@@ -5134,6 +5128,7 @@ __int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5168,6 +5163,7 @@ __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5180,10 +5176,8 @@ __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize
     }
     return GtWrite(GtEprocessField37, ResultOffset);
 }
-ULONG g_rpProbeCount = 0;   /* 【临时】探针计数 */
 __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase)
 {
-    DbgMark(0x5100);   /* 【临时】函数入口 */
     __int64 TargetSizeCopy = 0;
     char FoundMarker = 0;
     __int64 Result = 0;
@@ -5203,7 +5197,6 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
     TargetSizeCopy = TargetSize;
     FoundMarker = 0;
     Result = GtRead(GtNtDeleteKeyPeSectionOffset);
-    DbgMark(0x5101);   /* 【临时】GtRead 之后 */
     if ((_DWORD)Result && (unsigned int)Result < (unsigned int)TargetSizeCopy)
     {
         BufferEnd = TargetBase + TargetSizeCopy;
@@ -5212,12 +5205,8 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
         if (BufferEnd > (unsigned __int64)(ScanStart + 4096))
             ScanEnd = (int)(ScanStart + 4096);
         InitPESectionReadContext(ScanStart, (ULONG)(ScanEnd - ScanStart), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-    DbgMark(0x5102);   /* 【临时】Init 之后 */
-    DbgMark(0x5103);   /* 【临时】进入循环前 */
         while (1)
         {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4F91, (__int64)(++g_rpProbeCount));   /* 【临时】循环计数 */
-        GtWrite((GLOBAL_TABLE_INDEX)0x4F90, *(ULONG64 *)((PUCHAR)&ReadContext + 0x08));   /* 【临时】当前读指针 */
             *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             Result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
             if ((_DWORD)Result)
@@ -5259,6 +5248,7 @@ __int64 HookSyscallNtQueryInformationProcess(__int64 TargetBase, unsigned int Ta
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             if (SectionType == 1349)
@@ -5294,6 +5284,7 @@ __int64 HookSyscallNtSetInformationProcess(__int64 TargetBase, unsigned int Targ
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5327,6 +5318,7 @@ __int64 HookSyscallNtQueryInformationThread(__int64 TargetBase, unsigned int Tar
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5361,6 +5353,7 @@ __int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int Targe
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5395,6 +5388,7 @@ __int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5445,6 +5439,7 @@ __int64 HookSyscallNtSuspendThread(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5479,6 +5474,7 @@ __int64 HookSyscallNtResumeThread(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5520,6 +5516,7 @@ __int64 HookSyscallNtOpenThreadToken(__int64 TargetBase, unsigned int TargetSize
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5554,6 +5551,7 @@ __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize)
         InitPESectionReadContext(TargetBase + SectionOffset, TargetSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             CumulativeSize += EntryCumulSize;
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
                 break;
@@ -5685,6 +5683,7 @@ char __fastcall ParseSyscallFileExportSections(__int64 PeBase, unsigned int PeSi
     ScanCount = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
         ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -5842,6 +5841,7 @@ char __fastcall ParseShadowSyscallExportSections(__int64 pFileBuffer, unsigned i
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG ComputedOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
         AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -6176,6 +6176,7 @@ char __fastcall ParseWin32kSyscallStubs(__int64 FileBuffer, unsigned int FileSiz
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG SectionOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
         Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);

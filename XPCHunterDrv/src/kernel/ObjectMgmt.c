@@ -2999,6 +2999,7 @@ __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, int ImageSi
     ScanCount = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
         TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -3579,6 +3580,7 @@ __int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int Section
     ScanCount = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         CurrentRva = (int)(EntrySize2 + ContextOffset);
         ContextOffset += EntrySize2;
         TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -3822,6 +3824,7 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
             SectionIndex = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             {
+                *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 ComputedOffset = (int)(SectionFileOffset + AccumulatedOffset);
                 AccumulatedOffset += SectionFileOffset;
                 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);

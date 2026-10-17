@@ -332,6 +332,7 @@ __int64 FindCpuMsrBaseLegacy(int MsrAddress)
             LoopCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)SectionContext, (PULONG)SectionEntryBuffer))
             {
+                *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntryBuffer + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 /* 【重大修正 2026-10-17】原始 0x14002A0A0 的栈帧表明：
                    · `SectionDataPtr`（IDB 命名）落在 **上下文 +0x08 槽** = 上下文的读指针
                    · `SectionEntryOffset` 落在 **描述符 +0xF0** = 本条消耗长度
@@ -416,6 +417,7 @@ __int64 FindCpuMsrBaseWin10(int MsrAddress)
             LoopCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, (PULONG)SectionEntryBuffer))
             {
+                *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntryBuffer + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 /* 同 FindCpuMsrBaseLegacy：描述符 +0xF0 = 本条长度，读指针 += 长度并写回 */
                 SectionEntryOffset = *(unsigned int *)((PUCHAR)SectionEntryBuffer + 0xF0);
                 SectionDataPtr = (__int64)(*(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) + SectionEntryOffset);

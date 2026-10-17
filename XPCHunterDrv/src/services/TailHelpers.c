@@ -2955,14 +2955,16 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     __int64 PeFileBuffer;
     unsigned int PeFileSize;
     unsigned int ExportDirSize;
-    PE_DECODE_CONTEXT PeContext;        /* 【修正 2026-10-16】上下文须 0x48 字节，且 Init 与 Read 同一变量 */
+    PE_DECODE_CONTEXT PeContext;        /* 上下文须 0x48 字节，且 Init 与 Read 同一变量 */
     unsigned int SectionSize;
     __int64 SectionDataPtr;
     unsigned short SectionType;
     unsigned int EntryCount;
     ULONG EntryBuffer[0x80];
-    /* 【修正 2026-10-16】"累计值"即上下文读指针（原始 ctx+0x08），由调用方 += 条目[0xF0] 推进 */
-#define CumulativeSize (PeContext.ReadPtr)
+    /* 【⚠ 修正 2026-10-17】累计量必须是**独立局部**。旧实现用
+       `#define CumulativeSize (PeContext.ReadPtr)` 把它别名到上下文读指针，于是
+       `CumulativeSize = Entry[..]` 会把 64 位内核读指针**截断成 32 位** → 实机 0x7E。 */
+    __int64 CumulativeSize = 0;
 
     TableSize = (unsigned int)GtRead(GtWindowsBuildNumber);
     if (TableSize >= 0x2800)
@@ -2985,9 +2987,9 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     EntryCount = 0;
     while (EntryCount < 0x1E)
     {
-            *(ULONG64 *)((PUCHAR)&PeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             break;
+        PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 读完即推进读指针（64 位） */
         SectionSize = EntryBuffer[0x50 >> 2];
         CumulativeSize = EntryBuffer[0x188 >> 2];
         CumulativeSize += SectionSize;
@@ -3013,6 +3015,7 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
         {
             if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
                 break;
+            PeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 读完即推进读指针（64 位） */
             SectionSize = EntryBuffer[0x50 >> 2];
             CumulativeSize = EntryBuffer[0x188 >> 2];
             CumulativeSize += SectionSize;

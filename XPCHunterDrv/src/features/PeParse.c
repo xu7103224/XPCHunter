@@ -417,9 +417,7 @@ __int64 ParseNtExportFunctions(void)
     unsigned int ImageBase;
     unsigned int ImageSize;
     unsigned int DataDirRva;
-    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>，见 L362/408/660/713）
-                            //   又被取址当解码上下文；不能只改类型，需按"角色拆分"处理
-                            //   （与 ContextMgmt.c 的 PeContext、CumulativeSize 家族同源）
+    PE_DECODE_CONTEXT PeContext;
     char EntryBuffer[448];              // 描述符：原 [80] 仅 80 字节
     __int64 PeFileData;
 
@@ -433,7 +431,7 @@ __int64 ParseNtExportFunctions(void)
     PeFileData = *(__int64 *)(ULONG_PTR)(ImageBase + 0x28);
     if (!PeFileData || (unsigned int)PeFileData >= DataDirRva)
         return Result;
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, 0, -1, 0, 0, (__int64)&PeContext);
     HasDiscardable = 0;
     HasCodeSection = 0;
@@ -480,7 +478,7 @@ __int64 ParseNtExportFunctions(void)
     memset(Dst, 0, sizeof(Dst));
     LoopIndex = 0;
     SavedEntryCount = 0;
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)(ImageSize + Phase1Offset), DataDirRva + ImageSize - (ImageSize + Phase1Offset), 2, 0, -1, 0, 0, (__int64)&PeContext);
     while (LoopIndex < 0x1F4)
     {
@@ -718,9 +716,7 @@ __int64 ParseNtExportFunctionsV2(void)
     unsigned int ImageBase;
     unsigned int DataDirRva;
     unsigned int ImageSize;
-    __int64 PeContext;      // ⚠ 别名变量：既被当整数赋值（PeContext = <int>，见 L362/408/660/713）
-                            //   又被取址当解码上下文；不能只改类型，需按"角色拆分"处理
-                            //   （与 ContextMgmt.c 的 PeContext、CumulativeSize 家族同源）
+    PE_DECODE_CONTEXT PeContext;
     char EntryBuffer[448];              // 描述符：原 [80] 仅 80 字节
     __int64 PeFileData;
 
@@ -734,7 +730,7 @@ __int64 ParseNtExportFunctionsV2(void)
     PeFileData = *(__int64 *)(ULONG_PTR)(ImageBase + 0x28);
     if (!PeFileData || (unsigned int)PeFileData >= ImageSize)
         return Result;
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)(ImageBase + (unsigned int)PeFileData), DataDirRva + ImageSize - (ImageBase + (unsigned int)PeFileData), 2, 0, -1, 0, 0, (__int64)&PeContext);
     HasDiscardable = 0;
     Phase1Offset = 0;
@@ -788,7 +784,7 @@ __int64 ParseNtExportFunctionsV2(void)
         return Result;
     memset(Dst, 0, sizeof(Dst));
     Phase1Count = 0;
-    PeContext = 0;
+    memset(&PeContext, 0, sizeof(PeContext));
     InitPESectionReadContext((__int64)(DataDirRva + Phase1Offset), ImageSize + DataDirRva - (DataDirRva + Phase1Offset), 2, 0, -1, 0, 0, (__int64)&PeContext);
     HasCodeSection = 0;
     HasDiscardable = 0;
@@ -1044,6 +1040,7 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
             SectionIndex = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             {
+                *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 SectionEnd = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
                 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -1249,6 +1246,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     InitPESectionReadContext((__int64)(PeBuffer + ExportOffset), 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         SectionEnd2 = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
         if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 1u)
@@ -1274,6 +1272,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
         LoopIndex2 = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             SectionEnd3 = SectionSize + (int)CumulativeSize;
             CumulativeSize += SectionSize;
             SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -1495,6 +1494,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
     ScanCount = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
         ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -1623,6 +1623,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG ComputedOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
         AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -1736,6 +1737,7 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG ComputedOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
         AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -1906,6 +1908,7 @@ char ParseCallbackFunctionSections(
             ScanCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
             {
+                *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
                 ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
                 __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -2094,6 +2097,7 @@ char ParseCallbackContextSections(
             ScanCount = 0;
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
             {
+                *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
                 ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
                 ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
                 __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -2308,6 +2312,7 @@ char __fastcall ParseNtSectionHeaders2(
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
     {
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
         ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)SectionDataRva;
         SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -2393,6 +2398,7 @@ char __fastcall ParseNtSectionHeaders2(
         // --- Win8+ 路径 ---
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
         {
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
             SectionDataRva += *(ULONG *)((char *)SectionEntry + 0xF0);
             __int16 SectionTypeWin7 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
 
