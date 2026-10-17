@@ -100,6 +100,10 @@ void DbgMark2(ULONG64 A, ULONG64 B)
 }
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
+    /* 【临时】写入本方运行时地址（用全局符号定位，便于无符号求模块基址） */
+    DbgMark((ULONG)((ULONG64)&g_DeviceNameBuffer & 0xFFFFFFFF));
+    DbgMark((ULONG)(((ULONG64)&g_DeviceNameBuffer >> 32) & 0xFFFFFFFF));
+    /* 【临时】写入本方运行时地址，便于无符号求模块基址 */
     ULONG BuildNumber;    // 构建号的**值**（与全局 extern NtBuildNumber 的地址区分）
     NTSTATUS Status;
     PWSTR Buffer;

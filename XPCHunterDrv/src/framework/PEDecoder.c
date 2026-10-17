@@ -225,6 +225,11 @@ __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
 
     while (1)
     {
+        if ((ByteIndex & 0xFFFF) == 0) {   /* 【临时】前缀循环探针 */
+            GtWrite((GLOBAL_TABLE_INDEX)0x4F96, (__int64)ByteIndex);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4F97, (__int64)BufferPos);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4F98, (__int64)CTX_Q(Context, DEC_CTX_BUFFER_END));
+        }
         UCHAR OpcodeByte = *BufferPos;
         TableEntry = DecodeTablePtr + 20 * OpcodeByte;
         TypeField = *(USHORT *)(TableEntry + 4);
