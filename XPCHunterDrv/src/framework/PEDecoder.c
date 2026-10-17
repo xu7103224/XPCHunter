@@ -324,7 +324,15 @@ LABEL_CONTINUE:
             SET_D(SectionInfo, DEC_CTX_STATUS_ACC, 0);
             SET_D(SectionInfo, DEC_CTX_CONSUMED, 1);
             SET_Q(SectionInfo, DEC_CTX_READPTR_PARAM4, ResultBase);
-            SET_Q(SectionInfo, 0x118, DecodeTablePtr + 2880);
+            /* 【⚠ 修正 2026-10-17】原始 0x14008A7B2/7B9 是
+               `lea rax,[r8+0B40h]` 再存 `[rbx+118h]`，而 **r8 = 解码表 + opcode*20**
+               （0x14008A74F-757：`movzx eax,r10b; lea rcx,[rax+rax*4]; lea r8,[r8+rcx*4]`）。
+               旧实现写成 `DecodeTablePtr + 2880`，漏掉 `20*opcode` —— 于是描述符 +0x118
+               指向固定表项，所有节区扫描用 `*(WORD*)(Entry[0x118]+6)` 取到的类型恒为同一值
+               （实机采样恒为 0x50E 一类），`type==0x558 && Entry[0x50]&0x4000000` 永不成立
+               → FindNtOpenThreadTargetWin8 返回 0 → InitAllHookSubsystems 置 Success=0
+               → sc start 错误 31。 */
+            SET_Q(SectionInfo, 0x118, DecodeTablePtr + 20 * (UCHAR)*BufferPos + 2880);
             return 0;
         }
     }
@@ -371,7 +379,15 @@ LABEL_ERROR:
             SET_D(SectionInfo, DEC_CTX_STATUS_ACC, 0);
             SET_D(SectionInfo, DEC_CTX_CONSUMED, 1);
             SET_Q(SectionInfo, DEC_CTX_READPTR_PARAM4, ResultBase);
-            SET_Q(SectionInfo, 0x118, DecodeTablePtr + 2880);
+            /* 【⚠ 修正 2026-10-17】原始 0x14008A7B2/7B9 是
+               `lea rax,[r8+0B40h]` 再存 `[rbx+118h]`，而 **r8 = 解码表 + opcode*20**
+               （0x14008A74F-757：`movzx eax,r10b; lea rcx,[rax+rax*4]; lea r8,[r8+rcx*4]`）。
+               旧实现写成 `DecodeTablePtr + 2880`，漏掉 `20*opcode` —— 于是描述符 +0x118
+               指向固定表项，所有节区扫描用 `*(WORD*)(Entry[0x118]+6)` 取到的类型恒为同一值
+               （实机采样恒为 0x50E 一类），`type==0x558 && Entry[0x50]&0x4000000` 永不成立
+               → FindNtOpenThreadTargetWin8 返回 0 → InitAllHookSubsystems 置 Success=0
+               → sc start 错误 31。 */
+            SET_Q(SectionInfo, 0x118, DecodeTablePtr + 20 * (UCHAR)*BufferPos + 2880);
             return 0;
         }
     }
