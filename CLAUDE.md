@@ -364,3 +364,79 @@ cmd /c "builduild.bat Clean" && cmd /c "buildudit\_sb.bat" > buildudit\_sb.lo
 - `_OWORD` **不可直接强制转换为整数** → 需按 `_QWORD[2]` 逐字访问；
 - `_TBYTE` 不存在；`LOBYTE(x)=y` 不可赋值；`LOWORD` 未定义；
 - `xpc_basic.h` 只有 `#define bool BOOLEAN`，**没有 `false`**（用 `0`）。
+
+---
+
+## 八、双机调试环境（VMware + WDK + KDNET）——2026-10-17 新增
+
+> 逆向工作的正确姿势是 **IDA 静态分析 + 实机动态调试并行**，两者互相印证。
+> 尤其：**原驱动能在同一台 VM 里以 RUNNING 跑起来**，它就是活的 ground truth，
+> 所有"静态推不出来的动态值"（GT 表内容、结构体运行时偏移、回调地址、命令派发）
+> 都应该用 kd 直接读出来，而不是猜。
+
+### 8.1 环境凭据（VM 虚拟机）
+
+| 项 | 值 |
+| --- | --- |
+| VM 名（vms.yaml 键） | `win10dev`（Windows 内主机名 `Win10_Dev`） |
+| Guest 账号 / 密码 | `xuq` / `123` |
+| 账号类型 | 管理员（vmrun 以此身份运行 guest 程序） |
+| KDNET 端口 / key | `50000` / `167.48.115.68` |
+| 配置文件 | `C:\Users\Administrator\AppData\Local\ntdrive\vms.yaml` |
+
+- `vmrun -T ws -gu xuq -gp 123 ...`、`term_open` 都直接用这套凭据；
+- `con_send_keys` 用 `{password}` / `{standard_password}` 占位，凭据不经过参数与日志；
+- **不得把 pfx/pvk/cer/密钥提交到仓库**（.gitignore 已覆盖 `build/sign/*`）。
+
+### 8.2 硬性操作规则（踩过的坑）
+
+**规则 1：不得用 bash 管道把命令喂给 `kd.exe`。**
+曾因此把宿主机锁死两次。一律用 ntdrive 的 `kd_exec` / `kd_sample` / `kd_break` 等工具。
+
+**规则 2：kd 停在断点时 guest 被冻结，任何 vmrun/SSH 操作都会超时。**
+固定流程：`kd_go` 放行 → 用 vmrun 部署/起服务 → 再 `kd_break` 采样/下断。
+（症状：`guest_reachable: false` 且 `guest_frozen: true`。）
+
+**规则 3：KDNET 上易卡死的命令。**
+`~`、`!stacks`、`!analyze -v`、`!process 0 0 <name>`、`lm`、符号重的命令
+（`x`/`u`/`ln`/`kv`/`kn`/`uf`/`.reload /f`）在网络符号路径下容易 wedge；
+先 `.sympath cache*C:\symbols` 设缓存专用路径，再逐条发（不要用分号批量）。
+`dq`/`db`/`u <addr>`/`.writemem`/`!drvobj` 通常可用。
+
+**规则 4：`.writemem` 写在宿主机（kd.exe 所在机器），不是 guest。**
+即 `C:\Users\Public\xxx.bin` 落在宿主机；要用 `cp /c/Users/Public/...` 取进项目。
+未映射的尾部会导致文件不完整，dump 前先 `L` 给足长度并留余量。
+
+**规则 5：原驱动与我方驱动不能同时加载。**
+两者创建设备名相同，后者 `sc start` 报 **183**（文件已存在）。
+换载流程：`sc stop 前者` → `timeout 3` → `sc start 后者`。
+
+**规则 6：旧服务/旧产物会污染验收。**
+`sc start` 若连到上一次的旧构建，结论无效。部署脚本必须：
+先 `sc stop`+`sc delete` 旧名 → 用**新服务名**建 → `sc start`；
+并以产物时间戳 + PE TimeDateStamp 核验跑的是新二进制。
+（另：驱动文件被加载时锁定，`del`/覆盖会失败，须先停服务再删。）
+
+**规则 7：镜像名即模块名，kd 里用 `模块名+偏移` 下断。**
+例如 `bp rtZ10+0x74f38`；首次可能因模块未加载成为 deferred bp，
+需 `sxe ld:<模块名>` 或先加载再设。`!drvobj <服务名> 2` 可拿 DriverEntry/DriverUnload/Dispatch 地址。
+
+### 8.3 活体 ground truth 工作法（本项目已验证有效）
+
+1. **让原驱动 RUNNING** → 它的 GT 全局表就是标准答案。
+   - GT 基址 = 模块基址 + `0xa84f0`（由 `GtWrite` 的 `lea rcx,[rip+...]` 反汇编确认）；
+   - 结构：`GT[0x4158]` 起 `[hash, RVA, VA]` 三元组、**步长 3**、267 组；
+   - 已落盘基准：`build/audit/gt_orig_live.bin`（0x24000 字节）、
+     `gt_orig_live.json`、`gt_orig_triples.json`（267 组 hash+RVA 序列）；
+   - 已知：267 组里有 12 组 RVA=0（原驱动也解析不出的导出，组号
+     24/94/95/96/117/178/179/180/203/223/252/266）—— 我方应复现为 0。
+2. **换载我方驱动** → dump 同一张表 → 逐槽 diff → 得到"哪些函数算的值还不一致"的精确清单。
+3. **差分 oracle（离线）**：`build/audit/oracle_*.py` 用 Unicorn 在同一模拟器、同一输入字节流上
+   分别执行原始与我方的函数，逐字段比对（地址 1:1 对齐原始镜像基址 0x140000000）。
+   比反复上机猜测高效得多，已用它定位并修好解码器 6 处语义错误。
+
+### 8.4 卸载/收尾
+
+- 自定义服务名统一用 `RTZ<n>`；测试完 `sc stop` + `sc delete` 清理；
+- 驱动自卸载若进了 `KeDelayExecutionThread` 轮询循环（见 `DriverUnload`），
+  停止可能有延迟，属原始行为。
