@@ -1847,39 +1847,218 @@ L_NEXT:                                                     // 0x14001F8A2
 }
 
 // InitThreadNotify — 初始化线程通知回调
-// 对应原始驱动 sub_14001F8E4
-// 遍历驱动链表，匹配编码字符串识别各驱动模块
+// 对应原始驱动 sub_14001F8E4（0x677 字节，359 条指令）
+// 【修正 2026-10-17】旧实现是约 30 行的桩函数：只遍历链表、不写任何 GT 槽，
+//   导致 GT 表缺失约 20 个槽（活体 diff 实测：0x8A8/0x8AA/0x8AC/0x8AE/0x8C1/
+//   0x8C4/0x8D0/0x8D3/0x8D6/0x8DA/0x8DD/0x8E0/0x902/0x905/0x917/0x91B 及其 +1）。
+//   按原始逐条重写：遍历驱动链表，按**条目名称字节长度**分派，用局部编码 UTF16 串
+//   比对 LDR_DATA_TABLE_ENTRY[+0x60]，命中则写 [DllBase, SizeOfImage] 索引对。
+//   规格见 build/audit/分析_InitThreadNotify.md。
 __int64 InitThreadNotify(void)
 {
-    ULONG64 DriverObject;
-    __int64 *DriverEntry;
-    __int64 *pEntry;
-    UCHAR Found;
-    ULONG EntryIndex;
+    /* 名字表（名称 → 索引用 `GT[基址]`；+1 槽写 SizeOfImage）。
+       【权威来源】不是从立即数"猜"出来的：把**原驱动跑起来后 dump 的 GT 表**里
+       每个槽的基址，拿去与 kd `lm` 的活体模块列表对照，逐个反查出真实模块名
+       （见 build/audit/分析_InitThreadNotify.md 与 gt_orig_live.bin）。
+       每行括号里是 `len/2`（字符数），与原始的分派长度一一对应。 */
+    static const WCHAR S_Tm[]         = L"Tm.sys";          // 6  chars (0x0C)  -> GT[0x917]
+    static const WCHAR S_afd[]        = L"afd.sys";         // 7  chars (0x0E)  -> GT[0x8D6]
+    static const WCHAR S_disk[]       = L"disk.sys";        // 8  chars (0x10)  -> GT[0x8A8]
+    static const WCHAR S_npfs[]       = L"npfs.sys";        // 8  chars (0x10)  -> GT[0x8D0]
+    static const WCHAR S_msfs[]       = L"msfs.sys";        // 8  chars (0x10)  -> GT[0x8D3]
+    static const WCHAR S_cdrom[]      = L"cdrom.sys";       // 9  chars (0x12)  -> GT[0x8AA]
+    static const WCHAR S_ipsec[]      = L"ipsec.sys";       // 9  chars (0x12)  -> GT[0x8C1]
+    static const WCHAR S_wdfldr[]     = L"wdfldr.sys";      // 10 chars (0x14)  -> GT[0x8AC]
+    static const WCHAR S_usbport[]    = L"usbport.sys";     // 11 chars (0x16)  -> GT[0x8DA]
+    static const WCHAR S_partmgr[]    = L"partmgr.sys";     // 11 chars (0x16)  -> GT[0x8E0]
+    static const WCHAR S_volsnap[]    = L"volsnap.sys";     // 11 chars (0x16)  -> GT[0x905]
+    static const WCHAR S_wdf01000[]   = L"wdf01000.sys";    // 12 chars (0x18)  -> GT[0x8AE]
+    static const WCHAR S_ipfltdrv[]   = L"ipfltdrv.sys";    // 12 chars (0x18)  -> GT[0x8C4]
+    static const WCHAR S_i8042prt[]   = L"i8042prt.sys";    // 12 chars (0x18)  -> GT[0x8DD]
+    static const WCHAR S_win32ksgd[]  = L"win32ksgd.sys";   // 13 chars (0x1A)  -> GT[0x91B]
+    static const WCHAR S_volmgr[]     = L"volmgr.sys";      // 10 chars，构建号 >=0x1770
+    static const WCHAR S_ftdisk[]     = L"ftdisk.sys";      // 10 chars，构建号 <0x1770
+
+    ULONG64 ListHead;
+    ULONG64 Node;
+    ULONG64 EntryHead;
+    ULONG64 NameBuf;
+    ULONG   NameLenBytes;
+    ULONG   NameChars;
+    UCHAR   Found;
 
     Found = 0;
-    DriverObject = GtRead(1);
-    if (!DriverObject)
+
+    ListHead = (ULONG64)GtRead(GtDriverObject);             // 0x14001F91B: GtRead(1)
+    if (!ListHead)
         return 0;
 
-    DriverEntry = *(__int64 **)(DriverObject + 0x28);
-    pEntry = (__int64 *)*DriverEntry;
+    EntryHead = *(ULONG64 *)(ListHead + 0x28);              // 0x14001FB91 表头
+    Node = *(ULONG64 *)EntryHead;                           // 0x14001FB95 首节点
 
-    EntryIndex = 0;
-    while (DriverEntry != pEntry)
+    if (Node == EntryHead)                                  // 0x14001FB9B 空链
+        return Found;
+
+L_THREAD_LOOP:                                              // 0x14001FBA7
+    if (Node <= (ULONG64)MmSystemRangeStart)                // 0x14001FBAE 整函数提前返回
+        return Found;
+
+    if (*(ULONG64 *)(Node + 0x60) == 0                      // 0x14001FBB7
+        || *(ULONG64 *)(Node + 0x50) == 0)                  // 0x14001FBC4
+        goto L_THREAD_NEXT;
+
+    NameBuf      = *(ULONG64 *)(Node + 0x60);
+    NameLenBytes = (ULONG)*(USHORT *)(Node + 0x58);         // 0x14001FBCF
+    NameChars    = NameLenBytes >> 1;
+
+    /* 按名称字节长度分派（原始是 cmp r15w,ax 链）。
+       每个分支内的候选名与该分支的写入索引一一对应，均已用活体 GT 表 + kd `lm` 反查确认。 */
+    switch (NameLenBytes)
     {
-        if ((ULONG64)pEntry <= (ULONG64)MmSystemRangeStart)
-            break;
-        if (!pEntry[12] || !pEntry[10])
-            goto NextEntry;
+        case 0x0C:      // 6 字符
+            if (StringCompare3Way((__int64)S_Tm, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x917, *(ULONG64 *)(Node + 0x30));  // 0x14001FBF5
+                Found = 1; goto L_THREAD_WRITE_SIZE_917;
+            }
+            goto L_THREAD_NEXT;
 
-NextEntry:
-        pEntry = (__int64 *)*pEntry;
-        ++EntryIndex;
-        if (EntryIndex > 0x1000)
-            break;
+        case 0x0E:      // 7 字符
+            if (StringCompare3Way((__int64)S_afd, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8D6, *(ULONG64 *)(Node + 0x30));  // 0x14001FC2D
+                Found = 1; goto L_THREAD_WRITE_SIZE_8D6;
+            }
+            goto L_THREAD_NEXT;
+
+        case 0x10:      // 8 字符
+            if (StringCompare3Way((__int64)S_disk, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8A8, *(ULONG64 *)(Node + 0x30));  // 0x14001FC64
+                Found = 1; goto L_THREAD_WRITE_SIZE_8A8;
+            }
+            if (StringCompare3Way((__int64)S_npfs, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8D0, *(ULONG64 *)(Node + 0x30));  // 0x14001FC95
+                Found = 1; goto L_THREAD_WRITE_SIZE_8D0;
+            }
+            if (StringCompare3Way((__int64)S_msfs, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8D3, *(ULONG64 *)(Node + 0x30));  // 0x14001FCCB
+                Found = 1; goto L_THREAD_WRITE_SIZE_8D3;
+            }
+            goto L_THREAD_NEXT;
+
+        case 0x12:      // 9 字符
+            if (StringCompare3Way((__int64)S_cdrom, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8AA, *(ULONG64 *)(Node + 0x30));  // 0x14001FCFF
+                Found = 1; goto L_THREAD_WRITE_SIZE_8AA;
+            }
+            if (StringCompare3Way((__int64)S_ipsec, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8C1, *(ULONG64 *)(Node + 0x30));  // 0x14001FD34
+                Found = 1; goto L_THREAD_WRITE_SIZE_8C1;
+            }
+            goto L_THREAD_NEXT;
+
+        case 0x14:      // 10 字符
+            if (StringCompare3Way((__int64)S_wdfldr, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8AC, *(ULONG64 *)(Node + 0x30));  // 0x14001FD67
+                Found = 1; goto L_THREAD_WRITE_SIZE_8AC;
+            }
+            /* 版本相关：GT[0x914] < 0x1770 用 ftdisk，否则用 volmgr */
+            if ((ULONG)GtRead(GtWindowsBuildNumber) < 0x1770)
+            {
+                if (StringCompare3Way((__int64)S_ftdisk, (unsigned __int16 *)NameBuf, NameChars) == 0)
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x902, *(ULONG64 *)(Node + 0x30)); // 0x14001FD9D
+                    Found = 1; goto L_THREAD_WRITE_SIZE_902;
+                }
+            }
+            else
+            {
+                if (StringCompare3Way((__int64)S_volmgr, (unsigned __int16 *)NameBuf, NameChars) == 0)
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x902, *(ULONG64 *)(Node + 0x30));
+                    Found = 1; goto L_THREAD_WRITE_SIZE_902;
+                }
+            }
+            goto L_THREAD_NEXT;
+
+        case 0x16:      // 11 字符
+            if (StringCompare3Way((__int64)S_usbport, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8DA, *(ULONG64 *)(Node + 0x30));  // 0x14001FDD4
+                Found = 1; goto L_THREAD_WRITE_SIZE_8DA;
+            }
+            if (StringCompare3Way((__int64)S_partmgr, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8E0, *(ULONG64 *)(Node + 0x30));  // 0x14001FE05
+                Found = 1; goto L_THREAD_WRITE_SIZE_8E0;
+            }
+            if (StringCompare3Way((__int64)S_volsnap, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x905, *(ULONG64 *)(Node + 0x30));  // 0x14001FE3A
+                Found = 1; goto L_THREAD_WRITE_SIZE_905;
+            }
+            goto L_THREAD_NEXT;
+
+        case 0x18:      // 12 字符
+            if (StringCompare3Way((__int64)S_wdf01000, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8AE, *(ULONG64 *)(Node + 0x30));  // 0x14001FE70
+                Found = 1; goto L_THREAD_WRITE_SIZE_8AE;
+            }
+            if (StringCompare3Way((__int64)S_ipfltdrv, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8C4, *(ULONG64 *)(Node + 0x30));  // 0x14001FEA4
+                Found = 1; goto L_THREAD_WRITE_SIZE_8C4;
+            }
+            if (StringCompare3Way((__int64)S_i8042prt, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x8DD, *(ULONG64 *)(Node + 0x30));  // 0x14001FED2
+                Found = 1; goto L_THREAD_WRITE_SIZE_8DD;
+            }
+            goto L_THREAD_NEXT;
+
+        case 0x1A:      // 13 字符
+            if (StringCompare3Way((__int64)S_win32ksgd, (unsigned __int16 *)NameBuf, NameChars) == 0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x91B, *(ULONG64 *)(Node + 0x30));  // 0x14001FF07
+                Found = 1; goto L_THREAD_WRITE_SIZE_91B;
+            }
+            goto L_THREAD_NEXT;
+
+        default:
+            goto L_THREAD_NEXT;
     }
-    return Found;
+
+    /* 大小写入（原始读 [Node+0x40] 作为 dword，零扩展后写入 +1 槽） */
+L_THREAD_WRITE_SIZE_917: GtWrite((GLOBAL_TABLE_INDEX)0x918, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8D6: GtWrite((GLOBAL_TABLE_INDEX)0x8D7, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8A8: GtWrite((GLOBAL_TABLE_INDEX)0x8A9, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8D0: GtWrite((GLOBAL_TABLE_INDEX)0x8D1, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8D3: GtWrite((GLOBAL_TABLE_INDEX)0x8D4, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8AA: GtWrite((GLOBAL_TABLE_INDEX)0x8AB, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8C1: GtWrite((GLOBAL_TABLE_INDEX)0x8C2, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8AC: GtWrite((GLOBAL_TABLE_INDEX)0x8AD, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_902: GtWrite((GLOBAL_TABLE_INDEX)0x903, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8DA: GtWrite((GLOBAL_TABLE_INDEX)0x8DB, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8E0: GtWrite((GLOBAL_TABLE_INDEX)0x8E1, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_905: GtWrite((GLOBAL_TABLE_INDEX)0x906, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8AE: GtWrite((GLOBAL_TABLE_INDEX)0x8AF, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8C4: GtWrite((GLOBAL_TABLE_INDEX)0x8C5, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_8DD: GtWrite((GLOBAL_TABLE_INDEX)0x8DE, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+L_THREAD_WRITE_SIZE_91B: GtWrite((GLOBAL_TABLE_INDEX)0x91C, *(ULONG *)(Node + 0x40)); goto L_THREAD_NEXT;
+
+L_THREAD_NEXT:                                              // 0x14001FF1C
+    Node = *(ULONG64 *)Node;                                // 0x14001FF1C
+    if (Node != EntryHead)                                  // 0x14001FF1F
+        goto L_THREAD_LOOP;
+
+    return Found;                                           // 0x14001FF28
 }
 
 // GetWin7Sp1EprocessOffset — 获取 Win7 SP1 EPROCESS 偏移量

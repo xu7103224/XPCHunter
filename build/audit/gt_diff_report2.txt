@@ -1,0 +1,91 @@
+nt=FFFFF8010DA00000  orig_img=FFFFF8010CAD0000  mine_img=FFFFF8010D010000
+
+=== A. 仅原驱动有、我方完全缺失的槽：65 个 ===
+  0x4F    nt:56FA80       (raw FFFFF8010DF6FA80)
+  0x62    val:FFFFB400E7475050 (raw FFFFB400E7475050)
+  0x63    nt:625AE0       (raw FFFFF8010E025AE0)
+  0x16E   nt:6B8140       (raw FFFFF8010E0B8140)
+  0x16F   nt:5B6E60       (raw FFFFF8010DFB6E60)
+  0x171   nt:5D06C0       (raw FFFFF8010DFD06C0)
+  0x172   nt:621D30       (raw FFFFF8010E021D30)
+  0x173   nt:61FEB0       (raw FFFFF8010E01FEB0)
+  0x174   nt:5C57B0       (raw FFFFF8010DFC57B0)
+  0x175   nt:5B85D0       (raw FFFFF8010DFB85D0)
+  0x176   nt:5B9AB0       (raw FFFFF8010DFB9AB0)
+  0x177   nt:5B5650       (raw FFFFF8010DFB5650)
+  0x179   nt:56F3B0       (raw FFFFF8010DF6F3B0)
+  0x17A   nt:5C83B0       (raw FFFFF8010DFC83B0)
+  0x17B   nt:5D0B10       (raw FFFFF8010DFD0B10)
+  0x17C   nt:5C87C0       (raw FFFFF8010DFC87C0)
+  0x17D   nt:61FAA0       (raw FFFFF8010E01FAA0)
+  0x17E   nt:5C5F50       (raw FFFFF8010DFC5F50)
+  0x17F   nt:5B8890       (raw FFFFF8010DFB8890)
+  0x180   nt:5B9F3C       (raw FFFFF8010DFB9F3C)
+  0x184   nt:6204D0       (raw FFFFF8010E0204D0)
+  0x18B   val:5900         (raw 5900)
+  0x18C   val:5980         (raw 5980)
+  0x18D   val:D8           (raw D8)
+  0x18E   val:98           (raw 98)
+  0x197   nt:620A80       (raw FFFFF8010E020A80)
+  0x198   nt:828F14       (raw FFFFF8010E228F14)
+  0x1A4   val:14056F3B0    (raw 14056F3B0)
+  0x290   nt:6E3420       (raw FFFFF8010E0E3420)
+  0x291   nt:822680       (raw FFFFF8010E222680)
+  0x292   nt:822300       (raw FFFFF8010E222300)
+  0x2B6   val:2AB10        (raw 2AB10)
+  0x2B7   nt:2AB10        (raw FFFFF8010DA2AB10)
+  0x2CA   nt:570CC0       (raw FFFFF8010DF70CC0)
+  0x2D3   nt:56F468       (raw FFFFF8010DF6F468)
+  0x2D5   val:1            (raw 1)
+  0x2D8   val:FFFFF80112A70000 (raw FFFFF80112A70000)
+  0x2D9   val:14000        (raw 14000)
+  0x317   val:FFFFF80112AA0000 (raw FFFFF80112AA0000)
+  0x318   val:13000        (raw 13000)
+  0x332   val:6E6E90       (raw 6E6E90)
+  0x333   nt:6E6E90       (raw FFFFF8010E0E6E90)
+  0x334   val:693ED0       (raw 693ED0)
+  0x335   nt:693ED0       (raw FFFFF8010E093ED0)
+  0x337   nt:9AB890       (raw FFFFF8010E3AB890)
+  0x348   val:763310       (raw 763310)
+  0x349   nt:763310       (raw FFFFF8010E163310)
+  0x34E   nt:4215E0       (raw FFFFF8010DE215E0)
+  0x802   val:FFFFF801124C0000 (raw FFFFF801124C0000)
+  0x803   val:10000        (raw 10000)
+  0x817   nt:56F6F8       (raw FFFFF8010DF6F6F8)
+  0x818   nt:56F8E0       (raw FFFFF8010DF6F8E0)
+  0x875   val:56F384       (raw 56F384)
+  0x876   nt:56F384       (raw FFFFF8010DF6F384)
+  0x8EC   val:693FB0       (raw 693FB0)
+  0x8ED   nt:693FB0       (raw FFFFF8010E093FB0)
+  0x8EE   val:6E6EB0       (raw 6E6EB0)
+  0x8EF   nt:6E6EB0       (raw FFFFF8010E0E6EB0)
+  0x909   val:61D7E0       (raw 61D7E0)
+  0x90A   nt:61D7E0       (raw FFFFF8010E01D7E0)
+  0x912   val:1            (raw 1)
+  0x416E  val:587880       (raw 587880)
+  0x416F  nt:587880       (raw FFFFF8010DF87880)
+  0x4474  val:5F5FD0       (raw 5F5FD0)
+  0x4475  nt:5F5FD0       (raw FFFFF8010DFF5FD0)
+
+=== B. 仅我方有：1 个 ===
+  0x181   val:5900        
+
+=== C. 同槽语义值不同（已剔除"本映像代码指针"的正常差异）：18 个 ===
+  0x1     orig=val:FFFF9D0F26F02E30 mine=val:FFFF9D0F26289E30
+  0x20    orig=val:FFFFB400EA000000 mine=val:FFFFB400EC200000
+  0x22    orig=val:FFFFB400EA000108 mine=val:FFFFB400EC200108
+  0x24    orig=val:FFFFB400EA000210 mine=val:FFFFB400EC200210
+  0x44    orig=val:FFFFF8010A267A80 mine=val:FFFF89015E91AA80
+  0x46    orig=val:FFFFF8010A267B00 mine=val:FFFF89015E91AB00
+  0x4C    orig=val:FFFFB400EAC00000 mine=val:FFFFB400ECE00000
+  0x4D    orig=val:FFFFB400EAC00108 mine=val:FFFFB400ECE00108
+  0x4E    orig=val:FFFFB400EAC00210 mine=val:FFFFB400ECE00210
+  0x170   orig=nt:5C7DC0       mine=val:98          
+  0x178   orig=nt:822930       mine=val:5980        
+  0x183   orig=nt:5B6EA0       mine=val:D8          
+  0x1E0   orig=val:5E00158      mine=val:56697974    
+  0x1E1   orig=val:CF           mine=val:12          
+  0x81B   orig=val:3B           mine=val:88          
+  0x81D   orig=val:1D           mine=val:4           
+  0x81E   orig=val:1E           mine=val:80          
+  0x8EB   orig=val:FFFFB400E6CA2910 mine=val:FFFFB400EA3C0890
