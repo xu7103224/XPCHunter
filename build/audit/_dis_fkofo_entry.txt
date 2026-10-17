@@ -1,0 +1,21 @@
+14001546c  458d7507             lea r14d, [r13 + 7]
+140015470  2bc6                 sub eax, esi
+140015472  4403f0               add r14d, eax
+140015475  4489742444           mov dword ptr [rsp + 0x44], r14d
+14001547a  0f8463050000         je 0x1400159e3
+140015480  453bf4               cmp r14d, r12d
+140015483  0f835a050000         jae 0x1400159e3
+140015489  4d8d7d07             lea r15, [r13 + 7]
+14001548d  41803f48             cmp byte ptr [r15], 0x48
+140015491  0f85bf030000         jne 0x140015856
+140015497  41807d0889           cmp byte ptr [r13 + 8], 0x89
+14001549c  0f85b4030000         jne 0x140015856
+1400154a2  41807d0a08           cmp byte ptr [r13 + 0xa], 8
+1400154a7  0f85a9030000         jne 0x140015856
+1400154ad  4584c0               test r8b, r8b
+1400154b0  0f85ce000000         jne 0x140015584
+1400154b6  8b542458             mov edx, dword ptr [rsp + 0x58]
+1400154ba  33ff                 xor edi, edi
+1400154bc  488d45a0             lea rax, [rbp - 0x60]
+1400154c0  4889442438           mov qword ptr [rsp + 0x38], rax
+1400154c5  48217c2430           and qword ptr [rsp + 0x30], rdi

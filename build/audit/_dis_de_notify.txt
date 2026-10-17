@@ -1,0 +1,14 @@
+140010e90  2470                 and al, 0x70
+140010e92  4833cc               xor rcx, rsp
+140010e95  e816ba0700           call 0x14008c8b0
+140010e9a  488b9c24a0000000     mov rbx, qword ptr [rsp + 0xa0]
+140010ea2  4881c480000000       add rsp, 0x80
+140010ea9  5f                   pop rdi
+140010eaa  c3                   ret 
+140010eab  cc                   int3 
+140010eac  4c8bdc               mov r11, rsp
+140010eaf  49895b20             mov qword ptr [r11 + 0x20], rbx
+140010eb3  55                   push rbp
+140010eb4  56                   push rsi
+140010eb5  57                   push rdi
+140010eb6  4883ec50             sub rsp, 0x50

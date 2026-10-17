@@ -1615,8 +1615,14 @@ __int64 InitProcessNotify(void)
     static const WCHAR S_win32kfull[]= L"win32kfull.sys";
     static const WCHAR S_fastfat[]   = L"fastfat.sys";
     static const WCHAR S_ataport[]   = L"ataport.sys";
-    static const WCHAR S_kbdc[]      = L"kbdc.sys";
-    static const WCHAR S_mouc[]      = L"mouc.sys";
+    /* 【修正 2026-10-17】原名写错，导致该分支永不命中（活体 GT diff 实测
+       0x2D8/0x2D9/0x317/0x318 缺失）：
+         S_kbdc 原为 L"kbdc.sys"（8 字符）却按 12 字符比较 → 越读字面量、永不相等；
+                 真实模块是 kbdclass.sys（kd lm 实测 GT[0x2D8]=kbdclass 基址）
+         S_mouc 原为 L"mouc.sys"，真实为 mouclass.sys（GT[0x317]=mouclass）
+       名字以「活体 GT 表里该槽的基址 → kd `lm` 模块名」反查得到，不是猜的。 */
+    static const WCHAR S_kbdclass[]  = L"kbdclass.sys";
+    static const WCHAR S_mouclass[]  = L"mouclass.sys";
     static const WCHAR S_nsiproxy[]  = L"nsiproxy.sys";
     static const WCHAR S_classpnp[]  = L"classpnp.sys";
     static const WCHAR S_storport[]  = L"storport.sys";
@@ -1717,14 +1723,14 @@ L_LOOP:                                                     // 0x14001F3A3
 
     if (Type == 0x18)                                       // 0x14001F518
     {
-        if (StringCompare3Way((__int64)S_kbdc, (unsigned __int16 *)*(ULONG64 *)(Node + 0x60), 12) == 0)      // 0x14001F52D
+        if (StringCompare3Way((__int64)S_kbdclass, (unsigned __int16 *)*(ULONG64 *)(Node + 0x60), 12) == 0)      // 0x14001F52D
         {
             GtWrite(GtCallbackField13, *(ULONG64 *)(Node + 0x30));              // 0x2D8
             GtWrite(GtCallbackField14, *(ULONG *)(Node + 0x40));                // 0x2D9
             Found = 1;
             goto L_NEXT;
         }
-        if (StringCompare3Way((__int64)S_mouc, (unsigned __int16 *)*(ULONG64 *)(Node + 0x60), Len) == 0)     // 0x14001F567
+        if (StringCompare3Way((__int64)S_mouclass, (unsigned __int16 *)*(ULONG64 *)(Node + 0x60), Len) == 0)     // 0x14001F567
         {
             GtWrite(GtCallbackField70, *(ULONG64 *)(Node + 0x30));              // 0x317
             GtWrite(GtCallbackField71, *(ULONG *)(Node + 0x40));                // 0x318

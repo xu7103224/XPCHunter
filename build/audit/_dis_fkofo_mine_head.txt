@@ -1,0 +1,68 @@
+00031110 push rbp
+00031112 push rsi
+00031113 push r12
+00031115 lea rbp, [rsp - 0x1d0]
+0003111d sub rsp, 0x2d0
+00031124 mov rax, qword ptr [rip + 0x6eed5]
+0003112b xor rax, rsp
+0003112e mov qword ptr [rbp + 0x1b0], rax
+00031135 mov ecx, 0x20
+0003113a call 0x14001f1c0
+0003113f mov ecx, 0x21
+00031144 mov r12, rax
+00031147 call 0x14001f1c0
+0003114c mov ecx, 3
+00031151 mov qword ptr [rsp + 0x48], rax
+00031156 mov rsi, rax
+00031159 call 0x14001f1c0
+0003115e mov ecx, 0x8cc
+00031163 mov qword ptr [rsp + 0x60], rax
+00031168 mov r10, rax
+0003116b call 0x14001f1c0
+00031170 mov ecx, 0x900
+00031175 mov qword ptr [rsp + 0x78], rax
+0003117a mov r8, rax
+0003117d call 0x14001f1c0
+00031182 mov ecx, 0x8cd
+00031187 mov qword ptr [rbp - 0x80], rax
+0003118b mov r9, rax
+0003118e call 0x14001f1c0
+00031193 mov ecx, 0x4459
+00031198 mov qword ptr [rsp + 0x68], rax
+0003119d mov rdx, rax
+000311a0 call 0x14001f1c0
+000311a5 mov qword ptr [rbp - 0x78], rax
+000311a9 test r12, r12
+000311ac je 0x140031866
+000311b2 test esi, esi
+000311b4 je 0x140031866
+000311ba test r10, r10
+000311bd je 0x140031866
+000311c3 test r8d, r8d
+000311c6 je 0x140031866
+000311cc test r9d, r9d
+000311cf je 0x140031866
+000311d5 test edx, edx
+000311d7 je 0x140031866
+000311dd test eax, eax
+000311df je 0x140031866
+000311e5 mov qword ptr [rsp + 0x2f8], rdi
+000311ed lea r8, [rbp + 0x1a0]
+000311f4 mov edx, esi
+000311f6 mov qword ptr [rsp + 0x2c8], r14
+000311fe mov rcx, r12
+00031201 mov dword ptr [rbp + 0x1a0], 0x50002e
+0003120b mov dword ptr [rbp + 0x1a4], 0x470041
+00031215 mov dword ptr [rbp + 0x1a8], 0x45
+0003121f call 0x140056af0
+00031224 lea r8, [rbp + 0x1a0]
+0003122b mov qword ptr [rsp + 0x58], rax
+00031230 mov edx, esi
+00031232 mov rcx, r12
+00031235 call 0x140056bb0
+0003123a mov r9, qword ptr [rsp + 0x58]
+0003123f lea rdi, [r9 + r12]
+00031243 mov qword ptr [rsp + 0x50], rdi
+00031248 test rax, rax
+0003124b jne 0x140031252
+0003124d mov eax, esi

@@ -1,0 +1,22 @@
+14001569a  448b742444           mov r14d, dword ptr [rsp + 0x44]
+14001569f  b932030000           mov ecx, 0x332
+1400156a4  418bd6               mov edx, r14d
+1400156a7  e848490100           call 0x140029ff4
+1400156ac  488b742450           mov rsi, qword ptr [rsp + 0x50]
+1400156b1  b933030000           mov ecx, 0x333
+1400156b6  498d1436             lea rdx, [r14 + rsi]
+1400156ba  e835490100           call 0x140029ff4
+1400156bf  8bd7                 mov edx, edi
+1400156c1  b9ee080000           mov ecx, 0x8ee
+1400156c6  8bdf                 mov ebx, edi
+1400156c8  e827490100           call 0x140029ff4
+1400156cd  488d1433             lea rdx, [rbx + rsi]
+1400156d1  b9ef080000           mov ecx, 0x8ef
+1400156d6  e819490100           call 0x140029ff4
+1400156db  ba01000000           mov edx, 1
+1400156e0  448ac2               mov r8b, dl
+1400156e3  88542442             mov byte ptr [rsp + 0x42], dl
+1400156e7  e98efeffff           jmp 0x14001557a
+1400156ec  b847050000           mov eax, 0x547
+1400156f1  663bc1               cmp ax, cx
+1400156f4  7527                 jne 0x14001571d
