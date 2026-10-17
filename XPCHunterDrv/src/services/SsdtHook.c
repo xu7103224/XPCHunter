@@ -4462,26 +4462,43 @@ __int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 
         InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (unsigned int LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)result)
                 break;
-            int MatchSize = (int)(SectionSize + CumulativeSize);
-            CumulativeSize += SectionSize;
+
+            /* 【修正 2026-10-17】原 0x14001C95C..0x14001C9AD：
+                 eax = Entry[0xF0]（本条消费长度）
+                 rcx = ctx.ReadPtr，随后 **ctx.ReadPtr += eax**（读完即推进）
+                 type = *(WORD*)(Entry[0x118] + 6)
+               旧实现把 EntryFlags/FieldValue/SectionSize 声明为**从不赋值的普通局部**
+               （恒 0）→ 0x558 分支永不成立 → TargetOffset 恒 0 →
+               0x545 分支因 `TargetOffset==0` 直接返回，GT[0x2B6]/[0x2B7] 永不写入
+               （活体 diff 实测该两槽缺失）。现按原始逐条取值。 */
+            ReadContext.ReadPtr += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
             __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (SubType == 1349)
+            if (SubType == 0x545)                                     /* 0x14001C97C */
+                break;                                                /* → 跳到写块 */
+            if (SubType == 0x558                                        /* 0x14001C986 */
+                && (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000000) != 0
+                && *(unsigned int *)((PUCHAR)SectionEntry + 0x38) != 0)
             {
-                if ((_DWORD)TargetOffset && (unsigned int)TargetOffset < ImageSize)
-                {
-                    GtWrite(GtKernelDataField36, TargetOffset);
-                    return GtWrite(GtKernelDataField37, TargetOffset + BaseAddress);
-                }
-                return result;
+                /* ebx = Entry[0x38] - ImageBase + ctx.ReadPtr（原始用推进后的 ReadPtr） */
+                TargetOffset = (__int64)((unsigned int)(*(unsigned int *)((PUCHAR)SectionEntry + 0x38)
+                                        - (unsigned int)ImageBase
+                                        + (unsigned int)ReadContext.ReadPtr));
             }
-            if (SubType == 1368 && (FieldValue & 0x4000000) != 0)
+        }
+
+        /* 写块 0x14001C9B8：仅当 type==0x545 跳出且 TargetOffset 合法时写 0x2B6/0x2B7。
+           原始写完后**不 return**，直接落到函数尾（对调用方等价，但更贴合原序）。 */
+        {
+            __int16 LastSubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+            if (LastSubType == 0x545 && (unsigned int)TargetOffset != 0
+                && (unsigned int)TargetOffset < ImageSize)
             {
-                if (EntryFlags)
-                    TargetOffset = MatchSize + EntryFlags - (unsigned int)ImageBase;
+                GtWrite(GtUninstallHookResultOffset, TargetOffset);
+                GtWrite(GtUninstallHookResultAddr, TargetOffset + BaseAddress);
             }
         }
     }
