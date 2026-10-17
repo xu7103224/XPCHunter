@@ -4830,39 +4830,47 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
     _DWORD SectionEntry[72];
-    char FieldValue = 0;
-    int EntryFlags = 0;
-    unsigned int FieldFlags = 0;
-    __int64 FieldValue2 = 0;
-    unsigned int SectionSize = 0;
-    __int64 SectionDataPtr = 0;
-
+    /* 【修正 2026-10-17】下列"字段"在原始里就是描述符 SectionEntry 的偏移：
+         FieldValue  -> +0x50   FieldFlags -> +0x78
+         FieldValue2 -> +0x88   EntryFlags -> +0x58（原 `cmp [rsp+0xE8],0`）
+         SectionSize -> +0xF0（本条消费长度）
+       旧移植把它们另立为 `= 0` 的独立局部且**从不赋值** → MSVC/LTCG 折叠掉条件，
+       0x510 分支恒不成立 → GT[0x875]/[0x876] 永不写入（活体 diff 实测缺失）。 */
     result = GtRead(GtTotalSize | GtPathBuffer04 | 0x400);
     if ((_DWORD)result && (unsigned int)result < ImageSize)
     {
         InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)result)
                 break;
-            int MatchSize = (int)(SectionSize + CumulativeSize);
-            CumulativeSize += SectionSize;
-            __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (SubType == 1349)
-                break;
-            if (SubType == 1296 && (FieldValue & 0x20) != 0 && !EntryFlags && (FieldValue2 & 0x40000) != 0)
+
+            /* 原始 0x14001D799..0x14001D7B0：先取本条长度并**推进读指针**，再判类型 */
             {
-                if (FieldFlags)
+                unsigned int Consumed = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+                CumulativeSize += Consumed;
+                ReadContext.ReadPtr += Consumed;
+            }
+
+            __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+            if (SubType == 0x545)                                   /* 0x14001D7BE */
+                break;
+            if (SubType == 0x510                                      /* 0x14001D7C3 */
+                && (*(unsigned char *)((PUCHAR)SectionEntry + 0x50) & 0x20) != 0
+                && *(unsigned int *)((PUCHAR)SectionEntry + 0x58) == 0
+                && (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) & 0x40000) != 0)
+            {
+                /* 0x14001D7EF：eax = Entry[0x78]（FieldFlags）
+                   0x14001D7FA..0x14001D802：v = eax - ImageBase + ctx.ReadPtr；
+                   若 v == 0 或 v >= ImageSize 则跳到下一轮 */
+                unsigned int v = (unsigned int)(*(unsigned int *)((PUCHAR)SectionEntry + 0x78)
+                                                - (unsigned int)ImageBase
+                                                + (unsigned int)ReadContext.ReadPtr);
+                if (v && v < ImageSize)
                 {
-                    result = MatchSize + FieldFlags - (unsigned int)ImageBase;
-                    if ((_DWORD)result && (unsigned int)result < ImageSize)
-                    {
-                        unsigned int TargetOffset = (unsigned int)result;
-                        GtWrite(GtEprocessModuleListOffset | GtPsExitSpecialApcAddr, (unsigned int)result);
-                        return GtWrite(GtEprocessModuleListOffset | GtExFreeCallBackAddr, TargetOffset + BaseAddress);
-                    }
+                    GtWrite(GtEprocessModuleListOffset | GtPsExitSpecialApcAddr, v);        /* 0x875 */
+                    return GtWrite(GtEprocessModuleListOffset | GtExFreeCallBackAddr, v + BaseAddress); /* 0x876 */
                 }
             }
         }

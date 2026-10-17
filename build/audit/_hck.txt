@@ -1,0 +1,7 @@
+14001d708  48895c2418           mov qword ptr [rsp + 0x18], rbx
+14001d70d  55                   push rbp
+14001d70e  56                   push rsi
+14001d70f  57                   push rdi
+14001d710  4881ecc0010000       sub rsp, 0x1c0
+14001d717  488b056a690800       mov rax, qword ptr [rip + 0x8696a]
+14001d71e  4833c4               xor rax, rsp
