@@ -4806,6 +4806,7 @@ __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
 }
 __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FA0, 1000);   /* 【临时】NtCreateKey 入口 */
     __int64 result;
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
     __int64 CumulativeSize = 0;
@@ -4821,12 +4822,16 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
     if ((_DWORD)result && (unsigned int)result < ImageSize)
     {
         InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FA2, 1000);   /* 【临时】Init 之后 */
         for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
         {
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FA3, 1000 + LoopIndex);   /* 【临时】循环轮次 */
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FA5, (__int64)*(unsigned char *)(*(ULONG64 *)((PUCHAR)&ReadContext + 0x08)));   /* 【临时】当前字节 */
             *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if ((_DWORD)result)
                 break;
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FA4, (__int64)(int)result);   /* 【临时】ReadPESectionEntry 返回 */
             int MatchSize = (int)(SectionSize + CumulativeSize);
             CumulativeSize += SectionSize;
             __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -4848,9 +4853,11 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
         }
     }
     return result;
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FA6, 1000);   /* 【临时】NtCreateKey 出口 */
 }
 __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB0, 2000);   /* 【临时】NtDeleteKey 入口 */
     __int64 MatchOffset = 0;
     char FoundFlag = 0;
     __int64 result;
@@ -4876,11 +4883,16 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
         if (EndAddress > (unsigned __int64)(SectionBase + 4096))
             SectionEnd = (int)(SectionBase + 4096);
         InitPESectionReadContext(SectionBase, (ULONG)(SectionEnd - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB2, 2000);   /* 【临时】Init 之后 */
         while (1)
         {
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FB3, (__int64)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));   /* 【临时】读指针 */
             result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
             if ((_DWORD)result)
                 break;
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FB4, 2000 + (__int64)(int)result);   /* 【临时】解码返回 */
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FB5, (__int64)*(unsigned int *)((PUCHAR)SectionEntry + 0xF0));   /* 【临时】本条长度 */
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FB6, (__int64)*(unsigned short *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6));   /* 【临时】类型 */
             /* 【重大修正 2026-10-17】原始 0x14001D850 循环里有 `mov [rsp+var_190], rcx`，其中
                var_190 = 上下文 +0x08（IDA 误命名为 CumulativeSize2）——即**把 ReadPtr + 本条长度
                写回上下文读指针**，循环靠它推进。旧移植把 CumulativeSize2 当作独立局部，读指针
