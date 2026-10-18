@@ -701,53 +701,52 @@ __int64 MiniFilterPostWrite(void)
     ULONG KernelSize = (ULONG)GtRead(GtEprocessField23);
     __int64 NtImageBase = GtRead(GtNtoskrnlModuleBase);
     __int64 SectionOffset = (int)ScanFileForPeSectionInfo();
-    ULONG ExistingPostWriteOffset1 = (ULONG)GtRead(17299 | 2);
-    __int64 result = GtRead(16765);
+    ULONG ExistingPostWriteOffset1 = (ULONG)GtRead(0x439F);
+    __int64 result = GtRead(0x41C5);
     ULONG ExistingPostWriteOffset2 = (ULONG)result;
 
     if (!KernelBase || !KernelSize || !NtImageBase || (int)SectionOffset <= 0 ||
         (ULONG)SectionOffset >= KernelSize || !ExistingPostWriteOffset1 || !result) return result;
 
     __int64 PeHeaderDataDir = *(_QWORD *)(*(int *)(KernelBase + 60) + KernelBase + 48);
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
-    ULONG FieldValue, SectionSize;
-    __int64 EntryFlags, SectionCharacteristics, SectionDataPtr;
-    ULONG SubType;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
     __int64 SavedSectionOffset = 0;
 
     InitPESectionReadContext(SectionOffset + KernelBase, (ULONG)(KernelSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
     for (ULONG i = 0; i < 0x100; i++)
     {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
-        /* 【重大修正 2026-10-17】下列字段都是**描述符内的槽**，旧移植把它们另立为独立局部
-           且从不赋值 → 编译器把 `*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6)` 折叠成绝对地址 [6]
-           → 实机加载 0x7E。类型指针偏移 0x118 已由多个原始函数交叉确认。
-           （其余字段偏移尚待按原始逐函数核对，见待办「MSR/PostWrite 字段偏移」） */
-        SectionDataPtr = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
-        EntryFlags     = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
-        FieldValue     = *(ULONG *)((PUCHAR)SectionEntry + 0x78);
-        SubType        = *(ULONG *)((PUCHAR)SectionEntry + 0x40);
-        SectionSize    = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
-        SectionCharacteristics = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
-        int CalculatedSize = SectionSize + (int)CumulativeSize;
-        CumulativeSize += SectionSize;
 
-        if (*(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368 && (EntryFlags & 0x4000000) != 0 && (result = FieldValue) != 0)
+        /* 原始 0x140014E11..E2D：先取 Entry[0xF0] 累加到读指针，再取类型 */
+        ULONG SectionSize = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += SectionSize;
+
+        short SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x558 &&                              /* 0x140014E1D */
+            (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000000) != 0 &&   /* [rsp+0xe0] */
+            *(ULONG *)((PUCHAR)SectionEntry + 0x38) != 0)         /* [rsp+0xc8] */
         {
-            result = CalculatedSize + FieldValue - (ULONG)KernelBase;
-            if (((ULONG)result == ExistingPostWriteOffset1 || (ULONG)result == ExistingPostWriteOffset2) &&
+            ULONG Candidate = *(ULONG *)((PUCHAR)SectionEntry + 0x38)
+                            - (ULONG)KernelBase
+                            + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);   /* [rsp+0x48] */
+            if ((Candidate == ExistingPostWriteOffset1 || Candidate == ExistingPostWriteOffset2) &&
                 SavedSectionOffset && (ULONG)SavedSectionOffset < KernelSize)
             {
-                GtWrite((GLOBAL_TABLE_INDEX)0x424, SavedSectionOffset + PeHeaderDataDir);
-                return GtWrite((GLOBAL_TABLE_INDEX)0x41E, SavedSectionOffset + NtImageBase);
+                /* 原始 0x140014E67..E7E：写 GT[0x1A4]=Saved+DataDir、GT[0x179]=Saved+NtImageBase */
+                GtWrite((GLOBAL_TABLE_INDEX)0x1A4, SavedSectionOffset + PeHeaderDataDir);
+                return GtWrite((GLOBAL_TABLE_INDEX)0x179, SavedSectionOffset + NtImageBase);
             }
         }
-        else if (SectionCharacteristics == 0x40000 && SubType)
-            SavedSectionOffset = CalculatedSize + SubType - (ULONG)KernelBase;
+        else if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&   /* [rsp+0x118] */
+                 *(ULONG *)((PUCHAR)SectionEntry + 0x78) != 0)             /* [rsp+0x108] */
+        {
+            SavedSectionOffset = *(ULONG *)((PUCHAR)SectionEntry + 0x78)
+                               - (ULONG)KernelBase
+                               + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
+        }
     }
     return result;
 }
