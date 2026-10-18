@@ -4268,74 +4268,84 @@ __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64
 {
     __int64 result;
     unsigned int SectionOffset = 0;
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
-    unsigned int EntryFlags = 0;
-    unsigned int FieldFlags = 0;
-    __int64 FieldValue = 0;
-    unsigned int SectionSize = 0;
-    __int64 SectionDataPtr = 0;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
+    /* 【修正 2026-10-19】同族缺陷：EntryFlags/FieldValue/FieldFlags/SectionSize 旧为
+       `= 0` 且从不赋值 → 两轮判据恒假 → GT[0x817]/[0x818] 永不写入。
+       逐条对照 0x14001CC4C 修正字段绑定：
+         第一轮：GT 入口 0x42D9；+0xF0 推进；类型指针 +0x118（`[rbp+0xa8]`）取 [+6]；
+                 判 +0x558（0x14001CCF0 `edx=0x558`）；命中取 +0x38（`[rbp-0x38]`）
+                 → SectionOffset = 读指针 + (+0x38 - ImageBase)
+         第二轮：类型 0x510 或 0x4D7；+0x50 == 0x40000；+0x10（`[rbp+8]`）非 0
+                 → TargetOffset = +0x10 - ImageBase + 读指针
+                 → 第 1 次命中写 GT[0x817]、第 2 次写 GT[0x818]=BaseAddress+TargetOffset */
+    __int64 EntryFlags;
+    __int64 FieldValue;
+    unsigned int FieldFlags;
+    unsigned int SectionSize;
 
-    result = GtRead(GtDisableHookProtectionPeOffset);
-    SectionOffset = (unsigned int)result;
+    result = GtRead((GLOBAL_TABLE_INDEX)0x42D9);
     if ((_DWORD)result && (unsigned int)result < ImageSize)
     {
         InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
-            if ((_DWORD)result)
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
-            int MatchSize = (int)(SectionSize + CumulativeSize);
-            CumulativeSize += SectionSize;
-            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368)
+
+            /* 原始 0x14001CCE5..CCFF：先取 Entry[0xF0] 累加到读指针，再取类型 */
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
+            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x558)
             {
-                if (EntryFlags)
+                FieldValue = *(unsigned int *)((PUCHAR)SectionEntry + 0x38);
+                if (FieldValue)
                 {
-                    result = EntryFlags - (unsigned int)ImageBase;
-                    SectionOffset = MatchSize + (unsigned int)result;
+                    SectionOffset = (unsigned int)(FieldValue - (unsigned int)ImageBase
+                                   + (unsigned int)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));
                     break;
                 }
             }
         }
         if (SectionOffset && SectionOffset < ImageSize)
         {
-            CumulativeSize = 0;
             InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
             int MatchCount = 0;
             for (unsigned int i = 0; i < 0x64; ++i)
             {
-                result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
-                if ((_DWORD)result)
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                     break;
-                int MatchSize2 = (int)(SectionSize + CumulativeSize);
-                CumulativeSize += SectionSize;
+
+                *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
                 __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-                if (SubType != 1296 && SubType != 1239)
+                if (SubType != 0x510 && SubType != 0x4D7)
                     continue;
-                if (FieldValue == 0x40000 && FieldFlags)
+
+                if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40000)
+                    continue;
+
+                FieldFlags = *(unsigned int *)((PUCHAR)SectionEntry + 0x10);
+                if (!FieldFlags)
+                    continue;
+
+                unsigned int TargetOffset = (unsigned int)(FieldFlags - (unsigned int)ImageBase
+                                             + (unsigned int)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));
+                if (!TargetOffset || TargetOffset >= ImageSize)
+                    continue;
+
+                if (++MatchCount == 1)
                 {
-                    result = MatchSize2 + FieldFlags - (unsigned int)ImageBase;
-                    if ((_DWORD)result && (unsigned int)result < ImageSize)
-                    {
-                        ++MatchCount;
-                        __int64 ResultAddress = BaseAddress + (unsigned int)result;
-                        if (MatchCount == 1)
-                        {
-                            result = GtWrite(GtDisableHookProtectionAddr1, ResultAddress);
-                        }
-                        else if (MatchCount == 2)
-                        {
-                            return GtWrite(GtDisableHookProtectionAddr2, ResultAddress);
-                        }
-                    }
+                    GtWrite(GtDisableHookProtectionAddr1, BaseAddress + TargetOffset);
+                }
+                else if (MatchCount == 2)
+                {
+                    return GtWrite(GtDisableHookProtectionAddr2, BaseAddress + TargetOffset);
                 }
             }
         }
     }
-    return result;
+    return 0;
 }
 __int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
