@@ -462,16 +462,19 @@ SET_DEFAULT_TYPE:
 // ============================================================
 // CalcPESectionFieldSize — 计算 PE 节区字段大小
 // 对应原始驱动 sub_14008A844
-// 根据数据类型(1=32位,2=64位)返回对应的字段大小
+// 【修正 2026-10-18】原始 0x14008A84B 是 `mov ecx,[rax+8]`，读的是
+//   **描述符 +0x08（ADDR_SIZE）**，不是 +0x24（操作数大小）。
+//   旧实现读 +0x24（init=3）→ 恒走 `else` 的 2 字节分支。
+// 根据地址大小(1=32位,2=64位,其他=16位)返回对应的字段大小
 // ============================================================
 __int64 CalcPESectionFieldSize(PUCHAR Context)
 {
-    INT OperandSize = CTX_D(Context, DEC_CTX_OPERAND_SIZE);
+    INT AddrSize = CTX_D(Context, DEC_CTX_ADDR_SIZE);
     ULONG64 Result;
 
-    if (OperandSize == 1)
+    if (AddrSize == 1)
         Result = 4;
-    else if (OperandSize == 2)
+    else if (AddrSize == 2)
         Result = 8;
     else
         Result = 2;
@@ -487,11 +490,12 @@ __int64 CalcPESectionFieldSize(PUCHAR Context)
 // ============================================================
 // CalcPESectionFieldSizeAlt — 计算 PE 节区字段大小(备选)
 // 对应原始驱动 sub_14008A9E8
-// 根据数据类型非零/零返回 4 或 2 字节字段大小
+// 【修正 2026-10-18】原始 0x14008A9EC 是 `mov edx,[rax+8]`（ADDR_SIZE），
+//   非零 → 4，零 → 2。旧实现读 +0x24（操作数大小）。
 // ============================================================
 __int64 CalcPESectionFieldSizeAlt(PUCHAR Context)
 {
-    ULONG64 Result = CTX_D(Context, DEC_CTX_OPERAND_SIZE) != 0 ? 4 : 2;
+    ULONG64 Result = CTX_D(Context, DEC_CTX_ADDR_SIZE) != 0 ? 4 : 2;
 
     if (CTX_Q(Context, CTXARR_READ_PTR) + (INT)Result >
         CTX_Q(Context, CTXARR_END_PTR))
@@ -537,10 +541,11 @@ __int64 ReadPESectionField(PUCHAR Context)
         SET_Q(OperandOut, 0x08, (ULONG64)*(ULONG *)BufferBase);
         return 4;
     }
-    /* 原始 64 位分支仍只读 4 字节，但按 8 字节记录 */
+    /* 原始 64 位分支（addr_size==2）：0x14008A8B1 `movsxd rcx,dword [rax]`
+       —— **符号扩展** 32→64（旧实现写成零扩展），并按 8 字节记录 */
     CTX_Q(OperandOut, 0x20) |= 0x2000000;
     SET_D(OperandOut, 0x18, 8);
-    SET_Q(OperandOut, 0x08, (ULONG64)*(ULONG *)BufferBase);
+    SET_Q(OperandOut, 0x08, (ULONG64)(LONG64)*(INT *)BufferBase);
     return 4;
 }
 
@@ -1749,17 +1754,26 @@ __int64 DecodeReadWordImmediate(PUCHAR *Context)
 // ============================================================
 // DecodeReadSizeDependentImmediate — 解码读取大小相关的立即数
 // 对应原始驱动 sub_14008C0F8
-// 根据操作数大小(1=32位,2=64位,其他=16位)读取立即数
+// 【修正 2026-10-18】选择依据是**描述符 +0x08（ADDR_SIZE）**，不是 +0x24（OPERAND_SIZE）。
+//   原始 0x14008C100 是 `mov eax,[r9+8]`（r9 = Context[4] = 描述符），
+//   随后 `cmp eax,1` → 4 字节分支；`cmp eax,2` → 8 字节；否则 2 字节。
+//   旧实现读 +0x24（操作数大小，init=3）→ 在本机恒走 16 位分支，
+//   于是 `B8 41 00 00 00`（mov eax,0x41）只吃掉 3 字节（B8 41 00），
+//   描述符 op1 标志置 0x200000 而非 0x800000 → FindKernelPESectionByType
+//   的 `(Entry[0x88] & 0x800000)` 判据不成立 → 返回默认值 0x1000000 →
+//   FindSyscallNumbers 的 stride 与扫描锚点全错 → GT[0x62] 永不写入。
+// 【逆向来源】0x14008C0F8–0x14008C18A 逐条对照。
+// 根据地址大小(1=32位,2=64位,其他=16位)读取立即数
 // ============================================================
 __int64 DecodeReadSizeDependentImmediate(PUCHAR *Context)
 {
     PUCHAR OperandOut = (PUCHAR)Context[3];
     PUCHAR DecodeCtx = (PUCHAR)Context[4];
-    INT OperandSize = CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE);
+    INT AddrSize = CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE);
     ULONG64 Value;
     ULONG FieldSize;
 
-    if (OperandSize == 1)
+    if (AddrSize == 1)
     {
         // 32 位模式
         if (Context[0] + 3 >= Context[1])
@@ -1769,7 +1783,7 @@ __int64 DecodeReadSizeDependentImmediate(PUCHAR *Context)
         Value = (ULONG64)*(ULONG *)Context[0];
         CTX_Q(OperandOut, 0x20) |= 0x800000;
     }
-    else if (OperandSize == 2)
+    else if (AddrSize == 2)
     {
         // 64 位模式
         if (Context[0] + 7 >= Context[1])
