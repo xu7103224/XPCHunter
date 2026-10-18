@@ -394,6 +394,9 @@ __int64 MiniFilterNotifyRoutine(wchar_t *Name, ULONG NameLength)
 
 // MiniFilterPreCreate — 预处理创建
 // 对应原始驱动 sub_140014078
+// 【注意】0x140014078 在 IDA 中被命名为 MiniFilterPreCreate，但它**无参数**、
+//   实际是 PE 节区扫描器，已作为 FindKernelDataSectionForImageNotify 在下方实现
+//   （见「命名说明」）。本函数是真正的 FLT 回调占位，保持桩实现。
 NTSTATUS MiniFilterPreCreate(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext)
 {
     return STATUS_SUCCESS;

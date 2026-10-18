@@ -1433,71 +1433,74 @@ __int64 FindPeExecutableSection(void)
 
     return result;
 }
+// ScanFileForPeSectionInfo — 扫描 ntoskrnl 文件缓冲定位数据节偏移
+// 对应原始驱动 sub_140015128（425 字节）
+// 【修正 2026-10-19】旧实现含多处致命缺陷：
+//   1) 入参 GT 索引错：应为 0x20/0x21/**3**/0x177（原始 0x14001515B/166/171/17C），
+//      旧代码用 4 与 0x177 混用；
+//   2) InitPESectionReadContext 调用**参数错位**（旧代码把 SizeDiff 放在第 1 参、
+//      KernelBase 放第 2 参，且漏传上下文指针）→ ReadContext 从未初始化 → 实机挂起；
+//   3) 描述符字段偏移全错（旧用 +0x60/+0x1A0/+0xE8/+0xF0/+0x120/+0xD0/+0x128）——
+//      描述符只有 0x120 字节，+0x1A0 越界；
+//   4) 返回值语义错：原始把结果放 **esi 并返回**（`mov esi,eax` @0x1400152A1），
+//      **不写任何 GT 槽**；旧代码 GtWrite(0x194) 使 MiniFilterPostWrite 拿不到输入。
+//   逐条对照 0x140015128–0x1400152D0 重写：
+//     类型指针 = 描述符 +0x118（0x14001522B `[rbp+0xa8]`），类型 = [rax+6]（0x140015237）
+//     +0x50（`[rbp-0x20]`）、+0x58（`[rbp-0x18]`）、+0x88（`[rbp+0x18]`）、
+//     +0x90（`[rbp+0x20]`）、+0x38（`[rbp-0x38]`）
+//     候选 = +0x38 - NtImageBase(低32) + 读指针；>0 且 < KernelSize 时取为结果，首见即返回。
 __int64 ScanFileForPeSectionInfo(void)
 {
-    __int64 KernelBase = GtRead(0x20);
-    unsigned int KernelSize = (unsigned int)GtRead(0x21);
-    __int64 NtImageBase = GtRead(4);
-    __int64 NtImageSize = GtRead(0x177);
-    int Result = -1;
+    __int64 KernelBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    unsigned int KernelSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x21);
+    __int64 NtImageBase = GtRead((GLOBAL_TABLE_INDEX)3);
+    __int64 SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x177);
+    __int64 Result = -1;
 
-    if (!KernelBase || !KernelSize || !NtImageBase || !NtImageSize)
-        return Result;
+    if (!KernelBase || !KernelSize || !NtImageBase || !SectionAddr) return Result;
+    if (SectionAddr <= NtImageBase) return Result;
+    unsigned int Offset = (unsigned int)(SectionAddr - NtImageBase);
+    if (Offset >= KernelSize) return Result;
+    if (SectionAddr != (__int64)Offset + NtImageBase) return Result;
 
-    if (NtImageSize <= NtImageBase)
-        return Result;
-
-    unsigned int SizeDiff = (unsigned int)(NtImageSize - NtImageBase);
-    if (SizeDiff >= KernelSize)
-        return Result;
-
-    if (NtImageBase + SizeDiff != NtImageSize)
-        return Result;
-
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    // ReadPESectionEntry 只填充前 0x120 字节，但本函数会访问到 +0x1A0 处，
-    // 故缓冲须大于 0x120（原声明 [72] 恰为 0x120，会越界读到相邻栈变量）
+    PE_DECODE_CONTEXT ReadContext;
     _DWORD SectionEntry[112];
-    __int64 CumulativeSize = 0;
     char FoundMatch = 0;
 
-    InitPESectionReadContext(
-        NtImageBase + SizeDiff,
-        (ULONG)KernelBase,
-        (INT)(SizeDiff + KernelSize - (unsigned int)NtImageBase),
-        2, 0, -1, 0, 0);
+    InitPESectionReadContext(NtImageBase + Offset, (ULONG)(KernelSize - Offset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x100; SectionIndex++)
     {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
             break;
 
-        // Read section fields from SectionEntry
-        unsigned int SectionSize = *(unsigned int *)((char *)SectionEntry + 0x60);
-        CumulativeSize += SectionSize;
-        WORD SectionFlags = *(WORD *)((char *)SectionEntry + 0x1A0 + 6);
+        /* 原始 0x14001521D..232：先取 Entry[0xF0] 累加到读指针，再取类型 */
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
-        if (SectionFlags == 0x4D7 && *(ULONG64 *)((char *)SectionEntry + 0xE8) == 0x20 &&
-            *(_DWORD *)((char *)SectionEntry + 0xF0) == 2 &&
-            *(ULONG64 *)((char *)SectionEntry + 0x120) == 0x20 &&
-            *(_DWORD *)((char *)SectionEntry + 0x128) == 2)
+        short SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x4D7 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x20 &&
+            *(ULONG *)((PUCHAR)SectionEntry + 0x58) == 2 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x20 &&
+            *(ULONG *)((PUCHAR)SectionEntry + 0x90) == 2)
         {
             FoundMatch = 1;
         }
-        else if (FoundMatch == 1 && SectionFlags == 0x558 &&
-                 (*(ULONG64 *)((char *)SectionEntry + 0xE8) & 0x4000000) != 0)
+        else if (FoundMatch == 1 &&
+                 SectionType == 0x558 &&
+                 (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000000) != 0)
         {
-            unsigned int FieldValue = *(unsigned int *)((char *)SectionEntry + 0xD0);
+            ULONG FieldValue = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
             if (FieldValue)
             {
-                Result = FieldValue - (unsigned int)KernelBase + (int)CumulativeSize;
-                if (Result > 0 && (unsigned int)Result < KernelSize)
+                Result = FieldValue - (ULONG)NtImageBase
+                       + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
+                if ((int)Result > 0 && (ULONG)Result < KernelSize)
                     return Result;
             }
         }
     }
-
     return Result;
 }
 char BuildDevicePathFromObjects(unsigned __int16 *pPath, WORD *pDriveLetter, int *pOffset)

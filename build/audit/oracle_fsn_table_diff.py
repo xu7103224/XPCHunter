@@ -23,8 +23,8 @@ NT = os.path.join(HERE, 'ntoskrnl_guest.exe')
 CFG = {
     'ORIG': dict(drv=ORIG, fsn=0x140052FDC, gtread=0x140029EFC, gtwrite=0x140029FF4,
                  exalloc=0x140077A00),
-    'MINE': dict(drv=MINE, fsn=0x14002EEB0, gtread=0x14001F220, gtwrite=0x14001F230,
-                 exalloc=0x14002DE70),
+    'MINE': dict(drv=MINE, fsn=0x14002EA70, gtread=0x14001EE00, gtwrite=0x14001EE10,
+                 exalloc=0x14002DA30),
 }
 SERVICE_COUNT = 0x1D0
 
