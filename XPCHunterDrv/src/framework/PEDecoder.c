@@ -1901,9 +1901,14 @@ __int64 DecodeOpcodeWithPrefix(PUCHAR *Context)
         SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewModeFlags | 0x300);
 
     // REX 前缀处理
-    if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
+    /* 【修正 2026-10-18】原始 0x14008BD77 `mov eax,[r8+0x20]` + `test al,0x40`
+       —— 读的是 **描述符 +0x20（状态标志）**，不是 +0x08（地址大小）；
+       0x14008BD7F `mov ecx,[r8+0x2c]` —— 读的是 **+0x2C（类型 5 的取值）**，
+       不是 +0x24（操作数大小）。旧实现两处都读错，
+       REX 分支的条件与取值全偏。 */
+    if ((CTX_D(DecodeCtx, DEC_CTX_STATE_FLAGS) & 0x40) != 0)
     {
-        OperandSize = CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE);
+        OperandSize = CTX_D(DecodeCtx, DEC_CTX_TYPE5_VALUE);
         CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) |= ((OperandSize >> 2) & 1) << 7;
 
         NewModeFlags = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS);
@@ -1959,9 +1964,11 @@ __int64 DecodeOpcodeWithPrefixEx(PUCHAR *Context)
     if ((CTX_D(Context[2], 4) & 0x2000000) != 0)
         SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewModeFlags | 0x300);
 
-    if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
+    /* 【修正 2026-10-18】原始 0x14008BE92/0x14008BE9A 读 [r8+0x20]（状态标志）与
+       [r8+0x2c]（类型 5 取值），非 +0x08/+0x24。同上。 */
+    if ((CTX_D(DecodeCtx, DEC_CTX_STATE_FLAGS) & 0x40) != 0)
     {
-        OperandSize = CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE);
+        OperandSize = CTX_D(DecodeCtx, DEC_CTX_TYPE5_VALUE);
         CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) |= ((OperandSize >> 2) & 1) << 7;
 
         NewModeFlags = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS);
@@ -1988,42 +1995,65 @@ __int64 DecodeOpcodeWithPrefixEx(PUCHAR *Context)
 // DecodeModrmByte — 解码ModRM字节
 // 对应原始驱动 sub_14008C3FC
 // 解析ModRM字节设置寻址模式/寄存器/rm域标志，处理RIP相对寻址
+// 【修正 2026-10-18】旧实现整体语义不符（逐条对照 0x14008C3FC 重写）：
+//   1) 组合结果写入 **描述符 +0xDC（ModRM 字节）**，不是 +0xD8（前缀标志）；
+//      `mov [r8+0xdc], r11d`（0x14008C448）—— +0xDC 是被读-改-写的累加槽；
+//   2) 保留位取 **+0xDC** 的高 22 位（0x14008C429），不是 +0xD8；
+//   3) REX 扩展的开关是 **+0x20（状态标志）& 0x40**（0x14008C43B/44F），
+//      不是 +0x08（地址大小）；
+//   4) REX 扩展的取值来自 **+0x2C（类型 5 取值）**（0x14008C466/47A），
+//      不是 +0x24；
+//   5) RIP 相对位移写入 **+0xE0**、长度写 **+0xF4**（0x14008C4B7/C8），
+//      旧实现写反到 +0xF4/+0xF8；
+//   6) 返回值为 5（读到位移）/1（仅 ModRM）/-1（越界）。
 // ============================================================
 __int64 DecodeModrmByte(ULONG64 BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx)
 {
     UCHAR ModrmByte;
-    ULONG NewFlags;
+    ULONG Composed;
+    LONG Result = 1;
 
     if (BufferPos >= BufferEnd)
         return (ULONG64)-1;
 
     ModrmByte = *(PUCHAR)BufferPos;
-    NewFlags = (ModrmByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xFFFFFC00)
-             | (2 * (ModrmByte & 0x38 | (2 * (ModrmByte & 0xC0))));
-    SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewFlags);
 
-    // REX 扩展
-    if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
+    /* 组合 ModRM：低 3 位 | 2×(0x38 位) | 4×(0xC0 位) | 保留 +0xDC 高 22 位 */
+    Composed = (ModrmByte & 7)
+             | (2 * ((ModrmByte & 0x38) | (2 * (ModrmByte & 0xC0))))
+             | (CTX_D(DecodeCtx, DEC_CTX_MODRM_BYTE) & 0xFFFFFC00);
+    SET_D(DecodeCtx, DEC_CTX_MODRM_BYTE, Composed);
+
+    /* REX 扩展：开关是状态标志 +0x20 的 0x40 位，取值是类型 5 取值 +0x2C */
+    if ((CTX_D(DecodeCtx, DEC_CTX_STATE_FLAGS) & 0x40) != 0)
     {
-        if ((NewFlags & 0xF) != 5 || (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) != 0)
-            CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) = NewFlags | (8 * (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) & 1));
-        CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) |= ((CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) >> 1) & 1) << 7;
+        if ((Composed & 0xF) != 5 ||
+            (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) == 0)
+        {
+            SET_D(DecodeCtx, DEC_CTX_MODRM_BYTE,
+                  ((CTX_D(DecodeCtx, DEC_CTX_TYPE5_VALUE) & 1) << 3) | Composed);
+        }
+        CTX_D(DecodeCtx, DEC_CTX_MODRM_BYTE) |=
+            ((((CTX_D(DecodeCtx, DEC_CTX_TYPE5_VALUE) >> 1) & 1) << 3) << 4);
     }
 
-    // RIP 相对寻址 (mod=00, rm=101 in 64-bit mode)
-    if ((CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF) == 5 &&
+    /* RIP 相对寻址 (mod=00, rm=101 in 64-bit mode) */
+    if ((CTX_D(DecodeCtx, DEC_CTX_MODRM_BYTE) & 0xF) == 5 &&
         (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) == 0)
     {
         if (BufferPos + 4 < BufferEnd)
         {
-            CTX_D(DecodeCtx, 0xF4) = *(LONG *)(BufferPos + 1);  // 4 字节位移
-            SET_D(DecodeCtx, 0xF8, 4);  // 位移大小
-            return 5;
+            SET_D(DecodeCtx, DEC_CTX_IMM_FLAG, 4);
+            CTX_D(DecodeCtx, DEC_CTX_IMM_VALUE) = *(LONG *)(BufferPos + 1);
+            Result = 5;
         }
-        return (ULONG64)-1;
+        else
+        {
+            return (ULONG64)-1;
+        }
     }
 
-    return 1;
+    return (ULONG64)Result;
 }
 
 // ============================================================
@@ -2079,7 +2109,9 @@ __int64 DecodeImmediateOperandValue(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR 
     if (pSize)
         *pSize = 0;
 
-    if (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) == 0)
+    /* 【修正 2026-10-18】原始 0x14008C5E0 是 `cmp dword ptr [r8+4], ecx`
+       （r8 = 描述符），读的是 **+0x04（模式副本）**，不是 +0x24（操作数大小）。 */
+    if (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) == 0)
     {
         // 操作数大小16位
         if (RegField)
@@ -2191,7 +2223,9 @@ __int64 DecodeImmediateOperandSize(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR D
     if (pSize)
         *pSize = 0;
 
-    if (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) == 0)
+    /* 【修正 2026-10-18】原始 0x14008C728 是 `cmp dword ptr [r8+4], ecx`
+       （r8 = 描述符），读的是 **+0x04（模式副本）**，不是 +0x24（操作数大小）。 */
+    if (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) == 0)
     {
         // 操作数大小16位
         if (RegField)
@@ -2351,6 +2385,11 @@ __int64 InitDataTypeByIndex(
 // ============================================================
 // SetupDecodedInstructionState — 设置解码指令状态
 // 对应原始驱动 sub_14008C7C4
+// 【修正 2026-10-18】两处选择依据均为**描述符 +0x04（模式副本）**，不是 +0x24：
+//   原始 0x14008C7EB `cmp dword ptr [rdx+4], 1`（选 32/64 位大小标志）
+//   原始 0x14008C832 `cmp dword ptr [rdx+4], 1`（选 +0x10 写入宽度）
+//   旧实现读 +0x24（操作数大小，init=3）→ 恒不等 1 → 大小标志恒 64、
+//   +0x10 恒按 64 位写。与原始语义不符。
 // 根据ModRM解码结果设置操作数的类型标志和寄存器编号
 // ============================================================
 __int64 SetupDecodedInstructionState(
@@ -2363,7 +2402,7 @@ __int64 SetupDecodedInstructionState(
     ULONG AddrSizeField = (ModeFlags >> 8) & 3;
     ULONG64 SizeFlag = 64;
 
-    if (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) == 1)
+    if (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) == 1)
         SizeFlag = 32;
 
     if (RegField != 4)
@@ -2382,7 +2421,7 @@ __int64 SetupDecodedInstructionState(
         SET_D(OperandOut, 0x28, RmField);
         CTX_Q(OperandOut, 0x20) |= SizeFlag | 1;
     }
-    else if (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) == 1)
+    else if (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) == 1)
     {
         CTX_Q(OperandOut, 0x20) |= 0x10000;
         SET_D(OperandOut, 0x10, CTX_D(DecodeCtx, 0xE0));
@@ -2621,7 +2660,9 @@ __int64 DecodeModrmInstruction(PULONG64 ContextArray)
     }
 
     // 非 ModRM 标志位处理
-    if (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) == 0)
+    /* 【修正 2026-10-18】原始 0x14008B88A 是 `cmp dword ptr [rdi+4], 0`
+       （rdi = 描述符），读的是 **+0x04（模式副本）**，不是 +0x24（操作数大小）。 */
+    if (CTX_D(DecodeCtx, DEC_CTX_MODE_DUP) == 0)
     {
         // 16 位操作数大小
         if (AddrField == 0)
