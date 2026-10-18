@@ -1922,8 +1922,14 @@ char ResolveSyscallNumberTable(void)
     unsigned int AdjustPrivAddr = 0;
     unsigned int AllocVirAddr = 0;
 
+    /* 【修正 2026-10-17】第二个导出名旧稿写作 "NtLocalAllocVirtualMemory"（不是真实导出）
+       → LookupExportByName 恒失败 → 本函数每次都提前 return 0 → **GT[0x62]（系统调用表
+       指针）永不写入**；而 ResolveSyscallToAddress 依赖 GT[0x62] → GT[0x16E..0x180]
+       整簇（InitImageNotify 的三元组解析结果）恒为 0。
+       原始反汇编 0x140052C91 立即数 0x6C41744E 起为 "NtAl"+"locateVi"+"rtualMemory"，
+       即 "NtAllocateVirtualMemory"。 */
     char Name1[] = "NtAdjustPrivilegesToken";
-    char Name2[] = "NtLocalAllocVirtualMemory";
+    char Name2[] = "NtAllocateVirtualMemory";
 
     if (LookupExportByName((PUCHAR)KernelImageBase, (ULONG)KernelImageSize, Name1, &AdjustPrivAddr) != 1)
         return 0;
