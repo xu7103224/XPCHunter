@@ -405,12 +405,18 @@ NTSTATUS MiniFilterPreCreate(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltO
 // FindKernelDataSectionForImageNotify2 — 后处理创建
 // 对应原始驱动 sub_1400142A8
 // 遍历 PE 节表定位 PostCreate 相关的数据节偏移
+// 【修正 2026-10-19】旧实现读的 `SectionName`/`SectionFlags2`/`RawSize`/`Characteristics`
+//   全是**声明后从不赋值**的局部（初值 0），`*(WORD *)(SectionName + 6)` 被折叠成
+//   绝对地址 `[6]` → 实机 DriverEntry 直接 0x50 PAGE_FAULT。
+//   逐条对照 0x1400142A8 重写：类型指针取描述符 +0x118（原始 0x1400143B0
+//   `mov rax,[rsp+0x1a8]`），类型 = `[rax+6]`；其余字段 +0x50/+0x58/+0x38
+//   （原始 0x1400143CB `[rsp+0xe0]`、0x1400143D6 `[rsp+0x120]`、0x14001443A `[rsp+0xc8]`）。
 ULONG64 FindKernelDataSectionForImageNotify2(void)
 {
     __int64 PeBase = GtRead(GtEprocessField22);
     ULONG PeSize = (ULONG)GtRead(GtEprocessField23);
     ULONG64 NtImageBase = GtRead(GtNtoskrnlModuleBase);
-    ULONG64 result = GtRead(0x4160);
+    ULONG64 result = GtRead((GLOBAL_TABLE_INDEX)0x172);
     ULONG64 SectionAddr = result;
 
     if (!PeBase || !PeSize || !NtImageBase || result <= NtImageBase) return result;
@@ -419,48 +425,49 @@ ULONG64 FindKernelDataSectionForImageNotify2(void)
     if (SectionOffset >= PeSize) return result;
     if (SectionAddr != SectionOffset + NtImageBase) return result;
 
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
-    __int64 VirtualSize = 0;
-    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
-    ULONG DataSectionSize;
-    __int64 SectionFlags2;
-    ULONG SubType;
-    int Characteristics;
-    ULONG RawSize;
-    __int64 SectionName;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionInfo[112];
+    char FoundPostCreate = 0;
+    ULONG InitSectionIndex = 0, PageSectionIndex = 0, MatchCount = 0;
 
     InitPESectionReadContext(PeBase + SectionOffset, PeSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
-    ULONG InitSectionIndex = 0, PageSectionIndex = 0, SectionCount = 0;
-    char FoundPostCreate = 0;
 
     for (ULONG i = 0; i < 0x200; i++)
     {
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionInfo)) break;
 
-        int SectionSize = RawSize + (int)VirtualSize;
-        VirtualSize += RawSize;
-        short SectionFlags = *(WORD *)(SectionName + 6);
+        /* 原始 0x1400143B0..B8：先取 Entry[0xF0] 累加到读指针，再取类型 */
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += SectionInfo[0x3C];   /* +0xF0 */
 
-        if (SectionFlags == 1298 && SectionFlags2 == 64 && Characteristics == 4)
+        short SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
+
+        if (SectionType == 0x512)
         {
-            switch (SubType)
+            if (*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) == 0x40 &&      /* +0x50 == 64 */
+                *(ULONG *)((PUCHAR)SectionInfo + 0x90) == 4)             /* +0x90 == 4  */
             {
-            case 2: InitSectionIndex = i; break;
-            case 9: PageSectionIndex = i; break;
-            case 1:
-                if ((InitSectionIndex && InitSectionIndex + 1 == i) ||
-                    (PageSectionIndex && PageSectionIndex + 3 == i))
-                    FoundPostCreate = 1;
-                break;
+                ULONG SubType = *(ULONG *)((PUCHAR)SectionInfo + 0x58);  /* +0x58 */
+                if (SubType == 2) InitSectionIndex = i;
+                else if (SubType == 9) PageSectionIndex = i;
+                else if (SubType == 1)
+                {
+                    if ((InitSectionIndex && InitSectionIndex + 1 == i) ||
+                        (PageSectionIndex && PageSectionIndex + 3 == i))
+                        FoundPostCreate = 1;
+                }
             }
         }
-        else if (FoundPostCreate == 1 && SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0)
+        else if (FoundPostCreate == 1 &&
+                 SectionType == 0x558 &&
+                 (*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) & 0x4000000) != 0)
         {
-            if (DataSectionSize && ++SectionCount == 2)
+            ULONG DataSectionSize = *(ULONG *)((PUCHAR)SectionInfo + 0x38);   /* +0x38 */
+            if (DataSectionSize && ++MatchCount == 2)
             {
-                result = SectionSize + DataSectionSize - (ULONG)PeBase;
+                result = (ULONG)(DataSectionSize - (ULONG)PeBase
+                                 + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));
                 if ((ULONG)result && (ULONG)result < PeSize)
-                    return GtWrite((GLOBAL_TABLE_INDEX)0x41C, NtImageBase + (ULONG)result);
+                    return GtWrite((GLOBAL_TABLE_INDEX)0x17C, NtImageBase + (ULONG)result);
                 return result;
             }
         }
@@ -474,52 +481,67 @@ ULONG64 FindKernelDataSectionForImageNotify2(void)
 // FindKernelDataSectionForImageNotify3 — 预读取
 // 对应原始驱动 sub_1400144A8
 // 遍历 PE 节表查找 PreRead 相关节
+// 【修正 2026-10-19】同族缺陷：旧实现读的 `SectionName`/`SectionFlags2`/`RawSize`/
+//   `FieldValue`/`SectionDataPtr` 均为**从不赋值**的局部 → `[SectionName+6]` 折叠为 `[6]`
+//   → 0x50 崩溃。逐条对照 0x1400144A8 重写：
+//     类型指针 +0x118（0x1400145DC `[rsp+0x1a8]`），类型 = [rax+6]（0x1400145E9）
+//     +0x38（0x1400145F7 `[rsp+0xd0]`）、+0x50（0x140014601 `[rsp+0xe0]`==0x40000）
+//     +0x70（0x14001460F `[rsp+0x100]`==0）、末支 +0x50&0x4000000、+0x38（0x140014685 `[rsp+0xc8]`）
+//   新偏移 = +0x38（当轮） - PeBase + 读指针，且 < PeSize 时写 GT[0x17C]（0x14001462F `ecx=0x17c`）。
 ULONG64 FindKernelDataSectionForImageNotify3(void)
 {
     __int64 PeBase = GtRead(GtEprocessField22);
     ULONG PeSize = (ULONG)GtRead(GtEprocessField23);
     ULONG64 NtImageBase = GtRead(GtNtoskrnlModuleBase);
-    ULONG SectionIdx1 = (ULONG)GtRead(17299 | 2);
-    ULONG SectionIdx2 = (ULONG)GtRead(16765);
-    ULONG SectionIdx3 = (ULONG)GtRead(16778);
-    ULONG64 result = GtRead(0x4160);
+    ULONG SectionIdx1 = (ULONG)GtRead(0x439F);
+    ULONG SectionIdx2 = (ULONG)GtRead(0x41C5);
+    ULONG SectionIdx3 = (ULONG)GtRead(0x4444);
+    ULONG64 result = GtRead((GLOBAL_TABLE_INDEX)0x172);
     ULONG64 SectionAddr = result;
 
-    if (!PeBase || !PeSize || !NtImageBase || !SectionIdx1 || !SectionIdx2 || result <= NtImageBase) return result;
+    if (!PeBase || !PeSize || !NtImageBase || !SectionIdx1 || !SectionIdx2 ||
+        !SectionIdx3 || result <= NtImageBase) return result;
     if ((ULONG)(result - NtImageBase) >= PeSize) return result;
     ULONG SectionOffset = (ULONG)(result - NtImageBase);
-    result += NtImageBase;
-    if (SectionAddr != result) return result;
+    if (SectionAddr != (ULONG64)SectionOffset + NtImageBase) return result;
 
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
-    __int64 VirtualSize = 0;
-    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
-    ULONG DataSectionSize, RawSize;
-    int FieldValue;
-    __int64 SectionFlags2, SectionDataPtr, SectionName;
-
-    InitPESectionReadContext(SectionOffset + PeBase, PeSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionInfo[112];
     ULONG TargetSection = 0;
+
+    InitPESectionReadContext(PeBase + SectionOffset, PeSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
     for (ULONG i = 0; i < 0x200; i++)
     {
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionInfo)) break;
-        int SectionSize = RawSize + (int)VirtualSize;
-        VirtualSize += RawSize;
-        short SectionFlags = *(WORD *)(SectionName + 6);
 
-        if (SectionFlags == 1072 && FieldValue && SectionFlags2 == 0x40000 && !SectionDataPtr)
+        /* 原始 0x1400145CD..E4：先取 Entry[0xF0] 累加到读指针，再取类型 */
+        ULONG RawSize = *(ULONG *)((PUCHAR)SectionInfo + 0xF0);
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += RawSize;
+
+        short SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
+
+        if (SectionType == 0x430 &&
+            *(ULONG *)((PUCHAR)SectionInfo + 0x38) != 0 &&
+            *(ULONG64 *)((PUCHAR)SectionInfo + 0x50) == 0x40000 &&
+            *(ULONG64 *)((PUCHAR)SectionInfo + 0x70) == 0)
         {
-            if (TargetSection && SectionIdx1 != TargetSection && SectionIdx2 != TargetSection && SectionIdx3 != TargetSection)
-                return GtWrite((GLOBAL_TABLE_INDEX)0x41C, NtImageBase + TargetSection);
+            if (TargetSection &&
+                SectionIdx1 != TargetSection &&
+                SectionIdx2 != TargetSection &&
+                SectionIdx3 != TargetSection)
+                return GtWrite((GLOBAL_TABLE_INDEX)0x17C, NtImageBase + TargetSection);
         }
-        else if (SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0)
+        else if (SectionType == 0x558 &&
+                 (*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) & 0x4000000) != 0)
         {
+            ULONG DataSectionSize = *(ULONG *)((PUCHAR)SectionInfo + 0x38);
             if (DataSectionSize)
             {
-                result = SectionSize + DataSectionSize - (ULONG)PeBase;
-                if ((ULONG)result && (ULONG)result < PeSize)
-                    TargetSection = (ULONG)(SectionSize + DataSectionSize - PeBase);
+                ULONG Candidate = DataSectionSize - (ULONG)PeBase
+                                + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
+                if (Candidate && Candidate < PeSize)
+                    TargetSection = Candidate;
             }
         }
     }
@@ -532,60 +554,68 @@ ULONG64 FindKernelDataSectionForImageNotify3(void)
 // FindKernelDataSectionForDeviceIoControl — 后读取
 // 对应原始驱动 sub_1400146D4
 // 遍历 PE 节表定位 PostRead 数据节偏移
+// 【修正 2026-10-19】同族缺陷：旧实现读的 `SectionDataPtr`/`SectionSize`/`EntryFlags`/
+//   `EntryCharacteristics` 均为从不赋值的局部 → `[SectionDataPtr+6]` 折叠为 `[6]` → 0x50。
+//   逐条对照 0x1400146D4 重写（与 sub_1400142A8 同构，仅 GT 入口 0x173 / 出口 0x17D）：
+//     类型指针 +0x118（0x1400147DC `[rsp+0x1a8]`）、+0x50（0x1400147F7 `[rsp+0xe0]`）
+//     +0x90（0x140014802 `[rsp+0x120]`）、+0x58（0x14001480C `[rsp+0xe8]`）
+//     末支 +0x50&0x4000000、+0x38（0x140014866 `[rsp+0xc8]`）
 ULONG64 FindKernelDataSectionForDeviceIoControl(void)
 {
     __int64 KernelBase = GtRead(GtEprocessField22);
     ULONG KernelSize = (ULONG)GtRead(GtEprocessField23);
     ULONG64 NtImageBase = GtRead(GtNtoskrnlModuleBase);
-    ULONG64 result = GtRead(0x4161);
+    ULONG64 result = GtRead((GLOBAL_TABLE_INDEX)0x173);
     ULONG64 TargetAddress = result;
 
     if (!KernelBase || !KernelSize || !NtImageBase || result <= NtImageBase) return result;
     ULONG ImageOffset = (ULONG)(result - NtImageBase);
     if (ImageOffset >= KernelSize) return result;
-    result = ImageOffset + NtImageBase;
-    if (TargetAddress != result) return result;
+    if (TargetAddress != (ULONG64)ImageOffset + NtImageBase) return result;
 
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
-    ULONG FieldValue, SectionSize;
-    __int64 EntryFlags;
-    ULONG SubType;
-    int EntryCharacteristics;
-    __int64 SectionDataPtr;
-
-    InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
     ULONG Type2SectionIndex = 0, Type9SectionIndex = 0, MatchCount = 0;
     char FoundFlag = 0;
+
+    InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
     for (ULONG i = 0; i < 0x200; i++)
     {
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
-        int CalculatedSize = SectionSize + (int)CumulativeSize;
-        CumulativeSize += SectionSize;
-        short SectionFlags = *(WORD *)(SectionDataPtr + 6);
 
-        if (SectionFlags == 1298 && EntryFlags == 64 && EntryCharacteristics == 4)
+        /* 原始 0x1400147CD..E4：先取 Entry[0xF0] 累加到读指针，再取类型 */
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
+        short SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x512)
         {
-            switch (SubType)
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40 &&
+                *(ULONG *)((PUCHAR)SectionEntry + 0x90) == 4)
             {
-            case 2: Type2SectionIndex = i; break;
-            case 9: Type9SectionIndex = i; break;
-            case 1:
-                if ((Type2SectionIndex && Type2SectionIndex + 1 == i) ||
-                    (Type9SectionIndex && Type9SectionIndex + 3 == i))
-                    FoundFlag = 1;
-                break;
+                ULONG SubType = *(ULONG *)((PUCHAR)SectionEntry + 0x58);
+                if (SubType == 2) Type2SectionIndex = i;
+                else if (SubType == 9) Type9SectionIndex = i;
+                else if (SubType == 1)
+                {
+                    if ((Type2SectionIndex && Type2SectionIndex + 1 == i) ||
+                        (Type9SectionIndex && Type9SectionIndex + 3 == i))
+                        FoundFlag = 1;
+                }
             }
         }
-        else if (FoundFlag == 1 && SectionFlags == 1368 && (EntryFlags & 0x4000000) != 0)
+        else if (FoundFlag == 1 &&
+                 SectionType == 0x558 &&
+                 (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000000) != 0)
         {
-            if (FieldValue && ++MatchCount == 2)
+            ULONG DataSectionSize = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
+            if (DataSectionSize && ++MatchCount == 2)
             {
-                result = CalculatedSize + FieldValue - (ULONG)KernelBase;
+                result = (ULONG)(DataSectionSize - (ULONG)KernelBase
+                                 + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));
                 if ((ULONG)result && (ULONG)result < KernelSize)
-                    return GtWrite((GLOBAL_TABLE_INDEX)0x41D, NtImageBase + (ULONG)result);
+                    return GtWrite((GLOBAL_TABLE_INDEX)0x17D, NtImageBase + (ULONG)result);
                 return result;
             }
         }
@@ -599,53 +629,62 @@ ULONG64 FindKernelDataSectionForDeviceIoControl(void)
 // FindKernelDataSectionForDeviceIoControl2 — 预写入
 // 对应原始驱动 sub_1400148D4
 // 遍历 PE 节表查找 PreWrite 相关节
+// 【修正 2026-10-19】同族缺陷：`SectionSize`/`EntryFlags`/`FieldValue` 均为从不赋值的
+//   局部 → 判据恒假/恒真，且 `[SectionEntry+0xF0]` 在**首轮**读的是未初始化内存（推进顺序也错）。
+//   逐条对照 0x1400148D4 重写：
+//     入口 GT：0x443E / 0x173 / 0x444A（0x14001492A/937/944）
+//     类型指针 +0x118（0x140014A01 `[rsp+0x1a8]`）、+0x50 == 0x10041（0x140014A1C）
+//     末支 +0x50&0x4000000、+0x38（0x140014A47 `[rsp+0xc8]`）；与既有 Pre/Post 偏移比对
+//     结果写 GT[0x17D]（0x140014A81 `ecx=0x17d`）。读指针在**读取之后**推进。
 __int64 FindKernelDataSectionForDeviceIoControl2(void)
 {
     __int64 KernelBase = GtRead(GtEprocessField22);
     ULONG KernelSize = (ULONG)GtRead(GtEprocessField23);
     ULONG64 NtImageBase = GtRead(GtNtoskrnlModuleBase);
-    ULONG ExistingPreWriteOffset = (ULONG)GtRead(16754);
-    ULONG64 TargetAddress = GtRead(0x4161);
-    __int64 result = GtRead(16756);
+    ULONG ExistingPreWriteOffset = (ULONG)GtRead(0x443E);
+    ULONG64 TargetAddress = GtRead((GLOBAL_TABLE_INDEX)0x173);
+    __int64 result = GtRead(0x444A);
     ULONG ExistingPostWriteOffset = (ULONG)result;
 
     if (!KernelBase || !KernelSize || !NtImageBase || !ExistingPreWriteOffset ||
         TargetAddress <= NtImageBase || !result) return result;
     if ((ULONG)(TargetAddress - NtImageBase) >= KernelSize) return result;
     ULONG ImageOffset = (ULONG)(TargetAddress - NtImageBase);
-    result += NtImageBase;
-    if (TargetAddress != result) return result;
+    if (TargetAddress != (ULONG64)ImageOffset + NtImageBase) return result;
 
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
-    ULONG FieldValue, SectionSize;
-    __int64 EntryFlags;
-    __int64 SectionDataPtr;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
     char FoundMatchFlag = 0;
 
     InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
     for (ULONG i = 0; i < 0x200; i++)
     {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry)) break;
-        int CalculatedSize = SectionSize + (int)CumulativeSize;
-        CumulativeSize += SectionSize;
-        short SectionFlags = *(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
-        if (SectionFlags == 483 && EntryFlags == 65601)
-            FoundMatchFlag = 1;
-        else if (SectionFlags == 1368 && (EntryFlags & 0x4000000) != 0)
+        /* 原始 0x1400149F2..A09：先取 Entry[0xF0] 累加到读指针，再取类型 */
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
+        short SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x1E3 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x10041)
         {
-            if (FieldValue)
+            FoundMatchFlag = 1;
+        }
+        else if (SectionType == 0x558 &&
+                 (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000000) != 0)
+        {
+            ULONG DataSectionSize = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
+            if (DataSectionSize)
             {
-                result = CalculatedSize + FieldValue - (ULONG)KernelBase;
+                result = (ULONG)(DataSectionSize - (ULONG)KernelBase
+                                 + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));
                 if ((ULONG)result && (ULONG)result < KernelSize &&
                     FoundMatchFlag == 1 &&
                     (ULONG)result != ExistingPreWriteOffset &&
                     (ULONG)result != ExistingPostWriteOffset)
-                    return GtWrite((GLOBAL_TABLE_INDEX)0x41D, NtImageBase + (ULONG)result);
+                    return GtWrite((GLOBAL_TABLE_INDEX)0x17D, NtImageBase + (ULONG)result);
                 FoundMatchFlag = 0;
             }
         }
@@ -8214,19 +8253,26 @@ char MiniFilterQueryFileName(wchar_t *FileName)
 // FindKernelInitSection — 查找内核 INIT 节
 // 遍历 PE 节表查找 INIT 节（标志 1349），计算 INIT 节结束位置，写入全局表 GT 索引 0x183
 // 对应原始驱动 sub_140012C28
+// 【修正 2026-10-19】旧实现读的 `SectionName` 是个**声明后从不赋值**的局部
+//   （初值 0），于是 `*(__int16 *)(SectionName + 6)` 被折叠成绝对地址 `[6]`
+//   → 实机 DriverEntry 里直接 **0x50 PAGE_FAULT**（本次验收抓到的 bugcheck：
+//   rtZ19+0x3bbdd `movzx eax,word ptr [rax+6]`，rax=0）。
+//   原始 0x140012D46 是 `mov rax,[rsp+0x1a8]`（描述符 +0x118 = 类型表项指针），
+//   随后 `movzx edx,word ptr [rax+6]` 取类型。旧实现另有三处字段读取亦错位：
+//     SectionSize 应为 +0xF0（原始 0x140012D37 `mov eax,[rsp+0x180]`）
+//     SectionCharacteristics 应为 +0x118（原始 0x140012D75 `[rsp+0x118]`）
+//     SectionDataPtr 应为 +0x70（原始 0x140012D7F `[rsp+0x100]`）
+//     InitSectionSize 应为 +0x38（原始 0x140012DA7 `mov eax,[rsp+0xc8]`）
+//     SectionFlags2（0x558 判据）应为 +0x50（原始 0x140012D99 `[rsp+0xe0]`）
+//   逐条对照 0x140012C28–0x140012DEA 重写。
 ULONG64 FindKernelInitSection(void)
 {
     char FoundInitSection = 0;
     __int64 PeBase, PeSize, NtImageBase, SectionAddr, SectionOffset;
     unsigned int SectionIndex;
-    int SectionSize;
-    __int16 SectionFlags;
+    __int16 SectionType;
     char ReadContext[0x198];
-    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
-    unsigned int InitSectionSize;
-    __int64 SectionFlags2, SectionDataPtr, SectionCharacteristics;
-    unsigned int RawSize;
-    __int64 SectionName;
+    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节
 
     GtWrite((GLOBAL_TABLE_INDEX)0x913, 0);
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
@@ -8234,7 +8280,7 @@ ULONG64 FindKernelInitSection(void)
         PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
         PeSize = GtRead((GLOBAL_TABLE_INDEX)0x21);
         NtImageBase = GtRead(GtNtoskrnlModuleBase);
-        SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x177);
+        SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x16F);
         if (PeBase && PeSize && NtImageBase && SectionAddr > NtImageBase)
         {
             SectionOffset = (unsigned int)(SectionAddr - NtImageBase);
@@ -8245,20 +8291,36 @@ ULONG64 FindKernelInitSection(void)
                 {
                     if (ReadPESectionEntry(ReadContext, SectionInfo))
                         break;
-                    SectionSize = RawSize + (ULONG)SectionInfo[2];
-                    SectionInfo[2] += RawSize;
-                    SectionFlags = *(__int16 *)(SectionName + 6);
-                    if (SectionFlags == 1349)
+
+                    /* 原始 0x140012D37..D4E：先取 Entry[0xF0]（描述符 +0xF0），
+                       累加到读指针（ReadContext+0x08）后再取类型。 */
+                    *(ULONG64 *)(ReadContext + 0x08) += SectionInfo[0x3C];   /* +0xF0 */
+
+                    SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
+
+                    if (SectionType == 0x545)                 /* 0x140012D57 */
                         break;
-                    if (SectionFlags == 1069 && SectionCharacteristics == 0x1000000000LL && !SectionDataPtr)
-                        FoundInitSection = 1;
-                    else if (SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0 && InitSectionSize)
+
+                    if (SectionType == 0x42D)                 /* 0x140012D61 */
                     {
-                        if (FoundInitSection == 1)
+                        if (*(ULONG64 *)((PUCHAR)SectionInfo + 0x88) == 0x1000000000LL &&
+                            *(ULONG64 *)((PUCHAR)SectionInfo + 0x70) == 0)
+                            FoundInitSection = 1;
+                    }
+                    else if (SectionType == 0x558)            /* 0x140012D8F */
+                    {
+                        unsigned int InitSectionSize = SectionInfo[0x0E];   /* +0x38 */
+                        if ((*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) & 0x4000000) != 0 &&
+                            InitSectionSize != 0 &&
+                            FoundInitSection == 1)
                         {
-                            ULONG64 Result = SectionSize + InitSectionSize - (ULONG)PeBase;
-                            if ((unsigned int)Result < PeSize)
-                                return GtWrite((GLOBAL_TABLE_INDEX)0x183, NtImageBase + (unsigned int)Result);
+                            /* 原始 0x140012DC4：eax = InitSectionSize - PeBase(低32)
+                               + 新读指针(低32)；< PeSize 则写 GT[0x183]。 */
+                            ULONG Result = InitSectionSize - (ULONG)PeBase
+                                         + (ULONG)*(ULONG64 *)(ReadContext + 0x08);
+                            if (Result < PeSize)
+                                return GtWrite((GLOBAL_TABLE_INDEX)0x183,
+                                               NtImageBase + (ULONG64)Result);
                         }
                     }
                 }
@@ -9290,19 +9352,19 @@ ULONG64 FindKernelDataSectionDispatch(void)
 // FindKernelDataSectionByCode — 通过 CODE 节查找内核数据节
 // 遍历 PE 节表，找到 CODE 节后的第一个数据节，计算偏移写入全局表
 // 对应原始驱动 sub_140013A98
+// 【修正 2026-10-19】同族缺陷：`SectionName`/`SectionFlags2`/`SectionAlign`/`RawSize`/
+//   `DataSectionSize` 均为从不赋值的局部 → `[SectionName+6]` 折叠为 `[6]` → 0x50。
+//   逐条对照 0x140013A98 重写：类型指针 +0x118（0x140013B94 `[rsp+0x1a8]`）、
+//   +0x50 & 0x40（0x140013BAF `test byte [rsp+0xe0],0x40`）、+0x88 == 0x40
+//   （0x140013BB9 `[rsp+0x118]`）、+0x50&0x4000000、+0x38（0x140013BE7 `[rsp+0xc8]`）、
+//   结果写 GT[0x181]（0x140013C0B `ecx=0x181`）。
 ULONG64 FindKernelDataSectionByCode(void)
 {
     __int64 PeBase, PeSize, NtImageBase, SectionAddr, SectionOffset;
     char FoundCodeSection = 0;
     unsigned int SectionIndex;
-    int SectionSize;
-    __int16 SectionFlags;
     char ReadContext[0x198];
-    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
-    unsigned int DataSectionSize;
-    __int64 SectionFlags2, SectionAlign;
-    unsigned int RawSize;
-    __int64 SectionName;
+    _DWORD SectionInfo[112];
 
     PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
     PeSize = GtRead((GLOBAL_TABLE_INDEX)0x21);
@@ -9318,16 +9380,27 @@ ULONG64 FindKernelDataSectionByCode(void)
             {
                 if (ReadPESectionEntry(ReadContext, SectionInfo))
                     break;
-                SectionSize = RawSize + (ULONG)SectionInfo[2];
-                SectionInfo[2] += RawSize;
-                SectionFlags = *(__int16 *)(SectionName + 6);
-                if (SectionFlags == 360 && (SectionFlags2 & 0x40) != 0 && SectionAlign == 64)
-                    FoundCodeSection = 1;
-                else if (FoundCodeSection == 1 && SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0 && DataSectionSize)
+
+                /* 原始 0x140013B85..B9C：先取 Entry[0xF0] 累加到读指针，再取类型 */
+                *(ULONG64 *)(ReadContext + 0x08) += *(ULONG *)((PUCHAR)SectionInfo + 0xF0);
+
+                __int16 SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
+
+                if (SectionType == 0x168)
                 {
-                    ULONG64 Result = SectionSize + DataSectionSize - (ULONG)PeBase;
-                    if ((unsigned int)Result < PeSize)
-                        return GtWrite((GLOBAL_TABLE_INDEX)0x181, NtImageBase + (unsigned int)Result);
+                    if ((*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) & 0x40) != 0 &&
+                        *(ULONG64 *)((PUCHAR)SectionInfo + 0x88) == 0x40)
+                        FoundCodeSection = 1;
+                }
+                else if (FoundCodeSection == 1 &&
+                         SectionType == 0x558 &&
+                         (*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) & 0x4000000) != 0)
+                {
+                    ULONG DataSectionSize = *(ULONG *)((PUCHAR)SectionInfo + 0x38);
+                    ULONG Result = DataSectionSize - (ULONG)PeBase
+                                 + (ULONG)*(ULONG64 *)(ReadContext + 0x08);
+                    if (Result && Result < PeSize)
+                        return GtWrite((GLOBAL_TABLE_INDEX)0x181, NtImageBase + (ULONG64)Result);
                 }
             }
         }
@@ -9338,26 +9411,25 @@ ULONG64 FindKernelDataSectionByCode(void)
 // FindKernelDataSectionByData — 通过 DATA 节查找内核数据节
 // 遍历 PE 节表匹配子类型，定位数据节偏移，写入全局表
 // 对应原始驱动 sub_140013C48
+// 【修正 2026-10-19】同族缺陷：`SectionName`/`SectionFlags2`/`RawSize`/`DataSectionSize`/
+//   `TypeFlag` 均为从不赋值的局部 → `[SectionName+6]` 折叠为 `[6]` → 0x50。
+//   逐条对照 0x140013C48 重写：
+//     类型指针 = 描述符 +0x118（0x140013D68 `mov rax,[rsp+0x1b8]`），类型 = [rax+6]
+//     首支 +0x50 == 0x40（0x140013D83 `[rsp+0xf0]`）、+0x58（0x140013D8E `[rsp+0xf8]`）
+//     末支 +0x50&0x4000000、+0x38（0x140013DF6 `[rsp+0xd8]`）
+//     结果写 GT[0x197]（0x140013E1D `ecx=0x197`）、再写 GT[0x912] = bpl（0x140013E2E）
+//   其中 bpl 由「Code 节 +1」置 1、「Data 节 +3」置 0（0x140013DBB/DD0/DD3）。
 ULONG64 FindKernelDataSectionByData(void)
 {
     __int64 PeBase, PeSize, NtImageBase;
     int ExportDirSize;
     ULONG64 SectionAddr, SectionOffset;
-    unsigned __int8 SectionType;
     unsigned int CodeSectionIndex = 0, DataSectionIndex = 0;
     char FoundDataSection = 0;
     unsigned int SectionIndex;
-    int SectionSize;
-    __int16 SectionFlags;
-    unsigned __int8 TypeFlag;
+    unsigned __int8 TypeFlag = 0;
     char ReadContext[0x1A8];
-    __int64 VirtualSize = 0;
-    _DWORD SectionInfo[112];            // 描述符：ReadPESectionEntry 会写 0x120 字节，原 [14] 仅 56 字节
-    unsigned int DataSectionSize;
-    __int64 SectionFlags2;
-    unsigned int SubType;
-    unsigned int RawSize;
-    __int64 SectionName;
+    _DWORD SectionInfo[112];
 
     PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
     PeSize = GtRead((GLOBAL_TABLE_INDEX)0x21);
@@ -9370,35 +9442,49 @@ ULONG64 FindKernelDataSectionByData(void)
         if ((unsigned int)SectionOffset < PeSize && SectionAddr == SectionOffset + NtImageBase)
         {
             InitPESectionReadContext(SectionOffset + PeBase, (ULONG)(PeSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-            SectionType = TypeFlag;
             for (SectionIndex = 0; SectionIndex < 0x200; ++SectionIndex)
             {
                 if (ReadPESectionEntry(ReadContext, SectionInfo))
                     break;
-                SectionSize = RawSize + (ULONG)VirtualSize;
-                VirtualSize += RawSize;
-                SectionFlags = *(__int16 *)(SectionName + 6);
-                if (SectionFlags == 1298 && SectionFlags2 == 64)
+
+                /* 原始 0x140013D59..D70：先取 Entry[0xF0] 累加到读指针，再取类型 */
+                *(ULONG64 *)(ReadContext + 0x08) += *(ULONG *)((PUCHAR)SectionInfo + 0xF0);
+
+                __int16 SectionType2 = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
+
+                if (SectionType2 == 0x512)
                 {
-                    switch (SubType)
+                    if (*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) == 0x40)
                     {
-                        case 2: CodeSectionIndex = SectionIndex; break;
-                        case 9: DataSectionIndex = SectionIndex; break;
-                        case 1:
+                        ULONG SubType = *(ULONG *)((PUCHAR)SectionInfo + 0x58);
+                        if (SubType == 2) CodeSectionIndex = SectionIndex;
+                        else if (SubType == 9) DataSectionIndex = SectionIndex;
+                        else if (SubType == 1)
+                        {
                             if (CodeSectionIndex && CodeSectionIndex + 1 == SectionIndex)
-                            { FoundDataSection = 1; SectionType = 1; }
+                            {
+                                FoundDataSection = 1;
+                                TypeFlag = 1;
+                            }
                             else if (DataSectionIndex && DataSectionIndex + 3 == SectionIndex)
-                            { FoundDataSection = 1; SectionType = 0; }
-                            break;
+                            {
+                                FoundDataSection = 1;
+                                TypeFlag = 0;
+                            }
+                        }
                     }
                 }
-                else if (FoundDataSection == 1 && SectionFlags == 1368 && (SectionFlags2 & 0x4000000) != 0 && DataSectionSize)
+                else if (FoundDataSection == 1 &&
+                         SectionType2 == 0x558 &&
+                         (*(ULONG64 *)((PUCHAR)SectionInfo + 0x50) & 0x4000000) != 0)
                 {
-                    ULONG64 Result = SectionSize + DataSectionSize - (ULONG)PeBase;
-                    if ((_DWORD)Result && (unsigned int)Result < PeSize)
+                    ULONG DataSectionSize = *(ULONG *)((PUCHAR)SectionInfo + 0x38);
+                    ULONG Result = DataSectionSize - (ULONG)PeBase
+                                 + (ULONG)*(ULONG64 *)(ReadContext + 0x08);
+                    if (Result && Result < PeSize)
                     {
-                        GtWrite((GLOBAL_TABLE_INDEX)0x199, NtImageBase + (unsigned int)Result);
-                        return GtWrite((GLOBAL_TABLE_INDEX)0x912, SectionType);
+                        GtWrite((GLOBAL_TABLE_INDEX)0x197, NtImageBase + (ULONG64)Result);
+                        return GtWrite((GLOBAL_TABLE_INDEX)0x912, (__int64)TypeFlag);
                     }
                 }
             }
