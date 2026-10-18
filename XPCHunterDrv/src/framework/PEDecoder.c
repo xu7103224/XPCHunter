@@ -626,7 +626,11 @@ __int64 SerializeDataToBuffer(PUCHAR Context)
     PUCHAR BufferEnd = (PUCHAR)CTX_Q(Context, CTXARR_END_PTR);
     PUCHAR OutputContext = (PUCHAR)CTX_Q(Context, CTXARR_OPERAND);   /* 【修正 2026-10-17】入参是 ContextArray，操作数记录在 +0x18（原误用真实上下文的 +0x28 → 垃圾指针 → 实机 0x7E AV）*/
     PUCHAR DecodeContext = (PUCHAR)CTX_Q(Context, CTXARR_DESC);
-    INT DataType = CTX_D(DecodeContext, DEC_CTX_OPERAND_SIZE);
+    /* 【修正 2026-10-18】原始 0x14008AA17 是 `mov eax,[rcx+4]`（rcx = 描述符），
+       读的是 **描述符 +0x04（模式副本）**，不是 +0x24（操作数大小，init=3）。
+       旧实现读 +0x24（恒 3）→ 三条分支全部落到 `else`（2 字节路径）→
+       操作数记录与原始完全不同（差分 oracle 实测：原返回 4/8，我方返回 2）。 */
+    INT DataType = CTX_D(DecodeContext, DEC_CTX_MODE_DUP);
     ULONG64 Value;
     ULONG FieldSize;
     ULONG64 Flags;
