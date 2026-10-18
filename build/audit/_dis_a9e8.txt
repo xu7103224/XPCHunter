@@ -1,0 +1,24 @@
+14008a9e8  488b4120             mov rax, qword ptr [rcx + 0x20]
+14008a9ec  8b5008               mov edx, dword ptr [rax + 8]
+14008a9ef  f7da                 neg edx
+14008a9f1  1bc0                 sbb eax, eax
+14008a9f3  4183c8ff             or r8d, 0xffffffff
+14008a9f7  83e002               and eax, 2
+14008a9fa  83c002               add eax, 2
+14008a9fd  4863d0               movsxd rdx, eax
+14008aa00  480311               add rdx, qword ptr [rcx]
+14008aa03  483b5108             cmp rdx, qword ptr [rcx + 8]
+14008aa07  410f47c0             cmova eax, r8d
+14008aa0b  c3                   ret 
+14008aa0c  4c8b4918             mov r9, qword ptr [rcx + 0x18]
+14008aa10  4c8bc1               mov r8, rcx
+14008aa13  488b4920             mov rcx, qword ptr [rcx + 0x20]
+14008aa17  8b4104               mov eax, dword ptr [rcx + 4]
+14008aa1a  83f801               cmp eax, 1
+14008aa1d  0f8582000000         jne 0x14008aaa5
+14008aa23  418b01               mov eax, dword ptr [r9]
+14008aa26  ba06000000           mov edx, 6
+14008aa2b  83e01f               and eax, 0x1f
+14008aa2e  3ac2                 cmp al, dl
+14008aa30  498b00               mov rax, qword ptr [r8]
+14008aa33  7545                 jne 0x14008aa7a

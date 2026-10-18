@@ -1,0 +1,53 @@
+14008c254  8b4218               mov eax, dword ptr [rdx + 0x18]
+14008c257  4c8bc9               mov r9, rcx
+14008c25a  85c0                 test eax, eax
+14008c25c  7575                 jne 0x14008c2d3
+14008c25e  8b0a                 mov ecx, dword ptr [rdx]
+14008c260  8d5004               lea edx, [rax + 4]
+14008c263  83e11f               and ecx, 0x1f
+14008c266  83f90f               cmp ecx, 0xf
+14008c269  7521                 jne 0x14008c28c
+14008c26b  458b4108             mov r8d, dword ptr [r9 + 8]
+14008c26f  4585c0               test r8d, r8d
+14008c272  7413                 je 0x14008c287
+14008c274  41ffc8               dec r8d
+14008c277  740a                 je 0x14008c283
+14008c279  41ffc8               dec r8d
+14008c27c  750e                 jne 0x14008c28c
+14008c27e  8d480b               lea ecx, [rax + 0xb]
+14008c281  eb09                 jmp 0x14008c28c
+14008c283  8bca                 mov ecx, edx
+14008c285  eb05                 jmp 0x14008c28c
+14008c287  b910000000           mov ecx, 0x10
+14008c28c  83e903               sub ecx, 3
+14008c28f  743d                 je 0x14008c2ce
+14008c291  ffc9                 dec ecx
+14008c293  7430                 je 0x14008c2c5
+14008c295  ffc9                 dec ecx
+14008c297  742f                 je 0x14008c2c8
+14008c299  ffc9                 dec ecx
+14008c29b  740e                 je 0x14008c2ab
+14008c29d  83e905               sub ecx, 5
+14008c2a0  7426                 je 0x14008c2c8
+14008c2a2  83f905               cmp ecx, 5
+14008c2a5  751e                 jne 0x14008c2c5
+14008c2a7  8d41fd               lea eax, [rcx - 3]
+14008c2aa  c3                   ret 
+14008c2ab  418b4104             mov eax, dword ptr [r9 + 4]
+14008c2af  83f801               cmp eax, 1
+14008c2b2  7506                 jne 0x14008c2ba
+14008c2b4  b806000000           mov eax, 6
+14008c2b9  c3                   ret 
+14008c2ba  b90c000000           mov ecx, 0xc
+14008c2bf  83f802               cmp eax, 2
+14008c2c2  0f44d1               cmove edx, ecx
+14008c2c5  8bc2                 mov eax, edx
+14008c2c7  c3                   ret 
+14008c2c8  b808000000           mov eax, 8
+14008c2cd  c3                   ret 
+14008c2ce  b801000000           mov eax, 1
+14008c2d3  c3                   ret 
+14008c2d4  488bc4               mov rax, rsp
+14008c2d7  48895808             mov qword ptr [rax + 8], rbx
+14008c2db  48896810             mov qword ptr [rax + 0x10], rbp
+14008c2df  48897018             mov qword ptr [rax + 0x18], rsi

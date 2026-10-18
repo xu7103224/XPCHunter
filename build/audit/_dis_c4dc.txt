@@ -1,0 +1,46 @@
+14008c4dc  48895c2408           mov qword ptr [rsp + 8], rbx
+14008c4e1  488bd9               mov rbx, rcx
+14008c4e4  483bca               cmp rcx, rdx
+14008c4e7  0f839c000000         jae 0x14008c589
+14008c4ed  440fb609             movzx r9d, byte ptr [rcx]
+14008c4f1  4883c303             add rbx, 3
+14008c4f5  41ba01000000         mov r10d, 1
+14008c4fb  458bd9               mov r11d, r9d
+14008c4fe  418bc1               mov eax, r9d
+14008c501  4183e107             and r9d, 7
+14008c505  4181e3c0000000       and r11d, 0xc0
+14008c50c  83e038               and eax, 0x38
+14008c50f  4503db               add r11d, r11d
+14008c512  440bd8               or r11d, eax
+14008c515  418b80dc000000       mov eax, dword ptr [r8 + 0xdc]
+14008c51c  2500fcffff           and eax, 0xfffffc00
+14008c521  4503db               add r11d, r11d
+14008c524  440bd8               or r11d, eax
+14008c527  418b4020             mov eax, dword ptr [r8 + 0x20]
+14008c52b  450bd9               or r11d, r9d
+14008c52e  458998dc000000       mov dword ptr [r8 + 0xdc], r11d
+14008c535  a840                 test al, 0x40
+14008c537  7423                 je 0x14008c55c
+14008c539  418b402c             mov eax, dword ptr [r8 + 0x2c]
+14008c53d  8bc8                 mov ecx, eax
+14008c53f  4123c2               and eax, r10d
+14008c542  d1e9                 shr ecx, 1
+14008c544  c1e003               shl eax, 3
+14008c547  4123ca               and ecx, r10d
+14008c54a  c1e103               shl ecx, 3
+14008c54d  c1e104               shl ecx, 4
+14008c550  0bc8                 or ecx, eax
+14008c552  410bcb               or ecx, r11d
+14008c555  418988dc000000       mov dword ptr [r8 + 0xdc], ecx
+14008c55c  418b80dc000000       mov eax, dword ptr [r8 + 0xdc]
+14008c563  83e00f               and eax, 0xf
+14008c566  3c05                 cmp al, 5
+14008c568  7523                 jne 0x14008c58d
+14008c56a  41f780d800000000030000 test dword ptr [r8 + 0xd8], 0x300
+14008c575  7516                 jne 0x14008c58d
+14008c577  4a8d0413             lea rax, [rbx + r10]
+14008c57b  483bc2               cmp rax, rdx
+14008c57e  1bc0                 sbb eax, eax
+14008c580  83e006               and eax, 6
+14008c583  448d50ff             lea r10d, [rax - 1]
+14008c587  eb04                 jmp 0x14008c58d

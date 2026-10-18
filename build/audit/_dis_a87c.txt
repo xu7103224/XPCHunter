@@ -1,0 +1,37 @@
+14008a87c  4c8b4920             mov r9, qword ptr [rcx + 0x20]
+14008a880  4c8b4118             mov r8, qword ptr [rcx + 0x18]
+14008a884  488b01               mov rax, qword ptr [rcx]
+14008a887  4183790800           cmp dword ptr [r9 + 8], 0
+14008a88c  7444                 je 0x14008a8d2
+14008a88e  4883c003             add rax, 3
+14008a892  483b4108             cmp rax, qword ptr [rcx + 8]
+14008a896  7365                 jae 0x14008a8fd
+14008a898  ba04000000           mov edx, 4
+14008a89d  418991f8000000       mov dword ptr [r9 + 0xf8], edx
+14008a8a4  488b4120             mov rax, qword ptr [rcx + 0x20]
+14008a8a8  83780802             cmp dword ptr [rax + 8], 2
+14008a8ac  488b01               mov rax, qword ptr [rcx]
+14008a8af  7517                 jne 0x14008a8c8
+14008a8b1  486308               movsxd rcx, dword ptr [rax]
+14008a8b4  490fba682019         bts qword ptr [r8 + 0x20], 0x19
+14008a8ba  41c7401808000000     mov dword ptr [r8 + 0x18], 8
+14008a8c2  49894808             mov qword ptr [r8 + 8], rcx
+14008a8c6  eb38                 jmp 0x14008a900
+14008a8c8  8b08                 mov ecx, dword ptr [rax]
+14008a8ca  490fba682017         bts qword ptr [r8 + 0x20], 0x17
+14008a8d0  eb21                 jmp 0x14008a8f3
+14008a8d2  48ffc0               inc rax
+14008a8d5  483b4108             cmp rax, qword ptr [rcx + 8]
+14008a8d9  7322                 jae 0x14008a8fd
+14008a8db  ba02000000           mov edx, 2
+14008a8e0  418991f8000000       mov dword ptr [r9 + 0xf8], edx
+14008a8e7  488b01               mov rax, qword ptr [rcx]
+14008a8ea  0fb708               movzx ecx, word ptr [rax]
+14008a8ed  490fba682015         bts qword ptr [r8 + 0x20], 0x15
+14008a8f3  41895018             mov dword ptr [r8 + 0x18], edx
+14008a8f7  49894808             mov qword ptr [r8 + 8], rcx
+14008a8fb  eb03                 jmp 0x14008a900
+14008a8fd  83caff               or edx, 0xffffffff
+14008a900  8bc2                 mov eax, edx
+14008a902  c3                   ret 
+14008a903  cc                   int3 
