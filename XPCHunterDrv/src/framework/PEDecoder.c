@@ -2060,33 +2060,40 @@ __int64 DecodeModrmByte(ULONG64 BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx)
 // DecodeModrmByteSimple — 解码ModRM字节(简化版)
 // 对应原始驱动 sub_14008C4DC
 // 不读取位移量但返回总字节数，用于仅计算操作数大小的场景
+// 【修正 2026-10-18】逐条对照 0x14008C4DC 重写：
+//   组合结果写 **+0xDC（ModRM 字节）**；保留位取 +0xDC 高 22 位；
+//   REX 开关是 **+0x20（状态标志）& 0x40**、取值是 **+0x2C（类型 5 取值）**；
+//   RIP 相对寻址返回 5（读得下 4 字节位移）/ -1（越界）。
 // ============================================================
 __int64 DecodeModrmByteSimple(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx)
 {
     UCHAR ModrmByte;
-    ULONG NewFlags;
+    ULONG Composed;
 
     if ((ULONG64)BufferPos >= BufferEnd)
         return (ULONG64)-1;
 
     ModrmByte = *BufferPos;
-    NewFlags = (ModrmByte & 7) | (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xFFFFFC00)
-             | (2 * (ModrmByte & 0x38 | (2 * (ModrmByte & 0xC0))));
-    SET_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS, NewFlags);
+    Composed = (ModrmByte & 7)
+             | (2 * ((ModrmByte & 0x38) | (2 * (ModrmByte & 0xC0))))
+             | (CTX_D(DecodeCtx, DEC_CTX_MODRM_BYTE) & 0xFFFFFC00);
+    SET_D(DecodeCtx, DEC_CTX_MODRM_BYTE, Composed);
 
     // REX 扩展
-    if ((CTX_D(DecodeCtx, DEC_CTX_ADDR_SIZE) & 0x40) != 0)
+    if ((CTX_D(DecodeCtx, DEC_CTX_STATE_FLAGS) & 0x40) != 0)
     {
-        CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) = NewFlags
-            | (8 * (CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) & 1))
-            | (((CTX_D(DecodeCtx, DEC_CTX_OPERAND_SIZE) >> 1) & 1) << 7);
+        ULONG Type5 = CTX_D(DecodeCtx, DEC_CTX_TYPE5_VALUE);
+        SET_D(DecodeCtx, DEC_CTX_MODRM_BYTE,
+              Composed
+              | (((Type5 & 1) << 3))
+              | ((((Type5 >> 1) & 1) << 3) << 4));
     }
 
     // RIP 相对寻址
-    if ((CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0xF) == 5 &&
+    if ((CTX_D(DecodeCtx, DEC_CTX_MODRM_BYTE) & 0xF) == 5 &&
         (CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS) & 0x300) == 0)
     {
-        return (ULONG64)(BufferPos + 4) < BufferEnd ? 5 : -1;
+        return (ULONG64)(BufferPos + 4) <= BufferEnd ? 5 : (ULONG64)-1;
     }
 
     return 1;
