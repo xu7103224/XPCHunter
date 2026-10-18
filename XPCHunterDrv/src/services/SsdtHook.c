@@ -4753,42 +4753,58 @@ __int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 
 {
     unsigned int ResultValue = 0;
     unsigned int SectionOffset = 0;
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
-    __int64 FieldValue = 0;
-    __int64 FieldValue2 = 0;
-    __int64 FieldValue3 = 0;
-    unsigned int SectionSize = 0;
-    __int64 SectionDataPtr = 0;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
+    /* 【修正 2026-10-19】以下"字段"在原始里就是描述符 SectionEntry 内的槽；旧实现把它们
+       另立为 `= 0` 的独立局部且从不赋值 → 所有条件恒假 → GT[0x63] 永不写入。
+       逐条对照 0x14001D4C0 反汇编修正（栈偏移 → 描述符偏移）：
+         +0x50（`[rbp+0x18]` & 0x80000）、+0x88（`[rbp]` == 0x10）、
+         +0x38（`[rbp-0x20]` & 0x10000 / & 0x4000000）、+0x58（`[rbp-0x30]`，命中时存入结果）
+         结果分子 +0x88（`[rbp-0x38]`）、类型指针 +0x118（`[rbp+0xa8]`）
+       输出：命中写 GT[0x63] = BaseAddress + TargetOffset；收尾恒写 GT[0x68] = 结果值。 */
+    __int64 FieldValue;
+    __int64 FieldValue2;
+    __int64 FieldValue3;
+    unsigned int SectionSize;
+    __int64 SectionDataPtr;
 
     ResultValue = -1;
-    SectionOffset = (unsigned int)GtRead(GtNtOpenKeyPeSectionOffset);
+    SectionOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x41BC);
     if (SectionOffset && SectionOffset < ImageSize)
     {
         InitPESectionReadContext(ImageBase + SectionOffset, ImageSize - SectionOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
-            int MatchSize = (int)(SectionSize + CumulativeSize);
-            CumulativeSize += SectionSize;
-            if ((FieldValue3 & 0x80000) != 0 && FieldValue2 == 16 && (FieldValue & 0x10000) != 0)
+
+            /* 原始 0x14001D55A..570：先取 Entry[0xF0] 累加到读指针，再取字段 */
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
+            FieldValue     = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
+            FieldValue2    = *(__int64 *)((PUCHAR)SectionEntry + 0x88);
+            FieldValue3    = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
+            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0x58);
+            SectionDataPtr = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
+
+            if ((FieldValue & 0x80000) != 0 && FieldValue2 == 16 && (FieldValue3 & 0x10000) != 0)
             {
-                ResultValue = SectionEntry[16];
+                ResultValue = SectionSize;
             }
-            else if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 1u && (FieldValue & 0x4000000) != 0)
+            else if ((unsigned __int16)(*(_WORD *)(SectionDataPtr + 6) - 0x558) <= 1u &&
+                     (FieldValue3 & 0x4000000) != 0)
             {
-                unsigned int TargetOffset = (unsigned int)(MatchSize + SectionEntry[14] - ImageBase);
+                /* 原始 0x14001D5BC：eax = +0x88 - ImageBase + 读指针 */
+                unsigned int TargetOffset = (unsigned int)(*(unsigned int *)((PUCHAR)SectionEntry + 0x88)
+                                             - (unsigned int)ImageBase
+                                             + (unsigned int)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));
                 if (TargetOffset && TargetOffset < ImageSize)
-                    GtWrite(GtPspTerminateThreadAddr, BaseAddress + TargetOffset);
-                return GtWrite(GtEprocessField94, ResultValue);
+                    GtWrite((GLOBAL_TABLE_INDEX)0x63, BaseAddress + TargetOffset);
+                break;
             }
         }
-        return GtWrite(GtEprocessField94, ResultValue);
     }
-    return GtWrite(GtEprocessField94, ResultValue);
+    return GtWrite((GLOBAL_TABLE_INDEX)0x68, ResultValue);
 }
 __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
 {
