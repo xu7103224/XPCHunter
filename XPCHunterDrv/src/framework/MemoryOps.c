@@ -1917,6 +1917,9 @@ char ResolveSyscallNumberTable(void)
     // 计算 PE 可选头中的数据目录
     __int64 PeNtHeaders = *(int *)(KernelImageBase + 60) + KernelImageBase;
     __int64 ExportDirRva = *(_QWORD *)(PeNtHeaders + 0x48);
+    /* 【修正 2026-10-17】原始用 OptionalHeader.ImageBase（NtHeaders+0x30，64 位 VA）
+       作为系统调用表项的基址（`mov eax,[rdi]; add rax,r8`，r8=ImageBase）。 */
+    unsigned __int64 KernelNtImageBase = *(unsigned __int64 *)(PeNtHeaders + 0x30);
 
     // 查找 NtAdjustPrivilegesToken 和 NtAllocateVirtualMemory 的导出地址
     unsigned int AdjustPrivAddr = 0;
@@ -1956,8 +1959,13 @@ char ResolveSyscallNumberTable(void)
         return 0;
 
     // 查找 .rdata 节区
-    char SectionName[] = ".rdata";
-    SectionName[7] = 0;
+    /* 【修正 2026-10-17】".rdata" 字面量只有 7 字节（6 字符 + 隐式 NUL，下标 0..6），
+       `SectionName[7] = 0` 是**越界写** → MSVC 插入 __report_rangecheckfailure
+       （kernelfastfail 8）。该分支在实机上直接触发 failfast/异常，函数走不到
+       .rdata 扫描与 GT[0x62] 写入。原始是把 ".rdata" 逐字节写栈（0x140053138
+       `mov dword [rbp-0x48], 0x6164722e` = ".rda"、`mov dword [rbp-0x44], 0x6174` = "ta"），
+       显式 7 字节。这里改用显式长度数组，等价且无越界。 */
+    char SectionName[8] = ".rdata";
     unsigned int RdataOffset = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByName)(KernelImageBase, KernelImageSize, SectionName);
     unsigned int RdataVa = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByNameReturnVa)(KernelImageBase, KernelImageSize, SectionName);
 
@@ -1992,7 +2000,7 @@ char ResolveSyscallNumberTable(void)
                     {
                         for (unsigned int i = 0; i < ServiceCount; i++)
                         {
-                            SyscallTable[i] = ExportDirRva + TableBase[i];
+                            SyscallTable[i] = (__int64)(KernelNtImageBase + (unsigned __int64)TableBase[i]);
                         }
                         GtWrite((enum _GLOBAL_TABLE_INDEX)0x62, (__int64)SyscallTable);
                         return 1;
@@ -2030,6 +2038,7 @@ char FindSyscallNumbers(void)
         return 0;
 
     __int64 ExportDirRva = *(_QWORD *)(*(int *)(KernelImageBase + 60) + KernelImageBase + 0x48);
+    unsigned __int64 KernelNtImageBase = *(unsigned __int64 *)(*(int *)(KernelImageBase + 60) + KernelImageBase + 0x30);
 
     char Name1[] = "NtAdjustPrivilegesToken";
     char Name2[] = "NtAllocateVirtualMemory";
@@ -2057,8 +2066,13 @@ char FindSyscallNumbers(void)
         return 0;
 
     // 查找 .rdata 节区
-    char SectionName[] = ".rdata";
-    SectionName[7] = 0;
+    /* 【修正 2026-10-17】".rdata" 字面量只有 7 字节（6 字符 + 隐式 NUL，下标 0..6），
+       `SectionName[7] = 0` 是**越界写** → MSVC 插入 __report_rangecheckfailure
+       （kernelfastfail 8）。该分支在实机上直接触发 failfast/异常，函数走不到
+       .rdata 扫描与 GT[0x62] 写入。原始是把 ".rdata" 逐字节写栈（0x140053138
+       `mov dword [rbp-0x48], 0x6164722e` = ".rda"、`mov dword [rbp-0x44], 0x6174` = "ta"），
+       显式 7 字节。这里改用显式长度数组，等价且无越界。 */
+    char SectionName[8] = ".rdata";
     unsigned int RdataOffset = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByName)(KernelImageBase, KernelImageSize, SectionName);
     unsigned int RdataVa = (unsigned int)((__int64 (__fastcall *)(unsigned __int64, unsigned int, char *))FindPESectionByNameReturnVa)(KernelImageBase, KernelImageSize, SectionName);
 
@@ -2073,15 +2087,22 @@ char FindSyscallNumbers(void)
     unsigned __int64 RdataEnd = KernelImageBase + RdataOffset + RdataVa;
 
     unsigned int *ScanPtr = RdataBase;
-    unsigned int AdjustWithBase = (unsigned int)(AdjustPrivAddr + ExportDirRva);
-    unsigned int AllocWithBase = (unsigned int)(AllocVirAddr + ExportDirRva);
+    /* 【修正 2026-10-17】原始 0x1400531A0..0x1400531BE 的判据是
+       `cmp r10d, dword ptr [rdx]` —— r10d/r11d 直接取自
+       LookupExportByName 的两个输出（[rbp-0x50]/[rbp-0x4c]，即**裸函数 RVA**），
+       与 .rdata 里的 dword **直接比较**，**不加 ExportDirRva**。
+       旧实现对两者都加了 ExportDirRva（0x992000），得到的值 0x1007140/0x100a8b0
+       在 .rdata(0x36b000..0x421fd0) 中根本不存在 → 扫描永不命中 → GT[0x62] 不写入。
+       实测：0x675140 / 0x6788b0 确实以裸 dword 存在于 .rdata（rva 0x3D131C / 0x3D1A7C）。 */
+    unsigned int AdjustRva = AdjustPrivAddr;
+    unsigned int AllocRva  = AllocVirAddr;
 
     while ((unsigned __int64)ScanPtr < RdataEnd)
     {
-        if (*ScanPtr == AdjustWithBase)
+        if (*ScanPtr == AdjustRva)
         {
             unsigned int *CheckPtr = &ScanPtr[SectionType2 - SectionType1];
-            if ((unsigned __int64)CheckPtr < RdataEnd && *CheckPtr == AllocWithBase)
+            if ((unsigned __int64)CheckPtr < RdataEnd && *CheckPtr == AllocRva)
             {
                 unsigned int *TableBase = &ScanPtr[-(int)SectionType1];
                 if ((unsigned __int64)TableBase >= KernelImageBase + RdataOffset &&
@@ -2094,7 +2115,7 @@ char FindSyscallNumbers(void)
                     {
                         for (unsigned int i = 0; i < ServiceCount; i++)
                         {
-                            SyscallTable[i] = ExportDirRva + TableBase[i];
+                            SyscallTable[i] = (__int64)(KernelNtImageBase + (unsigned __int64)TableBase[i]);
                         }
                         GtWrite((enum _GLOBAL_TABLE_INDEX)0x62, (__int64)SyscallTable);
                         return 1;
