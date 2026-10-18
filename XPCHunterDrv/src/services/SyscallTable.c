@@ -359,10 +359,15 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
         InitPESectionReadContext(SectionCount + NtoskrnlDataBase, Result - SectionCount, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         for (i = 0; i < 0x10; i++)
         {
-            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)ReadEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
+            /* 【修正 2026-10-17】推进必须在**读取之后**：原始 0x14007A77A 先
+               `call ReadPESectionEntry`，随后 0x14007A78F 才
+               `add qword [rsp+0x48], rax`（rax = Entry[0xF0]）。
+               旧代码把推进写在读取之前 → 首轮用的是**未初始化的 ReadEntry[0xF0]**，
+               读指针一开始即被污染，16 轮扫描的类型匹配全错 →
+               本函数返回默认值 0x1000000 → InitImageNotify 的解析循环拿不到节区偏移。 */
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, ReadEntry))
                 break;
-            AccumulatedOffset += ReadEntry[60];
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)ReadEntry + 0xF0);
             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry + 0x118) + 6) == 1340 && (*(_QWORD *)&ReadEntry[34] & 0x800000LL) != 0 && !ReadEntry[29])
                 return ReadEntry[28];
         }

@@ -1,12 +1,19 @@
-=== R15C 2026/10/18 周日 20:19:13.15 === 
+=== R15C 2026/10/18 周日 20:27:13.22 === 
 [SC] CreateService 失败 1073:
 
 指定的服务已存在。
 
-[SC] StartService 失败 1056:
 
-服务的实例已在运行中。
-
+SERVICE_NAME: RTZ15 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 4  RUNNING 
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+        PID                : 0
+        FLAGS              : 
 
 SERVICE_NAME: RTZ15 
         TYPE               : 1  KERNEL_DRIVER  
