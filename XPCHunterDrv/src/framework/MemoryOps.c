@@ -2031,8 +2031,16 @@ char FindSyscallNumbers(void)
     if (!KernelImageBase || !KernelImageSize)
         return 0;
 
+    /* 【修正 2026-10-17】第二个索引旧稿写作 0x41D2（**错误**）。
+       原始 0x14005309B 是 `mov ecx, 0x41d4`。
+       活体 GT 实测：GT[0x41D1]=0x1B9600（RVA 形态）、
+                     GT[0x41D2]=0xFFFFF8010DBB9600（**VA 形态**）、
+                     GT[0x41D4]=0x1B90E0（RVA 形态）。
+       用 0x41D2 会拿到 64 位 VA，`SectionType2 >= ServiceCount(0x1D0)` 恒真
+       → 立即 return 0 → GT[0x62] 永不写入 → 0x16E..0x180 整簇恒 0。
+       同族的 ResolveSyscallNumberTable 用的就是 0x41D1/0x41D4（本就正确），可交叉印证。 */
     unsigned int SectionType1 = (unsigned int)FindKernelPESectionByType(0x41D1);
-    unsigned int SectionType2 = (unsigned int)FindKernelPESectionByType(0x41D2);
+    unsigned int SectionType2 = (unsigned int)FindKernelPESectionByType(0x41D4);
 
     if (!SectionType1 || SectionType1 >= ServiceCount || !SectionType2 || SectionType2 >= ServiceCount)
         return 0;
