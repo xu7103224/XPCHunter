@@ -9521,10 +9521,18 @@ __int64 InitImageNotifyWin7(void)
 //   MiniFilterPreCreate** 的地址，不是本函数自身。本函数真实地址是 0x140014034。
 __int64 SelectMiniFilterCallbackByVersion(void)
 {
+    /* 【修正 2026-10-19】原始 0x140014034 的三个分支都是 **tail-call jmp**：
+         build <= 0x23F0      → jmp 0x1400142A8  （= FindKernelDataSectionForImageNotify2）
+         build >= 0x42EE      → jmp 0x140014078  （= FindKernelDataSectionForImageNotify
+                                                  —— 「MiniFilterPreCreate」是 IDA 的错名，
+                                                     该函数无参数、是 PE 节区扫描器，产出 GT[0x17C]）
+         否则                 → jmp 0x1400144A8  （= FindKernelDataSectionForImageNotify3）
+       旧代码在 build>=0x42EE 分支调的是**同名的 FLT 回调桩 MiniFilterPreCreate**（return
+       STATUS_SUCCESS）→ GT[0x17C] 永不写入。本机 build 19045 = 0x4A65 正落在该分支。 */
     if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0)
         return ((__int64 (*)(void))FindKernelDataSectionForImageNotify2)();
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
-        return ((__int64 (*)(void))MiniFilterPreCreate)();
+        return ((__int64 (*)(void))FindKernelDataSectionForImageNotify)();
     return ((__int64 (*)(void))FindKernelDataSectionForImageNotify3)();
 }
 
