@@ -1,0 +1,32 @@
+14007da0c  48895c2408           mov qword ptr [rsp + 8], rbx
+14007da11  33db                 xor ebx, ebx
+14007da13  4c8bca               mov r9, rdx
+14007da16  4c8bd9               mov r11, rcx
+14007da19  448bd3               mov r10d, ebx
+14007da1c  4585c0               test r8d, r8d
+14007da1f  743e                 je 0x14007da5f
+14007da21  4c2bda               sub r11, rdx
+14007da24  430fb70c0b           movzx ecx, word ptr [r11 + r9]
+14007da29  8d419f               lea eax, [rcx - 0x61]
+14007da2c  6683f819             cmp ax, 0x19
+14007da30  7704                 ja 0x14007da36
+14007da32  6683e920             sub cx, 0x20
+14007da36  410fb711             movzx edx, word ptr [r9]
+14007da3a  8d429f               lea eax, [rdx - 0x61]
+14007da3d  6683f819             cmp ax, 0x19
+14007da41  7704                 ja 0x14007da47
+14007da43  6683ea20             sub dx, 0x20
+14007da47  663bca               cmp cx, dx
+14007da4a  7720                 ja 0x14007da6c
+14007da4c  7219                 jb 0x14007da67
+14007da4e  6685c9               test cx, cx
+14007da51  740c                 je 0x14007da5f
+14007da53  41ffc2               inc r10d
+14007da56  4983c102             add r9, 2
+14007da5a  453bd0               cmp r10d, r8d
+14007da5d  72c5                 jb 0x14007da24
+14007da5f  33c0                 xor eax, eax
+14007da61  488b5c2408           mov rbx, qword ptr [rsp + 8]
+14007da66  c3                   ret 
+14007da67  83c8ff               or eax, 0xffffffff
+14007da6a  ebf5                 jmp 0x14007da61
