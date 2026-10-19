@@ -1,0 +1,94 @@
+140082640  0000                 add byte ptr [rax], al
+140082642  00498b               add byte ptr [rcx - 0x75], cl
+140082645  5b                   pop rbx
+140082646  30498b               xor byte ptr [rcx - 0x75], cl
+140082649  7340                 jae 0x14008268b
+14008264b  498be3               mov rsp, r11
+14008264e  415f                 pop r15
+140082650  415e                 pop r14
+140082652  415d                 pop r13
+140082654  415c                 pop r12
+140082656  5f                   pop rdi
+140082657  c3                   ret 
+140082658  4883ec28             sub rsp, 0x28
+14008265c  b914090000           mov ecx, 0x914
+140082661  e89678faff           call 0x140029efc
+140082666  4533c0               xor r8d, r8d
+140082669  8d8850e2ffff         lea ecx, [rax - 0x1db0]
+14008266f  458d5001             lea r10d, [r8 + 1]
+140082673  458bc8               mov r9d, r8d
+140082676  413bca               cmp ecx, r10d
+140082679  488bd0               mov rdx, rax
+14008267c  410f96c1             setbe r9b
+140082680  3df0230000           cmp eax, 0x23f0
+140082685  740a                 je 0x140082691
+140082687  3d80250000           cmp eax, 0x2580
+14008268c  418bc0               mov eax, r8d
+14008268f  7503                 jne 0x140082694
+140082691  418bc2               mov eax, r10d
+140082694  440ac8               or r9b, al
+140082697  81fa00280000         cmp edx, 0x2800
+14008269d  7449                 je 0x1400826e8
+14008269f  81fa5a290000         cmp edx, 0x295a
+1400826a5  7441                 je 0x1400826e8
+1400826a7  81fa39380000         cmp edx, 0x3839
+1400826ad  7439                 je 0x1400826e8
+1400826af  81fad73a0000         cmp edx, 0x3ad7
+1400826b5  7431                 je 0x1400826e8
+1400826b7  81faab3f0000         cmp edx, 0x3fab
+1400826bd  7429                 je 0x1400826e8
+1400826bf  81faee420000         cmp edx, 0x42ee
+1400826c5  7421                 je 0x1400826e8
+1400826c7  81fa63450000         cmp edx, 0x4563
+1400826cd  7419                 je 0x1400826e8
+1400826cf  8d8246b8ffff         lea eax, [rdx - 0x47ba]
+1400826d5  413bc2               cmp eax, r10d
+1400826d8  760e                 jbe 0x1400826e8
+1400826da  8d829fb5ffff         lea eax, [rdx - 0x4a61]
+1400826e0  418bc8               mov ecx, r8d
+1400826e3  83f804               cmp eax, 4
+1400826e6  7703                 ja 0x1400826eb
+1400826e8  418bca               mov ecx, r10d
+1400826eb  81fa7c4f0000         cmp edx, 0x4f7c
+1400826f1  0f94c0               sete al
+1400826f4  0ac1                 or al, cl
+1400826f6  440ac8               or r9b, al
+1400826f9  81faf0550000         cmp edx, 0x55f0
+1400826ff  7410                 je 0x140082711
+140082701  81fa5d580000         cmp edx, 0x585d
+140082707  7408                 je 0x140082711
+140082709  81fa67580000         cmp edx, 0x5867
+14008270f  7503                 jne 0x140082714
+140082711  458bc2               mov r8d, r10d
+140082714  450ac1               or r8b, r9b
+140082717  418ac0               mov al, r8b
+14008271a  4883c428             add rsp, 0x28
+14008271e  c3                   ret 
+14008271f  cc                   int3 
+140082720  32c0                 xor al, al
+140082722  80394e               cmp byte ptr [rcx], 0x4e
+140082725  750f                 jne 0x140082736
+140082727  80790174             cmp byte ptr [rcx + 1], 0x74
+14008272b  0fb6c0               movzx eax, al
+14008272e  ba01000000           mov edx, 1
+140082733  0f44c2               cmove eax, edx
+140082736  c3                   ret 
+140082737  cc                   int3 
+140082738  48895c2418           mov qword ptr [rsp + 0x18], rbx
+14008273d  57                   push rdi
+14008273e  4883ec30             sub rsp, 0x30
+140082742  b917090000           mov ecx, 0x917
+140082747  e8b077faff           call 0x140029efc
+14008274c  4885c0               test rax, rax
+14008274f  0f84ab000000         je 0x140082800
+140082755  488d542440           lea rdx, [rsp + 0x40]
+14008275a  488d4c2448           lea rcx, [rsp + 0x48]
+14008275f  e874020000           call 0x1400829d8
+140082764  3c01                 cmp al, 1
+140082766  0f8594000000         jne 0x140082800
+14008276c  8b542440             mov edx, dword ptr [rsp + 0x40]
+140082770  488b4c2448           mov rcx, qword ptr [rsp + 0x48]
+140082775  e88630f8ff           call 0x140005800
+14008277a  8bf8                 mov edi, eax
+14008277c  85c0                 test eax, eax
+14008277e  7476                 je 0x1400827f6

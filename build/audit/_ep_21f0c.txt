@@ -1,0 +1,262 @@
+140021f0c  488bc4               mov rax, rsp
+140021f0f  48895808             mov qword ptr [rax + 8], rbx
+140021f13  48896810             mov qword ptr [rax + 0x10], rbp
+140021f17  48897818             mov qword ptr [rax + 0x18], rdi
+140021f1b  4c896820             mov qword ptr [rax + 0x20], r13
+140021f1f  4156                 push r14
+140021f21  4883ec20             sub rsp, 0x20
+140021f25  41bd40000000         mov r13d, 0x40
+140021f2b  b957030000           mov ecx, 0x357
+140021f30  418bd5               mov edx, r13d
+140021f33  e8bc800000           call 0x140029ff4
+140021f38  418d55d0             lea edx, [r13 - 0x30]
+140021f3c  b956030000           mov ecx, 0x356
+140021f41  e8ae800000           call 0x140029ff4
+140021f46  458d75f0             lea r14d, [r13 - 0x10]
+140021f4a  b958030000           mov ecx, 0x358
+140021f4f  418bd6               mov edx, r14d
+140021f52  e89d800000           call 0x140029ff4
+140021f57  418d7df8             lea edi, [r13 - 8]
+140021f5b  b959030000           mov ecx, 0x359
+140021f60  8bd7                 mov edx, edi
+140021f62  e88d800000           call 0x140029ff4
+140021f67  418bd5               mov edx, r13d
+140021f6a  b95a030000           mov ecx, 0x35a
+140021f6f  e880800000           call 0x140029ff4
+140021f74  8d5710               lea edx, [rdi + 0x10]
+140021f77  b95b030000           mov ecx, 0x35b
+140021f7c  e873800000           call 0x140029ff4
+140021f81  8d5718               lea edx, [rdi + 0x18]
+140021f84  b95c030000           mov ecx, 0x35c
+140021f89  e866800000           call 0x140029ff4
+140021f8e  8d5720               lea edx, [rdi + 0x20]
+140021f91  b95d030000           mov ecx, 0x35d
+140021f96  e859800000           call 0x140029ff4
+140021f9b  8d5728               lea edx, [rdi + 0x28]
+140021f9e  b95e030000           mov ecx, 0x35e
+140021fa3  e84c800000           call 0x140029ff4
+140021fa8  8d5730               lea edx, [rdi + 0x30]
+140021fab  b95f030000           mov ecx, 0x35f
+140021fb0  e83f800000           call 0x140029ff4
+140021fb5  bac8000000           mov edx, 0xc8
+140021fba  b960030000           mov ecx, 0x360
+140021fbf  e830800000           call 0x140029ff4
+140021fc4  8d5fef               lea ebx, [rdi - 0x11]
+140021fc7  8bcb                 mov ecx, ebx
+140021fc9  e82e7f0000           call 0x140029efc
+140021fce  83cdff               or ebp, 0xffffffff
+140021fd1  3bc5                 cmp eax, ebp
+140021fd3  750c                 jne 0x140021fe1
+140021fd5  ba32020000           mov edx, 0x232
+140021fda  8bcb                 mov ecx, ebx
+140021fdc  e813800000           call 0x140029ff4
+140021fe1  b928000000           mov ecx, 0x28
+140021fe6  e8117f0000           call 0x140029efc
+140021feb  3bc5                 cmp eax, ebp
+140021fed  750f                 jne 0x140021ffe
+140021fef  bae8020000           mov edx, 0x2e8
+140021ff4  b928000000           mov ecx, 0x28
+140021ff9  e8f67f0000           call 0x140029ff4
+140021ffe  b92a000000           mov ecx, 0x2a
+140022003  e8f47e0000           call 0x140029efc
+140022008  3bc5                 cmp eax, ebp
+14002200a  750f                 jne 0x14002201b
+14002200c  bac0030000           mov edx, 0x3c0
+140022011  b92a000000           mov ecx, 0x2a
+140022016  e8d97f0000           call 0x140029ff4
+14002201b  bb29000000           mov ebx, 0x29
+140022020  8bcb                 mov ecx, ebx
+140022022  e8d57e0000           call 0x140029efc
+140022027  3bc5                 cmp eax, ebp
+140022029  750c                 jne 0x140022037
+14002202b  bab8030000           mov edx, 0x3b8
+140022030  8bcb                 mov ecx, ebx
+140022032  e8bd7f0000           call 0x140029ff4
+140022037  bb2b000000           mov ebx, 0x2b
+14002203c  8bcb                 mov ecx, ebx
+14002203e  e8b97e0000           call 0x140029efc
+140022043  3bc5                 cmp eax, ebp
+140022045  750c                 jne 0x140022053
+140022047  baf8030000           mov edx, 0x3f8
+14002204c  8bcb                 mov ecx, ebx
+14002204e  e8a17f0000           call 0x140029ff4
+140022053  bb2c000000           mov ebx, 0x2c
+140022058  8bcb                 mov ecx, ebx
+14002205a  e89d7e0000           call 0x140029efc
+14002205f  3bc5                 cmp eax, ebp
+140022061  750c                 jne 0x14002206f
+140022063  ba88060000           mov edx, 0x688
+140022068  8bcb                 mov ecx, ebx
+14002206a  e8857f0000           call 0x140029ff4
+14002206f  bb2d000000           mov ebx, 0x2d
+140022074  8bcb                 mov ecx, ebx
+140022076  e8817e0000           call 0x140029efc
+14002207b  3bc5                 cmp eax, ebp
+14002207d  750c                 jne 0x14002208b
+14002207f  ba5f040000           mov edx, 0x45f
+140022084  8bcb                 mov ecx, ebx
+140022086  e8697f0000           call 0x140029ff4
+14002208b  bb2e000000           mov ebx, 0x2e
+140022090  8bcb                 mov ecx, ebx
+140022092  e8657e0000           call 0x140029efc
+140022097  3bc5                 cmp eax, ebp
+140022099  750c                 jne 0x1400220a7
+14002209b  ba08030000           mov edx, 0x308
+1400220a0  8bcb                 mov ecx, ebx
+1400220a2  e84d7f0000           call 0x140029ff4
+1400220a7  bb2f000000           mov ebx, 0x2f
+1400220ac  8bcb                 mov ecx, ebx
+1400220ae  e8497e0000           call 0x140029efc
+1400220b3  3bc5                 cmp eax, ebp
+1400220b5  750c                 jne 0x1400220c3
+1400220b7  bae0030000           mov edx, 0x3e0
+1400220bc  8bcb                 mov ecx, ebx
+1400220be  e8317f0000           call 0x140029ff4
+1400220c3  418bce               mov ecx, r14d
+1400220c6  e8317e0000           call 0x140029efc
+1400220cb  3bc5                 cmp eax, ebp
+1400220cd  750d                 jne 0x1400220dc
+1400220cf  ba50040000           mov edx, 0x450
+1400220d4  418bce               mov ecx, r14d
+1400220d7  e8187f0000           call 0x140029ff4
+1400220dc  418bce               mov ecx, r14d
+1400220df  e8187e0000           call 0x140029efc
+1400220e4  b932000000           mov ecx, 0x32
+1400220e9  8d5010               lea edx, [rax + 0x10]
+1400220ec  4883c228             add rdx, 0x28
+1400220f0  e8ff7e0000           call 0x140029ff4
+1400220f5  bb35000000           mov ebx, 0x35
+1400220fa  8bcb                 mov ecx, ebx
+1400220fc  e8fb7d0000           call 0x140029efc
+140022101  3bc5                 cmp eax, ebp
+140022103  750c                 jne 0x140022111
+140022105  ba20040000           mov edx, 0x420
+14002210a  8bcb                 mov ecx, ebx
+14002210c  e8e37e0000           call 0x140029ff4
+140022111  8bcb                 mov ecx, ebx
+140022113  e8e47d0000           call 0x140029efc
+140022118  b936000000           mov ecx, 0x36
+14002211d  8bd0                 mov edx, eax
+14002211f  4883ea08             sub rdx, 8
+140022123  e8cc7e0000           call 0x140029ff4
+140022128  bb3e030000           mov ebx, 0x33e
+14002212d  8bcb                 mov ecx, ebx
+14002212f  e8c87d0000           call 0x140029efc
+140022134  3bc5                 cmp eax, ebp
+140022136  750a                 jne 0x140022142
+140022138  8d531a               lea edx, [rbx + 0x1a]
+14002213b  8bcb                 mov ecx, ebx
+14002213d  e8b27e0000           call 0x140029ff4
+140022142  bb37000000           mov ebx, 0x37
+140022147  8bcb                 mov ecx, ebx
+140022149  e8ae7d0000           call 0x140029efc
+14002214e  3bc5                 cmp eax, ebp
+140022150  750c                 jne 0x14002215e
+140022152  ba30060000           mov edx, 0x630
+140022157  8bcb                 mov ecx, ebx
+140022159  e8967e0000           call 0x140029ff4
+14002215e  bb3d000000           mov ebx, 0x3d
+140022163  8bcb                 mov ecx, ebx
+140022165  e8927d0000           call 0x140029efc
+14002216a  3bc5                 cmp eax, ebp
+14002216c  750c                 jne 0x14002217a
+14002216e  baf0000000           mov edx, 0xf0
+140022173  8bcb                 mov ecx, ebx
+140022175  e87a7e0000           call 0x140029ff4
+14002217a  8bcf                 mov ecx, edi
+14002217c  e87b7d0000           call 0x140029efc
+140022181  3bc5                 cmp eax, ebp
+140022183  750c                 jne 0x140022191
+140022185  ba20020000           mov edx, 0x220
+14002218a  8bcf                 mov ecx, edi
+14002218c  e8637e0000           call 0x140029ff4
+140022191  bbd0010000           mov ebx, 0x1d0
+140022196  8bcb                 mov ecx, ebx
+140022198  e85f7d0000           call 0x140029efc
+14002219d  3bc5                 cmp eax, ebp
+14002219f  750a                 jne 0x1400221ab
+1400221a1  498bd6               mov rdx, r14
+1400221a4  8bcb                 mov ecx, ebx
+1400221a6  e8497e0000           call 0x140029ff4
+1400221ab  ba58000000           mov edx, 0x58
+1400221b0  b9d1010000           mov ecx, 0x1d1
+1400221b5  e83a7e0000           call 0x140029ff4
+1400221ba  ba98060000           mov edx, 0x698
+1400221bf  b939000000           mov ecx, 0x39
+1400221c4  e82b7e0000           call 0x140029ff4
+1400221c9  baf8020000           mov edx, 0x2f8
+1400221ce  b93a000000           mov ecx, 0x3a
+1400221d3  e81c7e0000           call 0x140029ff4
+1400221d8  bab0070000           mov edx, 0x7b0
+1400221dd  b94a000000           mov ecx, 0x4a
+1400221e2  e80d7e0000           call 0x140029ff4
+1400221e7  ba08060000           mov edx, 0x608
+1400221ec  b93e000000           mov ecx, 0x3e
+1400221f1  e8fe7d0000           call 0x140029ff4
+1400221f6  ba88060000           mov edx, 0x688
+1400221fb  b96f020000           mov ecx, 0x26f
+140022200  e8ef7d0000           call 0x140029ff4
+140022205  bf3f000000           mov edi, 0x3f
+14002220a  ba84010000           mov edx, 0x184
+14002220f  8bcf                 mov ecx, edi
+140022211  e8de7d0000           call 0x140029ff4
+140022216  bac3000000           mov edx, 0xc3
+14002221b  418bcd               mov ecx, r13d
+14002221e  e8d17d0000           call 0x140029ff4
+140022223  8d4f02               lea ecx, [rdi + 2]
+140022226  ba54010000           mov edx, 0x154
+14002222b  e8c47d0000           call 0x140029ff4
+140022230  8d4f0c               lea ecx, [rdi + 0xc]
+140022233  badc070000           mov edx, 0x7dc
+140022238  e8b77d0000           call 0x140029ff4
+14002223d  8d4f03               lea ecx, [rdi + 3]
+140022240  bac2010000           mov edx, 0x1c2
+140022245  e8aa7d0000           call 0x140029ff4
+14002224a  8d4f04               lea ecx, [rdi + 4]
+14002224d  ba72040000           mov edx, 0x472
+140022252  e89d7d0000           call 0x140029ff4
+140022257  ba80580000           mov edx, 0x5880
+14002225c  b98b010000           mov ecx, 0x18b
+140022261  e88e7d0000           call 0x140029ff4
+140022266  ba00590000           mov edx, 0x5900
+14002226b  b98c010000           mov ecx, 0x18c
+140022270  e87f7d0000           call 0x140029ff4
+140022275  bbe4010000           mov ebx, 0x1e4
+14002227a  8d4f2a               lea ecx, [rdi + 0x2a]
+14002227d  8bd3                 mov edx, ebx
+14002227f  e8707d0000           call 0x140029ff4
+140022284  8d4ba9               lea ecx, [rbx - 0x57]
+140022287  bad8000000           mov edx, 0xd8
+14002228c  e8637d0000           call 0x140029ff4
+140022291  8d5759               lea edx, [rdi + 0x59]
+140022294  8d4baa               lea ecx, [rbx - 0x56]
+140022297  e8587d0000           call 0x140029ff4
+14002229c  8d4bee               lea ecx, [rbx - 0x12]
+14002229f  33d2                 xor edx, edx
+1400222a1  e84e7d0000           call 0x140029ff4
+1400222a6  8d57cd               lea edx, [rdi - 0x33]
+1400222a9  8d4bef               lea ecx, [rbx - 0x11]
+1400222ac  e8437d0000           call 0x140029ff4
+1400222b1  8d5384               lea edx, [rbx - 0x7c]
+1400222b4  8d4bf4               lea ecx, [rbx - 0xc]
+1400222b7  e8387d0000           call 0x140029ff4
+1400222bc  8d5713               lea edx, [rdi + 0x13]
+1400222bf  8d4bf3               lea ecx, [rbx - 0xd]
+1400222c2  e82d7d0000           call 0x140029ff4
+1400222c7  8d53c4               lea edx, [rbx - 0x3c]
+1400222ca  8d4bf6               lea ecx, [rbx - 0xa]
+1400222cd  e8227d0000           call 0x140029ff4
+1400222d2  8d53c5               lea edx, [rbx - 0x3b]
+1400222d5  8d4bf5               lea ecx, [rbx - 0xb]
+1400222d8  e8177d0000           call 0x140029ff4
+1400222dd  8d4bfb               lea ecx, [rbx - 5]
+1400222e0  ba84020000           mov edx, 0x284
+1400222e5  e80a7d0000           call 0x140029ff4
+1400222ea  8d57e0               lea edx, [rdi - 0x20]
+1400222ed  8d4bfe               lea ecx, [rbx - 2]
+1400222f0  e8ff7c0000           call 0x140029ff4
+1400222f5  8d5760               lea edx, [rdi + 0x60]
+1400222f8  b966020000           mov ecx, 0x266
+1400222fd  e8f27c0000           call 0x140029ff4
+140022302  8d5731               lea edx, [rdi + 0x31]
+140022305  8d4bff               lea ecx, [rbx - 1]
