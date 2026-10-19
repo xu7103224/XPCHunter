@@ -763,180 +763,326 @@ __int64 MiniFilterPostWrite(void)
 // ============================================================
 // MiniFilterPreClose — 关闭前扫描器
 // 对应原始驱动 sub_1400152D4（1908 字节 / 486 条指令）
-// 【新实现 2026-10-19】此前**完全缺失**（分派函数 SelectMiniFilterDirEnumCallback
-//   在 build >= 0x2800 时本应调用本函数，我方却错调 FindKernelObjectFieldOffsetsWin10）。
-//   逐条对照 0x1400152D4 重建：
-//     7 个入口 GT（全非 0 才继续）：0x20(PE缓冲) 0x21(大小) 3(内核基址)
-//                                  0x8CC 0x900 0x8CD 0x4459
-//     在缓冲中按名查找 ".PAGE" 节：raw 偏移(0x140005C28)+VA(0x140005CB4)
-//     扫描区间 = [缓冲+raw, 缓冲+raw+min(...)]
-//     主循环（0x140015436..9EE，逐字节 r13++）：
-//       命中 `48 8D`(lea) 且 [+3] 的 dword 减基址得有效 RVA → 候选值
-//         若其后为 `48 89 08`（mov [rax],rcx）→ 以该处为起点、以上述 RVA 为长度
-//         调 ReadPESectionEntry 解码指令流（最多 0xA/0xF 轮），
-//         按类型 0x512(+0x88==0x40000,+0x78 非 0,+0x50==0x40)、0x547、
-//         0x4B5、0xE5、0x50E、0x558 等判据记录候选；三个 flag（r8b/dl/r14b）全置位后
-//         分别写两组对称槽 + 两点槽：
-//           GT[0x332],[0x333]=+Gt[3] ; GT[0x8EE],[0x8EF]=+Gt[3]
-//           GT[0x334],[0x335]=+Gt[3] ; GT[0x8EC],[0x8ED]=+Gt[3]
-//           GT[0x336]=读取+? ; GT[0x337]=r14+Gt[3]
-//   字段偏移已用 desc_offsets.py 复核：+0xF0 推进、+0x118 类型指针、+0x88、+0x70、+0x78、+0x40。
+// 【重写 2026-10-19】寄存器级机械转写。旧实现（同日早些时候）经反汇编复核有 5 处偏差：
+//   1) 扫描基址：原始 `Base = (Raw < PeSize) ? Raw : 0`（Raw 取自
+//      FindPESectionByName 的返回值，0x1400153E9 sbb + 0x1400153EE and）；
+//      旧代码误用 ReturnVa 比较。
+//   2) 解码窗口：原始 `(ULONG)PeEnd - (ULONG)r13 - 7`（0x1400154B6..4DB），
+//      备用支路则是 `edi - (ULONG)r13 - 7`（0x14001585E..882）。旧代码两处都不对。
+//   3) 块 A 的类型判据比较描述符 +0x40（0x140015671/68A），旧代码误作 +0x70。
+//   4) 备用 `48 8B` 支路（0x140015856..9A7，类型 0x4B5/0xE5/0x558/0x50E 与回扫）整体缺失。
+//   5) 写块 2 的上游条件（回扫命中 ebx / 0x547 标志）缺失，导致 GT[0x334]/[0x335]/
+//      [0x8EC]/[0x8ED] 永不落盘。
+// 原码在 8/16/32/64 位别名间反复切换并复用寄存器（rsi 既作 PeBase 又作块 A 计数器；
+// r14d 既作 Cand 又作两个 Alt 候选与标志字节；r13 在块 B 内被改写为 PeBase 后
+// 再从 [rsp+0x78] 恢复），故此处按「寄存器 = 变量」建模、窄写用掩码，以求位级一致。
+// 标签名保留原始地址，便于逐槽核对。
+// 写入槽位：写块 1（0x14001569A）GT[0x332]/[0x333]/[0x8EE]/[0x8EF]
+//           写块 2（0x1400157FB）GT[0x334]/[0x335]/[0x8EC]/[0x8ED]
+//           尾写 （0x140015A24）GT[0x337]
 __int64 MiniFilterPreClose(void)
 {
-    /* 对应原始驱动 sub_1400152D4（1908 字节）。
-       逐条对照重建的关键点（0x1400152D4..A43）：
-         · 7 个入口 GT 守卫：0x20(缓冲) 0x21(大小) 3(内核基址) 0x8CC 0x900 0x8CD 0x4459
-         · 构造节名 ".PAGE"（0x1400153C4 写 0x4741502E=".PAG"；0x1400153D1 写 0x45="E"）
-         · 0x140005C28 FindPESectionByName → raw 偏移(ebx)；0x140005CB4 …ReturnVa → VA(ecx)
-         · 窗口（0x1400153DE..436）：
-             ebx = Va<PeSize ? raw : 0          （sbb/and）
-             ecx = Va ? Va : PeSize-ebx
-             ecx = min(ecx, PeSize-ebx)          （cmova）
-             start = buf+ebx   end = buf+ecx+ebx
-         · 主循环（0x140015445 起，逐字节 r13++）：
-             if (r13+0x30 >= end) 退出
-             if (*r13 != 0x48 || r13[1] != 0x8D) 下一字节
-             Cand = *(u32*)(r13+3) - PeBase_buf + (u32)(r13+7)   ← 减的是**缓冲区基址**(esi)
-             if (!Cand || Cand >= PeSize) 下一字节
-             if (!(r13[7]==0x48 && r13[8]==0x89 && r13[0xA]==0x08)) → 走另一支（0x140015856）
-             else 解码窗口 [r13+7, r13+7+(PeSize - (r13-buf) - 7)]，最多 0xA 轮
-         · 写块一（0x14001569F..6D6）：GT[0x332]=Cand、GT[0x333]=Cand+NtImageBase、
-                                      GT[0x8EE]=AltCand、GT[0x8EF]=AltCand+NtImageBase
-         · 写块二（0x1400157FB..837）：GT[0x334]、GT[0x335]、GT[0x8EC]、GT[0x8ED]（同型）
-         · 尾写（0x140015A24）：GT[0x337]=AltCand+NtImageBase */
-    __int64 PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
-    unsigned int PeSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x21);
-    __int64 NtImageBase = GtRead((GLOBAL_TABLE_INDEX)3);
-    unsigned int In1 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8CC);
-    unsigned int In2 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x900);
-    unsigned int In3 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8CD);
-    unsigned int In4 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x4459);
+    /* 寄存器级转写。原码寄存器复用严重，故按「寄存器 = 变量」建模：
+         rsi   = PeBase（同时在块 A 内当 0..0xA 的计数器）
+         r12d  = PeSize
+         rdi   = 块 A/B 的 AltCand；全宽 rdi 另承载 PeEnd
+         r13   = 扫描游标（[rsp+0x78] 备份）
+         r15   = r13+7（块 B 中被复用为步进 1）
+         r14d  = Cand（[rsp+0x44]），块内改写为 Alt 候选与标志字节
+         ebx   = Base / Alt2 候选 / 标志
+       窄写一律用掩码模拟，以求位级一致。标签名 = 原始地址。 */
+    const ULONG64 PeBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x20);   /* rsi   0x14001530B */
+    const ULONG   PeSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);     /* r12d  0x140015315 */
+    const ULONG64 NtBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)3);      /* [rsp+0x50] */
+    const ULONG   v8CC   = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8CC);    /* [rbp-0x80] */
+    const ULONG   v900   = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x900);    /* [rbp-0x70] */
+    const ULONG   v8CD   = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8CD);    /* [rsp+0x70] */
+    const ULONG   v4459  = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4459);   /* [rbp-0x78] */
 
-    if (!PeBase || !PeSize || !NtImageBase || !In1 || !In2 || !In3 || !In4)
-        return 0;
+    ULONG64 PeEnd = 0;          /* [rsp+0x58] = PeBase + PeSize */
+    ULONG64 End   = 0;          /* [rsp+0x68] = 扫描终点 */
+    ULONG64 r13   = 0;          /* 扫描游标 */
+    ULONG64 r15   = 0;          /* r13 + 7，或块 B 的步进 */
+    ULONG   r14d  = 0;          /* Cand / Alt / 标志字节 */
+    ULONG   edi   = 0;          /* 块 A / 块 B 的 AltCand */
+    ULONG   esi   = 0;
+    ULONG   ebx   = 0;
+    UCHAR   dl = 0, r8b = 0;
+    UCHAR   f40 = 0, f41 = 0, f42 = 0;    /* [rsp+0x40]/[41]/[42] */
+    ULONG   Cand = 0;           /* [rsp+0x44] */
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[112];
 
-    char SectionName[8] = ".PAGE";
-    unsigned int Raw = (unsigned int)FindPESectionByName(PeBase, PeSize, (__int64)SectionName);
-    unsigned int Va = (unsigned int)FindPESectionByNameReturnVa(PeBase, PeSize, (__int64)SectionName);
+    if (!PeBase || !PeSize || !NtBase) return 0;    /* 0x14001537E..397 */
+    if (!v8CC || !v900 || !v8CD) return 0;          /* 0x140015399..3AD */
 
-    unsigned int Base = (Va < PeSize) ? Raw : 0;
-    unsigned int Len = Va ? Va : (PeSize - Base);
-    unsigned int Avail = PeSize - Base;
-    if (Len > Avail) Len = Avail;
-
-    PUCHAR Buf = (PUCHAR)PeBase;
-    PUCHAR Start = Buf + Base;
-    PUCHAR End = Buf + Len + Base;
-    if (Start >= End) return 0;
-
-    unsigned int Cand = 0;      /* r14d */
-    unsigned int AltCand = 0;   /* edi  */
-    char F1 = 0, F2 = 0, F3 = 0;
-
-    for (PUCHAR r13 = Start; r13 < End; ++r13)
+    edi   = PeSize;                                 /* 0x1400153B3 mov edi,r12d */
+    PeEnd = PeBase + (ULONG64)PeSize;               /* 0x1400153BE add rdi,rsi */
     {
-        if ((PUCHAR)(r13 + 0x30) >= End) break;
-        if (r13[0] != 0x48 || r13[1] != 0x8D) continue;
+        char  Name[8];                              /* [rsp+0x60] ".PAGE" */
+        ULONG Raw, Base, Va, Len, Avail;
+        *(ULONG *)(Name + 0) = 0x4741502Eu;         /* 0x1400153C4 ".PAG" */
+        *(ULONG *)(Name + 4) = 0x45u;               /* 0x1400153D1 "E"    */
+        Raw = (ULONG)FindPESectionByName((__int64)PeBase, PeSize, (__int64)Name);
+        Base = (Raw < PeSize) ? Raw : 0u;           /* sbb/and 0x1400153E9..3EE */
+        ebx  = Base;                                /* 0x1400153EB */
+        Va = (ULONG)FindPESectionByNameReturnVa((__int64)PeBase, PeSize, (__int64)Name);
+        if (Va == 0) Va = PeSize - Base;            /* 0x1400153F9..3FE */
+        Avail = PeSize - Base;                      /* 0x140015407 */
+        Len = (Va > Avail) ? Avail : Va;            /* cmova 0x14001540E */
+        r13 = PeBase + (ULONG64)Base;               /* 0x140015403 */
+        End = PeBase + (ULONG64)Base + (ULONG64)Len;/* 0x140015422 / 42E */
+    }
+    f42 = 0; f40 = 0; f41 = 0;                      /* 0x14001541D / 425 / 42A */
+    dl = 0; r8b = 0; r14d = 0;                      /* 0x140015416 / 413 / 419 */
+    if (r13 >= End) return 0;                       /* 0x140015436..439 */
 
-        /* 0x14001546C..475：r14d = (u32)(r13+7) + (*(u32*)(r13+3) - (u32)PeBase) */
-        Cand = (unsigned int)(ULONG_PTR)(r13 + 7)
-             + (*(unsigned int *)(r13 + 3) - (unsigned int)PeBase);
-        if (!Cand || Cand >= PeSize) continue;
+L_140015445:                                        /* ===== 主循环体（0x140015445） ===== */
+    if (r13 + 0x30 >= End) goto L_1400159E3;
+    if (*(UCHAR *)r13 != 0x48) goto L_1400159E3;
+    if (*(UCHAR *)(r13 + 1) != 0x8D) goto L_1400159E3;
+    /* 0x140015468..475：Cand = (u32)(r13+7) + (*(u32*)(r13+3) - (u32)PeBase) */
+    Cand = (ULONG)(r13 + 7) + (*(ULONG *)(r13 + 3) - (ULONG)PeBase);
+    r14d = Cand;                                    /* 0x140015475 [rsp+0x44] 备份 */
+    if (Cand == 0 || Cand >= PeSize) goto L_1400159E3;
+    r15 = r13 + 7;
+    if (*(UCHAR *)r15 != 0x48) goto L_140015856;    /* 0x14001548D..491 */
+    if (*(UCHAR *)(r13 + 8) != 0x89) goto L_140015856;
+    if (*(UCHAR *)(r13 + 0xA) != 8)  goto L_140015856;
+    if (r8b != 0) goto L_140015584;                 /* 0x1400154AD..4B0 */
 
-        /* 真正做解码的只有 `48 89 08` 这一支（0x14001548D..4A7） */
-        if (!(r13[7] == 0x48 && r13[8] == 0x89 && r13[0xA] == 0x08))
-            continue;
-        if (F1) continue;
-
-        PE_DECODE_CONTEXT Ctx;
-        _DWORD Entry[112];
-        /* 0x1400154D4..4E9：窗口 = [r13+7, r13+7 + (PeSize - (r13-PeBase) - 7)] */
-        ULONG Win = (ULONG)(PeSize - (unsigned int)(ULONG_PTR)(r13 - Buf) - 7);
-        InitPESectionReadContext((__int64)(r13 + 7), Win, 2, 0, -1, 0, 0, (__int64)&Ctx);
-
-        for (int k = 0; k < 0xA; ++k)
+    /* ===== 块 A（0x1400154B6..56E）：最多 0xA 轮 ===== */
+    edi = 0;                                        /* 0x1400154BA xor edi,edi */
+    r14d &= 0xFFFFFF00u;                            /* 0x1400154E4 xor r14b,r14b */
+    ebx  &= 0xFFFFFF00u;                            /* 0x1400154E7 xor bl,bl */
+    InitPESectionReadContext((__int64)r15, (ULONG)PeEnd - (ULONG)r13 - 7u,
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    esi = 0;                                        /* 0x1400154EE xor esi,esi */
+    for (;;)
+    {
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) goto L_140015570;
+        *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
-                break;
-            *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(unsigned int *)((PUCHAR)Entry + 0xF0);
-
-            short Type = *(__int16 *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
-            ULONG64 F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
-            ULONG64 F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);
-            ULONG   F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
-            ULONG   F70 = *(ULONG *)((PUCHAR)Entry + 0x70);
-
-            if (Type == 0x512 && F88 == 0x40000 && F78 && F50 == 0x40)
+            USHORT ty = *(USHORT *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+            if (ty == 0x512)                                    /* 0x140015528..551 */
             {
-                unsigned int c = F78 - (unsigned int)PeBase
-                               + (unsigned int)*(ULONG64 *)((PUCHAR)&Ctx + 0x08);
-                if (c && c < PeSize && !AltCand)
-                    AltCand = c;
-            }
-            else if (Type == 0x547 && (F88 & 0x800000) != 0 && F70 == 0x1000 &&
-                     *(unsigned int *)((PUCHAR)Entry + 0x40) == In2)
-            {
-                F2 = 1;
-            }
-        }
-
-        if (AltCand && !F1)
-        {
-            GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand);
-            GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)(Cand + NtImageBase));
-            GtWrite((GLOBAL_TABLE_INDEX)0x8EE, (__int64)AltCand);
-            GtWrite((GLOBAL_TABLE_INDEX)0x8EF, (__int64)(AltCand + NtImageBase));
-            F1 = 1;
-        }
-        else if (F1 && !F3)
-        {
-            /* 【补 2026-10-19】第二写块（原始 0x14001577C..837）：
-               从 r13-0x30 向 r13-7 **反向**扫描，找 `C7`（mov r/m32, imm32）且
-               `[rcx+2]==GT[0x4459]`（r9d）且 `[rcx+6]==0x1000` 的点；
-               或 `[rcx+2]==GT[0x4459]` 且 `[rcx+6]==0x1000`。
-               找到后写 GT[0x334]=Cand、GT[0x335]=Cand+NtImageBase、
-                         GT[0x8EC]=F1候选、GT[0x8ED]=该值+NtImageBase。 */
-            /* 精确对照 0x14001578E..7E9：
-                 rcx 从 (r13-0x30) 递增到 (r13-7)；
-                 若 rcx[0]==0xC7 且 movzx(rcx[2]) == (BYTE)GT[0x4459] 且 [rcx+3]==0x1000 → 命中
-                 否则若 (rcx-0xA) <= (r13-0xA) 且 rcx[0]==0xC7 且 [rcx+2]==GT[0x4459] 且 [rcx+6]==0x1000 → 命中 */
-            PUCHAR lo = r13 - 0x30;
-            if (r13 > Buf && lo > Buf && In4)
-            {
-                PUCHAR hi = r13 - 7;
-                int hit = 0;
-                for (PUCHAR rcx = lo; rcx <= hi && (rcx + 7) < End; ++rcx)
+                if (*(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000 &&
+                    *(ULONG   *)((PUCHAR)Entry + 0x78) != 0 &&
+                    *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40)
                 {
-                    if (rcx[0] == 0xC7 &&
-                        (unsigned int)rcx[2] == (In4 & 0xFF) &&
-                        *(unsigned int *)(rcx + 3) == 0x1000)
-                    {
-                        hit = 1; break;
-                    }
-                    if ((PUCHAR)(rcx - 0xA) <= (PUCHAR)(r13 - 0xA) &&
-                        rcx[0] == 0xC7 &&
-                        *(unsigned int *)(rcx + 2) == (unsigned int)In4 &&
-                        *(unsigned int *)(rcx + 6) == 0x1000)
-                    {
-                        hit = 1; break;
-                    }
-                }
-                if (hit)
-                {
-                    GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);
-                    GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand + NtImageBase));
-                    GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)AltCand);
-                    GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)(AltCand + NtImageBase));
-                    F3 = 1;
+                    ULONG c = *(ULONG *)((PUCHAR)Entry + 0x78) - (ULONG)PeBase
+                            + (ULONG)*(ULONG64 *)((PUCHAR)&Ctx + 0x08);
+                    if (c != 0 && c < PeSize && edi == 0) edi = c;
                 }
             }
+            else if (*(ULONG *)((PUCHAR)Entry + 0x40) == v8CC)  /* 0x14001566D..67E */
+            {
+                r14d = 1;
+                goto L_14001555D;
+            }
+            else                                                /* 0x140015683..695 */
+            {
+                UCHAR lo = (UCHAR)ebx;      /* movzx ebx,bl */
+                ebx = (*(ULONG *)((PUCHAR)Entry + 0x40) == v900) ? 1u : (ULONG)lo;
+                goto L_140015558;
+            }
         }
+        /* 类型非 0x512 且两分支均未命中时不会到达此处；为对齐原始 0x140015553 */
+L_140015553:
+        if ((UCHAR)r14d != 1) goto L_140015569;
+        if ((UCHAR)ebx  != 1) goto L_140015569;
+        if (edi != 0) goto L_14001569A;
+        goto L_140015569;
+L_140015558:
+        if ((UCHAR)r14d != 1) goto L_140015569;
+L_14001555D:
+        if ((UCHAR)ebx != 1) goto L_140015569;
+        if (edi != 0) goto L_14001569A;
+L_140015569:
+        esi += 1;                                    /* 0x140015569..56E */
+        if (esi < 0xA) continue;
+        goto L_140015570;
     }
 
-    if (F1 && AltCand)
-        GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)(AltCand + NtImageBase));
+L_140015570:                                        /* 0x140015570..57A */
+    r8b  = f42;
+    dl   = f41;
+    r14d = Cand;                                    /* 0x140015575 mov r14d,[rsp+0x44] */
+
+L_140015584:                                        /* 0x140015584 */
+    if (f40 != 0) goto L_1400159B6;                 /* 0x140015584..589 */
+    if (r14d == 0 || r14d >= PeSize) goto L_1400159B6;  /* 0x14001558F..59B */
+
+    /* ===== 块 B（0x1400155A1..755）：最多 0x14 轮 ===== */
+    r14d = 0;                                       /* 0x1400155A5 xor r14d,r14d */
+    ebx  &= 0xFFFFFF00u;                            /* 0x1400155D0 xor bl,bl */
+    edi  &= 0xFFFFFF00u;                            /* 0x1400155D2 xor dil,dil */
+    InitPESectionReadContext((__int64)r15, (ULONG)PeEnd - (ULONG)r13 - 7u,
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    esi = 0;                                        /* 0x1400155DF xor esi,esi */
+    r15 = 1;                                        /* 0x1400155E1 lea r15d,[r14+1] */
+    for (;;)
+    {
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) goto L_14001575B;
+        *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
+        {
+            USHORT ty = *(USHORT *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+            if (ty == 0x512)                                    /* 0x140015624..668 */
+            {
+                if (*(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000 &&
+                    *(ULONG   *)((PUCHAR)Entry + 0x78) != 0 &&
+                    *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40)
+                {
+                    ULONG c = *(ULONG *)((PUCHAR)Entry + 0x78) - (ULONG)PeBase
+                            + (ULONG)*(ULONG64 *)((PUCHAR)&Ctx + 0x08);
+                    if (c != 0 && c < PeSize && r14d == 0) r14d = c;
+                }
+            }
+            else if (ty == 0x547)                               /* 0x1400156EC..71B */
+            {
+                if ((*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x800000) != 0 &&
+                    *(ULONG *)((PUCHAR)Entry + 0x70) == 0x1000 &&
+                    *(ULONG *)((PUCHAR)Entry + 0x40) == v8CD)
+                {
+                    ebx = 1;
+                    r15 = 1;
+                }
+            }
+            else if ((USHORT)(ty - 0x53C) <= 7)                 /* 0x14001571D..74B */
+            {
+                if (*(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x2000000 &&
+                    *(ULONG64 *)((PUCHAR)Entry + 0x70) == 0xFFFFF78000000014ull)
+                {
+                    UCHAR lo = (UCHAR)edi;   /* movzx edi,dil */
+                    edi = (r15 == 0) ? (ULONG)lo : (ULONG)r15;   /* cmove edi,r15d */
+                }
+            }
+        }
+        esi += (ULONG)r15;                                  /* 0x14001574F */
+        if (esi < 0x14) continue;
+        break;
+    }
+
+L_14001575B:                                        /* 0x14001575B */
+    if ((UCHAR)edi != 1) goto L_1400159AD;          /* 0x140015761 cmp dil,1 */
+    if (r14d == 0) goto L_1400159AD;                /* 0x14001576F */
+    if ((UCHAR)ebx != 0) goto L_1400157EE;          /* 0x140015778 */
+    {   /* 回扫 `C7`：rcx 自 (r13-0x30) 递增至 (r13-7)（0x140015781..7E9） */
+        PUCHAR rcx = (PUCHAR)r13 - 0x30;
+        PUCHAR hi  = (PUCHAR)(r13 - 7);
+        if (r13 <= PeBase) goto L_1400159AD;        /* 0x140015785..788 */
+        if ((ULONG64)rcx <= PeBase) goto L_1400159AD;/* 0x14001578E..791 */
+        for (;;)
+        {
+            UCHAR dv;
+            if (rcx > hi) goto L_1400159AD;         /* 0x14001579B..79E */
+            dv = *rcx;
+            if (dv == 0xC7 && (ULONG)rcx[2] == v8CD && *(ULONG *)(rcx + 3) == 0x1000)
+                break;                              /* 0x1400157AB..7C0 */
+            if (rcx <= (PUCHAR)(r13 - 0xA) && dv == 0xC7 &&
+                *(ULONG *)(rcx + 2) == v8CD && *(ULONG *)(rcx + 6) == 0x1000)
+                break;                              /* 0x1400157C2..7DD */
+            rcx += 1;                               /* 0x1400157DF..7E7 */
+        }
+        ebx = 1;                                    /* 0x1400157E9 */
+    }
+L_1400157EE:                                        /* 0x1400157EE */
+    if ((UCHAR)ebx != 1) goto L_1400159AD;
+    GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);              /* 0x1400157FB */
+    GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)((ULONG64)Cand + NtBase));
+    GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)(ULONG64)r14d);
+    GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)((ULONG64)r14d + NtBase));
+    r8b  = f42;                                     /* 0x14001583C */
+    dl   = 1;                                       /* 0x140015841 */
+    r14d = (r14d & 0xFFFFFF00u) | 1u;               /* 0x140015846 mov r14b,dl */
+    f40  = 1;                                       /* 0x140015849 */
+    dl   = f41;                                     /* 0x14001584D */
+    goto L_1400159BB;
+
+L_14001569A:                                        /* ===== 写块 1（0x14001569A..6E7） ===== */
+    r14d = Cand;                                    /* 0x14001569A mov r14d,[rsp+0x44] */
+    GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand);              /* 0x14001569F */
+    GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)((ULONG64)Cand + NtBase));
+    GtWrite((GLOBAL_TABLE_INDEX)0x8EE, (__int64)(ULONG64)edi);
+    GtWrite((GLOBAL_TABLE_INDEX)0x8EF, (__int64)((ULONG64)edi + NtBase));
+    r8b = 1;                                        /* 0x1400156E0 mov r8b,dl */
+    f42 = 1;                                        /* 0x1400156E3 */
+    dl  = f41;                                      /* 0x1400156E7 */
+    goto L_140015584;
+
+L_140015856:                                        /* ===== 备用支路（0x140015856..9A7） ===== */
+    if (dl != 0) goto L_1400159B6;                  /* 0x140015856..858 */
+    /* 0x14001585E..882：窗口 = edi - (u32)r13 - 7（edi 此处 = PeSize） */
+    InitPESectionReadContext((__int64)r15, edi - (ULONG)r13 - 7u,
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+    ebx &= 0xFFFFFF00u;                             /* 0x140015880 xor bl,bl */
+    edi  = 0;                                       /* 0x140015891 xor edi,edi */
+    for (;;)
+    {
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) goto L_1400159AD;
+        *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
+        {
+            USHORT ty = *(USHORT *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+            /* 0x1400158C5..8F0：0x4B5 且 [F0]==6 → ebx = (GT[0x336] == +0x70) */
+            if (ty == 0x4B5 && *(ULONG *)((PUCHAR)Entry + 0xF0) == 6)
+            {
+                UCHAR lo = (UCHAR)ebx;
+                ebx = ((ULONG)GtRead((GLOBAL_TABLE_INDEX)0x336) ==
+                       *(ULONG *)((PUCHAR)Entry + 0x70)) ? 1u : (ULONG)lo;
+            }
+            if (edi > 4 && (UCHAR)ebx == 0) goto L_1400159AD;   /* 0x1400158F7..8FE */
+            if (ty == 0xE5 && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40000 &&
+                (UCHAR)ebx == 1)
+                goto L_140015A24;                               /* 0x14001590C..926 */
+            if (ty == 0x558 &&                                  /* 0x14001592C..957 */
+                (*(ULONG64 *)((PUCHAR)Entry + 0x50) & 0x4000000) != 0 &&
+                *(ULONG *)((PUCHAR)Entry + 0x38) != 0)
+            {
+                if ((UCHAR)ebx == 0) goto L_1400159AD;
+                if (v4459 != 0)
+                {
+                    ULONG a = *(ULONG *)((PUCHAR)Entry + 0x38) - (ULONG)PeBase
+                            + (ULONG)*(ULONG64 *)((PUCHAR)&Ctx + 0x08);
+                    if (v4459 == a) goto L_140015A24;
+                }
+            }
+            else if (ty == 0x50E &&                             /* 0x140015959..995 */
+                     *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40000 &&
+                     *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40 &&
+                     (UCHAR)ebx == 1)
+            {
+                ULONG a = *(ULONG *)((PUCHAR)Entry + 0x40) - (ULONG)PeBase
+                        + (ULONG)*(ULONG64 *)((PUCHAR)&Ctx + 0x08);
+                if (a != 0 && a < PeSize && (ULONG64)r14d + 8 == (ULONG64)a)
+                    goto L_140015A24;
+            }
+        }
+        edi += 1;                                            /* 0x14001599B..9A7 */
+        if (edi >= 0xF) goto L_1400159AD;
+    }
+
+L_140015A24:                                        /* 尾写（0x140015A24） */
+    GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)((ULONG64)r14d + NtBase));
+    dl  = 1;                                        /* 0x140015A3C mov dl,r8b */
+    f41 = 1;                                        /* 0x140015A3F */
+    goto L_1400159B1;
+
+L_1400159AD:                                        /* 0x1400159AD */
+    dl  = f41;
+    r8b = f42;
+L_1400159B1:
+L_1400159B6:                                        /* 0x1400159B6 */
+    r14d = (r14d & 0xFFFFFF00u) | (ULONG)f40;       /* mov r14b,[rsp+0x40] */
+L_1400159BB:                                        /* 完成闸门（0x1400159BB） */
+    if (r8b == 1 && (UCHAR)r14d == 1 && dl == 1) return 0;
+L_1400159CE:                                        /* 前进（0x1400159CE） */
+    r13 += 1;
+    if (r13 < End) goto L_140015445;
     return 0;
+L_1400159E3:
+    goto L_1400159CE;
 }
+
 
 __int64 MiniFilterPreCleanup(void)
 {
@@ -9748,23 +9894,379 @@ __int64 SelectMiniFilterDirEnumCallback(void)
     return ((__int64 (*)(void))MiniFilterPreClose)();
 }
 
-/* MiniFilterPreDirEnum — 目录枚举前扫描器
-   对应原始驱动 sub_140015A48（1257 字节）：写 GT[0x32E..0x337]。
-   【待实现】当前为安全占位（返回 0，不写任何 GT）；反汇编与判据见
-   build/audit/待实现_MiniFilter三扫描器.md 第 3 节。 */
+// ============================================================
+// MiniFilterPreDirEnum — 目录枚举前扫描器
+// 对应原始驱动 sub_140015A48（1257 字节 / 331 条指令）
+// 【新实现 2026-10-19】此前是安全占位（return 0）。逐条对照 0x140015A48 重建。
+//
+// 入口守卫仅 3 项：GT[0x20]（PE 缓冲）、GT[0x21]（大小）、GT[3]（内核基址）
+//   （0x140015AAB..AC0）—— 与 PreClose 不同，本函数**不读** 0x8CC/0x900/0x8CD/0x4459。
+// 窗口（0x140015AC6..B4F）：与 PreClose 同款 ".PAGE" 定位：
+//   Base=(Raw<PeSize)?Raw:0（sbb/and 0x140015AF9..AFE）；
+//   Va=ReturnVa，为 0 时取 PeSize-Base；Len=min(Va, PeSize-Base)（cmova 0x140015B1C）。
+//   扫描游标 rsi=PeBase+Base，终点 r15=PeBase+Base+Len。
+// 主循环（0x140015B5E..EFB）：rsi+0x30>=End 或 *rsi!=0x48 → 前进一字节；再按 rsi[1] 分派：
+//   · rsi[1]==0x8D（0x140015B79）
+//       Cand = (u32)(rsi+7) + (*(u32*)(rsi+3) - (u32)PeBase)（0x140015B7F..B8A）
+//       Cand==0 或 >=PeSize → 前进（0x140015B8C..B95）
+//       A1（0x140015B9B..C1F）dil==0 且 rsi[0xD]==8 && rsi[0xE]==0x48 &&
+//          rsi[0xF]==0x8D && rsi[0x18]==0x10：
+//            Alt = (u32)(rsi+0x15) + (*(u32*)(rsi+0x11) - (u32)PeBase)
+//            Alt>=PeSize → 前进；否则写
+//            GT[0x32E]=Cand、GT[0x330]=Alt、GT[0x32F]=Cand+Gt[3]、GT[0x331]=Alt+Gt[3]
+//            置 [rsp+0x43]=1（dil）→ 完成闸门（0x140015D31）
+//       A2（0x140015C24..C7D）r9b==0 且 rsi[7]==0x48 && rsi[8]==0x89 &&
+//          rsi[0xA]==8 && *(u32*)(rsi+0x11)==0xA0：
+//            Cand 已保证有效，写 GT[0x332]=Cand、GT[0x333]=Cand+Gt[3]，
+//            置 [rsp+0x42]=1（r9b）（0x140015C75..C78）→ 闸门（0x140015D17）
+//       A3（0x140015C82..D12）r8b==0 且 rsi[7]==0x41 && rsi[8]==0xF6：
+//            以 [rsi+7, PeEnd-rsi-7) 建上下文，最多 0xA 轮；
+//            描述符 +0x88==0x800000 && +0x70==0x1000（0x140015CF1..D02）→ 命中：
+//              重算 Cand（0x140015D60..D6B），有效则写
+//              GT[0x334]=Cand、GT[0x335]=Cand+Gt[3]，置 [rsp+0x41]=1（r8b，0x140015D8E..D97）
+//            未命中 → 闸门（0x140015D22）
+//   · 否则若 rsi[0]==0x48 && rsi[1]==0x8B（0x140015DB3..DBF）：
+//       edi = (u32)(rsi+7) + (*(u32*)(rsi+3) - (u32)PeBase)（0x140015DC5..DCE）
+//       edi==0 或 >=PeSize → 前进；dl!=0 → 闸门
+//       否则以 [rsi+7, PeEnd-rsi-7) 解码最多 0xA 轮（0x140015E23..E95）：
+//         hit34 = (+0x88 的 bit16) && (GT[0x336] + 描述符+0x78) == 0（0x140015E40..E62）
+//         hit35 = (+0x88 的 bit16) && 描述符+0x78 == 0xBC0（0x140015E6D..E85）
+//         两者同时成立 → 写 GT[0x337]=edi+Gt[3]（0x140015ECE），置 [rsp+0x40]=1（dl）
+// 完成闸门（0x140015D22 / D31 / D43 / EB5）：[0x43]==1 && [0x42]==1 && [0x41]==1 &&
+//   [0x40]==1 → 收尾返回；否则前进下一字节。四标志跨字节持久。
+// 写入槽位：0x32E/0x32F/0x330/0x331、0x332/0x333、0x334/0x335、0x337
+// ============================================================
 __int64 MiniFilterPreDirEnum(void)
 {
+    const ULONG64 PeBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x20);   /* r12  0x140015A7F */
+    const ULONG   PeSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);     /* r14d 0x140015A91 */
+    const ULONG64 NtBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)3);      /* r13  0x140015A9E */
+
+    ULONG64 PeEnd = 0;          /* [rsp+0x60] */
+    ULONG64 End   = 0;          /* r15 */
+    ULONG64 rsi   = 0;          /* 扫描游标 */
+    UCHAR   f43 = 0;            /* [rsp+0x43]（dil） */
+    UCHAR   f42 = 0;            /* [rsp+0x42]（r9b） */
+    UCHAR   f41 = 0;            /* [rsp+0x41]（r8b） */
+    UCHAR   f40 = 0;            /* [rsp+0x40]（dl） */
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[112];
+
+    if (!PeBase || !PeSize || !NtBase) return 0;        /* 0x140015AAB..AC0 */
+
+    PeEnd = PeBase + (ULONG64)PeSize;                   /* 0x140015AC6..ADF */
+    {
+        char  Name[8];                                  /* [rsp+0x48] ".PAGE" */
+        ULONG Raw, Base, Va, Len, Avail;
+        *(ULONG *)(Name + 0) = 0x4741502Eu;             /* 0x140015AD7 ".PAG" */
+        *(ULONG *)(Name + 4) = 0x45u;                   /* 0x140015AE4 "E"    */
+        Raw = (ULONG)FindPESectionByName((__int64)PeBase, PeSize, (__int64)Name);
+        Base = (Raw < PeSize) ? Raw : 0u;               /* 0x140015AF1..AFE */
+        Va = (ULONG)FindPESectionByNameReturnVa((__int64)PeBase, PeSize, (__int64)Name);
+        if (Va == 0) Va = PeSize - Base;                /* 0x140015B0A..B11 */
+        Avail = PeSize - Base;                          /* 0x140015B13..B1A */
+        Len = (Va > Avail) ? Avail : Va;                /* cmova 0x140015B1C */
+        rsi = PeBase + (ULONG64)Base;                   /* 0x140015B16 */
+        End = PeBase + (ULONG64)Base + (ULONG64)Len;    /* 0x140015B2F..B4A */
+    }
+    f43 = 0; f42 = 0; f41 = 0; f40 = 0;                 /* 0x140015B21..B43 */
+    if (rsi >= End) return 0;                           /* 0x140015B4F..B52 */
+
+    for (;;)
+    {
+        ULONG Cand;
+
+        if (rsi + 0x30 >= End) break;                   /* 0x140015B5E..B65 */
+        if (*(UCHAR *)rsi != 0x48) break;               /* 0x140015B6B..B6F */
+
+        if (*(UCHAR *)(rsi + 1) == 0x8D)                /* 0x140015B75 */
+        {
+            Cand = (ULONG)(rsi + 7) + (*(ULONG *)(rsi + 3) - (ULONG)PeBase); /* 0x140015B7F..B8A */
+            if (Cand == 0 || Cand >= PeSize) goto LD_ADV;                    /* 0x140015B8C..B95 */
+
+            /* A1（0x140015B9B..C1F） */
+            if (f43 == 0 &&
+                *(UCHAR *)(rsi + 0xD) == 8 && *(UCHAR *)(rsi + 0xE) == 0x48 &&
+                *(UCHAR *)(rsi + 0xF) == 0x8D && *(UCHAR *)(rsi + 0x18) == 0x10)
+            {
+                ULONG Alt = (ULONG)(rsi + 0x15)
+                          + (*(ULONG *)(rsi + 0x11) - (ULONG)PeBase);
+                if (Alt >= PeSize) goto LD_ADV;                          /* 0x140015BCF..BD2 */
+                GtWrite((GLOBAL_TABLE_INDEX)0x32E, (__int64)Cand);                      /* 0x140015BD8 */
+                GtWrite((GLOBAL_TABLE_INDEX)0x330, (__int64)Alt);                       /* 0x140015BE6 */
+                GtWrite((GLOBAL_TABLE_INDEX)0x32F, (__int64)((ULONG64)Cand + NtBase));  /* 0x140015BF4 */
+                GtWrite((GLOBAL_TABLE_INDEX)0x331, (__int64)((ULONG64)Alt  + NtBase));  /* 0x140015C02 */
+                f43 = 1;                                                /* 0x140015C17 mov dil,r8b */
+                goto GATE;
+            }
+            /* A2（0x140015C24..C7D） */
+            if (f42 == 0 && *(UCHAR *)(rsi + 7) == 0x48 && *(UCHAR *)(rsi + 8) == 0x89 &&
+                *(UCHAR *)(rsi + 0xA) == 8 && *(ULONG *)(rsi + 0x11) == 0xA0)
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand);                      /* 0x140015C55 */
+                GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)((ULONG64)Cand + NtBase));  /* 0x140015C65 */
+                f42 = 1;                                                    /* 0x140015C75 mov r9b,r8b */
+                goto GATE;
+            }
+            /* A3（0x140015C82..D12） */
+            if (f41 == 0 && *(UCHAR *)(rsi + 7) == 0x41 && *(UCHAR *)(rsi + 8) == 0xF6)
+            {
+                int Hit = 0;
+                InitPESectionReadContext((__int64)(rsi + 7), (ULONG)PeEnd - (ULONG)rsi - 7u,
+                                         2, 0, -1, 0, 0, (__int64)&Ctx);
+                for (int k = 0; k < 0xA; ++k)                            /* 0x140015CD4..D10 */
+                {
+                    if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) break;
+                    *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
+                    if (*(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x800000 &&  /* 0x140015CF1..D02 */
+                        *(ULONG   *)((PUCHAR)Entry + 0x70) == 0x1000)
+                    { Hit = 1; break; }
+                }
+                if (Hit)                                                     /* 0x140015D60..D97 */
+                {
+                    ULONG c = (ULONG)(rsi + 7) + (*(ULONG *)(rsi + 3) - (ULONG)PeBase);
+                    if (c != 0 && c < PeSize)
+                    {
+                        GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)c);                      /* 0x140015D74 */
+                        GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)((ULONG64)c + NtBase));  /* 0x140015D84 */
+                        f41 = 1;                                                 /* 0x140015D94 */
+                    }
+                }
+                goto GATE;
+            }
+            goto GATE;
+        }
+
+        /* 0x140015DB3：rsi[1] != 0x8D */
+        if (*(UCHAR *)(rsi + 1) != 0x8B) goto LD_ADV;                    /* 0x140015DBB..DBF */
+        {
+            ULONG Alt = (ULONG)(rsi + 7) + (*(ULONG *)(rsi + 3) - (ULONG)PeBase); /* 0x140015DC5..DCE */
+            if (Alt == 0 || Alt >= PeSize) goto LD_ADV;                  /* 0x140015DD0..DD9 */
+            if (f40 == 0)                                               /* 0x140015DDF..DE1 */
+            {
+                InitPESectionReadContext((__int64)(rsi + 7), (ULONG)PeEnd - (ULONG)rsi - 7u,
+                                         2, 0, -1, 0, 0, (__int64)&Ctx);
+                for (int k = 0; k < 0xA; ++k)                            /* 0x140015E23..E95 */
+                {
+                    ULONG64 F88;
+                    UCHAR Hit34, Hit35;
+                    if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) break;
+                    *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
+                    F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
+                    /* hit34：bit16 置位且 (GT[0x336]+描述符+0x78)==0（0x140015E40..E62） */
+                    Hit34 = ((F88 & 0x10000) != 0 &&
+                             (ULONG)((ULONG)GtRead((GLOBAL_TABLE_INDEX)0x336)
+                                     + *(ULONG *)((PUCHAR)Entry + 0x78)) == 0) ? 1u : 0u;
+                    /* hit35：bit16 置位且 描述符+0x78==0xBC0（0x140015E6D..E85） */
+                    Hit35 = ((F88 & 0x10000) != 0 &&
+                             *(ULONG *)((PUCHAR)Entry + 0x78) == 0xBC0) ? 1u : 0u;
+                    if (Hit34 == 1 && Hit35 == 1)                            /* 0x140015E8A..E8C */
+                    {
+                        GtWrite((GLOBAL_TABLE_INDEX)0x337,                    /* 0x140015ECE */
+                                (__int64)((ULONG64)Alt + NtBase));
+                        f40 = 1;                                             /* 0x140015EE1..EE4 */
+                        break;
+                    }
+                }
+            }
+        }
+        goto GATE;
+
+GATE:                                                    /* 0x140015D22 / D43 / EB5 */
+        if (f43 == 1 && f42 == 1 && f41 == 1 && f40 == 1) return 0;     /* 0x140015D55 → 收尾 */
+LD_ADV:                                                  /* 0x140015EF5..EFB */
+        rsi += 1;
+        if (rsi >= End) return 0;
+    }
     return 0;
 }
 
-/* MiniFilterPreSetInfo — 设置信息前扫描器
-   对应原始驱动 sub_140015F34（1231 字节）。
-   【待实现】当前为安全占位（返回 0，不写任何 GT）；判据见上述文档第 4 节。 */
+// ============================================================
+// MiniFilterPreSetInfo — 设置信息前扫描器
+// 对应原始驱动 sub_140015F34（1231 字节 / 317 条指令）
+// 【新实现 2026-10-19】此前是安全占位（return 0）。逐条对照 0x140015F34 重建。
+//
+// 入口 5 项守卫（0x140015FB8..FDC）：GT[0x20]、GT[0x21]、GT[3]、GT[0x8CC]、GT[0x8CD]。
+//   保存位置：GT[3]→[rsp+0x58]、GT[0x8CC]→[rsp+0x68]、GT[0x8CD]→[rsp+0x60]。
+// 窗口（0x140015FE2..6056）：与 PreClose 同款 ".PAGE" 定位：
+//   Base=(Raw<PeSize)?Raw:0；Va=ReturnVa，为 0 时取 PeSize-Base；Len=min(Va,PeSize-Base)；
+//   PeEnd=PeBase+PeSize 存于 [rsp+0x48]；游标 rbx=PeBase+Base，终点 r13=PeBase+Base+Len。
+//   注意 rbx 在块内被复用为「轮次计数器」，故进入每块前把 rbx+1 存入 [rsp+0x70]，
+//   块末从该槽恢复（0x14001605F / 0x140016175）。
+// 三块的衔接（按原始跳转）：
+//   块 1 守卫失败（f42!=0 或 rbx[7..0xA] 非 `48 89 08`）→ 落块 2；块 1 执行但未写 → 下一字节。
+//   块 2 守卫失败（f41!=0 或非 `41 F6` 形态）→ 落块 3；块 2 执行完（无论是否命中）→ 闸门。
+//   块 3 守卫（f40==0 && rbx[7]==0x48 && rbx[8]==5 && GT[0x336]==*(u32*)(rbx+9)）→ 执行 → 闸门。
+// 闸门（0x1400162D3..2F5）：f42==1 && f41==1 && f40==1 → return 0。
+// 写入槽位：块 1 → 0x332/0x333；块 2 → 0x334/0x335；块 3 → 0x337
+// ============================================================
 __int64 MiniFilterPreSetInfo(void)
 {
+    const ULONG64 PeBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x20);   /* r12  0x140015F6B */
+    const ULONG   PeSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);     /* esi  0x140015F75 */
+    const ULONG64 NtBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)3);      /* [rsp+0x58] 0x140015F8A */
+    const ULONG   v8CC   = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8CC);    /* [rsp+0x68] 0x140015F9C */
+    const ULONG   v8CD   = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8CD);    /* [rsp+0x60] 0x140015FAE */
+
+    ULONG64 PeEnd = 0;          /* [rsp+0x48] = PeBase + PeSize */
+    ULONG64 End   = 0;          /* r13 */
+    ULONG64 rbx   = 0;          /* 扫描游标 */
+    ULONG64 rdi   = 0;          /* rdi：低 32 位兼作窗口长度与「+0xFF8」标志 */
+    UCHAR   f40 = 0;            /* [rsp+0x40] */
+    UCHAR   f41 = 0;            /* [rsp+0x41] */
+    UCHAR   f42 = 0;            /* [rsp+0x42] */
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD  Entry[112];
+
+    if (!PeBase || !PeSize || !NtBase || !v8CC || !v8CD) return 0;  /* 0x140015FB8..FDC */
+
+    rdi   = (ULONG64)PeSize;                            /* 0x140015FE2 mov edi,esi */
+    PeEnd = PeBase + (ULONG64)PeSize;                   /* 0x140015FEB add rdi,r12 */
+    rdi   = PeEnd;                                      /* rdi 全宽 = PeEnd */
+    {
+        char  Name[8];                                  /* [rsp+0x50] ".PAGE" */
+        ULONG Raw, Base, Va, Len, Avail;
+        *(ULONG *)(Name + 0) = 0x4741502Eu;             /* 0x140015FF1 ".PAG" */
+        *(ULONG *)(Name + 4) = 0x45u;                   /* 0x140015FFE "E"    */
+        Raw = (ULONG)FindPESectionByName((__int64)PeBase, PeSize, (__int64)Name);
+        Base = (Raw < PeSize) ? Raw : 0u;               /* 0x14001600B..19 */
+        Va = (ULONG)FindPESectionByNameReturnVa((__int64)PeBase, PeSize, (__int64)Name);
+        if (Va == 0) Va = PeSize - Base;                /* 0x140016022..28 */
+        Avail = PeSize - Base;                          /* 0x14001602A..31 */
+        Len = (Va > Avail) ? Avail : Va;                /* cmova 0x140016033..35 */
+        End = PeBase + (ULONG64)Base + (ULONG64)Len;    /* 0x140016040..50 */
+        rbx = PeBase + (ULONG64)Base;                   /* 0x140016053 */
+    }
+    f42 = 0; f41 = 0; f40 = 0;                          /* 0x14001602C / 43 / 4B */
+    if (rbx >= End) return 0;                           /* 0x14001617F..182 */
+
+    for (;;)                                            /* 循环条件 0x14001617F */
+    {
+        ULONG Cand;                                     /* r15d */
+
+        if (rbx + 1 + 0x2F >= End) goto LD_NEXT;        /* 0x140016064..6B */
+        if (*(UCHAR *)rbx != 0x48) goto LD_NEXT;        /* 0x140016071..74 */
+        if (*(UCHAR *)(rbx + 1) != 0x8D) goto LD_NEXT;  /* 0x14001607A..7D */
+        Cand = 7u + *(ULONG *)(rbx + 3) + (ULONG)rbx - (ULONG)PeBase;   /* 0x140016083..93 */
+        if (Cand == 0 || Cand >= PeSize) goto LD_NEXT;  /* 0x140016096..9F */
+
+        /* ===== 块 1（0x1400160A5..169）：`48 89 08` 双标志 ===== */
+        if (f42 == 0 && *(UCHAR *)(rbx + 7) == 0x48 &&
+            *(UCHAR *)(rbx + 8) == 0x89 && *(UCHAR *)(rbx + 0xA) == 8)
+        {
+            int   flagA = 0;                            /* r14b：desc+0x40 == GT[0x8CC] */
+            int   wrote = 0;
+            ULONG counter = 0;                          /* ebx（rbx 已备份到 [rsp+0x70]） */
+            rdi = rdi & ~(ULONG64)0xFF;                 /* 0x140016110 xor dil,dil */
+            InitPESectionReadContext((__int64)(rbx + 7), (ULONG)PeEnd - (ULONG)rbx - 7u,
+                                     2, 0, -1, 0, 0, (__int64)&Ctx);
+            while (counter < 6)                         /* 0x14001611A..169 */
+            {
+                if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) goto LD_NEXT;
+                *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
+                if (*(ULONG *)((PUCHAR)Entry + 0x40) == v8CC)      /* 0x14001613B..148 */
+                {
+                    flagA = 1;
+                }
+                else
+                {
+                    rdi = rdi & 0xFFu;                             /* 0x140016151 movzx edi,dil */
+                    if (*(ULONG *)((PUCHAR)Entry + 0x40) == 0xFF8)
+                        rdi = 1;                                   /* 0x140016155 cmove edi,1 */
+                    if (flagA != 1) goto LD_CB;                    /* 0x140016159..15C */
+                }
+                if ((UCHAR)rdi == 1)                               /* 0x14001615E..161 */
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand);                     /* 0x1400161BB */
+                    GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)((ULONG64)Cand + NtBase)); /* 0x1400161CD */
+                    f42 = 1;                                       /* 0x1400161E5 */
+                    wrote = 1;
+                    break;
+                }
+LD_CB:
+                counter += 1;                                  /* 0x140016163..166 */
+            }
+            if (!wrote) goto LD_NEXT;                          /* 0x14001616B */
+            goto LD_GATE;                                      /* 0x1400161EA */
+        }
+
+        /* ===== 块 2（0x1400161EF..2CE）：`41 F6` 双形态 ===== */
+        if (f41 == 0 &&
+            ((*(UCHAR *)(rbx + 7) == 0x41 && *(UCHAR *)(rbx + 8) == 0xF6) ||
+             (*(UCHAR *)(rbx + 0xA) == 0x41 && *(UCHAR *)(rbx + 0xB) == 0xF6)))
+        {
+            int hit = 0;
+            /* 窗口长度取 edi（0x14001621B..243）；edi 可能已被块 1 改为 0/1 */
+            InitPESectionReadContext((__int64)(rbx + 7), (ULONG)rdi - (ULONG)rbx - 7u,
+                                     2, 0, -1, 0, 0, (__int64)&Ctx);
+            for (int k = 0; k < 0xA; ++k)                       /* 0x14001624E..28C */
+            {
+                if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) break;
+                *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
+                if (*(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x800000 &&   /* 0x140016269..284 */
+                    *(ULONG   *)((PUCHAR)Entry + 0x70) == 0x1000 &&
+                    *(ULONG   *)((PUCHAR)Entry + 0x40) == v8CD)
+                { hit = 1; break; }
+            }
+            if (!hit)                                           /* 回扫 `C7` 0x14001628E..2C7 */
+            {
+                PUCHAR rcx = (PUCHAR)rbx - 0x30;
+                PUCHAR hi  = (PUCHAR)(rbx - 7);
+                if (rbx > PeBase && (ULONG64)rcx > PeBase && rcx < hi)
+                {
+                    for (;;)
+                    {
+                        if (rcx >= hi) break;                   /* 0x1400162C4..2C7 */
+                        if (rcx[0] == 0xC7 && (ULONG)rcx[2] == (v8CD & 0xFF) &&
+                            *(ULONG *)(rcx + 3) == 0x1000)
+                        { hit = 1; break; }                     /* 0x1400162AA..2BF */
+                        rcx += 1;
+                    }
+                }
+            }
+            if (hit)                                            /* 0x140016300..32C */
+            {
+                ULONG c = *(ULONG *)(rbx + 3) + 7u + (ULONG)rbx - (ULONG)PeBase;
+                if (c != 0 && c < PeSize)
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)c);                     /* 0x140016315 */
+                    GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)((ULONG64)c + NtBase)); /* 0x140016324 */
+                    f41 = 1;                                                            /* 0x140016334 */
+                }
+            }
+            goto LD_GATE;                                       /* 0x140016339 → 0x1400162CE */
+        }
+
+        /* ===== 块 3（0x14001633B..3FE）：`48 05` + GT[0x336] 比对 ===== */
+        if (f40 == 0 && *(UCHAR *)(rbx + 7) == 0x48 && *(UCHAR *)(rbx + 8) == 5 &&
+            (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x336) == *(ULONG *)(rbx + 9))   /* 0x14001633B..359 */
+        {
+            InitPESectionReadContext((__int64)(rbx + 7), (ULONG)PeEnd - (ULONG)rbx - 7u,
+                                     2, 0, -1, 0, 0, (__int64)&Ctx);
+            for (int k = 0; k < 0xF; ++k)                       /* 0x140016394..3D6 */
+            {
+                USHORT ty;
+                if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry) != 0) break;
+                *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(ULONG *)((PUCHAR)Entry + 0xF0);
+                ty = *(USHORT *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+                if (ty == 0xE5 && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40000)   /* 0x1400163BB..3C9 */
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x337,                         /* 0x1400163DB..3E5 */
+                            (__int64)((ULONG64)Cand + NtBase));
+                    f40 = 1;                                               /* 0x1400163ED */
+                    break;
+                }
+            }
+        }
+
+LD_GATE:                                                        /* 0x1400162D3..2F5 */
+        if (f42 == 1 && f41 == 1 && f40 == 1) return 0;         /* 0x1400162F2..2F5 */
+LD_NEXT:                                                        /* 0x140016175..182 */
+        rbx += 1;
+        if (rbx >= End) return 0;
+    }
     return 0;
 }
-
 // SelectMiniFilterWriteReadCallback — 选择 Minifilter 写/读回调
 // 版本 > 0x23F0 时调用 FindKernelDataSectionForDeviceIoControl2，否则调用 FindKernelDataSectionForDeviceIoControl
 // 对应原始驱动 sub_1400146AC（65 字节）

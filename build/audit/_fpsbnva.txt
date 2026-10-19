@@ -1,0 +1,12 @@
+140005cb4  48895c2408           mov qword ptr [rsp + 8], rbx
+140005cb9  48896c2410           mov qword ptr [rsp + 0x10], rbp
+140005cbe  4889742418           mov qword ptr [rsp + 0x18], rsi
+140005cc3  57                   push rdi
+140005cc4  4156                 push r14
+140005cc6  4157                 push r15
+140005cc8  4883ec20             sub rsp, 0x20
+140005ccc  4c63493c             movsxd r9, dword ptr [rcx + 0x3c]
+140005cd0  33db                 xor ebx, ebx
+140005cd2  4c8d7118             lea r14, [rcx + 0x18]
+140005cd6  410fb7440914         movzx eax, word ptr [r9 + rcx + 0x14]
+140005cdc  410fb76c0906         movzx ebp, word ptr [r9 + rcx + 6]
