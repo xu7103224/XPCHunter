@@ -4331,6 +4331,10 @@ __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64
     result = GtRead((GLOBAL_TABLE_INDEX)0x42D9);
     if ((_DWORD)result && (unsigned int)result < ImageSize)
     {
+        /* 【修正 2026-10-19】原始 0x14001CC89 `mov rbx,rax`：SectionOffset **初值就是
+           GT[0x42D9]**，第一段未命中 0x558 时直接沿用该值作第二段起点。
+           旧实现让它从 0 开始，第一段不命中就整体跳过第二段 → GT[0x817]/[0x818] 永不写。 */
+        SectionOffset = (unsigned int)result;
         InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
         {
