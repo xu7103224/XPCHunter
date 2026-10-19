@@ -87,12 +87,47 @@ def press_key(s, name):
     time.sleep(0.10)
 
 
+SHIFT_CHARS = set('~!@#$%^&*()_+{}|:\"<>?ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+SHIFT_KEYSYM = 0xFFE1
+CHAR_KEYSYM = {
+    chr(92): 0x5C, '|': 0x7C, '~': 0x7E, '{': 0x7B, '}': 0x7D,
+    ':': 0x3A, '"': 0x22, '<': 0x3C, '>': 0x3E, '?': 0x3F,
+    '!': 0x21, '@': 0x40, '#': 0x23, '$': 0x24, '%': 0x25,
+    '^': 0x5E, '&': 0x26, '*': 0x2A, '(': 0x28, ')': 0x29,
+    '_': 0x5F, '+': 0x2B, '-': 0x2D, '=': 0x3D, '[': 0x5B,
+    ']': 0x5D, ';': 0x3B, "'": 0x27, ',': 0x2C, '.': 0x2E,
+    '/': 0x2F, ' ': 0x20,
+}
+
+
 def type_text(s, text):
+    """发送文本。ASCII 可打印字符直接用其 keysym；大写与上档符号用 Shift 组合。"""
     for ch in text:
-        key(s, ord(ch), True)
+        if ch.isalpha() and ch.isupper():
+            key(s, SHIFT_KEYSYM, True)
+            time.sleep(0.02)
+            key(s, ord(ch.lower()), True)
+            time.sleep(0.03)
+            key(s, ord(ch.lower()), False)
+            time.sleep(0.02)
+            key(s, SHIFT_KEYSYM, False)
+            time.sleep(0.26)
+            continue
+        ks = CHAR_KEYSYM.get(ch)
+        if ks is None:
+            ks = ord(ch)
+        shift = ch in '~!@#$%^&*()_+{}|:"<>?'
+        if shift:
+            key(s, SHIFT_KEYSYM, True)
+            time.sleep(0.02)
+        key(s, ks, True)
         time.sleep(0.03)
-        key(s, ord(ch), False)
-        time.sleep(0.05)
+        key(s, ks, False)
+        time.sleep(0.12)
+        if shift:
+            key(s, SHIFT_KEYSYM, False)
+            time.sleep(0.02)
+        time.sleep(0.26)
 
 
 def combo(s, *names):
