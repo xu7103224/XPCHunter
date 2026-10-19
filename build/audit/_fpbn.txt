@@ -1,0 +1,46 @@
+140005c28  48895c2408           mov qword ptr [rsp + 8], rbx
+140005c2d  48896c2410           mov qword ptr [rsp + 0x10], rbp
+140005c32  4889742418           mov qword ptr [rsp + 0x18], rsi
+140005c37  57                   push rdi
+140005c38  4156                 push r14
+140005c3a  4157                 push r15
+140005c3c  4883ec20             sub rsp, 0x20
+140005c40  4c63493c             movsxd r9, dword ptr [rcx + 0x3c]
+140005c44  33db                 xor ebx, ebx
+140005c46  4c8d7118             lea r14, [rcx + 0x18]
+140005c4a  410fb7440914         movzx eax, word ptr [r9 + rcx + 0x14]
+140005c50  410fb7740906         movzx esi, word ptr [r9 + rcx + 6]
+140005c56  4d03f1               add r14, r9
+140005c59  4c03f0               add r14, rax
+140005c5c  4d8bf8               mov r15, r8
+140005c5f  8bea                 mov ebp, edx
+140005c61  8bfb                 mov edi, ebx
+140005c63  85f6                 test esi, esi
+140005c65  742f                 je 0x140005c96
+140005c67  8bc7                 mov eax, edi
+140005c69  488d0c80             lea rcx, [rax + rax*4]
+140005c6d  498d14ce             lea rdx, [r14 + rcx*8]
+140005c71  498bcf               mov rcx, r15
+140005c74  e82b7b0700           call 0x14007d7a4
+140005c79  85c0                 test eax, eax
+140005c7b  7408                 je 0x140005c85
+140005c7d  ffc7                 inc edi
+140005c7f  3bfe                 cmp edi, esi
+140005c81  72e4                 jb 0x140005c67
+140005c83  eb11                 jmp 0x140005c96
+140005c85  8bcf                 mov ecx, edi
+140005c87  488d1489             lea rdx, [rcx + rcx*4]
+140005c8b  41396cd60c           cmp dword ptr [r14 + rdx*8 + 0xc], ebp
+140005c90  410f425cd60c         cmovb ebx, dword ptr [r14 + rdx*8 + 0xc]
+140005c96  488b6c2448           mov rbp, qword ptr [rsp + 0x48]
+140005c9b  488b742450           mov rsi, qword ptr [rsp + 0x50]
+140005ca0  8bc3                 mov eax, ebx
+140005ca2  488b5c2440           mov rbx, qword ptr [rsp + 0x40]
+140005ca7  4883c420             add rsp, 0x20
+140005cab  415f                 pop r15
+140005cad  415e                 pop r14
+140005caf  5f                   pop rdi
+140005cb0  c3                   ret 
+140005cb1  cc                   int3 
+140005cb2  cc                   int3 
+140005cb3  cc                   int3 

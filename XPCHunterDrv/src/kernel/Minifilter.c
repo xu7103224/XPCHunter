@@ -783,6 +783,27 @@ __int64 MiniFilterPostWrite(void)
 //   字段偏移已用 desc_offsets.py 复核：+0xF0 推进、+0x118 类型指针、+0x88、+0x70、+0x78、+0x40。
 __int64 MiniFilterPreClose(void)
 {
+    /* 对应原始驱动 sub_1400152D4（1908 字节）。
+       逐条对照重建的关键点（0x1400152D4..A43）：
+         · 7 个入口 GT 守卫：0x20(缓冲) 0x21(大小) 3(内核基址) 0x8CC 0x900 0x8CD 0x4459
+         · 构造节名 ".PAGE"（0x1400153C4 写 0x4741502E=".PAG"；0x1400153D1 写 0x45="E"）
+         · 0x140005C28 FindPESectionByName → raw 偏移(ebx)；0x140005CB4 …ReturnVa → VA(ecx)
+         · 窗口（0x1400153DE..436）：
+             ebx = Va<PeSize ? raw : 0          （sbb/and）
+             ecx = Va ? Va : PeSize-ebx
+             ecx = min(ecx, PeSize-ebx)          （cmova）
+             start = buf+ebx   end = buf+ecx+ebx
+         · 主循环（0x140015445 起，逐字节 r13++）：
+             if (r13+0x30 >= end) 退出
+             if (*r13 != 0x48 || r13[1] != 0x8D) 下一字节
+             Cand = *(u32*)(r13+3) - PeBase_buf + (u32)(r13+7)   ← 减的是**缓冲区基址**(esi)
+             if (!Cand || Cand >= PeSize) 下一字节
+             if (!(r13[7]==0x48 && r13[8]==0x89 && r13[0xA]==0x08)) → 走另一支（0x140015856）
+             else 解码窗口 [r13+7, r13+7+(PeSize - (r13-buf) - 7)]，最多 0xA 轮
+         · 写块一（0x14001569F..6D6）：GT[0x332]=Cand、GT[0x333]=Cand+NtImageBase、
+                                      GT[0x8EE]=AltCand、GT[0x8EF]=AltCand+NtImageBase
+         · 写块二（0x1400157FB..837）：GT[0x334]、GT[0x335]、GT[0x8EC]、GT[0x8ED]（同型）
+         · 尾写（0x140015A24）：GT[0x337]=AltCand+NtImageBase */
     __int64 PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
     unsigned int PeSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x21);
     __int64 NtImageBase = GtRead((GLOBAL_TABLE_INDEX)3);
@@ -798,36 +819,41 @@ __int64 MiniFilterPreClose(void)
     unsigned int Raw = (unsigned int)FindPESectionByName(PeBase, PeSize, (__int64)SectionName);
     unsigned int Va = (unsigned int)FindPESectionByNameReturnVa(PeBase, PeSize, (__int64)SectionName);
 
-    PUCHAR ScanBase = (PUCHAR)(PeBase + Raw);
-    PUCHAR ScanEnd = ScanBase + (Va ? Va : 0);
-    if (ScanEnd <= ScanBase)
-        return 0;
+    unsigned int Base = (Va < PeSize) ? Raw : 0;
+    unsigned int Len = Va ? Va : (PeSize - Base);
+    unsigned int Avail = PeSize - Base;
+    if (Len > Avail) Len = Avail;
 
-    unsigned int Cand = 0;        /* [rsp+0x44] / r14d：`48 8D` 算出的候选 */
-    char FoundIdx = 0;            /* 是否已写第一组 */
-    char FoundVa = 0;
-    char FoundType = 0;
-    unsigned int AltCand = 0;     /* edi */
+    PUCHAR Buf = (PUCHAR)PeBase;
+    PUCHAR Start = Buf + Base;
+    PUCHAR End = Buf + Len + Base;
+    if (Start >= End) return 0;
 
-    for (PUCHAR p = ScanBase; p < ScanEnd; ++p)
+    unsigned int Cand = 0;      /* r14d */
+    unsigned int AltCand = 0;   /* edi  */
+    char F1 = 0, F2 = 0, F3 = 0;
+
+    for (PUCHAR r13 = Start; r13 < End; ++r13)
     {
-        if (p + 0x30 >= ScanEnd) break;
-        if (p[0] != 0x48 || p[1] != 0x8D) continue;
+        if ((PUCHAR)(r13 + 0x30) >= End) break;
+        if (r13[0] != 0x48 || r13[1] != 0x8D) continue;
 
-        /* 0x140015468..475：候选 = [+3] 的 dword - PeBase + (p+7) */
-        unsigned int v = *(unsigned int *)(p + 3) - (unsigned int)PeBase
-                       + (unsigned int)(ULONG_PTR)(p + 7);
-        Cand = v;
+        /* 0x14001546C..475：r14d = (u32)(r13+7) + (*(u32*)(r13+3) - (u32)PeBase) */
+        Cand = (unsigned int)(ULONG_PTR)(r13 + 7)
+             + (*(unsigned int *)(r13 + 3) - (unsigned int)PeBase);
         if (!Cand || Cand >= PeSize) continue;
 
-        /* 后续字节模式判定（0x14001548D..4A7） */
-        if (!(p[7] == 0x48 && p[8] == 0x89 && p[0xA] == 0x08))
+        /* 真正做解码的只有 `48 89 08` 这一支（0x14001548D..4A7） */
+        if (!(r13[7] == 0x48 && r13[8] == 0x89 && r13[0xA] == 0x08))
             continue;
+        if (F1) continue;
 
-        /* 解码该处指令流（0x1400154B6..56E，最多 0xA 轮） */
         PE_DECODE_CONTEXT Ctx;
         _DWORD Entry[112];
-        InitPESectionReadContext((__int64)(p + 7), (ULONG)(ScanEnd - (p + 7)), 2, 0, -1, 0, 0, (__int64)&Ctx);
+        /* 0x1400154D4..4E9：窗口 = [r13+7, r13+7 + (PeSize - (r13-PeBase) - 7)] */
+        ULONG Win = (ULONG)(PeSize - (unsigned int)(ULONG_PTR)(r13 - Buf) - 7);
+        InitPESectionReadContext((__int64)(r13 + 7), Win, 2, 0, -1, 0, 0, (__int64)&Ctx);
+
         for (int k = 0; k < 0xA; ++k)
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
@@ -835,52 +861,45 @@ __int64 MiniFilterPreClose(void)
             *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(unsigned int *)((PUCHAR)Entry + 0xF0);
 
             short Type = *(__int16 *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+            ULONG64 F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
+            ULONG64 F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);
+            ULONG   F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
+            ULONG   F70 = *(ULONG *)((PUCHAR)Entry + 0x70);
 
-            if (Type == 0x512 &&
-                *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000 &&
-                *(unsigned int *)((PUCHAR)Entry + 0x78) != 0 &&
-                *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40)
+            if (Type == 0x512 && F88 == 0x40000 && F78 && F50 == 0x40)
             {
-                unsigned int c = (unsigned int)(*(unsigned int *)((PUCHAR)Entry + 0x78)
-                                 - (unsigned int)(ULONG_PTR)ScanBase
-                                 + (unsigned int)*(ULONG64 *)((PUCHAR)&Ctx + 0x08));
+                unsigned int c = F78 - (unsigned int)PeBase
+                               + (unsigned int)*(ULONG64 *)((PUCHAR)&Ctx + 0x08);
                 if (c && c < PeSize && !AltCand)
                     AltCand = c;
             }
-            else if (Type == 0x547 &&
-                     (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x800000) != 0 &&
-                     *(unsigned int *)((PUCHAR)Entry + 0x70) == 0x1000 &&
+            else if (Type == 0x547 && (F88 & 0x800000) != 0 && F70 == 0x1000 &&
                      *(unsigned int *)((PUCHAR)Entry + 0x40) == In2)
             {
-                FoundVa = 1;
+                F2 = 1;
             }
         }
 
-        /* 三个 flag 全置位 → 写第二组（0x1400157FB..837） */
-        if (FoundIdx && FoundVa && !FoundType)
-        {
-            GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);
-            GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand + NtImageBase));
-            GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)AltCand);
-            GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)(AltCand + NtImageBase));
-            FoundType = 1;
-        }
-        /* 第一组（0x14001569F..6D6）：候选有效且尚未写过 */
-        else if (!FoundIdx && AltCand)
+        if (AltCand && !F1)
         {
             GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand);
             GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)(Cand + NtImageBase));
             GtWrite((GLOBAL_TABLE_INDEX)0x8EE, (__int64)AltCand);
             GtWrite((GLOBAL_TABLE_INDEX)0x8EF, (__int64)(AltCand + NtImageBase));
-            FoundIdx = 1;
+            F1 = 1;
         }
-        else if (FoundIdx && FoundVa && FoundType && AltCand &&
-                 (unsigned int)(AltCand + 8) == Cand + 0)   /* 0x14001598B..992 的 +8 判据 */
+        else if (F1 && !F3)
         {
-            GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)(AltCand + NtImageBase));
+            GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);
+            GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand + NtImageBase));
+            GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)AltCand);
+            GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)(AltCand + NtImageBase));
+            F3 = 1;
         }
     }
-    (void)In1; (void)In3; (void)In4;
+
+    if (F1 && AltCand)
+        GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)(AltCand + NtImageBase));
     return 0;
 }
 

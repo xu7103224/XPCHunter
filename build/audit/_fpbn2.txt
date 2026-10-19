@@ -1,0 +1,15 @@
+140005c67  8bc7                 mov eax, edi
+140005c69  488d0c80             lea rcx, [rax + rax*4]
+140005c6d  498d14ce             lea rdx, [r14 + rcx*8]
+140005c71  498bcf               mov rcx, r15
+140005c74  e82b7b0700           call 0x14007d7a4
+140005c79  85c0                 test eax, eax
+140005c7b  7408                 je 0x140005c85
+140005c7d  ffc7                 inc edi
+140005c7f  3bfe                 cmp edi, esi
+140005c81  72e4                 jb 0x140005c67
+140005c83  eb11                 jmp 0x140005c96
+140005c85  8bcf                 mov ecx, edi
+140005c87  488d1489             lea rdx, [rcx + rcx*4]
+140005c8b  41396cd60c           cmp dword ptr [r14 + rdx*8 + 0xc], ebp
+140005c90  410f425cd60c         cmovb ebx, dword ptr [r14 + rdx*8 + 0xc]

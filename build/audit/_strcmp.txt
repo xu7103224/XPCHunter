@@ -1,0 +1,32 @@
+14007d7a4  4c8bd9               mov r11, rcx
+14007d7a7  4533c9               xor r9d, r9d
+14007d7aa  478a0419             mov r8b, byte ptr [r9 + r11]
+14007d7ae  418d409f             lea eax, [r8 - 0x61]
+14007d7b2  3c19                 cmp al, 0x19
+14007d7b4  7704                 ja 0x14007d7ba
+14007d7b6  4180e820             sub r8b, 0x20
+14007d7ba  418a0c11             mov cl, byte ptr [r9 + rdx]
+14007d7be  8d419f               lea eax, [rcx - 0x61]
+14007d7c1  3c19                 cmp al, 0x19
+14007d7c3  7703                 ja 0x14007d7c8
+14007d7c5  80e920               sub cl, 0x20
+14007d7c8  443ac1               cmp r8b, cl
+14007d7cb  7f0f                 jg 0x14007d7dc
+14007d7cd  7c0d                 jl 0x14007d7dc
+14007d7cf  4584c0               test r8b, r8b
+14007d7d2  7405                 je 0x14007d7d9
+14007d7d4  41ffc1               inc r9d
+14007d7d7  ebd1                 jmp 0x14007d7aa
+14007d7d9  33c0                 xor eax, eax
+14007d7db  c3                   ret 
+14007d7dc  0fbec9               movsx ecx, cl
+14007d7df  410fbec0             movsx eax, r8b
+14007d7e3  2bc1                 sub eax, ecx
+14007d7e5  c3                   ret 
+14007d7e6  cc                   int3 
+14007d7e7  cc                   int3 
+14007d7e8  33c0                 xor eax, eax
+14007d7ea  3801                 cmp byte ptr [rcx], al
+14007d7ec  7408                 je 0x14007d7f6
+14007d7ee  ffc0                 inc eax
+14007d7f0  803c0800             cmp byte ptr [rax + rcx], 0
