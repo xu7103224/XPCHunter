@@ -20,11 +20,20 @@ ORIG = os.path.join(HERE, '..', '..', 'samples', 'PCHunter_2024.09.02', 'View++_
 MINE = os.path.join(HERE, '..', '..', 'build', 'bin', 'Release', 'x64', 'XPCHunterDrv.sys')
 NT = os.path.join(HERE, 'ntoskrnl_guest.exe')
 
+def _sym(name):
+    import re as _re
+    mp = os.path.join(HERE, '..', 'bin', 'Release', 'x64', 'XPCHunterDrv.map')
+    for ln in open(mp, encoding='utf-8', errors='ignore'):
+        m = _re.match(r'\s+0001:[0-9a-f]{8}\s+' + name + r'\s+([0-9a-f]{16})\s+f', ln)
+        if m:
+            return int(m.group(1), 16)
+    return 0
+
 CFG = {
     'ORIG': dict(drv=ORIG, fsn=0x140052FDC, gtread=0x140029EFC, gtwrite=0x140029FF4,
                  exalloc=0x140077A00),
-    'MINE': dict(drv=MINE, fsn=0x14002E9C0, gtread=0x14001ED50, gtwrite=0x14001ED60,
-                 exalloc=0x14002D980),
+    'MINE': dict(drv=MINE, fsn=_sym('FindSyscallNumbers'), gtread=_sym('GtRead'),
+                 gtwrite=_sym('GtWrite'), exalloc=0x14002D990),
 }
 SERVICE_COUNT = 0x1D0
 

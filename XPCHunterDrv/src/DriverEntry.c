@@ -1493,72 +1493,106 @@ __int64 InitHandleTypeTable(void)
     return 0;
 }
 
-// InitImageNotifyCallbackWin7 — Win7 镜像通知回调初始化
-// 对应原始驱动 sub_1400135AC
-// 读取 PE 基址、镜像基址和节偏移，解析 ntoskrnl.exe 的指定节，初始化镜像加载通知回调
+// InitImageNotifyCallbackWin7 — Win7 镜像通知初始化
+// 对应原始驱动 sub_1400135AC（525 字节，逐条对照重写 2026-10-19）
+//
+// 【旧实现严重失真】旧版声称「解析节区后调用 PsSetLoadImageNotifyRoutine 并返回 1」，
+//   但原始函数**根本没有那次调用**，也不返回 1；它真正的产物是把扫描到的
+//   候选偏移写入 **GT[0x198]**（此前该槽恒 0）。
+//
+// 入口（0x1400135E3..64D）：
+//   r12 = GT[0x20] (PeBase)    rdi = GT[0x21] (PeSize)
+//   rbx = GT[3]    (NtImageBase)    rdx = GT[0x17C] (SectionAddr)
+//   守卫：四者非零；SectionAddr > NtImageBase；offset < PeSize；
+//         SectionAddr == offset + NtImageBase
+//   窗口：Base = PeBase + offset，Size = PeSize - offset（0x140013653..67F）
+//
+// 主循环（0x14001368D..76C，计数器 r15d 上限 0x3E8）：
+//   解码 → ReadPtr += desc[0xF0]（0x1400136A3..6BE）
+//   ① desc+0x88 == 0x800000 && desc+0x70 == 0x8000001A → sil = 1，下一轮
+//   ② type = *(USHORT*)(desc+0x118 + 6)
+//      若 type == 0x42A 且 desc+0x88 == 0x400000000 且 desc+0x70 == -1
+//         且 desc+0x50 == 0x20 且 desc+0x58 == 9 →（sil==1 时 r14b=1），下一轮
+//      否则若 type == 0x53D 且 desc+0x88 == 0x800000 且 desc+0x70 == -1
+//         且 desc+0x50 == 0x20 且 desc+0x58 == 9 →（sil==1 时 r14b=1），下一轮
+//      否则若 type == 0x558 且 (desc+0x50 & 0x4000000) 且 desc+0x38 != 0
+//         且 r14b == 1：
+//            cand = desc+0x38 - PeBase + ReadPtr（均 32 位）
+//            若 cand < PeSize → GT[0x198] = cand + NtImageBase（0x140013771..784）
+//   命中后**不退出**，继续下一轮。
 __int64 InitImageNotifyCallbackWin7(void)
 {
-    ULONG64 PeBaseAddr;
-    ULONG64 ImageBase;
-    ULONG64 NtoskrnlBase;
-    ULONG64 SectionOffset;
-    ULONG64 ImageEndAddr;
-    ULONG64 SectionVa;
-    UCHAR ReadContext[0x48];
-    UCHAR SectionEntry[0x120];
-    UCHAR IsInitSection;
-    UCHAR IsPageSection;
-    ULONG64 SectionCharacteristics;
-    ULONG SectionSize;
-    ULONG Result;
+    ULONG64 PeBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x20);
+    ULONG   PeSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);
+    ULONG64 NtImageBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)3);
+    ULONG64 SectionAddr = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x17C);
+    ULONG   Offset;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD  SectionEntry[112];
+    char    IsInitSection = 0;      /* sil  */
+    char    IsPageSection = 0;      /* r14b */
+    ULONG   LoopCount;
 
-    PeBaseAddr = GtRead(0x20);
-    ImageBase = GtRead(0x21);
-    NtoskrnlBase = GtRead(3);
-    SectionOffset = GtRead(0x17C);
-    if (!PeBaseAddr || !ImageBase || !NtoskrnlBase || !SectionOffset)
-        return 0;
-    if (SectionOffset <= NtoskrnlBase)
-        return 0;
-    if ((ULONG)(SectionOffset - (ULONG)NtoskrnlBase) >= (ULONG)ImageBase)
-        return 0;
-    ImageEndAddr = (ULONG64)(ULONG)(SectionOffset - (ULONG)NtoskrnlBase) + NtoskrnlBase;
-    if (SectionOffset != ImageEndAddr)
-        return 0;
-    SectionVa = (ULONG64)(ULONG)(SectionOffset - (ULONG)NtoskrnlBase) + PeBaseAddr;
+    if (!PeBase || !PeSize || !NtImageBase) return 0;            /* 0x140013617..62B */
+    if (SectionAddr <= NtImageBase) return 0;                    /* 0x140013631..634 */
+    Offset = (ULONG)(SectionAddr - NtImageBase);
+    if (Offset >= PeSize) return 0;                              /* 0x14001363A..640 */
+    if (SectionAddr != (ULONG64)Offset + NtImageBase) return 0;  /* 0x140013646..64D */
 
-    InitPESectionReadContext(PeBaseAddr + SectionOffset, (ULONG)(ImageBase - SectionOffset), 2, 0, -1, 0, 0, (__int64)ReadContext);
+    InitPESectionReadContext((__int64)(PeBase + Offset), PeSize - Offset,
+                             2, 0, -1, 0, 0, (__int64)&ReadContext);
 
-    IsInitSection = 0;
-    IsPageSection = 0;
-    while (1)
+    for (LoopCount = 0; LoopCount < 0x3E8; ++LoopCount)          /* 0x140013760..76C */
     {
-            *(ULONG64 *)((PUCHAR)ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽，每轮在解码前推进上一轮长度）*/
-        Result = (ULONG)ReadPESectionEntry(ReadContext, (PULONG)SectionEntry);
-        if (Result != 0)
-            break;
+        USHORT Type;
+        ULONG64 F88, F50, ReadPtr;
+        ULONG   F70, F58, F38;
 
-        SectionCharacteristics = *(ULONG64 *)(SectionEntry + 0x58);
-        SectionSize = *(ULONG *)(SectionEntry + 0x30);
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry) != 0)
+            return 0;                                            /* 0x14001369B */
 
-        if (SectionCharacteristics == 0x800000 && SectionSize == 0x8000001A)
+        ReadPtr = *(ULONG64 *)((PUCHAR)&ReadContext + 0x08)
+                + (ULONG64)*(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) = ReadPtr;      /* 0x1400136A3..6BE */
+
+        F88 = *(ULONG64 *)((PUCHAR)SectionEntry + 0x88);
+        F70 = *(ULONG   *)((PUCHAR)SectionEntry + 0x70);
+        if (F88 == 0x800000 && F70 == 0x8000001A)                 /* 0x1400136C3..6D3 */
         {
             IsInitSection = 1;
+            continue;
         }
-        else
+
+        Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+        F50  = *(ULONG64 *)((PUCHAR)SectionEntry + 0x50);
+        F58  = *(ULONG   *)((PUCHAR)SectionEntry + 0x58);
+
+        if (Type == 0x42A && F88 == 0x400000000ULL &&
+            F70 == 0xFFFFFFFFu && F50 == 0x20 && F58 == 9)        /* 0x1400136DF..712 */
         {
-            if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x42A)
+            if (IsInitSection == 1) IsPageSection = 1;            /* 0x140013736..73C */
+            continue;
+        }
+        if (Type == 0x53D && F88 == 0x800000 &&
+            F70 == 0xFFFFFFFFu && F50 == 0x20 && F58 == 9)        /* 0x140013714..734 */
+        {
+            if (IsInitSection == 1) IsPageSection = 1;
+            continue;
+        }
+        if (Type == 0x558 && (F50 & 0x4000000) != 0)              /* 0x140013741..758 */
+        {
+            F38 = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
+            if (F38 != 0 && IsPageSection == 1)
             {
-                IsPageSection = 1;
-                break;
+                ULONG Cand = F38 - (ULONG)PeBase + (ULONG)ReadPtr;    /* 0x140013771..774 */
+                if (Cand < PeSize)                                    /* 0x140013776..778 */
+                    return GtWrite((GLOBAL_TABLE_INDEX)0x198,
+                                   (__int64)((ULONG64)Cand + NtImageBase)); /* 0x14001377C..784 */
+                /* 0x140013778 jae 0x140013789 —— 0x140013789 就是 epilogue，
+                   即「写成功后立即返回」，不再继续扫描。 */
+                return 0;
             }
         }
-    }
-
-    if (IsInitSection || IsPageSection)
-    {
-        PsSetLoadImageNotifyRoutine((PLOAD_IMAGE_NOTIFY_ROUTINE)ImageLoadCallbackRoutine);
-        return 1;
     }
     return 0;
 }

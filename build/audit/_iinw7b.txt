@@ -1,0 +1,19 @@
+14001377c  b998010000           mov ecx, 0x198
+140013781  4803d3               add rdx, rbx
+140013784  e86b680100           call 0x140029ff4
+140013789  488b8db0000000       mov rcx, qword ptr [rbp + 0xb0]
+140013790  4833cc               xor rcx, rsp
+140013793  e818910700           call 0x14008c8b0
+140013798  4c8d9c24c0010000     lea r11, [rsp + 0x1c0]
+1400137a0  498b5b20             mov rbx, qword ptr [r11 + 0x20]
+1400137a4  498b7328             mov rsi, qword ptr [r11 + 0x28]
+1400137a8  498b7b30             mov rdi, qword ptr [r11 + 0x30]
+1400137ac  4d8b6338             mov r12, qword ptr [r11 + 0x38]
+1400137b0  498be3               mov rsp, r11
+1400137b3  415f                 pop r15
+1400137b5  415e                 pop r14
+1400137b7  5d                   pop rbp
+1400137b8  c3                   ret 
+1400137b9  cc                   int3 
+1400137ba  cc                   int3 
+1400137bb  cc                   int3 

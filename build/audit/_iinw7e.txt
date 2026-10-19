@@ -1,0 +1,23 @@
+14001373c  448af6               mov r14b, sil
+14001373f  eb1f                 jmp 0x140013760
+140013741  ba58050000           mov edx, 0x558
+140013746  66413bd1             cmp dx, r9w
+14001374a  7514                 jne 0x140013760
+14001374c  480fbae01a           bt rax, 0x1a
+140013751  730d                 jae 0x140013760
+140013753  8b45c8               mov eax, dword ptr [rbp - 0x38]
+140013756  85c0                 test eax, eax
+140013758  7406                 je 0x140013760
+14001375a  4180fe01             cmp r14b, 1
+14001375e  7411                 je 0x140013771
+140013760  41ffc7               inc r15d
+140013763  4181ffe8030000       cmp r15d, 0x3e8
+14001376a  731d                 jae 0x140013789
+14001376c  e91cffffff           jmp 0x14001368d
+140013771  412bc4               sub eax, r12d
+140013774  03c1                 add eax, ecx
+140013776  3bc7                 cmp eax, edi
+140013778  730f                 jae 0x140013789
+14001377a  8bd0                 mov edx, eax
+14001377c  b998010000           mov ecx, 0x198
+140013781  4803d3               add rdx, rbx
