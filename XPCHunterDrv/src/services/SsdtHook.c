@@ -5261,52 +5261,73 @@ __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize
 }
 __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase)
 {
-    __int64 TargetSizeCopy = 0;
+    /* 对应原始驱动 sub_14001FF5C（0x140 字节）。反汇编逐条核对（desc_offsets 确认
+       描述符基址 = rbp-0x70，下列偏移均相对描述符）：
+         0x14001FF86  GT[0x4393]（节区偏移）非零且 < TargetSize，否则整个函数返回
+         0x14001FFA1..FFBF  窗口终点 = min(Base+Size, ScanStart+0x1000)（cmova）
+         0x14001FFEC..FFF5  解码循环：**先** ReadPESectionEntry，**后**推进 +0xF0
+         0x140020020..038   类型 0x50E 且 +0x50 bit14 且 +0x40 == 0x10 → FoundMarker=1
+         0x140020044..05E   类型 0x510 且 FoundMarker==1 且 +0x88 bit18 且 +0x50 == 0x40
+         0x140020060..06F   候选 = (int)+0x78 + 读指针；须在 (TargetBase, BufferEnd) 内
+         0x14002007D..081   GT[0x2D3] = 候选 + (RelocBase - TargetBase)
+       旧实现三处偏差：推进在解码前（首轮读垃圾）、判据字段全是「声明后从不赋值」
+       的局部（恒 0）、候选用 CumulativeSize+EntrySize 而非 (int)+0x78 + 读指针。 */
+    __int64 Result;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
+    ULONG64 BufferEnd;
+    ULONG64 ScanStart;
+    ULONG64 ScanEnd;
     char FoundMarker = 0;
-    __int64 Result = 0;
-    unsigned __int64 BufferEnd;
-    __int64 ScanStart = 0;
-    int ScanEnd = 0;
-    PE_DECODE_CONTEXT ReadContext;   // 0x48 字节解码上下文（原 char[8] 仅 8 字节）
-    __int64 TotalCumulSize = 0;
-    char SectionEntry[448];                 // 描述符：原 [64] 仅 64 字节
-    int EntryFlags = 0;
-    __int64 SectionFlags = 0;
-    int EntrySize = 0;
-    __int64 SectionType2 = 0;
-    unsigned int EntryCumulSize = 0;
-    __int64 EntryDataPtr = 0;
 
-    TargetSizeCopy = TargetSize;
-    FoundMarker = 0;
-    Result = GtRead(GtNtDeleteKeyPeSectionOffset);
-    if ((_DWORD)Result && (unsigned int)Result < (unsigned int)TargetSizeCopy)
+    Result = GtRead(GtNtDeleteKeyPeSectionOffset);              /* 0x14001FF86 */
+    if ((unsigned int)Result == 0 || (unsigned int)Result >= TargetSize)
+        return Result;
+
+    BufferEnd = TargetBase + (ULONG64)TargetSize;              /* 0x14001FFAC add r14,rdi */
+    ScanStart = TargetBase + (unsigned int)Result;             /* 0x14001FFAF add rcx,rdi */
+    ScanEnd   = ScanStart + 0x1000;                            /* 0x14001FFB5 */
+    if (BufferEnd < ScanEnd) ScanEnd = BufferEnd;              /* 0x14001FFBF cmova */
+
+    InitPESectionReadContext((__int64)ScanStart, (ULONG)(ScanEnd - ScanStart),
+                             2, 0, -1, 0, 0, (__int64)&ReadContext);
+    for (;;)
     {
-        BufferEnd = TargetBase + TargetSizeCopy;
-        ScanStart = TargetBase + (unsigned int)Result;
-        ScanEnd = (int)BufferEnd;
-        if (BufferEnd > (unsigned __int64)(ScanStart + 4096))
-            ScanEnd = (int)(ScanStart + 4096);
-        InitPESectionReadContext(ScanStart, (ULONG)(ScanEnd - ScanStart), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-        while (1)
+        USHORT Type;
+        ULONG64 ReadPtr;
+
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry) != 0)
+            break;                                             /* 0x14001FFFC jne → 收尾 */
+        ReadPtr = *(ULONG64 *)((PUCHAR)&ReadContext + 0x08)
+                + (ULONG64)*(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) = ReadPtr;   /* 0x14002000D..017 */
+
+        Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+        if (Type == 0x50E)                                     /* 0x140020020..03D */
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            Result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
-            if ((_DWORD)Result)
-                break;
-            __int64 CumulativeSize = EntryCumulSize + TotalCumulSize;
-            TotalCumulSize = CumulativeSize;
-            __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (SectionType == 1294 && (SectionFlags & 0x4000) != 0 && EntryFlags == 16)
-            {
+            if ((*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000) != 0 &&
+                *(ULONG *)((PUCHAR)SectionEntry + 0x40) == 0x10)
                 FoundMarker = 1;
-            }
-            else if (SectionType == 1296 && FoundMarker == 1 && (SectionType2 & 0x40000) != 0 && SectionFlags == 64)
-            {
-                unsigned __int64 MatchAddress = CumulativeSize + EntrySize;
-                if (MatchAddress > TargetBase && MatchAddress < BufferEnd)
-                    return GtWrite(GtCallbackField08, MatchAddress + RelocBase - TargetBase);
-            }
+            continue;
+        }
+        if (Type != 0x510)                                     /* 0x14002003F..047 */
+            continue;
+        if (FoundMarker != 1)                                  /* 0x140020049..04D */
+            continue;
+        if ((*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) & 0x40000) == 0 ||   /* 0x14002004F..057 */
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40)              /* 0x140020059..05E */
+            continue;
+
+        {
+            /* 0x140020060: movsxd rax,dword[rbp+8] → +0x78；符号扩展后加读指针 */
+            LONG64 Candidate = (LONG64)*(int *)((PUCHAR)SectionEntry + 0x78) + (LONG64)ReadPtr;
+            if ((ULONG64)Candidate <= TargetBase)              /* 0x140020067 jbe */
+                continue;
+            if ((ULONG64)Candidate >= BufferEnd)               /* 0x14002006F jae */
+                continue;
+            /* 0x140020075 sub rbx,rdi；0x14002007D lea rdx,[rax+rbx] */
+            return GtWrite(GtCallbackField08,
+                           (__int64)((ULONG64)Candidate + ((ULONG64)RelocBase - TargetBase)));
         }
     }
     return Result;

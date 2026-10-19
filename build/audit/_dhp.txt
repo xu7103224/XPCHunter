@@ -127,3 +127,42 @@
 14001ce19  5f                   pop rdi
 14001ce1a  5e                   pop rsi
 14001ce1b  5b                   pop rbx
+14001ce1c  5d                   pop rbp
+14001ce1d  c3                   ret 
+14001ce1e  cc                   int3 
+14001ce1f  cc                   int3 
+14001ce20  48895c2418           mov qword ptr [rsp + 0x18], rbx
+14001ce25  55                   push rbp
+14001ce26  56                   push rsi
+14001ce27  57                   push rdi
+14001ce28  4881ecc0010000       sub rsp, 0x1c0
+14001ce2f  488b0552720800       mov rax, qword ptr [rip + 0x87252]
+14001ce36  4833c4               xor rax, rsp
+14001ce39  48898424b0010000     mov qword ptr [rsp + 0x1b0], rax
+14001ce41  488bf1               mov rsi, rcx
+14001ce44  b99d420000           mov ecx, 0x429d
+14001ce49  498be9               mov rbp, r9
+14001ce4c  8bfa                 mov edi, edx
+14001ce4e  e8a9d00000           call 0x140029efc
+14001ce53  85c0                 test eax, eax
+14001ce55  0f84b4000000         je 0x14001cf0f
+14001ce5b  3bc7                 cmp eax, edi
+14001ce5d  0f83ac000000         jae 0x14001cf0f
+14001ce63  8bc8                 mov ecx, eax
+14001ce65  8bd6                 mov edx, esi
+14001ce67  4533c9               xor r9d, r9d
+14001ce6a  4803ce               add rcx, rsi
+14001ce6d  488d442440           lea rax, [rsp + 0x40]
+14001ce72  458d4102             lea r8d, [r9 + 2]
+14001ce76  4889442438           mov qword ptr [rsp + 0x38], rax
+14001ce7b  488364243000         and qword ptr [rsp + 0x30], 0
+14001ce81  488364242800         and qword ptr [rsp + 0x28], 0
+14001ce87  834c2420ff           or dword ptr [rsp + 0x20], 0xffffffff
+14001ce8c  2bd1                 sub edx, ecx
+14001ce8e  03d7                 add edx, edi
+14001ce90  e84fd90600           call 0x14008a7e4
+14001ce95  33db                 xor ebx, ebx
+14001ce97  488d942490000000     lea rdx, [rsp + 0x90]
+14001ce9f  488d4c2440           lea rcx, [rsp + 0x40]
+14001cea4  e8a3d60600           call 0x14008a54c
+14001cea9  85c0                 test eax, eax

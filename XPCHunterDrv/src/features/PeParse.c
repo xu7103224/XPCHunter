@@ -27,99 +27,105 @@ extern __int64 ReadWriteKernelMemory(void);
 
 __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, __int64 Context, __int64 RelocBase)
 {
-    __int64 result;
-    int EndAddress;
-    __int64 SectionBase;
+    /* 对应原始驱动 sub_14001CA5C。反汇编逐条核对（desc_offsets 已确认
+       描述符基址 = rbp-0x70，偏移均相对描述符）：
+         0x14001CA8A  GT[0x42EB] 非零且 < ModuleSize，否则整个函数返回
+         0x14001CAB7  build >= 0x2800 时才走第一段（否则直接跳 0x14001CB4F）
+         第一段（0x14001CAF8..CB4C，esi 计数 0..7）：
+           解码 → 推进 +0xF0 → 类型 0x558 且 +0x38 非零 → 候选
+             = (+0x38 - ModuleBase + 读指针)，有效则 SectionBase = Base+候选
+         第二段（0x14001CB81..CC17，ebx 计数 0..0xC8）：
+           解码 → 推进 +0xF0 → 取 eax = (int)+0x78
+           若类型 0x512 且 +0x88 == 0x40000 且 eax != 0：
+              候选 = eax - ModuleBase + 读指针；非零且 < ModuleSize →
+                GT[0x2CA] = 候选 + RelocBase
+           若类型 0x510 且 +0x88 == 0x10047 且 eax != 0
+             且 +0x98 == 8 且 +0x50 == 0x40 且 eax < ModuleSize →
+                GT[0x2CA] = (u32)eax + RelocBase
+       旧实现三处偏差：第二段缺推进、CumulativeSize 跨两段累加（原始第二段用
+       独立累加）、0x510 分支的 +0x98 判据缺失。 */
+    __int64 Result;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
+    ULONG64 SectionBase;
+    ULONG64 EndAddress;
     int SectionIndex;
-    int MatchSize;
-    unsigned int TargetOffset;
-    unsigned int LoopIndex;
-    int MatchSize2;
-    __int16 SubType;
-    __int64 ResultAddress;
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize;
-    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-    /* 【修正 2026-10-16】以下"字段"原始是 SectionEntry 描述符的偏移（ReadPESectionEntry 就地填充），
-       不是独立局部变量。原实现声明为独立局部且从不赋值（恒 0）→ 扫描条件永不成立。
-       偏移来源：原始 sub_14001D1EC 反汇编（描述符基址 rbp-0x148）。 */
-#define EntryCharacteristics PE_DESC_ENTRY_SIZE(SectionEntry)   /* +0x38 */
-#define FieldValue           PE_DESC_FIELD_VALUE(SectionEntry)  /* +0x50 */
-#define EntryFlags           PE_DESC_FIELD_SIZE(SectionEntry)   /* +0x78 */
-#define FieldValue2          PE_DESC_FIELD_VALUE2(SectionEntry) /* +0x88 */
-#define SectionSize          PE_DESC_SECTION_SIZE(SectionEntry) /* +0xF0 */
-#define SectionDataPtr       PE_DESC_SECTION_DATA(SectionEntry) /* +0x118 */
-#define EntrySize            PE_DESC_ENTRY_SIZE(SectionEntry)   /* +0x38（同 EntryCharacteristics） */
+    int Wildcard;
+    ULONG64 ReadPtr;
 
-    result = GtRead(GtFindHookTargetDataPeOffset);
-    if ((_DWORD)result && (unsigned int)result < ModuleSize)
+    Result = GtRead(GtFindHookTargetDataPeOffset);              /* 0x14001CA8A */
+    if ((unsigned int)Result == 0 || (unsigned int)Result >= ModuleSize)
+        return Result;
+
+    EndAddress  = ModuleBase + (ULONG64)ModuleSize;             /* 0x14001CAB0 lea r14,[r15+rdi] */
+    SectionBase = ModuleBase + (unsigned int)Result;            /* 0x14001CAB4 */
+    Wildcard    = 0;                                            /* esi / ebx 各自计数 */
+
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)   /* 0x14001CABC */
     {
-        EndAddress = (int)(ModuleBase + ModuleSize);
-        SectionBase = ModuleBase + (unsigned int)result;
-        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+        InitPESectionReadContext((__int64)SectionBase, (ULONG)(EndAddress - SectionBase),
+                                 2, 0, -1, 0, 0, (__int64)&ReadContext);
+        SectionIndex = 0;
+        for (;;)                                                /* 0x14001CAF8 */
         {
-            InitPESectionReadContext((__int64)SectionBase, (ULONG)(EndAddress - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-            SectionIndex = 0;
-            while (1)
+            ULONG64 Candidate;
+            if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry) != 0)
+                break;                                          /* 0x14001CB08 jne → 0x14001CB4F */
+            ReadPtr = *(ULONG64 *)((PUCHAR)&ReadContext + 0x08)
+                    + (ULONG64)*(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) = ReadPtr;   /* 0x14001CB0A..B24 */
+            if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x558 &&
+                *(ULONG *)((PUCHAR)SectionEntry + 0x38) != 0)       /* 0x14001CB29..B34 */
             {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
-                    goto LABEL_13;
-                MatchSize = (int)(SectionSize + CumulativeSize);
-                CumulativeSize += SectionSize;
-                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368)
-                {
-                    if (EntryCharacteristics)
-                        break;
-                }
-                if ((unsigned int)++SectionIndex >= 7)
-                    goto LABEL_13;
+                Candidate = (ULONG)(*(ULONG *)((PUCHAR)SectionEntry + 0x38)
+                                    - (ULONG)ModuleBase + (ULONG)ReadPtr);  /* 0x14001CB3F..B42 */
+                if ((ULONG)Candidate != 0 && (ULONG)Candidate < ModuleSize) /* 0x14001CB44..B48 */
+                    SectionBase = ModuleBase + (ULONG)Candidate;            /* 0x14001CB4A..B4C */
+                break;                                          /* 0x14001CB3F 命中即离开第一段 */
             }
-            TargetOffset = (unsigned int)(MatchSize + EntryCharacteristics - ModuleBase);
-            if (TargetOffset && TargetOffset < ModuleSize)
-                SectionBase = ModuleBase + TargetOffset;
-        }
-LABEL_13:
-        InitPESectionReadContext((__int64)SectionBase, (ULONG)(EndAddress - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-        for (LoopIndex = 0; LoopIndex < 0xC8; ++LoopIndex)
-        {
-            result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
-            if ((_DWORD)result)
-                return result;
-            MatchSize2 = (int)(SectionSize + CumulativeSize);
-            CumulativeSize += SectionSize;
-            SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            result = EntryFlags;
-            if (SubType == 1298 && FieldValue2 == 0x40000 && EntryFlags)
-            {
-                result = MatchSize2 + EntryFlags - (unsigned int)ModuleBase;
-                if ((_DWORD)result && (unsigned int)result < ModuleSize)
-                {
-                    ResultAddress = RelocBase + (unsigned int)result;
-                    return GtWrite(GtCallbackField00, ResultAddress);
-                }
-            }
-            else if (SubType == 1296
-                && FieldValue2 == 65607
-                && EntryFlags
-                && EntrySize == 8
-                && FieldValue == 64
-                && EntryFlags < ModuleSize)
-            {
-                ResultAddress = RelocBase + EntryFlags;
-                return GtWrite(GtCallbackField00, ResultAddress);
-            }
+            if ((unsigned int)++SectionIndex >= 7)               /* 0x14001CB36..B3B */
+                break;
         }
     }
-    return result;
+
+    InitPESectionReadContext((__int64)SectionBase, (ULONG)(EndAddress - SectionBase),
+                             2, 0, -1, 0, 0, (__int64)&ReadContext);
+    for (Wildcard = 0; Wildcard < 0xC8; ++Wildcard)             /* 0x14001CB81..CC17 */
+    {
+        ULONG Eax;                                              /* [rbp+8] = +0x78 */
+        USHORT Type;
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry) != 0)
+            return Result;                                      /* 0x14001CB91 */
+        ReadPtr = *(ULONG64 *)((PUCHAR)&ReadContext + 0x08)
+                + (ULONG64)*(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) = ReadPtr;    /* 0x14001CB97..BB2 */
+
+        Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+        Eax  = *(ULONG *)((PUCHAR)SectionEntry + 0x78);          /* 0x14001CBBB mov eax,[rbp+8] */
+
+        if (Type == 0x512 &&                                     /* 0x14001CBBD..BDB */
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
+            Eax != 0)
+        {
+            ULONG Candidate = Eax - (ULONG)ModuleBase + (ULONG)ReadPtr;   /* 0x14001CBD2..BD5 */
+            if (Candidate != 0 && Candidate < ModuleSize)                 /* 0x14001CBD7..BDB */
+                return GtWrite(GtCallbackField00,                           /* 0x14001CBDF..CC25 */
+                               (__int64)((ULONG64)Candidate + (ULONG64)RelocBase));
+            continue;
+        }
+        if (Type == 0x510 &&                                     /* 0x14001CBE4..CC0B */
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x10047 &&
+            Eax != 0 &&
+            *(ULONG *)((PUCHAR)SectionEntry + 0x98) == 8 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40 &&
+            Eax < ModuleSize)
+        {
+            return GtWrite(GtCallbackField00,                     /* 0x14001CC1C..CC25 */
+                           (__int64)((ULONG64)Eax + (ULONG64)RelocBase));
+        }
+    }
+    return Result;
 }
-#undef EntryCharacteristics
-#undef FieldValue
-#undef EntryFlags
-#undef FieldValue2
-#undef SectionSize
-#undef SectionDataPtr
-#undef EntrySize
 
 char ComparePeModuleSignature(char *pSignature1, __int64 Signature2, unsigned int SignatureSize)
 {
