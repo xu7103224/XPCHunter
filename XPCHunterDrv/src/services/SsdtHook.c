@@ -4759,42 +4759,47 @@ __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __i
 }
 __int64 HookSyscallNtOpenProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
-    __int64 result;
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
-    unsigned int EntryFlags = 0;
-    unsigned int SectionSize = 0;
-    __int64 SectionDataPtr = 0;
+    /* 【修正 2026-10-19】同族缺陷：EntryFlags/SectionSize 旧为 `=0` 且从不赋值
+       → 判据恒假 → GT[0x909]/[0x90A] 永不写入。
+       逐条对照 0x14001D074（描述符基址 rsp+0x90，偏移经 desc_offsets.py 换算）：
+         入口 GT[0x439F]（0x14001D098）；循环 0x14 次；读指针在读取之后推进
+         类型指针 +0x118（0x14001D115）取 [+6]，判 == 0x558
+         命中取 +0x38（0x14001D128）
+         TargetOffset = +0x38 - ImageBase + 读指针
+         非 0 且 < ImageSize 时：GT[0x909]=TargetOffset、GT[0x90A]=TargetOffset+BaseAddress */
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
 
-    result = GtRead(GtNtDeleteKeyPeSectionOffset | GtEprocessField02);
-    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    unsigned int SectionOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x439F);
+    if (!SectionOffset || SectionOffset >= ImageSize)
+        return 0;
+
+    InitPESectionReadContext(ImageBase + SectionOffset, (ULONG)(ImageSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
     {
-        InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-        for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            break;
+
+        /* 原始 0x14001D101/112/11D：读指针 += Entry[0xF0]（读取之后） */
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
+        if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x558)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
-            if ((_DWORD)result)
-                break;
-            int MatchSize = (int)(SectionSize + CumulativeSize);
-            CumulativeSize += SectionSize;
-            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1368)
+            ULONG FieldValue = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
+            if (FieldValue)
             {
-                if (EntryFlags)
+                unsigned int TargetOffset = FieldValue - (unsigned int)ImageBase
+                                          + (unsigned int)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
+                if (TargetOffset && TargetOffset < ImageSize)
                 {
-                    result = MatchSize + EntryFlags - (unsigned int)ImageBase;
-                    if ((_DWORD)result && (unsigned int)result < ImageSize)
-                    {
-                        unsigned int TargetOffset = (unsigned int)result;
-                        GtWrite((enum _GLOBAL_TABLE_INDEX)2313, (unsigned int)result);
-                        return GtWrite((enum _GLOBAL_TABLE_INDEX)2314, TargetOffset + BaseAddress);
-                    }
+                    GtWrite((GLOBAL_TABLE_INDEX)0x909, (ULONG64)TargetOffset);
+                    return GtWrite((GLOBAL_TABLE_INDEX)0x90A, (ULONG64)TargetOffset + BaseAddress);
                 }
             }
         }
     }
-    return result;
+    return 0;
 }
 __int64 HookSyscallNtOpenThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
