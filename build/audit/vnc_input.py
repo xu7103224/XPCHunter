@@ -95,6 +95,29 @@ def type_text(s, text):
         time.sleep(0.05)
 
 
+def combo(s, *names):
+    """按下并保持所有修饰键，点按最后一个键，再释放修饰键。"""
+    def sym(n):
+        n = n.lower()
+        if n in KEYSYMS:
+            return KEYSYMS[n]
+        if len(n) == 1:
+            return ord(n)
+        raise RuntimeError('未知按键 %r' % n)
+    ks = [sym(n) for n in names]
+    mods, last = ks[:-1], ks[-1]
+    for m in mods:
+        key(s, m, True)
+        time.sleep(0.05)
+    key(s, last, True)
+    time.sleep(0.06)
+    key(s, last, False)
+    time.sleep(0.05)
+    for m in reversed(mods):
+        key(s, m, False)
+        time.sleep(0.05)
+
+
 def main():
     host = sys.argv[1] if len(sys.argv) > 1 else '127.0.0.1'
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 5960
@@ -115,6 +138,9 @@ def main():
         elif cmd == 'type':
             type_text(s, sys.argv[4])
             print('type ok')
+        elif cmd == 'combo':
+            combo(s, *sys.argv[4:])
+            print('combo %s ok' % sys.argv[4:])
         else:
             raise RuntimeError('未知子命令 %r' % cmd)
     finally:

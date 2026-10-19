@@ -23,8 +23,8 @@ NT = os.path.join(HERE, 'ntoskrnl_guest.exe')
 CFG = {
     'ORIG': dict(gtread=0x140029EFC, gtwrite=0x140029FF4,
                  init=0x14008A7E4, readpese=0x14008A54C),
-    'MINE': dict(gtread=0x14001ECA0, gtwrite=0x14001ECB0,
-                 init=0x140054520, readpese=0x140054580),
+    'MINE': dict(gtread=0x14001ED00, gtwrite=0x14001ED10,
+                 init=0x140055170, readpese=0x140054580),
 }
 
 
