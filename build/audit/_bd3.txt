@@ -1,0 +1,1 @@
+140013cf0  d04803               ror byte ptr [rax + 3], 1

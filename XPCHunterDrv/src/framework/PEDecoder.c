@@ -2407,7 +2407,17 @@ __int64 SetupDecodedInstructionState(
     PUCHAR OperandOut,
     PUCHAR DecodeCtx)
 {
-    ULONG ModeFlags = CTX_D(DecodeCtx, DEC_CTX_PREFIX_FLAGS);
+    /* 【修正 2026-10-19】reg/rm/addr 三个字段取自 **+0xDC（ModRM 字节）**，
+       不是 +0xD8（前缀标志）。原始 0x14008C7C4：
+           0x14008C7C4  mov r10d,[rdx+0xdc]      ← ModRM 字节
+           0x14008C7D9  shr r10d,4 / and 0xf     ← reg
+           0x14008C7E0  and r9d,0xf              ← rm
+           0x14008C7DD  shr ecx,8 / and 3        ← addr
+       而 `& 0x300` 的判据（0x14008C826）才读 +0xD8。
+       旧代码把三者都从 +0xD8 取 → 含 ModRM 的指令会把前缀字节当 ModRM 解析
+       → reg/rm 错 → 操作数 +0x20 的标志位多出 0x2/0x4 → 下游扫描器
+       （FindNtKernelDataSectionsV2 等的 +0x88 == 0x10041 判据）永不成立。 */
+    ULONG ModeFlags = CTX_D(DecodeCtx, DEC_CTX_MODRM_BYTE);
     ULONG RegField = (ModeFlags >> 4) & 0xF;
     ULONG RmField = ModeFlags & 0xF;
     ULONG AddrSizeField = (ModeFlags >> 8) & 3;

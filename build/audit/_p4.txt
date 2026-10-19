@@ -1,0 +1,24 @@
+140013817  b9c5410000           mov ecx, 0x41c5
+14001381c  488bd8               mov rbx, rax
+14001381f  e8d8660100           call 0x140029efc
+140013824  b971010000           mov ecx, 0x171
+140013829  488bf8               mov rdi, rax
+14001382c  e8cb660100           call 0x140029efc
+140013831  4533ff               xor r15d, r15d
+140013834  488bc8               mov rcx, rax
+140013837  4d85f6               test r14, r14
+14001383a  0f8484010000         je 0x1400139c4
+140013840  85f6                 test esi, esi
+140013842  0f847c010000         je 0x1400139c4
+140013848  4885db               test rbx, rbx
+14001384b  0f8473010000         je 0x1400139c4
+140013851  85ff                 test edi, edi
+140013853  0f846b010000         je 0x1400139c4
+140013859  483bc3               cmp rax, rbx
+14001385c  0f8662010000         jbe 0x1400139c4
+140013862  2bc3                 sub eax, ebx
+140013864  3bc6                 cmp eax, esi
+140013866  0f8358010000         jae 0x1400139c4
+14001386c  8bd0                 mov edx, eax
+14001386e  4803c3               add rax, rbx
+140013871  483bc8               cmp rcx, rax

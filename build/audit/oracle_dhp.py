@@ -7,6 +7,16 @@ sys.path.insert(0,HERE); sys.path.insert(0,os.path.join(HERE,'..','..'))
 from kernel_sim import KernelSim, MASK64
 from pe_image_layout import image_layout
 from unicorn.x86_const import UC_X86_REG_RCX,UC_X86_REG_RDX,UC_X86_REG_RAX
+
+def _map_sym(name):
+    import re as _re, os as _os
+    _mp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'bin', 'Release', 'x64', 'XPCHunterDrv.map')
+    for _ln in open(_mp, encoding='utf-8', errors='ignore'):
+        _m = _re.match(r'\s+0001:[0-9a-f]{8}\s+' + name + r'\s+([0-9a-f]{16})\s+f', _ln)
+        if _m:
+            return int(_m.group(1), 16)
+    return 0
+
 ORIG=os.path.join(HERE,'..','..','samples','PCHunter_2024.09.02','View++_Driver64.sys')
 MINE=os.path.join(HERE,'..','..','build','bin','Release','x64','XPCHunterDrv.sys')
 NT=os.path.join(HERE,'ntoskrnl_guest.exe')
@@ -39,7 +49,7 @@ kbase=0xfffff8010da00000  # GT[3] from live dump
 args=(kbase+0, len(img), 0, kbase)
 mo=ma('DisableHookProtection')
 ko,wo,no=run(ORIG,0x14001CC4C,0x140029EFC,0x140029FF4,img,args)
-km,wm,nm=run(MINE,mo,0x14001ED90,0x14001EDA0,img,args)
+km,wm,nm=run(MINE,mo,_map_sym('GtRead'),_map_sym('GtWrite'),img,args)
 print('ORIG',ko,len(wo),[(hex(i),hex(v)) for i,v in wo]);print(' notes',no[:3])
 print('MINE',km,len(wm),[(hex(i),hex(v)) for i,v in wm])
 print('=>','IDENTICAL' if {(i,v) for i,v in wo}=={(i,v) for i,v in wm} else 'DIFFERENT')

@@ -36,8 +36,8 @@ CFG = {
                      0x14008C0F8: 'DecodeReadSizeDepImm',
                      0x14008BF68: 'DecodeReadImmediateValue',
                  }),
-    'MINE': dict(drv=MINE, fkpsbt=0x140076990, readpese=0x140054790,
-                 gtread=0x14001ED40, gtwrite=0x14001ED50,
+    'MINE': dict(drv=MINE, fkpsbt=0x1400769A0, readpese=0x1400547C0,
+                 gtread=0x14001ED50, gtwrite=0x14001ED60,
                  handlers={
                      0x1400555A0: 'ReadPESectionField',
                      0x140055650: 'ReadPESectionFieldByte',

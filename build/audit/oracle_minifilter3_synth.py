@@ -92,7 +92,7 @@ def main():
         img = mkpe(pat)
         m = ma(fname)
         ko = run(ORIG, FORIG[fname], 0x140029EFC, 0x140029FF4, img)
-        km = run(MINE, m, 0x14001ED40, 0x14001ED50, img)
+        km = run(MINE, m, 0x14001ED60, 0x14001ED60, img)
         so = ko[2] if isinstance(ko, tuple) and len(ko) > 2 else None
         print('%-14s ORIG=%s  MINE=%s' % (label, ko, km))
     print('\n（注：本脚本的 run() 只返回 call 结果；写入明细见下）')

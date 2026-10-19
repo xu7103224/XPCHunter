@@ -1,0 +1,41 @@
+14008c7c4  448b92dc000000       mov r10d, dword ptr [rdx + 0xdc]
+14008c7cb  4c8bc1               mov r8, rcx
+14008c7ce  b820000000           mov eax, 0x20
+14008c7d3  418bca               mov ecx, r10d
+14008c7d6  458bca               mov r9d, r10d
+14008c7d9  41c1ea04             shr r10d, 4
+14008c7dd  c1e908               shr ecx, 8
+14008c7e0  4183e10f             and r9d, 0xf
+14008c7e4  4183e20f             and r10d, 0xf
+14008c7e8  83e103               and ecx, 3
+14008c7eb  837a0401             cmp dword ptr [rdx + 4], 1
+14008c7ef  448d5820             lea r11d, [rax + 0x20]
+14008c7f3  440f44d8             cmove r11d, eax
+14008c7f7  4183fa04             cmp r10d, 4
+14008c7fb  7423                 je 0x14008c820
+14008c7fd  418bc3               mov eax, r11d
+14008c800  4589502c             mov dword ptr [r8 + 0x2c], r10d
+14008c804  4883c802             or rax, 2
+14008c808  49094020             or qword ptr [r8 + 0x20], rax
+14008c80c  85c9                 test ecx, ecx
+14008c80e  7410                 je 0x14008c820
+14008c810  4983482004           or qword ptr [r8 + 0x20], 4
+14008c815  b801000000           mov eax, 1
+14008c81a  d3e0                 shl eax, cl
+14008c81c  41894030             mov dword ptr [r8 + 0x30], eax
+14008c820  4183f905             cmp r9d, 5
+14008c824  7535                 jne 0x14008c85b
+14008c826  f782d800000000030000 test dword ptr [rdx + 0xd8], 0x300
+14008c830  7529                 jne 0x14008c85b
+14008c832  837a0401             cmp dword ptr [rdx + 4], 1
+14008c836  7511                 jne 0x14008c849
+14008c838  490fba682010         bts qword ptr [r8 + 0x20], 0x10
+14008c83e  8b82e0000000         mov eax, dword ptr [rdx + 0xe0]
+14008c844  41894010             mov dword ptr [r8 + 0x10], eax
+14008c848  c3                   ret 
+14008c849  490fba682011         bts qword ptr [r8 + 0x20], 0x11
+14008c84f  486382e0000000       movsxd rax, dword ptr [rdx + 0xe0]
+14008c856  49894010             mov qword ptr [r8 + 0x10], rax
+14008c85a  c3                   ret 
+14008c85b  418bc3               mov eax, r11d
+14008c85e  45894828             mov dword ptr [r8 + 0x28], r9d

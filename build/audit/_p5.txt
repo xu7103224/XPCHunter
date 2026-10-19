@@ -1,0 +1,23 @@
+140013967  0f8387000000         jae 0x1400139f4
+14001396d  b958050000           mov ecx, 0x558
+140013972  663b4806             cmp cx, word ptr [rax + 6]
+140013976  0f85d7000000         jne 0x140013a53
+14001397c  48f745f000000004     test qword ptr [rbp - 0x10], 0x4000000
+140013984  0f84c9000000         je 0x140013a53
+14001398a  8b45d8               mov eax, dword ptr [rbp - 0x28]
+14001398d  85c0                 test eax, eax
+14001398f  0f84be000000         je 0x140013a53
+140013995  8b4c2444             mov ecx, dword ptr [rsp + 0x44]
+140013999  ffc1                 inc ecx
+14001399b  894c2444             mov dword ptr [rsp + 0x44], ecx
+14001399f  83f902               cmp ecx, 2
+1400139a2  0f85ab000000         jne 0x140013a53
+1400139a8  412bc6               sub eax, r14d
+1400139ab  03442458             add eax, dword ptr [rsp + 0x58]
+1400139af  7413                 je 0x1400139c4
+1400139b1  3bc6                 cmp eax, esi
+1400139b3  730f                 jae 0x1400139c4
+1400139b5  8bd0                 mov edx, eax
+1400139b7  b97b010000           mov ecx, 0x17b
+1400139bc  4803d3               add rdx, rbx
+1400139bf  e830660100           call 0x140029ff4

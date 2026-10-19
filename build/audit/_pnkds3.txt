@@ -1,0 +1,14 @@
+1400139a0  f9                   stc 
+1400139a1  020f                 add cl, byte ptr [rdi]
+1400139a3  85ab00000041         test dword ptr [rbx + 0x41000000], ebp
+1400139a9  2bc6                 sub eax, esi
+1400139ab  03442458             add eax, dword ptr [rsp + 0x58]
+1400139af  7413                 je 0x1400139c4
+1400139b1  3bc6                 cmp eax, esi
+1400139b3  730f                 jae 0x1400139c4
+1400139b5  8bd0                 mov edx, eax
+1400139b7  b97b010000           mov ecx, 0x17b
+1400139bc  4803d3               add rdx, rbx
+1400139bf  e830660100           call 0x140029ff4
+1400139c4  488b8dc0000000       mov rcx, qword ptr [rbp + 0xc0]
+1400139cb  4833cc               xor rcx, rsp

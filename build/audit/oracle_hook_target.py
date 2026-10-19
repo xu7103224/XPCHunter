@@ -19,6 +19,16 @@ from pe_image_layout import image_layout  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_RCX, UC_X86_REG_RDX, UC_X86_REG_RAX  # noqa
 
 ORIG = os.path.join(HERE, '..', '..', 'samples', 'PCHunter_2024.09.02', 'View++_Driver64.sys')
+
+def _map_sym(name):
+    import re as _re, os as _os
+    _mp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'bin', 'Release', 'x64', 'XPCHunterDrv.map')
+    for _ln in open(_mp, encoding='utf-8', errors='ignore'):
+        _m = _re.match(r'\s+0001:[0-9a-f]{8}\s+' + name + r'\s+([0-9a-f]{16})\s+f', _ln)
+        if _m:
+            return int(_m.group(1), 16)
+    return 0
+
 MINE = os.path.join(HERE, '..', '..', 'build', 'bin', 'Release', 'x64', 'XPCHunterDrv.sys')
 NT = os.path.join(HERE, 'ntoskrnl_guest.exe')
 
@@ -28,7 +38,7 @@ FUNCS = {
 }
 GTADDR = {
     'ORIG': dict(read=0x140029EFC, write=0x140029FF4),
-    'MINE': dict(read=0x14001ED40, write=0x14001ED50),
+    'MINE': dict(read=_map_sym('GtRead'), write=_map_sym('GtWrite')),
 }
 
 
