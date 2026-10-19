@@ -3373,6 +3373,8 @@ LABEL_23:
                     result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
                     if ((_DWORD)result)
                         break;
+                    /* 【修正 2026-10-19】绑定 SectionSize = 描述符 +0xF0（原为从不赋值的局部） */
+                    SectionSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
                     MatchSize2 = SectionSize + (int)CumulativeSize;
                     result = SectionDataPtr;
                     CumulativeSize += SectionSize;
@@ -3411,6 +3413,8 @@ LABEL_23:
                 result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
                 if ((_DWORD)result)
                     break;
+                /* 【修正 2026-10-19】绑定 SectionSize = 描述符 +0xF0（原为从不赋值的局部） */
+                SectionSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
                 MatchSize = SectionSize + (int)CumulativeSize;
                 CumulativeSize += SectionSize;
                 if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1369 && (FieldValue & 0x4000000) != 0)

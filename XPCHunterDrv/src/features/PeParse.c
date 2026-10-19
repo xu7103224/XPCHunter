@@ -1041,6 +1041,8 @@ char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
             while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             {
                 *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
+                /* 【修正 2026-10-19】绑定 SectionSize = 描述符 +0xF0（原为从不赋值的局部） */
+                SectionSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
                 SectionEnd = (int)(SectionSize + CumulativeSize);
                 CumulativeSize += SectionSize;
                 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -1247,6 +1249,8 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
     {
         *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
+        /* 【修正 2026-10-19】绑定 SectionSize = 描述符 +0xF0（原为从不赋值的局部） */
+        SectionSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
         SectionEnd2 = SectionSize + (int)CumulativeSize;
         CumulativeSize += SectionSize;
         if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 1u)
