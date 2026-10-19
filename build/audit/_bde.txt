@@ -1,0 +1,19 @@
+140013c48  48895c2408           mov qword ptr [rsp + 8], rbx
+140013c4d  48896c2410           mov qword ptr [rsp + 0x10], rbp
+140013c52  4889742418           mov qword ptr [rsp + 0x18], rsi
+140013c57  57                   push rdi
+140013c58  4154                 push r12
+140013c5a  4155                 push r13
+140013c5c  4156                 push r14
+140013c5e  4157                 push r15
+140013c60  4881ecd0010000       sub rsp, 0x1d0
+140013c67  488b051a040900       mov rax, qword ptr [rip + 0x9041a]
+140013c6e  4833c4               xor rax, rsp
+140013c71  48898424c0010000     mov qword ptr [rsp + 0x1c0], rax
+140013c79  b920000000           mov ecx, 0x20
+140013c7e  e879620100           call 0x140029efc
+140013c83  b921000000           mov ecx, 0x21
+140013c88  4c8be8               mov r13, rax
+140013c8b  e86c620100           call 0x140029efc
+140013c90  b903000000           mov ecx, 3
+140013c95  488bf0               mov rsi, rax

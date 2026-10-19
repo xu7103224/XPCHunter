@@ -9763,8 +9763,17 @@ ULONG64 FindKernelDataSectionByData(void)
     PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
     PeSize = GtRead((GLOBAL_TABLE_INDEX)0x21);
     NtImageBase = GtRead(GtNtoskrnlModuleBase);
-    ExportDirSize = (int)GtRead((GLOBAL_TABLE_INDEX)0x912);
-    SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x179);
+    /* 【修正 2026-10-19】入口 GT 索引错误。原始 sub_140013C48 读取顺序
+       （0x140013C79..CDF）：
+         0x20 → r13 (PeBase)
+         0x21 → rsi (PeSize)
+         3    → rdi (NtImageBase)
+         0x41C5 → rbx（守卫：非零；0x140013CA2）
+         0x171  → rcx/rax（守卫：> NtImageBase；0x140013CAF）
+       旧代码误用 0x912 与 0x179 —— 那正是本函数**输出**的槽，
+       于是首次运行时两者为 0 → 整个函数被守卫挡掉 → 永远不写 0x197/0x912。 */
+    ExportDirSize = (int)GtRead((GLOBAL_TABLE_INDEX)0x41C5);
+    SectionAddr = GtRead((GLOBAL_TABLE_INDEX)0x171);
     if (PeBase && PeSize && NtImageBase && ExportDirSize && SectionAddr > (ULONG64)NtImageBase)
     {
         SectionOffset = (unsigned int)(SectionAddr - NtImageBase);

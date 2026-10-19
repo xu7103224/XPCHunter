@@ -1,0 +1,9 @@
+140013cc4  f60f84               test byte ptr [rdi], -0x7c
+140013cc7  6d                   insd dword ptr [rdi], dx
+140013cc8  0100                 add dword ptr [rax], eax
+140013cca  004885               add byte ptr [rax - 0x7b], cl
+140013ccd  ff0f                 dec dword ptr [rdi]
+140013ccf  84640100             test byte ptr [rcx + rax], ah
+140013cd3  0085db0f845c         add byte ptr [rbp + 0x5c840fdb], al
+140013cd9  0100                 add dword ptr [rax], eax
+140013cdb  00483b               add byte ptr [rax + 0x3b], cl

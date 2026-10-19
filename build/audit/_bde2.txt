@@ -1,0 +1,15 @@
+140013c95  488bf0               mov rsi, rax
+140013c98  e85f620100           call 0x140029efc
+140013c9d  b9c5410000           mov ecx, 0x41c5
+140013ca2  488bf8               mov rdi, rax
+140013ca5  e852620100           call 0x140029efc
+140013caa  b971010000           mov ecx, 0x171
+140013caf  488bd8               mov rbx, rax
+140013cb2  e845620100           call 0x140029efc
+140013cb7  488bc8               mov rcx, rax
+140013cba  4d85ed               test r13, r13
+140013cbd  0f8475010000         je 0x140013e38
+140013cc3  85f6                 test esi, esi
+140013cc5  0f846d010000         je 0x140013e38
+140013ccb  4885ff               test rdi, rdi
+140013cce  0f8464010000         je 0x140013e38
