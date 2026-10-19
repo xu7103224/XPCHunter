@@ -2306,36 +2306,40 @@ __int64 DecodeModrmAddressingMode(
     INT Flag)
 {
     ULONG RegIndex = CTX_D(OperandOut, 0) & 0x1F;
-    ULONG AddressMode = CTX_D(Context, 2);
+    /* 【修正 2026-10-19】原始 0x14008C1B6 读 `[rcx+8]` = **Context+0x08**
+       （旧代码误写成 Context+2）。 */
+    ULONG AddressMode = CTX_D(Context, 8);
     ULONG Result = 0;
 
     if (Flag)
     {
+        /* 【修正 2026-10-19】原始 0x14008C19C 是 `cmp dword ptr [rcx+4], 2`
+           —— 读 **Context+0x04**，旧代码误写成 Context+0x01（读到垃圾/0）
+           → RegIndex 停在 4（置 0x20）而非 11（置 0x40）
+           → 描述符 +0x50 出现 0x21 而原始是 0x41
+           → FindHookTargetInExportWin8 的 `+0x50 == 0x40000` 判据永不成立。 */
         RegIndex = 4;
-        Result = 11;
-        if (CTX_D(Context, 1) == 2)
+        if (CTX_D(Context, 4) == 2)
             RegIndex = 11;
     }
     else if (RegIndex == 15 || RegIndex == 0)
     {
-        if (AddressMode)
-        {
-            if (AddressMode == 1)
-                RegIndex = 11;
-            else if (AddressMode == 2)
-                RegIndex = 4;
-        }
+        /* 【修正 2026-10-19】原始 0x14008C1CA/1C8/1D1 的映射为
+           AddressMode==1 → 4、AddressMode==2 → 11、**==0 → 16**；
+           旧代码把 1 与 2 的结果写反了（1→11、2→4）。 */
+        if (AddressMode == 1)
+            RegIndex = 4;
+        else if (AddressMode == 2)
+            RegIndex = 11;
         else
-        {
             RegIndex = 16;
-        }
     }
 
     // 设置寻址模式标志
     if (RegIndex == 3)
     {
-        // 直接寄存器寻址
-        ULONG AddrSizeFlags = CTX_D(Context, 8);
+        // 直接寄存器寻址；原始 0x14008C1FE 读 `[r10+0x20]` = Context+0x20
+        ULONG AddrSizeFlags = CTX_D(Context, 0x20);
         if ((AddrSizeFlags & 0x40) != 0)
         {
             ULONG AdjustedType = OperandType - 4;
