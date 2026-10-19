@@ -890,11 +890,46 @@ __int64 MiniFilterPreClose(void)
         }
         else if (F1 && !F3)
         {
-            GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);
-            GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand + NtImageBase));
-            GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)AltCand);
-            GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)(AltCand + NtImageBase));
-            F3 = 1;
+            /* 【补 2026-10-19】第二写块（原始 0x14001577C..837）：
+               从 r13-0x30 向 r13-7 **反向**扫描，找 `C7`（mov r/m32, imm32）且
+               `[rcx+2]==GT[0x4459]`（r9d）且 `[rcx+6]==0x1000` 的点；
+               或 `[rcx+2]==GT[0x4459]` 且 `[rcx+6]==0x1000`。
+               找到后写 GT[0x334]=Cand、GT[0x335]=Cand+NtImageBase、
+                         GT[0x8EC]=F1候选、GT[0x8ED]=该值+NtImageBase。 */
+            /* 精确对照 0x14001578E..7E9：
+                 rcx 从 (r13-0x30) 递增到 (r13-7)；
+                 若 rcx[0]==0xC7 且 movzx(rcx[2]) == (BYTE)GT[0x4459] 且 [rcx+3]==0x1000 → 命中
+                 否则若 (rcx-0xA) <= (r13-0xA) 且 rcx[0]==0xC7 且 [rcx+2]==GT[0x4459] 且 [rcx+6]==0x1000 → 命中 */
+            PUCHAR lo = r13 - 0x30;
+            if (r13 > Buf && lo > Buf && In4)
+            {
+                PUCHAR hi = r13 - 7;
+                int hit = 0;
+                for (PUCHAR rcx = lo; rcx <= hi && (rcx + 7) < End; ++rcx)
+                {
+                    if (rcx[0] == 0xC7 &&
+                        (unsigned int)rcx[2] == (In4 & 0xFF) &&
+                        *(unsigned int *)(rcx + 3) == 0x1000)
+                    {
+                        hit = 1; break;
+                    }
+                    if ((PUCHAR)(rcx - 0xA) <= (PUCHAR)(r13 - 0xA) &&
+                        rcx[0] == 0xC7 &&
+                        *(unsigned int *)(rcx + 2) == (unsigned int)In4 &&
+                        *(unsigned int *)(rcx + 6) == 0x1000)
+                    {
+                        hit = 1; break;
+                    }
+                }
+                if (hit)
+                {
+                    GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);
+                    GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand + NtImageBase));
+                    GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)AltCand);
+                    GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)(AltCand + NtImageBase));
+                    F3 = 1;
+                }
+            }
         }
     }
 
