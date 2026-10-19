@@ -4222,57 +4222,83 @@ __int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __
 
 __int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
-    __int64 result;
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
-    __int64 FieldValue = 0;
-    __int64 ExtraField = 0;
-    __int64 FieldValue2 = 0;
-    unsigned int SectionSize = 0;
-    __int64 SectionDataPtr = 0;
+    /* 【重写 2026-10-19】旧实现把描述符内的槽另立为 `=0` 且从不赋值的独立局部，
+       且入口宏语义不定 → GT[0x4F]/[0x416E]/[0x416F] 永不写入。
+       描述符偏移（desc_offsets.py 换算，基址 rbp-0x70）：
+         [rbp+0xa8]→+0x118  [rbp+0x18]→+0x88  [rbp]→+0x70
+         [rbp-0x20]→+0x50   [rbp-0x30]→+0x40
+       逐条对照 0x14001C72C–0x14001C8A5：
+         入口 GT[0x416B]；循环 0x100；读指针在读取之后推进
+         构建号 < 0x55F0 时，类型 0x545 立即结束（0x14001C7ED/F4）
+         支 A：类型 0x430 且 (+0x88 & 0x1000000000) 且 +0x70 == 0        （0x14001C807..826）
+         支 B：类型 0x4DB 且 +0x88 == 0x40                                （0x14001C828..837）
+         二者落到同一判据：+0x50 == 0x40000（0x14001C839）
+             Candidate = +0x40 - ImageBase + 读指针（0x14001C843..849）
+             Candidate > 0x20 且 < ImageSize（0x14001C84D/852）
+             若已有首次命中且计数 < 0xA（0x14001C857/85C）→
+                 GT[0x416E] = 首次 + 0；GT[0x416F] = 首次 + BaseAddress；
+                 GT[0x4F]   = BaseAddress + (Candidate - 0x20)；结束
+             否则 首次 = Candidate - 0x20、计数 = 0（0x14001C861/865）；未命中则计数++ */
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
+    unsigned int FirstMatchOffset = 0;
+    unsigned int CountField = 0;
 
-    result = GtRead(GtFindHookTargetPeSectionOffset);
-    if ((_DWORD)result && (unsigned int)result < ImageSize)
+    unsigned int SectionOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x416B);
+    if (!SectionOffset || SectionOffset >= ImageSize)
+        return 0;
+
+    InitPESectionReadContext(ImageBase + SectionOffset, (ULONG)(ImageSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (unsigned int LoopIndex = 0; LoopIndex < 0x100; ++LoopIndex)
     {
-        InitPESectionReadContext(ImageBase + (unsigned int)result, (ULONG)(ImageSize - result), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-        unsigned int CountField = 0;
-        __int64 FirstMatchOffset = 0;
-        for (unsigned int LoopIndex = 0; LoopIndex < 0x100; ++LoopIndex)
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            break;
+
+        /* 原始 0x14001C7D1/7DC：读指针 += Entry[0xF0]（读取之后） */
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
+        __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+        if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x55F0 && SectionType == 0x545)
+            break;
+
+        ULONG64 ExtraField = *(ULONG64 *)((PUCHAR)SectionEntry + 0x88);
+        ULONG64 ZeroField  = *(ULONG64 *)((PUCHAR)SectionEntry + 0x70);
+        ULONG64 FieldValue = *(ULONG64 *)((PUCHAR)SectionEntry + 0x50);
+        ULONG   FieldValue2 = *(ULONG  *)((PUCHAR)SectionEntry + 0x40);
+
+        int BranchA = (SectionType == 0x430 && (ExtraField & 0x1000000000LL) != 0 && ZeroField == 0);
+        int BranchB = (SectionType == 0x4DB && ExtraField == 0x40);
+
+        if ((BranchA || BranchB) && FieldValue == 0x40000)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
-            if ((_DWORD)result)
-                break;
-            CumulativeSize += SectionSize;
-            if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x55F0)
+            unsigned int Candidate = FieldValue2 - (unsigned int)ImageBase
+                                   + (unsigned int)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
+            if (Candidate > 0x20 && Candidate < ImageSize)
             {
-                if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1349)
-                    break;
-            }
-            if (((*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1072 && (FieldValue2 & 0x1000000000LL) != 0 && !ExtraField) || (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1243 && FieldValue2 == 64)) && FieldValue == 0x40000)
-            {
-                unsigned int MatchOffset = (unsigned int)(CumulativeSize + SectionEntry[16] - ImageBase);
-                if (MatchOffset > 0x20 && MatchOffset < ImageSize)
+                if (FirstMatchOffset && CountField < 0xA)
                 {
-                    if ((_DWORD)FirstMatchOffset && CountField < 0xA)
-                    {
-                        GtWrite(GtFindHookTargetFirstMatchOffset2, (unsigned int)FirstMatchOffset);
-                        GtWrite(GtFindHookTargetFirstMatchAddr2, FirstMatchOffset + BaseAddress);
-                        return GtWrite(GtEprocessField69, BaseAddress + MatchOffset - 32);
-                    }
-                    FirstMatchOffset = MatchOffset - 32;
-                    CountField = 0;
+                    GtWrite((GLOBAL_TABLE_INDEX)0x416E, FirstMatchOffset);
+                    GtWrite((GLOBAL_TABLE_INDEX)0x416F, FirstMatchOffset + BaseAddress);
+                    return GtWrite((GLOBAL_TABLE_INDEX)0x4F, BaseAddress + (Candidate - 0x20));
                 }
+                FirstMatchOffset = Candidate - 0x20;
+                CountField = 0;
             }
             else
             {
                 ++CountField;
             }
         }
+        else
+        {
+            ++CountField;
+        }
     }
-    return result;
+    return 0;
 }
+
 __int64 EnableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
