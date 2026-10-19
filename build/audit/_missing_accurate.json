@@ -1,0 +1,1730 @@
+[
+{
+"addr": "0x140001000",
+"name": "__GSHandlerCheckCommon"
+},
+{
+"addr": "0x140001064",
+"name": "__GSHandlerCheck"
+},
+{
+"addr": "0x1400010a0",
+"name": "memmove"
+},
+{
+"addr": "0x1400013f0",
+"name": "memset"
+},
+{
+"addr": "0x1400014dc",
+"name": "__GSHandlerCheck_SEH"
+},
+{
+"addr": "0x140001788",
+"name": "InterlockedExchange"
+},
+{
+"addr": "0x1400017b1",
+"name": "InterlockedExchange64"
+},
+{
+"addr": "0x1400017e8",
+"name": "AesDecryptRounds"
+},
+{
+"addr": "0x14000280c",
+"name": "AesDecryptBlocks"
+},
+{
+"addr": "0x1400028b4",
+"name": "AesKeyExpansion"
+},
+{
+"addr": "0x140002c30",
+"name": "AesInitKeySchedule"
+},
+{
+"addr": "0x140002f4c",
+"name": "DecryptAesHexString"
+},
+{
+"addr": "0x140003b3c",
+"name": "BuildHookTable"
+},
+{
+"addr": "0x140004f80",
+"name": "ParseNtHeaders"
+},
+{
+"addr": "0x1400058a4",
+"name": "ParsePESectionHeaders"
+},
+{
+"addr": "0x140005a58",
+"name": "FindPESectionByRva"
+},
+{
+"addr": "0x140006bd0",
+"name": "EnableProcessProtect"
+},
+{
+"addr": "0x140008f7c",
+"name": "OpenDeviceObjectForEnum"
+},
+{
+"addr": "0x1400091fc",
+"name": "RemoveDeviceObject"
+},
+{
+"addr": "0x140009600",
+"name": "RemovePnpManagerDriverObject"
+},
+{
+"addr": "0x140009680",
+"name": "RemoveTdxDriverObject"
+},
+{
+"addr": "0x1400096e4",
+"name": "RemoveHarddiskVolume1Device"
+},
+{
+"addr": "0x140009df0",
+"name": "NormalizeModulePaths"
+},
+{
+"addr": "0x14000a244",
+"name": "ParseExportDirAndBuildIndex"
+},
+{
+"addr": "0x14000a544",
+"name": "ParseAndCompareExportEntries"
+},
+{
+"addr": "0x14000a894",
+"name": "ParseNtExportDirTable"
+},
+{
+"addr": "0x14000ad70",
+"name": "ParseExportDirectoryEntries"
+},
+{
+"addr": "0x14000b090",
+"name": "ParseNtExportAuxData"
+},
+{
+"addr": "0x14000b314",
+"name": "ParseExportEntriesDetailed"
+},
+{
+"addr": "0x14000b6e0",
+"name": "ParseNtKernelFile"
+},
+{
+"addr": "0x14000bae0",
+"name": "CalcSectionRangeSize"
+},
+{
+"addr": "0x14000bb88",
+"name": "CalcSectionAlignedSize"
+},
+{
+"addr": "0x14000bc94",
+"name": "CompareExportNamePrefix"
+},
+{
+"addr": "0x14000bcf0",
+"name": "FindExportEntryByAddress"
+},
+{
+"addr": "0x14000c260",
+"name": "BtreeSearchByKey"
+},
+{
+"addr": "0x14000c4e0",
+"name": "FindExportByAddress"
+},
+{
+"addr": "0x14000c550",
+"name": "ParseExportSectionAndIndex"
+},
+{
+"addr": "0x14000c608",
+"name": "FindExportEntryByName"
+},
+{
+"addr": "0x14000cccc",
+"name": "BtreeInsertExportEntry"
+},
+{
+"addr": "0x14000cdd4",
+"name": "ClassifyModuleTypeHalOrNt"
+},
+{
+"addr": "0x14000ceb0",
+"name": "CheckExportNamePrefixWin10"
+},
+{
+"addr": "0x14000cf20",
+"name": "CheckExportNamePrefixWin10V2"
+},
+{
+"addr": "0x14000cf90",
+"name": "CheckExportNamePrefixCombined"
+},
+{
+"addr": "0x14000cfe4",
+"name": "ValidateZeroPage"
+},
+{
+"addr": "0x14000d010",
+"name": "ReadModuleFileToBuffer"
+},
+{
+"addr": "0x14000d884",
+"name": "CompareKernelPageAttached"
+},
+{
+"addr": "0x14000e24c",
+"name": "InitFileSystemExportTable"
+},
+{
+"addr": "0x14000e584",
+"name": "FindExportInFileByName"
+},
+{
+"addr": "0x14000ecb8",
+"name": "ReadCdromSysFile"
+},
+{
+"addr": "0x14000edd8",
+"name": "ReadDisksSysFile"
+},
+{
+"addr": "0x140011240",
+"name": "PowerCallbackRoutine"
+},
+{
+"addr": "0x140011630",
+"name": "PowerCallbackUnregister"
+},
+{
+"addr": "0x1400118f4",
+"name": "ShutdownCallbackUnregister"
+},
+{
+"addr": "0x140019cfc",
+"name": "KernelNotifyRoutine"
+},
+{
+"addr": "0x140019d04",
+"name": "KernelNotifyRoutineEx"
+},
+{
+"addr": "0x14001ae7c",
+"name": "MiniFilterStreamHandleCleanup"
+},
+{
+"addr": "0x14001c408",
+"name": "InitHookSyscall"
+},
+{
+"addr": "0x14001c528",
+"name": "InstallHookSyscall"
+},
+{
+"addr": "0x14001c8d0",
+"name": "UninstallHookSyscall"
+},
+{
+"addr": "0x14001c9fc",
+"name": "EnableHookProtection"
+},
+{
+"addr": "0x14001ca5c",
+"name": "FindHookTargetDataSection"
+},
+{
+"addr": "0x14001ce20",
+"name": "HookSyscallNtCreateProcess"
+},
+{
+"addr": "0x14001d188",
+"name": "HookSyscallNtOpenThread"
+},
+{
+"addr": "0x14001d4c0",
+"name": "HookSyscallNtOpenKey"
+},
+{
+"addr": "0x14001d608",
+"name": "HookSyscallNtOpenKeyEx"
+},
+{
+"addr": "0x14001d708",
+"name": "HookSyscallNtCreateKey"
+},
+{
+"addr": "0x14001d984",
+"name": "HookSyscallNtDeleteValueKey"
+},
+{
+"addr": "0x14001da40",
+"name": "FindDeleteValueKeyTarget"
+},
+{
+"addr": "0x14001db40",
+"name": "ScanRegValueBodyForRef"
+},
+{
+"addr": "0x14001dcc0",
+"name": "HookSyscallNtSetValueKey"
+},
+{
+"addr": "0x14001ddac",
+"name": "FindSetValueKeyTargets"
+},
+{
+"addr": "0x14001def4",
+"name": "FindSetValueKeyTarget"
+},
+{
+"addr": "0x14001dfbc",
+"name": "HookSyscallNtRenameKey"
+},
+{
+"addr": "0x14001e340",
+"name": "ResolveCreateFileRelocs"
+},
+{
+"addr": "0x14001e5bc",
+"name": "HookSyscallNtCreateFile"
+},
+{
+"addr": "0x14001e688",
+"name": "HookSyscallNtOpenFile"
+},
+{
+"addr": "0x14001e78c",
+"name": "HookSyscallNtReadFile"
+},
+{
+"addr": "0x14001e890",
+"name": "HookSyscallNtWriteFile"
+},
+{
+"addr": "0x14001ed98",
+"name": "HookSyscallNtClose"
+},
+{
+"addr": "0x14001ee9c",
+"name": "HookSyscallNtDuplicateObject"
+},
+{
+"addr": "0x14001ff5c",
+"name": "HookSyscallNtQuerySystemInfo"
+},
+{
+"addr": "0x1400200a4",
+"name": "HookSyscallNtQueryInformationProcess"
+},
+{
+"addr": "0x1400201a4",
+"name": "HookSyscallNtSetInformationProcess"
+},
+{
+"addr": "0x1400202a8",
+"name": "HookSyscallNtQueryInformationThread"
+},
+{
+"addr": "0x1400203ac",
+"name": "HookSyscallNtSetInformationThread"
+},
+{
+"addr": "0x1400204b0",
+"name": "HookSyscallNtSuspendProcess"
+},
+{
+"addr": "0x1400205b4",
+"name": "HookSyscallNtResumeProcess"
+},
+{
+"addr": "0x1400205f8",
+"name": "HookSyscallNtSuspendThread"
+},
+{
+"addr": "0x1400206fc",
+"name": "HookSyscallNtResumeThread"
+},
+{
+"addr": "0x140020800",
+"name": "HookSyscallNtOpenProcessToken"
+},
+{
+"addr": "0x1400209a8",
+"name": "FindOpenProcessTokenTarget"
+},
+{
+"addr": "0x140020bc4",
+"name": "HookSyscallNtOpenThreadToken"
+},
+{
+"addr": "0x140020cc8",
+"name": "HookSyscallNtCreateToken"
+},
+{
+"addr": "0x140020dcc",
+"name": "HookSyscallNtLoadDriver"
+},
+{
+"addr": "0x1400210f4",
+"name": "CheckWin2k3Sp2"
+},
+{
+"addr": "0x140021124",
+"name": "FindRenameKeyTargetEx"
+},
+{
+"addr": "0x140028168",
+"name": "FindNtRenameKeyTarget"
+},
+{
+"addr": "0x14002839c",
+"name": "RelocateExportAddresses"
+},
+{
+"addr": "0x140028434",
+"name": "BuildHalExportTable"
+},
+{
+"addr": "0x140028648",
+"name": "FindHalExportTableLegacy"
+},
+{
+"addr": "0x1400287c4",
+"name": "FindHalInitSystemExport"
+},
+{
+"addr": "0x14002886c",
+"name": "FindHalInitializeProcessorExport"
+},
+{
+"addr": "0x140028934",
+"name": "FindHalDataSectionOffset"
+},
+{
+"addr": "0x140028b74",
+"name": "BuildSsdtEntryTableEx"
+},
+{
+"addr": "0x140028d1c",
+"name": "BuildSsdtEntryTableLegacy"
+},
+{
+"addr": "0x140028fac",
+"name": "GetSsdtBaseAndSize"
+},
+{
+"addr": "0x1400292cc",
+"name": "BuildInitSsdtHookTable"
+},
+{
+"addr": "0x1400292f4",
+"name": "BuildSsdtHookTableWin10"
+},
+{
+"addr": "0x1400293b0",
+"name": "BuildSsdtHookTableLegacy"
+},
+{
+"addr": "0x1400294b8",
+"name": "ReadNtFileForHookTable"
+},
+{
+"addr": "0x140029720",
+"name": "ResolveKernelObjectAddresses"
+},
+{
+"addr": "0x1400298c0",
+"name": "GetKernelObjectTypeInfo"
+},
+{
+"addr": "0x14002a004",
+"name": "InitCpuMsrBaseOffsets"
+},
+{
+"addr": "0x14002a05c",
+"name": "DispatchCpuMsrBaseLookup"
+},
+{
+"addr": "0x14002a090",
+"name": "FindCpuMsrBaseLegacy"
+},
+{
+"addr": "0x14002a218",
+"name": "FindCpuMsrBaseWin10"
+},
+{
+"addr": "0x14002a5c8",
+"name": "ResolveKernelModuleBasePair"
+},
+{
+"addr": "0x14002a61c",
+"name": "DispatchParseNtExportFunctions"
+},
+{
+"addr": "0x14002a644",
+"name": "ParseNtExportFunctions"
+},
+{
+"addr": "0x14002ad88",
+"name": "ParseNtExportFunctionsV2"
+},
+{
+"addr": "0x14002b494",
+"name": "CmdCheckModuleBaseChanged"
+},
+{
+"addr": "0x14002b4fc",
+"name": "FindCpuMsrDifferences"
+},
+{
+"addr": "0x14002b684",
+"name": "ParseNtDataSectionRelocs"
+},
+{
+"addr": "0x14002b7d0",
+"name": "CopyKernelMemoryToTarget"
+},
+{
+"addr": "0x14002bbb4",
+"name": "FindNtoskrnlExportsInThreadEnv"
+},
+{
+"addr": "0x14002c1d8",
+"name": "WalkKernelModuleList"
+},
+{
+"addr": "0x14002c29c",
+"name": "ParseKernelModuleDiskInfo"
+},
+{
+"addr": "0x14002c2fc",
+"name": "FindHalInitPatternOffsets"
+},
+{
+"addr": "0x14002d1e8",
+"name": "CheckFilePathFilter"
+},
+{
+"addr": "0x14002ee20",
+"name": "CmdReadFileInfo"
+},
+{
+"addr": "0x14002ee6c",
+"name": "CmdQueryFileAllocationSize"
+},
+{
+"addr": "0x14002ee9c",
+"name": "CmdQueryFileEndOfFile"
+},
+{
+"addr": "0x14002f15c",
+"name": "CmdSendRenameFileIrp"
+},
+{
+"addr": "0x14002f404",
+"name": "CmdSetFileBasicInfo"
+},
+{
+"addr": "0x14002f414",
+"name": "IrpFsctlGetVolumeData"
+},
+{
+"addr": "0x140030398",
+"name": "ValidateAndClearProcessContext"
+},
+{
+"addr": "0x14003069c",
+"name": "InitMsrTable"
+},
+{
+"addr": "0x1400311e4",
+"name": "ParseNtHeadersForSsdtTargets"
+},
+{
+"addr": "0x14003146c",
+"name": "EnumSsdtFunctionTable4"
+},
+{
+"addr": "0x1400314b0",
+"name": "GetSsdtFunctionBase4"
+},
+{
+"addr": "0x140031514",
+"name": "BuildSsdtHookTargets4"
+},
+{
+"addr": "0x14003167c",
+"name": "CopySsdtHookTargetTable"
+},
+{
+"addr": "0x1400317d0",
+"name": "ReadNtoskrnlFileToBuffer"
+},
+{
+"addr": "0x1400318f0",
+"name": "InstallSsdtHookEntry4"
+},
+{
+"addr": "0x140031a58",
+"name": "ParseNtImageSections2"
+},
+{
+"addr": "0x140031f8c",
+"name": "BuildProcessContextExportTable"
+},
+{
+"addr": "0x140032594",
+"name": "ResolveContextTableMemory"
+},
+{
+"addr": "0x1400326cc",
+"name": "ParseAtaPortInitForHookTargets"
+},
+{
+"addr": "0x140032a70",
+"name": "InitContextTableFromSyscallBase"
+},
+{
+"addr": "0x140032acc",
+"name": "DecryptDiskDeviceContextStr"
+},
+{
+"addr": "0x140032b34",
+"name": "BuildSsdtHookTargets3"
+},
+{
+"addr": "0x140032ccc",
+"name": "CopySsdtHookTargetTable3"
+},
+{
+"addr": "0x140032e40",
+"name": "ReadNtoskrnlFileToBuffer3"
+},
+{
+"addr": "0x140032f90",
+"name": "InstallSsdtHookEntry3"
+},
+{
+"addr": "0x140033118",
+"name": "ValidateSsdtHookTargetTable"
+},
+{
+"addr": "0x1400332c4",
+"name": "ParseNtHeadersForSsdtTargets2"
+},
+{
+"addr": "0x1400335f4",
+"name": "EnumSsdtFunctionTable2"
+},
+{
+"addr": "0x140033650",
+"name": "BuildSsdtHookTargets2"
+},
+{
+"addr": "0x1400337d0",
+"name": "CopySsdtHookTargetTable2"
+},
+{
+"addr": "0x14003383c",
+"name": "GetSsdtFunctionBase2"
+},
+{
+"addr": "0x1400339bc",
+"name": "ReadNtFileForSsdtTargets2"
+},
+{
+"addr": "0x140033ae8",
+"name": "SetSyscallHookEntry2"
+},
+{
+"addr": "0x140035730",
+"name": "InstallSsdtHookForThreadProtect"
+},
+{
+"addr": "0x140035a18",
+"name": "ValidateSsdtHookTargetTable2"
+},
+{
+"addr": "0x140036460",
+"name": "CmdObjectOperationByHandle"
+},
+{
+"addr": "0x140036554",
+"name": "QueryObjectOperationByVersion"
+},
+{
+"addr": "0x1400365a4",
+"name": "FindObjectOperationOffset"
+},
+{
+"addr": "0x1400366e0",
+"name": "FindObjectOperationSection"
+},
+{
+"addr": "0x14003681c",
+"name": "DispatchObjectOperationInit"
+},
+{
+"addr": "0x140036864",
+"name": "InitObjectOperationLegacy"
+},
+{
+"addr": "0x1400368c8",
+"name": "FindObjectOperationExportWin10"
+},
+{
+"addr": "0x140036970",
+"name": "FindObjectOperationDataSection"
+},
+{
+"addr": "0x140036a78",
+"name": "FindObjectOperationBaseOffset"
+},
+{
+"addr": "0x140036d54",
+"name": "CmdEnumObjectsEx"
+},
+{
+"addr": "0x140036eb0",
+"name": "CmdEnumObjectsLegacy"
+},
+{
+"addr": "0x140036f9c",
+"name": "RemoveObjectFromLinkedList"
+},
+{
+"addr": "0x140037058",
+"name": "EnumObjectLinkedListWin8"
+},
+{
+"addr": "0x140037204",
+"name": "RemoveObjectFromLinkedListLegacy"
+},
+{
+"addr": "0x1400372c0",
+"name": "EnumObjectLinkedListWin7"
+},
+{
+"addr": "0x14003746c",
+"name": "RemoveObjectSingleLinkedListLegacy"
+},
+{
+"addr": "0x140037500",
+"name": "EnumObjectLinkedListSingle"
+},
+{
+"addr": "0x14003765c",
+"name": "ParseNtExportSections"
+},
+{
+"addr": "0x140037a8c",
+"name": "ParseObjectContextExportDir"
+},
+{
+"addr": "0x140037cd8",
+"name": "ReadNtoskrnlForObjectContext"
+},
+{
+"addr": "0x1400381a4",
+"name": "ReadIoPortDataForProcess"
+},
+{
+"addr": "0x1400385d4",
+"name": "ParseIoPortDescriptorTable"
+},
+{
+"addr": "0x1400386cc",
+"name": "TranslateIoPortAddresses"
+},
+{
+"addr": "0x14003876c",
+"name": "ReadIoPortDescriptorTable"
+},
+{
+"addr": "0x140038b30",
+"name": "ParseNtExportSectionsWin10"
+},
+{
+"addr": "0x140038e04",
+"name": "ParseNtExportSectionsV2"
+},
+{
+"addr": "0x14003a628",
+"name": "FindHalDllInDriverList"
+},
+{
+"addr": "0x14003a788",
+"name": "BuildDriverImagePath"
+},
+{
+"addr": "0x14003adbc",
+"name": "EnumerateDriverObjectTable"
+},
+{
+"addr": "0x14003afdc",
+"name": "LookupDriverObjectEntry"
+},
+{
+"addr": "0x14003b158",
+"name": "EnumerateDriverObjectsFull"
+},
+{
+"addr": "0x14003b570",
+"name": "EnumerateKernelDrivers"
+},
+{
+"addr": "0x14003b994",
+"name": "EnumerateDriverObjects"
+},
+{
+"addr": "0x14003bdbc",
+"name": "EnumerateDriverObjectsEx"
+},
+{
+"addr": "0x14003c2e0",
+"name": "EnumerateKernelModules"
+},
+{
+"addr": "0x14003c8a0",
+"name": "OpenDriverFile"
+},
+{
+"addr": "0x14003c96c",
+"name": "EnumerateDriverFiles"
+},
+{
+"addr": "0x14003cd2c",
+"name": "ValidateDriverObjectAddress"
+},
+{
+"addr": "0x14003d344",
+"name": "EnumShadowSyscallTable"
+},
+{
+"addr": "0x14003d388",
+"name": "OpenKbdClassDriverSection"
+},
+{
+"addr": "0x14003d3fc",
+"name": "CopyShadowSyscallTable"
+},
+{
+"addr": "0x14003d680",
+"name": "WriteShadowSyscallEntry"
+},
+{
+"addr": "0x14003db28",
+"name": "EnumSyscallTable6"
+},
+{
+"addr": "0x14003db6c",
+"name": "OpenMountMgrDriverSection"
+},
+{
+"addr": "0x14003dcc8",
+"name": "CopySyscallTableEntryArray"
+},
+{
+"addr": "0x14003df48",
+"name": "SetSyscallHookEntry"
+},
+{
+"addr": "0x14003ee40",
+"name": "EnumFileSystemCallbackEntries"
+},
+{
+"addr": "0x14003f060",
+"name": "ScanKernelPeExportData"
+},
+{
+"addr": "0x14003f274",
+"name": "ScanKernelPeExportSection"
+},
+{
+"addr": "0x14003f414",
+"name": "EnumProcessPeExportData"
+},
+{
+"addr": "0x14003f5e0",
+"name": "EnumProcessPeExportDataEx"
+},
+{
+"addr": "0x14003f7d0",
+"name": "EnumProcessPeExportDataByIndex"
+},
+{
+"addr": "0x14003fcf8",
+"name": "FindSsdtServiceTableEntry"
+},
+{
+"addr": "0x14003fdc0",
+"name": "FindSsdtTableAddresses"
+},
+{
+"addr": "0x1400400a0",
+"name": "ResolveSsdtNtOffset"
+},
+{
+"addr": "0x1400401dc",
+"name": "ResolveSsdtTablePointer"
+},
+{
+"addr": "0x1400403b4",
+"name": "ResolveSsdtTablePointerEx"
+},
+{
+"addr": "0x1400407f8",
+"name": "FindSsdtSignatureInNtFile"
+},
+{
+"addr": "0x14004093c",
+"name": "FindSsdtServiceTableV1"
+},
+{
+"addr": "0x140040abc",
+"name": "FindSsdtServiceTableV2"
+},
+{
+"addr": "0x140040c14",
+"name": "ParseNtSectionsForShadowSsdt"
+},
+{
+"addr": "0x140040dd0",
+"name": "FindSsdtServiceTableV3"
+},
+{
+"addr": "0x140040fb8",
+"name": "GetSsdtTableOffset"
+},
+{
+"addr": "0x140041028",
+"name": "GetProcessDeviceMap"
+},
+{
+"addr": "0x140042b5c",
+"name": "ParseNtSectionsForProcessMemory"
+},
+{
+"addr": "0x140042d10",
+"name": "FindKernelDataSectionOffset"
+},
+{
+"addr": "0x140042d38",
+"name": "FindKernelDataSectionOffsetWin7"
+},
+{
+"addr": "0x140042ee8",
+"name": "FindKernelDataSectionOffsetWin8"
+},
+{
+"addr": "0x140043084",
+"name": "ParseNtSectionsForRelocBase"
+},
+{
+"addr": "0x140043238",
+"name": "ParseNtSectionsForModuleBase"
+},
+{
+"addr": "0x14004341c",
+"name": "ParseProcessMemSections"
+},
+{
+"addr": "0x1400436cc",
+"name": "FindKernelDataSectionOffsetEx"
+},
+{
+"addr": "0x140043870",
+"name": "FindKernelDataSectionPair"
+},
+{
+"addr": "0x140043a5c",
+"name": "DispatchFindKernelDataSection"
+},
+{
+"addr": "0x140043a84",
+"name": "FindKernelDataSectionOffsetWin10"
+},
+{
+"addr": "0x140043c40",
+"name": "FindKernelDataSectionOffsetV2"
+},
+{
+"addr": "0x140043e0c",
+"name": "FindKernelDataSectionOffsetV3"
+},
+{
+"addr": "0x140044da4",
+"name": "UnlinkFromProcessMemoryList"
+},
+{
+"addr": "0x140045424",
+"name": "ParseNtSectionsForModuleList2"
+},
+{
+"addr": "0x140045b90",
+"name": "ParseKernelModuleSectionTable"
+},
+{
+"addr": "0x140045ee4",
+"name": "BuildRegistryDriverPath"
+},
+{
+"addr": "0x140045f58",
+"name": "ParseRegistryDriverExportDir"
+},
+{
+"addr": "0x1400461a8",
+"name": "ReadRegistryDriverFile"
+},
+{
+"addr": "0x140046a3c",
+"name": "InitSyscallExportEntryArray"
+},
+{
+"addr": "0x140046a80",
+"name": "BuildSyscallDriverPath"
+},
+{
+"addr": "0x140046bc8",
+"name": "CopySyscallExportEntries"
+},
+{
+"addr": "0x140046e60",
+"name": "WriteSyscallContextEntry"
+},
+{
+"addr": "0x140047330",
+"name": "GetSyscallContextBase"
+},
+{
+"addr": "0x140047dfc",
+"name": "BuildDevicePath"
+},
+{
+"addr": "0x140047fdc",
+"name": "QueryDiskInfoAta"
+},
+{
+"addr": "0x140048cc0",
+"name": "SendAtaScsiCommand"
+},
+{
+"addr": "0x140049270",
+"name": "QuerySystemInfoPart1"
+},
+{
+"addr": "0x1400494e8",
+"name": "QuerySystemInfoPart2"
+},
+{
+"addr": "0x140049730",
+"name": "CmdQuerySystemInfoExV2"
+},
+{
+"addr": "0x140049860",
+"name": "CmdQueryDiskInfo"
+},
+{
+"addr": "0x14004d78c",
+"name": "FindSystemRootEntry"
+},
+{
+"addr": "0x140050478",
+"name": "FillSyscallTableInfo"
+},
+{
+"addr": "0x1400504d4",
+"name": "GetDiskDriverSection"
+},
+{
+"addr": "0x140050708",
+"name": "DuplicateSyscallTableEntries"
+},
+{
+"addr": "0x140050d14",
+"name": "GetSyscallTableEntry"
+},
+{
+"addr": "0x140050e94",
+"name": "FindDiskDriverModule"
+},
+{
+"addr": "0x140050fe0",
+"name": "ResolveDriverEntryAddresses"
+},
+{
+"addr": "0x14005110c",
+"name": "ResolveDriverRelativeAddresses"
+},
+{
+"addr": "0x140051184",
+"name": "ParseExportDirForDriver"
+},
+{
+"addr": "0x1400512bc",
+"name": "ReadNtOsKrnlAndParseServiceTable"
+},
+{
+"addr": "0x1400512f0",
+"name": "ParseServiceTable"
+},
+{
+"addr": "0x14005132c",
+"name": "ParseServiceTableWin8"
+},
+{
+"addr": "0x140051434",
+"name": "ParseServiceTableWin7"
+},
+{
+"addr": "0x140051818",
+"name": "ReadNtOsKrnlFile"
+},
+{
+"addr": "0x140051a2c",
+"name": "ReadWin32kFullDriverFile"
+},
+{
+"addr": "0x140051cd0",
+"name": "ValidateWin32kBaseDriverImage"
+},
+{
+"addr": "0x140051d74",
+"name": "ValidateWin32kFullDriverImage"
+},
+{
+"addr": "0x140051e18",
+"name": "VerifyServiceTableDriverFile"
+},
+{
+"addr": "0x140051e90",
+"name": "BuildDriverInfoEntries"
+},
+{
+"addr": "0x140052134",
+"name": "FindMatchingServiceEntry"
+},
+{
+"addr": "0x1400521b0",
+"name": "EnumKernelDriverObjects"
+},
+{
+"addr": "0x1400526e8",
+"name": "DispatchWin32kPatternMatching"
+},
+{
+"addr": "0x140052724",
+"name": "ScanWin32kPatternWin10Plus"
+},
+{
+"addr": "0x140052b34",
+"name": "ScanWin32kPatternLegacy"
+},
+{
+"addr": "0x1400536a4",
+"name": "ValidateSyscallHookEntries"
+},
+{
+"addr": "0x1400537b8",
+"name": "EnumSyscallTable7"
+},
+{
+"addr": "0x140053864",
+"name": "CopySyscallTable7"
+},
+{
+"addr": "0x140053e60",
+"name": "CopyWin32kServiceTable"
+},
+{
+"addr": "0x140053ea4",
+"name": "OpenWin32kSection"
+},
+{
+"addr": "0x140053fec",
+"name": "DuplicateSyscallTableOutput"
+},
+{
+"addr": "0x140054270",
+"name": "SetWin32kServiceTableEntry"
+},
+{
+"addr": "0x140055efc",
+"name": "BuildServiceTableFromNtKernel"
+},
+{
+"addr": "0x14005631c",
+"name": "RemoveServiceEntryFromList"
+},
+{
+"addr": "0x1400563b0",
+"name": "EnumServiceTableWin10"
+},
+{
+"addr": "0x140056514",
+"name": "RemoveServiceEntryFromListEx"
+},
+{
+"addr": "0x1400565c0",
+"name": "EnumServiceTableWin8"
+},
+{
+"addr": "0x140056740",
+"name": "RemoveServiceTableNodeWin7"
+},
+{
+"addr": "0x1400567d4",
+"name": "EnumServiceTableWin7"
+},
+{
+"addr": "0x140056938",
+"name": "RemoveServiceTableNodeWin10"
+},
+{
+"addr": "0x140056a14",
+"name": "EnumServiceTableWin1020H1"
+},
+{
+"addr": "0x1400575c4",
+"name": "BtreeBufferAllocator"
+},
+{
+"addr": "0x1400576a0",
+"name": "FindPeSectionByTypeRsrc"
+},
+{
+"addr": "0x1400577b4",
+"name": "FindPeSectionByType0x510"
+},
+{
+"addr": "0x1400579cc",
+"name": "ResolveServiceTableBase"
+},
+{
+"addr": "0x140057a48",
+"name": "FindPatchThreadWindowsExport"
+},
+{
+"addr": "0x140057aec",
+"name": "QueryProcessModuleFilePath"
+},
+{
+"addr": "0x140060d70",
+"name": "AdjustRelocationOffsets"
+},
+{
+"addr": "0x140060e38",
+"name": "FindNdisDeregisterProtocolExport"
+},
+{
+"addr": "0x140060f04",
+"name": "FindNdisFRegisterFilterDriverExport"
+},
+{
+"addr": "0x140060fd8",
+"name": "FindNdisIMInitializeDeviceInstanceEx"
+},
+{
+"addr": "0x1400610b4",
+"name": "FindNdisIfDeregisterInterfaceExport"
+},
+{
+"addr": "0x140061188",
+"name": "FindNdisIfDeregisterProviderExport"
+},
+{
+"addr": "0x140061254",
+"name": "FindNdisExportsBySectionScan"
+},
+{
+"addr": "0x140061554",
+"name": "FindNdisExportsBySectionScanV2"
+},
+{
+"addr": "0x140061814",
+"name": "FindNdisIfRegisterInterfaceExport"
+},
+{
+"addr": "0x1400618e0",
+"name": "FindNdisIfRegisterProviderExport"
+},
+{
+"addr": "0x1400619ac",
+"name": "FindNdisMGetOffloadHandlersExport"
+},
+{
+"addr": "0x140061a78",
+"name": "FindNdisMRegisterMiniportExport"
+},
+{
+"addr": "0x140061b44",
+"name": "FindNdisMRegisterMiniportDriverExport"
+},
+{
+"addr": "0x140061c54",
+"name": "ParseNdisMiniportDriverName"
+},
+{
+"addr": "0x140061d3c",
+"name": "FindNdisRegisterTdiCallBackExport"
+},
+{
+"addr": "0x140061e08",
+"name": "ParseNtKernelDataOffsets"
+},
+{
+"addr": "0x140062090",
+"name": "FindNdisGetVersionExport"
+},
+{
+"addr": "0x140062170",
+"name": "ParseNdisGetVersionSection"
+},
+{
+"addr": "0x140062278",
+"name": "FindKernelRdataSection"
+},
+{
+"addr": "0x140062458",
+"name": "ScanPageSectionPattern"
+},
+{
+"addr": "0x140062604",
+"name": "ScanInitSectionPattern"
+},
+{
+"addr": "0x140062884",
+"name": "ParseNtKernelDataSections"
+},
+{
+"addr": "0x140062bd0",
+"name": "ScanTextSectionPattern"
+},
+{
+"addr": "0x140062d50",
+"name": "ScanDataSectionPattern"
+},
+{
+"addr": "0x140066650",
+"name": "InitKernelDataSectionTable"
+},
+{
+"addr": "0x140066898",
+"name": "ReadKernelExportDirFile"
+},
+{
+"addr": "0x1400669b8",
+"name": "EnumKernelModules"
+},
+{
+"addr": "0x140067890",
+"name": "FindDllInitExport"
+},
+{
+"addr": "0x140067984",
+"name": "ParseKernelDataSectionRelocs"
+},
+{
+"addr": "0x140067cf0",
+"name": "FindTdiDeregisterPnpExport"
+},
+{
+"addr": "0x140067edc",
+"name": "InitTdiExportAndRelocTable"
+},
+{
+"addr": "0x140067f3c",
+"name": "ReadSystemDriverFile"
+},
+{
+"addr": "0x14006e4a0",
+"name": "AdjustKernelModuleSectionPointers"
+},
+{
+"addr": "0x140071cec",
+"name": "RBTreeRotateLeft"
+},
+{
+"addr": "0x140071d34",
+"name": "RBTreeRotateRight"
+},
+{
+"addr": "0x140071d7c",
+"name": "RBTreeInsertFixup"
+},
+{
+"addr": "0x1400726a0",
+"name": "InitUnicodeStringBuffer"
+},
+{
+"addr": "0x1400726c8",
+"name": "SendFsctlWithHookSwap"
+},
+{
+"addr": "0x140072858",
+"name": "OpenSectionWithIoControl"
+},
+{
+"addr": "0x140077768",
+"name": "ValidateEnumerationResult"
+},
+{
+"addr": "0x140077a58",
+"name": "InitIrpBufferWithCdb"
+},
+{
+"addr": "0x14007870c",
+"name": "ScanKernelModulePESections"
+},
+{
+"addr": "0x140078910",
+"name": "ResolveKernelModuleIndex"
+},
+{
+"addr": "0x140079d20",
+"name": "CheckProcessJobObject"
+},
+{
+"addr": "0x14007a328",
+"name": "ComparePeHeaders"
+},
+{
+"addr": "0x14007a410",
+"name": "BuildDevicePathFromObjects"
+},
+{
+"addr": "0x14007a5f0",
+"name": "j_GetCurrentFiber"
+},
+{
+"addr": "0x14007a6b8",
+"name": "FindKernelPESectionByType"
+},
+{
+"addr": "0x14007a8d4",
+"name": "ModifyObjectHeaderFlagsByVersion"
+},
+{
+"addr": "0x14007a9ec",
+"name": "FillExportEntrySlot"
+},
+{
+"addr": "0x14007ae5c",
+"name": "CheckDiskSectorHealth"
+},
+{
+"addr": "0x14007aec8",
+"name": "AnalyzeDiskSectorBuffer"
+},
+{
+"addr": "0x14007bb80",
+"name": "SendDiskDeviceInternalIrp"
+},
+{
+"addr": "0x14007bc6c",
+"name": "RxTdiRequestCompletion"
+},
+{
+"addr": "0x14007cd74",
+"name": "DispatchDiskIrpWithHookInit"
+},
+{
+"addr": "0x14007ce54",
+"name": "FindBootablePartitionLba"
+},
+{
+"addr": "0x14007ce74",
+"name": "FindReadableDiskSector"
+},
+{
+"addr": "0x14007cf44",
+"name": "FindBootSectorWithRetry"
+},
+{
+"addr": "0x14007d4e4",
+"name": "ProcessDiskSectorData"
+},
+{
+"addr": "0x14007ddec",
+"name": "ResolveKernelModuleFunctionAddrs"
+},
+{
+"addr": "0x14007e0fc",
+"name": "EnumerateProcessObjectTable"
+},
+{
+"addr": "0x14007eb18",
+"name": "EnumProcessAndInitObjects"
+},
+{
+"addr": "0x14007f4b8",
+"name": "InitHookFunctionTable"
+},
+{
+"addr": "0x14007f69c",
+"name": "ReadProcessMemoryWithAttach"
+},
+{
+"addr": "0x14007f8d4",
+"name": "ScanProcessPESections"
+},
+{
+"addr": "0x14007fb40",
+"name": "ScanProcessPESectionsV2"
+},
+{
+"addr": "0x14007ffa0",
+"name": "ResolveSyscallAddressesInProcess"
+},
+{
+"addr": "0x14008020c",
+"name": "ClearProcessPageTableFlags"
+},
+{
+"addr": "0x140080428",
+"name": "ProcessOperationWithAttach"
+},
+{
+"addr": "0x1400805f0",
+"name": "SendCdbCommandToDevice"
+},
+{
+"addr": "0x14008068c",
+"name": "CdbCommandCompletionCallback"
+},
+{
+"addr": "0x140080794",
+"name": "CheckObjectTypePointerMatch"
+},
+{
+"addr": "0x1400808e4",
+"name": "ExecuteWithThreadFlagCleared"
+},
+{
+"addr": "0x140080ac0",
+"name": "ClearPageTableEntryFlags"
+},
+{
+"addr": "0x140080ddc",
+"name": "ExecuteWithThreadContext"
+},
+{
+"addr": "0x140082720",
+"name": "CheckStringPrefixNt"
+},
+{
+"addr": "0x140082738",
+"name": "BuildNtExportIndexTable"
+},
+{
+"addr": "0x14008280c",
+"name": "BuildJmpPatchStub"
+},
+{
+"addr": "0x14008296c",
+"name": "ComparePeModuleSignature"
+},
+{
+"addr": "0x1400829d8",
+"name": "ReadRawFileToBuffer"
+},
+{
+"addr": "0x140082af0",
+"name": "LookupDriverHashTable"
+},
+{
+"addr": "0x1400833f4",
+"name": "FindPESectionByIndex"
+},
+{
+"addr": "0x140083588",
+"name": "FindPESectionByOffset"
+},
+{
+"addr": "0x140083728",
+"name": "ResolvePESectionOffset"
+},
+{
+"addr": "0x140083a40",
+"name": "DispatchObjectTypeQuery"
+},
+{
+"addr": "0x1400859f0",
+"name": "ValidateHookEntries"
+},
+{
+"addr": "0x140085b7c",
+"name": "ValidateSyscallTableEntries"
+},
+{
+"addr": "0x1400860e0",
+"name": "FilterActiveHookEntries"
+},
+{
+"addr": "0x1400864a8",
+"name": "CopySyscallTableEntries"
+},
+{
+"addr": "0x1400864ec",
+"name": "OpenWdfDriverSection"
+},
+{
+"addr": "0x140086560",
+"name": "CopySyscallTableToBuffer"
+},
+{
+"addr": "0x140087158",
+"name": "WriteWdfSyscallHook"
+},
+{
+"addr": "0x1400872c4",
+"name": "RestoreSyscallHookByIndex"
+},
+{
+"addr": "0x140087580",
+"name": "ParseDriverInitSection"
+},
+{
+"addr": "0x140087e80",
+"name": "ReadWdfLoaderModule"
+},
+{
+"addr": "0x140088064",
+"name": "ReadSystemDllAndInitSession"
+},
+{
+"addr": "0x1400881ec",
+"name": "InitSessionStateTable"
+},
+{
+"addr": "0x14008c86c",
+"name": "FltRegisterFilter"
+},
+{
+"addr": "0x14008c872",
+"name": "FltUnregisterFilter"
+},
+{
+"addr": "0x14008c878",
+"name": "FltStartFiltering"
+},
+{
+"addr": "0x14008c87e",
+"name": "FltGetFileNameInformation"
+},
+{
+"addr": "0x14008c884",
+"name": "FltReleaseFileNameInformation"
+},
+{
+"addr": "0x14008c88a",
+"name": "FltParseFileNameInformation"
+},
+{
+"addr": "0x14008c890",
+"name": "FltCreateFile"
+},
+{
+"addr": "0x14008c896",
+"name": "FltClose"
+},
+{
+"addr": "0x14008c8b0",
+"name": "__security_check_cookie"
+},
+{
+"addr": "0x14008c8d0",
+"name": "__report_gsfailure"
+},
+{
+"addr": "0x14008c8f8",
+"name": "__report_rangecheckfailure"
+},
+{
+"addr": "0x14008c904",
+"name": "__report_securityfailure"
+},
+{
+"addr": "0x14008c92e",
+"name": "__C_specific_handler"
+},
+{
+"addr": "0x14008c934",
+"name": "PsLookupProcessByProcessId"
+},
+{
+"addr": "0x14008c93a",
+"name": "KeStackAttachProcess"
+},
+{
+"addr": "0x14008c940",
+"name": "KeUnstackDetachProcess"
+},
+{
+"addr": "0x14008c946",
+"name": "_wcsicmp"
+},
+{
+"addr": "0x14008c94c",
+"name": "ObCreateObject"
+},
+{
+"addr": "0x14008c952",
+"name": "SeCreateAccessState"
+},
+{
+"addr": "0x14008c958",
+"name": "ObOpenObjectByPointer"
+},
+{
+"addr": "0x14008c95e",
+"name": "NtFsControlFile"
+},
+{
+"addr": "0x14008c964",
+"name": "NtDeviceIoControlFile"
+},
+{
+"addr": "0x14008c96a",
+"name": "swprintf"
+},
+{
+"addr": "0x14008c970",
+"name": "ObQueryNameString"
+},
+{
+"addr": "0x14008c976",
+"name": "PsLookupThreadByThreadId"
+},
+{
+"addr": "0x14008c97c",
+"name": "wcsncat"
+},
+{
+"addr": "0x14008c982",
+"name": "wcsrchr"
+},
+{
+"addr": "0x14008c988",
+"name": "_guard_check_icall_nop"
+},
+{
+"addr": "0x1400d3000",
+"name": "start"
+},
+{
+"addr": "0x1400d302c",
+"name": "__security_init_cookie"
+}
+]
