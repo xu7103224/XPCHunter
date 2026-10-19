@@ -1,0 +1,14 @@
+14001d8d8  488d942490000000     lea rdx, [rsp + 0x90]
+14001d8e0  488d4c2440           lea rcx, [rsp + 0x40]
+14001d8e5  e862cc0600           call 0x14008a54c
+14001d8ea  85c0                 test eax, eax
+14001d8ec  7573                 jne 0x14001d961
+14001d8ee  8b842480010000       mov eax, dword ptr [rsp + 0x180]
+14001d8f5  488b4c2448           mov rcx, qword ptr [rsp + 0x48]
+14001d8fa  4803c8               add rcx, rax
+14001d8fd  488b8424a8010000     mov rax, qword ptr [rsp + 0x1a8]
+14001d905  48894c2448           mov qword ptr [rsp + 0x48], rcx
+14001d90a  0fb75006             movzx edx, word ptr [rax + 6]
+14001d90e  b88e040000           mov eax, 0x48e
+14001d913  663bc2               cmp ax, dx
+14001d916  7505                 jne 0x14001d91d

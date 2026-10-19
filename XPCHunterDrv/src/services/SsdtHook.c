@@ -4951,7 +4951,7 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
     }
     return result;
 }
-__int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
+__declspec(noinline) __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     /* 【重写 2026-10-19】旧实现字段偏移/判据多处不符 → GT[0x34E] 永不写入。
        逐条对照 0x14001D850（描述符基址 rsp+0x90，偏移由 desc_offsets.py 换算）：
@@ -4970,9 +4970,24 @@ __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSiz
     if (!SectionOffset || SectionOffset >= ImageSize)
         return 0;
 
-    InitPESectionReadContext(ImageBase + SectionOffset, (ULONG)(ImageSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    /* 【修正 2026-10-19】原始 0x14001D898..8AB 的窗口是
+           end = min(ImageBase+ImageSize, SectionStart + 0x1000)   （0x14001D8A1 cmova）
+       旧实现直接用 `ImageSize - SectionOffset`（无 0x1000 上限），
+       解码会扫过远超原始的字节流 → 类型序列不同 → GT[0x34E] 不写。 */
+    {
+        ULONG64 SectionStart = ImageBase + SectionOffset;
+        ULONG64 BufferEnd    = ImageBase + (ULONG64)ImageSize;
+        ULONG64 WindowEnd    = SectionStart + 0x1000;
+        if (WindowEnd > BufferEnd) WindowEnd = BufferEnd;
+        InitPESectionReadContext((__int64)SectionStart, (ULONG)(WindowEnd - SectionStart),
+                                 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    }
 
-    for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
+    /* 【修正 2026-10-19】原始**没有轮次上限**：循环头 0x14001D8D8 无计数器比较，
+       所有 continue 都跳回该处，唯一出口是 ReadPESectionEntry 返回非 0
+       （0x14001D8EC jne 0x14001D961）。旧实现 `< 0x14` 会在命中 0x48E/0x512
+       之前就退出（实测原始要 153 轮才见到 0x48E）→ GT[0x34E] 永不写。 */
+    for (;;)
     {
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;

@@ -588,7 +588,7 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
 __int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize);
-__int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
+__declspec(noinline) __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __int64 HookSyscallNtDeleteValueKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset);
 __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize);
 __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int64 Context, __int64 RelocBase);

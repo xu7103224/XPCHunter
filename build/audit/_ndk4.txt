@@ -1,0 +1,3 @@
+14001d8d0  022b                 add ch, byte ptr [rbx]
+14001d8d2  d1e8                 shr eax, 1
+14001d8d4  0ccf                 or al, 0xcf
