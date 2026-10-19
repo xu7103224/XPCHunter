@@ -1,0 +1,12 @@
+140024330  b93b000000           mov ecx, 0x3b
+140024335  e8ba5c0000           call 0x140029ff4
+14002433a  33d2                 xor edx, edx
+14002433c  b91b080000           mov ecx, 0x81b
+140024341  e8ae5c0000           call 0x140029ff4
+140024346  33d2                 xor edx, edx
+140024348  b91c080000           mov ecx, 0x81c
+14002434d  e8a25c0000           call 0x140029ff4
+140024352  33d2                 xor edx, edx
+140024354  b91d080000           mov ecx, 0x81d
+140024359  e8965c0000           call 0x140029ff4
+14002435e  33d2                 xor edx, edx
