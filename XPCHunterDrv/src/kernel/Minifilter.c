@@ -525,7 +525,7 @@ ULONG64 FindKernelDataSectionForImageNotify3(void)
         short SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
 
         if (SectionType == 0x430 &&
-            *(ULONG *)((PUCHAR)SectionInfo + 0x38) != 0 &&
+            *(ULONG *)((PUCHAR)SectionInfo + 0x40) != 0 &&      /* [rsp+0xd0] → +0x40 */
             *(ULONG64 *)((PUCHAR)SectionInfo + 0x50) == 0x40000 &&
             *(ULONG64 *)((PUCHAR)SectionInfo + 0x70) == 0)
         {

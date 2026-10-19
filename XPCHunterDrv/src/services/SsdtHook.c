@@ -4322,10 +4322,10 @@ __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64
                 if (SubType != 0x510 && SubType != 0x4D7)
                     continue;
 
-                if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40000)
+                if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) != 0x40000)   /* [rbp+0x18] → +0x88 */
                     continue;
 
-                FieldFlags = *(unsigned int *)((PUCHAR)SectionEntry + 0x10);
+                FieldFlags = *(unsigned int *)((PUCHAR)SectionEntry + 0x78); /* [rbp+8] → +0x78 */
                 if (!FieldFlags)
                     continue;
 
@@ -4765,18 +4765,11 @@ __int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 
     unsigned int SectionOffset = 0;
     PE_DECODE_CONTEXT ReadContext;
     _DWORD SectionEntry[112];
-    /* 【修正 2026-10-19】以下"字段"在原始里就是描述符 SectionEntry 内的槽；旧实现把它们
-       另立为 `= 0` 的独立局部且从不赋值 → 所有条件恒假 → GT[0x63] 永不写入。
-       逐条对照 0x14001D4C0 反汇编修正（栈偏移 → 描述符偏移）：
-         +0x50（`[rbp+0x18]` & 0x80000）、+0x88（`[rbp]` == 0x10）、
-         +0x38（`[rbp-0x20]` & 0x10000 / & 0x4000000）、+0x58（`[rbp-0x30]`，命中时存入结果）
-         结果分子 +0x88（`[rbp-0x38]`）、类型指针 +0x118（`[rbp+0xa8]`）
-       输出：命中写 GT[0x63] = BaseAddress + TargetOffset；收尾恒写 GT[0x68] = 结果值。 */
-    __int64 FieldValue;
-    __int64 FieldValue2;
-    __int64 FieldValue3;
-    unsigned int SectionSize;
-    __int64 SectionDataPtr;
+    /* 【修正 2026-10-19】旧实现把描述符内的槽另立为 `= 0` 且从不赋值的独立局部
+       → 所有条件恒假 → GT[0x63] 永不写入。已按 desc_offsets.py 从原始栈偏移换算
+       描述符偏移（基址 rbp-0x70）：[rbp+0x18]→+0x88、[rbp]→+0x70、
+       [rbp-0x20]→+0x50、[rbp-0x30]→+0x40、[rbp-0x38]→+0x38、[rbp+0xa8]→+0x118。
+       输出：命中写 GT[0x63] = BaseAddress + 目标；收尾恒写 GT[0x68] = 结果值。 */
 
     ResultValue = -1;
     SectionOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x41BC);
@@ -4788,24 +4781,26 @@ __int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
                 break;
 
-            /* 原始 0x14001D55A..570：先取 Entry[0xF0] 累加到读指针，再取字段 */
+            /* 原始 0x14001D55F..570：先取 Entry[0xF0] 累加到读指针，再取字段 */
             *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
 
-            FieldValue     = *(__int64 *)((PUCHAR)SectionEntry + 0x50);
-            FieldValue2    = *(__int64 *)((PUCHAR)SectionEntry + 0x88);
-            FieldValue3    = *(__int64 *)((PUCHAR)SectionEntry + 0x38);
-            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0x58);
-            SectionDataPtr = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
-
-            if ((FieldValue & 0x80000) != 0 && FieldValue2 == 16 && (FieldValue3 & 0x10000) != 0)
+            /* 描述符偏移由 desc_offsets.py 从原始 [rbp±X] 换算（描述符基址 rbp-0x70）：
+                 [rbp+0xa8]→+0x118（类型指针）  [rbp+0x18]→+0x88  [rbp]→+0x70
+                 [rbp-0x20]→+0x50                [rbp-0x30]→+0x40  [rbp-0x38]→+0x38
+               原始 0x14001D568/577/57E：if ((D+0x88 & 0x80000) && D+0x70 == 0x10
+                                            && (D+0x50 & 0x10000)) → 结果 = D+0x40 */
+            if ((*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) & 0x80000) != 0 &&
+                *(ULONG64 *)((PUCHAR)SectionEntry + 0x70) == 0x10 &&
+                (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x10000) != 0)
             {
-                ResultValue = SectionSize;
+                ResultValue = *(unsigned int *)((PUCHAR)SectionEntry + 0x40);
             }
-            else if ((unsigned __int16)(*(_WORD *)(SectionDataPtr + 6) - 0x558) <= 1u &&
-                     (FieldValue3 & 0x4000000) != 0)
+            /* 原始 0x14001D58D/59E/A8：类型 ∈ {0x558,0x559}（type-0x558 <= 1）
+               且 (D+0x50 & 0x4000000)；目标 = D+0x38 - ImageBase + 读指针 */
+            else if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 0x558) <= 1u &&
+                     (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000000) != 0)
             {
-                /* 原始 0x14001D5BC：eax = +0x88 - ImageBase + 读指针 */
-                unsigned int TargetOffset = (unsigned int)(*(unsigned int *)((PUCHAR)SectionEntry + 0x88)
+                unsigned int TargetOffset = (unsigned int)(*(unsigned int *)((PUCHAR)SectionEntry + 0x38)
                                              - (unsigned int)ImageBase
                                              + (unsigned int)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08));
                 if (TargetOffset && TargetOffset < ImageSize)
