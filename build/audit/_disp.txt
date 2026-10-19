@@ -1,0 +1,40 @@
+140021440  0000                 add byte ptr [rax], al
+140021442  3dbb470000           cmp eax, 0x47bb
+140021447  7469                 je 0x1400214b2
+140021449  8bcf                 mov ecx, edi
+14002144b  e8ac8a0000           call 0x140029efc
+140021450  3d614a0000           cmp eax, 0x4a61
+140021455  7215                 jb 0x14002146c
+140021457  8bcf                 mov ecx, edi
+140021459  e89e8a0000           call 0x140029efc
+14002145e  3d654a0000           cmp eax, 0x4a65
+140021463  7707                 ja 0x14002146c
+140021465  e83e300000           call 0x1400244a8
+14002146a  eb60                 jmp 0x1400214cc
+14002146c  8bcf                 mov ecx, edi
+14002146e  e8898a0000           call 0x140029efc
+140021473  3d7c4f0000           cmp eax, 0x4f7c
+140021478  7431                 je 0x1400214ab
+14002147a  8bcf                 mov ecx, edi
+14002147c  e87b8a0000           call 0x140029efc
+140021481  3df0550000           cmp eax, 0x55f0
+140021486  7423                 je 0x1400214ab
+140021488  8bcf                 mov ecx, edi
+14002148a  e86d8a0000           call 0x140029efc
+14002148f  3d5d580000           cmp eax, 0x585d
+140021494  7415                 je 0x1400214ab
+140021496  8bcf                 mov ecx, edi
+140021498  e85f8a0000           call 0x140029efc
+14002149d  3d67580000           cmp eax, 0x5867
+1400214a2  7407                 je 0x1400214ab
+1400214a4  32db                 xor bl, bl
+1400214a6  e989000000           jmp 0x140021534
+1400214ab  e840430000           call 0x1400257f0
+1400214b0  eb1a                 jmp 0x1400214cc
+1400214b2  e875270000           call 0x140023c2c
+1400214b7  eb13                 jmp 0x1400214cc
+1400214b9  e81e1d0000           call 0x1400231dc
+1400214be  eb0c                 jmp 0x1400214cc
+1400214c0  e89f120000           call 0x140022764
+1400214c5  eb05                 jmp 0x1400214cc
+1400214c7  e810390000           call 0x140024ddc
