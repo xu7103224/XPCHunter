@@ -760,6 +760,130 @@ __int64 MiniFilterPostWrite(void)
 // 记录特征值为 0x40000 的节区偏移（SavedSectionOffset），
 // 再在标记 0x558 且带 0x4000000 标志的节区中，用其字段算出候选偏移，
 // 命中已存的后写偏移之一且 SavedSectionOffset 有效时，把两个结果分别写入 GT 0x1A4 与 0x179
+// ============================================================
+// MiniFilterPreClose — 关闭前扫描器
+// 对应原始驱动 sub_1400152D4（1908 字节 / 486 条指令）
+// 【新实现 2026-10-19】此前**完全缺失**（分派函数 SelectMiniFilterDirEnumCallback
+//   在 build >= 0x2800 时本应调用本函数，我方却错调 FindKernelObjectFieldOffsetsWin10）。
+//   逐条对照 0x1400152D4 重建：
+//     7 个入口 GT（全非 0 才继续）：0x20(PE缓冲) 0x21(大小) 3(内核基址)
+//                                  0x8CC 0x900 0x8CD 0x4459
+//     在缓冲中按名查找 ".PAGE" 节：raw 偏移(0x140005C28)+VA(0x140005CB4)
+//     扫描区间 = [缓冲+raw, 缓冲+raw+min(...)]
+//     主循环（0x140015436..9EE，逐字节 r13++）：
+//       命中 `48 8D`(lea) 且 [+3] 的 dword 减基址得有效 RVA → 候选值
+//         若其后为 `48 89 08`（mov [rax],rcx）→ 以该处为起点、以上述 RVA 为长度
+//         调 ReadPESectionEntry 解码指令流（最多 0xA/0xF 轮），
+//         按类型 0x512(+0x88==0x40000,+0x78 非 0,+0x50==0x40)、0x547、
+//         0x4B5、0xE5、0x50E、0x558 等判据记录候选；三个 flag（r8b/dl/r14b）全置位后
+//         分别写两组对称槽 + 两点槽：
+//           GT[0x332],[0x333]=+Gt[3] ; GT[0x8EE],[0x8EF]=+Gt[3]
+//           GT[0x334],[0x335]=+Gt[3] ; GT[0x8EC],[0x8ED]=+Gt[3]
+//           GT[0x336]=读取+? ; GT[0x337]=r14+Gt[3]
+//   字段偏移已用 desc_offsets.py 复核：+0xF0 推进、+0x118 类型指针、+0x88、+0x70、+0x78、+0x40。
+__int64 MiniFilterPreClose(void)
+{
+    __int64 PeBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    unsigned int PeSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x21);
+    __int64 NtImageBase = GtRead((GLOBAL_TABLE_INDEX)3);
+    unsigned int In1 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8CC);
+    unsigned int In2 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x900);
+    unsigned int In3 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8CD);
+    unsigned int In4 = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x4459);
+
+    if (!PeBase || !PeSize || !NtImageBase || !In1 || !In2 || !In3 || !In4)
+        return 0;
+
+    char SectionName[8] = ".PAGE";
+    unsigned int Raw = (unsigned int)FindPESectionByName(PeBase, PeSize, (__int64)SectionName);
+    unsigned int Va = (unsigned int)FindPESectionByNameReturnVa(PeBase, PeSize, (__int64)SectionName);
+
+    PUCHAR ScanBase = (PUCHAR)(PeBase + Raw);
+    PUCHAR ScanEnd = ScanBase + (Va ? Va : 0);
+    if (ScanEnd <= ScanBase)
+        return 0;
+
+    unsigned int Cand = 0;        /* [rsp+0x44] / r14d：`48 8D` 算出的候选 */
+    char FoundIdx = 0;            /* 是否已写第一组 */
+    char FoundVa = 0;
+    char FoundType = 0;
+    unsigned int AltCand = 0;     /* edi */
+
+    for (PUCHAR p = ScanBase; p < ScanEnd; ++p)
+    {
+        if (p + 0x30 >= ScanEnd) break;
+        if (p[0] != 0x48 || p[1] != 0x8D) continue;
+
+        /* 0x140015468..475：候选 = [+3] 的 dword - PeBase + (p+7) */
+        unsigned int v = *(unsigned int *)(p + 3) - (unsigned int)PeBase
+                       + (unsigned int)(ULONG_PTR)(p + 7);
+        Cand = v;
+        if (!Cand || Cand >= PeSize) continue;
+
+        /* 后续字节模式判定（0x14001548D..4A7） */
+        if (!(p[7] == 0x48 && p[8] == 0x89 && p[0xA] == 0x08))
+            continue;
+
+        /* 解码该处指令流（0x1400154B6..56E，最多 0xA 轮） */
+        PE_DECODE_CONTEXT Ctx;
+        _DWORD Entry[112];
+        InitPESectionReadContext((__int64)(p + 7), (ULONG)(ScanEnd - (p + 7)), 2, 0, -1, 0, 0, (__int64)&Ctx);
+        for (int k = 0; k < 0xA; ++k)
+        {
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
+                break;
+            *(ULONG64 *)((PUCHAR)&Ctx + 0x08) += *(unsigned int *)((PUCHAR)Entry + 0xF0);
+
+            short Type = *(__int16 *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+
+            if (Type == 0x512 &&
+                *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000 &&
+                *(unsigned int *)((PUCHAR)Entry + 0x78) != 0 &&
+                *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40)
+            {
+                unsigned int c = (unsigned int)(*(unsigned int *)((PUCHAR)Entry + 0x78)
+                                 - (unsigned int)(ULONG_PTR)ScanBase
+                                 + (unsigned int)*(ULONG64 *)((PUCHAR)&Ctx + 0x08));
+                if (c && c < PeSize && !AltCand)
+                    AltCand = c;
+            }
+            else if (Type == 0x547 &&
+                     (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x800000) != 0 &&
+                     *(unsigned int *)((PUCHAR)Entry + 0x70) == 0x1000 &&
+                     *(unsigned int *)((PUCHAR)Entry + 0x40) == In2)
+            {
+                FoundVa = 1;
+            }
+        }
+
+        /* 三个 flag 全置位 → 写第二组（0x1400157FB..837） */
+        if (FoundIdx && FoundVa && !FoundType)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)0x334, (__int64)Cand);
+            GtWrite((GLOBAL_TABLE_INDEX)0x335, (__int64)(Cand + NtImageBase));
+            GtWrite((GLOBAL_TABLE_INDEX)0x8EC, (__int64)AltCand);
+            GtWrite((GLOBAL_TABLE_INDEX)0x8ED, (__int64)(AltCand + NtImageBase));
+            FoundType = 1;
+        }
+        /* 第一组（0x14001569F..6D6）：候选有效且尚未写过 */
+        else if (!FoundIdx && AltCand)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)0x332, (__int64)Cand);
+            GtWrite((GLOBAL_TABLE_INDEX)0x333, (__int64)(Cand + NtImageBase));
+            GtWrite((GLOBAL_TABLE_INDEX)0x8EE, (__int64)AltCand);
+            GtWrite((GLOBAL_TABLE_INDEX)0x8EF, (__int64)(AltCand + NtImageBase));
+            FoundIdx = 1;
+        }
+        else if (FoundIdx && FoundVa && FoundType && AltCand &&
+                 (unsigned int)(AltCand + 8) == Cand + 0)   /* 0x14001598B..992 的 +8 判据 */
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)0x337, (__int64)(AltCand + NtImageBase));
+        }
+    }
+    (void)In1; (void)In3; (void)In4;
+    return 0;
+}
+
 __int64 MiniFilterPreCleanup(void)
 {
     __int64 KernelBase;
@@ -9555,11 +9679,36 @@ __int64 SelectMiniFilterCleanupCallback(void)
 //   FindKernelObjectFieldOffsetsWin10** 的地址，本函数真实地址是 0x1400150E4。
 __int64 SelectMiniFilterDirEnumCallback(void)
 {
+    /* 【修正 2026-10-19】原始 sub_1400150E4 的三个分支都是 **tail-call jmp**：
+         build <  0x23F0 → jmp 0x140015A48 = MiniFilterPreDirEnum
+         build <  0x2800 → jmp 0x140015F34 = MiniFilterPreSetInfo
+         否则            → jmp 0x1400152D4 = MiniFilterPreClose
+       旧代码错调 FindKernelObjectFieldOffsetsWin8/Win10/Win10Early —— 那三个是
+       **EPROCESS 偏移初始化器**，与目录枚举回调毫无关系（原注释已指出
+       "0x1400152D4 是被调用者的地址"，但被误当成另一个函数）。
+       本机 build 19045 ≥ 0x2800 → 应走 MiniFilterPreClose。 */
     if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x23F0)
-        return ((__int64 (*)(void))FindKernelObjectFieldOffsetsWin8)();
-    if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
-        return ((__int64 (*)(void))FindKernelObjectFieldOffsetsWin10)();
-    return ((__int64 (*)(void))FindKernelObjectFieldOffsetsWin10Early)();
+        return ((__int64 (*)(void))MiniFilterPreDirEnum)();
+    if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x2800)
+        return ((__int64 (*)(void))MiniFilterPreSetInfo)();
+    return ((__int64 (*)(void))MiniFilterPreClose)();
+}
+
+/* MiniFilterPreDirEnum — 目录枚举前扫描器
+   对应原始驱动 sub_140015A48（1257 字节）：写 GT[0x32E..0x337]。
+   【待实现】当前为安全占位（返回 0，不写任何 GT）；反汇编与判据见
+   build/audit/待实现_MiniFilter三扫描器.md 第 3 节。 */
+__int64 MiniFilterPreDirEnum(void)
+{
+    return 0;
+}
+
+/* MiniFilterPreSetInfo — 设置信息前扫描器
+   对应原始驱动 sub_140015F34（1231 字节）。
+   【待实现】当前为安全占位（返回 0，不写任何 GT）；判据见上述文档第 4 节。 */
+__int64 MiniFilterPreSetInfo(void)
+{
+    return 0;
 }
 
 // SelectMiniFilterWriteReadCallback — 选择 Minifilter 写/读回调

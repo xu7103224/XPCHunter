@@ -854,6 +854,11 @@ char CmdInitFwpsDispatchTables(__int64 FilterObject, __int64 CallbackData, _DWOR
 __int64 MiniFilterPostWrite(void);
 __int64 MiniFilterPreAcquire(__int64 Unknown1, __int64 Unknown2, unsigned int *OutputBuffer, unsigned int OutputBufferSize);
 __int64 MiniFilterPreCleanup(void);
+/* 【新增 2026-10-19】SelectMiniFilterDirEnumCallback 的三个真实调用目标
+   （sub_1400152D4 / 0x140015A48 / 0x140015F34） */
+__int64 MiniFilterPreClose(void);
+__int64 MiniFilterPreDirEnum(void);
+__int64 MiniFilterPreSetInfo(void);
 ULONG64 FindKernelObjectFieldOffsetsWin10(void);
 __declspec(noinline) NTSTATUS MiniFilterPreCreate(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext);
 __int64 MiniFilterPreDelete(__int64 Unknown1, __int64 Unknown2, unsigned int *OutputBuffer, unsigned int OutputBufferSize);
