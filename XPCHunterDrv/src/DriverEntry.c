@@ -2252,8 +2252,8 @@ __int64 InitEprocessOffsetsWin7(void)
     if (BuildNumber == 6000)
     {
         GtWrite(GtWin32kServiceEntryCount, 398);
-        GtWrite(GtEprocessField129 | 0x100, 6688);
-        GtWrite(GtEprocessField130 | 0x100, 6752);
+        GtWrite((GLOBAL_TABLE_INDEX)0x18B, 6688);
+        GtWrite((GLOBAL_TABLE_INDEX)0x18C, 6752);
         GtWrite(GtEprocessField189 | GtEprocessField06 | 0x100, 281);
         GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 280);
         GtWrite(GtSubsystemConfigBase | GtEprocessField07 | 0x100, 335);
@@ -2266,8 +2266,8 @@ __int64 InitEprocessOffsetsWin7(void)
     else
     {
         GtWrite(GtWin32kServiceEntryCount, 391);
-        GtWrite(GtEprocessField129 | 0x100, 6816);
-        GtWrite(GtEprocessField130 | 0x100, 6880);
+        GtWrite((GLOBAL_TABLE_INDEX)0x18B, 6816);
+        GtWrite((GLOBAL_TABLE_INDEX)0x18C, 6880);
         GtWrite(GtEprocessField189 | GtEprocessField06 | 0x100, 282);
         GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 281);
         GtWrite(GtSubsystemConfigBase | GtEprocessField07 | 0x100, 331);
@@ -2409,8 +2409,8 @@ __int64 InitEprocessOffsetsWin8(void)
     GtWrite(GtObjectTypeCount, 1220);
     GtWrite(GtWin32kServiceEntryCount, 429);
     GtWrite(GtEprocessField57, 986);
-    GtWrite(GtEprocessField129 | 0x100, 20608);
-    GtWrite(GtEprocessField130 | 0x100, 20736);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 20608);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 20736);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -2638,21 +2638,21 @@ __int64 InitEprocessOffsetsWin81(void)
     {
         if (IsWin81Update)
         {
-            GtWrite(GtEprocessField129 | 0x100, 22656);
+            GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22656);
             EprocessField130Val = 22784;
         }
         else
         {
-            GtWrite(GtEprocessField129 | 0x100, 20608);
+            GtWrite((GLOBAL_TABLE_INDEX)0x18B, 20608);
             EprocessField130Val = 20736;
         }
     }
     else
     {
-        GtWrite(GtEprocessField129 | 0x100, 0);
+        GtWrite((GLOBAL_TABLE_INDEX)0x18B, 0);
         EprocessField130Val = 0;
     }
-    GtWrite(GtEprocessField130 | 0x100, EprocessField130Val);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, EprocessField130Val);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -2876,21 +2876,21 @@ __int64 InitEprocessOffsetsWin81_Update(void)
     {
         if (IsField35Match)
         {
-            GtWrite(GtEprocessField129 | 0x100, 19584);
+            GtWrite((GLOBAL_TABLE_INDEX)0x18B, 19584);
             EprocessField130Val = 19712;
         }
         else
         {
-            GtWrite(GtEprocessField129 | 0x100, 17536);
+            GtWrite((GLOBAL_TABLE_INDEX)0x18B, 17536);
             EprocessField130Val = 17664;
         }
     }
     else
     {
-        GtWrite(GtEprocessField129 | 0x100, 0);
+        GtWrite((GLOBAL_TABLE_INDEX)0x18B, 0);
         EprocessField130Val = 0;
     }
-    GtWrite(GtEprocessField130 | 0x100, EprocessField130Val);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, EprocessField130Val);
     GtWrite(GtEprocessField95, 452);
     GtWrite(GtEprocessField131 | 0x100, 160);
     GtWrite(GtEprocessField132 | 0x100, 80);
@@ -3088,8 +3088,8 @@ __int64 InitEprocessOffsetsWin10_10240(void)
     GtWrite(GtWin32kServiceEntryCount, Win32kEntryCountVal);
     EprocessField57Val = Is10240 ? 1130 : 1135;
     GtWrite(GtEprocessField57, EprocessField57Val);
-    GtWrite(GtEprocessField129 | 0x100, 22656);
-    GtWrite(GtEprocessField130 | 0x100, 22784);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22656);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22784);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -3299,8 +3299,8 @@ __int64 InitEprocessOffsetsWin10_14393(void)
     GtWrite(GtObjectTypeCount, 2012);
     GtWrite(GtWin32kServiceEntryCount, 450);
     GtWrite(GtEprocessField57, 1138);
-    GtWrite(GtEprocessField129 | 0x100, 22656);
-    GtWrite(GtEprocessField130 | 0x100, 22784);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22656);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22784);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -3502,8 +3502,8 @@ __int64 InitEprocessOffsetsWin10_15063(void)
     if (!Is15063)
         Field57Val = 1176;
     GtWrite(GtEprocessField57, Field57Val);
-    GtWrite(GtEprocessField129 | 0x100, 22784);
-    GtWrite(GtEprocessField130 | 0x100, 22912);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22784);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22912);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -3769,8 +3769,8 @@ __int64 InitEprocessOffsetsWin10_17134(void)
     if (!Is17134)
         Field57Val = 1242;
     GtWrite(GtEprocessField57, Field57Val);
-    GtWrite(GtEprocessField129 | 0x100, 22784);
-    GtWrite(GtEprocessField130 | 0x100, 22912);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22784);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22912);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -4001,8 +4001,8 @@ __int64 InitEprocessOffsetsWin10_18362(void)
     GtWrite(GtObjectTypeCount, 2080);
     GtWrite(GtWin32kServiceEntryCount, 464);
     GtWrite(GtEprocessField57, 1258);
-    GtWrite(GtEprocessField129 | 0x100, 22784);
-    GtWrite(GtEprocessField130 | 0x100, 22912);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22784);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22912);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -4210,8 +4210,8 @@ __int64 InitEprocessOffsetsWin10_19041(void)
     GtWrite(GtObjectTypeCount, 2200);
     GtWrite(GtWin32kServiceEntryCount, 471);
     GtWrite(GtEprocessField57, 1316);
-    GtWrite(GtEprocessField129 | 0x100, 31744);
-    GtWrite(GtEprocessField130 | 0x100, 31872);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 31744);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 31872);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
@@ -4441,8 +4441,8 @@ __int64 InitEprocessOffsetsWin11(void)
         EprocessField57Val = 1452;
     }
     GtWrite(GtEprocessField57, EprocessField57Val);
-    GtWrite(GtEprocessField129 | 0x100, 32448);
-    GtWrite(GtEprocessField130 | 0x100, 32576);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 32448);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 32576);
     GtWrite(GtEprocessField95, 484);
     GtWrite(GtEprocessField131 | 0x100, 216);
     GtWrite(GtEprocessField132 | 0x100, 152);
