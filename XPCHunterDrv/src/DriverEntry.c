@@ -1667,7 +1667,7 @@ __int64 InitProcessNotify(void)
     static const WCHAR S_ndis[]      = L"ndis.sys";
     static const WCHAR S_hal[]       = L"hal.dll";
     static const WCHAR S_tdx[]       = L"tdx.sys";
-    static const WCHAR S_td[]        = L"td.sys";
+    static const WCHAR S_td[]        = L"tdi.sys";
     static const WCHAR S_exfat[]     = L"exfat.sys";
     static const WCHAR S_tcpip[]     = L"Tcpip.sys";
     static const WCHAR S_netio[]     = L"netio.sys";
