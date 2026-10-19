@@ -4949,63 +4949,51 @@ __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int6
 }
 __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
-    __int64 MatchOffset = 0;
+    /* 【重写 2026-10-19】旧实现字段偏移/判据多处不符 → GT[0x34E] 永不写入。
+       逐条对照 0x14001D850（描述符基址 rsp+0x90，偏移由 desc_offsets.py 换算）：
+         入口 GT[0x4393]（0x14001D874）；循环 0x14 次；读指针在读取之后推进
+         类型指针 +0x118（0x14001D8FD）取 [+6]
+           类型 0x48E → 置 FoundFlag 并继续（0x14001D90E/918）
+           类型 0x512 且 (+0x88 & 0x40000) 且 FoundFlag（0x14001D91D..939）
+         目标 = [+0x78]（0x14001D93B `movsxd rax,[rsp+0x108]`）+ 读指针（0x14001D943）
+         目标 > ImageBase 且 < ImageBase+ImageSize 时
+           GT[0x34E] = 目标 + BaseAddress - ImageBase（0x14001D950..95C） */
     char FoundFlag = 0;
-    __int64 result;
-    unsigned __int64 EndAddress;
-    __int64 SectionBase = 0;
-    int SectionEnd = 0;
-    PE_DECODE_CONTEXT ReadContext;   // 0x48 字节解码上下文（原 char[8] 仅 8 字节）
-    __int64 CumulativeSize2 = 0;
-    char SectionEntry[448];                 // 描述符：原 [120] 仅 120 字节
-    int EntrySize = 0;
-    __int64 FieldValue = 0;
-    unsigned int SectionSize = 0;
-    __int64 SectionDataPtr = 0;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];
 
-    ImageSize = ImageSize;
-    FoundFlag = 0;
-    result = GtRead(GtNtDeleteKeyPeSectionOffset);
-    if ((_DWORD)result && (unsigned int)result < (unsigned int)ImageSize)
+    unsigned int SectionOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x4393);
+    if (!SectionOffset || SectionOffset >= ImageSize)
+        return 0;
+
+    InitPESectionReadContext(ImageBase + SectionOffset, (ULONG)(ImageSize - SectionOffset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+    for (unsigned int LoopIndex = 0; LoopIndex < 0x14; ++LoopIndex)
     {
-        EndAddress = ImageBase + ImageSize;
-        SectionBase = ImageBase + (unsigned int)result;
-        SectionEnd = (int)EndAddress;
-        if (EndAddress > (unsigned __int64)(SectionBase + 4096))
-            SectionEnd = (int)(SectionBase + 4096);
-        InitPESectionReadContext(SectionBase, (ULONG)(SectionEnd - SectionBase), 2, 0, -1, 0, 0, (__int64)&ReadContext);
-        while (1)
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            break;
+
+        /* 原始 0x14001D8EE/8FA/905：读指针 += Entry[0xF0]（读取之后） */
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
+        __int16 SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+        if (SectionType == 0x48E)
         {
-            result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
-            if ((_DWORD)result)
-                break;
-            /* 【重大修正 2026-10-17】原始 0x14001D850 循环里有 `mov [rsp+var_190], rcx`，其中
-               var_190 = 上下文 +0x08（IDA 误命名为 CumulativeSize2）——即**把 ReadPtr + 本条长度
-               写回上下文读指针**，循环靠它推进。旧移植把 CumulativeSize2 当作独立局部，读指针
-               永不前进 → ReadPESectionEntry 反复解码同一条目 → DriverEntry 死循环（实测卡死点）。
-               字段偏移（原始栈帧）：SectionSize=+0xF0、EntrySize=+0x78、FieldValue=+0x88、
-               SectionDataPtr=+0x118。 */
-            SectionSize    = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
-            EntrySize      = *(int *)((PUCHAR)SectionEntry + 0x78);
-            FieldValue     = *(__int64 *)((PUCHAR)SectionEntry + 0x88);
-            SectionDataPtr = *(__int64 *)((PUCHAR)SectionEntry + 0x118);
-            __int64 CumulativeSize = SectionSize + CumulativeSize2;
-            CumulativeSize2 = CumulativeSize;
-            ReadContext.ReadPtr = SectionSize + ReadContext.ReadPtr;   /* ★写回读指针（原 mov [ctx+8], rcx）*/
-            __int16 SubType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (SubType == 1166)
-            {
-                FoundFlag = 1;
-            }
-            else if (SubType == 1298 && (FieldValue & 0x40000) != 0 && FoundFlag == 1)
-            {
-                unsigned __int64 TargetAddress = CumulativeSize + EntrySize;
-                if (TargetAddress > ImageBase && TargetAddress < EndAddress)
-                    return GtWrite(GtCallbackField120, TargetAddress + BaseAddress - ImageBase);
-            }
+            FoundFlag = 1;
+        }
+        else if (SectionType == 0x512 &&
+                 (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) & 0x40000) != 0 &&
+                 FoundFlag)
+        {
+            unsigned __int64 TargetAddress = (unsigned int)(*(int *)((PUCHAR)SectionEntry + 0x78))
+                                           + *(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
+            if (TargetAddress > ImageBase && TargetAddress < ImageBase + (unsigned __int64)ImageSize)
+                return GtWrite((GLOBAL_TABLE_INDEX)0x34E,
+                               (__int64)(TargetAddress + BaseAddress - ImageBase));
         }
     }
-    return result;
+    return 0;
 }
 __int64 HookSyscallNtDeleteValueKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
