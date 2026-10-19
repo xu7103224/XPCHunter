@@ -1,0 +1,18 @@
+140023f60  488bd3               mov rdx, rbx
+140023f63  e88c600000           call 0x140029ff4
+140023f68  8d4f04               lea ecx, [rdi + 4]
+140023f6b  baea040000           mov edx, 0x4ea
+140023f70  e87f600000           call 0x140029ff4
+140023f75  ba00590000           mov edx, 0x5900
+140023f7a  b98b010000           mov ecx, 0x18b
+140023f7f  e870600000           call 0x140029ff4
+140023f84  ba80590000           mov edx, 0x5980
+140023f89  b98c010000           mov ecx, 0x18c
+140023f8e  e861600000           call 0x140029ff4
+140023f93  bbe4010000           mov ebx, 0x1e4
+140023f98  8d4f2a               lea ecx, [rdi + 0x2a]
+140023f9b  8bd3                 mov edx, ebx
+140023f9d  e852600000           call 0x140029ff4
+140023fa2  8d4ba9               lea ecx, [rbx - 0x57]
+140023fa5  bad8000000           mov edx, 0xd8
+140023faa  e845600000           call 0x140029ff4

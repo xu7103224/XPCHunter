@@ -4098,6 +4098,15 @@ __int64 InitEprocessOffsetsWin10_18362(void)
     GtWrite((enum _GLOBAL_TABLE_INDEX)2312, FltPeSectionVal);
     GtWrite(GtEprocessField01 | 0x900, -64);
     GtWrite((enum _GLOBAL_TABLE_INDEX)2316, 456);
+    /* 【补 2026-10-19】原始 sub_140023C2C 的 0x140023F75..FB7 还写了五个槽。
+       rdi = 0x3F（0x140023F25 `mov edi,0x3f`），故 `lea ecx,[rdi+0x2a]` = GT[0x69]。
+       本机 GT[0x914] = 0x47BA = 18362 → 派发正落在这一族，
+       旧实现缺这五行 → GT[0x18B..0x18E] 恒 0（实机核对缺失）。 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 0x5900);                 /* 0x140023F75 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 0x5980);                 /* 0x140023F84 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x69,  0x1E4);                  /* 0x140023F93 */
+    GtWrite((GLOBAL_TABLE_INDEX)(0x1E4 - 0x57), 0xD8);          /* 0x140023FA2 → 0x18D */
+    GtWrite((GLOBAL_TABLE_INDEX)(0x1E4 - 0x56), 0x98);          /* 0x140023FAF → 0x18E */
     return GtWrite(GtEprocessField03 | 0x900, 141);
 }
 

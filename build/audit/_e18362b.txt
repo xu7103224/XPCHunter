@@ -1,0 +1,26 @@
+140023f00  0000                 add byte ptr [rax], al
+140023f02  e8ed600000           call 0x140029ff4
+140023f07  ba20060000           mov edx, 0x620
+140023f0c  b93e000000           mov ecx, 0x3e
+140023f11  e8de600000           call 0x140029ff4
+140023f16  baa0060000           mov edx, 0x6a0
+140023f1b  b96f020000           mov ecx, 0x26f
+140023f20  e8cf600000           call 0x140029ff4
+140023f25  bf3f000000           mov edi, 0x3f
+140023f2a  ba84010000           mov edx, 0x184
+140023f2f  8bcf                 mov ecx, edi
+140023f31  e8be600000           call 0x140029ff4
+140023f36  bac3000000           mov edx, 0xc3
+140023f3b  418bcd               mov ecx, r13d
+140023f3e  e8b1600000           call 0x140029ff4
+140023f43  8d4f02               lea ecx, [rdi + 2]
+140023f46  ba54010000           mov edx, 0x154
+140023f4b  e8a4600000           call 0x140029ff4
+140023f50  8d4f0c               lea ecx, [rdi + 0xc]
+140023f53  ba20080000           mov edx, 0x820
+140023f58  e897600000           call 0x140029ff4
+140023f5d  8d4f03               lea ecx, [rdi + 3]
+140023f60  488bd3               mov rdx, rbx
+140023f63  e88c600000           call 0x140029ff4
+140023f68  8d4f04               lea ecx, [rdi + 4]
+140023f6b  baea040000           mov edx, 0x4ea

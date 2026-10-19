@@ -29,11 +29,48 @@ def _sym(name):
             return int(m.group(1), 16)
     return 0
 
+def _find_import_thunk(fn):
+    """在函数体内找第一个「单条 jmp [rip+x]」的导入 thunk 调用目标。"""
+    import struct as _st
+    from capstone import Cs, CS_ARCH_X86, CS_MODE_64
+    d = open(MINE, 'rb').read()
+    pe = _st.unpack_from('<I', d, 0x3c)[0]
+    n = _st.unpack_from('<H', d, pe + 6)[0]
+    sc = pe + 24 + _st.unpack_from('<H', d, pe + 20)[0]
+    text = None
+    for i in range(n):
+        o = sc + i * 40
+        nm = d[o:o+8].rstrip(b'').decode('latin1')
+        vsz, va, rsz, ra = _st.unpack_from('<IIII', d, o + 8)
+        if nm == '.text':
+            text = (d[ra:ra+rsz], 0x140000000 + va)
+    if not text:
+        return 0
+    tb, tv = text
+    md = Cs(CS_ARCH_X86, CS_MODE_64)
+    for ins in md.disasm(tb[fn-tv:fn-tv+0x400], fn):
+        if ins.mnemonic != 'call':
+            continue
+        try:
+            t = int(ins.op_str, 16)
+        except ValueError:
+            continue
+        # thunk 特征：目标处是 jmp qword ptr [rip + x]
+        to = t - tv
+        if to < 0 or to + 6 > len(tb):
+            continue
+        for ins2 in md.disasm(tb[to:to+8], t):
+            if ins2.mnemonic == 'jmp' and 'rip' in ins2.op_str:
+                return t
+            break
+    return 0
+
+
 CFG = {
     'ORIG': dict(drv=ORIG, fsn=0x140052FDC, gtread=0x140029EFC, gtwrite=0x140029FF4,
                  exalloc=0x140077A00),
     'MINE': dict(drv=MINE, fsn=_sym('FindSyscallNumbers'), gtread=_sym('GtRead'),
-                 gtwrite=_sym('GtWrite'), exalloc=0x14002D990),
+                 gtwrite=_sym('GtWrite'), exalloc=0),
 }
 SERVICE_COUNT = 0x1D0
 
@@ -60,11 +97,13 @@ def run(cfg, img):
 
     sim.intercept(cfg['gtread'], gt_read)
     sim.intercept(cfg['gtwrite'], gt_write)
-    sim.intercept(cfg['exalloc'], exalloc)
 
     base = sim.scratch((len(img) + 0xFFF) & ~0xFFF)
     sim.uc.mem_write(base, img)
     sim._pool = sim.scratch(0x10000)
+    # 通过 import 名拦截分配（比硬编码 thunk 地址可靠：LTCG 每次编译都会移位）
+    for _nm in ('ExAllocatePoolWithTag', 'ExAllocatePool', 'ExAllocatePool2'):
+        sim.api_returns[_nm] = (lambda sm: sm._pool)
     for gt, v in ((0x20, base), (0x21, len(img)), (0x42, SERVICE_COUNT),
                   (0x41D1, 0x1B9600), (0x41D4, 0x1B90E0), (0x914, 19045)):
         sim.set_gt(gt, v)
