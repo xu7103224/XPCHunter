@@ -212,12 +212,19 @@ ULONG64 CopyMemoryNoWriteProtect(void *Destination, const void *Source, ULONG Si
 }
 
 // CheckVmxEnabled — 检查 VMX 是否启用
-// 对应原始驱动 sub_14000158E
+// 对应原始驱动 sub_14000158E（26 字节，逐条对照）：
+//     0x14000158E  mov rax, cr4
+//     0x140001591  bt  rax, 5        ; CR4.VMXE
+//     0x140001596  jb  → 返回 1
+//     0x140001598  mov rax, 0 / ret
+//     0x1400015A0  mov rax, 1 / ret
+// 【修正 2026-10-19】旧实现用 `__cpuid(1).ECX bit5`（CPUID.VMX 支持位），
+//   那是「CPU 是否支持 VT-x」，不是「VMX 是否已启用」。VM 内 CPUID 的 VMX
+//   位常被 hypervisor 屏蔽（返回 0），而原始判据是 CR4.VMXE。
+//   实机实测：旧实现返回 0 → GT[0x2D5] 恒 0；原始活体该槽为 1。
 BOOLEAN CheckVmxEnabled(void)
 {
-    ULONG CpuInfo[4] = {0};
-    __cpuid(CpuInfo, 1);
-    return (CpuInfo[2] & (1 << 5)) != 0;
+    return (__readcr4() & 0x20) != 0;
 }
 
 // WritePtrToAddress — 写入指针到指定地址

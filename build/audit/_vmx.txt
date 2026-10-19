@@ -1,0 +1,19 @@
+14000158e  0f20e0               mov rax, cr4
+140001591  480fbae005           bt rax, 5
+140001596  7208                 jb 0x1400015a0
+140001598  48c7c000000000       mov rax, 0
+14000159f  c3                   ret 
+1400015a0  48c7c001000000       mov rax, 1
+1400015a7  c3                   ret 
+1400015a8  0f20c0               mov rax, cr0
+1400015ab  488901               mov qword ptr [rcx], rax
+1400015ae  4825fffffeff         and rax, 0xfffffffffffeffff
+1400015b4  0f22c0               mov cr0, rax
+1400015b7  c3                   ret 
+1400015b8  488b01               mov rax, qword ptr [rcx]
+1400015bb  0f22c0               mov cr0, rax
+1400015be  c3                   ret 
+1400015bf  0f0109               sidt [rcx]
+1400015c2  c3                   ret 
+1400015c3  48895c2408           mov qword ptr [rsp + 8], rbx
+1400015c8  48896c2410           mov qword ptr [rsp + 0x10], rbp

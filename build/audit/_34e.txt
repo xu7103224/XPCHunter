@@ -1,0 +1,26 @@
+14001d900  24a8                 and al, 0xa8
+14001d902  0100                 add dword ptr [rax], eax
+14001d904  004889               add byte ptr [rax - 0x77], cl
+14001d907  4c2448               and al, 0x48
+14001d90a  0fb75006             movzx edx, word ptr [rax + 6]
+14001d90e  b88e040000           mov eax, 0x48e
+14001d913  663bc2               cmp ax, dx
+14001d916  7505                 jne 0x14001d91d
+14001d918  40b601               mov sil, 1
+14001d91b  ebbb                 jmp 0x14001d8d8
+14001d91d  b812050000           mov eax, 0x512
+14001d922  663bc2               cmp ax, dx
+14001d925  75b1                 jne 0x14001d8d8
+14001d927  48f784241801000000000400 test qword ptr [rsp + 0x118], 0x40000
+14001d933  74a3                 je 0x14001d8d8
+14001d935  4080fe01             cmp sil, 1
+14001d939  759d                 jne 0x14001d8d8
+14001d93b  4863842408010000     movsxd rax, dword ptr [rsp + 0x108]
+14001d943  4803c1               add rax, rcx
+14001d946  483bc7               cmp rax, rdi
+14001d949  768d                 jbe 0x14001d8d8
+14001d94b  483bc5               cmp rax, rbp
+14001d94e  7388                 jae 0x14001d8d8
+14001d950  482bdf               sub rbx, rdi
+14001d953  b94e030000           mov ecx, 0x34e
+14001d958  488d1418             lea rdx, [rax + rbx]

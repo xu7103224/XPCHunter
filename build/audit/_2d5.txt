@@ -1,0 +1,14 @@
+14001ed6a  b9d5020000           mov ecx, 0x2d5
+14001ed6f  8bd0                 mov edx, eax
+14001ed71  e87eb20000           call 0x140029ff4
+14001ed76  e8c9270000           call 0x140021544
+14001ed7b  488b5c2450           mov rbx, qword ptr [rsp + 0x50]
+14001ed80  488b6c2458           mov rbp, qword ptr [rsp + 0x58]
+14001ed85  488b742460           mov rsi, qword ptr [rsp + 0x60]
+14001ed8a  418ac7               mov al, r15b
+14001ed8d  4883c430             add rsp, 0x30
+14001ed91  415f                 pop r15
+14001ed93  415e                 pop r14
+14001ed95  5f                   pop rdi
+14001ed96  c3                   ret 
+14001ed97  cc                   int3 
