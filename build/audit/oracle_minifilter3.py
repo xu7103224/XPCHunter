@@ -27,7 +27,7 @@ NT = os.path.join(HERE, 'ntoskrnl_guest.exe')
 
 GT = {
     'ORIG': dict(read=0x140029EFC, write=0x140029FF4),
-    'MINE': dict(read=0x14001ECA0, write=0x14001ECB0),
+    'MINE': dict(read=0x14001ED40, write=0x14001ED50),
 }
 
 TARGETS = [
@@ -45,7 +45,7 @@ def mine_addr(name):
     return None
 
 
-def run(which, fn, bufbase, bufsize):
+def run(which, fn, img, imgsize):
     drv = ORIG if which == 'ORIG' else MINE
     cfg = GT[which]
     sim = KernelSim(drv)
@@ -73,21 +73,23 @@ def run(which, fn, bufbase, bufsize):
         v = struct.unpack_from('<Q', d, i * 8)[0]
         if v:
             sim.set_gt(i, v)
-    sim.set_gt(0x20, bufbase)
-    sim.set_gt(0x21, bufsize)
 
-    kind, r = sim.call(fn, (), count=200000000)
+    # 关键：缓冲必须写进**本实例**的地址空间（每个 KernelSim 各有独立 Uc）。
+    bufbase = sim.scratch((imgsize + 0xFFF) & ~0xFFF)
+    sim.uc.mem_write(bufbase, img)
+    sim.set_gt(0x20, bufbase)
+    sim.set_gt(0x21, imgsize)
+
+    # 上限必须足够大：真实内核上 PreDirEnum 需要 ~8.2 亿条指令才能扫完 0xAB2000 字节。
+    # 用 2 亿会让 ORIG 在中途被截断，产生「两侧都写 0」的假一致。
+    kind, r = sim.call(fn, (), count=3000000000)
     return kind, r, log
 
 
 def main():
     want = set(sys.argv[1:]) if len(sys.argv) > 1 else None
     img, sz, _ = image_layout(NT)
-    s = KernelSim(ORIG)
-    base = s.scratch((len(img) + 0xFFF) & ~0xFFF)
-    s.uc.mem_write(base, img)
-    del s
-    print('缓冲: 0x%X 大小: 0x%X' % (base, len(img)))
+    print('镜像大小: 0x%X' % len(img))
 
     allok = True
     for name, ova in TARGETS:
@@ -97,16 +99,16 @@ def main():
         print('\n===== %s  ORIG=0x%X  MINE=%s =====' % (name, ova, hex(mva) if mva else None))
         if not mva:
             print('  我方地址未找到'); allok = False; continue
-        ko, ro, lo = run('ORIG', ova, base, len(img))
-        km, rm, lm = run('MINE', mva, base, len(img))
+        ko, ro, lo = run('ORIG', ova, img, len(img))
+        km, rm, lm = run('MINE', mva, img, len(img))
         print('  ORIG %s writes=%d' % (ko, len(lo)))
         for i, v in lo:
-            print('     GT[0x%X] = 0x%X' % (i, v))
+            print('     GT[0x%-4X] = 0x%X' % (i, v))
         print('  MINE %s writes=%d' % (km, len(lm)))
         for i, v in lm:
-            print('     GT[0x%X] = 0x%X' % (i, v))
-        ok = {i for i, _ in lo} == {i for i, _ in lm}
-        print('  =>', 'IDENTICAL(槽集)' if ok else 'DIFFERENT')
+            print('     GT[0x%-4X] = 0x%X' % (i, v))
+        ok = {(i, v) for i, v in lo} == {(i, v) for i, v in lm}
+        print('  =>', 'IDENTICAL(槽+值)' if ok else 'DIFFERENT')
         allok = allok and ok
     print('\n总判定:', 'PASS' if allok else 'FAIL')
 

@@ -804,7 +804,7 @@ __int64 MiniFilterPreClose(void)
     ULONG64 r13   = 0;          /* 扫描游标 */
     ULONG64 r15   = 0;          /* r13 + 7，或块 B 的步进 */
     ULONG   r14d  = 0;          /* Cand / Alt / 标志字节 */
-    ULONG   edi   = 0;          /* 块 A / 块 B 的 AltCand */
+    ULONG   edi   = 0;          /* 块 A/B 的 AltCand；循环尾恢复为 (u32)PeEnd */
     ULONG   esi   = 0;
     ULONG   ebx   = 0;
     UCHAR   dl = 0, r8b = 0;
@@ -816,8 +816,8 @@ __int64 MiniFilterPreClose(void)
     if (!PeBase || !PeSize || !NtBase) return 0;    /* 0x14001537E..397 */
     if (!v8CC || !v900 || !v8CD) return 0;          /* 0x140015399..3AD */
 
-    edi   = PeSize;                                 /* 0x1400153B3 mov edi,r12d */
-    PeEnd = PeBase + (ULONG64)PeSize;               /* 0x1400153BE add rdi,rsi */
+    PeEnd = PeBase + (ULONG64)PeSize;               /* 0x1400153B3 add rdi,rsi */
+    edi   = PeSize;                                 /* mov edi,r12d，随后 add rdi,rsi */
     {
         char  Name[8];                              /* [rsp+0x60] ".PAGE" */
         ULONG Raw, Base, Va, Len, Avail;
@@ -1075,7 +1075,10 @@ L_1400159B6:                                        /* 0x1400159B6 */
     r14d = (r14d & 0xFFFFFF00u) | (ULONG)f40;       /* mov r14b,[rsp+0x40] */
 L_1400159BB:                                        /* 完成闸门（0x1400159BB） */
     if (r8b == 1 && (UCHAR)r14d == 1 && dl == 1) return 0;
-L_1400159CE:                                        /* 前进（0x1400159CE） */
+L_1400159CE:                                        /* 前进（0x1400159CE..9EE） */
+    /* 0x1400159D3/9D8：每轮从栈槽恢复 rcx=End、rdi=PeEnd、r9d=7。
+       缺 rdi 的恢复会让备用支路用到块 A/B 残留的计数器值（窗口过小 → 不触发 0x337）。 */
+    edi = (ULONG)PeEnd;
     r13 += 1;
     if (r13 < End) goto L_140015445;
     return 0;
@@ -9976,8 +9979,8 @@ __int64 MiniFilterPreDirEnum(void)
     {
         ULONG Cand;
 
-        if (rsi + 0x30 >= End) break;                   /* 0x140015B5E..B65 */
-        if (*(UCHAR *)rsi != 0x48) break;               /* 0x140015B6B..B6F */
+        if (rsi + 0x30 >= End) goto LD_ADV;              /* 0x140015B65 jae → 0x140015EF5 */
+        if (*(UCHAR *)rsi != 0x48) goto LD_ADV;          /* 0x140015B6F jne → 0x140015EF5 */
 
         if (*(UCHAR *)(rsi + 1) == 0x8D)                /* 0x140015B75 */
         {
@@ -10262,6 +10265,9 @@ LD_CB:
 LD_GATE:                                                        /* 0x1400162D3..2F5 */
         if (f42 == 1 && f41 == 1 && f40 == 1) return 0;         /* 0x1400162F2..2F5 */
 LD_NEXT:                                                        /* 0x140016175..182 */
+        /* 0x14001617A mov rdi,[rsp+0x48]：每轮恢复 rdi = PeEnd。
+           缺此恢复会让第二块的解码窗口用到第一块残留的 edi（0/1），窗口为负。 */
+        rdi = PeEnd;
         rbx += 1;
         if (rbx >= End) return 0;
     }

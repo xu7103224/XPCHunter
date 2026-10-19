@@ -23,7 +23,7 @@ NT = os.path.join(HERE, 'ntoskrnl_guest.exe')
 ORIG_FN = 0x1400152D4
 GT = {
     'ORIG': dict(read=0x140029EFC, write=0x140029FF4),
-    'MINE': dict(read=0x14001ECA0, write=0x14001ECB0),
+    'MINE': dict(read=0x14001ED40, write=0x14001ED50),
 }
 
 
