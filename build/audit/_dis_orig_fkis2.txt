@@ -1,0 +1,35 @@
+140012d61  b82d040000           mov eax, 0x42d
+140012d66  663bc2               cmp ax, dx
+140012d69  7524                 jne 0x140012d8f
+140012d6b  48b80000000010000000 movabs rax, 0x1000000000
+140012d75  4839842418010000     cmp qword ptr [rsp + 0x118], rax
+140012d7d  7510                 jne 0x140012d8f
+140012d7f  4883bc240001000000   cmp qword ptr [rsp + 0x100], 0
+140012d88  7505                 jne 0x140012d8f
+140012d8a  40b501               mov bpl, 1
+140012d8d  eb29                 jmp 0x140012db8
+140012d8f  b858050000           mov eax, 0x558
+140012d94  663bc2               cmp ax, dx
+140012d97  751f                 jne 0x140012db8
+140012d99  48f78424e000000000000004 test qword ptr [rsp + 0xe0], 0x4000000
+140012da5  7411                 je 0x140012db8
+140012da7  8b8424c8000000       mov eax, dword ptr [rsp + 0xc8]
+140012dae  85c0                 test eax, eax
+140012db0  7406                 je 0x140012db8
+140012db2  4080fd01             cmp bpl, 1
+140012db6  740c                 je 0x140012dc4
+140012db8  ffc6                 inc esi
+140012dba  83fe64               cmp esi, 0x64
+140012dbd  731d                 jae 0x140012ddc
+140012dbf  e959ffffff           jmp 0x140012d1d
+140012dc4  412bc6               sub eax, r14d
+140012dc7  03c1                 add eax, ecx
+140012dc9  3bc7                 cmp eax, edi
+140012dcb  730f                 jae 0x140012ddc
+140012dcd  8bd0                 mov edx, eax
+140012dcf  b983010000           mov ecx, 0x183
+140012dd4  4803d3               add rdx, rbx
+140012dd7  e818720100           call 0x140029ff4
+140012ddc  488b8c24b0010000     mov rcx, qword ptr [rsp + 0x1b0]
+140012de4  4833cc               xor rcx, rsp
+140012de7  e8c49a0700           call 0x14008c8b0

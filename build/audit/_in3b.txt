@@ -1,0 +1,54 @@
+1400145cd  8b842480010000       mov eax, dword ptr [rsp + 0x180]
+1400145d4  488b4c2448           mov rcx, qword ptr [rsp + 0x48]
+1400145d9  4803c8               add rcx, rax
+1400145dc  488b8424a8010000     mov rax, qword ptr [rsp + 0x1a8]
+1400145e4  48894c2448           mov qword ptr [rsp + 0x48], rcx
+1400145e9  0fb75006             movzx edx, word ptr [rax + 6]
+1400145ed  b830040000           mov eax, 0x430
+1400145f2  663bc2               cmp ax, dx
+1400145f5  7576                 jne 0x14001466d
+1400145f7  83bc24d000000000     cmp dword ptr [rsp + 0xd0], 0
+1400145ff  746c                 je 0x14001466d
+140014601  4881bc24e000000000000400 cmp qword ptr [rsp + 0xe0], 0x40000
+14001460d  755e                 jne 0x14001466d
+14001460f  4883bc240001000000   cmp qword ptr [rsp + 0x100], 0
+140014618  7553                 jne 0x14001466d
+14001461a  85db                 test ebx, ebx
+14001461c  747e                 je 0x14001469c
+14001461e  443bfb               cmp r15d, ebx
+140014621  7479                 je 0x14001469c
+140014623  443be3               cmp r12d, ebx
+140014626  7474                 je 0x14001469c
+140014628  443beb               cmp r13d, ebx
+14001462b  746f                 je 0x14001469c
+14001462d  8bd3                 mov edx, ebx
+14001462f  b97c010000           mov ecx, 0x17c
+140014634  4803d7               add rdx, rdi
+140014637  e8b8590100           call 0x140029ff4
+14001463c  488b8c24b0010000     mov rcx, qword ptr [rsp + 0x1b0]
+140014644  4833cc               xor rcx, rsp
+140014647  e864820700           call 0x14008c8b0
+14001464c  4c8d9c24c0010000     lea r11, [rsp + 0x1c0]
+140014654  498b5b30             mov rbx, qword ptr [r11 + 0x30]
+140014658  498b6b38             mov rbp, qword ptr [r11 + 0x38]
+14001465c  498b7340             mov rsi, qword ptr [r11 + 0x40]
+140014660  498be3               mov rsp, r11
+140014663  415f                 pop r15
+140014665  415e                 pop r14
+140014667  415d                 pop r13
+140014669  415c                 pop r12
+14001466b  5f                   pop rdi
+14001466c  c3                   ret 
+14001466d  b858050000           mov eax, 0x558
+140014672  663bc2               cmp ax, dx
+140014675  7525                 jne 0x14001469c
+140014677  48f78424e000000000000004 test qword ptr [rsp + 0xe0], 0x4000000
+140014683  7417                 je 0x14001469c
+140014685  8b8424c8000000       mov eax, dword ptr [rsp + 0xc8]
+14001468c  85c0                 test eax, eax
+14001468e  740c                 je 0x14001469c
+140014690  412bc6               sub eax, r14d
+140014693  03c1                 add eax, ecx
+140014695  7405                 je 0x14001469c
+140014697  3bc5                 cmp eax, ebp
+140014699  0f42d8               cmovb ebx, eax

@@ -1,0 +1,9 @@
+14008c18c  418b11               mov edx, dword ptr [r9]
+14008c18f  4c8bd1               mov r10, rcx
+14008c192  83e21f               and edx, 0x1f
+14008c195  837c242800           cmp dword ptr [rsp + 0x28], 0
+14008c19a  7411                 je 0x14008c1ad
+14008c19c  83790402             cmp dword ptr [rcx + 4], 2
+14008c1a0  ba04000000           mov edx, 4
+14008c1a5  8d4207               lea eax, [rdx + 7]
+14008c1a8  0f44d0               cmove edx, eax

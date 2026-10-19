@@ -1,0 +1,45 @@
+140013d40  8d9424a0000000       lea edx, [rsp + 0xa0]
+140013d47  488d4c2450           lea rcx, [rsp + 0x50]
+140013d4c  e8fb670700           call 0x14008a54c
+140013d51  85c0                 test eax, eax
+140013d53  0f85df000000         jne 0x140013e38
+140013d59  8b842490010000       mov eax, dword ptr [rsp + 0x190]
+140013d60  488b4c2458           mov rcx, qword ptr [rsp + 0x58]
+140013d65  4803c8               add rcx, rax
+140013d68  488b8424b8010000     mov rax, qword ptr [rsp + 0x1b8]
+140013d70  48894c2458           mov qword ptr [rsp + 0x58], rcx
+140013d75  0fb75006             movzx edx, word ptr [rax + 6]
+140013d79  b812050000           mov eax, 0x512
+140013d7e  663bc2               cmp ax, dx
+140013d81  7555                 jne 0x140013dd8
+140013d83  4883bc24f000000040   cmp qword ptr [rsp + 0xf0], 0x40
+140013d8c  754a                 jne 0x140013dd8
+140013d8e  8b8424f8000000       mov eax, dword ptr [rsp + 0xf8]
+140013d95  83f802               cmp eax, 2
+140013d98  7505                 jne 0x140013d9f
+140013d9a  448bf3               mov r14d, ebx
+140013d9d  eb62                 jmp 0x140013e01
+140013d9f  83f809               cmp eax, 9
+140013da2  7505                 jne 0x140013da9
+140013da4  448bfb               mov r15d, ebx
+140013da7  eb58                 jmp 0x140013e01
+140013da9  83f801               cmp eax, 1
+140013dac  7553                 jne 0x140013e01
+140013dae  4585f6               test r14d, r14d
+140013db1  7410                 je 0x140013dc3
+140013db3  418d4601             lea eax, [r14 + 1]
+140013db7  3bc3                 cmp eax, ebx
+140013db9  7508                 jne 0x140013dc3
+140013dbb  41b401               mov r12b, 1
+140013dbe  418aec               mov bpl, r12b
+140013dc1  eb3e                 jmp 0x140013e01
+140013dc3  4585ff               test r15d, r15d
+140013dc6  7439                 je 0x140013e01
+140013dc8  418d4703             lea eax, [r15 + 3]
+140013dcc  3bc3                 cmp eax, ebx
+140013dce  7531                 jne 0x140013e01
+140013dd0  41b401               mov r12b, 1
+140013dd3  4032ed               xor bpl, bpl
+140013dd6  eb29                 jmp 0x140013e01
+140013dd8  4180fc01             cmp r12b, 1
+140013ddc  7523                 jne 0x140013e01

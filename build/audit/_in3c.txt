@@ -1,0 +1,22 @@
+140014583  0c32                 or al, 0x32
+140014585  488d442440           lea rax, [rsp + 0x40]
+14001458a  4533c9               xor r9d, r9d
+14001458d  4889442438           mov qword ptr [rsp + 0x38], rax
+140014592  488364243000         and qword ptr [rsp + 0x30], 0
+140014598  488364242800         and qword ptr [rsp + 0x28], 0
+14001459e  834c2420ff           or dword ptr [rsp + 0x20], 0xffffffff
+1400145a3  418bd6               mov edx, r14d
+1400145a6  458d4102             lea r8d, [r9 + 2]
+1400145aa  2bd1                 sub edx, ecx
+1400145ac  03d5                 add edx, ebp
+1400145ae  e831620700           call 0x14008a7e4
+1400145b3  33db                 xor ebx, ebx
+1400145b5  33f6                 xor esi, esi
+1400145b7  488d942490000000     lea rdx, [rsp + 0x90]
+1400145bf  488d4c2440           lea rcx, [rsp + 0x40]
+1400145c4  e8835f0700           call 0x14008a54c
+1400145c9  85c0                 test eax, eax
+1400145cb  756f                 jne 0x14001463c
+1400145cd  8b842480010000       mov eax, dword ptr [rsp + 0x180]
+1400145d4  488b4c2448           mov rcx, qword ptr [rsp + 0x48]
+1400145d9  4803c8               add rcx, rax

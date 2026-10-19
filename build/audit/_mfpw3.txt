@@ -1,0 +1,17 @@
+140014dd0  404533c9             xor r9d, r9d
+140014dd4  4889442438           mov qword ptr [rsp + 0x38], rax
+140014dd9  488364243000         and qword ptr [rsp + 0x30], 0
+140014ddf  488364242800         and qword ptr [rsp + 0x28], 0
+140014de5  834c2420ff           or dword ptr [rsp + 0x20], 0xffffffff
+140014dea  2bd1                 sub edx, ecx
+140014dec  458d4102             lea r8d, [r9 + 2]
+140014df0  03d7                 add edx, edi
+140014df2  e8ed590700           call 0x14008a7e4
+140014df7  33db                 xor ebx, ebx
+140014df9  33f6                 xor esi, esi
+140014dfb  488d942490000000     lea rdx, [rsp + 0x90]
+140014e03  488d4c2440           lea rcx, [rsp + 0x40]
+140014e08  e83f570700           call 0x14008a54c
+140014e0d  85c0                 test eax, eax
+140014e0f  7572                 jne 0x140014e83
+140014e11  8b842480010000       mov eax, dword ptr [rsp + 0x180]

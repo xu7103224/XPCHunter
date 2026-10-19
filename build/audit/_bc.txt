@@ -1,0 +1,42 @@
+140013b85  8b842480010000       mov eax, dword ptr [rsp + 0x180]
+140013b8c  488b4c2448           mov rcx, qword ptr [rsp + 0x48]
+140013b91  4803c8               add rcx, rax
+140013b94  488b8424a8010000     mov rax, qword ptr [rsp + 0x1a8]
+140013b9c  48894c2448           mov qword ptr [rsp + 0x48], rcx
+140013ba1  0fb75006             movzx edx, word ptr [rax + 6]
+140013ba5  b868010000           mov eax, 0x168
+140013baa  663bc2               cmp ax, dx
+140013bad  751a                 jne 0x140013bc9
+140013baf  f68424e000000040     test byte ptr [rsp + 0xe0], 0x40
+140013bb7  7410                 je 0x140013bc9
+140013bb9  4883bc241801000040   cmp qword ptr [rsp + 0x118], 0x40
+140013bc2  7505                 jne 0x140013bc9
+140013bc4  41b601               mov r14b, 1
+140013bc7  eb29                 jmp 0x140013bf2
+140013bc9  4180fe01             cmp r14b, 1
+140013bcd  7523                 jne 0x140013bf2
+140013bcf  b858050000           mov eax, 0x558
+140013bd4  663bc2               cmp ax, dx
+140013bd7  7519                 jne 0x140013bf2
+140013bd9  48f78424e000000000000004 test qword ptr [rsp + 0xe0], 0x4000000
+140013be5  740b                 je 0x140013bf2
+140013be7  8b8424c8000000       mov eax, dword ptr [rsp + 0xc8]
+140013bee  85c0                 test eax, eax
+140013bf0  750f                 jne 0x140013c01
+140013bf2  ffc6                 inc esi
+140013bf4  81fe00020000         cmp esi, 0x200
+140013bfa  731c                 jae 0x140013c18
+140013bfc  e96affffff           jmp 0x140013b6b
+140013c01  2bc5                 sub eax, ebp
+140013c03  03c1                 add eax, ecx
+140013c05  3bc7                 cmp eax, edi
+140013c07  730f                 jae 0x140013c18
+140013c09  8bd0                 mov edx, eax
+140013c0b  b981010000           mov ecx, 0x181
+140013c10  4803d3               add rdx, rbx
+140013c13  e8dc630100           call 0x140029ff4
+140013c18  488b8c24b0010000     mov rcx, qword ptr [rsp + 0x1b0]
+140013c20  4833cc               xor rcx, rsp
+140013c23  e8888c0700           call 0x14008c8b0
+140013c28  4c8d9c24c0010000     lea r11, [rsp + 0x1c0]
+140013c30  498b5b10             mov rbx, qword ptr [r11 + 0x10]

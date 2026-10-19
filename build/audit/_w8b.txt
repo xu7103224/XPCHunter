@@ -1,0 +1,14 @@
+14001c875  e941ffffff           jmp 0x14001c7bb
+14001c87a  418bd6               mov edx, r14d
+14001c87d  b96e410000           mov ecx, 0x416e
+14001c882  e86dd70000           call 0x140029ff4
+14001c887  4b8d142e             lea rdx, [r14 + r13]
+14001c88b  b96f410000           mov ecx, 0x416f
+14001c890  e85fd70000           call 0x140029ff4
+14001c895  8d57e0               lea edx, [rdi - 0x20]
+14001c898  b94f000000           mov ecx, 0x4f
+14001c89d  4903d5               add rdx, r13
+14001c8a0  e84fd70000           call 0x140029ff4
+14001c8a5  488b8db0000000       mov rcx, qword ptr [rbp + 0xb0]
+14001c8ac  4833cc               xor rcx, rsp
+14001c8af  e8fcff0600           call 0x14008c8b0

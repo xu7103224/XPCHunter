@@ -1,0 +1,23 @@
+140014eb4  4881bc241801000000000400 cmp qword ptr [rsp + 0x118], 0x40000
+140014ec0  7511                 jne 0x140014ed3
+140014ec2  8b842408010000       mov eax, dword ptr [rsp + 0x108]
+140014ec9  85c0                 test eax, eax
+140014ecb  7406                 je 0x140014ed3
+140014ecd  8bd8                 mov ebx, eax
+140014ecf  2bdd                 sub ebx, ebp
+140014ed1  03d9                 add ebx, ecx
+140014ed3  ffc6                 inc esi
+140014ed5  81fe00010000         cmp esi, 0x100
+140014edb  73a6                 jae 0x140014e83
+140014edd  e919ffffff           jmp 0x140014dfb
+140014ee2  cc                   int3 
+140014ee3  cc                   int3 
+140014ee4  48895c2408           mov qword ptr [rsp + 8], rbx
+140014ee9  48896c2410           mov qword ptr [rsp + 0x10], rbp
+140014eee  4889742418           mov qword ptr [rsp + 0x18], rsi
+140014ef3  57                   push rdi
+140014ef4  4154                 push r12
+140014ef6  4155                 push r13
+140014ef8  4156                 push r14
+140014efa  4157                 push r15
+140014efc  4881ecc0010000       sub rsp, 0x1c0

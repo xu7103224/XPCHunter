@@ -1,0 +1,158 @@
+140024384  f1                   int1 
+140024385  0000                 add byte ptr [rax], al
+140024387  00498d               add byte ptr [rcx - 0x73], cl
+14002438a  80580a00             sbb byte ptr [rax + 0xa], 0
+14002438e  00483b               add byte ptr [rax + 0x3b], cl
+140024391  c10f83               ror dword ptr [rdi], 0x83
+140024394  e100                 loope 0x140024396
+140024396  0000                 add byte ptr [rax], al
+140024398  48896c2430           mov qword ptr [rsp + 0x30], rbp
+14002439d  448d4301             lea r8d, [rbx + 1]
+1400243a1  418bd1               mov edx, r9d
+1400243a4  4889742438           mov qword ptr [rsp + 0x38], rsi
+1400243a9  488bcf               mov rcx, rdi
+1400243ac  ff151e2f0600         call qword ptr [rip + 0x62f1e]
+1400243b2  33d2                 xor edx, edx
+1400243b4  41b8580a0000         mov r8d, 0xa58
+1400243ba  488bcf               mov rcx, rdi
+1400243bd  e8be250600           call 0x140086980
+1400243c2  b9c6080000           mov ecx, 0x8c6
+1400243c7  e854aeffff           call 0x14001f220
+1400243cc  488be8               mov rbp, rax
+1400243cf  85c0                 test eax, eax
+1400243d1  7511                 jne 0x1400243e4
+1400243d3  e8683efeff           call 0x140008240
+1400243d8  b9c6080000           mov ecx, 0x8c6
+1400243dd  e83eaeffff           call 0x14001f220
+1400243e2  8be8                 mov ebp, eax
+1400243e4  488d4f08             lea rcx, [rdi + 8]
+1400243e8  e82321feff           call 0x140006510
+1400243ed  4883f801             cmp rax, 1
+1400243f1  752c                 jne 0x14002441f
+1400243f3  660907               or word ptr [rdi], ax
+1400243f6  488bd8               mov rbx, rax
+1400243f9  85ed                 test ebp, ebp
+1400243fb  7422                 je 0x14002441f
+1400243fd  488d4f08             lea rcx, [rdi + 8]
+140024401  e85a05feff           call 0x140004960
+140024406  483bc3               cmp rax, rbx
+140024409  7514                 jne 0x14002441f
+14002440b  8d531b               lea edx, [rbx + 0x1b]
+14002440e  488d4f08             lea rcx, [rdi + 8]
+140024412  e8b9590100           call 0x140039dd0
+140024417  483bc3               cmp rax, rbx
+14002441a  7503                 jne 0x14002441f
+14002441c  885f02               mov byte ptr [rdi + 2], bl
+14002441f  488d8f48050000       lea rcx, [rdi + 0x548]
+140024426  e85520feff           call 0x140006480
+14002442b  488b6c2430           mov rbp, qword ptr [rsp + 0x30]
+140024430  4883f801             cmp rax, 1
+140024434  753e                 jne 0x140024474
+140024436  66830f02             or word ptr [rdi], 2
+14002443a  b9c7080000           mov ecx, 0x8c7
+14002443f  488bd8               mov rbx, rax
+140024442  e8d9adffff           call 0x14001f220
+140024447  4885c0               test rax, rax
+14002444a  7428                 je 0x140024474
+14002444c  488d8f48050000       lea rcx, [rdi + 0x548]
+140024453  e8080dfeff           call 0x140005160
+140024458  483bc3               cmp rax, rbx
+14002445b  7517                 jne 0x140024474
+14002445d  8d531a               lea edx, [rbx + 0x1a]
+140024460  488d8f48050000       lea rcx, [rdi + 0x548]
+140024467  e864590100           call 0x140039dd0
+14002446c  483bc3               cmp rax, rbx
+14002446f  7503                 jne 0x140024474
+140024471  885f03               mov byte ptr [rdi + 3], bl
+140024474  488b742438           mov rsi, qword ptr [rsp + 0x38]
+140024479  488bc3               mov rax, rbx
+14002447c  488b5c2440           mov rbx, qword ptr [rsp + 0x40]
+140024481  4883c420             add rsp, 0x20
+140024485  5f                   pop rdi
+140024486  c3                   ret 
+140024487  cc                   int3 
+140024488  cc                   int3 
+140024489  cc                   int3 
+14002448a  cc                   int3 
+14002448b  cc                   int3 
+14002448c  cc                   int3 
+14002448d  cc                   int3 
+14002448e  cc                   int3 
+14002448f  cc                   int3 
+140024490  e99b680000           jmp 0x14002ad30
+140024495  cc                   int3 
+140024496  cc                   int3 
+140024497  cc                   int3 
+140024498  cc                   int3 
+140024499  cc                   int3 
+14002449a  cc                   int3 
+14002449b  cc                   int3 
+14002449c  cc                   int3 
+14002449d  cc                   int3 
+14002449e  cc                   int3 
+14002449f  cc                   int3 
+1400244a0  e96b790500           jmp 0x14007be10
+1400244a5  cc                   int3 
+1400244a6  cc                   int3 
+1400244a7  cc                   int3 
+1400244a8  cc                   int3 
+1400244a9  cc                   int3 
+1400244aa  cc                   int3 
+1400244ab  cc                   int3 
+1400244ac  cc                   int3 
+1400244ad  cc                   int3 
+1400244ae  cc                   int3 
+1400244af  cc                   int3 
+1400244b0  e94b7d0500           jmp 0x14007c200
+1400244b5  cc                   int3 
+1400244b6  cc                   int3 
+1400244b7  cc                   int3 
+1400244b8  cc                   int3 
+1400244b9  cc                   int3 
+1400244ba  cc                   int3 
+1400244bb  cc                   int3 
+1400244bc  cc                   int3 
+1400244bd  cc                   int3 
+1400244be  cc                   int3 
+1400244bf  cc                   int3 
+1400244c0  e94b970500           jmp 0x14007dc10
+1400244c5  cc                   int3 
+1400244c6  cc                   int3 
+1400244c7  cc                   int3 
+1400244c8  cc                   int3 
+1400244c9  cc                   int3 
+1400244ca  cc                   int3 
+1400244cb  cc                   int3 
+1400244cc  cc                   int3 
+1400244cd  cc                   int3 
+1400244ce  cc                   int3 
+1400244cf  cc                   int3 
+1400244d0  4053                 push rbx
+1400244d2  4883ec20             sub rsp, 0x20
+1400244d6  488bd9               mov rbx, rcx
+1400244d9  4885c9               test rcx, rcx
+1400244dc  0f84fe000000         je 0x1400245e0
+1400244e2  4883fa10             cmp rdx, 0x10
+1400244e6  0f85f4000000         jne 0x1400245e0
+1400244ec  488b05d52d0600       mov rax, qword ptr [rip + 0x62dd5]
+1400244f3  488b08               mov rcx, qword ptr [rax]
+1400244f6  483bd9               cmp rbx, rcx
+1400244f9  0f83e1000000         jae 0x1400245e0
+1400244ff  488d4310             lea rax, [rbx + 0x10]
+140024503  483bc1               cmp rax, rcx
+140024506  0f83d4000000         jae 0x1400245e0
+14002450c  448d42f4             lea r8d, [rdx - 0xc]
+140024510  488bcb               mov rcx, rbx
+140024513  ff156f2d0600         call qword ptr [rip + 0x62d6f]
+140024519  488b05b82d0600       mov rax, qword ptr [rip + 0x62db8]
+140024520  488b4b08             mov rcx, qword ptr [rbx + 8]
+140024524  483b08               cmp rcx, qword ptr [rax]
+140024527  0f86b3000000         jbe 0x1400245e0
+14002452d  8b03                 mov eax, dword ptr [rbx]
+14002452f  83f806               cmp eax, 6
+140024532  7e55                 jle 0x140024589
+140024534  83f807               cmp eax, 7
+140024537  750a                 jne 0x140024543
+140024539  4883c420             add rsp, 0x20
+14002453d  5b                   pop rbx
+14002453e  e99d570000           jmp 0x140029ce0

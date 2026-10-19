@@ -1,0 +1,27 @@
+14001c530  2410                 and al, 0x10
+14001c532  4889742418           mov qword ptr [rsp + 0x18], rsi
+14001c537  57                   push rdi
+14001c538  4883ec30             sub rsp, 0x30
+14001c53c  488be9               mov rbp, rcx
+14001c53f  b914090000           mov ecx, 0x914
+14001c544  498bd9               mov rbx, r9
+14001c547  498bf8               mov rdi, r8
+14001c54a  8bf2                 mov esi, edx
+14001c54c  e8abd90000           call 0x140029efc
+14001c551  3d00280000           cmp eax, 0x2800
+14001c556  8b442460             mov eax, dword ptr [rsp + 0x60]
+14001c55a  4c8bcb               mov r9, rbx
+14001c55d  4c8bc7               mov r8, rdi
+14001c560  8bd6                 mov edx, esi
+14001c562  488bcd               mov rcx, rbp
+14001c565  89442420             mov dword ptr [rsp + 0x20], eax
+14001c569  7307                 jae 0x14001c572
+14001c56b  e81c000000           call 0x14001c58c
+14001c570  eb05                 jmp 0x14001c577
+14001c572  e8b5010000           call 0x14001c72c
+14001c577  488b5c2440           mov rbx, qword ptr [rsp + 0x40]
+14001c57c  488b6c2448           mov rbp, qword ptr [rsp + 0x48]
+14001c581  488b742450           mov rsi, qword ptr [rsp + 0x50]
+14001c586  4883c430             add rsp, 0x30
+14001c58a  5f                   pop rdi
+14001c58b  c3                   ret 

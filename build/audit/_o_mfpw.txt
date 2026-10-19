@@ -1,0 +1,121 @@
+140014d08  48895c2408           mov qword ptr [rsp + 8], rbx
+140014d0d  48896c2410           mov qword ptr [rsp + 0x10], rbp
+140014d12  4889742418           mov qword ptr [rsp + 0x18], rsi
+140014d17  57                   push rdi
+140014d18  4154                 push r12
+140014d1a  4155                 push r13
+140014d1c  4156                 push r14
+140014d1e  4157                 push r15
+140014d20  4881ecc0010000       sub rsp, 0x1c0
+140014d27  488b055af30800       mov rax, qword ptr [rip + 0x8f35a]
+140014d2e  4833c4               xor rax, rsp
+140014d31  48898424b0010000     mov qword ptr [rsp + 0x1b0], rax
+140014d39  b920000000           mov ecx, 0x20
+140014d3e  e8b9510100           call 0x140029efc
+140014d43  b921000000           mov ecx, 0x21
+140014d48  488be8               mov rbp, rax
+140014d4b  e8ac510100           call 0x140029efc
+140014d50  b903000000           mov ecx, 3
+140014d55  488bf8               mov rdi, rax
+140014d58  e89f510100           call 0x140029efc
+140014d5d  4c8bf0               mov r14, rax
+140014d60  e8c3030000           call 0x140015128
+140014d65  b99f430000           mov ecx, 0x439f
+140014d6a  4863d8               movsxd rbx, eax
+140014d6d  e88a510100           call 0x140029efc
+140014d72  b9c5410000           mov ecx, 0x41c5
+140014d77  4c8be0               mov r12, rax
+140014d7a  e87d510100           call 0x140029efc
+140014d7f  4c8bf8               mov r15, rax
+140014d82  4885ed               test rbp, rbp
+140014d85  0f84f8000000         je 0x140014e83
+140014d8b  85ff                 test edi, edi
+140014d8d  0f84f0000000         je 0x140014e83
+140014d93  4d85f6               test r14, r14
+140014d96  0f84e7000000         je 0x140014e83
+140014d9c  85db                 test ebx, ebx
+140014d9e  0f8edf000000         jle 0x140014e83
+140014da4  3bdf                 cmp ebx, edi
+140014da6  0f83d7000000         jae 0x140014e83
+140014dac  4585e4               test r12d, r12d
+140014daf  0f84ce000000         je 0x140014e83
+140014db5  85c0                 test eax, eax
+140014db7  0f84c6000000         je 0x140014e83
+140014dbd  4863453c             movsxd rax, dword ptr [rbp + 0x3c]
+140014dc1  488d0c2b             lea rcx, [rbx + rbp]
+140014dc5  8bd5                 mov edx, ebp
+140014dc7  4c8b6c2830           mov r13, qword ptr [rax + rbp + 0x30]
+140014dcc  488d442440           lea rax, [rsp + 0x40]
+140014dd1  4533c9               xor r9d, r9d
+140014dd4  4889442438           mov qword ptr [rsp + 0x38], rax
+140014dd9  488364243000         and qword ptr [rsp + 0x30], 0
+140014ddf  488364242800         and qword ptr [rsp + 0x28], 0
+140014de5  834c2420ff           or dword ptr [rsp + 0x20], 0xffffffff
+140014dea  2bd1                 sub edx, ecx
+140014dec  458d4102             lea r8d, [r9 + 2]
+140014df0  03d7                 add edx, edi
+140014df2  e8ed590700           call 0x14008a7e4
+140014df7  33db                 xor ebx, ebx
+140014df9  33f6                 xor esi, esi
+140014dfb  488d942490000000     lea rdx, [rsp + 0x90]
+140014e03  488d4c2440           lea rcx, [rsp + 0x40]
+140014e08  e83f570700           call 0x14008a54c
+140014e0d  85c0                 test eax, eax
+140014e0f  7572                 jne 0x140014e83
+140014e11  8b842480010000       mov eax, dword ptr [rsp + 0x180]
+140014e18  488b4c2448           mov rcx, qword ptr [rsp + 0x48]
+140014e1d  ba58050000           mov edx, 0x558
+140014e22  4803c8               add rcx, rax
+140014e25  488b8424a8010000     mov rax, qword ptr [rsp + 0x1a8]
+140014e2d  48894c2448           mov qword ptr [rsp + 0x48], rcx
+140014e32  663b5006             cmp dx, word ptr [rax + 6]
+140014e36  757c                 jne 0x140014eb4
+140014e38  48f78424e000000000000004 test qword ptr [rsp + 0xe0], 0x4000000
+140014e44  746e                 je 0x140014eb4
+140014e46  8b8424c8000000       mov eax, dword ptr [rsp + 0xc8]
+140014e4d  85c0                 test eax, eax
+140014e4f  7463                 je 0x140014eb4
+140014e51  2bc5                 sub eax, ebp
+140014e53  03c1                 add eax, ecx
+140014e55  413bc4               cmp eax, r12d
+140014e58  7405                 je 0x140014e5f
+140014e5a  413bc7               cmp eax, r15d
+140014e5d  7574                 jne 0x140014ed3
+140014e5f  85db                 test ebx, ebx
+140014e61  7470                 je 0x140014ed3
+140014e63  3bdf                 cmp ebx, edi
+140014e65  736c                 jae 0x140014ed3
+140014e67  4a8d142b             lea rdx, [rbx + r13]
+140014e6b  b9a4010000           mov ecx, 0x1a4
+140014e70  e87f510100           call 0x140029ff4
+140014e75  4a8d1433             lea rdx, [rbx + r14]
+140014e79  b979010000           mov ecx, 0x179
+140014e7e  e871510100           call 0x140029ff4
+140014e83  488b8c24b0010000     mov rcx, qword ptr [rsp + 0x1b0]
+140014e8b  4833cc               xor rcx, rsp
+140014e8e  e81d7a0700           call 0x14008c8b0
+140014e93  4c8d9c24c0010000     lea r11, [rsp + 0x1c0]
+140014e9b  498b5b30             mov rbx, qword ptr [r11 + 0x30]
+140014e9f  498b6b38             mov rbp, qword ptr [r11 + 0x38]
+140014ea3  498b7340             mov rsi, qword ptr [r11 + 0x40]
+140014ea7  498be3               mov rsp, r11
+140014eaa  415f                 pop r15
+140014eac  415e                 pop r14
+140014eae  415d                 pop r13
+140014eb0  415c                 pop r12
+140014eb2  5f                   pop rdi
+140014eb3  c3                   ret 
+140014eb4  4881bc241801000000000400 cmp qword ptr [rsp + 0x118], 0x40000
+140014ec0  7511                 jne 0x140014ed3
+140014ec2  8b842408010000       mov eax, dword ptr [rsp + 0x108]
+140014ec9  85c0                 test eax, eax
+140014ecb  7406                 je 0x140014ed3
+140014ecd  8bd8                 mov ebx, eax
+140014ecf  2bdd                 sub ebx, ebp
+140014ed1  03d9                 add ebx, ecx
+140014ed3  ffc6                 inc esi
+140014ed5  81fe00010000         cmp esi, 0x100
+140014edb  73a6                 jae 0x140014e83
+140014edd  e919ffffff           jmp 0x140014dfb
+140014ee2  cc                   int3 
+140014ee3  cc                   int3 

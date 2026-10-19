@@ -1,0 +1,63 @@
+desktop-8a4porf\xuq
+BUILTIN\Administrators                 别名   S-1-5-32-544 只用于拒绝的组                
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenSCManager 失败 5:
+
+拒绝访问。
+
+[SC] StartService: OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] EnumQueryServicesStatus:OpenService 失败 1060:
+
+指定的服务未安装。
+
+BATCH_DONE 
