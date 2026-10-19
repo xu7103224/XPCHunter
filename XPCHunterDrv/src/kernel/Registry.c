@@ -502,7 +502,7 @@ __int64 GetDeleteValueKeyCtx(_QWORD *pContext)
     __int64 Offset;
     CurrentFiber = (char *)j_GetCurrentFiber();
     *pContext = 0;
-    Offset = GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField130 | 0x100));
+    Offset = GtRead((GLOBAL_TABLE_INDEX)0x18C);   /* 原 0x14001DB16 ecx=0x18c；宏别名会错成 0x182 */
     if ((_DWORD)Offset && CurrentFiber) *pContext = (_QWORD)&CurrentFiber[(unsigned int)Offset];
     return Offset;
 }
@@ -519,7 +519,7 @@ __int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult)
     *pContext = 0;
     *pResult = 0;
     FiberBaseCopy = FiberBase;
-    ContextOffset = GtRead((enum _GLOBAL_TABLE_INDEX)(GtEprocessField129 | 0x100));
+    ContextOffset = GtRead((enum _GLOBAL_TABLE_INDEX)0x18B);  /* 原 0x14001DEC6 ecx=0x18b；宏别名会错成 0x181 */
     if ((_DWORD)ContextOffset && FiberBaseCopy)
         *pContext = (_QWORD)&FiberBaseCopy[(unsigned int)ContextOffset];
     return ContextOffset;
