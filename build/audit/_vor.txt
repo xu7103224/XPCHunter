@@ -1,0 +1,23 @@
+14001c370  d0e8                 shr al, 1
+14001c372  7ad5                 jp 0x14001c349
+14001c374  0500b91d08           add eax, 0x81db900
+14001c379  0000                 add byte ptr [rax], al
+14001c37b  0fb6d0               movzx edx, al
+14001c37e  e871dc0000           call 0x140029ff4
+14001c383  ff15ef0c0700         call qword ptr [rip + 0x70cef]
+14001c389  4885c0               test rax, rax
+14001c38c  7416                 je 0x14001c3a4
+14001c38e  488d48d0             lea rcx, [rax - 0x30]
+14001c392  e859d50500           call 0x1400798f0
+14001c397  b91b080000           mov ecx, 0x81b
+14001c39c  0fb6d0               movzx edx, al
+14001c39f  e850dc0000           call 0x140029ff4
+14001c3a4  65488b0c2588010000   mov rcx, qword ptr gs:[0x188]
+14001c3ad  4885c9               test rcx, rcx
+14001c3b0  7416                 je 0x14001c3c8
+14001c3b2  4883c1d0             add rcx, -0x30
+14001c3b6  e835d50500           call 0x1400798f0
+14001c3bb  b91c080000           mov ecx, 0x81c
+14001c3c0  0fb6d0               movzx edx, al
+14001c3c3  e82cdc0000           call 0x140029ff4
+14001c3c8  488b5c2430           mov rbx, qword ptr [rsp + 0x30]

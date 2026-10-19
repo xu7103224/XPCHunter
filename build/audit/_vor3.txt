@@ -1,0 +1,17 @@
+14001c320  2468                 and al, 0x68
+14001c322  4883c440             add rsp, 0x40
+14001c326  415f                 pop r15
+14001c328  c3                   ret 
+14001c329  cc                   int3 
+14001c32a  cc                   int3 
+14001c32b  cc                   int3 
+14001c32c  48895c2408           mov qword ptr [rsp + 8], rbx
+14001c331  57                   push rdi
+14001c332  4883ec20             sub rsp, 0x20
+14001c336  488bf9               mov rdi, rcx
+14001c339  b914090000           mov ecx, 0x914
+14001c33e  488bda               mov rbx, rdx
+14001c341  e8b6db0000           call 0x140029efc
+14001c346  3db01d0000           cmp eax, 0x1db0
+14001c34b  727b                 jb 0x14001c3c8
+14001c34d  4885ff               test rdi, rdi

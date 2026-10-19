@@ -1,0 +1,16 @@
+14001c34d  4885ff               test rdi, rdi
+14001c350  7416                 je 0x14001c368
+14001c352  488d4fd0             lea rcx, [rdi - 0x30]
+14001c356  e895d50500           call 0x1400798f0
+14001c35b  b91e080000           mov ecx, 0x81e
+14001c360  0fb6d0               movzx edx, al
+14001c363  e88cdc0000           call 0x140029ff4
+14001c368  4885db               test rbx, rbx
+14001c36b  7416                 je 0x14001c383
+14001c36d  488d4bd0             lea rcx, [rbx - 0x30]
+14001c371  e87ad50500           call 0x1400798f0
+14001c376  b91d080000           mov ecx, 0x81d
+14001c37b  0fb6d0               movzx edx, al
+14001c37e  e871dc0000           call 0x140029ff4
+14001c383  ff15ef0c0700         call qword ptr [rip + 0x70cef]
+14001c389  4885c0               test rax, rax

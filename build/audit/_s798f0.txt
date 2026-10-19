@@ -1,0 +1,42 @@
+1400798f0  488bd1               mov rdx, rcx
+1400798f3  e9bcffffff           jmp 0x1400798b4
+1400798f8  48895c2408           mov qword ptr [rsp + 8], rbx
+1400798fd  4889742410           mov qword ptr [rsp + 0x10], rsi
+140079902  57                   push rdi
+140079903  4883ec20             sub rsp, 0x20
+140079907  488bd9               mov rbx, rcx
+14007990a  b956030000           mov ecx, 0x356
+14007990f  33ff                 xor edi, edi
+140079911  e8e605fbff           call 0x140029efc
+140079916  488bf0               mov rsi, rax
+140079919  85c0                 test eax, eax
+14007991b  7426                 je 0x140079943
+14007991d  4885db               test rbx, rbx
+140079920  7421                 je 0x140079943
+140079922  488bcb               mov rcx, rbx
+140079925  ff1565370100         call qword ptr [rip + 0x13765]
+14007992b  3c01                 cmp al, 1
+14007992d  7514                 jne 0x140079943
+14007992f  8bce                 mov ecx, esi
+140079931  4803d9               add rbx, rcx
+140079934  488bcb               mov rcx, rbx
+140079937  ff1553370100         call qword ptr [rip + 0x13753]
+14007993d  3c01                 cmp al, 1
+14007993f  480f44fb             cmove rdi, rbx
+140079943  488b5c2430           mov rbx, qword ptr [rsp + 0x30]
+140079948  488b742438           mov rsi, qword ptr [rsp + 0x38]
+14007994d  488bc7               mov rax, rdi
+140079950  4883c420             add rsp, 0x20
+140079954  5f                   pop rdi
+140079955  c3                   ret 
+140079956  cc                   int3 
+140079957  cc                   int3 
+140079958  48895c2408           mov qword ptr [rsp + 8], rbx
+14007995d  4889542410           mov qword ptr [rsp + 0x10], rdx
+140079962  55                   push rbp
+140079963  56                   push rsi
+140079964  57                   push rdi
+140079965  4154                 push r12
+140079967  4155                 push r13
+140079969  4156                 push r14
+14007996b  4157                 push r15

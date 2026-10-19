@@ -701,14 +701,22 @@ Cleanup:
 }
 
 // CheckObjectTypeFlag — 检查对象类型标志位
-// 对应原始驱动 sub_1400798B4
+// 对应原始驱动 sub_1400798B4（32 字节，逐条对照）：
+//     0x1400798C1  GtRead(0x914) 取 build
+//     0x1400798CE  cmp eax, 0x2800
+//     0x1400798D5  build <  0x2800 → bl = [rdi+0x18]
+//     0x1400798DA  build >= 0x2800 → rbx >>= 8；bl ^= [rdi+0x18]
+//     0x1400798E1  al = bl
+//   其中 rdx 是**第 2 参数**。sub_1400798F0（wrapper）把入参原样同时放进
+//   rcx 与 rdx（`mov rdx,rcx; jmp`），所以 rdx == ObjectHeader。
+// 【修正 2026-10-19】旧实现把异或项写成恒 0 的 `ZeroMask`，
+//   等价于丢了 `(ObjectHeader >> 8)` 这一项 → GT[0x81B..0x81E] 全错
+//   （实测 0xBF/0x52/0x3E/0xA7，原始 0xC/0x3/0x2A/0x29）。
 char CheckObjectTypeFlag(__int64 ObjectHeader)
 {
-    char ZeroMask = 0;
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x2800)
-        return *(char *)(ObjectHeader + 24) ^ ZeroMask;
-    else
-        return *(char *)(ObjectHeader + 24);
+        return (char)((unsigned char)((ULONG64)ObjectHeader >> 8) ^ *(unsigned char *)(ObjectHeader + 0x18));
+    return *(char *)(ObjectHeader + 0x18);
 }
 
 // CheckObjectTypeFlagWrapper — 检查对象类型标志包装

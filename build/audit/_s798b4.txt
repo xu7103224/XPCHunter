@@ -1,0 +1,21 @@
+1400798b4  48895c2408           mov qword ptr [rsp + 8], rbx
+1400798b9  57                   push rdi
+1400798ba  4883ec20             sub rsp, 0x20
+1400798be  488bf9               mov rdi, rcx
+1400798c1  b914090000           mov ecx, 0x914
+1400798c6  488bda               mov rbx, rdx
+1400798c9  e82e06fbff           call 0x140029efc
+1400798ce  3d00280000           cmp eax, 0x2800
+1400798d3  7305                 jae 0x1400798da
+1400798d5  8a5f18               mov bl, byte ptr [rdi + 0x18]
+1400798d8  eb07                 jmp 0x1400798e1
+1400798da  48c1eb08             shr rbx, 8
+1400798de  325f18               xor bl, byte ptr [rdi + 0x18]
+1400798e1  8ac3                 mov al, bl
+1400798e3  488b5c2430           mov rbx, qword ptr [rsp + 0x30]
+1400798e8  4883c420             add rsp, 0x20
+1400798ec  5f                   pop rdi
+1400798ed  c3                   ret 
+1400798ee  cc                   int3 
+1400798ef  cc                   int3 
+1400798f0  488bd1               mov rdx, rcx
