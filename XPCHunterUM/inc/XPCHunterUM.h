@@ -125,6 +125,45 @@ BOOL XpchInvoke(PXPCH_CLIENT Client,
 /* 握手：只发 0x24，读回构建号验证整条链路 */
 BOOL XpchHandshake(PXPCH_CLIENT Client);
 
+/* ============================================================================
+ * 进程列表（Process 页数据层）—— 见 src/ProcessList.c
+ *
+ *   0xE4 CmdEnumProcessListWin10：无入参，输出 N 个 0x298 字节条目
+ *        （+0x00 EPROCESS、+0x108 PID、+0x290 是否有后继）
+ *   0x2A CmdEnumThreads：名字是枚举线程，实际实现是进程映像路径查询
+ *        （入 8 字节 PID，出 WCHAR[260] 路径）
+ * ========================================================================== */
+#define XPCH_CMD_ENUM_PROCESS_WIN10   0xE4u
+#define XPCH_CMD_QUERY_PROCESS_PATH   0x2Au   /* 同 XPCH_CMD_ENUM_THREADS，实现是路径查询 */
+
+#define FE_PROC_ENTRY_SIZE   0x298u
+#define FE_PROC_PID_OFFSET   0x108u
+#define FE_PROC_NEXT_OFFSET  0x290u
+#define FE_PROC_NAME_OFFSET  0x08u   /* 驱动兜底枚举写入的 ImageFileName（16 字节 ANSI） */
+#define FE_PROC_PATH_BYTES   520u
+#define FE_PROC_PATH_CHARS   260u
+#define FE_PROC_DEFAULT_MAX  512u
+#define FE_PROC_HARD_MAX     1024u
+
+typedef struct _FE_PROCESS {
+    ULONG64 Eprocess;
+    ULONG   Pid;
+    char    Name[16];                     /* 条目 +0x08 = EPROCESS.ImageFileName */
+    WCHAR   Path[FE_PROC_PATH_CHARS];     /* 0x2A 查询到的完整路径（暂未启用） */
+} FE_PROCESS;
+
+typedef struct _FE_PROCESS_LIST {
+    ULONG       Count;
+    ULONG       Capacity;
+    FE_PROCESS *Items;
+} FE_PROCESS_LIST;
+
+BOOL FeLoadProcessList(XPCH_CLIENT *Client, ULONG MaxCount, FE_PROCESS_LIST *List);
+void FeFreeProcessList(FE_PROCESS_LIST *List);
+BOOL FeLoadProcessPath(XPCH_CLIENT *Client, ULONG Pid, WCHAR *Path, ULONG PathChars);
+void FeWideToAnsi(const WCHAR *Wide, char *Ansi, size_t AnsiChars);
+BOOL FePrintProcessList(XPCH_CLIENT *Client);
+
 #ifdef __cplusplus
 }
 #endif

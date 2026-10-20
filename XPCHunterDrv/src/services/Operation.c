@@ -5158,6 +5158,20 @@ __int64 EnumProcessListWin8Operation(char *pInputBuffer, int InputSize, unsigned
  * ============================================================================ */
 #define PROC_ENTRY_SIZE 0x298
 
+/* EPROCESS.ActiveProcessLinks 的字节偏移（只用于下面的兜底枚举）。
+   Win10 各分支不同，这里只列已确认的几档；返回 0 表示不启用兜底，
+   仍按原始语义用 GT[0x36C] 链表 + 版本布局表里的 LinkOffset 走。 */
+static ULONG ProcActiveLinksOffset(void)
+{
+    ULONG Build = (ULONG)GtRead(GtWindowsBuildNumber);
+
+    if (Build >= 0x4539 && Build < 0x47BA)   /* 17763 = 1809      */
+        return 0x2E8;
+    if (Build >= 0x47BA && Build <= 0x4A65)  /* 18362..19045      */
+        return 0x2F0;
+    return 0;
+}
+
 /* ==== 由 E:/Work/tmp/gen_proc.py 从原始驱动 CmdEnumProcessListWin10(0x14005E354)
    的反汇编生成，勿手工编辑。每项：EPROCESS 偏移 -> 输出条目偏移 ==== */
 typedef struct _PROC_FIELD_MAP { unsigned int Src; unsigned int Dst; } PROC_FIELD_MAP;
@@ -5396,6 +5410,10 @@ __int64 EnumProcessListWin10Operation(char *pInputBuffer, int InputSize, unsigne
     unsigned int Version;
     _QWORD **ProcessListHead;
     _QWORD *Eprocess;
+    PVOID ListHead;
+    ULONG64 NtBase;
+    ULONG64 NtSize;
+    ULONG LinksOffset;
     const PROC_LAYOUT *pLayout;
     char *OutputPtr;
     char *PrevEntry;
@@ -5440,8 +5458,53 @@ __int64 EnumProcessListWin10Operation(char *pInputBuffer, int InputSize, unsigne
     if (Version <= 0x50000)                              /* 0x14005e42b */
         return 0;
 
-    Eprocess = (_QWORD *)*ProcessListHead;               /* 0x14005e43d：head->Flink */
+    /* 【兼容性兜底 2026-10-21】GT[0x36C] 在本移植里解析到了 ndis.sys 的数据段
+       （实测 = ndis 基址 + 0xE6648），沿它的 +LinkOffset 走出来的"EPROCESS"不是活对象：
+       kd 里 `dt nt!_EPROCESS` 显示 ImageFileName 为空、ActiveThreads=0、
+       UniqueProcessId 是内核指针。根因在 ParseNtKernelDataSections 的地址计算（待修）。
+       原始驱动枚举的也并非 EPROCESS（字段偏移到 0xFE8、链表在 0xF08，结构 >0x1000 字节），
+       所以这里给前端一条**内核自身可靠**的枚举路径：
+           从 PsGetCurrentProcess() 出发，沿 EPROCESS.ActiveProcessLinks 环形遍历，
+           下一个 EPROCESS = Flink - LinksOffset。
+       输出格式与原始完全一致（664 字节条目、同一套字段映射、+0x290 后继标记），
+       前端不受影响。LinksOffset 未知的版本仍走原始 GT[0x36C] 路径。 */
+    LinksOffset = ProcActiveLinksOffset();
     pLayout = SelectProcLayout(Version);
+    ListHead = NULL;
+    NtBase = 0;
+    NtSize = 0;
+    if (LinksOffset)
+    {
+        /* 先定位 PsActiveProcessHead：从当前进程的 ActiveProcessLinks 节点向前走，
+           第一个落在 ntoskrnl 模块区间内的节点就是链表头（它是 ntoskrnl 的全局变量）。
+           注意新创建的进程通常挂在表尾，它的 Flink 直接就是表头 —— 所以必须
+           再从 head->Flink 起步走完整一圈，否则只能拿到"当前进程之后"的那几个。 */
+        PUCHAR Node = (PUCHAR)IoGetCurrentProcess() + LinksOffset;
+        PUCHAR StartNode = Node;
+        ULONG Guard = 0;
+
+        NtBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+        NtSize = (ULONG64)GtRead(GtNtoskrnlImageSize);
+
+        do {
+            PUCHAR Next = *(PUCHAR *)Node;
+
+            if (NtBase && (ULONG64)Next >= NtBase
+                && (!NtSize || (ULONG64)Next < NtBase + NtSize))
+            {
+                ListHead = Next;
+                break;
+            }
+            Node = Next;
+        } while (Node != StartNode && ++Guard < 0x1000);
+
+        Eprocess = ListHead ? (_QWORD *)(*(PUCHAR *)ListHead - LinksOffset)
+                            : (_QWORD *)IoGetCurrentProcess();
+    }
+    else
+    {
+        Eprocess = (_QWORD *)*ProcessListHead;           /* 0x14005e43d：head->Flink */
+    }
 
     PrevEntry = NULL;
     ProcessIndex = 0;
@@ -5458,14 +5521,42 @@ __int64 EnumProcessListWin10Operation(char *pInputBuffer, int InputSize, unsigne
         *(ULONG64 *)OutputPtr = (ULONG64)Eprocess;       /* 条目 +0x00 = EPROCESS 指针 */
         for (FieldIndex = 0; FieldIndex < pLayout->FieldCount; ++FieldIndex)
         {
+            ULONG Src = pLayout->pFields[FieldIndex].Src;
+
+            /* 兜底枚举时源是真正的 EPROCESS（18362 约 0xA80 字节），而布局表里有几个
+               字段的 Src 一直到 0xFE8（那是原始驱动枚举的私有结构，>0x1000 字节），
+               照抄就越界读 → 实测 BSOD 0x3B。跳过这些越界字段。 */
+            if (LinksOffset && Src + sizeof(ULONG64) > 0xA80)
+                continue;
             *(ULONG64 *)(OutputPtr + pLayout->pFields[FieldIndex].Dst) =
-                *(ULONG64 *)((PUCHAR)Eprocess + pLayout->pFields[FieldIndex].Src);
+                *(ULONG64 *)((PUCHAR)Eprocess + Src);
+        }
+
+        if (LinksOffset)
+        {
+            /* 前端需要的进程名：EPROCESS.ImageFileName（+0x450，15 字节内联，不跨页），
+               写到条目的空闲槽 +0x08（布局表的 Dst 从 0x50 起，0x08..0x2F 未被使用）。
+               这样不必 attach、不必走指针链（0x2A 的路径查询在本移植里因
+               GT[GtEprocessField33] 未正确初始化而会崩）。 */
+            RtlCopyMemory(OutputPtr + 0x08, (PUCHAR)Eprocess + 0x450, 15);
+            OutputPtr[0x08 + 15] = 0;
         }
 
         Result = 1;
         PrevEntry = OutputPtr;
         RemainingSize -= PROC_ENTRY_SIZE;
         OutputPtr = (char *)pOutputBuffer + (OutputSize - RemainingSize);
+        if (LinksOffset)
+        {
+            PUCHAR NextLink = *(PUCHAR *)((PUCHAR)Eprocess + LinksOffset);
+
+            if (ListHead && (PUCHAR)NextLink == (PUCHAR)ListHead)
+                break;                                   /* 一圈走完，回到表头 */
+
+            Eprocess = (_QWORD *)(NextLink - LinksOffset);
+            ++ProcessIndex;
+            continue;
+        }
         Eprocess = *(_QWORD *)((PUCHAR)Eprocess + pLayout->LinkOffset);
         ++ProcessIndex;
     }
