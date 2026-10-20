@@ -346,14 +346,18 @@ BOOL XpchInvoke(PXPCH_CLIENT Client,
     return Returned != 0;
 }
 
+/* Minimal handshake: only command 0x24 (CmdGetModuleCount).
+ *
+ * Command 0x22 (CmdQueryProcessInfo) is deliberately NOT sent here. Its
+ * handler dispatches on BufferSize (<= 0xA goes to CheckSsdtHookIntegrity,
+ * otherwise QuerySsdHookByProcessInfo); with the null/zero arguments a
+ * handshake would pass it enters a heavy path that has hung the guest
+ * (observed: vmrun timeout 143, kd unreachable). 0x24 only validates the
+ * output buffer and returns the build number, so it is the safest probe of
+ * the whole pipeline: decrypt -> magic -> MD5 -> dispatch -> handler. */
 BOOL XpchHandshake(PXPCH_CLIENT Client)
 {
     ULONG Build = 0;
-
-    (void)XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO, NULL, 0, NULL, 0, NULL);
-
-    if (!XpchInvoke(Client, XPCH_CMD_RESET_PROCESS_CONTEXT, NULL, 0, NULL, 0, NULL))
-        return FALSE;
 
     if (XpchInvoke(Client, XPCH_CMD_GET_MODULE_COUNT, &Build, sizeof(Build), NULL, 0, NULL))
         return Build != 0;

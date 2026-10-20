@@ -7,13 +7,9 @@ BEGIN
 
 指定的服务未安装。
 
-[SC] OpenService 失败 1060:
+[SC] ControlService 失败 1062:
 
-指定的服务未安装。
-
-[SC] OpenService 失败 1060:
-
-指定的服务未安装。
+服务尚未启动。
 
 [SC] OpenService 失败 1060:
 
@@ -23,6 +19,7 @@ BEGIN
 
 指定的服务未安装。
 
+[SC] DeleteService 成功
 [SC] CreateService 成功
 CREATE_EXIT=0 
 
