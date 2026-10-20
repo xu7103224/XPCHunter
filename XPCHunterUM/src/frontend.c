@@ -866,7 +866,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
                 FeFreeProcessList(&list);
             }
             printf("kill pid %lu ep=%p -> %s\n", kpid, (void *)(ULONG_PTR)kep,
-                   FeKillProcess(&g_Client, kpid, kep, FALSE) ? "OK" : "FAILED");
+                   FeKillProcess(&g_Client, kpid, kep, TRUE) ? "OK" : "FAILED");
+            /* 0xA2 CmdTerminateProcessByEProcess；0x28 只是清保护标志，不是终止 */
             XpchClose(&g_Client);
         } else {
             printf("open device failed\n");
