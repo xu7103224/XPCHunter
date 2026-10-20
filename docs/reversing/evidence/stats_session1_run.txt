@@ -1,0 +1,21 @@
+probe start
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 24 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  stats dump 0x13A -> OK, result=1
+    0x22 count=2      lastResult=1 lastPid=4504
+    0x13A count=1      lastResult=1 lastPid=2132
+    0xFFFE count=2      lastResult=0 lastPid=4504
+    3 command(s) invoked since load
+
+=== done (stats) ===
