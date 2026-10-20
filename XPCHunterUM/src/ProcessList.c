@@ -158,17 +158,12 @@ BOOL FePrintProcessList(XPCH_CLIENT *Client)
 
     printf("processes: %lu\n", list.Count);
     for (i = 0; i < list.Count; i++) {
-        char path[FE_PROC_PATH_CHARS * 2];
-
-        /* 短名来自条目 +0x08（驱动从 EPROCESS.ImageFileName 拷来）；
-           完整路径用 0x2A 逐个查询（入 8 字节 PID，出 WCHAR[260]）。 */
-        if (!FeLoadProcessPath(Client, list.Items[i].Pid,
-                               list.Items[i].Path, FE_PROC_PATH_CHARS))
-            list.Items[i].Path[0] = 0;
-        FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
-        printf("  pid=%-6lu eprocess=%p name=%-16s path=%s\n",
+        /* 短名来自条目 +0x08（驱动从 EPROCESS.ImageFileName 拷来）。
+           完整路径（0x2A）暂不调用：实机逐进程查询会让 guest 挂死（待修），
+           因此这里只输出短名。 */
+        printf("  pid=%-6lu eprocess=%p name=%s\n",
                list.Items[i].Pid, (void *)(ULONG_PTR)list.Items[i].Eprocess,
-               list.Items[i].Name[0] ? list.Items[i].Name : "(?)", path);
+               list.Items[i].Name[0] ? list.Items[i].Name : "(?)");
     }
 
     FeFreeProcessList(&list);

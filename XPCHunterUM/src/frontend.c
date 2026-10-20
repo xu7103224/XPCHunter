@@ -292,7 +292,7 @@ static void CreateListColumns(HWND h)
     static const int widths[] = { 60, 220, 70, 320 };
     int i;
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < 3; i++) {
         ZeroMemory(&col, sizeof(col));
         col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
         col.iSubItem = i;
@@ -310,8 +310,8 @@ static void CreateListColumns(HWND h)
    尚未在本移植里正确初始化（实测会 BSOD），因此暂不提供 Path 列。 */
 static void CreateProcColumns(HWND h)
 {
-    static const char *titles[] = { "PID", "Name", "Path", "EPROCESS" };
-    static const int widths[] = { 60, 150, 380, 160 };
+    static const char *titles[] = { "PID", "Name", "EPROCESS" };
+    static const int widths[] = { 70, 200, 180 };
     LVCOLUMNA col;
     int i;
 
@@ -360,22 +360,13 @@ static void DoRefreshProcs(void)
         item.pszText = list.Items[i].Name[0] ? list.Items[i].Name : (LPSTR)"(?)";
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
 
-        /* 完整映像路径：0x2A 逐个查询（驱动已按构建号校正 Peb 偏移） */
-        if (!FeLoadProcessPath(&g_Client, list.Items[i].Pid,
-                               list.Items[i].Path, FE_PROC_PATH_CHARS))
-            list.Items[i].Path[0] = 0;
-        {
-            char path[FE_PROC_PATH_CHARS * 2];
-            FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
-            ZeroMemory(&item, sizeof(item));
-            item.iSubItem = 2;
-            item.pszText = path;
-            SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
-        }
-
+        /* 完整映像路径（0x2A）暂不启用：实机逐进程调用会把 guest 挂死
+           （kd 摘掉后 5 分钟无响应、也不自动重启）——GetProcessImagePathByAttach
+           的 KeStackAttachProcess 路径与驱动的串行化派发之间存在死锁，
+           待定位后再加 Path 列。 */
         sprintf_s(buf, sizeof(buf), "%p", (void *)(ULONG_PTR)list.Items[i].Eprocess);
         ZeroMemory(&item, sizeof(item));
-        item.iSubItem = 3;
+        item.iSubItem = 2;
         item.pszText = buf;
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
     }
