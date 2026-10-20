@@ -22,7 +22,8 @@
 #include "XPCHunterUM.h"
 #include <stdio.h>
 #include <psapi.h>
-#include <tlhelp32.h>   /* CreateToolhelp32Snapshot / Thread32First */   /* EnumProcessModulesEx / GetModuleInformation / GetModuleFileNameExW */
+#include <tlhelp32.h>
+#include <winternl.h>   /* UNICODE_STRING */   /* CreateToolhelp32Snapshot / Thread32First */   /* EnumProcessModulesEx / GetModuleInformation / GetModuleFileNameExW */
 
 typedef struct _FE_ENUM_CTX {
     FE_WINDOW_LIST *List;
@@ -334,5 +335,210 @@ BOOL FePrintProcessThreads(ULONG Pid)
                list.Items[i].PriorityDelta, (void *)(ULONG_PTR)list.Items[i].StartAddress);
     }
     FeFreeProcessThreads(&list);
+    return TRUE;
+}
+
+// ---------------------------------------------------------------------------
+// Handles 子视图：NtQuerySystemInformation(SystemExtendedHandleInformation)
+//                 + ObjectTypesInformation 取类型名（纯用户态）
+//
+// 不用 0x54/0x61：它们的输出布局还没逆向；而系统句柄表是公开信息，
+// 一次查询拿全系统句柄，再按 UniqueProcessId 过滤即可。
+// ---------------------------------------------------------------------------
+
+typedef LONG (NTAPI *PFN_NtQuerySystemInformation)(ULONG, PVOID, ULONG, PULONG);
+typedef LONG (NTAPI *PFN_NtQueryObject)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+
+typedef struct _FE_HANDLE_ENTRY_EX {
+    PVOID       Object;
+    ULONG_PTR   UniqueProcessId;
+    ULONG_PTR   HandleValue;
+    ULONG       GrantedAccess;
+    USHORT      CreatorBackTraceIndex;
+    USHORT      ObjectTypeIndex;
+    ULONG       HandleAttributes;
+    ULONG       Reserved;
+} FE_HANDLE_ENTRY_EX;
+
+typedef struct _FE_OBJ_TYPE_INFO {
+    UNICODE_STRING TypeName;
+    ULONG TotalNumberOfObjects;
+    ULONG TotalNumberOfHandles;
+    ULONG TotalPagedPoolUsage;
+    ULONG TotalNonPagedPoolUsage;
+    ULONG TotalNamePoolUsage;
+    ULONG TotalHandleTableUsage;
+    ULONG HighWaterNumberOfObjects;
+    ULONG HighWaterNumberOfHandles;
+    ULONG HighWaterPagedPoolUsage;
+    ULONG HighWaterNonPagedPoolUsage;
+    ULONG HighWaterNamePoolUsage;
+    ULONG HighWaterHandleTableUsage;
+    ULONG InvalidAttributes;
+    GENERIC_MAPPING GenericMapping;
+    ULONG ValidAccessMask;
+    BOOLEAN SecurityRequired;
+    BOOLEAN MaintainHandleCount;
+    UCHAR TypeIndex;
+    CHAR ReservedByte;
+    ULONG PoolType;
+    ULONG DefaultPagedPoolCharge;
+    ULONG DefaultNonPagedPoolCharge;
+} FE_OBJ_TYPE_INFO;
+
+static PFN_NtQuerySystemInformation FeNtQuerySystemInformation(void)
+{
+    HMODULE h = GetModuleHandleA("ntdll.dll");
+    return h ? (PFN_NtQuerySystemInformation)(void *)GetProcAddress(h, "NtQuerySystemInformation") : NULL;
+}
+
+/* 用 ObjectTypesInformation 建 TypeIndex -> 名字 的映射（最多 64 项）。 */
+static void FeLoadTypeNames(char names[][64], int maxNames)
+{
+    HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+    PFN_NtQueryObject pNtQo = hNtdll
+        ? (PFN_NtQueryObject)(void *)GetProcAddress(hNtdll, "NtQueryObject") : NULL;
+    ULONG size = 0x4000, ret = 0;
+    PVOID buf;
+    LONG st;
+
+    if (!pNtQo || maxNames <= 0)
+        return;
+    buf = HeapAlloc(GetProcessHeap(), 0, size);
+    if (!buf)
+        return;
+    st = pNtQo(NULL, 3 /* ObjectTypesInformation */, buf, size, &ret);
+    if (st == (LONG)0xC0000004 /* STATUS_INFO_LENGTH_MISMATCH */) {
+        HeapFree(GetProcessHeap(), 0, buf);
+        size = ret + 0x1000;
+        buf = HeapAlloc(GetProcessHeap(), 0, size);
+        if (!buf)
+            return;
+        st = pNtQo(NULL, 3, buf, size, &ret);
+    }
+    if (st >= 0) {
+        PUCHAR p = (PUCHAR)buf;
+        PUCHAR end = p + ret;
+        while (p + sizeof(FE_OBJ_TYPE_INFO) <= end) {
+            FE_OBJ_TYPE_INFO *ti = (FE_OBJ_TYPE_INFO *)p;
+            ULONG adv = (ULONG)(sizeof(FE_OBJ_TYPE_INFO) + ti->TypeName.MaximumLength);
+            adv = (adv + 7) & ~7u;
+            if (ti->TypeIndex < (UCHAR)maxNames && ti->TypeName.Buffer) {
+                ULONG n = ti->TypeName.Length / sizeof(WCHAR);
+                if (n > 60) n = 60;
+                if (n) {
+                    WideCharToMultiByte(CP_ACP, 0, ti->TypeName.Buffer, (int)n,
+                                        names[ti->TypeIndex], 64, NULL, NULL);
+                    names[ti->TypeIndex][n] = 0;
+                }
+            }
+            if (!adv) break;
+            p += adv;
+        }
+    }
+    HeapFree(GetProcessHeap(), 0, buf);
+}
+
+BOOL FeLoadProcessHandles(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List)
+{
+    PFN_NtQuerySystemInformation pNtQsi = FeNtQuerySystemInformation();
+    ULONG size = 0x100000, ret = 0;
+    PVOID buf;
+    LONG st;
+    ULONG_PTR count, i;
+    char typeNames[64][64];
+
+    if (!List || !pNtQsi)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+    if (!MaxCount)
+        MaxCount = 2048;
+
+    buf = HeapAlloc(GetProcessHeap(), 0, size);
+    if (!buf)
+        return FALSE;
+    for (;;) {
+        st = pNtQsi(64 /* SystemExtendedHandleInformation */, buf, size, &ret);
+        if (st == (LONG)0xC0000004 /* STATUS_INFO_LENGTH_MISMATCH */) {
+            HeapFree(GetProcessHeap(), 0, buf);
+            size = ret + 0x10000;
+            buf = HeapAlloc(GetProcessHeap(), 0, size);
+            if (!buf)
+                return FALSE;
+            continue;
+        }
+        break;
+    }
+    if (st < 0) {
+        HeapFree(GetProcessHeap(), 0, buf);
+        return FALSE;
+    }
+
+    ZeroMemory(typeNames, sizeof(typeNames));
+    FeLoadTypeNames(typeNames, 64);
+
+    List->Items = (FE_HANDLE_ENTRY *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                                               (SIZE_T)MaxCount * sizeof(FE_HANDLE_ENTRY));
+    if (!List->Items) {
+        HeapFree(GetProcessHeap(), 0, buf);
+        return FALSE;
+    }
+    List->Capacity = MaxCount;
+
+    count = *(ULONG_PTR *)buf;
+    {
+        const FE_HANDLE_ENTRY_EX *base = (const FE_HANDLE_ENTRY_EX *)((PUCHAR)buf + 2 * sizeof(ULONG_PTR));
+        for (i = 0; i < count && List->Count < List->Capacity; i++) {
+            const FE_HANDLE_ENTRY_EX *e = &base[i];
+            FE_HANDLE_ENTRY *out;
+
+            if ((ULONG)e->UniqueProcessId != Pid)
+                continue;
+            out = &List->Items[List->Count];
+            out->Handle = e->HandleValue;
+            out->Object = (ULONG64)(ULONG_PTR)e->Object;
+            out->TypeIndex = e->ObjectTypeIndex;
+            out->Access = e->GrantedAccess;
+            out->Attributes = e->HandleAttributes;
+            if (e->ObjectTypeIndex < 64 && typeNames[e->ObjectTypeIndex][0]) {
+                strncpy_s(out->TypeName, sizeof(out->TypeName),
+                          typeNames[e->ObjectTypeIndex], _TRUNCATE);
+            }
+            List->Count++;
+        }
+    }
+
+    HeapFree(GetProcessHeap(), 0, buf);
+    return TRUE;
+}
+
+void FeFreeProcessHandles(FE_HANDLE_LIST *List)
+{
+    if (!List)
+        return;
+    if (List->Items)
+        HeapFree(GetProcessHeap(), 0, List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FePrintProcessHandles(ULONG Pid)
+{
+    FE_HANDLE_LIST list;
+    ULONG i;
+
+    if (!FeLoadProcessHandles(Pid, 4096, &list)) {
+        printf("enum handles failed, GetLastError=%lu\n", GetLastError());
+        return FALSE;
+    }
+    printf("handles of pid %lu: %lu\n", Pid, list.Count);
+    for (i = 0; i < list.Count; i++) {
+        printf("  handle=0x%-6IX type=%-24s access=0x%-8lX object=%p\n",
+               list.Items[i].Handle,
+               list.Items[i].TypeName[0] ? list.Items[i].TypeName : "(?)",
+               list.Items[i].Access, (void *)(ULONG_PTR)list.Items[i].Object);
+    }
+    FeFreeProcessHandles(&list);
     return TRUE;
 }

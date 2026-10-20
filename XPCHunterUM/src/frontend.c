@@ -330,7 +330,7 @@ static void CreateProcColumns(HWND h)
 
 /* ---- 明细子视图（Modules / Threads / Windows）--------------------------- */
 
-static const char *g_TabNames[3] = { "Modules", "Threads", "Windows" };
+static const char *g_TabNames[4] = { "Modules", "Threads", "Windows", "Handles" };
 
 static ULONG GetSelectedPid(void)
 {
@@ -377,15 +377,17 @@ static void DetailAddRow(const char *c0, const char *c1, const char *c2, const c
 
 static void SetupDetailColumns(int tab)
 {
-    static const char *cols[3][4] = {
+    static const char *cols[4][4] = {
         { "Base", "Size", "Name", "Path" },
         { "TID", "Prio", "Start", "" },
         { "HWND", "TID", "Class", "Title" },
+        { "Handle", "Type", "Access", "Object" },
     };
-    static const int widths[3][4] = {
+    static const int widths[4][4] = {
         { 130, 90, 160, 380 },
         { 70, 60, 150, 0 },
         { 110, 60, 170, 340 },
+        { 90, 180, 100, 260 },
     };
     LVCOLUMNA col;
     int i, n = (tab == 1) ? 3 : 4;
@@ -409,7 +411,7 @@ static void DoRefreshDetail(void)
     ULONG pid = GetSelectedPid();
     char a[64], b[64], c[64], d[600];
 
-    if (tab < 0 || tab > 2)
+    if (tab < 0 || tab > 3)
         tab = 0;
     if (tab != g_DetailTab) {
         g_DetailTab = tab;
@@ -455,6 +457,21 @@ static void DoRefreshDetail(void)
             FeFreeProcessThreads(&list);
         }
         sprintf_s(d, sizeof(d), "PID %lu threads: %lu", pid, n);
+    } else if (tab == 3) {
+        FE_HANDLE_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessHandles(pid, 8192, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                sprintf_s(a, sizeof(a), "0x%IX", list.Items[i].Handle);
+                sprintf_s(c, sizeof(c), "0x%lX", list.Items[i].Access);
+                sprintf_s(d, sizeof(d), "%p", (void *)(ULONG_PTR)list.Items[i].Object);
+                DetailAddRow(a, list.Items[i].TypeName[0] ? list.Items[i].TypeName : "(?)", c, d);
+            }
+            FeFreeProcessHandles(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu handles: %lu", pid, n);
     } else {
         FE_WINDOW_LIST list;
         ULONG i, n = 0;
@@ -604,7 +621,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            for (k = 0; k < 3; k++) {
+            for (k = 0; k < 4; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)g_TabNames[k];
@@ -759,6 +776,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
 
     if (lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))
         return RunProcListCli();
+
+    /* 子视图调试入口：--handles-cli <pid> */
+    if (lpCmdLine && strstr(lpCmdLine, "--handles-cli")) {
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--handles-cli") + 13, NULL, 0);
+        FePrintProcessHandles(pid);
+        return 0;
+    }
 
     /* 子视图调试入口：--threads-cli <pid> */
     if (lpCmdLine && strstr(lpCmdLine, "--threads-cli")) {

@@ -225,6 +225,26 @@ BOOL FeLoadProcessThreads(ULONG Pid, ULONG MaxCount, FE_THREAD_LIST *List);
 void FeFreeProcessThreads(FE_THREAD_LIST *List);
 BOOL FePrintProcessThreads(ULONG Pid);
 
+/* ---- Handles 子视图（NtQuerySystemInformation）---- */
+typedef struct _FE_HANDLE_ENTRY {
+    ULONG64 Handle;
+    ULONG64 Object;
+    ULONG   TypeIndex;
+    ULONG   Access;
+    ULONG   Attributes;
+    char    TypeName[64];
+} FE_HANDLE_ENTRY;
+
+typedef struct _FE_HANDLE_LIST {
+    ULONG             Count;
+    ULONG             Capacity;
+    FE_HANDLE_ENTRY  *Items;
+} FE_HANDLE_LIST;
+
+BOOL FeLoadProcessHandles(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List);
+void FeFreeProcessHandles(FE_HANDLE_LIST *List);
+BOOL FePrintProcessHandles(ULONG Pid);
+
 #ifdef __cplusplus
 }
 #endif
