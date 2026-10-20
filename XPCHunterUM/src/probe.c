@@ -13,6 +13,7 @@
 #include "XPCHunterUM.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 extern void  XpchCryptBuffer(PUCHAR Buffer, ULONG Size, UCHAR KeyByte);
 
@@ -34,16 +35,33 @@ static void HexDump(const char *Tag, const UCHAR *p, ULONG n)
     printf("\n");
 }
 
+static FILE *g_Log = NULL;
+
+static void L(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    fflush(stdout);
+    if (g_Log) { va_start(ap, fmt); vfprintf(g_Log, fmt, ap); fflush(g_Log); }
+    va_end(ap);
+}
+
 int main(int argc, char **argv)
 {
     BOOL Live = FALSE;
     BOOL Scan = FALSE;
+    BOOL OpenOnly = FALSE;
     ULONG Cmd = 0x24;
     int i;
+
+    fopen_s(&g_Log, "C:\\Users\\Public\\probe_trace.txt", "w");
+    L("probe start\n");
 
     for (i = 1; i < argc; i++) {
         if (_stricmp(argv[i], "--live") == 0) Live = TRUE;
         else if (_stricmp(argv[i], "--scan") == 0) Scan = TRUE;
+        else if (_stricmp(argv[i], "--open-only") == 0) OpenOnly = TRUE;
         else if (_stricmp(argv[i], "--cmd") == 0 && i + 1 < argc)
             Cmd = (ULONG)strtoul(argv[++i], NULL, 0);
     }

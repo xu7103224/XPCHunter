@@ -1,0 +1,15 @@
+BEGIN 
+--- trace --- 
+probe start
+--- tasklist --- 
+信息: 没有运行的任务匹配指定标准。
+--- drivers --- 
+
+SERVICE_NAME: RTZ67 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 1  STOPPED 
+        WIN32_EXIT_CODE    : 1077  (0x435)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+DONE 

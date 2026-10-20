@@ -1,0 +1,14 @@
+BEGIN 
+STARTED 
+--- trace --- 
+probe start
+--- st --- 
+
+SERVICE_NAME: RTZ66 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 1  STOPPED 
+        WIN32_EXIT_CODE    : 1077  (0x435)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+DONE 

@@ -165,11 +165,18 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     if (Status >= 0) return Status;
 
+/* 【修正 2026-10-20】Cleanup1/Cleanup2 必须返回**失败**状态。
+       旧代码直接 `return Status;`，而 Status 在此之前一直保持
+       IoCreateSymbolicLink 的成功值 —— 于是初始化失败时 DriverEntry
+       仍返回 STATUS_SUCCESS：`sc start` 报 RUNNING，随后驱动退出，
+       服务变成 STOPPED(1077 ERROR_SERVICE_NEVER_STARTED)。
+       实机表现极具误导性：`sc query` 瞬间显示 RUNNING，但探针
+       CreateFile 打不开设备、联调全部失败。 */
 Cleanup2:
     CleanupNtoskrnlFile();
 Cleanup1:
     ExFree(RegistryPathCopyPtr);
-    return Status;
+    return (Status < 0) ? Status : STATUS_UNSUCCESSFUL;
 }
 
 // DriverUnload — 驱动卸载函数
