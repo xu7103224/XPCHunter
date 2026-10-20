@@ -331,7 +331,7 @@ static void CreateProcColumns(HWND h)
 
 /* ---- 明细子视图（Modules / Threads / Windows）--------------------------- */
 
-static const char *g_TabNames[4] = { "Modules", "Threads", "Windows", "Handles" };
+static const char *g_TabNames[5] = { "Modules", "Threads", "Windows", "Handles", "Memory" };
 
 static ULONG GetSelectedPid(void)
 {
@@ -378,20 +378,22 @@ static void DetailAddRow(const char *c0, const char *c1, const char *c2, const c
 
 static void SetupDetailColumns(int tab)
 {
-    static const char *cols[4][4] = {
-        { "Base", "Size", "Name", "Path" },
-        { "TID", "Prio", "Start", "" },
-        { "HWND", "TID", "Class", "Title" },
-        { "Handle", "Type", "Access", "Object" },
+    static const char *cols[5][5] = {
+        { "Base", "Size", "Name", "Path", "" },
+        { "TID", "Prio", "Start", "", "" },
+        { "HWND", "TID", "Class", "Title", "" },
+        { "Handle", "Type", "Access", "Object", "" },
+        { "Base", "Size", "Protect", "Type", "Name" },
     };
-    static const int widths[4][4] = {
-        { 130, 90, 160, 380 },
-        { 70, 60, 150, 0 },
-        { 110, 60, 170, 340 },
-        { 90, 180, 100, 260 },
+    static const int widths[5][5] = {
+        { 130, 90, 160, 380, 0 },
+        { 70, 60, 150, 0, 0 },
+        { 110, 60, 170, 340, 0 },
+        { 90, 180, 100, 260, 0 },
+        { 130, 100, 80, 70, 360 },
     };
     LVCOLUMNA col;
-    int i, n = (tab == 1) ? 3 : 4;
+    int i, n = (tab == 1) ? 3 : ((tab == 4) ? 5 : 4);
 
     while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
         ;
@@ -412,7 +414,7 @@ static void DoRefreshDetail(void)
     ULONG pid = GetSelectedPid();
     char a[64], b[64], c[64], d[600];
 
-    if (tab < 0 || tab > 3)
+    if (tab < 0 || tab > 4)
         tab = 0;
     if (tab != g_DetailTab) {
         g_DetailTab = tab;
@@ -458,6 +460,27 @@ static void DoRefreshDetail(void)
             FeFreeProcessThreads(&list);
         }
         sprintf_s(d, sizeof(d), "PID %lu threads: %lu", pid, n);
+    } else if (tab == 4) {
+        FE_MEMORY_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessMemory(pid, 16384, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                char nm[FE_MEMORY_NAME_CHARS];
+                FeWideToAnsi(list.Items[i].Name, nm, sizeof(nm));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)list.Items[i].Base);
+                sprintf_s(b, sizeof(b), "0x%I64X", list.Items[i].Size);
+                sprintf_s(c, sizeof(c), "0x%lX", list.Items[i].Protect);
+                DetailAddRow(a, b, c, NULL);
+                DetailSetText((int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0) - 1, 3,
+                              list.Items[i].Type == MEM_IMAGE ? "Image" :
+                              (list.Items[i].Type == MEM_MAPPED ? "Mapped" : "Private"));
+                DetailSetText((int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0) - 1, 4, nm);
+            }
+            FeFreeProcessMemory(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu regions: %lu", pid, n);
     } else if (tab == 3) {
         FE_HANDLE_LIST list;
         ULONG i, n = 0;
@@ -622,7 +645,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            for (k = 0; k < 4; k++) {
+            for (k = 0; k < 5; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)g_TabNames[k];
@@ -779,12 +802,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     if (lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))
         return RunProcListCli();
 
+    /* 子视图调试入口：--memory-cli <pid> */
+    if (lpCmdLine && strstr(lpCmdLine, "--memory-cli")) {
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--memory-cli") + 12, NULL, 0);
+        FePrintProcessMemory(pid);
+        return 0;
+    }
+
     /* 子视图调试入口：--handles-cli <pid> */
     if (lpCmdLine) {
         char *pt = strstr(lpCmdLine, "--tab ");
         if (pt) {
             g_StartTab = atoi(pt + 6);
-            if (g_StartTab < 0 || g_StartTab > 3) g_StartTab = 0;
+            if (g_StartTab < 0 || g_StartTab > 4) g_StartTab = 0;
         }
     }
 

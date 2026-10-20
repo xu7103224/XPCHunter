@@ -245,6 +245,28 @@ BOOL FeLoadProcessHandles(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List);
 void FeFreeProcessHandles(FE_HANDLE_LIST *List);
 BOOL FePrintProcessHandles(ULONG Pid);
 
+/* ---- Memory 子视图（VirtualQueryEx）---- */
+#define FE_MEMORY_NAME_CHARS 260u
+
+typedef struct _FE_MEMORY_ENTRY {
+    ULONG64 Base;
+    ULONG64 Size;
+    ULONG   Protect;
+    ULONG   State;
+    ULONG   Type;
+    WCHAR   Name[FE_MEMORY_NAME_CHARS];
+} FE_MEMORY_ENTRY;
+
+typedef struct _FE_MEMORY_LIST {
+    ULONG              Count;
+    ULONG              Capacity;
+    FE_MEMORY_ENTRY   *Items;
+} FE_MEMORY_LIST;
+
+BOOL FeLoadProcessMemory(ULONG Pid, ULONG MaxCount, FE_MEMORY_LIST *List);
+void FeFreeProcessMemory(FE_MEMORY_LIST *List);
+BOOL FePrintProcessMemory(ULONG Pid);
+
 #ifdef __cplusplus
 }
 #endif

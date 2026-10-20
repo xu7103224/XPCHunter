@@ -544,3 +544,99 @@ BOOL FePrintProcessHandles(ULONG Pid)
     FeFreeProcessHandles(&list);
     return TRUE;
 }
+
+
+// ---------------------------------------------------------------------------
+// Memory 子视图：VirtualQueryEx + GetMappedFileNameW（纯用户态）
+//
+// 不用 0x37 CmdReadProcessMemoryEx（QueryProcessMemoryRegions）：输出布局未逆向；
+// VirtualQueryEx 能直接给出 基址/大小/保护/类型，映射区还能用 GetMappedFileNameW
+// 取到模块路径。
+// ---------------------------------------------------------------------------
+
+BOOL FeLoadProcessMemory(ULONG Pid, ULONG MaxCount, FE_MEMORY_LIST *List)
+{
+    HANDLE h;
+    MEMORY_BASIC_INFORMATION mbi;
+    ULONG64 addr = 0;
+    const ULONG64 userLimit = 0x7FFFFFFEFFFFULL;
+
+    if (!List)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+    if (!MaxCount)
+        MaxCount = 8192;
+
+    h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, Pid);
+    if (!h)
+        return FALSE;
+
+    List->Items = (FE_MEMORY_ENTRY *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                                               (SIZE_T)MaxCount * sizeof(FE_MEMORY_ENTRY));
+    if (!List->Items) {
+        CloseHandle(h);
+        return FALSE;
+    }
+    List->Capacity = MaxCount;
+
+    while (addr < userLimit && List->Count < List->Capacity) {
+        SIZE_T got = VirtualQueryEx(h, (LPCVOID)(ULONG_PTR)addr, &mbi, sizeof(mbi));
+        FE_MEMORY_ENTRY *e;
+
+        if (!got)
+            break;
+        if (mbi.State == MEM_FREE || mbi.RegionSize == 0) {
+            addr = (ULONG64)(ULONG_PTR)mbi.BaseAddress + (mbi.RegionSize ? mbi.RegionSize : 0x1000);
+            continue;
+        }
+
+        e = &List->Items[List->Count];
+        e->Base = (ULONG64)(ULONG_PTR)mbi.BaseAddress;
+        e->Size = (ULONG64)mbi.RegionSize;
+        e->Protect = mbi.Protect;
+        e->State = mbi.State;
+        e->Type = mbi.Type;
+        if (mbi.Type == MEM_IMAGE || mbi.Type == MEM_MAPPED) {
+            GetMappedFileNameW(h, mbi.BaseAddress, e->Name,
+                               (DWORD)(sizeof(e->Name) / sizeof(e->Name[0])));
+        }
+        List->Count++;
+
+        addr = (ULONG64)(ULONG_PTR)mbi.BaseAddress + mbi.RegionSize;
+    }
+
+    CloseHandle(h);
+    return TRUE;
+}
+
+void FeFreeProcessMemory(FE_MEMORY_LIST *List)
+{
+    if (!List)
+        return;
+    if (List->Items)
+        HeapFree(GetProcessHeap(), 0, List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FePrintProcessMemory(ULONG Pid)
+{
+    FE_MEMORY_LIST list;
+    ULONG i;
+
+    if (!FeLoadProcessMemory(Pid, 16384, &list)) {
+        printf("enum memory failed, GetLastError=%lu\n", GetLastError());
+        return FALSE;
+    }
+    printf("memory regions of pid %lu: %lu\n", Pid, list.Count);
+    for (i = 0; i < list.Count; i++) {
+        char nm[FE_MEMORY_NAME_CHARS];
+        FeWideToAnsi(list.Items[i].Name, nm, sizeof(nm));
+        printf("  base=%p size=0x%-9I64X protect=0x%-4lX type=0x%-4lX %s\n",
+               (void *)(ULONG_PTR)list.Items[i].Base, list.Items[i].Size,
+               list.Items[i].Protect, list.Items[i].Type, nm);
+    }
+    FeFreeProcessMemory(&list);
+    return TRUE;
+}
