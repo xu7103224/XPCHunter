@@ -86,11 +86,16 @@ char InitRegNotify(void)
 
     GtWrite(GtWin32kServiceTableVersion, 0);
 
-    ListAllocation = (_QWORD *)GtRead(0x415F);
+    /* 【修正 2026-10-20】原始 0x14000C213 `mov ecx,16Dh` —— 索引是 **0x16D**，
+       旧代码写成 0x415F（无关的另一个槽）。实机后果：真正的链表没被释放，
+       而 GT[0x415F] 一旦被别的路径写入非链表数据，FreeListAllocation 就会
+       把任意值当链表头 → `mov rbx,[rcx+0x20]` 解引用野指针
+       → 0x3B/0xC0000005 蓝屏（RTZ62）。 */
+    ListAllocation = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x16D);
     if (ListAllocation)
     {
         FreeListAllocation(ListAllocation);
-        GtWrite(0x415F, 0);
+        GtWrite((GLOBAL_TABLE_INDEX)0x16D, 0);
     }
 
     for (EntryIndex = 0; EntryIndex < 0x100; EntryIndex++)

@@ -469,8 +469,13 @@ bool ReadWriteVirtualMemory(__int64 Process, __int64 SrcAddr, __int64 DstAddr, u
     pOpenProcessFunc = (__int64 (*)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *))GtRead(GtCallbackField07);
     if (!pOpenProcessFunc) { ResolveModuleBaseAddress(); pOpenProcessFunc = (__int64 (*)(_QWORD, __int64 *, __int64 *, __int64, _BYTE *))GtRead(GtCallbackField07); }
     ServiceCount = (ULONG)GtRead(GtSdstServiceCount);
-    pAttachProcessFunc = (int (__fastcall *)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *))GtRead(16735);
-    pServiceCount = (_QWORD *)GtRead(16748);
+    pAttachProcessFunc = (int (__fastcall *)(__int64, __int64, ULONG64, __int64, ULONG64, UCHAR, _QWORD *))GtRead((GLOBAL_TABLE_INDEX)0x41C3);
+    /* 【修正 2026-10-20】原始 0x14007173C / 0x140071749 的索引分别是
+       **0x41C3** 与 **0x4166**；旧代码写成 16735(0x415F) / 16748(0x416C)
+       —— 这两个槽在原始驱动中**从未被引用**，是凭空捏造的索引。
+       后果：attach 函数与服务计数指针恒为 0（或无关值），
+       ReadWriteVirtualMemory 永远进不了真正路径。 */
+    pServiceCount = (_QWORD *)GtRead((GLOBAL_TABLE_INDEX)0x4166);
     FreeFuncAddr = GtRead(GtExFreePoolFunc);
     pFreeFunc = (void (__fastcall *)(_QWORD))FreeFuncAddr;
 

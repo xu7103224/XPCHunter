@@ -2861,7 +2861,7 @@ __int64 MiniFilterPreShutdown(_QWORD *ServicePtr, int InputSize)
         return Result;
     if (!ServicePtr || InputSize != 8)                       // 0x140018A2E / A3C
         return Result;
-    ProbeLimit = *(ULONG64 *)MmUserProbeAddress;             // 0x140018A49/0A50
+    ProbeLimit = MmUserProbeAddress;             // 0x140018A49/0A50
     if ((ULONG64)ServicePtr >= ProbeLimit                    // 0x140018A53
         || (ULONG64)ServicePtr + 8 >= ProbeLimit)            // 0x140018A5C
         return Result;
@@ -4417,14 +4417,20 @@ char MiniFilterCommPortRecv(void)
 // 【说明】第 ⑤ 步读的 **不是** GT 表，而是绝对地址 0x1400A84D9
 //   （反汇编 `cmp qword ptr [rip+0x8f151], rbx`，rbx=0），
 //   这是原驱动自己的一个全局标志，不经过 GtRead —— 故运行时 GT 序列为空。
-__int64 MiniFilterCommPortReply(__int64 Address, __int64 Length, _DWORD *Output, int OutputSize)
+// 【参数映射复核 2026-10-20】原始 0x14001934E 是 `mov rdi,r8` —— 输出缓冲取
+//   **第 3 个参数 r8**，不是 rcx。命令分派的实际约定是
+//   (rcx=ContextPointer, rdx=OutputSize, r8=ExtraPointer, r9d=ContextSize)，
+//   故本函数应写成 (Unused1, Unused2, Output, OutputSize)，与同族处理函数一致。
+//   旧签名把 Address 放在 rcx，实际走的是 ContextPointer，忽略真正的输出缓冲。
+__int64 MiniFilterCommPortReply(__int64 Unused1, __int64 Unused2, _DWORD *Output, int OutputSize)
 {
     char   Result = 0;
     ULONG64 ProbeLimit;
+    __int64 Address = (__int64)Output;                // rdi = r8
 
-    _DWORD *OutPtr = (_DWORD *)Address;               // rdi = r8（原始把 r8 视作输出缓冲）
+    _DWORD *OutPtr = (_DWORD *)Address;
 
-    ProbeLimit = *(ULONG64 *)MmUserProbeAddress;      // rcx = *MmUserProbeAddress
+    ProbeLimit = MmUserProbeAddress;      // rcx = *MmUserProbeAddress
     if ((unsigned __int64)Address >= ProbeLimit        // 0x140019361
         || Address == 0                                // 0x140019366
         || (unsigned __int64)Address + 4 >= ProbeLimit  // 0x14001936F
@@ -4714,7 +4720,7 @@ __int64 MiniFilterNotifyRoutineEx2(__int64 Address, __int64 Length, _DWORD *Outp
 
     _DWORD *OutPtr = (_DWORD *)Address;               // rdi = r8
 
-    ProbeLimit = *(ULONG64 *)MmUserProbeAddress;
+    ProbeLimit = MmUserProbeAddress;
     if ((unsigned __int64)Address >= ProbeLimit        // 0x14001A401
         || Address == 0                                // 0x14001A406
         || (unsigned __int64)Address + 4 >= ProbeLimit  // 0x14001A40F
@@ -4844,9 +4850,9 @@ char CmdInitFwpsDispatchTables(__int64 Reserved1, __int64 Reserved2,
         goto L_DONE;
     if ((ULONG64)BufferSize < (ULONG64)(EntryCount - 1) * 8 + 0x10)   // 0x14001BCC5/CCD
         goto L_DONE;
-    if ((ULONG64)OutputBuffer >= *(ULONG64 *)MmUserProbeAddress)      // 0x14001BCD9/CDC
+    if ((ULONG64)OutputBuffer >= MmUserProbeAddress)      // 0x14001BCD9/CDC
         goto L_DONE;
-    if ((ULONG64)OutputBuffer + BufferSize >= *(ULONG64 *)MmUserProbeAddress)  // 0x14001BCE5
+    if ((ULONG64)OutputBuffer + BufferSize >= MmUserProbeAddress)  // 0x14001BCE5
         goto L_DONE;
 
     /* ---- 段 4：拷贝 ---- */

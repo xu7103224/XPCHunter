@@ -825,7 +825,7 @@ char MiniFilterCommPortConnect(void);
 __declspec(noinline) char RegisterCommPortReplyCallback(void);
 __int64 MiniFilterCommPortDisconnect(void);
 char MiniFilterCommPortRecv(void);
-__int64 MiniFilterCommPortReply(__int64 Address, __int64 Length, _DWORD *Output, int OutputSize);
+__int64 MiniFilterCommPortReply(__int64 Unused1, __int64 Unused2, _DWORD *Output, int OutputSize);
 __int64 MiniFilterCommPortReplyDone(void);
 char MiniFilterCommPortSend(void);
 __declspec(noinline) char StartMiniFilter(struct _DRIVER_OBJECT *DriverObject);
