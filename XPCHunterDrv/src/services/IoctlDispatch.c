@@ -597,9 +597,14 @@ __int64 CmdReadProcessMemoryBlock(__int64 InputBuffer, __int64 InputSize, _DWORD
 // 接收 24 字节输入参数(ProcessId + EPROCESS + 附加数据)，调用 EnumProcessInformationWorker 枚举模块信息
 
 // CmdThreadOperation — 线程操作命令处理
-// 对应原始驱动 sub_1400809CC
+// 对应原始驱动 0x1400809CC
 // 查找线程对象，验证后准备页表扫描
-__int64 CmdThreadOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
+// 【⚠ 必须 noinline】本函数与 CmdThreadMonitor 的唯一差别是传给
+//   PrepareFileForPageTableScan 的第 2 个参数（0 vs 1），函数体其余部分完全相同。
+//   LTCG 会把两者**合并成同一个地址**（实测 .map 中两者都是 0x1400232C0），
+//   导致命令表 Table[29]/Table[30] 指向同一实现、Monitor 实际拿到 0 而非 1。
+//   实机 GT[0x93F]（= Table[30]）原始为 CmdThreadMonitor、我方却是 CmdThreadOperation。
+__declspec(noinline) __int64 CmdThreadOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
     bool Result = 0;
     if (InputSize == 16 && (ULONG64)InputBuffer < MmUserProbeAddress && (ULONG64)(InputBuffer + 16) < MmUserProbeAddress)
@@ -633,9 +638,10 @@ __int64 CmdThreadOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
 }
 
 // CmdThreadMonitor — 线程监控命令处理
-// 对应原始驱动 sub_1400807F0
+// 对应原始驱动 0x1400807F0
 // 根据线程ID查找线程对象，验证并准备页表扫描(用于线程保护/监控)
-__int64 CmdThreadMonitor(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
+// 原始 0x140080893..898：`mov dl,bl`（bl=1）→ PrepareFileForPageTableScan(Thread, 1)
+__declspec(noinline) __int64 CmdThreadMonitor(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
     bool Result = 0;
     if (InputSize == 16 && (ULONG64)InputBuffer < MmUserProbeAddress && (ULONG64)(InputBuffer + 16) < MmUserProbeAddress)

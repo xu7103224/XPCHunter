@@ -55,7 +55,13 @@ if errorlevel 1 (
 
 echo.
 echo Step 2: Linking...
-link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /fixed:no /driver /manifest:no /ignore:4257 /ignore:4254 ^
+REM /OPT:NOICF disables COMDAT folding. The original driver does NOT use ICF:
+REM functions that differ only by a constant argument (CmdThreadOperation vs
+REM CmdThreadMonitor, CmdSetProcessContextWin8 vs Win10, ...) have distinct
+REM addresses there. ICF merges them, so two command-table slots end up pointing
+REM at one implementation and one of them receives the wrong constant
+REM (observed mismatch at GT[0x93F]/[0x9D5]/[0xA21] on real hardware).
+link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /fixed:no /driver /manifest:no /ignore:4257 /ignore:4254 /OPT:NOICF ^
     /LIBPATH:"%WDK_S%\Lib\%WDK_VER%\km\x64" ^
     /LIBPATH:"%WDK_S%\Lib\%WDK_VER%\km\x64\crt" ^
     /out:"%BIN_DIR%\XPCHunterDrv.sys" ^

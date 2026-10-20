@@ -91,7 +91,7 @@
       <FixedBaseAddress>false</FixedBaseAddress>
       <Driver>true</Driver>
       <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseFastLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <MergeSections>.data=.text</MergeSections>
       <MinimumRequiredVersion>6.0</MinimumRequiredVersion>
@@ -137,7 +137,7 @@
       <FixedBaseAddress>false</FixedBaseAddress>
       <Driver>true</Driver>
       <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <MergeSections>.data=.text</MergeSections>
       <MinimumRequiredVersion>6.0</MinimumRequiredVersion>
