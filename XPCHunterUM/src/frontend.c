@@ -30,6 +30,7 @@
 #define IDC_PROCSTATUS  1010
 #define IDC_TABS        1011
 #define IDC_DETAIL      1012
+#define IDC_KILL        1013
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -516,6 +517,52 @@ static void DoRefreshDetail(void)
     SetWindowTextA(g_hProcStatus, d);
 }
 
+/* ç»æéä¸­è¿ç¨ï¼ç ´åæ§æä½ï¼åäºæ¬¡ç¡®è®¤ã */
+static void DoRefreshProcs(void);
+
+static void DoKillSelected(void)
+{
+    ULONG pid = GetSelectedPid();
+    char msg[256];
+
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Select a process first");
+        return;
+    }
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hProcStatus, "Not connected");
+        return;
+    }
+
+    sprintf_s(msg, sizeof(msg),
+              "Terminate PID %lu?\n\nThis is destructive and cannot be undone.", pid);
+    if (MessageBoxA(GetActiveWindow(), msg, "Confirm kill",
+                    MB_YESNO | MB_ICONWARNING) != IDYES) {
+        SetWindowTextA(g_hProcStatus, "Kill cancelled");
+        return;
+    }
+
+    {
+        FE_PROCESS_LIST list;
+        ULONG64 eprocess = 0;
+        ULONG i;
+
+        if (FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &list)) {
+            for (i = 0; i < list.Count; i++)
+                if (list.Items[i].Pid == pid) { eprocess = list.Items[i].Eprocess; break; }
+            FeFreeProcessList(&list);
+        }
+        if (FeKillProcess(&g_Client, pid, eprocess, FALSE)) {
+            sprintf_s(msg, sizeof(msg), "PID %lu terminated", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+            DoRefreshProcs();
+        } else {
+            sprintf_s(msg, sizeof(msg), "Kill PID %lu failed", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+        }
+    }
+}
+
 static void DoRefreshProcs(void)
 {
     FE_PROCESS_LIST list;
@@ -616,6 +663,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                       260, 10, 90, 28, hWnd, (HMENU)IDC_SCAN, hInst, NULL);
         CreateWindowA("BUTTON", "Send", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       360, 10, 70, 28, hWnd, (HMENU)IDC_SEND, hInst, NULL);
+        CreateWindowA("BUTTON", "Kill", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      675, 10, 90, 28, hWnd, (HMENU)IDC_KILL, hInst, NULL);
 
         CreateWindowA("STATIC", "cmd", WS_CHILD | WS_VISIBLE,
                       445, 16, 30, 20, hWnd, NULL, hInst, NULL);
@@ -699,6 +748,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_REFRESH: DoRefreshProcs(); return 0;
         case IDC_SCAN:    DoScan();    return 0;
         case IDC_SEND:    DoSend();    return 0;
+        case IDC_KILL:    DoKillSelected(); return 0;
         }
         return 0;
 
@@ -803,6 +853,27 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return RunProcListCli();
 
     /* 子视图调试入口：--memory-cli <pid> */
+    if (lpCmdLine && strstr(lpCmdLine, "--kill-cli")) {
+        ULONG kpid = (ULONG)strtoul(strstr(lpCmdLine, "--kill-cli") + 11, NULL, 0);
+        ULONG64 kep = 0;
+        if (XpchOpen(&g_Client)) {
+            FE_PROCESS_LIST list;
+            ULONG i;
+            XpchHandshake(&g_Client);
+            if (FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &list)) {
+                for (i = 0; i < list.Count; i++)
+                    if (list.Items[i].Pid == kpid) { kep = list.Items[i].Eprocess; break; }
+                FeFreeProcessList(&list);
+            }
+            printf("kill pid %lu ep=%p -> %s\n", kpid, (void *)(ULONG_PTR)kep,
+                   FeKillProcess(&g_Client, kpid, kep, FALSE) ? "OK" : "FAILED");
+            XpchClose(&g_Client);
+        } else {
+            printf("open device failed\n");
+        }
+        return 0;
+    }
+
     if (lpCmdLine && strstr(lpCmdLine, "--memory-cli")) {
         ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--memory-cli") + 12, NULL, 0);
         FePrintProcessMemory(pid);

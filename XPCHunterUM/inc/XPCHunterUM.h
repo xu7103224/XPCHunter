@@ -267,6 +267,9 @@ BOOL FeLoadProcessMemory(ULONG Pid, ULONG MaxCount, FE_MEMORY_LIST *List);
 void FeFreeProcessMemory(FE_MEMORY_LIST *List);
 BOOL FePrintProcessMemory(ULONG Pid);
 
+/* ---- 进程操作（0x28 / 0xA2，破坏性）---- */
+BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEprocess);
+
 #ifdef __cplusplus
 }
 #endif
