@@ -206,6 +206,25 @@ BOOL FeLoadProcessModules(ULONG Pid, ULONG MaxCount, FE_MODULE_LIST *List);
 void FeFreeProcessModules(FE_MODULE_LIST *List);
 BOOL FePrintProcessModules(ULONG Pid);
 
+/* ---- Threads 子视图（Toolhelp32，纯用户态）---- */
+typedef struct _FE_THREAD_ENTRY {
+    ULONG   ThreadId;
+    ULONG   OwnerPid;
+    LONG    BasePriority;
+    LONG    PriorityDelta;
+    ULONG64 StartAddress;
+} FE_THREAD_ENTRY;
+
+typedef struct _FE_THREAD_LIST {
+    ULONG             Count;
+    ULONG             Capacity;
+    FE_THREAD_ENTRY  *Items;
+} FE_THREAD_LIST;
+
+BOOL FeLoadProcessThreads(ULONG Pid, ULONG MaxCount, FE_THREAD_LIST *List);
+void FeFreeProcessThreads(FE_THREAD_LIST *List);
+BOOL FePrintProcessThreads(ULONG Pid);
+
 #ifdef __cplusplus
 }
 #endif

@@ -21,7 +21,8 @@
 
 #include "XPCHunterUM.h"
 #include <stdio.h>
-#include <psapi.h>   /* EnumProcessModulesEx / GetModuleInformation / GetModuleFileNameExW */
+#include <psapi.h>
+#include <tlhelp32.h>   /* CreateToolhelp32Snapshot / Thread32First */   /* EnumProcessModulesEx / GetModuleInformation / GetModuleFileNameExW */
 
 typedef struct _FE_ENUM_CTX {
     FE_WINDOW_LIST *List;
@@ -228,5 +229,110 @@ BOOL FePrintProcessModules(ULONG Pid)
                (void *)(ULONG_PTR)list.Items[i].Base, list.Items[i].Size, path);
     }
     FeFreeProcessModules(&list);
+    return TRUE;
+}
+
+// ---------------------------------------------------------------------------
+// Threads 子视图：CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD)（纯用户态）
+//
+// 为什么不用 0x3B CmdEnumThreadsEx：它的输出布局尚未逆向；而线程枚举用
+// Toolhelp 就能拿到 线程ID / 优先级 / 起始地址，且不依赖驱动的实体化命令。
+// 起始地址走 ntdll!NtQueryInformationThread(ThreadQuerySetWin32StartAddress=9)，
+// 拿不到就留空（受保护进程会失败）。
+// ---------------------------------------------------------------------------
+
+typedef NTSTATUS (NTAPI *PFN_NtQueryInformationThread)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+
+BOOL FeLoadProcessThreads(ULONG Pid, ULONG MaxCount, FE_THREAD_LIST *List)
+{
+    HANDLE snap;
+    THREADENTRY32 te;
+    PFN_NtQueryInformationThread pNtQit;
+    HMODULE hNtdll;
+
+    if (!List)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+    if (!MaxCount)
+        MaxCount = 512;
+
+    snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (snap == INVALID_HANDLE_VALUE)
+        return FALSE;
+
+    List->Items = (FE_THREAD_ENTRY *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                                               (SIZE_T)MaxCount * sizeof(FE_THREAD_ENTRY));
+    if (!List->Items) {
+        CloseHandle(snap);
+        return FALSE;
+    }
+    List->Capacity = MaxCount;
+
+    hNtdll = GetModuleHandleA("ntdll.dll");
+    pNtQit = (PFN_NtQueryInformationThread)(hNtdll
+             ? (void *)GetProcAddress(hNtdll, "NtQueryInformationThread") : NULL);
+
+    ZeroMemory(&te, sizeof(te));
+    te.dwSize = sizeof(te);
+    if (Thread32First(snap, &te)) {
+        do {
+            FE_THREAD_ENTRY *e;
+
+            if (te.th32OwnerProcessID != Pid)
+                continue;
+            if (List->Count >= List->Capacity)
+                break;
+
+            e = &List->Items[List->Count];
+            e->ThreadId = te.th32ThreadID;
+            e->OwnerPid = te.th32OwnerProcessID;
+            e->BasePriority = te.tpBasePri;
+            e->PriorityDelta = te.tpDeltaPri;
+
+            if (pNtQit) {
+                HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID);
+                if (hThread) {
+                    ULONG64 startAddr = 0;
+                    if (pNtQit(hThread, 9 /* ThreadQuerySetWin32StartAddress */,
+                               &startAddr, sizeof(startAddr), NULL) >= 0)
+                        e->StartAddress = startAddr;
+                    CloseHandle(hThread);
+                }
+            }
+            List->Count++;
+        } while (Thread32Next(snap, &te));
+    }
+
+    CloseHandle(snap);
+    return TRUE;
+}
+
+void FeFreeProcessThreads(FE_THREAD_LIST *List)
+{
+    if (!List)
+        return;
+    if (List->Items)
+        HeapFree(GetProcessHeap(), 0, List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FePrintProcessThreads(ULONG Pid)
+{
+    FE_THREAD_LIST list;
+    ULONG i;
+
+    if (!FeLoadProcessThreads(Pid, 1024, &list)) {
+        printf("enum threads failed, GetLastError=%lu\n", GetLastError());
+        return FALSE;
+    }
+    printf("threads of pid %lu: %lu\n", Pid, list.Count);
+    for (i = 0; i < list.Count; i++) {
+        printf("  tid=%-6lu basePrio=%-3ld delta=%-3ld start=%p\n",
+               list.Items[i].ThreadId, list.Items[i].BasePriority,
+               list.Items[i].PriorityDelta, (void *)(ULONG_PTR)list.Items[i].StartAddress);
+    }
+    FeFreeProcessThreads(&list);
     return TRUE;
 }
