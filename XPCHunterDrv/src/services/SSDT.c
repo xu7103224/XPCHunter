@@ -731,6 +731,9 @@ bool ScanPESectionPatterns(_BYTE *Pattern, char *TargetData, int DataSize, char 
                 TargetRva = 0;
             }
             if (ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar)) return Result;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionChar);
         }
     }
     else
@@ -760,6 +763,9 @@ CheckFound:
                 SectionEntry += 7;
                 if (!ReadPESectionEntry((unsigned char *)&DecodeContext, SectionChar) && *(WORD *)(*(ULONG64 *)((PUCHAR)SectionChar + 0x118) + 6) == 1368)
                     return EntryCumulSize == 5;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionChar);
             }
         }
     }

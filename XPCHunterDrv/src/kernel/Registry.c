@@ -716,6 +716,9 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
             SectionOffset = (unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
             if (SectionOffset)
                 return (__int16)SectionOffset;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
             CurrentOffset = (int)(EntryCumulSize + CumulativeSize);
             CumulativeSize += EntryCumulSize;
             SectionType = *(_WORD *)(EntryDataPtr + 6);

@@ -261,6 +261,9 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
             /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
                栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
                SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
@@ -296,6 +299,9 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
             /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
                栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
                SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
@@ -331,6 +337,9 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                 if ((_DWORD)Result)
                     break;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
             /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
                栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
                SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
@@ -356,6 +365,9 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
                         Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                         if ((_DWORD)Result)
                             break;
+                        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
             /* 【重大修正 2026-10-17】以下字段都是**描述符内的槽**（偏移由原始 0x14001E044 的
                栈帧确定：SectionType=+0x38、EntryFlags=+0x40、SectionFlags=+0x50、EntrySize=+0x78、
                SectionSize=+0x88、EntryCumulSize=+0xF0、EntryDataPtr=+0x118）。旧移植把它们
@@ -495,6 +507,9 @@ __int64 ParseNtExportFunctions(void)
     {
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             return Result;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        PeContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)EntryBuffer);
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
@@ -806,6 +821,9 @@ __int64 ParseNtExportFunctionsV2(void)
     {
         if (ReadPESectionEntry((PUCHAR)&PeContext, (PULONG)EntryBuffer))
             return Result;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        PeContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)EntryBuffer);
         SectionSize = *(unsigned int *)&EntryBuffer[0x38];
         CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
         CumulativeSize += SectionSize;
@@ -1417,6 +1435,9 @@ __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Co
                                 Result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
                                 if ((_DWORD)Result)
                                     break;
+                                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
                                 InnerCurrentOffset = (int)(EntryCumulSize + CumulativeSize);
                                 CumulativeSize += EntryCumulSize;
                                 if (SectionTypeInner == 0x40000 && (Result = EntrySizeInner) != 0)
@@ -2479,6 +2500,9 @@ L_SCAN_SLOTS:
 
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        SectionContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
 
         SectionCharacteristics = *(ULONG *)((char *)SectionEntry + 0x50);
         SectionAddr = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)SectionDataRva;

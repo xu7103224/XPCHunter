@@ -2569,6 +2569,10 @@ __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSi
         Status = (int)ReadPESectionEntry(Context, SectionInfo);
         if (Status != 0)
             return Result;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。
+           此处 Context 是 char* 型上下文，故按字节偏移写。 */
+        *(ULONG64 *)(Context + 0x08) += *(ULONG *)((PUCHAR)SectionInfo + 0xF0);
 
         SectionOffset = *(PULONG)((ULONG64)SectionInfo + 0xF0);
         CharTablePtr = *(ULONG64 *)((ULONG64)SectionInfo + 0x118);

@@ -4338,6 +4338,9 @@ char ScanKernelPeExportData()
     {
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        SectionContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
 
         ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
         SectionFileOffset += SectionAlignedSize;

@@ -3484,6 +3484,9 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
             result = ReadPESectionEntry((PUCHAR)&ReadContext, &Desc);
             if ((_DWORD)result)
                 break;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(&Desc);
 
             CalculatedSize = (int)(PE_DESC_SECTION_SIZE(&Desc) + CumulativeSize);
             CumulativeSize += PE_DESC_SECTION_SIZE(&Desc);
@@ -3671,6 +3674,9 @@ __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
     {
         if (ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)Desc))   // L_190A  0x140016912
             return 0;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)Desc);
 
         CumulativeSize += DSC32(0xF0);                          // 0x140016925
         SectionType = *(USHORT *)((__int64)DSC64(0x118) + 6);   // 0x140016930
@@ -5011,6 +5017,9 @@ char __fastcall FindFwpsTcpIpDispatchTable(__int64 a1, unsigned int a2)
             __int16 SubType;
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                 break;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
             MatchSize = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)CumulativeSize;
             CumulativeSize += *(ULONG *)((char *)SectionEntry + 0xF0);
             SubType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -7825,6 +7834,9 @@ void ParseMiniFilterRegSections(void)
     {
         if (ReadPESectionEntry((PUCHAR)&ReadContext, PeSectionEntry))
             return;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(PeSectionEntry);
 
         SectionRawSize = PeSectionEntry[11];
         CumulativeSize += SectionRawSize;
@@ -7885,6 +7897,9 @@ void ParseMiniFilterRegSections(void)
         {
             if (ReadPESectionEntry((PUCHAR)&ReadContext, PeSectionEntry))
                 return;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(PeSectionEntry);
 
             SectionRawSize = PeSectionEntry[11];
             CumulativeSize += SectionRawSize;
@@ -8177,6 +8192,9 @@ char EnumerateProcessCallbackContext(void)
     {
         if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry) != 0)
             break;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
 
         /* 0x14003EBE4..BEA：先累加消耗长度 */
         EntrySize = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
@@ -8226,6 +8244,9 @@ char EnumerateProcessCallbackContext(void)
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry) != 0)
             break;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
 
         EntrySize = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
         Cumul += EntrySize;
@@ -8391,6 +8412,9 @@ __int64 EnumFileSystemCallbackEntries(void)
 
                 if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                     break;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
 
                 RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
                 Loaded = (ULONG)GtRead((GLOBAL_TABLE_INDEX)GtWindowsBuildNumber);

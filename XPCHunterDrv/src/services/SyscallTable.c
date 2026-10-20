@@ -1379,6 +1379,9 @@ bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int Target
     {
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
         CurrentOffset = (int)(EntryDataPtr + CumulSize);
         CumulSize += EntryDataPtr;
         if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && SectionType == 0x40000 && EntryCumulSize && EntryFlags == 64)

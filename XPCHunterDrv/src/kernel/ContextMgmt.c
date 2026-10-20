@@ -3429,6 +3429,9 @@ LABEL_23:
                 result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
                 if ((_DWORD)result)
                     break;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
                 /* 【修正 2026-10-19】绑定 SectionSize = 描述符 +0xF0（原为从不赋值的局部） */
                 SectionSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
                 MatchSize = SectionSize + (int)CumulativeSize;

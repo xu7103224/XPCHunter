@@ -933,6 +933,9 @@ __int64 ParseProcessMemSections(void)
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)EntryBuffer);
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
             CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
@@ -989,6 +992,9 @@ __int64 ParseProcessMemSections(void)
 
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)EntryBuffer);
 
             SectionSize = *(unsigned int *)&EntryBuffer[0x38];
             CumulativeSize = *(__int64 *)&EntryBuffer[0x40];

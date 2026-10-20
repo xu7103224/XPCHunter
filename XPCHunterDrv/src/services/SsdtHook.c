@@ -2048,6 +2048,9 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
                     break;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionEntry);
 
                 int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeOffset);
                 CumulativeOffset += PE_DESC_SECTION_SIZE(&SectionEntry);
@@ -2092,6 +2095,9 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &v20b))
                 return 0;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&v20b);
 
             int InnerEnd = (int)(PE_DESC_SECTION_SIZE(&v20b) + v19b);
             v19b += PE_DESC_SECTION_SIZE(&v20b);
@@ -2183,6 +2189,9 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionInfo))
                     return 0;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionInfo);
 
                 int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionInfo) + CumulativeSize2);
                 CumulativeSize2 += PE_DESC_SECTION_SIZE(&SectionInfo);
@@ -2226,6 +2235,9 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, &ReadEntry2))
                     return 0;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                DecodeContext2.ReadPtr += PE_DESC_SECTION_SIZE(&ReadEntry2);
 
                 int SectionRva = (int)(PE_DESC_SECTION_SIZE(&ReadEntry2) + CumulativeOffset2);
                 CumulativeOffset2 += PE_DESC_SECTION_SIZE(&ReadEntry2);
@@ -2800,6 +2812,9 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, &ReadEntry2))
                     break;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                DecodeContext2.ReadPtr += PE_DESC_SECTION_SIZE(&ReadEntry2);
 
                 int SectionOffset = (int)(PE_DESC_SECTION_SIZE(&ReadEntry2) + CumulativeSize);
                 CumulativeSize += PE_DESC_SECTION_SIZE(&ReadEntry2);
@@ -2880,6 +2895,9 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionEntry))
                 break;
+            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionEntry);
 
             int TargetRva2 = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + SectionSize);
             SectionSize += PE_DESC_SECTION_SIZE(&SectionEntry);
@@ -3013,6 +3031,9 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
         Result = ReadPESectionEntry((PUCHAR)&DecodeContext, &Desc);
         if ((_DWORD)Result)
             return Result;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&Desc);
 
         TargetRva = (int)(PE_DESC_SECTION_SIZE(&Desc) + CumulativeOffset);
         CumulativeOffset += PE_DESC_SECTION_SIZE(&Desc);
@@ -3577,6 +3598,9 @@ char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionEntry))
                     return Result;
+                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(SectionEntry);
                 int CurrentRva = (int)(EntrySize2 + ContextOffset);
                 ContextOffset += EntrySize2;
                 __int16 TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -6424,6 +6448,9 @@ char __fastcall ParseShadowSyscallExportSections(__int64 pFileBuffer, unsigned i
 
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
+        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
+           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+        SectionContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
 
         ComputedOffset2 = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
         AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
