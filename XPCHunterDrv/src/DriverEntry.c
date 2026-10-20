@@ -302,6 +302,22 @@ void DriverUnload(PDRIVER_OBJECT DriverObject)
 // 对应原始驱动 sub_1400823CC
 NTSTATUS DispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
+    /* 【兼容性观测 2026-10-20】记录设备被打开的次数与进程，用于判断
+       外部前端是否真的打开了设备（而不仅仅是加载了驱动）。
+       GT[0x4E00] = 累计 open 次数，GT[0x4E01] = 最近一次 open 的 PID。
+       这两槽在原始驱动中未被使用。 */
+    PIO_STACK_LOCATION Stack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (Stack->MajorFunction == IRP_MJ_CREATE)
+    {
+        GtWrite((GLOBAL_TABLE_INDEX)0x4E00,
+                GtRead((GLOBAL_TABLE_INDEX)0x4E00) + 1);
+        GtWrite((GLOBAL_TABLE_INDEX)0x4E01,
+                (__int64)(ULONG_PTR)PsGetCurrentProcessId());
+    }
+
+    UNREFERENCED_PARAMETER(DeviceObject);
+
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);

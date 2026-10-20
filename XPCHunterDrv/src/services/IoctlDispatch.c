@@ -2622,5 +2622,13 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
             (ULONG)GtRead((GLOBAL_TABLE_INDEX)(CMD_STAT_PID + Index));
         Out += 16;
     }
+
+    /* 末尾追加"设备打开"统计：
+       Command 0xFFFE，CallCount = 打开次数，LastCallerPid = 最近打开者。 */
+    *(ULONG *)(Out + 0x00) = 0xFFFE;
+    *(ULONG *)(Out + 0x04) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E00);
+    *(ULONG *)(Out + 0x08) = 0;
+    *(ULONG *)(Out + 0x0C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E01);
+
     return 1;
 }

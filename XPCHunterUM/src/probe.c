@@ -314,12 +314,23 @@ int main(int argc, char **argv)
            ORIGINAL PCHunter64.exe against this driver: any command with a
            non-zero count was issued by that front end. */
         if (Stats) {
-            enum { N = 283, REC = 16 };
-            ULONG *recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, N * REC);
+            enum { N = 284, REC = 16 };   /* 283 commands + 1 device-open record */
+            ULONG *recs;
             UCHAR sres = 0;
             BOOL sok = FALSE;
             int used = 0;
+            ULONG ssdt = 0;
+            UCHAR r22 = 0;
 
+            /*
+             * The dispatcher rejects every command except 0x22 while GT[0x304]
+             * (the driver-ready flag) is still 0, so open it first. Without
+             * this the 0x13A dump is refused before the handler is reached.
+             */
+            XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
+                       NULL, 0, &ssdt, sizeof(ssdt), &r22);
+
+            recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, N * REC);
             if (recs)
                 sok = XpchInvoke(&client, 0x13A, NULL, 0, recs, N * REC, &sres);
 
