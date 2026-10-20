@@ -40,11 +40,15 @@ static FILE *g_Log = NULL;
 static void L(const char *fmt, ...)
 {
     va_list ap;
+    char buf[1024];
+
     va_start(ap, fmt);
-    vprintf(fmt, ap);
-    fflush(stdout);
-    if (g_Log) { va_start(ap, fmt); vfprintf(g_Log, fmt, ap); fflush(g_Log); }
+    _vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
     va_end(ap);
+
+    fputs(buf, stdout);
+    fflush(stdout);
+    if (g_Log) { fputs(buf, g_Log); fflush(g_Log); }
 }
 
 int main(int argc, char **argv)

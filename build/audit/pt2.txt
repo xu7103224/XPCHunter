@@ -5,7 +5,7 @@ probe start
 信息: 没有运行的任务匹配指定标准。
 --- drivers --- 
 
-SERVICE_NAME: RTZ67 
+SERVICE_NAME: RTZ68 
         TYPE               : 1  KERNEL_DRIVER  
         STATE              : 1  STOPPED 
         WIN32_EXIT_CODE    : 1077  (0x435)
