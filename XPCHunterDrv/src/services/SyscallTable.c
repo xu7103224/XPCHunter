@@ -2281,7 +2281,8 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
         if (SectionType == 0x53E)
         {
             // Magic 值检查：C8 == 0x800000, E0 == 0x446C6644
-            __int64 C8 = EntryBuffer[0x118 >> 2];
+            /* 【修正 2026-10-20】+0x118 是内核指针，必须 64 位读取 */
+            __int64 C8 = *(ULONG64 *)((PUCHAR)EntryBuffer + 0x118);
             unsigned int E0 = EntryBuffer[0x100 >> 2];
             if (C8 == 0x800000 && E0 == 0x446C6644)
                 PhaseMarker = PhaseCount + 2;
@@ -2311,7 +2312,8 @@ __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSiz
             if (SectionType == 0x512)
             {
                 __int64 F0 = EntryBuffer[0xE0 >> 2];
-                __int64 B8 = EntryBuffer[0x118 >> 2];
+                /* 【修正 2026-10-20】+0x118 是内核指针，必须 64 位读取 */
+                __int64 B8 = *(ULONG64 *)((PUCHAR)EntryBuffer + 0x118);
                 unsigned int C8 = EntryBuffer[0x108 >> 2];
                 if ((F0 & 0x40) && (B8 & 0x10000) && C8 > 0)
                 {

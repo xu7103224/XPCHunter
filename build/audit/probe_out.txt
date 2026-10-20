@@ -1,0 +1,33 @@
+BEGIN 
+
+SERVICE_NAME: RTZ58 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 4  RUNNING 
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+--- probe --- 
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 24 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, key byte = 0xCF
+  handshake FAILED, GetLastError=87
+  command 0x24 -> FAILED, out=0x0, GetLastError=87
+
+  scanning commands 0x20..0x13A:
+    accepted 0, rejected 283
+
+=== done ===
+PROBE_EXIT=0 
+DONE 

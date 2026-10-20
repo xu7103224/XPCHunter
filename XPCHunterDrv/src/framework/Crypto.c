@@ -430,22 +430,24 @@ __int64 Sha1HashToDword(char *String)
     return Digest[0];
 }
 
-// DecryptInputBuffer — 解密输入缓冲区
-// 对应原始驱动 sub_1400813C0
+// DecryptInputBuffer — 解密输入缓冲区（同时也是加密函数，自反）
+// 对应原始驱动 0x1400813C0（0x16 字节 / 16 条指令）
+// 【重写 2026-10-20】旧实现错误：它做了 `buffer[i] ^= KeyByte` 后又对前 4 字节
+//   额外异或了 GtEncryptionKey 的四个字节。原始驱动只有一条变换：
+//       0x1400813C9  mov ecx,1E1h / call GtRead    ; al = GT[0x1E1]
+//       0x1400813D3  mov ecx,30h                   ; 固定 0x30 字节
+//       0x1400813D8  mov dl,[rbx] / xor dl,al / not dl / mov [rbx],dl
+//       0x1400813E6  jnz 循环
+//   即 buf[i] = ~(buf[i] ^ (UCHAR)GT[0x1E1])，自反，无额外异或。
+//   旧实现的错误变换会让按原始协议构造的请求解密失败（Magic 对不上），
+//   实机表现为所有命令返回 STATUS_INVALID_PARAMETER(87)。
 __int64 DecryptInputBuffer(PUCHAR Buffer)
 {
-    // 简单的 XOR 解密
-    ULONG Key = (ULONG)GtRead(GtEncryptionKey);
     UCHAR KeyByte = (UCHAR)GtRead(GtEncryptionKeyByte);
     ULONG i;
 
     for (i = 0; i < IRP_INPUT_BUFFER_SIZE; i++)
-        Buffer[i] ^= KeyByte;
-
-    Buffer[0] ^= (Key >> 24) & 0xFF;
-    Buffer[1] ^= (Key >> 16) & 0xFF;
-    Buffer[2] ^= (Key >> 8) & 0xFF;
-    Buffer[3] ^= Key & 0xFF;
+        Buffer[i] = (UCHAR)~(Buffer[i] ^ KeyByte);
 
     return 1;
 }

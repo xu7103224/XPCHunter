@@ -1688,13 +1688,25 @@ __int64 FindKernelDataSectionOffsetWin8(void)
         AccumulatedOffset = 0;
         for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
         {
-            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
+            /* 【修正 2026-10-20】原始 0x140042FB4..FDE 的顺序是：
+                 call ReadPESectionEntry
+                 test eax,eax / jnz 退出
+                 mov eax,[entry+0xF0] / mov rcx,[ctx+0x08]
+                 add rcx,rax / mov [ctx+0x08],rcx   ← **解码之后**才推进
+               旧代码把推进放在解码之前，首轮用的是**未初始化**的
+               SectionEntry[0xF0]（栈垃圾），导致窗口起点错乱、后续解码出
+               垃圾描述符，+0x118 为 0 → `movzx ecx,[rax+6]` 空指针崩溃
+               （实机 RTZ60 +0x5B585 蓝屏 0x3B/0xC0000005）。 */
             Result = ReadPESectionEntry((PUCHAR)&DecodeContext, SectionEntry);
             if ((_DWORD)Result)
                 break;
+            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
             ComputedOffset = SectionEntry[0xF0 >> 2] + AccumulatedOffset;
             AccumulatedOffset += SectionEntry[0xF0 >> 2];
-            SectionType = *(unsigned short *)((ULONG_PTR)SectionEntry[0x118 >> 2] + 6);
+            /* 【修正 2026-10-20】**必须**按 64 位读取：+0x118 是内核指针，
+               `SectionEntry[0x118>>2]` 只取低 32 位，把 0xFFFFF807_xxxx4EE01
+               截断成 0x4EE01 → 解引用即 0x3B/0xC0000005 蓝屏（RTZ60/61）。 */
+            SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
             RawDataSize = SectionEntry[0x78 >> 2];
             SectionCharacteristics = SectionEntry[0x88 >> 2];
             if (SectionType == 1296 && SectionCharacteristics == 0x40000 && RawDataSize)

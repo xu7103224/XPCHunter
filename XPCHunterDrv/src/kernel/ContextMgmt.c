@@ -4423,7 +4423,8 @@ win10_next_phase1:
             }
             else if (SectionType == 0x42E)
             {
-                __int64 D0 = EntryBuffer[0x118 >> 2];
+                /* 【修正 2026-10-20】+0x118 是内核指针，必须 64 位读取 */
+                __int64 D0 = *(ULONG64 *)((PUCHAR)EntryBuffer + 0x118);
                 if (D0 == 0xB && Phase1Offset && Phase1Offset < PeFileSize)
                 {
                     Phase1Offset = Phase1Offset;
