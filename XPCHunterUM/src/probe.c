@@ -97,7 +97,7 @@ static const CMD_SHAPE g_Shapes[] = {
     { 0xE1, 0,    0x1E0  },  /* CmdEnumProcessListEx      out: >=0x1E0                */
     { 0xE2, 0,    0x1E0  },  /* CmdEnumProcessListWin7                                */
     { 0xE3, 0,    0x1E0  },  /* CmdEnumProcessListWin8                                */
-    { 0xE4, 0,    0x1E0  },  /* CmdEnumProcessListWin10                               */
+    { 0xE4, 0,    0x300  },  /* CmdEnumProcessListWin10  out: >=0x298（每条 664 字节） */
     { 0xE6, 0,    0x40   },  /* CmdGetSsdtTableInfo       out: >=0x30                 */
     { 0xE8, 0,    0x300  },  /* CmdEnumObjectTypeInfo     out: >=0x240                */
     { 0x10B,0,    0x90   },  /* MiniFilterPreAcquire      out: >=0x90                 */
@@ -424,6 +424,47 @@ int main(int argc, char **argv)
                             if ((off2 & 15) == 0) printf("\n      %04X:", off2);
                             printf(" %02X", env[off2]);
                         }
+                        printf("\n");
+                    }
+
+                    /* --- 分派校准 -------------------------------------------------
+                       结果字节 0 既可能是"被分派器拒绝"，也可能是"处理器执行完
+                       但设计上返回 0"（例如 0x20 读进程内存、0x28 进程操作）。
+                       驱动的诊断表把两者分开：
+                         count>0                  → HANDLED（处理器确实执行）
+                         count==0 && diag!=0      → REJECTED（分派器原因码）
+                         count==0 && diag==0      → NOT-ATTEMPTED（本轮没试过）
+                       diag 表位于 env + CMD_ENV_SIZE（见 XPCHunterDrv.h）。 */
+                    {
+                        const ULONG *diag = (const ULONG *)(const void *)(env + 0x100);
+                        const ULONG *rej = diag + 283;
+                        ULONG k, handled = 0, rejected = 0, unattempted = 0;
+
+                        for (k = 0; k < 283; k++) {
+                            ULONG cnt = *(const ULONG *)(const void *)((const PUCHAR)recs + k * 16 + 4);
+                            if (cnt) handled++;
+                            else if (diag[k]) rejected++;
+                            else unattempted++;
+                        }
+                        printf("    --- 分派校准 ---\n");
+                        printf("    HANDLED=%lu  REJECTED=%lu  NOT-ATTEMPTED=%lu\n",
+                               handled, rejected, unattempted);
+                        printf("    HANDLED（处理器已执行；result=0 不代表失败）:\n     ");
+                        for (k = 0; k < 283; k++) {
+                            ULONG cnt = *(const ULONG *)(const void *)((const PUCHAR)recs + k * 16 + 4);
+                            if (cnt)
+                                printf(" 0x%02lX(%lu,r%lu)", 0x20 + k, cnt,
+                                       *(const ULONG *)(const void *)((const PUCHAR)recs + k * 16 + 8));
+                        }
+                        printf("\n    REJECTED（分派器原因码）:\n     ");
+                        for (k = 0; k < 283; k++) {
+                            ULONG cnt = *(const ULONG *)(const void *)((const PUCHAR)recs + k * 16 + 4);
+                            if (!cnt && diag[k])
+                                printf(" 0x%02lX(r%lu)", 0x20 + k, diag[k]);
+                        }
+                        printf("\n    协议级拒绝计数(reason 1..10):");
+                        for (k = 1; k < 11; k++)
+                            printf(" %lu=%lu", k, rej[k]);
                         printf("\n");
                     }
                 }

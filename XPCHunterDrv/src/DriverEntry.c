@@ -302,11 +302,31 @@ void DriverUnload(PDRIVER_OBJECT DriverObject)
 // 对应原始驱动 sub_1400823CC
 NTSTATUS DispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
+    /* 【兜底 2026-10-21】运行期分发表会被改回 DispatchCreateClose。
+       实测（kd 读 DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL]）：
+       部署后扫描正常，但驱动初始化（0x22 → InitAllHookSubsystems 等）跑过之后
+       该项变成 DispatchCreateClose(0x11540)，于是所有 IOCTL 都落到这里被
+       "成功完成"、DispatchDeviceControl 从未执行 —— 客户端只看到 result 恒 0，
+       全命令"被拒"。这里恢复表项并把当前这个 IOCTL 转给真正的分派器，
+       同时用 GT[0x4E5C] 计数，便于定位是哪条路径改写了它。 */
+    if (DeviceObject && DeviceObject->DriverObject &&
+        DeviceObject->DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] !=
+            (PDRIVER_DISPATCH)DispatchDeviceControl)
+    {
+        GtWrite((GLOBAL_TABLE_INDEX)0x4E5C,
+                GtRead((GLOBAL_TABLE_INDEX)0x4E5C) + 1);
+        DeviceObject->DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] =
+            (PDRIVER_DISPATCH)DispatchDeviceControl;
+    }
+
     /* 【兼容性观测 2026-10-20】记录设备被打开的次数与进程，用于判断
        外部前端是否真的打开了设备（而不仅仅是加载了驱动）。
        GT[0x4E00] = 累计 open 次数，GT[0x4E01] = 最近一次 open 的 PID。
        这两槽在原始驱动中未被使用。 */
     PIO_STACK_LOCATION Stack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (Stack->MajorFunction == IRP_MJ_DEVICE_CONTROL)
+        return DispatchDeviceControl(DeviceObject, Irp);
 
     if (Stack->MajorFunction == IRP_MJ_CREATE)
     {
@@ -315,8 +335,6 @@ NTSTATUS DispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         GtWrite((GLOBAL_TABLE_INDEX)0x4E01,
                 (__int64)(ULONG_PTR)PsGetCurrentProcessId());
     }
-
-    UNREFERENCED_PARAMETER(DeviceObject);
 
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
@@ -350,6 +368,21 @@ NTSTATUS DispatchCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 //   0x14008258F  GtRead(0x355)           ; 重入锁，非 0 则拒
 //   0x1400825AB..5BA  Handler(OutBuf, OutSize, Ctx, CtxSize)
 //   0x1400825BF  GtWrite(0x355, 0)
+/* 【诊断 2026-10-21】记录一次分派器拒绝。
+   Reason: 1..10，与下面各拒绝分支的编号一致（见各自的 GtWrite(0x4E50, n)）。
+   Index : 已解析出的命令索引（Command - 0x20），-1 表示还没解析出命令号。
+   写三处：最近原因（0x4E50，兼容旧探针）、该原因累计次数、按命令的原因表。
+   有了按命令的原因表，"结果字节 0" 才能被区分为
+   「分派器拒绝」还是「处理器执行完但设计上返回 0」。 */
+static void RecordDispatchReject(int Reason, int Index)
+{
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E50, Reason);
+    GtWrite((GLOBAL_TABLE_INDEX)(CMD_STAT_REJECT_BASE + Reason),
+            GtRead((GLOBAL_TABLE_INDEX)(CMD_STAT_REJECT_BASE + Reason)) + 1);
+    if (Index >= 0 && Index < CMD_STAT_DIAG_N)
+        GtWrite((GLOBAL_TABLE_INDEX)(CMD_STAT_DIAG_BASE + Index), Reason);
+}
+
 NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION IrpStack;
@@ -383,12 +416,12 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
        返回 0xC0000001（STATUS_UNSUCCESSFUL），且不碰用户内存；
        其余所有拒绝分支都走 loc_140082603（IoStatus=0，返回 0）。 */
     if (InputLength != 0x30 || Buffer == NULL)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 1); goto BadInput; }
+        { RecordDispatchReject(1, -1); goto BadInput; }
 
     /* 0x14008244C..45B：IoControlCode 必须等于设备名派生的 GT[0x1E0] */
     ExpectedCode = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x1E0);
     if (ExpectedCode != IoControlCode)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 2); goto Complete; }
+        { RecordDispatchReject(2, -1); goto Complete; }
 
     /* 0x140082464：原地解密 0x30 字节（自反异或） */
     KeyByte = (UCHAR)GtRead((GLOBAL_TABLE_INDEX)0x1E1);
@@ -396,14 +429,14 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* 0x140082469：Magic */
     if (*(ULONG *)Buffer != 0x20240810u)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 3); goto Complete; }
+        { RecordDispatchReject(3, -1); goto Complete; }
 
     /* 0x140082491..4C1：MD5(明文前 0x28 字节) 的前 4 字节 == [buf+0x28] */
     InitMd5Context(&Md5);
     Md5Update(&Md5, (PUCHAR)Buffer, 0x28);
     Md5Final(&Md5, Digest);
     if (*(ULONG *)Digest != *(ULONG *)((PUCHAR)Buffer + 0x28))
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 4); goto Complete; }
+        { RecordDispatchReject(4, -1); goto Complete; }
 
     /* 0x1400824C7..4D9：取出 4 个参数与 3 个用户指针 */
     OutSize  = *(ULONG  *)((PUCHAR)Buffer + 0x20);
@@ -418,7 +451,7 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
            mov rcx, [rax]                    ; rcx = 0x7FFFFFFF0000 */
     ProbeLimit = MmUserProbeAddress;
     if (CtxPtr >= ProbeLimit || ExtraPtr >= ProbeLimit || OutPtr >= ProbeLimit)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 5); goto Complete; }
+        { RecordDispatchReject(5, -1); goto Complete; }
 
     /* 0x140082503..518：串行化。g_Event 是 SynchronizationEvent、初值 TRUE，
        所以首个请求直接获得，后续请求排队。原始把第 5 个参数（Timeout）
@@ -428,11 +461,14 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     /* 0x140082521..52C：命令号与范围 [0x20, 0x13A] */
     Command = *(ULONG *)((PUCHAR)Buffer + 4);
     if (Command - 0x20u > 0x11Au)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 6); goto Release; }
+        { RecordDispatchReject(6, -1); goto Release; }
+
+    /* 范围检查保证 Index ∈ [0, 282]，与命令表索引、诊断表索引一致 */
+    Index = Command - 0x20u;
 
     /* 0x140082532..544：驱动就绪标志；未就绪时只放行 0x22 */
     if (GtRead((GLOBAL_TABLE_INDEX)0x304) == 0 && Command != 0x22u)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 7); goto Release; }
+        { RecordDispatchReject(7, (int)Index); goto Release; }
 
     /* 0x14008254A..56B：非 0x22 时先初始化回调并置已初始化标志 */
     if (Command != 0x22u)
@@ -444,18 +480,20 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* 0x140082570..577：进程访问校验 */
     if (CheckProcessAccess() != 1)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 8); goto Release; }
+        { RecordDispatchReject(8, (int)Index); goto Release; }
 
     /* 0x140082579..58D：命令表 GT[0x921 + (Command - 0x20)] */
-    Index = Command - 0x20u;
     Handler = GtRead((GLOBAL_TABLE_INDEX)(0x921u + Index));
     if (Handler == 0)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 9); goto Release; }
+        { RecordDispatchReject(9, (int)Index); goto Release; }
 
     /* 0x14008258F..5A6：重入锁 */
     if (GtRead((GLOBAL_TABLE_INDEX)0x355) != 0)
-        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 10); goto Release; }
+        { RecordDispatchReject(10, (int)Index); goto Release; }
     GtWrite((GLOBAL_TABLE_INDEX)0x355, 1);
+
+    /* 即将真正调用处理器：清掉本命令的诊断原因（0 = 没有被分派器拒绝） */
+    GtWrite((GLOBAL_TABLE_INDEX)(CMD_STAT_DIAG_BASE + Index), 0);
 
     /* 0x1400825AB..5BA：调用处理函数。原始寄存器映射：
          0x1400825B7  mov rcx, r12   ; r12 = [buf+0x10]  ContextPointer
@@ -496,7 +534,9 @@ Release:
      */
     ProbeForRead((PVOID)OutPtr, 1, 1);
     *(PUCHAR)OutPtr = Result;
-    { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 11); goto Complete; }
+    goto Complete;   /* 必须显式跳过 BadInput：原处 `{ GtWrite(0x4E50,11); goto Complete; }`
+                        被换成诊断调用时整块删掉，会直接落入 BadInput 并返回
+                        STATUS_UNSUCCESSFUL（实测扫描 accepted 22 → 0） */
 
 BadInput:
     /* 0x140082616..629：长度/缓冲非法 → 返回 STATUS_UNSUCCESSFUL，不碰用户内存 */

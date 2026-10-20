@@ -624,6 +624,29 @@ void InitCallbackContextHookTable(void);
 #define CMD_OPEN_REC_SIZE 16
 #define CMD_ENV_SIZE     0x100
 
+/* 【诊断 2026-10-21】结果字节无法区分"被拒"与"处理器执行后返回 0"：
+   分派器在两条路径上都把输出首字节写成 0（见 DriverEntry.c 的说明），
+   所以只靠客户端看到的 result 会把大量**正常工作但设计上返回 0** 的命令
+   （例如 0x20 读进程内存、0x28 进程操作）误判为 REJECTED。为得到真实判定，
+   这里再加两张表：
+
+     GT[CMD_STAT_DIAG_BASE + i]       第 i 条命令最近一次的分派器拒绝原因
+                                      （0 = 没有被分派器拒绝，处理器被真正调用）
+     GT[CMD_STAT_REJECT_BASE + r]     拒绝原因 r（1..10）的累计次数；
+                                      原因 1..5 发生在解析出命令号之前，属协议级
+
+   两条表随 CmdDumpCallStats(0x13A) 一起导出，探针据此把每条命令判为
+   HANDLED / REJECTED(reason) / NOT-ATTEMPTED。 */
+#define CMD_STAT_DIAG_BASE   0x4E60
+#define CMD_STAT_DIAG_N      CMD_STAT_N
+#define CMD_STAT_REJECT_BASE 0x4E51   /* GT[0x4E51 + 1..10] = 各原因累计次数 */
+#define CMD_STAT_REJECT_N    11
+#define CMD_STAT_DIAG_OFFSET (CMD_STAT_N * 16 + CMD_OPEN_REC_SIZE + CMD_ENV_SIZE)
+#define CMD_STAT_DIAG_SIZE   (CMD_STAT_DIAG_N * 4)
+#define CMD_STAT_REJECT_OFFSET (CMD_STAT_DIAG_OFFSET + CMD_STAT_DIAG_SIZE)
+#define CMD_STAT_REJECT_SIZE   (CMD_STAT_REJECT_N * 4)
+#define CMD_STAT_TOTAL_SIZE    (CMD_STAT_REJECT_OFFSET + CMD_STAT_REJECT_SIZE)
+
 __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
                          _DWORD *pOutputBuffer, int OutputSize);
 
