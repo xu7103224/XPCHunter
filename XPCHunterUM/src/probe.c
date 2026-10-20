@@ -357,7 +357,7 @@ int main(int argc, char **argv)
            non-zero count was issued by that front end. */
         if (Stats) {
             enum { N = 284, REC = 16 };   /* 283 commands + 1 device-open record */
-            enum { ENV = 0x100 };   /* >= driver CMD_ENV_SIZE, keep slack */
+            enum { ENV = 0x400, STATBUF = 0x3000 };   /* >= driver need, keep slack */
             ULONG *recs;
             UCHAR sres = 0;
             BOOL sok = FALSE;
@@ -373,9 +373,9 @@ int main(int argc, char **argv)
             XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
                        NULL, 0, &ssdt, sizeof(ssdt), &r22);
 
-            recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, N * REC + ENV);
+            recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, STATBUF);
             if (recs)
-                sok = XpchInvoke(&client, 0x13A, NULL, 0, recs, N * REC + ENV, &sres);
+                sok = XpchInvoke(&client, 0x13A, NULL, 0, recs, STATBUF, &sres);
 
             printf("  stats dump 0x13A -> %s, result=%u\n",
                    sok ? "OK" : "REJECTED", sres);
@@ -412,6 +412,11 @@ int main(int argc, char **argv)
                     printf("    toBuf=%ld rawStatus=0x%lX rawSize=0x%lX\n",
                            (long)*(ULONG *)(env + 0x50),
                            *(ULONG *)(env + 0x54), *(ULONG *)(env + 0x58));
+                    /* 0xB0 = GT[0x36C] Win10 进程链表头（命令 0xE4 的数据源，
+                       由 ParseNtKernelDataSections 写入）；0xA8 = GT[0x36A] 其门控 */
+                    printf("    win10ListHead=%p ndisIMOffset=0x%lX\n",
+                           (void *)*(ULONG64 *)(env + 0xB0),
+                           (ULONG)*(ULONG *)(env + 0xA8));
                     {
                         int off2;
                         printf("    raw env:");

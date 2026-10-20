@@ -622,7 +622,7 @@ void InitCallbackContextHookTable(void);
 #define CMD_STAT_PID    0x4C00
 #define CMD_STAT_N       283
 #define CMD_OPEN_REC_SIZE 16
-#define CMD_ENV_SIZE     0xB0
+#define CMD_ENV_SIZE     0x100
 
 __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
                          _DWORD *pOutputBuffer, int OutputSize);

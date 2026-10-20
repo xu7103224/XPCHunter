@@ -81,3 +81,6 @@ build/audit/_gttest.bin
 build/audit/_mklm.py
 # ntoskrnl 已有入库副本 ntoskrnl_guest.exe（同 SHA1），不再重复
 build/audit/ntoskrnl_19045.exe
+
+# IDA MCP 运行时目录（临时会话/缓存）
+.ida-mcp/

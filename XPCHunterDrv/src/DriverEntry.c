@@ -383,12 +383,12 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
        返回 0xC0000001（STATUS_UNSUCCESSFUL），且不碰用户内存；
        其余所有拒绝分支都走 loc_140082603（IoStatus=0，返回 0）。 */
     if (InputLength != 0x30 || Buffer == NULL)
-        goto BadInput;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 1); goto BadInput; }
 
     /* 0x14008244C..45B：IoControlCode 必须等于设备名派生的 GT[0x1E0] */
     ExpectedCode = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x1E0);
     if (ExpectedCode != IoControlCode)
-        goto Complete;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 2); goto Complete; }
 
     /* 0x140082464：原地解密 0x30 字节（自反异或） */
     KeyByte = (UCHAR)GtRead((GLOBAL_TABLE_INDEX)0x1E1);
@@ -396,14 +396,14 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* 0x140082469：Magic */
     if (*(ULONG *)Buffer != 0x20240810u)
-        goto Complete;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 3); goto Complete; }
 
     /* 0x140082491..4C1：MD5(明文前 0x28 字节) 的前 4 字节 == [buf+0x28] */
     InitMd5Context(&Md5);
     Md5Update(&Md5, (PUCHAR)Buffer, 0x28);
     Md5Final(&Md5, Digest);
     if (*(ULONG *)Digest != *(ULONG *)((PUCHAR)Buffer + 0x28))
-        goto Complete;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 4); goto Complete; }
 
     /* 0x1400824C7..4D9：取出 4 个参数与 3 个用户指针 */
     OutSize  = *(ULONG  *)((PUCHAR)Buffer + 0x20);
@@ -418,7 +418,7 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
            mov rcx, [rax]                    ; rcx = 0x7FFFFFFF0000 */
     ProbeLimit = MmUserProbeAddress;
     if (CtxPtr >= ProbeLimit || ExtraPtr >= ProbeLimit || OutPtr >= ProbeLimit)
-        goto Complete;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 5); goto Complete; }
 
     /* 0x140082503..518：串行化。g_Event 是 SynchronizationEvent、初值 TRUE，
        所以首个请求直接获得，后续请求排队。原始把第 5 个参数（Timeout）
@@ -428,11 +428,11 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     /* 0x140082521..52C：命令号与范围 [0x20, 0x13A] */
     Command = *(ULONG *)((PUCHAR)Buffer + 4);
     if (Command - 0x20u > 0x11Au)
-        goto Release;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 6); goto Release; }
 
     /* 0x140082532..544：驱动就绪标志；未就绪时只放行 0x22 */
     if (GtRead((GLOBAL_TABLE_INDEX)0x304) == 0 && Command != 0x22u)
-        goto Release;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 7); goto Release; }
 
     /* 0x14008254A..56B：非 0x22 时先初始化回调并置已初始化标志 */
     if (Command != 0x22u)
@@ -444,17 +444,17 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* 0x140082570..577：进程访问校验 */
     if (CheckProcessAccess() != 1)
-        goto Release;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 8); goto Release; }
 
     /* 0x140082579..58D：命令表 GT[0x921 + (Command - 0x20)] */
     Index = Command - 0x20u;
     Handler = GtRead((GLOBAL_TABLE_INDEX)(0x921u + Index));
     if (Handler == 0)
-        goto Release;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 9); goto Release; }
 
     /* 0x14008258F..5A6：重入锁 */
     if (GtRead((GLOBAL_TABLE_INDEX)0x355) != 0)
-        goto Release;
+        { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 10); goto Release; }
     GtWrite((GLOBAL_TABLE_INDEX)0x355, 1);
 
     /* 0x1400825AB..5BA：调用处理函数。原始寄存器映射：
@@ -496,7 +496,7 @@ Release:
      */
     ProbeForRead((PVOID)OutPtr, 1, 1);
     *(PUCHAR)OutPtr = Result;
-    goto Complete;
+    { GtWrite((GLOBAL_TABLE_INDEX)0x4E50, 11); goto Complete; }
 
 BadInput:
     /* 0x140082616..629：长度/缓冲非法 → 返回 STATUS_UNSUCCESSFUL，不碰用户内存 */

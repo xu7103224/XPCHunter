@@ -2675,6 +2675,25 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x78) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1E);
     *(ULONG *)(Out + 0x7C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1F);
     *(ULONG *)(Out + 0x80) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E20);
+    /* 进程枚举链的另外两个关键槽（0x84..0x98 已被下面的 0x4E40+i 占用，
+       0xA4 会与 0xA8 的 ULONG 重叠，故放到空槽 0xB0）：
+       0xB0 = GT[0x36C] Win10 进程链表头（命令 0xE4 的数据源） */
+    *(ULONG64 *)(Out + 0xB0) = (ULONG64)GtRead(GtEprocessExtField22);
+    *(ULONG *)(Out + 0xA8) = (ULONG)GtRead(GtEprocessExtField20);  /* NdisIMInitializeDeviceInstanceEx */
+    *(ULONG *)(Out + 0xAC) = (ULONG)GtRead(GtEprocessExtField26);  /* 中间槽 */
+    *(ULONG *)(Out + 0xC0) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20016);
+    *(ULONG *)(Out + 0xE4) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E3F);
+    *(ULONG *)(Out + 0xE8) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E3E);
+    *(ULONG *)(Out + 0xEC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E3D);
+    *(ULONG *)(Out + 0xF0) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E50);
+    *(ULONG *)(Out + 0xC4) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20017);
+    *(ULONG *)(Out + 0xC8) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20018);
+    *(ULONG *)(Out + 0xCC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20019);
+    *(ULONG *)(Out + 0xD0) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20020);
+    *(ULONG *)(Out + 0xD4) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20021);
+    *(ULONG *)(Out + 0xD8) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20022);
+    *(ULONG *)(Out + 0xDC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20023);
+    *(ULONG *)(Out + 0xE0) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)20024);
     *(ULONG *)(Out + 0x84) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 0));
     *(ULONG *)(Out + 0x88) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 1));
     *(ULONG *)(Out + 0x8C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 2));

@@ -5140,160 +5140,338 @@ __int64 EnumProcessListWin8Operation(char *pInputBuffer, int InputSize, unsigned
     }
     return Result;
 }
+/* ============================================================================
+ * EnumProcessListWin10Operation — 枚举进程列表（命令 0xE4）
+ * 1:1 对应原始驱动 CmdEnumProcessListWin10 @ 0x14005E354（9613 字节）。
+ *
+ * 【重写 2026-10-21】旧实现把每个版本的 EPROCESS 字段映射编成
+ *     for (i = 0; i < FieldCount; i++) *(OutputPtr + 80 + i * 8) = Eprocess[54 + i];
+ * 而 FieldCount 的取值是 456/459/460/463/467/472 —— 那是 EPROCESS 字段**索引**
+ * （LinkField=481/484/485/488/497 同一套），不是字段个数。于是单个 664 字节的
+ * 条目被写到 80 + 456*8 = 3728 字节，越界 3064 字节：
+ * 实机表现为用户态堆损坏（Critical error c0000374 → ntdll!RtlReportCriticalFailure）。
+ *
+ * 原始实现是**逐字段显式拷贝**（每个版本一套固定的 EPROCESS偏移 -> 条目偏移 映射），
+ * 没有任何循环。此处按 12 个版本分支逐条从反汇编提取为 PROC_FIELD_MAP 表，
+ * 条目固定 0x298(664) 字节，链表偏移按版本取（0x2F0/0x2F8/0xF08/0xF20/0xF28/
+ * 0xF40/0xF88/0xFE8/0x1000/0x1478）。
+ * ============================================================================ */
+#define PROC_ENTRY_SIZE 0x298
+
+/* ==== 由 E:/Work/tmp/gen_proc.py 从原始驱动 CmdEnumProcessListWin10(0x14005E354)
+   的反汇编生成，勿手工编辑。每项：EPROCESS 偏移 -> 输出条目偏移 ==== */
+typedef struct _PROC_FIELD_MAP { unsigned int Src; unsigned int Dst; } PROC_FIELD_MAP;
+typedef struct _PROC_LAYOUT {
+    unsigned int LinkOffset;    /* 下一个 EPROCESS = *(EPROCESS + LinkOffset) */
+    unsigned int FieldCount;
+    const PROC_FIELD_MAP *pFields;
+} PROC_LAYOUT;
+
+/* 0x14005e490 : 0x50001，29 字段，链表偏移 0x2f0 */
+static const PROC_FIELD_MAP g_ProcLayout_50001_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x220, 0x70 }, { 0x258, 0x78 }, { 0x260, 0x80 }, { 0x268, 0x88 },
+    { 0x270, 0x90 }, { 0x278, 0x98 }, { 0x280, 0xa0 }, { 0x288, 0xa8 },
+    { 0x290, 0xb0 }, { 0x298, 0xb8 }, { 0x2a0, 0xc0 }, { 0x2a8, 0xc8 },
+    { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 }, { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 },
+    { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 }, { 0x2e0, 0x100 }, { 0x2e8, 0x108 },
+    { 0x738, 0x110 }, { 0x740, 0x118 }, { 0x748, 0x120 }, { 0x750, 0x128 },
+    { 0x7c0, 0x130 },
+};
+static const PROC_LAYOUT g_ProcLayout_50001 = { 0x2f0, 29, g_ProcLayout_50001_Fields };
+
+/* 0x14005e698 : 0x50002..0x5FFFF，29 字段，链表偏移 0x2f8 */
+static const PROC_FIELD_MAP g_ProcLayout_50002_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x220, 0x70 }, { 0x258, 0x78 }, { 0x260, 0x80 }, { 0x268, 0x88 },
+    { 0x270, 0x90 }, { 0x278, 0x98 }, { 0x280, 0xa0 }, { 0x288, 0xa8 },
+    { 0x290, 0xb0 }, { 0x298, 0xb8 }, { 0x2a0, 0xc0 }, { 0x2a8, 0xc8 },
+    { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 }, { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 },
+    { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 }, { 0x2e0, 0x100 }, { 0x2e8, 0x108 },
+    { 0x740, 0x110 }, { 0x748, 0x118 }, { 0x750, 0x120 }, { 0x758, 0x128 },
+    { 0x7c8, 0x130 },
+};
+static const PROC_LAYOUT g_ProcLayout_50002 = { 0x2f8, 29, g_ProcLayout_50002_Fields };
+
+/* 0x14005e8ac : 0x60000，52 字段，链表偏移 0xfe8 */
+static const PROC_FIELD_MAP g_ProcLayout_60000_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x220, 0x70 }, { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 },
+    { 0x278, 0x98 }, { 0x280, 0xa0 }, { 0x288, 0xa8 }, { 0x298, 0xb8 },
+    { 0x2a0, 0xc0 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 }, { 0x2c0, 0xe0 },
+    { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 }, { 0x2e0, 0x100 },
+    { 0x2e8, 0x108 }, { 0x718, 0x128 }, { 0x770, 0x130 }, { 0xb8, 0x138 },
+    { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x150 }, { 0x300, 0x158 },
+    { 0x708, 0x160 }, { 0x960, 0x168 }, { 0x968, 0x170 }, { 0x998, 0x178 },
+    { 0x9e0, 0x180 }, { 0x9e8, 0x188 }, { 0x9f0, 0x190 }, { 0x9f8, 0x198 },
+    { 0xa08, 0x1a0 }, { 0xa18, 0x1a8 }, { 0xaf0, 0x1d8 }, { 0xaf8, 0x1e0 },
+    { 0xb00, 0x1e8 }, { 0xb08, 0x1f0 }, { 0xb10, 0x1f8 }, { 0xb18, 0x200 },
+    { 0xb80, 0x228 }, { 0xb88, 0x230 }, { 0xb90, 0x238 }, { 0xb98, 0x240 },
+    { 0xba0, 0x248 }, { 0xba8, 0x250 }, { 0xea0, 0x258 }, { 0x1040, 0x268 },
+};
+static const PROC_LAYOUT g_ProcLayout_60000 = { 0xfe8, 52, g_ProcLayout_60000_Fields };
+
+/* 0x14005ec11 : 0x60001，52 字段，链表偏移 0x1000 */
+static const PROC_FIELD_MAP g_ProcLayout_60001_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x220, 0x70 }, { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 },
+    { 0x278, 0x98 }, { 0x280, 0xa0 }, { 0x288, 0xa8 }, { 0x298, 0xb8 },
+    { 0x2a0, 0xc0 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 }, { 0x2c0, 0xe0 },
+    { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 }, { 0x2e0, 0x100 },
+    { 0x2e8, 0x108 }, { 0x718, 0x128 }, { 0x770, 0x130 }, { 0xb8, 0x138 },
+    { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x150 }, { 0x300, 0x158 },
+    { 0x708, 0x160 }, { 0x960, 0x168 }, { 0x968, 0x170 }, { 0x998, 0x178 },
+    { 0x9e0, 0x180 }, { 0x9e8, 0x188 }, { 0x9f0, 0x190 }, { 0x9f8, 0x198 },
+    { 0xa08, 0x1a0 }, { 0xa18, 0x1a8 }, { 0xaf0, 0x1d8 }, { 0xaf8, 0x1e0 },
+    { 0xb00, 0x1e8 }, { 0xb08, 0x1f0 }, { 0xb10, 0x1f8 }, { 0xb18, 0x200 },
+    { 0xb88, 0x228 }, { 0xb90, 0x230 }, { 0xb98, 0x238 }, { 0xba0, 0x240 },
+    { 0xba8, 0x248 }, { 0xbb0, 0x250 }, { 0xeb0, 0x258 }, { 0x1058, 0x268 },
+};
+static const PROC_LAYOUT g_ProcLayout_60001 = { 0x1000, 52, g_ProcLayout_60001_Fields };
+
+/* 0x14005ef70 : 0x60014，53 字段，链表偏移 0x1478 */
+static const PROC_FIELD_MAP g_ProcLayout_60014_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x288, 0xa8 }, { 0x298, 0xb8 }, { 0x2a0, 0xc0 },
+    { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 }, { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 },
+    { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 }, { 0x2e0, 0x100 }, { 0x2e8, 0x108 },
+    { 0x6d8, 0x128 }, { 0x738, 0x130 }, { 0xb8, 0x138 }, { 0x290, 0x140 },
+    { 0x2a8, 0x148 }, { 0x2f0, 0x150 }, { 0x300, 0x158 }, { 0x6c8, 0x160 },
+    { 0xcc0, 0x168 }, { 0xcc8, 0x170 }, { 0xcf8, 0x178 }, { 0xd40, 0x180 },
+    { 0xd48, 0x188 }, { 0xd50, 0x190 }, { 0xd58, 0x198 }, { 0xd68, 0x1a0 },
+    { 0xd78, 0x1a8 }, { 0xe68, 0x1d8 }, { 0xe70, 0x1e0 }, { 0xe78, 0x1e8 },
+    { 0xe80, 0x1f0 }, { 0xe88, 0x1f8 }, { 0xe90, 0x200 }, { 0xf18, 0x228 },
+    { 0xf20, 0x230 }, { 0xf28, 0x238 }, { 0xf30, 0x240 }, { 0xf38, 0x248 },
+    { 0xf40, 0x250 }, { 0x1268, 0x258 }, { 0x1518, 0x268 }, { 0x1328, 0x280 },
+    { 0x1330, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60014 = { 0x1478, 53, g_ProcLayout_60014_Fields };
+
+/* 0x14005f2e0 : 0x60015..0x60027，48 字段，链表偏移 0xf88 */
+static const PROC_FIELD_MAP g_ProcLayout_60015_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x298, 0xb8 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 },
+    { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 },
+    { 0x2e0, 0x100 }, { 0x2e8, 0x108 }, { 0x700, 0x128 }, { 0x758, 0x130 },
+    { 0xb8, 0x138 }, { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x158 },
+    { 0x7f8, 0x168 }, { 0x800, 0x170 }, { 0x820, 0x178 }, { 0x868, 0x180 },
+    { 0x870, 0x188 }, { 0x878, 0x190 }, { 0x880, 0x198 }, { 0x890, 0x1a0 },
+    { 0x980, 0x1d8 }, { 0x988, 0x1e0 }, { 0x990, 0x1e8 }, { 0x998, 0x1f0 },
+    { 0x9a0, 0x1f8 }, { 0x9a8, 0x200 }, { 0xa38, 0x228 }, { 0xa40, 0x230 },
+    { 0xa48, 0x238 }, { 0xa50, 0x240 }, { 0xa58, 0x248 }, { 0xa60, 0x250 },
+    { 0xda0, 0x258 }, { 0x1068, 0x268 }, { 0xe70, 0x280 }, { 0xe78, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60015 = { 0xf88, 48, g_ProcLayout_60015_Fields };
+
+/* 0x14005f60a : 0x60028..0x60031，48 字段，链表偏移 0xf20 */
+static const PROC_FIELD_MAP g_ProcLayout_60028_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x298, 0xb8 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 },
+    { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 },
+    { 0x2e0, 0x100 }, { 0x2e8, 0x108 }, { 0x6f8, 0x128 }, { 0x750, 0x130 },
+    { 0xb8, 0x138 }, { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x158 },
+    { 0x7d8, 0x168 }, { 0x7e0, 0x170 }, { 0x800, 0x178 }, { 0x848, 0x180 },
+    { 0x850, 0x188 }, { 0x858, 0x190 }, { 0x860, 0x198 }, { 0x870, 0x1a0 },
+    { 0x960, 0x1d8 }, { 0x968, 0x1e0 }, { 0x970, 0x1e8 }, { 0x978, 0x1f0 },
+    { 0x980, 0x1f8 }, { 0x988, 0x200 }, { 0xa18, 0x228 }, { 0xa20, 0x230 },
+    { 0xa28, 0x238 }, { 0xa30, 0x240 }, { 0xa38, 0x248 }, { 0xa40, 0x250 },
+    { 0xd50, 0x258 }, { 0x1000, 0x268 }, { 0xe20, 0x280 }, { 0xe28, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60028 = { 0xf20, 48, g_ProcLayout_60028_Fields };
+
+/* 0x14005f934 : 0x60032..0x60045，48 字段，链表偏移 0xf40 */
+static const PROC_FIELD_MAP g_ProcLayout_60032_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x298, 0xb8 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 },
+    { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 },
+    { 0x2e0, 0x100 }, { 0x2e8, 0x108 }, { 0x710, 0x128 }, { 0x768, 0x130 },
+    { 0xb8, 0x138 }, { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x158 },
+    { 0x7f0, 0x168 }, { 0x7f8, 0x170 }, { 0x818, 0x178 }, { 0x860, 0x180 },
+    { 0x868, 0x188 }, { 0x870, 0x190 }, { 0x878, 0x198 }, { 0x888, 0x1a0 },
+    { 0x980, 0x1d8 }, { 0x988, 0x1e0 }, { 0x990, 0x1e8 }, { 0x998, 0x1f0 },
+    { 0x9a0, 0x1f8 }, { 0x9a8, 0x200 }, { 0xa38, 0x228 }, { 0xa40, 0x230 },
+    { 0xa48, 0x238 }, { 0xa50, 0x240 }, { 0xa58, 0x248 }, { 0xa60, 0x250 },
+    { 0xd70, 0x258 }, { 0x1020, 0x268 }, { 0xe40, 0x280 }, { 0xe48, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60032 = { 0xf40, 48, g_ProcLayout_60032_Fields };
+
+/* 0x14005fc5e : 0x60046..0x6004F，48 字段，链表偏移 0xf20 */
+static const PROC_FIELD_MAP g_ProcLayout_60046_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x298, 0xb8 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 },
+    { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 },
+    { 0x2e0, 0x100 }, { 0x2e8, 0x108 }, { 0x710, 0x128 }, { 0x768, 0x130 },
+    { 0xb8, 0x138 }, { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x158 },
+    { 0x7f0, 0x168 }, { 0x7f8, 0x170 }, { 0x818, 0x178 }, { 0x860, 0x180 },
+    { 0x868, 0x188 }, { 0x870, 0x190 }, { 0x878, 0x198 }, { 0x888, 0x1a0 },
+    { 0x980, 0x1d8 }, { 0x988, 0x1e0 }, { 0x990, 0x1e8 }, { 0x998, 0x1f0 },
+    { 0x9a0, 0x1f8 }, { 0x9a8, 0x200 }, { 0xa38, 0x228 }, { 0xa40, 0x230 },
+    { 0xa48, 0x238 }, { 0xa50, 0x240 }, { 0xa58, 0x248 }, { 0xa60, 0x250 },
+    { 0xd50, 0x258 }, { 0x1000, 0x268 }, { 0xe20, 0x280 }, { 0xe28, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60046 = { 0xf20, 48, g_ProcLayout_60046_Fields };
+
+/* 0x14005ff88 : 0x60050..0x60051，48 字段，链表偏移 0xf20 */
+static const PROC_FIELD_MAP g_ProcLayout_60050_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x298, 0xb8 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 },
+    { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 },
+    { 0x2e0, 0x100 }, { 0x2e8, 0x108 }, { 0x710, 0x128 }, { 0x768, 0x130 },
+    { 0xb8, 0x138 }, { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x158 },
+    { 0x7f0, 0x168 }, { 0x7f8, 0x170 }, { 0x818, 0x178 }, { 0x860, 0x180 },
+    { 0x868, 0x188 }, { 0x870, 0x190 }, { 0x878, 0x198 }, { 0x888, 0x1a0 },
+    { 0x980, 0x1d8 }, { 0x988, 0x1e0 }, { 0x990, 0x1e8 }, { 0x998, 0x1f0 },
+    { 0x9a0, 0x1f8 }, { 0x9a8, 0x200 }, { 0xa38, 0x228 }, { 0xa40, 0x230 },
+    { 0xa48, 0x238 }, { 0xa50, 0x240 }, { 0xa58, 0x248 }, { 0xa60, 0x250 },
+    { 0xd50, 0x258 }, { 0x1000, 0x268 }, { 0xe20, 0x280 }, { 0xe28, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60050 = { 0xf20, 48, g_ProcLayout_60050_Fields };
+
+/* 0x1400602b2 : 0x60052，48 字段，链表偏移 0xf28 */
+static const PROC_FIELD_MAP g_ProcLayout_60052_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x298, 0xb8 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 },
+    { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 },
+    { 0x2e0, 0x100 }, { 0x2e8, 0x108 }, { 0x710, 0x128 }, { 0x770, 0x130 },
+    { 0xb8, 0x138 }, { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x158 },
+    { 0x7f8, 0x168 }, { 0x800, 0x170 }, { 0x820, 0x178 }, { 0x868, 0x180 },
+    { 0x870, 0x188 }, { 0x878, 0x190 }, { 0x880, 0x198 }, { 0x890, 0x1a0 },
+    { 0x988, 0x1d8 }, { 0x990, 0x1e0 }, { 0x998, 0x1e8 }, { 0x9a0, 0x1f0 },
+    { 0x9a8, 0x1f8 }, { 0x9b0, 0x200 }, { 0xa40, 0x228 }, { 0xa48, 0x230 },
+    { 0xa50, 0x238 }, { 0xa58, 0x240 }, { 0xa60, 0x248 }, { 0xa68, 0x250 },
+    { 0xd58, 0x258 }, { 0x1008, 0x268 }, { 0xe28, 0x280 }, { 0xe30, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60052 = { 0xf28, 48, g_ProcLayout_60052_Fields };
+
+/* 0x1400605cf : 0x60053+，48 字段，链表偏移 0xf08 */
+static const PROC_FIELD_MAP g_ProcLayout_60053_Fields[] = {
+    { 0x1b0, 0x50 }, { 0x1b8, 0x58 }, { 0x1c0, 0x60 }, { 0x1c8, 0x68 },
+    { 0x260, 0x80 }, { 0x268, 0x88 }, { 0x270, 0x90 }, { 0x278, 0x98 },
+    { 0x280, 0xa0 }, { 0x298, 0xb8 }, { 0x2b0, 0xd0 }, { 0x2b8, 0xd8 },
+    { 0x2c0, 0xe0 }, { 0x2c8, 0xe8 }, { 0x2d0, 0xf0 }, { 0x2d8, 0xf8 },
+    { 0x2e0, 0x100 }, { 0x2e8, 0x108 }, { 0x710, 0x128 }, { 0x768, 0x130 },
+    { 0xb8, 0x138 }, { 0x290, 0x140 }, { 0x2a8, 0x148 }, { 0x2f0, 0x158 },
+    { 0x7e8, 0x168 }, { 0x7f0, 0x170 }, { 0x810, 0x178 }, { 0x858, 0x180 },
+    { 0x860, 0x188 }, { 0x868, 0x190 }, { 0x870, 0x198 }, { 0x880, 0x1a0 },
+    { 0x978, 0x1d8 }, { 0x980, 0x1e0 }, { 0x988, 0x1e8 }, { 0x990, 0x1f0 },
+    { 0x998, 0x1f8 }, { 0x9a0, 0x200 }, { 0xa30, 0x228 }, { 0xa38, 0x230 },
+    { 0xa40, 0x238 }, { 0xa48, 0x240 }, { 0xa50, 0x248 }, { 0xa58, 0x250 },
+    { 0xd40, 0x258 }, { 0xfe8, 0x268 }, { 0xe10, 0x280 }, { 0xe18, 0x288 },
+};
+static const PROC_LAYOUT g_ProcLayout_60053 = { 0xf08, 48, g_ProcLayout_60053_Fields };
+
+
+/* 版本 -> EPROCESS 字段布局。对应原始 0x14005e42b..0x140060598 的比较链：
+   <=0x50000 直接返回；0x50001 单列；0x50002..0x5FFFF 共用一个布局；
+   >=0x60000 依次比较 0x60000/0x60001/0x60014/0x60028/0x60032/0x60046/
+   0x60050/0x60052/0x60053，落在区间者用该区间的布局。 */
+static const PROC_LAYOUT *SelectProcLayout(unsigned int Version)
+{
+    if (Version >= 0x60000)
+    {
+        if (Version == 0x60000) return &g_ProcLayout_60000;
+        if (Version == 0x60001) return &g_ProcLayout_60001;
+        if (Version == 0x60014) return &g_ProcLayout_60014;
+        if (Version <  0x60028) return &g_ProcLayout_60015;
+        if (Version <  0x60032) return &g_ProcLayout_60028;
+        if (Version <  0x60046) return &g_ProcLayout_60032;
+        if (Version <  0x60050) return &g_ProcLayout_60046;
+        if (Version <  0x60052) return &g_ProcLayout_60050;
+        if (Version <  0x60053) return &g_ProcLayout_60052;
+        return &g_ProcLayout_60053;
+    }
+    if (Version == 0x50001) return &g_ProcLayout_50001;
+    return &g_ProcLayout_50002;
+}
+
 __int64 EnumProcessListWin10Operation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
-    SIZE_T RemainingSize;
-    char Result;
+    unsigned int Version;
     _QWORD **ProcessListHead;
-    unsigned int BuildNumber;
-    char *OutputPtr;
-    char *PrevOutputPtr;
     _QWORD *Eprocess;
+    const PROC_LAYOUT *pLayout;
+    char *OutputPtr;
+    char *PrevEntry;
+    unsigned int RemainingSize;
     unsigned int ProcessIndex;
-    int ProcessCount;
-    unsigned int LinkField;
-    unsigned int StartField;
-    unsigned int FieldCount;
-    unsigned int i;
+    unsigned int FieldIndex;
+    char Result;
 
-    RemainingSize = OutputSize;
-    Result = 0;
+    (void)pInputBuffer;
+    (void)InputSize;
+
+    /* 0x14005e37a..0x14005e39a：链表头为空则先做内核数据节区初始化 */
     ProcessListHead = (_QWORD **)GtRead(GtEprocessExtField22);
     if (!ProcessListHead)
     {
         InitKernelDataSectionTable();
         ProcessListHead = (_QWORD **)GtRead(GtEprocessExtField22);
     }
-    BuildNumber = (unsigned int)GtRead(GtEprocessExtField13);
-    if (ProcessListHead)
+    Version = (unsigned int)GtRead(GtEprocessExtField13);
+
+    /* 0x14005e3aa..0x14005e3c6 */
+    if (!ProcessListHead
+        || (ULONG64)ProcessListHead <= (ULONG64)MmSystemRangeStart
+        || Version == 0)
+        return 0;
+
+    /* 0x14005e3cc..0x14005e403：输出缓冲区与长度校验 */
+    if (!pOutputBuffer)
+        return 0;
+    RemainingSize = OutputSize;
+    if (RemainingSize < PROC_ENTRY_SIZE)
+        return 0;
+    if ((ULONG64)pOutputBuffer >= (ULONG64)MmUserProbeAddress)
+        return 0;
+    if ((ULONG64)pOutputBuffer + RemainingSize >= (ULONG64)MmUserProbeAddress)
+        return 0;
+
+    ProbeForWrite(pOutputBuffer, RemainingSize, 4);      /* 0x14005e409 */
+    RtlFillMemory(pOutputBuffer, RemainingSize, 0);      /* 0x14005e41b */
+
+    OutputPtr = (char *)pOutputBuffer;                   /* 0x14005e428 */
+    if (Version <= 0x50000)                              /* 0x14005e42b */
+        return 0;
+
+    Eprocess = (_QWORD *)*ProcessListHead;               /* 0x14005e43d：head->Flink */
+    pLayout = SelectProcLayout(Version);
+
+    PrevEntry = NULL;
+    ProcessIndex = 0;
+    Result = 0;
+    /* 0x14005e461 / 0x14005e669 / 0x14005e87d / 0x1400605a0：各分支的公共循环头 */
+    while (ProcessIndex < 0x1000
+        && (ULONG64)Eprocess > (ULONG64)MmSystemRangeStart
+        && CheckMemoryValid(Eprocess) == 1
+        && RemainingSize >= PROC_ENTRY_SIZE)
     {
-        if (ProcessListHead > (_QWORD **)MmSystemRangeStart)
+        if (PrevEntry)
+            *(UCHAR *)(PrevEntry + 0x290) = 1;           /* 上一项的「有后继」标记 */
+
+        *(ULONG64 *)OutputPtr = (ULONG64)Eprocess;       /* 条目 +0x00 = EPROCESS 指针 */
+        for (FieldIndex = 0; FieldIndex < pLayout->FieldCount; ++FieldIndex)
         {
-            if (BuildNumber)
-            {
-                if (pOutputBuffer)
-                {
-                    if ((unsigned int)RemainingSize >= 0x298
-                        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
-                        && (unsigned __int64)&pOutputBuffer[(unsigned int)RemainingSize] < MmUserProbeAddress)
-                    {
-                        ProbeForWrite(pOutputBuffer, RemainingSize, 4);
-                        RtlFillMemory(pOutputBuffer, RemainingSize, 0);
-                        OutputPtr = (char *)pOutputBuffer;
-                        if (BuildNumber >= 0x60000)
-                        {
-                            // Set version-specific EPROCESS field offsets
-                            if (BuildNumber == 393216)
-                            {
-                                LinkField = 509;
-                                StartField = 54;
-                                FieldCount = 467;
-                            }
-                            else if (BuildNumber >= 0x60053)
-                            {
-                                LinkField = 481;
-                                StartField = 54;
-                                FieldCount = 456;
-                            }
-                            else if (BuildNumber >= 0x60052)
-                            {
-                                LinkField = 485;
-                                StartField = 54;
-                                FieldCount = 460;
-                            }
-                            else if (BuildNumber >= 0x60050)
-                            {
-                                LinkField = 484;
-                                StartField = 54;
-                                FieldCount = 459;
-                            }
-                            else if (BuildNumber >= 0x60032)
-                            {
-                                LinkField = 488;
-                                StartField = 54;
-                                FieldCount = 463;
-                            }
-                            else
-                            {
-                                LinkField = 497;
-                                StartField = 54;
-                                FieldCount = 472;
-                            }
-
-                            PrevOutputPtr = 0;
-                            Eprocess = *ProcessListHead;
-                            ProcessIndex = 0;
-                            ProcessCount = 0;
-                            while (ProcessIndex < 0x1000
-                                && Eprocess > (_QWORD *)MmSystemRangeStart
-                                && CheckMemoryValid(Eprocess) == 1
-                                && (unsigned int)RemainingSize >= 0x298)
-                            {
-                                if (PrevOutputPtr)
-                                    PrevOutputPtr[656] = 1;
-                                *(_QWORD *)OutputPtr = (_QWORD)Eprocess;
-
-                                // Copy EPROCESS fields using version-specific offsets
-                                for (i = 0; i < FieldCount; i++)
-                                    *(_QWORD *)(OutputPtr + 80 + i * 8) = Eprocess[StartField + i];
-
-                                Result = 1;
-                                PrevOutputPtr = OutputPtr;
-                                RemainingSize -= 664;
-                                OutputPtr += 664;
-                                ProcessCount++;
-                                Eprocess = (_QWORD *)Eprocess[LinkField];
-                                ProcessIndex++;
-                            }
-                        }
-                        else
-                        {
-                            // Pre-Win10 (Win7/8 compatible)
-                            if (BuildNumber == 327681)
-                            {
-                                LinkField = 94;
-                                StartField = 54;
-                                FieldCount = 195;
-                            }
-                            else
-                            {
-                                LinkField = 95;
-                                StartField = 54;
-                                FieldCount = 196;
-                            }
-
-                            PrevOutputPtr = 0;
-                            Eprocess = *ProcessListHead;
-                            ProcessIndex = 0;
-                            ProcessCount = 0;
-                            while (ProcessIndex < 0x1000
-                                && Eprocess > (_QWORD *)MmSystemRangeStart
-                                && CheckMemoryValid(Eprocess) == 1
-                                && (unsigned int)RemainingSize >= 0x298)
-                            {
-                                if (PrevOutputPtr)
-                                    PrevOutputPtr[656] = 1;
-                                *(_QWORD *)OutputPtr = (_QWORD)Eprocess;
-
-                                for (i = 0; i < FieldCount; i++)
-                                    *(_QWORD *)(OutputPtr + 80 + i * 8) = Eprocess[StartField + i];
-
-                                Result = 1;
-                                PrevOutputPtr = OutputPtr;
-                                RemainingSize -= 664;
-                                OutputPtr += 664;
-                                ProcessCount++;
-                                Eprocess = (_QWORD *)Eprocess[LinkField];
-                                ProcessIndex++;
-                            }
-                        }
-                    }
-                }
-            }
+            *(ULONG64 *)(OutputPtr + pLayout->pFields[FieldIndex].Dst) =
+                *(ULONG64 *)((PUCHAR)Eprocess + pLayout->pFields[FieldIndex].Src);
         }
+
+        Result = 1;
+        PrevEntry = OutputPtr;
+        RemainingSize -= PROC_ENTRY_SIZE;
+        OutputPtr = (char *)pOutputBuffer + (OutputSize - RemainingSize);
+        Eprocess = *(_QWORD *)((PUCHAR)Eprocess + pLayout->LinkOffset);
+        ++ProcessIndex;
     }
     return Result;
 }
+
 __int64 EnumObjectDirectoryOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
     unsigned int DirResult;

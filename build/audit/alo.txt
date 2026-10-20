@@ -1,0 +1,20 @@
+==== BEGIN ==== 
+操作成功完成。
+操作成功完成。
+操作成功完成。
+操作成功完成。
+操作成功完成。
+--- verify --- 
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+    AutoAdminLogon    REG_SZ    1
+
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+    DefaultUserName    REG_SZ    xuq
+
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+    AutoLogonCount    REG_DWORD    0x1e
+
+==== WDONE ==== 

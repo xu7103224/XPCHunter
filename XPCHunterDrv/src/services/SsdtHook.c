@@ -613,23 +613,23 @@ void InitKernelDataSectionTable(void)
     if (ReadKernelExportDirFile((_QWORD *)&pFileBuffer, &FileSize))
     {
         if (!GtRead(GtEprocessExtField13))
-            FindNdisGetVersionExport((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20016, (__int64)(UCHAR)FindNdisGetVersionExport((__int64)pFileBuffer, FileSize));
         if (!(unsigned int)GtRead(GtEprocessExtField14))
-            FindNdisDeregisterProtocolExport((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20017, (__int64)(UCHAR)FindNdisDeregisterProtocolExport((__int64)pFileBuffer, FileSize));
         if (!GtRead(GtEprocessExtField16))
-            ScanTextSectionPattern((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20018, (__int64)(UCHAR)ScanTextSectionPattern((__int64)pFileBuffer, FileSize));
         if (!(unsigned int)GtRead(GtEprocessExtField17))
-            FindNdisFRegisterFilterDriverExport((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20019, (__int64)(UCHAR)FindNdisFRegisterFilterDriverExport((__int64)pFileBuffer, FileSize));
         if (!GtRead(GtEprocessExtField19))
-            ScanPageSectionPattern((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20020, (__int64)(UCHAR)ScanPageSectionPattern((__int64)pFileBuffer, FileSize));
         if (!GtRead(GtEprocessExtField25))
-            FindNdisMRegisterMiniportDriverExport((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20021, (__int64)(UCHAR)FindNdisMRegisterMiniportDriverExport((__int64)pFileBuffer, FileSize));
         if (!GtRead(GtEprocessExtField27))
-            ScanInitSectionPattern((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20022, (__int64)(UCHAR)ScanInitSectionPattern((__int64)pFileBuffer, FileSize));
         if (!GtRead(GtEprocessExtField20))
-            FindNdisIMInitializeDeviceInstanceEx((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20023, (__int64)(UCHAR)FindNdisIMInitializeDeviceInstanceEx((__int64)pFileBuffer, FileSize));
         if (!GtRead(GtEprocessExtField22))
-            ParseNtKernelDataSections((__int64)pFileBuffer, FileSize);
+            GtWrite((GLOBAL_TABLE_INDEX)20024, (__int64)(UCHAR)ParseNtKernelDataSections((__int64)pFileBuffer, FileSize));
         if (!GtRead(GtEprocessExtField28))
             FindNdisRegisterTdiCallBackExport((__int64)pFileBuffer, FileSize);
         if (!GtRead(GtEprocessExtField31))
@@ -2596,7 +2596,6 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     {
         PE_DECODE_CONTEXT DecodeContext;
         PE_INSN_DESCRIPTOR SectionEntry;
-        unsigned int SectionSize = 0;
         unsigned int TypeId;
 
         InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
@@ -2610,8 +2609,19 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
                它们从未被赋值恒为 0，于是 `*(_WORD*)(EntrySize+6)` 是解引用
                NULL+6 → 命令 0xE1 首次调用必崩（BSOD 0x3B）。
                描述符字段必须从 SectionEntry 里读。 */
-            int TargetRva2 = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + SectionSize);
-            SectionSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+            /* 【修正 2026-10-21】读指针推进必须是**指针加法**。
+               原始 0x140062c97..0x140062cb4 逐条为：
+                 mov eax,[rsp+var_68]    ; desc+0xF0 = 本条目消费字节数
+                 mov rcx,[rsp+var_1A0]   ; ctx+0x08  = 读指针
+                 add rcx,rax             ; 读指针 += 消费字节数
+                 mov [rsp+var_1A0],rcx   ; 写回
+               旧代码写成 `ctx+0x08 = SectionSize`（一个从 0 累加的**整数**），
+               把读指针写成了小整数（实测 3）→ 下一轮 ReadPESectionEntry 从地址 3
+               取操作码 → 实机 BSOD 0x3B（r9=3，`movzx eax,[r9]`，
+               RIP View___Driver64+0x554e9，栈帧 ReadPESectionEntry）。 */
+            ULONG64 NextReadPtr = DecodeContext.ReadPtr + PE_DESC_SECTION_SIZE(&SectionEntry);
+            DecodeContext.ReadPtr = NextReadPtr;
+
             TypeId = *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6);
             if ((unsigned __int16)(TypeId - 1139) <= 1u)
             {
@@ -2619,16 +2629,19 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             }
             else if (SectionEnd == 1)
             {
-                if (TypeId == 1296 && PE_DESC_FIELD_VALUE(&SectionEntry) == 0x40000)
+                /* 原始 0x140062cd9/ce7/cf2 的三个判据：
+                   desc+0x88 == 0x40000、desc+0x78 != 0、desc+0x50 == 64；
+                   RVA = 读指针 + desc+0x78 - ImageBase（0x140062cfd..cff）。 */
+                if (TypeId == 1296 && PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x40000)
                 {
                     if (PE_DESC_FIELD_SIZE(&SectionEntry) &&
-                        PE_DESC_FIELD_VALUE2(&SectionEntry) == 64)
+                        PE_DESC_FIELD_VALUE(&SectionEntry) == 64)
                     {
-                        unsigned int SectionType2 = (unsigned int)(TargetRva2
+                        unsigned int SectionRva = (unsigned int)(NextReadPtr
                             + PE_DESC_FIELD_SIZE(&SectionEntry) - ImageBase);
-                        if (SectionType2 && SectionType2 < ImageSize)
+                        if (SectionRva && SectionRva < ImageSize)
                         {
-                            GtWrite(GtEprocessExtField16, LoopIndex + SectionType2);
+                            GtWrite(GtEprocessExtField16, LoopIndex + SectionRva);
                             return 0;
                         }
                     }
@@ -2650,14 +2663,10 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = GtRead(GtEprocessExtField11);
     if (LoopIndex && Found && Found < ImageSize)
     {
-        /* 【修正 2026-10-20】描述符字段原先声明为独立局部（CumulativeSize /
-           RvaOffset / EntryField / SectionAlignment / EntrySize），恒为 0，
-           条件永不成立。改为从 SectionEntry 描述符读。 */
         PE_DECODE_CONTEXT DecodeContext;
         PE_INSN_DESCRIPTOR SectionEntry;
         unsigned int SectionEnd = 0;
         unsigned int TargetRva = 0;
-        __int64 CumulativeOffset = 0;
 
         InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
                                  (__int64)&DecodeContext);
@@ -2666,8 +2675,14 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionEntry))
                 break;
 
-            int SectionRva = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeOffset);
-            CumulativeOffset += PE_DESC_SECTION_SIZE(&SectionEntry);
+            /* 【修正 2026-10-21】原始 0x140062e16..0x140062e2d 是读指针的**指针加法**：
+                 mov eax,[rsp+var_68]   ; desc+0xF0 本条目消费字节数
+                 mov rcx,[rsp+var_1A0]  ; ctx+0x08 读指针
+                 add rcx,rax ; mov [rsp+var_1A0],rcx
+               旧代码用局部整数 CumulativeOffset 累加且从不写回 ctx+0x08
+               → 每轮解析同一个描述符（首个描述符恒为第 0 项），扫描永远匹配不到。 */
+            ULONG64 NextReadPtr = DecodeContext.ReadPtr + PE_DESC_SECTION_SIZE(&SectionEntry);
+            DecodeContext.ReadPtr = NextReadPtr;
 
             {
                 unsigned __int16 TypeId =
@@ -2675,12 +2690,17 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
                 if (TypeId == 1349)
                     break;
 
+                /* 原始 0x140062e4a/e58/e63 的判据与取字段位置：
+                   desc+0x50 == 0x40000、desc+0x88 == 0x40，
+                   RVA = 读指针 + desc+0x40（32 位 DWORD）- ImageBase。
+                   旧代码把 0x50/0x88 判据写成了 0x88==0x40000 / 0x78==64，
+                   且用 desc+0x50 当 RVA 分量 —— 三处字段都错位。 */
                 if (TypeId == 1294 &&
-                    PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x40000 &&
-                    PE_DESC_FIELD_SIZE(&SectionEntry) == 64)
+                    PE_DESC_FIELD_VALUE(&SectionEntry) == 0x40000 &&
+                    PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x40)
                 {
-                    unsigned int result = (unsigned int)(SectionRva
-                        + PE_DESC_FIELD_VALUE(&SectionEntry) - ImageBase);
+                    unsigned int Field40 = *(unsigned int *)((PUCHAR)&SectionEntry + 0x40);
+                    unsigned int result = (unsigned int)(NextReadPtr + Field40 - ImageBase);
                     if (result && result < ImageSize)
                     {
                         if (SectionEnd)
@@ -3294,7 +3314,6 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
              EntryCumulSize +0xF0 (uint) EntryDataPtr +0x118 (qword) */
         PE_DECODE_CONTEXT ReadContext;
         PE_INSN_DESCRIPTOR SectionEntry;
-        __int64 CumulativeSize = 0;
         char FoundMarker = 0;
         unsigned int SectionIndex = 0;
         int SectionOffset = 0;
@@ -3309,8 +3328,13 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
                 break;
 
-            SectionOffset = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeSize);
-            CumulativeSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+            /* 【修正 2026-10-21】读指针（ctx+0x08）按**指针加法**推进。原始
+               （外/内层循环同一形态，例 0x140062a28..0x140062a3d）：
+                 mov eax,[desc+0xF0] ; mov rcx,[ctx+0x08] ; add rcx,rax ; mov [ctx+0x08],rcx
+               原始反编译把它显示成整数 CumulativeSize，旧代码便照抄成局部累加器
+               且从不写回 → 每轮解析同一描述符，GT[0x36C] 永远为 0。 */
+            ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionEntry);
+            SectionOffset = (int)ReadContext.ReadPtr;
 
             {
                 unsigned __int16 TypeId =
@@ -3346,7 +3370,9 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
                                              2, 0, -1, 0, 0, (__int64)&ReadContext);
 
                     {
-                        char InnerFound = 0;
+                        /* 【修正 2026-10-21】原始 0x140062a0a 是 `mov sil,[rsp+var_1C0]`，
+                           即 InnerFound 初值 = IsWin10（构建号 >= 0x4A61），不是 0。 */
+                        char InnerFound = (char)IsWin10;
                         unsigned int InnerLoopIndex = 0;
                         int InnerSectionOffset;
 
@@ -3355,9 +3381,8 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
                             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
                                 break;
 
-                            InnerSectionOffset = (int)(PE_DESC_SECTION_SIZE(&SectionEntry)
-                                                       + CumulativeSize);
-                            CumulativeSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+                            ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionEntry);
+                            InnerSectionOffset = (int)ReadContext.ReadPtr;
 
                             {
                                 unsigned __int16 InnerType =
@@ -3377,7 +3402,9 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
                                                 ((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6) - 1139) <= 1u)
                                             {
                                                 InnerFound = 1;
-                                                CumulativeSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+                                                /* 原始此处同样只在该类型命中时推进读指针
+                                                   （用**嵌套读到的那条**描述符的 desc+0xF0）。 */
+                                                ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionEntry);
                                             }
                                         }
                                     }
