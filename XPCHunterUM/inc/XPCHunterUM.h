@@ -186,6 +186,26 @@ BOOL FeLoadProcessWindows(ULONG Pid, ULONG MaxCount, FE_WINDOW_LIST *List);
 void FeFreeProcessWindows(FE_WINDOW_LIST *List);
 BOOL FePrintProcessWindows(ULONG Pid);
 
+/* ---- Modules 子视图（psapi，纯用户态）---- */
+#define FE_MODULE_PATH_CHARS 260u
+
+typedef struct _FE_MODULE_ENTRY {
+    ULONG64 Base;
+    ULONG   Size;
+    WCHAR   Path[FE_MODULE_PATH_CHARS];
+    WCHAR   Name[64];
+} FE_MODULE_ENTRY;
+
+typedef struct _FE_MODULE_LIST {
+    ULONG             Count;
+    ULONG             Capacity;
+    FE_MODULE_ENTRY  *Items;
+} FE_MODULE_LIST;
+
+BOOL FeLoadProcessModules(ULONG Pid, ULONG MaxCount, FE_MODULE_LIST *List);
+void FeFreeProcessModules(FE_MODULE_LIST *List);
+BOOL FePrintProcessModules(ULONG Pid);
+
 #ifdef __cplusplus
 }
 #endif

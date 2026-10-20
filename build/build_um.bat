@@ -52,7 +52,7 @@ echo Linking frontend...
 link /nologo /SUBSYSTEM:WINDOWS /MACHINE:X64 /OPT:REF /OPT:NOICF ^
      /OUT:"%BIN_DIR%\xpch_frontend.exe" ^
      "%OBJ_DIR%\Protocol.obj" "%OBJ_DIR%\frontend.obj" "%OBJ_DIR%\ProcessList.obj" "%OBJ_DIR%\ProcessViews.obj" ^
-     kernel32.lib user32.lib advapi32.lib comctl32.lib gdi32.lib
+     kernel32.lib user32.lib advapi32.lib comctl32.lib psapi.lib gdi32.lib psapi.lib
 
 if errorlevel 1 (
     echo ERROR: link frontend failed

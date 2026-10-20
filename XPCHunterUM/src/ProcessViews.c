@@ -21,6 +21,7 @@
 
 #include "XPCHunterUM.h"
 #include <stdio.h>
+#include <psapi.h>   /* EnumProcessModulesEx / GetModuleInformation / GetModuleFileNameExW */
 
 typedef struct _FE_ENUM_CTX {
     FE_WINDOW_LIST *List;
@@ -116,5 +117,116 @@ BOOL FePrintProcessWindows(ULONG Pid)
     }
 
     FeFreeProcessWindows(&list);
+    return TRUE;
+}
+
+// ---------------------------------------------------------------------------
+// Modules 子视图：EnumProcessModulesEx + GetModuleFileNameExW（纯用户态）
+//
+// 为什么不用 0x49：0x49 是**内核**模块表，且依赖 GT[0x89C]/GT[0x89D]，
+// 而后者的两个 Parse 函数又被 GT[0x4477] 门控 —— 该槽在原始驱动里只读不写
+// （IDB 里搜 0x4477 只有两处，都是 GtRead），属于外部输入，当前为 0，
+// 所以 0x49 一直是空表（见 docs/reversing/Process页落地_2026-10-21.md 第十二节）。
+// Process 页的 Modules 视图要的是"选中进程的模块"，用 psapi 即可，且可验证。
+// ---------------------------------------------------------------------------
+
+BOOL FeLoadProcessModules(ULONG Pid, ULONG MaxCount, FE_MODULE_LIST *List)
+{
+    HANDLE h;
+    HMODULE *mods = NULL;
+    DWORD needed = 0, count = 0, i;
+
+    if (!List)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+    if (!MaxCount)
+        MaxCount = 256;
+
+    h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
+    if (!h)
+        h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, Pid);
+    if (!h)
+        return FALSE;
+
+    mods = (HMODULE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                                (SIZE_T)MaxCount * sizeof(HMODULE));
+    if (!mods) {
+        CloseHandle(h);
+        return FALSE;
+    }
+
+    if (!EnumProcessModulesEx(h, mods, MaxCount * sizeof(HMODULE),
+                              &needed, LIST_MODULES_ALL)) {
+        HeapFree(GetProcessHeap(), 0, mods);
+        CloseHandle(h);
+        return FALSE;
+    }
+
+    count = needed / sizeof(HMODULE);
+    if (count > MaxCount)
+        count = MaxCount;
+
+    List->Items = (FE_MODULE_ENTRY *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                                               (SIZE_T)count * sizeof(FE_MODULE_ENTRY));
+    if (!List->Items) {
+        HeapFree(GetProcessHeap(), 0, mods);
+        CloseHandle(h);
+        return FALSE;
+    }
+    List->Capacity = count;
+
+    for (i = 0; i < count; i++) {
+        MODULEINFO mi;
+        FE_MODULE_ENTRY *e = &List->Items[List->Count];
+
+        ZeroMemory(&mi, sizeof(mi));
+        ZeroMemory(e, sizeof(*e));
+        e->Base = (ULONG64)(ULONG_PTR)mods[i];
+        if (GetModuleInformation(h, mods[i], &mi, sizeof(mi)))
+            e->Size = mi.SizeOfImage;
+        GetModuleFileNameExW(h, mods[i], e->Path,
+                             (DWORD)(sizeof(e->Path) / sizeof(e->Path[0])));
+        {
+            const WCHAR *name = e->Path;
+            const WCHAR *p = e->Path;
+            while (*p) { if (*p == (WCHAR)0x5C || *p == L'/') name = p + 1; p++; }
+            wcsncpy_s(e->Name, sizeof(e->Name) / sizeof(e->Name[0]), name, _TRUNCATE);
+        }
+        List->Count++;
+    }
+
+    HeapFree(GetProcessHeap(), 0, mods);
+    CloseHandle(h);
+    return TRUE;
+}
+
+void FeFreeProcessModules(FE_MODULE_LIST *List)
+{
+    if (!List)
+        return;
+    if (List->Items)
+        HeapFree(GetProcessHeap(), 0, List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FePrintProcessModules(ULONG Pid)
+{
+    FE_MODULE_LIST list;
+    ULONG i;
+
+    if (!FeLoadProcessModules(Pid, 512, &list)) {
+        printf("enum modules failed, GetLastError=%lu\n", GetLastError());
+        return FALSE;
+    }
+    printf("modules of pid %lu: %lu\n", Pid, list.Count);
+    for (i = 0; i < list.Count; i++) {
+        char path[FE_MODULE_PATH_CHARS];
+        FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
+        printf("  base=%p size=0x%-8lX %s\n",
+               (void *)(ULONG_PTR)list.Items[i].Base, list.Items[i].Size, path);
+    }
+    FeFreeProcessModules(&list);
     return TRUE;
 }

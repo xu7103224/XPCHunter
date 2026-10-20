@@ -550,6 +550,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     if (lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))
         return RunProcListCli();
 
+    /* 子视图调试入口：--modules-cli <pid> */
+    if (lpCmdLine && strstr(lpCmdLine, "--modules-cli")) {
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--modules-cli") + 13, NULL, 0);
+        FePrintProcessModules(pid);
+        return 0;
+    }
+
     /* 子视图调试入口：--windows-cli <pid> */
     if (lpCmdLine && strstr(lpCmdLine, "--windows-cli")) {
         ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--windows-cli") + 13, NULL, 0);
