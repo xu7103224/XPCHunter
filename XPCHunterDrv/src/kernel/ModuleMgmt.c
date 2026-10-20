@@ -1448,7 +1448,7 @@ __int64 FindPeExecutableSection(void)
 //     类型指针 = 描述符 +0x118（0x14001522B `[rbp+0xa8]`），类型 = [rax+6]（0x140015237）
 //     +0x50（`[rbp-0x20]`）、+0x58（`[rbp-0x18]`）、+0x88（`[rbp+0x18]`）、
 //     +0x90（`[rbp+0x20]`）、+0x38（`[rbp-0x38]`）
-//     候选 = +0x38 - NtImageBase(低32) + 读指针；>0 且 < KernelSize 时取为结果，首见即返回。
+//     候选 = +0x38 - **PeBase(GT[0x20])** + 读指针；接受条件见下方注释。
 __int64 ScanFileForPeSectionInfo(void)
 {
     __int64 KernelBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
@@ -1467,7 +1467,12 @@ __int64 ScanFileForPeSectionInfo(void)
     _DWORD SectionEntry[112];
     char FoundMatch = 0;
 
-    InitPESectionReadContext(NtImageBase + Offset, (ULONG)(KernelSize - Offset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    /* 【修正 2026-10-19】原始 0x1400151D0 `lea rcx,[rdx+r15]`：窗口基址是
+       **PeBase(GT[0x20]) + Offset**，不是 NtImageBase + Offset。
+       同处 0x140015294 `sub eax,r15d` 的减法基数也是 PeBase。
+       旧实现两处都用了 NtImageBase → 扫描窗口错位 → 永不命中 →
+       MiniFilterPostWrite 拿不到 SectionOffset → GT[0x179]/[0x1A4] 恒 0。 */
+    InitPESectionReadContext(KernelBase + Offset, (ULONG)(KernelSize - Offset), 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
     for (unsigned int SectionIndex = 0; SectionIndex < 0x100; SectionIndex++)
     {
@@ -1494,10 +1499,19 @@ __int64 ScanFileForPeSectionInfo(void)
             ULONG FieldValue = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
             if (FieldValue)
             {
-                Result = FieldValue - (ULONG)NtImageBase
-                       + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
-                if ((int)Result > 0 && (ULONG)Result < KernelSize)
-                    return Result;
+                /* 原始 0x140015294：`sub eax,r15d` —— 减数是 **r15 = GT[0x20]**
+                   （PeBase），`add eax,ecx` 加的是本轮读指针低 32 位。 */
+                ULONG Candidate = FieldValue - (ULONG)KernelBase
+                                + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
+                /* 原始 0x140015299..29F 的接受条件：
+                     test eax,eax / jg  accept   → (int)>0 直接接受，不再比 KernelSize
+                     cmp eax,edi  / jnb exit     → 否则 (u32)>=KernelSize 退出返回 -1
+                   即 0 也被接受（0 < KernelSize），负值必然 >= KernelSize 而退出。 */
+                if ((int)Candidate > 0)
+                    return Candidate;
+                if (Candidate < KernelSize)
+                    return Candidate;
+                return -1;
             }
         }
     }

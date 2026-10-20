@@ -738,12 +738,16 @@ void CleanupHashTable(void)
     }
 }
 
-// InitGtKey — 生成加密密钥
-// 对应原始驱动 sub_140029F0C（179 字节）
-// 【尺寸依据】原始序言 `sub rsp,184h`，SHA1 上下文槽 var_88 为 0x60 字节
-//   （`_QWORD[12]`），摘要槽 var_28 为 0x18 字节（6 个 DWORD）。
-// 【⚠ 缺陷修正 2026-10-08】此前 `ULONG ShaContext[12]` 仅 0x30 字节，
-//   不足原始 0x60 —— 上下文会溢出覆盖相邻的 PathHash/摘要缓冲。
+// InitGtKey — 生成池标签（g_EncryptionKey = GT[0x877]）
+// 对应原始驱动 0x140029F0C（0xB3 字节 / 38 条指令）
+// 【说明 2026-10-20】逐条对照反汇编复核后，算法与原始一致：
+//   SHA1(8 字节入参) → 取前 4 字节 → 每字节 `c%26+'a'` → 首字节 += 0xE0
+//   （原码 0x140029F91 `add byte ptr [rsp+..+var_28],0E0h`，8 位下等价于 -0x20）
+//   → 以 **DWORD** 写回 GT[0x877]（原码 `mov eax,[rsp+..]` 后零扩展）。
+// 【重要】该槽**天然随每次加载变化**：入参是 DriverObject / 导入地址和这类
+//   运行期指针（见 DriverEntry.c:87 / :90），SHA1 结果每次不同，因此
+//   GT[0x877] 不能与另一次加载的基线逐字节比对，只能核对"是否为 4 个
+//   a-z 区间字符"这一形态特征。
 __int64 InitGtKey(__int64 RegistryPath)
 {
     char PathHash[16];
@@ -764,10 +768,8 @@ __int64 InitGtKey(__int64 RegistryPath)
         ++ByteCount;
         --Count;
     } while (Count);
-    *((UCHAR *)KeyBytes) -= 32;
-    // 【修正 2026-10-16】原始 0x140029FA0 `mov cs:g_EncryptionKey, rax`，
-    //   而 g_EncryptionKey = GT[0x877]。（此前误写 GtEncryptionKey=0x1E0）
-    GtWrite(GtPoolTag, *(ULONG *)KeyBytes);
+    *((UCHAR *)KeyBytes) += 0xE0;          /* 原始 0x140029F91 add cl,0E0h */
+    GtWrite(GtPoolTag, *(ULONG *)KeyBytes); /* 原始写入的是 32 位结果 */
     return *(ULONG *)KeyBytes;
 }
 

@@ -446,23 +446,65 @@ __int64 DecryptInputBuffer(PUCHAR Buffer)
 }
 
 // GenerateEncryptionKey — 生成加密密钥
-// 对应原始驱动 sub_140081314
+// 对应原始驱动 0x140081320（0x8D 字节 / 45 条指令）
+// 【重写 2026-10-20】旧实现与原始完全不同（旧版按 i&3 移位异或，原始是
+//   `(edi + c) ^ c` 的逐字符累加）。实机对比 GT[0x1E0]/[0x1E1] 双双不符。
+// 原始算法（逐条对应）：
+//   0x140081328  ebx = 0x20                ; KeyByte 初值
+//   0x140081330  ebp = GetStringLength(rcx) ; **字符数**，不是字节数
+//   0x14008133D..350  循环 ebp 次，每次读一个 WORD：
+//        edi = (edi + c) ^ c
+//   0x140081352..358  eax = (ebp ? s[0] : 0)   ; 首字符
+//   0x14008135B..368  edi = ((edi << 14) | eax) << 2
+//   0x14008136A  GtWrite(0x1E0, edi)
+//   0x140081377  r8 = ebp * 2                ; 按**字节**数再走一遍
+//   0x14008137E..391  逐字节：c==0 ? (bl = (bl>>4) + (bl<<4), 即高低半字节互换)
+//                                  : (bl ^= c)
+//   写回 GT[0x1E1]（原始在 0x1400813C9 的 DecryptInputBuffer 处读取）
+// 实机核对：s = L"View++ByLinxer" → GT[0x1E0]=0x5E00158、GT[0x1E1]=0xCF，
+// 与原始驱动 19045/18362 基线逐字节一致。
 __int64 GenerateEncryptionKey(PWSTR RegistryPath)
 {
-    ULONG Key = 0x20202020;
-    UCHAR KeyByte = 0x20;
+    ULONG Hash = 0x20;          /* edi */
+    UCHAR KeyByte = 0x20;       /* bl  */
+    ULONG Length;               /* ebp */
+    ULONG i;
+    UCHAR FirstByte;
 
-    if (RegistryPath)
+    if (!RegistryPath)
+        return 0;
+
+    Length = GetStringLength(RegistryPath);
+    if (!Length)
+        return 0;
+
+    for (i = 0; i < Length; i++)
     {
-        ULONG i;
-        for (i = 0; RegistryPath[i] && i < 32; i++)
+        ULONG c = (ULONG)RegistryPath[i];
+        Hash = (Hash + c) ^ c;
+    }
+
+    FirstByte = (UCHAR)RegistryPath[0];
+    Hash = (Hash << 14) | FirstByte;
+    Hash <<= 2;
+
+    GtWrite(GtEncryptionKey, Hash);
+
+    /* 第二段：按 UTF-16 字节流（2*Length 字节）更新 KeyByte */
+    for (i = 0; i < Length * 2; i++)
+    {
+        UCHAR c = ((PUCHAR)RegistryPath)[i];
+        if (c == 0)
         {
-            Key ^= (RegistryPath[i] << ((i & 3) * 8));
-            KeyByte ^= (UCHAR)RegistryPath[i];
+            UCHAR hi = (UCHAR)(KeyByte << 4);
+            KeyByte = (UCHAR)((KeyByte >> 4) + hi);
+        }
+        else
+        {
+            KeyByte ^= c;
         }
     }
 
-    GtWrite(GtEncryptionKey, Key);
     GtWrite(GtEncryptionKeyByte, KeyByte);
     return 1;
 }

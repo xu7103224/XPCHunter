@@ -709,9 +709,14 @@ __int64 MiniFilterPostWrite(void)
     ULONG ExistingPostWriteOffset2 = (ULONG)result;
 
     if (!KernelBase || !KernelSize || !NtImageBase || (int)SectionOffset <= 0 ||
-        (ULONG)SectionOffset >= KernelSize || !ExistingPostWriteOffset1 || !result) return result;
+        (ULONG)SectionOffset >= KernelSize || !ExistingPostWriteOffset1 || !(ULONG)result) return result;
 
-    __int64 PeHeaderDataDir = *(_QWORD *)(*(int *)(KernelBase + 60) + KernelBase + 48);
+    /* 原始 0x140014DBD..DC7：
+           movsxd rax,dword [rbp+3Ch]      ; e_lfanew
+           mov r13,[rax+rbp+30h]           ; PE32+ OptionalHeader.ImageBase
+       即 r13 = 文件头里记录的**首选映像基址**（ntoskrnl 为 0x140000000），
+       而不是驱动自身的加载基址。 */
+    __int64 PeImageBase = *(_QWORD *)(*(int *)(KernelBase + 60) + KernelBase + 48);
     PE_DECODE_CONTEXT ReadContext;
     _DWORD SectionEntry[112];
     __int64 SavedSectionOffset = 0;
@@ -738,16 +743,20 @@ __int64 MiniFilterPostWrite(void)
             if ((Candidate == ExistingPostWriteOffset1 || Candidate == ExistingPostWriteOffset2) &&
                 SavedSectionOffset && (ULONG)SavedSectionOffset < KernelSize)
             {
-                /* 原始 0x140014E67..E7E：写 GT[0x1A4]=Saved+DataDir、GT[0x179]=Saved+NtImageBase */
-                GtWrite((GLOBAL_TABLE_INDEX)0x1A4, SavedSectionOffset + PeHeaderDataDir);
+                /* 原始 0x140014E67..E7E：写 GT[0x1A4]=Saved+ImageBase、GT[0x179]=Saved+NtBase */
+                GtWrite((GLOBAL_TABLE_INDEX)0x1A4, SavedSectionOffset + PeImageBase);
                 return GtWrite((GLOBAL_TABLE_INDEX)0x179, SavedSectionOffset + NtImageBase);
             }
         }
         else if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&   /* [rsp+0x118] */
                  *(ULONG *)((PUCHAR)SectionEntry + 0x78) != 0)             /* [rsp+0x108] */
         {
+            /* 【修正 2026-10-19】原始 0x140014ECC..ED1：
+                   mov ebx,[rsp+var_E0]   ; entry+0x78
+                   add ebx,ecx            ; + 读指针低 32 位
+               这里 **不减 PeBase**（与主路径 0x140014E51 的 `sub eax,ebp` 不同）。
+               旧实现多减了一个 KernelBase，导致保存的偏移永远对不上。 */
             SavedSectionOffset = *(ULONG *)((PUCHAR)SectionEntry + 0x78)
-                               - (ULONG)KernelBase
                                + (ULONG)*(ULONG64 *)((PUCHAR)&ReadContext + 0x08);
         }
     }
@@ -1087,79 +1096,104 @@ L_1400159E3:
 }
 
 
+// MiniFilterPreCleanup — 预清理回调（build < 0x4A61 走这里，本机 18362 即是）
+// 对应原始驱动 0x140014EE4（0x1F9 字节 / 69 条指令）
+// 【重写 2026-10-20】旧实现 5 处偏差，逐条对照反汇编修正：
+//   1) 读指针推进时机错：原始在 ReadPESectionEntry **之后**才 `add rcx,rax`
+//      （0x14001500E..02A），旧代码放在解码之前，首轮用未初始化描述符推进。
+//   2) 累计量语义错：原始直接用 ctx+0x08（读指针）作基，旧代码另设 CumulativeSize。
+//   3) 0x40000 支路减基数错：原始 0x1400150CB..0D0 是
+//      `mov ebx,eax; sub ebx,r14d; add ebx,ecx` —— **要减 PeBase**，
+//      与 PostWrite 的同名支路不同（那里不减）。旧代码减了但基数是 CumulativeSize。
+//   4) 命中判据顺序错：原始先比 r12d(GT[0x439F]) 再比 r15d(GT[0x41C5])，
+//      且 0x179/0x1A4 的写入值分别用 r13（PE 头 ImageBase）与 rdi（GT[3]）。
+//   5) 描述符数组大小：0x120 字节 = 72 个 DWORD（旧注释写 112 是错的）。
+// 寄存器映射（保留原名便于核对）：
+//   r14=PeBase(GT[0x20])  esi=PeSize(GT[0x21])  rdi=NtImageBase(GT[3])
+//   rbx=SectionAddr(GT[0x170])  r12d=GT[0x439F]  r15d=GT[0x41C5]
+//   r13=PE 可选头 ImageBase（e_lfanew+0x30）  ebp=轮次  ebx=SavedSectionOffset
 __int64 MiniFilterPreCleanup(void)
 {
-    __int64 KernelBase;
-    unsigned int KernelSize;
+    ULONG64 PeBase;
+    ULONG   PeSize;
     ULONG64 NtImageBase;
-    ULONG64 SectionOffset;
-    int ExistingOffset1;
-    __int64 Result;
-    int ExistingOffset2;
-    ULONG64 ImageOffset;
-    __int64 PeHeaderDataDir;
+    ULONG64 SectionAddr;
+    ULONG   ExistingOffset1;
+    ULONG   ExistingOffset2;
+    ULONG   Offset;
+    ULONG64 PeImageBase;
     ULONG64 SavedSectionOffset;
-    unsigned int SectionIndex;
-    int CalculatedSize;
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节，会被写坏栈）
-    __int64 CumulativeSize = 0;
-    _DWORD SectionEntry[72];
+    ULONG   SectionIndex;
+    ULONG   Result;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[72];        /* 0x120 字节描述符 */
 
-    KernelBase = GtRead(GtEprocessField22);
-    KernelSize = (unsigned int)GtRead(GtEprocessField23);
-    NtImageBase = (ULONG64)GtRead(GtNtoskrnlModuleBase);
-    // 以下索引取自原始驱动实际立即数（IDA 中的枚举别名在 C 头文件中无对应项）
-    SectionOffset = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x170);
-    ExistingOffset1 = (int)GtRead((GLOBAL_TABLE_INDEX)0x41C5);
-    Result = GtRead((GLOBAL_TABLE_INDEX)0x439F);
-    ExistingOffset2 = (int)Result;
+    PeBase       = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x20);   /* r14  */
+    PeSize       = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);     /* esi  */
+    NtImageBase  = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)3);      /* rdi  */
+    SectionAddr  = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x170);  /* rbx  */
+    ExistingOffset1 = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x439F);/* r12d */
+    ExistingOffset2 = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x41C5);/* r15d */
+    Result = ExistingOffset2;
 
-    if (!KernelBase || !KernelSize || !NtImageBase || !SectionOffset)
-        return Result;
-    if (SectionOffset <= NtImageBase || !ExistingOffset1 || !(_DWORD)Result)
-        return Result;
+    /* 0x140014F63..F9A：六道守卫 */
+    if (!PeBase || !PeSize || !NtImageBase || !SectionAddr) return Result;
+    if (SectionAddr <= NtImageBase) return Result;
+    if (!ExistingOffset1 || !ExistingOffset2) return Result;
 
-    Result = (unsigned int)(SectionOffset - NtImageBase);
-    if ((unsigned int)Result >= KernelSize)
-        return Result;
+    /* 0x140014FA0..FB4：Offset = (u32)(SectionAddr - NtImageBase)，
+       要求 Offset < PeSize 且 SectionAddr == Offset + NtImageBase（32 位回绕形式） */
+    Offset = (ULONG)(SectionAddr - NtImageBase);
+    if (Offset >= PeSize) return Result;
+    if (SectionAddr != (ULONG64)Offset + NtImageBase) return Result;
 
-    ImageOffset = (unsigned int)Result;
-    Result += NtImageBase;
-    if (SectionOffset != (ULONG64)Result)
-        return Result;
+    /* 0x140014FBA..FC4：r13 = PE 可选头 ImageBase；rcx = PeBase + Offset */
+    PeImageBase = *(ULONG64 *)(*(int *)(PeBase + 0x3C) + PeBase + 0x30);
 
-    PeHeaderDataDir = *(_QWORD *)(*(int *)(KernelBase + 60) + KernelBase + 48);
-    InitPESectionReadContext(KernelBase + ImageOffset, KernelSize - (unsigned int)ImageOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
-    SavedSectionOffset = 0;
+    InitPESectionReadContext((__int64)(PeBase + Offset),
+                             (ULONG)(PeSize - Offset),
+                             2, 0, -1, 0, 0, (__int64)&ReadContext); /* 0x140014FEF */
 
-    for (SectionIndex = 0; SectionIndex < 0x100; SectionIndex++)
+    SavedSectionOffset = 0;                                   /* 0x140014FF4 xor ebx,ebx */
+    for (SectionIndex = 0; SectionIndex < 0x100; SectionIndex++)  /* 0x140014FF6 xor ebp,ebp */
     {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-        Result = ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry);
-        if ((_DWORD)Result)
-            break;
+        ULONG64 ReadPtr;
+        USHORT  Type;
+        ULONG   Cand;
 
-        CalculatedSize = (int)(*(unsigned int *)((char *)SectionEntry + 0xF0) + CumulativeSize);
-        CumulativeSize += *(unsigned int *)((char *)SectionEntry + 0xF0);
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry) != 0)
+            break;                                            /* 0x14001500C jnz 收尾 */
 
-        if (*(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1368 &&
-            (*(__int64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0 &&
-            (Result = *(unsigned int *)((char *)SectionEntry + 0x38)) != 0)
+        /* 0x14001500E..02A：先推进读指针，再判类型 */
+        ReadPtr = *(ULONG64 *)((PUCHAR)&ReadContext + 0x08)
+                + (ULONG64)*(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) = ReadPtr;
+
+        Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+        if (Type == 0x558 &&                                    /* 0x14001502F */
+            (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0x4000000) != 0 &&  /* 0x140015035 */
+            *(ULONG *)((PUCHAR)SectionEntry + 0x38) != 0)       /* 0x140015043 */
         {
-            Result = CalculatedSize + *(unsigned int *)((char *)SectionEntry + 0x38) - (unsigned int)KernelBase;
-            if (((_DWORD)Result == ExistingOffset1 || (_DWORD)Result == ExistingOffset2) &&
-                (_DWORD)SavedSectionOffset &&
-                (unsigned int)SavedSectionOffset < KernelSize)
+            Cand = *(ULONG *)((PUCHAR)SectionEntry + 0x38) - (ULONG)PeBase
+                 + (ULONG)ReadPtr;                              /* 0x14001504E..051 */
+            if (Cand == ExistingOffset1 || Cand == ExistingOffset2)
             {
-                GtWrite((GLOBAL_TABLE_INDEX)0x1A4, (__int64)(SavedSectionOffset + PeHeaderDataDir));
-                return GtWrite((GLOBAL_TABLE_INDEX)0x179, (__int64)(SavedSectionOffset + NtImageBase));
+                if (SavedSectionOffset && (ULONG)SavedSectionOffset < PeSize)
+                {
+                    /* 0x140015065..07C：0x1A4 = Saved + PE.ImageBase；0x179 = Saved + GT[3] */
+                    GtWrite((GLOBAL_TABLE_INDEX)0x1A4, (__int64)(SavedSectionOffset + PeImageBase));
+                    return GtWrite((GLOBAL_TABLE_INDEX)0x179, (__int64)(SavedSectionOffset + NtImageBase));
+                }
             }
         }
-        else if (*(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
+        else if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&   /* 0x1400150B2 */
+                 *(ULONG *)((PUCHAR)SectionEntry + 0x78) != 0)             /* 0x1400150C0 */
         {
-            Result = *(unsigned int *)((char *)SectionEntry + 0x78);
-            if (*(unsigned int *)((char *)SectionEntry + 0x78))
-                SavedSectionOffset = CalculatedSize + *(unsigned int *)((char *)SectionEntry + 0x78) - (unsigned int)KernelBase;
+            /* 0x1400150CB..0D0：ebx = 字段 - PeBase + 读指针（此处**要减** PeBase） */
+            SavedSectionOffset = (ULONG64)(*(ULONG *)((PUCHAR)SectionEntry + 0x78)
+                                           - (ULONG)PeBase
+                                           + (ULONG)ReadPtr);
         }
     }
     return Result;
@@ -9410,7 +9444,7 @@ __int64 FindKernelDataSectionForWriteMemory(void)
             // 新版路径（Win10 1803 及以后）：先要看到一个 0x510 型节区作标记
             if (SectionType == 0x510 &&
                 *(__int64 *)((char *)SectionEntry + 0x50) == 0x40 &&
-                *(__int64 *)((char *)SectionEntry + 0x58) == 9 &&
+                *(_DWORD *)((char *)SectionEntry + 0x58) == 9 &&
                 *(__int64 *)((char *)SectionEntry + 0x88) == 0x10041)
             {
                 FoundType510Section = 1;

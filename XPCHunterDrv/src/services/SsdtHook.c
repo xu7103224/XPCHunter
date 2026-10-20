@@ -4083,7 +4083,15 @@ void BuildHookTable(void)
             {
                 if ((unsigned int)BuildExportIndexTable(ExportDirVa, ExportDirSize, ExportRva, ExportCount, 0))
                 {
-                    for (enum _GLOBAL_TABLE_INDEX TableIndex = GtSyscallHashTable; (unsigned int)TableIndex < (GtTotalSize | GtEprocessField114 | 0x400); TableIndex = (enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 3))
+                    /* 【修正 2026-10-20】循环上界：原始 0x140003BDA `mov esi,4158h` 起，
+                   0x140003C13 `cmp esi,447Ch` —— 上界是**立即数 0x447C**。
+                   旧代码写成 `GtTotalSize | GtEprocessField114 | 0x400`
+                   = 0x4000|114|0x400 = **0x4472**，比原始少 0xA，
+                   导致最后一轮 esi=0x4473 被跳过 → GT[0x4474]/[0x4475]
+                   （0x4473 组的 RVA / VA）永远不写，实机缺这 2 槽。 */
+                for (enum _GLOBAL_TABLE_INDEX TableIndex = GtSyscallHashTable;
+                     (unsigned int)TableIndex < 0x447Cu;
+                     TableIndex = (enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 3))
                     {
                         int FuncAddress = (int)GtRead(TableIndex);
                         unsigned int ExportOffset = (unsigned int)LookupExportFuncAddr((__int64)ExportRva, ExportCount, FuncAddress);
