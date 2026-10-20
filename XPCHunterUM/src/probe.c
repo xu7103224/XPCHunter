@@ -213,6 +213,8 @@ int main(int argc, char **argv)
     BOOL Scan = FALSE;
     BOOL OpenOnly = FALSE;
     BOOL Stats = FALSE;
+    BOOL Dump = FALSE;
+    ULONG DumpSize = 0x10000;
     ULONG Cmd = 0x24;
     ULONG InValue = 0;
     ULONG ScanLo = XPCH_CMD_MIN;
@@ -227,6 +229,10 @@ int main(int argc, char **argv)
         else if (_stricmp(argv[i], "--scan") == 0) Scan = TRUE;
         else if (_stricmp(argv[i], "--open-only") == 0) OpenOnly = TRUE;
         else if (_stricmp(argv[i], "--stats") == 0) Stats = TRUE;
+        else if (_stricmp(argv[i], "--dump") == 0) {
+            Dump = TRUE;
+            if (i + 1 < argc) DumpSize = (ULONG)strtoul(argv[++i], NULL, 0);
+        }
         else if (_stricmp(argv[i], "--cmd") == 0 && i + 1 < argc)
             Cmd = (ULONG)strtoul(argv[++i], NULL, 0);
         else if (_stricmp(argv[i], "--in") == 0 && i + 1 < argc)
@@ -308,6 +314,42 @@ int main(int argc, char **argv)
             return 0;
         }
 
+        /* --dump: send one command with a large output buffer and hex-dump
+           whatever the driver wrote. Used to determine a command's real
+           output layout empirically instead of guessing from decompiler
+           output (the process-list command, for instance, has a nested
+           header/entry structure that Hex-Rays renders ambiguously). */
+        if (Dump) {
+            UCHAR *buf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, DumpSize);
+            UCHAR dres = 0;
+            BOOL dok = FALSE;
+            ULONG off;
+
+            XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
+                       NULL, 0, &(ULONG){0}, 4, NULL);   /* open ready flag */
+
+            if (buf)
+                dok = XpchInvoke(&client, Cmd, NULL, 0, buf, DumpSize, &dres);
+
+            printf("  dump 0x%02X outSize=0x%X -> %s, result=%u\n",
+                   Cmd, DumpSize, dok ? "OK" : "REJECTED", dres);
+
+            if (dok && buf) {
+                for (off = 0; off < DumpSize; off += 16) {
+                    int nz = 0, k;
+                    for (k = 0; k < 16; k++) if (buf[off + k]) nz = 1;
+                    if (!nz) continue;
+                    printf("    %04X:", off);
+                    for (k = 0; k < 16; k++) printf(" %02X", buf[off + k]);
+                    printf("\n");
+                }
+            }
+            if (buf) HeapFree(GetProcessHeap(), 0, buf);
+            XpchClose(&client);
+            printf("\n=== done (dump) ===\n");
+            return 0;
+        }
+
         /* --stats: dump the driver-side per-command call counters through the
            diagnostic command 0x13A (an empty slot in the original table, so
            no real front end ever sends it). Use this right after running the
@@ -315,6 +357,7 @@ int main(int argc, char **argv)
            non-zero count was issued by that front end. */
         if (Stats) {
             enum { N = 284, REC = 16 };   /* 283 commands + 1 device-open record */
+            enum { ENV = 0x100 };   /* >= driver CMD_ENV_SIZE, keep slack */
             ULONG *recs;
             UCHAR sres = 0;
             BOOL sok = FALSE;
@@ -330,9 +373,9 @@ int main(int argc, char **argv)
             XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
                        NULL, 0, &ssdt, sizeof(ssdt), &r22);
 
-            recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, N * REC);
+            recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, N * REC + ENV);
             if (recs)
-                sok = XpchInvoke(&client, 0x13A, NULL, 0, recs, N * REC, &sres);
+                sok = XpchInvoke(&client, 0x13A, NULL, 0, recs, N * REC + ENV, &sres);
 
             printf("  stats dump 0x13A -> %s, result=%u\n",
                    sok ? "OK" : "REJECTED", sres);
@@ -347,6 +390,38 @@ int main(int argc, char **argv)
                     }
                 }
                 printf("    %d command(s) invoked since load\n", used);
+
+                {
+                    BYTE *env = (BYTE *)recs + N * REC;
+                    printf("    --- driver environment ---\n");
+                    printf("    build=%-6lu ndisVer=0x%lX processListHead=%p\n",
+                           *(ULONG *)(env + 0x00), *(ULONG *)(env + 0x04),
+                           (void *)*(ULONG64 *)(env + 0x08));
+                    printf("    ndisBase=%p ntoskrnlBase=%p kdSectReady=%lu\n",
+                           (void *)*(ULONG64 *)(env + 0x10),
+                           (void *)*(ULONG64 *)(env + 0x18),
+                           (ULONG)*(ULONG64 *)(env + 0x20));
+                    printf("    fltDataSection=%p driverReady=%lu win32kSvc=%p\n",
+                           (void *)*(ULONG64 *)(env + 0x28),
+                           *(ULONG *)(env + 0x30),
+                           (void *)*(ULONG64 *)(env + 0x38));
+                    printf("    ndisRead=%lu ndisFileSize=0x%lX\n",
+                           *(ULONG *)(env + 0x40), *(ULONG *)(env + 0x44));
+                    printf("    openStatus=0x%lX queryStatus=0x%lX\n",
+                           *(ULONG *)(env + 0x48), *(ULONG *)(env + 0x4C));
+                    printf("    toBuf=%ld rawStatus=0x%lX rawSize=0x%lX\n",
+                           (long)*(ULONG *)(env + 0x50),
+                           *(ULONG *)(env + 0x54), *(ULONG *)(env + 0x58));
+                    {
+                        int off2;
+                        printf("    raw env:");
+                        for (off2 = 0; off2 < ENV; off2++) {
+                            if ((off2 & 15) == 0) printf("\n      %04X:", off2);
+                            printf(" %02X", env[off2]);
+                        }
+                        printf("\n");
+                    }
+                }
             }
             if (recs)
                 HeapFree(GetProcessHeap(), 0, recs);

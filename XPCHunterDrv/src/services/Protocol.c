@@ -1106,11 +1106,15 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
                           置 0 → ExFreePool(NULL) 在 nt!ExFreeHeapPool+0x80e 触发 BSOD 0x7E。
                           原始反汇编（sub_14002F680）此处用独立的 `int FsctlResult`（eax）判符号。 */
 
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E1B, GtRead((GLOBAL_TABLE_INDEX)0x4E1B) + 1); /* 调用计数 */
     Status = (ULONG)CreateFileWithPath(FilePath, 0, &Handle, 0x100020, 0x80, 1, 1, 0x20);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E12, (__int64)(int)Status);   /* 诊断：打开状态 */
     if (Status != 0)
         return Status;
 
     Status = (ULONG)CmdQueryFileStandardInfo(Handle, (_QWORD *)FileInfo);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E13, (__int64)(int)Status);   /* 诊断：查询大小状态 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E14, (__int64)FileInfo[0]);   /* 诊断：文件大小 */
     if (Status != 0)
     {
         ZwClose(Handle);
@@ -1118,6 +1122,7 @@ __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char R
     }
 
     FileSize = FileInfo[0];
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E14, (__int64)FileSize);      /* 诊断：本次读到的文件大小 */
     FsctlResult = (int)QueryDiskFsControlInfo(FilePath, 0, &FsctlBuffer, &FsctlBufferSize);
     if (FsctlResult >= 0)
     {
@@ -2384,6 +2389,10 @@ __int64 CmdQueryFileStandardInfo(void *FileHandle, _QWORD *pStandardInfo)
     ULONG Status;
 
     Status = (ULONG)IrpReadFile(FileHandle, (struct _IRP *)IrpBuffer, 0x18, 5);
+    /* 诊断：记录查询返回与缓冲区内容 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E18, (__int64)Status);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E19, (__int64)*(ULONG64 *)(IrpBuffer + 0));
+    GtWrite((GLOBAL_TABLE_INDEX)0x4E1A, (__int64)*(ULONG64 *)(IrpBuffer + 8));
     if (!Status)
         *pStandardInfo = *(_QWORD *)(IrpBuffer + 8);   // 原始：[rsp+var_20] = 缓冲区+8
     return Status;

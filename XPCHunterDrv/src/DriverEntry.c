@@ -1796,7 +1796,8 @@ __int64 InitImageNotifyCallbackWin7(void)
         ULONG   F70, F58, F38;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry) != 0)
-            return 0;                                            /* 0x14001369B */
+            return 0;
+        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);                                            /* 0x14001369B */
 
         ReadPtr = *(ULONG64 *)((PUCHAR)&ReadContext + 0x08)
                 + (ULONG64)*(ULONG *)((PUCHAR)SectionEntry + 0xF0);
@@ -5513,7 +5514,7 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
             ULONG  Len, F8;
 
             if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))  // 0x14006E69F
-                return 0;                                        // 0x14006E71D
+                return 0;
 
             Len  = *(ULONG *)((PUCHAR)Entry + 0xF0);
             Ctx.ReadPtr += Len;                                  /* 0x14006E6AE/6BD：原始为 64 位 add */

@@ -4307,27 +4307,47 @@ char __fastcall ParseNdisGetVersionSection(unsigned int Rva, __int64 ImageBase, 
     char Result = 0;
     if (Rva && Rva < ImageSize)
     {
-        PE_DECODE_CONTEXT ReadContext;   // 0x48 字节解码上下文（原 __int64[8] 仅 64 字节）
-        _DWORD SectionEntry[72];
-        __int64 CumulativeSize = 0;
-        unsigned int Value = 0;
-        int Value_4 = 0;
-        unsigned int EntryCumulSize = 0;
-        __int64 EntryDataPtr = 0;
+        PE_DECODE_CONTEXT ReadContext;
+        PE_INSN_DESCRIPTOR SectionEntry;
+        unsigned int LoopIndex;
 
         InitPESectionReadContext(ImageBase + Rva, ImageSize - Rva, 2, 0, -1, 0, 0, (__int64)&ReadContext);
-        for (unsigned int i = 0; i < 0x64; i++)
+
+        for (LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            unsigned __int16 SectionType;
+            unsigned int VersionValue;
+            int VersionFlags;
+
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
                 break;
-            CumulativeSize += EntryCumulSize;
-            __int16 TypeValue = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (TypeValue == 1349)
+            /* 读完推进解码上下文读指针（ReadPESectionEntry 不回写 ctx+0x08），
+               否则每轮都解析到同一个描述符。 */
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += PE_DESC_SECTION_SIZE(&SectionEntry);
+
+            /* 【修正 2026-10-20】原实现把版本号与标志声明成独立局部变量
+               （恒为 0），于是 `VersionValue > 0x60000` 永不成立，
+               GT[0x363]（NDIS 版本）永远不会被写入 → 命令 0xE4
+               （CmdEnumProcessListEx）及整条进程枚举链全部返回 0。
+
+               反编译原始 0x140062170 的栈布局可知它们其实是**描述符字段**
+               （描述符基址 rbp-0x138，ReadPESectionEntry 写 0x120 字节）：
+                 VersionValue  rbp-0xC8 = desc+0x70   (DWORD)
+                 VersionFlags  rbp-0xC4 = desc+0x74   (int)
+                 SectionEntry[2]       = desc+0x08   (DWORD) */
+            SectionType = *(__int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6);
+            if (SectionType == 1349)
                 break;
-            if ((unsigned __int16)(TypeValue - 1340) <= 7u && SectionEntry[2] == 1 && Value > 0x60000 && !Value_4)
+
+            VersionValue = *(unsigned int *)((PUCHAR)&SectionEntry + 0x70);
+            VersionFlags = *(int *)((PUCHAR)&SectionEntry + 0x74);
+
+            if ((unsigned __int16)(SectionType - 1340) <= 7u &&
+                *(unsigned int *)((PUCHAR)&SectionEntry + 0x08) == 1 &&
+                VersionValue > 0x60000 &&
+                VersionFlags == 0)
             {
-                GtWrite(GtEprocessExtField13, Value);
+                GtWrite(GtEprocessExtField13, VersionValue);
                 return 1;
             }
         }

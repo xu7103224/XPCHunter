@@ -2598,17 +2598,18 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
 {
     ULONG Index;
     PUCHAR Out;
+    ULONG Need = CMD_STAT_N * 16 + CMD_OPEN_REC_SIZE + CMD_ENV_SIZE;
 
     UNREFERENCED_PARAMETER(InputBuffer);
     UNREFERENCED_PARAMETER(InputSize);
 
-    if (!pOutputBuffer || OutputSize < (int)(CMD_STAT_N * 16))
+    if (!pOutputBuffer || OutputSize < (int)Need)
         return 0;
     if ((ULONG64)pOutputBuffer >= MmUserProbeAddress ||
-        (ULONG64)pOutputBuffer + (CMD_STAT_N * 16) >= MmUserProbeAddress)
+        (ULONG64)pOutputBuffer + Need >= MmUserProbeAddress)
         return 0;
 
-    ProbeForWrite(pOutputBuffer, CMD_STAT_N * 16, 4);
+    ProbeForWrite(pOutputBuffer, Need, 4);
 
     Out = (PUCHAR)pOutputBuffer;
     for (Index = 0; Index < CMD_STAT_N; Index++)
@@ -2629,6 +2630,58 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x04) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E00);
     *(ULONG *)(Out + 0x08) = 0;
     *(ULONG *)(Out + 0x0C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E01);
+    Out += 16;
+
+    /*
+     * 再追加"驱动环境"块（CMD_ENV_SIZE 字节）。前端据此判断驱动是否
+     * 已经完成各项内核数据解析；进程枚举等命令依赖这些槽非零。
+     *
+     *   +0x00 DWORD  WindowsBuildNumber      GT[0x914]
+     *   +0x04 DWORD  NdisVersion              GT[0x363]
+     *   +0x08 QWORD  ProcessListHead          GT[0x366]
+     *   +0x10 QWORD  NdisBase                 GT[0x361]
+     *   +0x18 QWORD  NtoskrnlBase             GT[0x20]
+     *   +0x20 QWORD  KernelDataSectionReady   GT[0x369]
+     *   +0x28 QWORD  FilterTableReady         GT[0x8F3] (见注释)
+     *   +0x30 DWORD  DriverReady              GT[0x304]
+     *   +0x34 DWORD  Reserved
+     *   +0x38 QWORD  Win32kBase               GT[0x8xx]
+     */
+    memset(Out, 0, CMD_ENV_SIZE);
+    *(ULONG *)(Out + 0x00) = (ULONG)GtRead(GtWindowsBuildNumber);
+    *(ULONG *)(Out + 0x04) = (ULONG)GtRead(GtEprocessExtField13);
+    *(ULONG64 *)(Out + 0x08) = (ULONG64)GtRead(GtEprocessExtField16);
+    *(ULONG64 *)(Out + 0x10) = (ULONG64)GtRead(GtEprocessExtField11);
+    *(ULONG64 *)(Out + 0x18) = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    *(ULONG64 *)(Out + 0x20) = (ULONG64)GtRead(GtEprocessExtField19);
+    *(ULONG64 *)(Out + 0x28) = (ULONG64)GtRead(GtFltEnumerateFilterDataSection);
+    *(ULONG *)(Out + 0x30) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x304);
+    *(ULONG64 *)(Out + 0x38) = (ULONG64)GtRead(GtWin32kServiceTable);
+    /* 初始化诊断：ndis.sys 是否读取成功 / 文件大小 */
+    *(ULONG *)(Out + 0x40) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E10);
+    *(ULONG *)(Out + 0x44) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E11);
+    *(ULONG *)(Out + 0x48) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E12);
+    *(ULONG *)(Out + 0x4C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E13);
+    *(ULONG *)(Out + 0x50) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E15);
+    *(ULONG *)(Out + 0x54) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E16);
+    *(ULONG *)(Out + 0x58) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E17);
+    *(ULONG *)(Out + 0x5C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E18);
+    *(ULONG *)(Out + 0x60) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E19);
+    *(ULONG *)(Out + 0x64) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1A);
+    *(ULONG *)(Out + 0x68) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E14);
+    *(ULONG *)(Out + 0x6C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1B);
+    *(ULONG *)(Out + 0x70) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1C);
+    *(ULONG *)(Out + 0x74) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1D);
+    *(ULONG *)(Out + 0x78) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1E);
+    *(ULONG *)(Out + 0x7C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E1F);
+    *(ULONG *)(Out + 0x80) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E20);
+    *(ULONG *)(Out + 0x84) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 0));
+    *(ULONG *)(Out + 0x88) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 1));
+    *(ULONG *)(Out + 0x8C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 2));
+    *(ULONG *)(Out + 0x90) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 3));
+    *(ULONG *)(Out + 0x94) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 4));
+    *(ULONG *)(Out + 0x98) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 5));
+    *(ULONG *)(Out + 0x9C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E21);
 
     return 1;
 }
