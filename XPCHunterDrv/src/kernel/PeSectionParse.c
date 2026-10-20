@@ -109,6 +109,7 @@ __int64 ParseNtSectionsForModuleList1(void)
 
     return 0;
 }
+// 对应原始驱动 0x140045424（447 字节）
 __int64 ParseNtSectionsForModuleList2(void)
 {
     __int64 KernelBase = GtRead(0x20);
@@ -176,6 +177,7 @@ __int64 ParseNtSectionsForModuleList2(void)
 
     return 0;
 }
+// 对应原始驱动 0x14007F8D4（617 字节）
 void ScanProcessPESections(void)
 {
     struct _KPROCESS *TargetProcess;
@@ -262,6 +264,7 @@ void ScanProcessPESections(void)
     if (TargetProcess)
         KeUnstackDetachProcess(&ApcState);
 }
+// 对应原始驱动 0x1400061B8（551 字节）
 __int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray)
 {
     unsigned int SectionCount;
@@ -342,6 +345,7 @@ __int64 ParseNtImageSectionHeaders(PRKPROCESS PROCESS, __int64 SectionInfoArray)
         DereferenceObjectSafe((__int64)PROCESS);
     return 1;
 }
+// 对应原始驱动 0x140083728（174 字节）
 __int64 ResolvePESectionOffset(void)
 {
     __int64 Result;
@@ -375,6 +379,7 @@ __int64 ResolvePESectionOffset(void)
     }
     return Result;
 }
+// 对应原始驱动 0x1400576A0（276 字节）
 __int64 FindPeSectionByTypeRsrc(
     __int64 FileBuffer,
     int FileSize,
@@ -438,6 +443,7 @@ __int64 FindPeSectionByTypeRsrc(
 
     return Result;
 }
+// 对应原始驱动 0x1400577B4（365 字节）
 __int64 FindPeSectionByType0x510(
     __int64 FileBuffer,
     int FileSize,
@@ -516,6 +522,7 @@ __int64 FindPeSectionByType0x510(
 
     return result;
 }
+// 对应原始驱动 0x140042B5C（435 字节）
 __int64 ParseNtSectionsForProcessMemory(void)
 {
     __int64 Result;
@@ -603,6 +610,7 @@ __int64 ParseNtSectionsForProcessMemory(void)
 
     return Result;
 }
+// 对应原始驱动 0x140043238（481 字节）
 __int64 ParseNtSectionsForModuleBase(void)
 {
     __int64 Result;
@@ -702,6 +710,7 @@ __int64 ParseNtSectionsForModuleBase(void)
 
     return Result;
 }
+// 对应原始驱动 0x140043084（433 字节）
 __int64 ParseNtSectionsForRelocBase(void)
 {
     __int64 Result;
@@ -807,6 +816,7 @@ __int64 ParseNtSectionsForRelocBase(void)
 
     return Result;
 }
+// 对应原始驱动 0x14004341C（688 字节）
 __int64 ParseProcessMemSections(void)
 {
     __int64 Result;
@@ -1013,6 +1023,7 @@ __int64 ParseProcessMemSections(void)
 
     return Result;
 }
+// 对应原始驱动 0x140042D10（39 字节）
 __int64 FindKernelDataSectionOffset(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
@@ -1020,6 +1031,7 @@ __int64 FindKernelDataSectionOffset(void)
     else
         return FindKernelDataSectionOffsetWin7();
 }
+// 对应原始驱动 0x1400436CC（420 字节）
 __int64 FindKernelDataSectionOffsetEx(void)
 {
     __int64 Result;
@@ -1115,6 +1127,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
 
     return Result;
 }
+// 对应原始驱动 0x140043C40（460 字节）
 __int64 FindKernelDataSectionOffsetV2(void)
 {
     __int64 Result;
@@ -1212,6 +1225,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
 
     return Result;
 }
+// 对应原始驱动 0x140043E0C（435 字节）
 __int64 FindKernelDataSectionOffsetV3(void)
 {
     __int64 Result;
@@ -1294,6 +1308,7 @@ __int64 FindKernelDataSectionOffsetV3(void)
 
     return Result;
 }
+// 对应原始驱动 0x140043A5C（39 字节）
 __int64 DispatchFindKernelDataSection(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x42EE)
@@ -1301,6 +1316,7 @@ __int64 DispatchFindKernelDataSection(void)
     else
         return FindKernelDataSectionOffsetWin10();
 }
+// 对应原始驱动 0x140083588（413 字节）
 __int64 FindPESectionByOffset(unsigned int SectionOffset)
 {
     __int64 BaseOffset;
@@ -1370,6 +1386,7 @@ __int64 FindPESectionByOffset(unsigned int SectionOffset)
     }
     return Result;
 }
+// 对应原始驱动 0x140042D38（430 字节）
 __int64 FindKernelDataSectionOffsetWin7(void)
 {
     __int64 Result = 0;
@@ -1447,6 +1464,7 @@ __int64 FindKernelDataSectionOffsetWin7(void)
 
     return Result;
 }
+// 对应原始驱动 0x140043A84（443 字节）
 __int64 FindKernelDataSectionOffsetWin10(void)
 {
     __int64 Result = 0;
@@ -1521,6 +1539,7 @@ __int64 FindKernelDataSectionOffsetWin10(void)
     Result = Offset1;
     return Result;
 }
+// 对应原始驱动 0x140043870（491 字节）
 __int64 FindKernelDataSectionPair(void)
 {
     __int64 Result = 0;
@@ -1611,6 +1630,7 @@ __int64 FindKernelDataSectionPair(void)
 
     return Result;
 }
+// 对应原始驱动 0x1400833F4（402 字节）
 __int64 FindPESectionByIndex(unsigned int SectionIndex)
 {
     __int64 Result = 0;
@@ -1625,6 +1645,7 @@ __int64 FindPESectionByIndex(unsigned int SectionIndex)
     Result = 1;
     return Result;
 }
+// 对应原始驱动 0x14002C2FC（308 字节）
 char FindHalInitPatternOffsets(__int64 FileBuffer, unsigned int FileSize)
 {
     char Result = 0;
@@ -1637,6 +1658,7 @@ char FindHalInitPatternOffsets(__int64 FileBuffer, unsigned int FileSize)
     Result = 1;
     return Result;
 }
+// 对应原始驱动 0x140042EE8（411 字节）
 __int64 FindKernelDataSectionOffsetWin8(void)
 {
     __int64 NtImageBase;

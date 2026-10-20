@@ -10,6 +10,7 @@
 //   ReadNtoskrnlForCallbackCtx 读 volmgr.sys/ftdisk.sys → ParseNtExportSectionsV3
 //   → ParseNtExportDir(...,0)；遍历 28 项（+4 为 RVA），命中则置 +0=1 并拷 **16 字节**；
 //   成功则 GtWrite(0x904, 1)，ExFree，FillExportEntrySlot。
+// 对应原始驱动 0x140035EE0（231 字节）
 void BuildCallbackContextHookTargets(void)
 {
     char Result = 0;
@@ -59,6 +60,7 @@ void BuildCallbackContextHookTargets(void)
 //   遍历 28 项（+4 为 RVA），命中则置 +0=1 并拷 16 字节；
 //   成功后 GtWrite(0x8E2, 1) 并 ExFree。
 //   注：本函数**不调用** FillExportEntrySlot（与同族另两个不同）。
+// 对应原始驱动 0x1400473A0（211 字节）
 void BuildContextTableFromNtFile(void)
 {
     __int64 NtoskrnlBase;
@@ -958,6 +960,7 @@ __int64 GetProcessContextBase(void)
 // 【路径】\SystemRoot\system32\drivers\msfs.sys
 // 【逻辑】构造编码路径 → ReadFileRawData（**返回 0 表示成功**）→
 //   ReadNtFileToBuffer 解析进缓冲区 → ExFree 原始数据；返回是否成功。
+// 对应原始驱动 0x14003E80C（285 字节）
 bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     bool Result = 0;
@@ -986,6 +989,7 @@ bool ReadNtoskrnlForCallbackContext(_QWORD *pFileBuffer, unsigned int *pFileSize
 //     以解码为准（mouclass = 鼠标类驱动，其导出表含系统调用相关桩）。
 // 【逻辑】与 ReadNtFileSyscall / ReadNtoskrnlForCallbackContext 同构：
 //   构造路径 → ReadFileRawData → ReadNtFileToBuffer → ExFree。
+// 对应原始驱动 0x14003DE1C（299 字节）
 bool __fastcall ReadSyscallDriverFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     bool Result = 0;
@@ -1012,6 +1016,7 @@ bool __fastcall ReadSyscallDriverFile(_QWORD *pFileBuffer, unsigned int *pFileSi
 //   （nsiproxy = 网络栈代理驱动，其导出表含系统调用相关桩）
 // 【逻辑】与 ReadNtoskrnlForCallbackContext 同构：构造路径 → ReadFileRawData
 //   （返回 0 表示成功）→ ReadNtFileToBuffer 解析 → ExFree 原始数据。
+// 对应原始驱动 0x140046D34（299 字节）
 bool __fastcall ReadNtFileSyscall(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     bool Result = 0;
@@ -1036,6 +1041,7 @@ bool __fastcall ReadNtFileSyscall(_QWORD *pFileBuffer, unsigned int *pFileSize)
 // 【路径】前缀 \SystemRoot\system32\drivers 固定，
 //   构建号 >= 0x1770(6000, Vista) 时用 **volmgr.sys**，否则用 **ftdisk.sys**
 //   （两者是同一"卷管理器"驱动的不同代际实现，故按构建号选择）
+// 对应原始驱动 0x14003612C（344 字节）
 bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     bool Result = 0;
@@ -1062,6 +1068,7 @@ bool ReadNtoskrnlForCallbackCtx(_QWORD *pFileBuffer, unsigned int *pFileSize)
 // 【逆向来源】同上（反编译可得）
 // 【路径】\SystemRoot\system32\drivers\partmgr.sys
 // 【逻辑】与上面两个完全同构（构造路径 → ReadFileRawData → ReadNtFileToBuffer → ExFree）
+// 对应原始驱动 0x1400475C8（293 字节）
 bool ReadNtFileForContextTable(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     bool Result = 0;
@@ -1090,6 +1097,7 @@ bool ReadNtFileForContextTable(_QWORD *pFileBuffer, unsigned int *pFileSize)
 //   若 RVA 非 0 且 RVA+32 <= 文件大小，则置 +0=1 并从文件缓冲拷贝 **32 字节**
 //   （注意：本表每项拷贝 32 字节节头，比同族的 16 字节多）；
 //   成功则 GtWrite(0x8D5, 1)，ExFree，最后 FillExportEntrySlot。
+// 对应原始驱动 0x14003E5BC（239 字节）
 void InitCallbackContextHookTable(void)
 {
     char IsReady = 0;
@@ -1206,6 +1214,7 @@ __int64 InitPhysicalMemoryContextTable(int DeviceIndex, __int64 pOutputTable)
 //        (差值+Loaded) 存入 OutTable[k*0x30+8]；
 //      · 0xFFFFEE4E / 0xFFFFEE4F → 若 Found==1 则结束。
 //   ⑤ 返回 Found。
+// 对应原始驱动 0x140039D5C（491 字节）
 UCHAR ParseRsdsDebugInfo(PUCHAR ImageBase, ULONG ImageSize, __int64 OutTable)
 {
     UCHAR   Desc[0x30];          // rbp-0x61：DecodeUnicodeChar 输出体（0x30 字节）
@@ -1365,6 +1374,7 @@ L_SECOND:                                                     // 0x140039E24
 //        desc+0x88==0x40、(desc+0x40-0x70) <= 0xD8 且 4 字节对齐、k<=0x1B、
 //        IndexTable[desc+0x90] 非零、输出表槽为空 → 写入 (rva, rva+Loaded) 并置 Found。
 //   ⑤ 返回 Found。
+// 对应原始驱动 0x140055610（590 字节）
 UCHAR ParseUSBPortSyscallStubs(PUCHAR ImageBase, ULONG ImageSize, __int64 OutTable)
 {
     UCHAR   Desc[0x120];         // rbp-0x60
@@ -1505,6 +1515,7 @@ UCHAR ParseUSBPortSyscallStubs(PUCHAR ImageBase, ULONG ImageSize, __int64 OutTab
 //        若输出表槽空或等于 LastRva 则（构建号==0x23F0 且未 Written 且有候选时先填
 //        0x1C 组）写入 (候选, 候选+Loaded)，置 Found=1、LastRva=候选。
 //   ⑤ 返回 Found（r13b）。
+// 对应原始驱动 0x140056BD0（1089 字节）
 UCHAR ParseNtDebugSection(PUCHAR ImageBase, ULONG ImageSize, __int64 OutTable)
 {
     UCHAR   Desc[0x120];             // rbp-0x50
@@ -1772,6 +1783,7 @@ L_FREE:
 //       b) +0x50 带 0x14000/0x40、+0xDC 低 4 位 != 4、+0x88 == 0x40、+0x38 == 0x50、
 //          Dst[+0x100] 有效、偏移 + 0xE0 <= 文件大小 → 写 (+0x88 - 0x25) 个 0x30 字节条目
 //          （从 缓冲 + 偏移 + 8 读 QWORD，减去节 VA 后若有效则写 +0 = 差值、+4 = 差值 + 基址）
+// 对应原始驱动 0x140039214（972 字节）
 ULONG64 ParseNtExportSectionsForProcessContext(__int64 FileBuffer, unsigned int FileSize)
 {
     ULONG64 Base = (ULONG64)FileBuffer;   // r12
@@ -1943,6 +1955,7 @@ L1400394C3:
 //   （步长 0x30；条目 +0 = 命中标志、+4 = 节偏移、+0x0C 起 16 字节为节头副本）：
 //   若偏移非 0 且 偏移+0x10 <= 文件大小，则 GtWrite(GT 0x8C6/0x8C7, 1)、
 //   把标志置 1，并从 PE 缓冲该偏移处拷 16 字节到条目 +0x0C。最后 ExFree 缓冲区。
+// 对应原始驱动 0x140039728（322 字节）
 void InitProcessContextHookTable(void)
 {
     ULONG64 Ctx8C4;                       // rbx
@@ -2104,6 +2117,7 @@ L_FREE:
 // 【逻辑】构建号 >= 0x2800(10240, Win10 1507) 走新路径：
 //   读 win32k 完整驱动文件（ReadWin32kFullDriverFile）→ 解析导出（ResolveWin32kExportAddresses）
 //   → ExFree；否则走旧路径：直接用 ResolveWin32kSyscallAddresses（读 ntoskrnl 服务表）。
+// 对应原始驱动 0x14008850C（76 字节）
 void InitWin32kTableByVersion(void)
 {
     unsigned int FileSize = 0;
@@ -2129,6 +2143,7 @@ void InitWin32kTableByVersion(void)
 //   再重取。再取 GT 0x50（服务表基址）与 GT 0x303（标志）——若标志已置位或任一为空则返回。
 //   然后取 GT 0x1E2 与 GT 0x1E7 作索引，从服务表 [索引] 读出两个 RVA，分别加基址后
 //   写入 GT 0x1F2 与 GT 0x1F7（即两个 Win32k 目标函数的解析地址）。
+// 对应原始驱动 0x140088558（175 字节）
 void ResolveWin32kSyscallAddresses(void)
 {
     __int64 ServiceTable = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1FA);
@@ -2164,6 +2179,7 @@ void ResolveWin32kSyscallAddresses(void)
 //     "NtUserBuildHwndList" → GT 0x1F2
 //     "NtUserQueryWindow"   → GT 0x1F7
 //   仅在查找成功、结果非 0 且 < 文件大小时写入（偏移 + 镜像基址）。
+// 对应原始驱动 0x140088608（277 字节）
 void ResolveWin32kExportAddresses(__int64 FileBuffer, unsigned int FileSize)
 {
     __int64 ImageBase;
@@ -3444,6 +3460,7 @@ char ParseIoPortDescriptorTable(__int64 pContextTable);
 char TranslateIoPortAddresses(__int64 pContextTable);
 char ResolveIoPortContext(__int64 pContextTable);
 
+// 对应原始驱动 0x1400381A4（343 字节）
 char ReadIoPortDataForProcess(__int64 DeviceObject, __int64 *pIoPortContext)
 {
     char IsContextResolved;
@@ -3499,6 +3516,7 @@ char ReadIoPortDataForProcess(__int64 DeviceObject, __int64 *pIoPortContext)
 }
 
 
+// 对应原始驱动 0x14003876C（286 字节）
 char ReadIoPortDescriptorTable(_DWORD *pOutputTable)
 {
     unsigned int EntryIndex;
@@ -3567,6 +3585,7 @@ char ReadIoPortDescriptorTable(_DWORD *pOutputTable)
 }
 
 
+// 对应原始驱动 0x1400385D4（247 字节）
 char ParseIoPortDescriptorTable(__int64 pContextTable)
 {
     char Result;
@@ -3636,6 +3655,7 @@ LABEL_INVALID_SELECTOR:
 }
 
 
+// 对应原始驱动 0x1400386CC（158 字节）
 char TranslateIoPortAddresses(__int64 pContextTable)
 {
     char Result;
@@ -3674,6 +3694,7 @@ char TranslateIoPortAddresses(__int64 pContextTable)
 }
 
 
+// 对应原始驱动 0x140037F84（543 字节）
 char ResolveIoPortContext(__int64 pContextTable)
 {
     char Result;
@@ -3795,6 +3816,7 @@ LABEL_NEXT_ENTRY:
 
 // ReadIdtr �� ��ȡ IDTR���ж����������Ĵ�������ִ�� SIDT ָ�
 // ��Ӧԭʼ���� sub_1400015BF
+// 对应原始驱动 0x1400015BF（4 字节）
 void ReadIdtr(void *pIdtr)
 {
     __sidt(pIdtr);
@@ -3803,6 +3825,7 @@ void ReadIdtr(void *pIdtr)
 // DispatchParseNtExportSectionsV2 �� �ַ����� NT �������� V2��
 // ���� GT 2324 �������жϣ��� > 0x23F0��Win10+������� ParseNtExportSectionsV2��������� ParseNtExportSectionsWin10��
 // ��Ӧԭʼ���� sub_140038B08
+// 对应原始驱动 0x140038B08（39 字节）
 __int64 DispatchParseNtExportSectionsV2(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
@@ -3845,6 +3868,7 @@ __int64 DispatchParseNtExportSectionsV2(void)
 //           +0x88==0x40000 且 +0x58==2 的节区，取 +0x78 算出末偏移，非 0 且
 //           < 文件大小时写入 GT 0x1A3（末偏移 + GT 0x3 镜像基址），返回 1
 //   任一段失败/越界一律返回 0
+// 对应原始驱动 0x1400382FC（727 字节）
 char ParseNtExportSectionsV4(void)
 {
     char Result = 0;
@@ -4075,6 +4099,7 @@ static void ScanPESectionsOnePhase(__int64 ImageBase, ULONG ImageSize, __int64 M
 // 【帧换算】上下文 = [rsp+0x50]；描述符 = [rbp-0x60]；rbp = rsp+0x168
 //   → 描述符起始 = rsp+0x108。故 字段+0x50=[rbp-0x10]、+0x38=[rbp-0x28]、
 //   +0xF0=[rbp+0x90]、+0x118=[rbp+0xB8]。
+// 对应原始驱动 0x14007DAB8（818 字节）
 __int64 ScanKernelModulePESectionsEx(void)
 {
     __int64  ImageBase;         // r12 = GT 0x20
@@ -4131,6 +4156,7 @@ PHASE2:
 
 // ParseNtExportSectionsV2 -- 解析 NT 导出节区 V2（Win8+）
 // 三阶段扫描：Phase1 搜索 0xFE/0x558 节 → Phase2 搜索 0x512/0x53C 节 → Phase3 搜索 0x559 节
+// 对应原始驱动 0x140038E04（793 字节）
 __int64 ParseNtExportSectionsV2(void)
 {
     __int64 Result = 0;
@@ -4290,6 +4316,7 @@ next_phase1:
 
 // ParseNtExportSectionsWin10 -- 解析 NT 导出节区（Win10）
 // Win10 专用版本：先按名称查找 .data 节，再执行三阶段扫描
+// 对应原始驱动 0x140038B30（722 字节）
 __int64 ParseNtExportSectionsWin10(void)
 {
     __int64 Result = 0;

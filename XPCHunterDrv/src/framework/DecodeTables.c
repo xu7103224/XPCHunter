@@ -3578,6 +3578,7 @@ const ULONG g_PeDataTypeSubTypeTable[4] = {
 //   （15..38 各支在写入偏移前，还会做同一组 OutputContext 校验，
 //     通过则偏移 += 8；>38 直接返回 0）
 //   恒返回 0。
+// 对应原始驱动 0x14008ABB8（321 字节）
 __int64 __fastcall ClassifyDataTypeV1(_QWORD *Context)
 {
     __int64 DataEntry = Context[3];                 // v1 = Context+24
@@ -3677,6 +3678,7 @@ __int64 __fastcall ClassifyDataTypeV1(_QWORD *Context)
 // 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**，按伪代码 1:1 转写。
 // 【与 V1 的唯一差异】Type <= 8 且 Mode == 2 时，V1 只设 标志|=0x40/大小=8；
 //   V2 **额外**把偏移量覆盖为 (Type-1)（即取消上面可能的 +8）。
+// 对应原始驱动 0x14008ACFC（325 字节）
 __int64 __fastcall ClassifyDataTypeV2(_QWORD *Context)
 {
     __int64 DataEntry = Context[3];

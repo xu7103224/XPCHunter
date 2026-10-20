@@ -148,6 +148,7 @@ char WriteTcpIpSyscallEntry(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x14003D680（67 字节）
 char WriteShadowSyscallEntry(unsigned int *pInputEntry)
 {
     __int64 SectionBase = OpenKbdClassDriverSection();
@@ -158,6 +159,7 @@ char WriteShadowSyscallEntry(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x140033AE8（78 字节）
 char SetSyscallHookEntry2(unsigned int *pInputEntry)
 {
     __int64 FunctionBase = GetSsdtFunctionBase2();
@@ -176,6 +178,7 @@ char SetSyscallHookEntry2(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x140032F90（78 字节）
 char InstallSsdtHookEntry3(unsigned int *pInputEntry)
 {
     __int64 ContextBase = DecryptDiskDeviceContextStr();
@@ -194,6 +197,7 @@ char InstallSsdtHookEntry3(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x1400318F0（67 字节）
 char InstallSsdtHookEntry4(unsigned int *pInputEntry)
 {
     __int64 FunctionBase = GetSsdtFunctionBase4();
@@ -204,6 +208,7 @@ char InstallSsdtHookEntry4(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x140050D14（78 字节）
 char GetSyscallTableEntry(unsigned int *pInputEntry)
 {
     _QWORD *DiskDriverSection = GetDiskDriverSection();
@@ -222,6 +227,7 @@ char GetSyscallTableEntry(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x14003DF48（67 字节）
 char SetSyscallHookEntry(unsigned int *pInputEntry)
 {
     __int64 SectionBase = OpenMountMgrDriverSection();
@@ -232,6 +238,7 @@ char SetSyscallHookEntry(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x140046E60（67 字节）
 char WriteSyscallContextEntry(unsigned int *pInputEntry)
 {
     __int64 DriverSection = BuildSyscallDriverPath();
@@ -242,6 +249,7 @@ char WriteSyscallContextEntry(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x140054270（67 字节）
 char SetWin32kServiceTableEntry(unsigned int *pInputEntry)
 {
     __int64 SectionBase = OpenWin32kSection();
@@ -252,6 +260,7 @@ char SetWin32kServiceTableEntry(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x140087158（67 字节）
 char WriteWdfSyscallHook(unsigned int *pInputEntry)
 {
     __int64 SectionBase = OpenWdfDriverSection();
@@ -262,6 +271,7 @@ char WriteWdfSyscallHook(unsigned int *pInputEntry)
     }
     return 0;
 }
+// 对应原始驱动 0x1400335F4（91 字节）
 char EnumSsdtFunctionTable2(__int64 pOutputTable)
 {
     unsigned int Index = 0;
@@ -283,6 +293,7 @@ char EnumSsdtFunctionTable2(__int64 pOutputTable)
     }
     return 0;
 }
+// 对应原始驱动 0x140032A70（91 字节）
 char InitContextTableFromSyscallBase(__int64 pOutputTable)
 {
     unsigned int Index = 0;
@@ -304,6 +315,7 @@ char InitContextTableFromSyscallBase(__int64 pOutputTable)
     }
     return 0;
 }
+// 对应原始驱动 0x14003146C（68 字节）
 char EnumSsdtFunctionTable4(__int64 pOutputTable)
 {
     unsigned int Index = 0;
@@ -322,6 +334,7 @@ char EnumSsdtFunctionTable4(__int64 pOutputTable)
     }
     return 0;
 }
+// 对应原始驱动 0x1400337D0（107 字节）
 char CopySsdtHookTargetTable2(__int64 pSourceTable)
 {
     char Result = 0;
@@ -348,6 +361,7 @@ char CopySsdtHookTargetTable2(__int64 pSourceTable)
     } while (EntryCount);
     return Result;
 }
+// 对应原始驱动 0x140032CCC（114 字节）
 char CopySsdtHookTargetTable3(__int64 pTargetTable)
 {
     char Result = 0;
@@ -376,6 +390,7 @@ char CopySsdtHookTargetTable3(__int64 pTargetTable)
     } while (EntryCount);
     return Result;
 }
+// 对应原始驱动 0x14003167C（99 字节）
 char CopySsdtHookTargetTable(__int64 pTargetTable)
 {
     char Result = 0;
@@ -398,6 +413,7 @@ char CopySsdtHookTargetTable(__int64 pTargetTable)
     } while (EntryCount);
     return Result;
 }
+// 对应原始驱动 0x140033118（227 字节）
 char ValidateSsdtHookTargetTable(__int64 pTargetTable)
 {
     __int64 pEntry = pTargetTable + 8;
@@ -441,6 +457,7 @@ char ValidateSsdtHookTargetTable(__int64 pTargetTable)
     }
     return 1;
 }
+// 对应原始驱动 0x140035A18（227 字节）
 char ValidateSsdtHookTargetTable2(__int64 pTargetTable)
 {
     __int64 pEntry = pTargetTable + 8;
@@ -484,6 +501,7 @@ char ValidateSsdtHookTargetTable2(__int64 pTargetTable)
     }
     return 1;
 }
+// 对应原始驱动 0x140032594（309 字节）
 char ResolveContextTableMemory(__int64 ContextTable)
 {
     _BYTE *pEntry = (_BYTE *)(ContextTable + 8);
@@ -534,6 +552,7 @@ char ResolveContextTableMemory(__int64 ContextTable)
     }
     return 1;
 }
+// 对应原始驱动 0x140066898（285 字节）
 char ReadKernelExportDirFile(_QWORD *OutBuffer, unsigned int *OutSize)
 {
     char Result = 0;
@@ -559,6 +578,7 @@ char ReadKernelExportDirFile(_QWORD *OutBuffer, unsigned int *OutSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140067F3C（279 字节）
 char ReadSystemDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
 {
     char Result = 0;
@@ -584,6 +604,7 @@ char ReadSystemDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140066650（583 字节）
 void InitKernelDataSectionTable(void)
 {
     unsigned int FileSize = 0;
@@ -634,6 +655,7 @@ void InitKernelDataSectionTable(void)
         ExFree(pFileBuffer);
     }
 }
+// 对应原始驱动 0x140067EDC（96 字节）
 void InitTdiExportAndRelocTable(void)
 {
     unsigned int FileSize = 0;
@@ -648,6 +670,7 @@ void InitTdiExportAndRelocTable(void)
         ExFree(pFileBuffer);
     }
 }
+// 对应原始驱动 0x140028FAC（116 字节）
 char GetSsdtBaseAndSize(_QWORD *pOutBase, _DWORD *pOutSize)
 {
     __int64 Base = 0;
@@ -669,6 +692,7 @@ char GetSsdtBaseAndSize(_QWORD *pOutBase, _DWORD *pOutSize)
         return *pOutSize != 0;
     return 0;
 }
+// 对应原始驱动 0x1400292CC（39 字节）
 void BuildInitSsdtHookTable(void)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
@@ -676,6 +700,7 @@ void BuildInitSsdtHookTable(void)
     else
         BuildSsdtHookTableLegacy();
 }
+// 对应原始驱动 0x140033650（381 字节）
 void BuildSsdtHookTargets2(void)
 {
     char Result = 0;
@@ -722,6 +747,7 @@ void BuildSsdtHookTargets2(void)
             FillExportEntrySlot((__int64)pTargetTable);
     }
 }
+// 对应原始驱动 0x140032B34（406 字节）
 void BuildSsdtHookTargets3(void)
 {
     char Result = 0;
@@ -772,6 +798,7 @@ void BuildSsdtHookTargets3(void)
             FillExportEntrySlot((__int64)pTargetTable);
     }
 }
+// 对应原始驱动 0x140031514（358 字节）
 void BuildSsdtHookTargets4(void)
 {
     __int64 NtoskrnlBase = GtRead(GtCallbackField47);
@@ -816,6 +843,7 @@ void BuildSsdtHookTargets4(void)
         ExFree(pFileBuffer);
     }
 }
+// 对应原始驱动 0x140028D1C（322 字节）
 char BuildSsdtEntryTableLegacy(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     // 简单封装：调用 BuildInitSsdtHookTable 初始化，然后输出到用户缓冲区
@@ -839,6 +867,7 @@ char BuildSsdtEntryTableLegacy(__int64 TargetBase, unsigned int TargetSize, _DWO
     }
     return 0;
 }
+// 对应原始驱动 0x140028B74（421 字节）
 char BuildSsdtEntryTableEx(__int64 TargetBase, unsigned int TargetSize, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     if (!GtRead(GtEprocessModuleListOffset | GtEprocessField25))
@@ -872,6 +901,7 @@ char BuildSsdtEntryTableEx(__int64 TargetBase, unsigned int TargetSize, _DWORD *
     }
     return 0;
 }
+// 对应原始驱动 0x1400537B8（68 字节）
 char EnumSyscallTable7(__int64 pOutputBuffer)
 {
     unsigned int Index = 0;
@@ -893,6 +923,7 @@ char EnumSyscallTable7(__int64 pOutputBuffer)
     }
     return 0;
 }
+// 对应原始驱动 0x14003D344（68 字节）
 char EnumShadowSyscallTable(__int64 pOutputBuffer)
 {
     unsigned int Index = 0;
@@ -914,6 +945,7 @@ char EnumShadowSyscallTable(__int64 pOutputBuffer)
     }
     return 0;
 }
+// 对应原始驱动 0x140050478（91 字节）
 char FillSyscallTableInfo(__int64 pOutputBuffer)
 {
     unsigned int Index = 0;
@@ -935,6 +967,7 @@ char FillSyscallTableInfo(__int64 pOutputBuffer)
     }
     return 0;
 }
+// 对应原始驱动 0x14003DB28（68 字节）
 char EnumSyscallTable6(__int64 pOutputBuffer)
 {
     unsigned int Index = 0;
@@ -956,6 +989,7 @@ char EnumSyscallTable6(__int64 pOutputBuffer)
     }
     return 0;
 }
+// 对应原始驱动 0x140046A3C（68 字节）
 char InitSyscallExportEntryArray(__int64 pOutputBuffer)
 {
     unsigned int Index = 0;
@@ -977,6 +1011,7 @@ char InitSyscallExportEntryArray(__int64 pOutputBuffer)
     }
     return 0;
 }
+// 对应原始驱动 0x140053864（98 字节）
 char CopySyscallTable7(__int64 pSourceTable)
 {
     char Result = 0;
@@ -1003,18 +1038,22 @@ char CopySyscallTable7(__int64 pSourceTable)
     } while (EntryCount);
     return Result;
 }
+// 对应原始驱动 0x14003D3FC（104 字节）
 char CopyShadowSyscallTable(__int64 pSourceTable)
 {
     return CopySyscallTable7(pSourceTable);
 }
+// 对应原始驱动 0x14003DCC8（99 字节）
 char CopySyscallTableEntryArray(__int64 pSourceTable)
 {
     return CopySyscallTable7(pSourceTable);
 }
+// 对应原始驱动 0x140046BC8（99 字节）
 char CopySyscallExportEntries(__int64 pSourceTable)
 {
     return CopySyscallTable7(pSourceTable);
 }
+// 对应原始驱动 0x140050708（107 字节）
 char DuplicateSyscallTableEntries(__int64 pSourceTable)
 {
     char Result = 0;
@@ -1037,10 +1076,12 @@ char DuplicateSyscallTableEntries(__int64 pSourceTable)
     } while (EntryCount);
     return Result;
 }
+// 对应原始驱动 0x140053FEC（99 字节）
 char DuplicateSyscallTableOutput(__int64 pSourceTable)
 {
     return DuplicateSyscallTableEntries(pSourceTable);
 }
+// 对应原始驱动 0x140053E60（68 字节）
 char CopyWin32kServiceTable(__int64 pOutputBuffer)
 {
     unsigned int Index = 0;
@@ -1062,6 +1103,7 @@ char CopyWin32kServiceTable(__int64 pOutputBuffer)
     }
     return 0;
 }
+// 对应原始驱动 0x1400864A8（68 字节）
 char CopySyscallTableEntries(__int64 pOutputBuffer)
 {
     unsigned int Index = 0;
@@ -1083,14 +1125,17 @@ char CopySyscallTableEntries(__int64 pOutputBuffer)
     }
     return 0;
 }
+// 对应原始驱动 0x140086560（101 字节）
 char CopySyscallTableToBuffer(__int64 pSourceTable)
 {
     return CopySyscallTable7(pSourceTable);
 }
+// 对应原始驱动 0x1400536A4（276 字节）
 char ValidateSyscallHookEntries(__int64 pTargetTable)
 {
     return ValidateSsdtHookTargetTable(pTargetTable);
 }
+// 对应原始驱动 0x140085B7C（229 字节）
 char ValidateSyscallTableEntries(__int64 pTargetTable)
 {
     return ValidateSsdtHookTargetTable2(pTargetTable);
@@ -1111,6 +1156,7 @@ char ValidateSyscallTableEntries(__int64 pTargetTable)
 //        若 v7 非零且 (int)v7+16 <= v8 → 置 v1[12i+0]=1 并复制文件内 16 字节
 //        节头到 v1[12i+3]；随后置 v0=1、写就绪位 0x30B=1；
 //   4) ExFree(v9)；若 v0==1 → FillExportEntrySlot(v1)。
+// 对应原始驱动 0x140050578（398 字节）
 void ParseStorPortExportDir(void)
 {
     char  IsReady = 0;
@@ -1184,6 +1230,7 @@ void ParseStorPortExportDir(void)
 //   ParseSyscallFileExportSections 填表 → ParseNtExportDir 修正重定位；
 //   随后循环 28 项填 {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}；
 //   成功则置就绪位(GT 0x319) 并 FillExportEntrySlot。
+// 对应原始驱动 0x14003DBE0（231 字节）
 char ParseSyscallFileExportDir(void)
 {
     char IsReady = 0;
@@ -1237,6 +1284,7 @@ char ParseSyscallFileExportDir(void)
 //   随后循环 28 项（步长 0x30）：取 +4 处 RVA，清零 +0，
 //   若 RVA 有效且 RVA+16 <= 文件大小，则置 +0=1 并从文件缓冲拷 16 字节节头到 +0x10；
 //   最后 GtWrite(GT 0x4280, 1) 置就绪位。
+// 对应原始驱动 0x140046AF4（211 字节）
 char BuildSyscallExportTable(void)
 {
     __int64 NtoskrnlBase;
@@ -1284,6 +1332,7 @@ char BuildSyscallExportTable(void)
 //   ParseShadowSyscallExportSections 填表 → ParseNtExportDir 修正重定位；
 //   循环 28 项填 {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}；
 //   成功置就绪位(GT 0x2DA) 并 FillExportEntrySlot。
+// 对应原始驱动 0x14003CF4C（231 字节）
 char InitShadowSyscallExportTable(void)
 {
     char IsReady = 0;
@@ -1335,6 +1384,7 @@ char InitShadowSyscallExportTable(void)
 //   ParseWin32kSyscallStubs 填表 → ParseNtExportDir 修正重定位；
 //   循环 28 项填 {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}；
 //   成功置就绪位(GT 0x324) 并 FillExportEntrySlot。
+// 对应原始驱动 0x140053F04（231 字节）
 char InitWin32kSyscallTable(void)
 {
     char Result = 0;
@@ -1390,6 +1440,7 @@ char InitWin32kSyscallTable(void)
 //   最后 ExFree 文件缓冲。
 // 【说明】本函数是"系统调用表导出族"的顶层枢纽，此前因 7 个被调用方全部缺失
 //   而无法实现；本轮补齐后得以忠实转写。
+// 对应原始驱动 0x1400865C8（200 字节）
 void ParseSyscallTableExportDir(void)
 {
     __int64 WdfModuleBase;
@@ -1425,6 +1476,7 @@ void ParseSyscallTableExportDir(void)
 //   两条路径均须 ParseNtExportDir 成功，然后循环 28 项填
 //   {+0=命中, +4=RVA, +8=地址, +0x10=16 字节节头}，并置就绪位(GT 0x191)；
 //   最后（构建号 >= 0x1770 且就绪位已置时）FillExportEntrySlot。
+// 对应原始驱动 0x140048B08（439 字节）
 char InitDiskQueryExportTable(void)
 {
     __int64 DiskImageBase;
@@ -1493,6 +1545,7 @@ char InitDiskQueryExportTable(void)
     }
     return 0;
 }
+// 对应原始驱动 0x1400058A4（436 字节）
 char ParsePESectionHeaders(__int64 PeBase, unsigned int PeSize, __int64 SectionName, unsigned __int8 *NameToMatch, unsigned int *OutOffset)
 {
     __int64 PeHeaderRva = *(int *)(PeBase + 60);
@@ -1598,6 +1651,7 @@ char ParsePESectionHeaders(__int64 PeBase, unsigned int PeSize, __int64 SectionN
     }
     return Result;
 }
+// 对应原始驱动 0x140005610（496 字节）
 __int64 BuildExportIndexTable(
     __int64 PeBase,
     unsigned int PeSize,
@@ -1694,6 +1748,7 @@ __int64 BuildExportIndexTable(
     }
     return EntryCount;
 }
+// 对应原始驱动 0x14007870C（513 字节）
 __int64 ScanKernelModulePESections(void)
 {
     __int64 ImageBase = GtRead(GtEprocessField22);
@@ -1768,6 +1823,7 @@ __int64 ScanKernelModulePESections(void)
 
     return 0;
 }
+// 对应原始驱动 0x14007A9EC（217 字节）
 char FillExportEntrySlot(__int64 pOutputTable)
 {
     char Result = 0;
@@ -1802,6 +1858,7 @@ char FillExportEntrySlot(__int64 pOutputTable)
     }
     return Result;
 }
+// 对应原始驱动 0x1400292F4（185 字节）
 char BuildSsdtHookTableWin10(void)
 {
     __int64 HalImageBase = GtRead(GtEprocessField22);
@@ -1824,6 +1881,7 @@ char BuildSsdtHookTableWin10(void)
     }
     return (char)NtoskrnlBase;
 }
+// 对应原始驱动 0x1400293B0（263 字节）
 void BuildSsdtHookTableLegacy(void)
 {
     __int64 NtoskrnlBase = GtRead(GtEprocessField76);
@@ -1855,6 +1913,7 @@ void BuildSsdtHookTableLegacy(void)
         }
     }
 }
+// 对应原始驱动 0x140060E38（202 字节）
 char FindNdisDeregisterProtocolExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -1874,6 +1933,7 @@ char FindNdisDeregisterProtocolExport(__int64 ImageBase, unsigned int ImageSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140060F04（210 字节）
 char FindNdisFRegisterFilterDriverExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -1893,6 +1953,7 @@ char FindNdisFRegisterFilterDriverExport(__int64 ImageBase, unsigned int ImageSi
     }
     return Result;
 }
+// 对应原始驱动 0x140060FD8（218 字节）
 char FindNdisIMInitializeDeviceInstanceEx(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -1914,6 +1975,7 @@ char FindNdisIMInitializeDeviceInstanceEx(__int64 ImageBase, unsigned int ImageS
     }
     return Result;
 }
+// 对应原始驱动 0x1400610B4（210 字节）
 char FindNdisIfDeregisterInterfaceExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -1933,6 +1995,7 @@ char FindNdisIfDeregisterInterfaceExport(__int64 ImageBase, unsigned int ImageSi
     }
     return Result;
 }
+// 对应原始驱动 0x140061188（204 字节）
 char FindNdisIfDeregisterProviderExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -1954,6 +2017,7 @@ char FindNdisIfDeregisterProviderExport(__int64 ImageBase, unsigned int ImageSiz
     }
     return Result;
 }
+// 对应原始驱动 0x140061254（767 字节）
 __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
 {
     char Found = 0;
@@ -2059,6 +2123,7 @@ LABEL_46:
     }
     return 0;
 }
+// 对应原始驱动 0x140061554（704 字节）
 __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Found = (unsigned int)GtRead(GtEprocessExtField32);
@@ -2157,6 +2222,7 @@ LABEL_43:
     }
     return 0;
 }
+// 对应原始驱动 0x140061814（202 字节）
 char FindNdisIfRegisterInterfaceExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -2176,6 +2242,7 @@ char FindNdisIfRegisterInterfaceExport(__int64 ImageBase, unsigned int ImageSize
     }
     return Result;
 }
+// 对应原始驱动 0x1400618E0（202 字节）
 char FindNdisIfRegisterProviderExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -2195,6 +2262,7 @@ char FindNdisIfRegisterProviderExport(__int64 ImageBase, unsigned int ImageSize)
     }
     return Result;
 }
+// 对应原始驱动 0x1400619AC（202 字节）
 char FindNdisMGetOffloadHandlersExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -2214,6 +2282,7 @@ char FindNdisMGetOffloadHandlersExport(__int64 ImageBase, unsigned int ImageSize
     }
     return Result;
 }
+// 对应原始驱动 0x140061B44（269 字节）
 char FindNdisMRegisterMiniportDriverExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -2241,6 +2310,7 @@ char FindNdisMRegisterMiniportDriverExport(__int64 ImageBase, unsigned int Image
     }
     return Result;
 }
+// 对应原始驱动 0x140062090（222 字节）
 char FindNdisGetVersionExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -2260,6 +2330,7 @@ char FindNdisGetVersionExport(__int64 ImageBase, unsigned int ImageSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140062278（480 字节）
 char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize)
 {
     char SectionName[8];
@@ -2342,6 +2413,7 @@ char FindKernelRdataSection(__int64 ImageBase, unsigned int ImageSize)
     }
     return 0;
 }
+// 对应原始驱动 0x140061D3C（202 字节）
 char FindNdisRegisterTdiCallBackExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -2361,6 +2433,7 @@ char FindNdisRegisterTdiCallBackExport(__int64 ImageBase, unsigned int ImageSize
     }
     return Result;
 }
+// 对应原始驱动 0x140061E08（645 字节）
 char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize)
 {
     char Size = 0;
@@ -2451,6 +2524,7 @@ char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize)
     }
     return Size;
 }
+// 对应原始驱动 0x140062BD0（381 字节）
 __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Found = (unsigned int)GtRead(GtEprocessExtField14);
@@ -2501,6 +2575,7 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     }
     return 0;
 }
+// 对应原始驱动 0x140062D50（392 字节）
 __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Found = (unsigned int)GtRead(GtEprocessExtField28);
@@ -2556,6 +2631,7 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     }
     return 0;
 }
+// 对应原始驱动 0x140062604（639 字节）
 __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Found = (unsigned int)GtRead(GtEprocessExtField25);
@@ -2654,6 +2730,7 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     }
     return 0;
 }
+// 对应原始驱动 0x140062458（425 字节）
 __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Found = (unsigned int)GtRead(GtEprocessExtField17);
@@ -2709,6 +2786,7 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     }
     return 0;
 }
+// 对应原始驱动 0x140067CF0（204 字节）
 char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -2730,6 +2808,7 @@ char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140067984（873 字节）
 __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Found = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)2052);
@@ -2851,6 +2930,7 @@ LABEL_42:
     }
     return 0;
 }
+// 对应原始驱动 0x1400317D0（285 字节）
 char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize)
 {
     char Result = 0;
@@ -2883,6 +2963,7 @@ char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140032E40（334 字节）
 char ReadNtoskrnlFileToBuffer3(void **pBuffer, unsigned int *pBufferSize)
 {
     char Result = 0;
@@ -2928,6 +3009,7 @@ char ReadNtoskrnlFileToBuffer3(void **pBuffer, unsigned int *pBufferSize)
     }
     return Result;
 }
+// 对应原始驱动 0x1400339BC（299 字节）
 bool ReadNtFileForSsdtTargets2(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     char Result = 0;
@@ -2962,6 +3044,7 @@ bool ReadNtFileForSsdtTargets2(_QWORD *pFileBuffer, unsigned int *pFileSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140004F80（346 字节）
 char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLength)
 {
     char Result = 0;
@@ -3006,6 +3089,7 @@ char ParseNtHeaders(unsigned __int16 *SectionName, unsigned int SectionNameLengt
     }
     return Result;
 }
+// 对应原始驱动 0x140062884（842 字节）
 __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int InitDevOffset = (unsigned int)GtRead(GtEprocessExtField20);
@@ -3129,6 +3213,7 @@ LABEL_SCAN:
     }
     return (__int16)SectionBase;
 }
+// 对应原始驱动 0x1400311E4（648 字节）
 char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
 {
     __int64 OutputTable = pOutputTable;
@@ -3232,6 +3317,7 @@ char ParseNtHeadersForSsdtTargets(__int64 ImageBase, unsigned int ImageSize, __i
     }
     return Result;
 }
+// 对应原始驱动 0x1400332C4（815 字节）
 char ParseNtHeadersForSsdtTargets2(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
 {
     char Result = 0;
@@ -3336,6 +3422,7 @@ LABEL_44:
     }
     return Result;
 }
+// 对应原始驱动 0x1400326CC（932 字节）
 char ParseAtaPortInitForHookTargets(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
 {
     __int64 CallbackBase = GtRead(GtCallbackField42);
@@ -3471,6 +3558,7 @@ LABEL_SCAN:
         return TableBuilt;
     }
 }
+// 对应原始驱动 0x14007FB40（489 字节）
 __int64 ScanProcessPESectionsV2(void)
 {
     __int64 TargetProcess = GtRead(0x61);
@@ -3531,6 +3619,7 @@ __int64 ScanProcessPESectionsV2(void)
 
     return 0;
 }
+// 对应原始驱动 0x14007F4B8（481 字节）
 __int64 InitHookFunctionTable(void)
 {
     // 从汇编分析：附加到目标进程，扫描 PE 节区
@@ -3598,6 +3687,7 @@ __int64 InitHookFunctionTable(void)
 
     return 0;
 }
+// 对应原始驱动 0x14002839C（151 字节）
 char __fastcall RelocateExportAddresses(void *Src, size_t MaxCount, int BaseDelta)
 {
     __int64 CountCopy = (unsigned int)MaxCount;
@@ -3617,6 +3707,7 @@ char __fastcall RelocateExportAddresses(void *Src, size_t MaxCount, int BaseDelt
     }
     return Result;
 }
+// 对应原始驱动 0x140060D70（197 字节）
 char __fastcall AdjustRelocationOffsets(void *Src, size_t MaxCount, int BaseDelta)
 {
     __int64 CountCopy = (unsigned int)MaxCount;
@@ -3644,6 +3735,7 @@ char __fastcall AdjustRelocationOffsets(void *Src, size_t MaxCount, int BaseDelt
     }
     return Result;
 }
+// 对应原始驱动 0x1400287C4（165 字节）
 char __fastcall FindHalInitSystemExport(__int64 ImageBase, unsigned int ImageSize, __int64 HalBase)
 {
     char Result = 0;
@@ -3663,6 +3755,7 @@ char __fastcall FindHalInitSystemExport(__int64 ImageBase, unsigned int ImageSiz
     }
     return Result;
 }
+// 对应原始驱动 0x14002886C（200 字节）
 char __fastcall FindHalInitializeProcessorExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -3683,6 +3776,7 @@ char __fastcall FindHalInitializeProcessorExport(__int64 ImageBase, unsigned int
     }
     return Result;
 }
+// 对应原始驱动 0x140028934（481 字节）
 char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSize, unsigned int SectionOffset, __int64 HalBase)
 {
     char Result = 0;
@@ -3750,6 +3844,7 @@ char __fastcall FindHalDataSectionOffset(__int64 ImageBase, unsigned int ImageSi
     }
     return Result;
 }
+// 对应原始驱动 0x140028648（377 字节）
 char __fastcall FindHalExportTableLegacy(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -3811,6 +3906,7 @@ char __fastcall FindHalExportTableLegacy(__int64 ImageBase, unsigned int ImageSi
     }
     return Result;
 }
+// 对应原始驱动 0x140028434（530 字节）
 char __fastcall BuildHalExportTable(__int64 ImageBase, unsigned int ImageSize, __int64 HalBase)
 {
     char Result = 0;
@@ -3924,6 +4020,7 @@ char __fastcall BuildHalExportTable(__int64 ImageBase, unsigned int ImageSize, _
     }
     return Result;
 }
+// 对应原始驱动 0x140067890（241 字节）
 char __fastcall FindDllInitExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -3949,6 +4046,7 @@ char __fastcall FindDllInitExport(__int64 ImageBase, unsigned int ImageSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140061A78（202 字节）
 char __fastcall FindNdisMRegisterMiniportExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -3969,6 +4067,7 @@ char __fastcall FindNdisMRegisterMiniportExport(__int64 ImageBase, unsigned int 
     }
     return Result;
 }
+// 对应原始驱动 0x140061C54（230 字节）
 char __fastcall ParseNdisMiniportDriverName(__int64 ImageBase, unsigned int ImageSize, unsigned int Offset)
 {
     __int64 ImageEnd = ImageSize;
@@ -4000,6 +4099,7 @@ char __fastcall ParseNdisMiniportDriverName(__int64 ImageBase, unsigned int Imag
     }
     return Result;
 }
+// 对应原始驱动 0x140062170（264 字节）
 char __fastcall ParseNdisGetVersionSection(unsigned int Rva, __int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
@@ -4032,6 +4132,7 @@ char __fastcall ParseNdisGetVersionSection(unsigned int Rva, __int64 ImageBase, 
     }
     return Result;
 }
+// 对应原始驱动 0x1400294B8（254 字节）
 bool __fastcall ReadNtFileForHookTable(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     bool Result = 0;
@@ -4062,6 +4163,7 @@ bool __fastcall ReadNtFileForHookTable(_QWORD *pFileBuffer, unsigned int *pFileS
     }
     return Result;
 }// ============================================================
+// 对应原始驱动 0x140003B3C（256 字节）
 void BuildHookTable(void)
 {
     __int64 ImageBase = 0;
@@ -4108,6 +4210,7 @@ void BuildHookTable(void)
         }
     }
 }
+// 对应原始驱动 0x14001C408（287 字节）
 __int64 InitHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
@@ -4148,6 +4251,7 @@ __int64 InitHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 Unuse
     }
     return result;
 }
+// 对应原始驱动 0x14001C528（100 字节）
 __int64 InstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
@@ -4155,6 +4259,7 @@ __int64 InstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 Un
     else
         return FindHookTargetInExportWin7(ImageBase, ImageSize, UnusedParam, BaseAddress);
 }
+// 对应原始驱动 0x14001C58C（414 字节）
 __int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     /* 【重写 2026-10-19】旧实现把描述符内的槽另立为 `= 0` 且从不赋值的独立局部
@@ -4228,6 +4333,7 @@ __int64 FindHookTargetInExportWin7(__int64 ImageBase, unsigned int ImageSize, __
     return 0;
 }
 
+// 对应原始驱动 0x14001C72C（419 字节）
 __int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     /* 【重写 2026-10-19】旧实现把描述符内的槽另立为 `=0` 且从不赋值的独立局部，
@@ -4307,6 +4413,7 @@ __int64 FindHookTargetInExportWin8(__int64 ImageBase, unsigned int ImageSize, __
     return 0;
 }
 
+// 对应原始驱动 0x14001C9FC（93 字节）
 __int64 EnableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
@@ -4316,6 +4423,7 @@ __int64 EnableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 
         return FindHookTargetDataSection(ImageBase, ImageSize, UnusedParam, BaseAddress);
     return result;
 }
+// 对应原始驱动 0x14001CC4C（466 字节）
 __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
@@ -4403,6 +4511,7 @@ __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64
     }
     return 0;
 }
+// 对应原始驱动 0x14001D1EC（274 字节）
 __int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
     __int64 Result = 0;
@@ -4439,6 +4548,7 @@ __int64 FindNtOpenThreadTargetWin7(__int64 ImageBase, unsigned int ImageSize, __
     return Result;
 }
 #undef SectionDataPtr
+// 对应原始驱动 0x14001D300（446 字节）
 __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
     __int64 Result = 0;
@@ -4509,6 +4619,7 @@ __int64 FindNtOpenThreadTargetWin8(__int64 ImageBase, unsigned int ImageSize, __
 #undef FieldValue2
 #undef SectionSize
 #undef SectionDataPtr
+// 对应原始驱动 0x14001C8D0（297 字节）
 __int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 TargetOffset = 0;
@@ -4570,6 +4681,7 @@ __int64 UninstallHookSyscall(__int64 ImageBase, unsigned int ImageSize, __int64 
     }
     return result;
 }
+// 对应原始驱动 0x14008280C（145 字节）
 char BuildJmpPatchStub(int PatchBase, __int64 TargetAddress, __int64 StubBuffer, unsigned int BufferSize, int Flags)
 {
     if (BufferSize >= 0xD && *(_BYTE *)TargetAddress == 72 && *(_BYTE *)(TargetAddress + 1) == 0xFF && *(_BYTE *)(TargetAddress + 2) == 0x37 && *(_BYTE *)(TargetAddress + 7) == 0xCC && *(_BYTE *)(TargetAddress + 8) == 0xCC)
@@ -4589,6 +4701,7 @@ char BuildJmpPatchStub(int PatchBase, __int64 TargetAddress, __int64 StubBuffer,
     }
     return 0;
 }
+// 对应原始驱动 0x140035730（476 字节）
 char InstallSsdtHookForThreadProtect(__int64 pInputEntry)
 {
     char Result = 0;
@@ -4677,6 +4790,7 @@ LABEL_CLEANUP:
     }
     return Result;
 }
+// 对应原始驱动 0x14001CE20（274 字节）
 __int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
@@ -4713,6 +4827,7 @@ __int64 HookSyscallNtCreateProcess(__int64 ImageBase, unsigned int ImageSize, __
     }
     return result;
 }
+// 对应原始驱动 0x14001CF34（320 字节）
 __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     unsigned int SectionOffset = 0;
@@ -4769,6 +4884,7 @@ __int64 HookSyscallNtCreateThread(__int64 ImageBase, unsigned int ImageSize, __i
     }
     return GtWrite(GtNtCreateThreadHookSuccess, 1);
 }
+// 对应原始驱动 0x14001D074（273 字节）
 __int64 HookSyscallNtOpenProcess(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     /* 【修正 2026-10-19】同族缺陷：EntryFlags/SectionSize 旧为 `=0` 且从不赋值
@@ -4813,6 +4929,7 @@ __int64 HookSyscallNtOpenProcess(__int64 ImageBase, unsigned int ImageSize, __in
     }
     return 0;
 }
+// 对应原始驱动 0x14001D188（100 字节）
 __int64 HookSyscallNtOpenThread(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x23F0)
@@ -4820,6 +4937,7 @@ __int64 HookSyscallNtOpenThread(__int64 ImageBase, unsigned int ImageSize, __int
     else
         return FindNtOpenThreadTargetWin7(ImageBase, ImageSize, UnusedParam, BaseAddress, MaxOffset);
 }
+// 对应原始驱动 0x14001D4C0（326 字节）
 __int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     unsigned int ResultValue = 0;
@@ -4872,6 +4990,7 @@ __int64 HookSyscallNtOpenKey(__int64 ImageBase, unsigned int ImageSize, __int64 
     }
     return GtWrite((GLOBAL_TABLE_INDEX)0x68, ResultValue);
 }
+// 对应原始驱动 0x14001D608（253 字节）
 __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int ResultValue = 0;
@@ -4906,6 +5025,7 @@ __int64 HookSyscallNtOpenKeyEx(__int64 ImageBase, unsigned int ImageSize)
     }
     return GtWrite(GtEprocessField182 | GtEprocessField06 | 0x100, ResultValue);
 }
+// 对应原始驱动 0x14001D708（327 字节）
 __int64 HookSyscallNtCreateKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress)
 {
     __int64 result;
@@ -5022,6 +5142,7 @@ __declspec(noinline) __int64 HookSyscallNtDeleteKey(unsigned __int64 ImageBase, 
     }
     return 0;
 }
+// 对应原始驱动 0x14001D984（185 字节）
 __int64 HookSyscallNtDeleteValueKey(unsigned __int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
     __int64 Value[3];
@@ -5043,6 +5164,7 @@ __int64 HookSyscallNtDeleteValueKey(unsigned __int64 ImageBase, unsigned int Ima
     }
     return GtWrite(GtEprocessField60, Value[0]);
 }
+// 对应原始驱动 0x14001DCC0（236 字节）
 __int64 HookSyscallNtSetValueKey(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress, unsigned int MaxOffset)
 {
     __int64 Value = 0;
@@ -5066,6 +5188,7 @@ __int64 HookSyscallNtSetValueKey(__int64 ImageBase, unsigned int ImageSize, __in
     GtWrite(GtEprocessField58, Value);
     return GtWrite(GtEprocessField59, ResultArray[0]);
 }
+// 对应原始驱动 0x14001DFBC（136 字节）
 __int16 HookSyscallNtRenameKey(__int64 TargetAddress, unsigned int Flags, __int64 Context, unsigned __int64 MaxOffset)
 {
     unsigned int Result = 0;
@@ -5081,6 +5204,7 @@ __int16 HookSyscallNtRenameKey(__int64 TargetAddress, unsigned int Flags, __int6
     }
     return (__int16)Result;
 }
+// 对应原始驱动 0x14001E5BC（203 字节）
 __int64 HookSyscallNtCreateFile(__int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase)
 {
     __int64 Result = 0;
@@ -5107,6 +5231,7 @@ __int64 HookSyscallNtCreateFile(__int64 TargetBase, unsigned int TargetSize, __i
     }
     return Result;
 }
+// 对应原始驱动 0x14001E688（259 字节）
 __int64 HookSyscallNtOpenFile(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5142,6 +5267,7 @@ __int64 HookSyscallNtOpenFile(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtEprocessField36, ResultOffset);
 }
+// 对应原始驱动 0x14001E78C（259 字节）
 __int64 HookSyscallNtReadFile(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5177,6 +5303,7 @@ __int64 HookSyscallNtReadFile(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtEprocessField43, ResultOffset);
 }
+// 对应原始驱动 0x14001E890（277 字节）
 __int64 HookSyscallNtWriteFile(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5216,6 +5343,7 @@ __int64 HookSyscallNtWriteFile(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtEprocessField34, ResultOffset);
 }
+// 对应原始驱动 0x14001ED98（259 字节）
 __int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5251,6 +5379,7 @@ __int64 HookSyscallNtClose(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtEprocessField38, ResultOffset);
 }
+// 对应原始驱动 0x14001EE9C（259 字节）
 __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5286,6 +5415,7 @@ __int64 HookSyscallNtDuplicateObject(__int64 TargetBase, unsigned int TargetSize
     }
     return GtWrite(GtEprocessField37, ResultOffset);
 }
+// 对应原始驱动 0x14001FF5C（327 字节）
 __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase)
 {
     /* 对应原始驱动 sub_14001FF5C（0x140 字节）。反汇编逐条核对（desc_offsets 确认
@@ -5359,6 +5489,7 @@ __int64 HookSyscallNtQuerySystemInfo(unsigned __int64 TargetBase, unsigned int T
     }
     return Result;
 }
+// 对应原始驱动 0x1400200A4（254 字节）
 __int64 HookSyscallNtQueryInformationProcess(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5393,6 +5524,7 @@ __int64 HookSyscallNtQueryInformationProcess(__int64 TargetBase, unsigned int Ta
     }
     return GtWrite(GtEprocessField35 | 0x800, ResultOffset);
 }
+// 对应原始驱动 0x1400201A4（259 字节）
 __int64 HookSyscallNtSetInformationProcess(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5428,6 +5560,7 @@ __int64 HookSyscallNtSetInformationProcess(__int64 TargetBase, unsigned int Targ
     }
     return GtWrite(GtEprocessField33, ResultOffset);
 }
+// 对应原始驱动 0x1400202A8（258 字节）
 __int64 HookSyscallNtQueryInformationThread(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5462,6 +5595,7 @@ __int64 HookSyscallNtQueryInformationThread(__int64 TargetBase, unsigned int Tar
     }
     return GtWrite(GtSdstServiceCount, ResultOffset);
 }
+// 对应原始驱动 0x1400203AC（259 字节）
 __int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5497,6 +5631,7 @@ __int64 HookSyscallNtSetInformationThread(__int64 TargetBase, unsigned int Targe
     }
     return GtWrite(GtEprocessField35, ResultOffset);
 }
+// 对应原始驱动 0x1400204B0（259 字节）
 __int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5532,6 +5667,7 @@ __int64 HookSyscallNtSuspendProcess(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtEprocessField32, ResultOffset);
 }
+// 对应原始驱动 0x1400205B4（68 字节）
 __int64 HookSyscallNtResumeProcess(void)
 {
     int BaseOffset = 0;
@@ -5548,6 +5684,7 @@ LABEL_SET:
         ResultOffset = -1;
     return GtWrite(GtEprocessField31, (unsigned int)ResultOffset);
 }
+// 对应原始驱动 0x1400205F8（259 字节）
 __int64 HookSyscallNtSuspendThread(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5583,6 +5720,7 @@ __int64 HookSyscallNtSuspendThread(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtEprocessField51, ResultOffset);
 }
+// 对应原始驱动 0x1400206FC（259 字节）
 __int64 HookSyscallNtResumeThread(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5618,6 +5756,7 @@ __int64 HookSyscallNtResumeThread(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtProcessOffset, ResultOffset);
 }
+// 对应原始驱动 0x140020800（100 字节）
 __int64 HookSyscallNtOpenProcessToken(__int64 TargetAddress, unsigned int TargetSize)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4F7C)
@@ -5625,6 +5764,7 @@ __int64 HookSyscallNtOpenProcessToken(__int64 TargetAddress, unsigned int Target
     else
         return FindOpenProcessTokenOffset(TargetAddress, TargetSize);
 }
+// 对应原始驱动 0x140020BC4（259 字节）
 __int64 HookSyscallNtOpenThreadToken(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5660,6 +5800,7 @@ __int64 HookSyscallNtOpenThreadToken(__int64 TargetBase, unsigned int TargetSize
     }
     return GtWrite(GtEprocessField30, ResultOffset);
 }
+// 对应原始驱动 0x140020CC8（259 字节）
 __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize)
 {
     unsigned int ResultOffset = 0;
@@ -5695,6 +5836,7 @@ __int64 HookSyscallNtCreateToken(__int64 TargetBase, unsigned int TargetSize)
     }
     return GtWrite(GtProcessEprocess, ResultOffset);
 }
+// 对应原始驱动 0x140020DCC（568 字节）
 __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int64 Context, __int64 RelocBase)
 {
     PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
@@ -5782,6 +5924,7 @@ __int64 HookSyscallNtLoadDriver(__int64 TargetBase, signed int TargetSize, __int
 //      （即最多填 40 个槽位）；
 //   3) 命中时不检查 OutTable 槽是否已占用之外的额外条件，返回 IsReady。
 // =========================================================================
+// 对应原始驱动 0x14003D7F4（819 字节）
 char __fastcall ParseSyscallFileExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutTable)
 {
     __int64 PeOffset;
@@ -5945,6 +6088,7 @@ char __fastcall ParseSyscallFileExportSections(__int64 PeBase, unsigned int PeSi
 //   +0x78 1298 RVA / +0x88 Flags / +0x90 Dst 读索引 / +0xDC ExtraFlags
 //   +0xF0 指令长度 / +0x118 类型指针
 // =========================================================================
+// 对应原始驱动 0x14003D034（781 字节）
 char __fastcall ParseShadowSyscallExportSections(__int64 pFileBuffer, unsigned int FileSize, __int64 pExportTable)
 {
     __int64 PeOffset;
@@ -6115,6 +6259,7 @@ char __fastcall ParseShadowSyscallExportSections(__int64 pFileBuffer, unsigned i
 //       Result=1。
 // 【返回值】Result（0 未命中；1 命中至少一项）。
 // =========================================================================
+// 对应原始驱动 0x140050774（842 字节）
 char __fastcall ParseStorPortExportSections(__int64 PeBase, unsigned int PeSize, __int64 pExportTable)
 {
     char    Result = 0;
@@ -6276,6 +6421,7 @@ char __fastcall ParseStorPortExportSections(__int64 PeBase, unsigned int PeSize,
 //   +0x78 1298 RVA / +0x88 Flags / +0x90 Dst 读索引 / +0xDC ExtraFlags
 //   +0xF0 指令长度 / +0x118 类型指针
 // =========================================================================
+// 对应原始驱动 0x140053B2C（819 字节）
 char __fastcall ParseWin32kSyscallStubs(__int64 FileBuffer, unsigned int FileSize, __int64 pOutputTable)
 {
     __int64 PeHeaderOffset;

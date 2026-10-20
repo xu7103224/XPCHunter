@@ -25,6 +25,7 @@ extern __int64 ReadWriteKernelMemory(void);
 // 简单函数实现
 // =======================================================================
 
+// 对应原始驱动 0x140051434（398 字节）
 char ParseServiceTableWin7(char *Src, size_t MaxCount)
 {
     char Result;
@@ -103,6 +104,7 @@ LABEL_FREE:
     return Result;
 }
 
+// 对应原始驱动 0x14005132C（263 字节）
 char ParseServiceTableWin8(char *Src, size_t MaxCount)
 {
     char Result;

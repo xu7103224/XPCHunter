@@ -233,6 +233,7 @@ char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *Sourc
 //        校验 MmIsAddressValid(ContextValue)、+15、源缓冲、源缓冲+15 全部有效
 //        → 读 16 字节到栈缓冲 v19，WritePhysicalMemoryBuffer(ContextValue, &v19, 0x10, 0, 0)。
 // 【返回值】最后一次操作的布尔结果（伪代码统一以 v10 承载返回）。
+// 对应原始驱动 0x1400709C4（374 字节）
 char ReadWriteCallbackPhysicalMemory(char **VirtualAddress, unsigned int FieldOffset,
                                      unsigned __int64 ContextValue, char FlagWriteQword,
                                      char FlagCopyFromNtos, char FlagForceWrite)
@@ -583,6 +584,7 @@ __int64 QueryKernelMemoryByAddress(PVOID ***VirtualAddress, char Flags)
 {
     return ReadObjectHeaderField(VirtualAddress, (ULONG)GtRead(GtEprocessExtField04), Flags);
 }
+// 对应原始驱动 0x14006EA50（151 字节）
 __int64 ReadObjectHeaderField(PVOID ***VirtualAddress, unsigned int FieldOffset, char DerefFirst)
 {
     __int64 Result = 0;
@@ -1236,6 +1238,7 @@ char ResolvePointerSafe(_QWORD *Pointer, _QWORD *OutValue)
 //   ecx = 0x877 ; call GtRead          ; Tag = 全局表[0x877]
 //   rdx = Size ; ecx = PoolType ; r8d = eax(Tag)
 //   jmp ExAllocatePoolWithTag          ; 尾调用
+// 对应原始驱动 0x140077A00（50 字节）
 void *ExAlloc(ULONG PoolType, ULONG Size)
 {
     ULONG Tag = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x877);   // 0x140077A0C/14
@@ -1251,6 +1254,7 @@ void *ExAlloc(ULONG PoolType, ULONG Size)
 //   ecx = 0x877 ; call GtRead          ; Tag = 全局表[0x877]
 //   rcx = Buffer ; edx = eax(Tag)
 //   jmp ExFreePoolWithTag              ; 尾调用
+// 对应原始驱动 0x140077A34（36 字节）
 void ExFree(void *Buffer)
 {
     ULONG Tag = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x877);   // 0x140077A3D
@@ -1672,6 +1676,7 @@ __int64 ResolveSyscallToAddress(unsigned int SyscallNumber)
 // 【注】本函数与原驱动的驱动路径/设备名强绑定，转写严格按反汇编，
 //   两个路径字符串用 WCHAR 数组按原始立即数逐字构造，不写成字符串字面量，
 //   以免编译器合并并改变栈布局语义。
+// 对应原始驱动 0x140078A30（1304 字节）
 unsigned int ReadDiskSectors(void)
 {
     __int64  Gt4265, Gt432E, Gt4331, Gt41EA, Gt4334, Gt4259, Gt425C, Gt415A, Gt41C6, Gt4223, Gt30;
@@ -2021,6 +2026,7 @@ char ResolveSyscallNumberTable(void)
 // 搜索 NtAdjustPrivilegesToken 和 NtAllocateVirtualMemory 的导出地址
 // 匹配后计算所有系统调用地址并写入 GT 0x62
 // =========================================================================
+// 对应原始驱动 0x140052FDC（646 字节）
 char FindSyscallNumbers(void)
 {
     char Result = 0;
@@ -2141,6 +2147,7 @@ char FindSyscallNumbers(void)
 // ===== Functions moved from MissingFuncs.c =====
 
 // ClearPageTableEntryFlags — 清除页表条目标志
+// 对应原始驱动 0x140080AC0（344 字节）
 void ClearPageTableEntryFlags(char *VirtualAddress)
 {
     int Offset1, Offset2, Mask;
@@ -2181,6 +2188,7 @@ void ClearPageTableEntryFlags(char *VirtualAddress)
 // ===== Functions moved from MissingFuncs.c =====
 
 // ClearProcessPageTableFlags — 清除进程页表标志：遍历进程页目录，清除 PTE 中的保护标志
+// 对应原始驱动 0x14008020C（538 字节）
 void ClearProcessPageTableFlags(struct _KPROCESS *Process)
 {
     int FlagMask;
@@ -2255,6 +2263,7 @@ void ClearProcessPageTableFlags(struct _KPROCESS *Process)
         }
     }
 }
+// 对应原始驱动 0x14003F998（862 字节）
 __int64 ReadWriteKernelMemory(void)
 {
     // PE 节区读取上下文（约 0x170 字节）
@@ -2569,6 +2578,7 @@ Cleanup:
 //   197xx（0x4A61..0x4A65）→ 步长 15 qword（与 20348 共用同一组判定）
 //   20348                  → 步长 15 qword
 //   22000 / 22621 / 22631  → 步长 15 qword
+// 对应原始驱动 0x1400897E4（2707 字节）
 char __fastcall ScanProcessVadMemory(unsigned __int64 ObjectAddress,
                                      _OWORD **ppOutputBuffer,
                                      _DWORD *pEntryCount)
@@ -3055,6 +3065,7 @@ L_EPILOGUE:                                                                 // 0
 //   *(QWORD*)(proc + CallbackField76) 非零 → 在已输出条目中查重（按 proc 地址，
 //   步长 4 qword 向前回扫，计数 pEntryCount）→ 未重复则调 ScanProcessVadMemory
 //   继续扫描；其返回 0 则中断循环。最后释放缓冲。
+// 对应原始驱动 0x14008A278（383 字节）
 void __fastcall ScanProcessVadForObjectTypes(_OWORD *OutputBuffer,
                                             int *pEntryCount,
                                             int MaxEntries)
@@ -3160,6 +3171,7 @@ void __fastcall ScanProcessVadForObjectTypes(_OWORD *OutputBuffer,
 //   以及同样的"输出 {进程对象, 创建时间, 地址, 对象类型索引} 并递增计数"收尾。
 //   差异：本函数**多一个入参 ObjectTypeIndex**（写入 ResultStruct2 的第 2 个 DWORD，
 //   即"类型索引"字段），且构建号分档更多（2600/7600-7601/9200/9600/3790/其他）。
+// 对应原始驱动 0x140088B74（1834 字节）
 char __fastcall ScanProcessVadTree(unsigned __int64 ObjectAddress,
                                    int ObjectTypeIndex,
                                    _OWORD **ppOutputBuffer,
@@ -3515,6 +3527,7 @@ static BOOLEAN VadEntryAlreadyStored(const int *pEntryCount, _OWORD *pOutputStar
     return FALSE;
 }
 
+// 对应原始驱动 0x1400892A0（1346 字节）
 void __fastcall EnumProcessObjectTypes(_QWORD *pObjectTypeTable, unsigned int ObjectTypeCount,
                                        _OWORD *OutputBuffer, int *pEntryCount, int MaxEntries)
 {

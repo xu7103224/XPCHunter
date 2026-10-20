@@ -2377,6 +2377,7 @@ LABEL_29:
 //     test eax, eax / jnz loc_14002EF04                       ; 非 0 则跳过回填
 //     mov rcx, [rsp+48h+var_20]                               ; ★ 取 缓冲区+8 处 8 字节
 //     mov [rbx], rcx                                          ; ★ 写回 *pStandardInfo
+// 对应原始驱动 0x14002EECC（75 字节）
 __int64 CmdQueryFileStandardInfo(void *FileHandle, _QWORD *pStandardInfo)
 {
     _BYTE IrpBuffer[0x18];          // 原始为 0x18 字节（r8d = 5+0x13）
@@ -2676,6 +2677,7 @@ typedef struct _SWAP_IOCTL_BLOCK
 //   是否调 SendIoControlWithBufferSwap，随后推进读指针 → 收尾：写回两处钩子、
 //   恢复线程字节、释放 Handle80/Handle88 → 状态为 0x8000001A 时清 *OutFlag →
 //   返回 (状态 == 0)
+// 对应原始驱动 0x140072B64（866 字节）
 char SendReadMemoryIoControl(
     unsigned char *OutFlag,
     __int64 IoctlHandle,
@@ -3557,6 +3559,7 @@ char CheckMbrBootablePartition(void *Buffer)
 }
 
 // CmdQueryFileAllocationSize — 查询文件分配大小
+// 对应原始驱动 0x14002EE6C（47 字节）
 __int64 CmdQueryFileAllocationSize(void *FileHandle, _QWORD *pAllocationSize)
 {
     __int64 AllocationSize;
@@ -3567,6 +3570,7 @@ __int64 CmdQueryFileAllocationSize(void *FileHandle, _QWORD *pAllocationSize)
 }
 
 // CmdReadFileInfo — 读取文件信息命令处理
+// 对应原始驱动 0x14002EE20（73 字节）
 __int64 CmdReadFileInfo(void *FileHandle, _DWORD *pFileInfo)
 {
     char IrpBuffer[0x28];
@@ -3578,12 +3582,14 @@ __int64 CmdReadFileInfo(void *FileHandle, _DWORD *pFileInfo)
 }
 
 // CmdSetFileBasicInfo — 设置文件基本信息
+// 对应原始驱动 0x14002F404（15 字节）
 __int64 CmdSetFileBasicInfo(void *FileHandle, struct _IRP *FileBasicInfo)
 {
     return IrpFileSystemControl(FileHandle, FileBasicInfo, 0x28u, 4u);
 }
 
 // CmdSendRenameFileIrp — 发送重命名文件 IRP
+// 对应原始驱动 0x14002F15C（160 字节）
 __int64 CmdSendRenameFileIrp(void *FileHandle, const void *RenameBuffer, unsigned int BufferSize)
 {
     struct _IRP *IrpBuffer;
@@ -3604,6 +3610,7 @@ __int64 CmdSendRenameFileIrp(void *FileHandle, const void *RenameBuffer, unsigne
 }
 
 // ReadDisksSysFile — 读取磁盘.sys文件
+// 对应原始驱动 0x14000EDD8（282 字节）
 bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
 {
     bool Result;
@@ -3629,6 +3636,7 @@ bool ReadDisksSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
 }
 
 // ReadCdromSysFile — 读取cdrom.sys文件
+// 对应原始驱动 0x14000ECB8（286 字节）
 bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
 {
     bool Result;
@@ -3654,6 +3662,7 @@ bool ReadCdromSysFile(_QWORD *FileBuffer, unsigned int *FileSize)
 }
 
 // DispatchDiskIrpWithHookInit — 分发磁盘 IRP 并初始化钩子
+// 对应原始驱动 0x14007CD74（221 字节）
 char DispatchDiskIrpWithHookInit(void *DeviceObject, int Direction, void *Buffer, int SectorOffset, unsigned int SectorIndex, unsigned int SectorSize)
 {
     __int64 pBuffer[4];
@@ -3675,6 +3684,7 @@ BuildHooks:
 }
 
 // SendCdbCommandToDevice — 发送 CDB 命令到设备
+// 对应原始驱动 0x1400805F0（153 字节）
 char __fastcall SendCdbCommandToDevice(__int64 VirtualAddress)
 {
     char Result;
@@ -3698,6 +3708,7 @@ char __fastcall SendCdbCommandToDevice(__int64 VirtualAddress)
 }
 
 // SendDiskDeviceInternalIrp — 发送磁盘设备内部 IRP
+// 对应原始驱动 0x14007BB80（235 字节）
 char SendDiskDeviceInternalIrp(__int64 DeviceObject, struct _IRP *Irp)
 {
     bool Result;
@@ -3730,6 +3741,7 @@ char SendDiskDeviceInternalIrp(__int64 DeviceObject, struct _IRP *Irp)
 }
 
 // OpenSectionWithIoControl — 通过 IO 控制打开节区
+// 对应原始驱动 0x140072858（319 字节）
 bool OpenSectionWithIoControl(__int64 DeviceHandle)
 {
     char Result;
@@ -3779,6 +3791,7 @@ bool OpenSectionWithIoControl(__int64 DeviceHandle)
 }
 
 // SendFsctlWithHookSwap — 发送带钩子交换的文件系统控制
+// 对应原始驱动 0x1400726C8（397 字节）
 char SendFsctlWithHookSwap(
     __int64 DeviceHandle,
     unsigned int IoControlCode,
@@ -3855,6 +3868,7 @@ char SendFsctlWithHookSwap(
 }
 
 // IrpFsctlGetVolumeData — 获取卷数据（文件系统控制）
+// 对应原始驱动 0x14002F414（37 字节）
 __int64 __fastcall IrpFsctlGetVolumeData(void *FileHandle, __int64 *pVolumeData)
 {
     __int64 VolumeData;
@@ -4149,6 +4163,7 @@ char SaveDiskDeviceContextByIndexV3(char Index, unsigned int EntryIndex, _OWORD 
 // 构造 0x58 字节 SCSI/ATA 命令描述块（CDB）+ 0x12 字节从属缓冲，分配并锁定 MDL，
 // 初始化内部设备控制 IRP（MajorFunction=0x0F，完成例程 CompleteIrpAndCleanupMdl），
 // 随后临时替换磁盘驱动/SSDT/StorPort 各处函数表与物理内存指针，下发 IRP，再逐一恢复原位
+// 对应原始驱动 0x14007AF28（1519 字节）
 __int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, void *Buffer, int SectorIndex, int BlockSize, int BlockCount)
 {
     unsigned int Result;
@@ -4344,6 +4359,7 @@ __int64 SendIrpToDiskDevice(struct _DEVICE_OBJECT *DeviceObject, int Command, vo
 }
 
 // CdbCommandCompletionCallback — CDB 命令完成回调：释放 IRP 缓冲区，恢复当前线程标志位，调用完成通知回调
+// 对应原始驱动 0x14008068C（264 字节）
 __int64 CdbCommandCompletionCallback(void *Irp)
 {
     ULONG BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
@@ -4412,6 +4428,7 @@ __int64 CdbCommandCompletionCallback(void *Irp)
 }
 
 // RxTdiRequestCompletion — RxTDI 请求完成回调：IRP 完成例程，设置事件对象通知等待者
+// 对应原始驱动 0x14007BC6C（36 字节）
 __int64 __fastcall RxTdiRequestCompletion(void *DeviceObject, void *Irp, void *Context)
 {
     if (Context)
@@ -4420,6 +4437,7 @@ __int64 __fastcall RxTdiRequestCompletion(void *DeviceObject, void *Irp, void *C
 }
 
 // ReadSystemDllAndInitSession — 读取系统 DLL 并初始化会话：读取系统 DLL 文件，解析 PE 格式，比较 PE 头，初始化会话状态表
+// 对应原始驱动 0x140088064（389 字节）
 __int64 ReadSystemDllAndInitSession(void)
 {
     char Result;
@@ -4490,6 +4508,7 @@ __int64 ReadSystemDllAndInitSession(void)
 }
 
 // InitIrpBufferWithCdb — 初始化带 CDB 的 IRP 缓冲区，设置 SCSI 命令描述块(CDB)参数到 SRB 结构
+// 对应原始驱动 0x140077A58（216 字节）
 void InitIrpBufferWithCdb(__int64 Buffer, __int64 Address, unsigned int Flags, __int64 CompletionRoutine, unsigned int BlockSize, unsigned int BlockCount, unsigned int CdbFlags, unsigned int CdbParam)
 {
     __int64 (__fastcall *pInitFunc)(__int64, __int64, __int64, __int64, __int64, __int64, char, __int64);
@@ -4522,6 +4541,7 @@ void InitIrpBufferWithCdb(__int64 Buffer, __int64 Address, unsigned int Flags, _
 
 // ReadRawFileToBuffer — 读取原始文件到缓冲区
 // 通过编码路径字符串读取 ntoskrnl.exe 文件到内存缓冲区
+// 对应原始驱动 0x1400829D8（278 字节）
 char __fastcall ReadRawFileToBuffer(_QWORD *pFileBuffer, unsigned int *pFileSize)
 {
     bool Result;
@@ -4560,6 +4580,7 @@ char __fastcall ReadRawFileToBuffer(_QWORD *pFileBuffer, unsigned int *pFileSize
 
 // InitSessionStateTable — 初始化会话状态表
 // 在 win32k 中查找 SGDGetSessionState 和 SGDSessionInitialize 导出，定位会话状态数据结构
+// 对应原始驱动 0x1400881EC（800 字节）
 char __fastcall InitSessionStateTable(__int64 PeBase, unsigned int PeSize)
 {
     char Result;
@@ -4782,6 +4803,7 @@ __int64 __fastcall SendIoControlWithQuotaBufferEx(
 //   SendIoControlWithQuotaBuffer 的情况相同（那边是外层 >= 时内层必然成立）。
 // 【⚠ 上层调用约定】调用方 SendWriteMemoryIoControl 按 8 实参调用，
 //   而本函数声明 9 个形参 —— 差异见该函数的【⚠ 未实现依赖】说明。
+// 对应原始驱动 0x140075D94（436 字节）
 __int64 __fastcall AllocBufferAndSendIoControl(
     __int64 (__fastcall *a1)(__int64, __int64, _QWORD, _QWORD, int, _BYTE *, _DWORD, size_t *, _QWORD),
     __int64 a2, __int64 a3, unsigned int a4, int a5,
@@ -4841,6 +4863,7 @@ __int64 __fastcall AllocBufferAndSendIoControl(
 //   构建号 < 0x42EE 时直接调用（9 参，后两个为 0）。
 // 【备注】v16 的高低 32 位分别装载 -1073741823(0xC0000001) 与 a4 —— 与单缓冲版同族技巧。
 // =========================================================================
+// 对应原始驱动 0x140076190（591 字节）
 __int64 __fastcall AllocDualBufferAndSendIoControl(
     __int64 (__fastcall *a1)(__int64, _WORD *, _QWORD, _BYTE *, _DWORD, size_t *, __int64, _BYTE *, _BYTE *),
     __int64 a2,
@@ -4958,6 +4981,7 @@ __int64 __fastcall AllocDualBufferAndSendIoControl(
 //   ⑨ 收尾：恢复 HookTarget1、还原 KTHREAD 字节、`call [var_70]`(FirstHandle) 关闭；
 //      `Status == 0xC0000034` → `*OutFlag = 0`；返回 `Status == 0`。
 // =========================================================================
+// 对应原始驱动 0x140073934（688 字节）
 char SendDeviceIoControl(unsigned char *OutFlag, int Arg2, PUNICODE_STRING PathString, int Arg4,
                          void *OutputBuffer, SIZE_T OutputSize, __int64 OutputSizePtr)
 {

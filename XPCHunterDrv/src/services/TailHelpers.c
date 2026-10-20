@@ -205,6 +205,7 @@ __int64 WriteKernelObjectFieldOperation(PVOID *pInputBuffer, int InputSize);
 __int64 WriteMsrValueOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 WriteProcessMemoryExOperation(char *pInputBuffer, int InputSize, unsigned int *pOutputBuffer, unsigned int OutputSize);
 
+// 对应原始驱动 0x14006E750（165 字节）
 __int64 ResolveAndStoreKernelModuleAddress(int ModuleId, int GtIndex)
 {
     __int64 KernelBase;
@@ -285,6 +286,7 @@ __int64 ResolveKernelModuleIndexAddress(int ModuleId, int GtIndex)
 // Win7 特定版本（2600/3790）调用 EnumFileSystemCallbackEntries，
 // Win8+ 调用 EnumerateProcessCallbackContext。
 // ============================================================
+// 对应原始驱动 0x14003EDD4（105 字节）
 char CmdEnumFileSystemCallback()
 {
     char Result;
@@ -1868,6 +1870,7 @@ LABEL_23:
 // 遍历 PE 节区（最多 0xC8 条），跳过 Type 0x545(1349)，
 // 查找 Type 0x50E(1294) 且 FieldFlags==0x40000、FieldValueSize==0x40 的节区，
 // 结果 RVA 写入 GT 0x2D0 (GtCallbackField05)。
+// 对应原始驱动 0x140040630（453 字节）
 __int64 ParseNtSectionsForSsdtTable(void)
 {
     __int64 Result;
@@ -1973,6 +1976,7 @@ __int64 ParseNtSectionsForSsdtTable(void)
 // ===== 磁盘扇区辅助函数 =====
 
 // 分析磁盘扇区缓冲区
+// 对应原始驱动 0x14007AEC8（93 字节）
 void AnalyzeDiskSectorBuffer(__int64 Buffer)
 {
     unsigned int Signature = *(unsigned int *)Buffer;
@@ -1983,6 +1987,7 @@ void AnalyzeDiskSectorBuffer(__int64 Buffer)
 }
 
 // 查找引导扇区（带重试）
+// 对应原始驱动 0x14007CF44（149 字节）
 __int64 FindBootSectorWithRetry(struct _DEVICE_OBJECT *DeviceObject, unsigned int SectorSize)
 {
     __int64 Result = 0;
@@ -2003,6 +2008,7 @@ __int64 FindBootSectorWithRetry(struct _DEVICE_OBJECT *DeviceObject, unsigned in
 }
 
 // 查找可引导分区 LBA
+// 对应原始驱动 0x14007CE54（32 字节）
 __int64 FindBootablePartitionLba(__int64 Buffer)
 {
     unsigned int Index = 0;
@@ -2015,6 +2021,7 @@ __int64 FindBootablePartitionLba(__int64 Buffer)
 }
 
 // 检查磁盘扇区健康
+// 对应原始驱动 0x14007AE5C（108 字节）
 void CheckDiskSectorHealth(char *Buffer)
 {
     unsigned int Signature = *(unsigned int *)Buffer;
@@ -2025,6 +2032,7 @@ void CheckDiskSectorHealth(char *Buffer)
 }
 
 // 查找可读磁盘扇区
+// 对应原始驱动 0x14007CE74（205 字节）
 __int64 FindReadableDiskSector(struct _DEVICE_OBJECT *DeviceObject, unsigned int SectorSize, __int64 OutputBuffer)
 {
     __int64 Result = 0;
@@ -2689,6 +2697,7 @@ __int64 QuerySsdHookByProcessInfo(void *Src, size_t MaxCount, _DWORD *Address, i
 
 
 // EnumServiceTableWin10 -- 枚举服务表(Win10 版)
+// 对应原始驱动 0x1400563B0（353 字节）
 __int64 EnumServiceTableWin10(__int64 *pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(__int64 *) = (__int64 (__fastcall *)(__int64 *))GtRead(GtObjectTypeCheckFlag);
@@ -2746,6 +2755,7 @@ __int64 EnumServiceTableWin10(__int64 *pServiceTable, __int64 OutputBuffer, _DWO
 }
 
 // EnumServiceTableWin8 -- 枚举服务表(Win8 版)
+// 对应原始驱动 0x1400565C0（382 字节）
 __int64 EnumServiceTableWin8(_QWORD **pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(_QWORD **) = (__int64 (__fastcall *)(_QWORD **))GtRead(GtObjectTypeCheckFlag);
@@ -2806,6 +2816,7 @@ __int64 EnumServiceTableWin8(_QWORD **pServiceTable, __int64 OutputBuffer, _DWOR
 }
 
 // EnumServiceTableWin7 -- 枚举服务表(Win7 版)
+// 对应原始驱动 0x1400567D4（353 字节）
 __int64 EnumServiceTableWin7(__int64 *pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(__int64 *) = (__int64 (__fastcall *)(__int64 *))GtRead(GtObjectTypeCheckFlag);
@@ -2863,6 +2874,7 @@ __int64 EnumServiceTableWin7(__int64 *pServiceTable, __int64 OutputBuffer, _DWOR
 }
 
 // EnumServiceTableWin1020H1 -- 枚举服务表(Win10 20H1+ 版)
+// 对应原始驱动 0x140056A14（443 字节）
 __int64 EnumServiceTableWin1020H1(_QWORD **pServiceTable, __int64 OutputBuffer, _DWORD *pEntryCount, int MaxEntries)
 {
     __int64 (__fastcall *pCheckFunc)(_QWORD **) = (__int64 (__fastcall *)(_QWORD **))GtRead(GtObjectTypeCheckFlag);
@@ -2947,6 +2959,7 @@ LABEL_22:
 // BuildServiceTableFromNtKernel -- 从 NT 内核构建服务表
 // 读取 GT 2324/80，调用 ReadNtOsKrnlFile 读取 ntoskrnl PE 文件
 // 搜索 Type 0x559 和 Type 0x512 节区，构建服务表
+// 对应原始驱动 0x140055EFC（701 字节）
 __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
 {
     __int64 Result = 0;
@@ -3143,6 +3156,7 @@ __int64 __fastcall EnumObjectDirectoryEntries(unsigned __int16 *DirectoryPath, _
 // 填充为 0x250 字节输出项：跨进程时先引用并附加到目标进程，取句柄值/对象指针/授权位，
 // 再用全局表 0x41EA 处已解析的查询例程分别取名称（上限 19 字符）与类型名（上限 259 字符）。
 // 输出项布局：+0x000 名称，+0x028 类型名，+0x230 句柄标志，+0x238 句柄值，+0x240 对象指针，+0x248 授权位
+// 对应原始驱动 0x14008475C（1021 字节）
 __int64 EnumProcessHandleInfo(_QWORD *pHandleTable, unsigned int *pInfoList, _OWORD *OutputBuffer, int MaxCount)
 {
     unsigned int Result;

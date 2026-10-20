@@ -25,6 +25,7 @@ extern __int64 ReadWriteKernelMemory(void);
 // 简单函数实现
 // =======================================================================
 
+// 对应原始驱动 0x14001CA5C（495 字节）
 __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, __int64 Context, __int64 RelocBase)
 {
     /* 对应原始驱动 sub_14001CA5C。反汇编逐条核对（desc_offsets 已确认
@@ -127,6 +128,7 @@ __int64 FindHookTargetDataSection(__int64 ModuleBase, unsigned int ModuleSize, _
     return Result;
 }
 
+// 对应原始驱动 0x14008296C（107 字节）
 char ComparePeModuleSignature(char *pSignature1, __int64 Signature2, unsigned int SignatureSize)
 {
     char Result;
@@ -147,6 +149,7 @@ char ComparePeModuleSignature(char *pSignature1, __int64 Signature2, unsigned in
     return Result;
 }
 
+// 对应原始驱动 0x14000E584（176 字节）
 char FindExportInFileByName(__int64 PeBase, unsigned int PeSize, __int64 OutEntry)
 {
     char Result;
@@ -174,6 +177,7 @@ char FindExportInFileByName(__int64 PeBase, unsigned int PeSize, __int64 OutEntr
     return Result;
 }
 
+// 对应原始驱动 0x14001E044（761 字节）
 __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64 Context, __int64 RelocBase)
 {
     int Target1;
@@ -398,6 +402,7 @@ __int64 FixCreateFileRelocs(__int64 TargetBase, unsigned int TargetSize, __int64
     return Result;
 }
 
+// 对应原始驱动 0x14002A644（1857 字节）
 __int64 ParseNtExportFunctions(void)
 {
     __int64 SectionDataPtr;
@@ -698,6 +703,7 @@ __int64 ParseNtExportFunctions(void)
     return Result;
 }
 
+// 对应原始驱动 0x14002AD88（1401 字节）
 __int64 ParseNtExportFunctionsV2(void)
 {
     __int64 SectionDataPtr;
@@ -979,6 +985,7 @@ __int64 ParseNtExportFunctionsV2(void)
     return Result;
 }
 
+// 对应原始驱动 0x140031A58（1034 字节）
 char ParseNtImageSections2(__int64 PeBase, unsigned int PeSize)
 {
     unsigned int SectionRva;
@@ -1194,6 +1201,7 @@ LABEL_8:
     return TableBuilt;
 }
 
+// 对应原始驱动 0x140087580（771 字节）
 void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 RelocBase)
 {
     int LoopIndex;
@@ -1319,6 +1327,7 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     }
 }
 
+// 对应原始驱动 0x14001E340（633 字节）
 __int64 ResolveCreateFileRelocs(__int64 TargetBase, ULONG TargetSize, __int64 Context, __int64 RelocBase)
 {
     unsigned int SectionOffset;
@@ -1475,6 +1484,7 @@ NEXT_ITER:
 //     +0xDC 低 4 位 != 4、+0x88==64、+0x38 落在 112..0x148 且 8 字节对齐）→
 //     以 (+0x38-112)>>3 为槽号，把 Dst[+0x58] 写入 pTargetTable[槽号*0x30 + 4]，
 //     并把 SectionBase + 该值写入 +8（仅在该槽 +4 尚为 0 时）
+// 对应原始驱动 0x140035AFC（781 字节）
 char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 pTargetTable)
 {
     __int64 PeOffset;
@@ -1605,6 +1615,7 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
 //   1) 镜像基址取自 GT 复合值 (GtFwpsDispatchTableCount|GtEprocessField184|GtEprocessField06)
 //   2) 段 2 循环上限为 **0x3E8**（V3 为 0xC8）
 //   3) 段 2 里 1298 型写**局部槽表 SlotAddresses**，由 1294 型消费（逻辑同 V3）
+// 对应原始驱动 0x14003E1F4（781 字节）
 char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, __int64 pExportTable)
 {
     __int64 PeOffset;
@@ -1720,6 +1731,7 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
 //     - 构建号 == 9200(20480, Win10 1809) → 要求"0x1298 型且 +0x88==0x40000 且
 //       +0x38!=0 且 +0x70==64"的节区出现**第 2 次**
 //     - 其他构建号 → 先记 0x1298 型（+0x58==0 时）的 RVA，再由"1327 型且 +0x50 带 0x10"确认
+// 对应原始驱动 0x140046FEC（767 字节）
 char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, __int64 pOutputTable)
 {
     __int64 PeOffset;
@@ -1851,6 +1863,7 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
 // 【逻辑】构造路径 → ReadFileRawData（返回 0 表示成功）→ ReadNtFileToBuffer 解析
 //   → ExFree 原始数据；返回是否成功。与 ReadNtoskrnlForCallbackContext 同构。
 // =========================================================================
+// 对应原始驱动 0x1400355B4（377 字节）
 bool ReadNtFileForCallbackTable(_QWORD *pFileBuffer, unsigned int *pFileSize, int VersionType)
 {
     bool Result = 0;
@@ -1887,6 +1900,7 @@ bool ReadNtFileForCallbackTable(_QWORD *pFileBuffer, unsigned int *pFileSize, in
 // 【参数】ImageBase / ImageSize / SectionBase（重定位基址）/ pTargetTable（0x30 项表）
 //   / pAlternateTable / IsVersion2（char，模式 2 标志）
 // =========================================================================
+// 对应原始驱动 0x140033FA8（1016 字节）
 char ParseCallbackFunctionSections(
         __int64 ImageBase,
         unsigned int ImageSize,
@@ -2077,6 +2091,7 @@ char ParseCallbackFunctionSections(
 //   3) 1294 主支槽步长写作 48*SlotIndex（与函数族其它处一致）。
 // 【参数】ImageBase / ImageSize / SectionBase / pTargetTable / pAlternateTable
 // =========================================================================
+// 对应原始驱动 0x140034E7C（1086 字节）
 char ParseCallbackContextSections(
         __int64 ImageBase,
         unsigned int ImageSize,
@@ -2289,6 +2304,7 @@ char ParseCallbackContextSections(
 //      把 Dst[+0x90] 写入 OutputTable[索引*0x30+4] 与 ExportDataBase+Dst 到 +8。
 // 【说明】本函数的 `Label_58` 是三段共用入口，实现中以 goto 忠实还原。
 // =========================================================================
+// 对应原始驱动 0x1400485F0（1303 字节）
 char __fastcall ParseNtSectionHeaders2(
         __int64 ImageBase,
         unsigned int ImageSize,
@@ -2525,6 +2541,7 @@ L_SCAN_SLOTS:
 //        然后填 28 项：**第 15 项用 DataSize，其余用 ExportSize**
 //        （每项 +4=RVA、+8=ExportDataBase+RVA）。
 // =========================================================================
+// 对应原始驱动 0x140048410（478 字节）
 char __fastcall ParseExportDirForDiskInfo(
         __int64 ImageBase,
         unsigned int ImageSize,

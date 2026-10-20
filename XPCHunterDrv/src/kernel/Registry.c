@@ -187,6 +187,7 @@ char InitRegFilter(__int64 DeviceObject, __int64 Irp, _OWORD *OutputBuffer, int 
 //      - 否：取 GT 当前进程 → KeStackAttachProcess（若非本进程）
 //   5) 校验目标地址与末字节有效后，用 WritePhysicalMemoryBuffer 写入
 //   6) 按上述分支释放（ReleaseDiskBuffer / KeUnstackDetachProcess）→ ExFree
+// 对应原始驱动 0x14000D0B0（518 字节）
 char RegNotifyCallback(void *Address, int InputSize)
 {
     unsigned int DataSize;
@@ -526,6 +527,7 @@ __int64 GetSetValueKeyCtx(_QWORD *pContext, _QWORD *pResult)
 }
 
 // FindDeleteValueKeyTarget — 查找 NtDeleteValueKey 的 Hook 目标
+// 对应原始驱动 0x14001DA40（192 字节）
 __int64 FindDeleteValueKeyTarget(__int64 Buffer, unsigned int BufferSize, __int64 Context, __int64 TargetBase, unsigned int TargetSize, __int64 *pResult)
 {
     *pResult = 0;
@@ -558,6 +560,7 @@ __int64 FindDeleteValueKeyTarget(__int64 Buffer, unsigned int BufferSize, __int6
 }
 
 // FindSetValueKeyTargets — 查找 NtSetValueKey 的 Hook 目标（主方案）
+// 对应原始驱动 0x14001DDAC（245 字节）
 __int64 FindSetValueKeyTargets(
     __int64 Buffer,
     unsigned int BufferSize,
@@ -621,6 +624,7 @@ __int64 FindSetValueKeyTargets(
 }
 
 // FindSetValueKeyTarget — 查找 NtSetValueKey 的 Hook 目标（备选方案）
+// 对应原始驱动 0x14001DEF4（200 字节）
 __int64 FindSetValueKeyTarget(
     __int64 Buffer,
     unsigned int BufferSize,
@@ -676,6 +680,7 @@ __int64 FindSetValueKeyTarget(
 }
 
 // FindNtRenameKeyTarget — 查找 NtRenameKey 目标
+// 对应原始驱动 0x140028168（561 字节）
 __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int64 Context, unsigned __int64 MaxOffset)
 {
     char FoundMarker;
@@ -767,6 +772,7 @@ __int16 FindNtRenameKeyTarget(__int64 TargetBase, unsigned int TargetSize, __int
 }
 
 // FindRenameKeyTargetEx — 查找 NtRenameKey 目标（旧版扩展）
+// 对应原始驱动 0x140021124（503 字节）
 __int64 FindRenameKeyTargetEx(
     __int64 TargetBase,
     unsigned int TargetSize,
@@ -857,6 +863,7 @@ __int64 FindRenameKeyTargetEx(
 }
 
 // ScanRegValueBodyForRef — 扫描注册表值体查找引用
+// 对应原始驱动 0x14001DB40（382 字节）
 char ScanRegValueBodyForRef(
     unsigned __int64 Buffer,
     unsigned int BufferSize,

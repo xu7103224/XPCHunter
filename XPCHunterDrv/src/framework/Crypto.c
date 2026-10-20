@@ -171,6 +171,7 @@ void Md5Transform2(ULONG State[4], PUCHAR Block)
 //   不做 <<3、也不拆分 Count[0]/Count[1]）；缓冲自 +0x10 起；状态在 +0x00。
 // 【⚠ 缺陷修正】此前套用 RFC1321 的 `Count[0] += Length<<3` 位计数写法，
 //   与原始语义不符；且状态/缓冲偏移沿用了错误的 +0x00/+0x18。
+// 对应原始驱动 0x14005A50C（217 字节）
 void Md5Update(PMD5_CONTEXT Context, PUCHAR Input, ULONG Length)
 {
     ULONG index = (ULONG)(Context->Count & 0x3F);
@@ -198,6 +199,7 @@ void Md5Update(PMD5_CONTEXT Context, PUCHAR Input, ULONG Length)
 // 【原始行为】填 0x80 与 7 个 0 字节；块内偏移 >= 56 时先压一块再清零前 56 字节；
 //   位长按其**本机字节序**直接写回 Buffer 末 8 字节（+0x48 低位 / +0x4C 高位）后压缩；
 //   摘要取 State@+0x00。
+// 对应原始驱动 0x140059C14（160 字节）
 void Md5Final(PMD5_CONTEXT Context, PUCHAR Digest)
 {
     ULONG index = (ULONG)(Context->Count & 0x3F);
@@ -315,6 +317,7 @@ void Sha1InitContext(PSHA1_CONTEXT Context)
 //   但驱动内部（建表 / 查表、密钥派生）自洽，故这是正确的 1:1 复刻。
 // 【⚠ 缺陷修正】此前 `w[i] = RtlUlongByteSwap(((PULONG)Buffer)[i])` 引入了原始
 //   驱动**不存在**的输入字节交换，虽然能得出标准 SHA1 值，却与实物行为不符。
+// 对应原始驱动 0x140076540（4314 字节）
 void Sha1Transform(ULONG State[5], PUCHAR Buffer)
 {
     ULONG w[80], a, b, c, d, e, temp, i;
@@ -349,6 +352,7 @@ void Sha1Transform(ULONG State[5], PUCHAR Buffer)
 // 【原始行为】计数是**单个 64 位位计数**位于 +0x00：
 //   `mov r11,[rcx]` / `shr r11,3` / `and r11d,3Fh` 得块内字节偏移；
 //   `add [rcx], r9`（r9 = Length<<3）累加位长；缓冲自 +0x1C 起；状态在 +0x08。
+// 对应原始驱动 0x14007761C（187 字节）
 void Sha1Update(PSHA1_CONTEXT Context, PUCHAR Input, ULONG Length)
 {
     ULONG index, partLen, i;
@@ -384,6 +388,7 @@ void Sha1Update(PSHA1_CONTEXT Context, PUCHAR Input, ULONG Length)
 //   64 位位计数取字节，不再假设 Count 是 ULONG[2]（见 xpc_structs.h 布局说明）。
 // 【⚠ 缺陷修正】原实现按 ULONG Count[2] 取 `Count[0]>>24` 填 bits[0]，
 //   在 64 位位计数布局下会取到错误的半字节段。
+// 对应原始驱动 0x1400763E0（288 字节）
 void Sha1FinalTransform(PSHA1_CONTEXT Context, __int64 DigestOut)
 {
     UCHAR bits[8];
@@ -446,7 +451,7 @@ __int64 DecryptInputBuffer(PUCHAR Buffer)
 }
 
 // GenerateEncryptionKey — 生成加密密钥
-// 对应原始驱动 0x140081320（0x8D 字节 / 45 条指令）
+// 对应原始驱动 0x140081314（真实入口；IDA 标称的 0x140081320 是函数中段的 je）
 // 【重写 2026-10-20】旧实现与原始完全不同（旧版按 i&3 移位异或，原始是
 //   `(edi + c) ^ c` 的逐字符累加）。实机对比 GT[0x1E0]/[0x1E1] 双双不符。
 // 原始算法（逐条对应）：
@@ -564,6 +569,7 @@ static UCHAR g_AesGFMulBE = 0;
 
 // AesInitKeySchedule — 初始化 AES 密钥计划表
 // 生成所有 27 个全局查找表（Log、Exp、S-box、T 表等）
+// 对应原始驱动 0x140002C30（795 字节）
 __int64 AesInitKeySchedule(void)
 {
     ULONG Index;
@@ -707,6 +713,7 @@ __int64 AesInitKeySchedule(void)
 // AesKeyExpansion — AES 密钥扩展
 // 支持 128/192/256 位密钥，生成轮密钥和逆密钥
 // KeySchedule: 输出缓冲区，Key: 输入密钥，KeySize: 16/24/32
+// 对应原始驱动 0x1400028B4（891 字节）
 __int64 AesKeyExpansion(int *KeySchedule, int *Key, int KeySize)
 {
     int *pOut;
@@ -890,6 +897,7 @@ __int64 AesKeyExpansion(int *KeySchedule, int *Key, int KeySize)
 
 // AesDecryptRounds — AES-256 解密轮函数
 // 执行 14 轮解密操作，使用 Td 查找表
+// 对应原始驱动 0x1400017E8（4130 字节）
 __int64 AesDecryptRounds(unsigned int *KeySchedule, unsigned int *Output, unsigned int *Input)
 {
     ULONG KeySize;
@@ -1059,6 +1067,7 @@ __int64 AesDecryptRounds(unsigned int *KeySchedule, unsigned int *Output, unsign
 
 // AesDecryptBlocks — AES 解密多块数据
 // 对每 16 字节块调用 AesDecryptRounds，不足 16 字节的尾部单独处理
+// 对应原始驱动 0x14000280C（165 字节）
 __int64 AesDecryptBlocks(unsigned int *KeySchedule, unsigned char *Output, unsigned char *Input, unsigned int Length)
 {
     ULONG Offset;
@@ -1090,6 +1099,7 @@ __int64 AesDecryptBlocks(unsigned int *KeySchedule, unsigned char *Output, unsig
 // DecryptAesHexString — 解密 AES 十六进制字符串
 // 参数: HexBuffer=输入十六进制字符串(256字节), HexLength=长度, pSyscallCount=输出系统调用计数
 // 将 256 字节十六进制字符串解码为 128 字节二进制，AES-128 解密后验证 MD5 和时间戳
+// 对应原始驱动 0x140002F4C（538 字节）
 char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLength, _QWORD *pSyscallCount)
 {
     char Result;

@@ -96,6 +96,7 @@ __int64 *LookupModuleByName(const char *ModuleName, __int64 *OutBaseAddress)
     FreeStringFunc(&UnicodeNameLen);
     return NULL;
 }
+// 对应原始驱动 0x14000C4E0（110 字节）
 _DWORD *FindExportByAddress(ULONG64 TargetAddress)
 {
     _DWORD *ModuleBuffer;
@@ -115,6 +116,7 @@ _DWORD *FindExportByAddress(ULONG64 TargetAddress)
 
     return NULL;
 }
+// 对应原始驱动 0x14000C608（301 字节）
 void *FindExportEntryByName(char *Dst)
 {
     _DWORD *ModuleBuffer;
@@ -164,6 +166,7 @@ void *FindExportEntryByName(char *Dst)
 
     return memset(Dst, 0, 0x228);
 }
+// 对应原始驱动 0x14004F9F4（206 字节）
 __int64 CmdEnumKernelModules(_OWORD *Address, int InputSize, volatile void *OutputBuffer, unsigned int BufferSize)
 {
     char Result = 0;
@@ -282,6 +285,7 @@ __int64 CmdEnumProcessModules(__int64 DeviceObject, __int64 Irp, _DWORD *pOutput
 
     return 1;
 }
+// 对应原始驱动 0x14000B6E0（1021 字节）
 char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize)
 {
     char Result = 0, ReadResult;
@@ -445,6 +449,7 @@ char ParseNtKernelFile(__int64 ModuleEntry, __int64 OutputBuffer, int OutputSize
     ExFree(NtImageBuffer2);
     return Result;
 }
+// 对应原始驱动 0x140009DF0（674 字节）
 void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount)
 {
     WORD *SystemRoot, *DriversPath, *DriversPathBuf;
@@ -541,6 +546,7 @@ Cleanup:
     if (SystemRoot) ExFree(SystemRoot);
     if (DriversPathBuf) ExFree(DriversPathBuf);
 }
+// 对应原始驱动 0x14007A328（230 字节）
 char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, unsigned int Image2Size)
 {
     char Result = 0;
@@ -575,6 +581,7 @@ char ComparePeHeaders(__int64 Image1, unsigned int Image1Size, __int64 Image2, u
     }
     return Result;
 }
+// 对应原始驱动 0x14003BF64（890 字节）
 char EnumerateDriverList(unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
     char IsReady = 0;
@@ -755,6 +762,7 @@ char EnumerateDriverList(unsigned int *pOutputBuffer, unsigned int OutputSize)
     }
     return IsReady;
 }
+// 对应原始驱动 0x14003B994（418 字节）
 char EnumerateDriverObjects(unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
     char Result = 0;
@@ -838,6 +846,7 @@ char EnumerateDriverObjects(unsigned int *pOutputBuffer, unsigned int OutputSize
 
     return IsReady;
 }
+// 对应原始驱动 0x14003BDBC（421 字节）
 __int64 (__fastcall *__fastcall EnumerateDriverObjectsEx(unsigned int *pOutputBuffer, unsigned int OutputSize))(_QWORD)
 {
     void (__fastcall *pDecodeFunc)(_BYTE *, int *);
@@ -894,6 +903,7 @@ __int64 (__fastcall *__fastcall EnumerateDriverObjectsEx(unsigned int *pOutputBu
     }
     return (__int64 (__fastcall *)(_QWORD))pUnmapFunc(ContextArray[0]);
 }
+// 对应原始驱动 0x14003B158（1048 字节）
 __int64 EnumerateDriverObjectsFull(unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
     __int64 pValidateFunc;
@@ -1064,6 +1074,7 @@ NextBlock:
     ExFree(pBuffer);
     return 0;
 }
+// 对应原始驱动 0x14003C2E0（1472 字节）
 __int64 EnumerateKernelModules(unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
     PVOID pBuffer;
@@ -1233,6 +1244,7 @@ NextBlock2:
     ExFree(pBuffer);
     return 0;
 }
+// 对应原始驱动 0x14003C96C（958 字节）
 void EnumerateDriverFiles(_DWORD *pOutputBuffer)
 {
     WORD *pSystemRoot;
@@ -1384,6 +1396,7 @@ Cleanup:
     if (pDriversPathCopy)
         ExFree(pDriversPathCopy);
 }
+// 对应原始驱动 0x1400164C8（350 字节）
 __int64 FindPeExecutableSection(void)
 {
     __int64 KernelBase = GtRead(GtEprocessField22);
@@ -1449,6 +1462,7 @@ __int64 FindPeExecutableSection(void)
 //     +0x50（`[rbp-0x20]`）、+0x58（`[rbp-0x18]`）、+0x88（`[rbp+0x18]`）、
 //     +0x90（`[rbp+0x20]`）、+0x38（`[rbp-0x38]`）
 //     候选 = +0x38 - **PeBase(GT[0x20])** + 读指针；接受条件见下方注释。
+// 对应原始驱动 0x140015128（425 字节）
 __int64 ScanFileForPeSectionInfo(void)
 {
     __int64 KernelBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
@@ -1517,6 +1531,7 @@ __int64 ScanFileForPeSectionInfo(void)
     }
     return Result;
 }
+// 对应原始驱动 0x14007A410（480 字节）
 char BuildDevicePathFromObjects(unsigned __int16 *pPath, WORD *pDriveLetter, int *pOffset)
 {
     char Result = 0;
@@ -1579,6 +1594,7 @@ char BuildDevicePathFromObjects(unsigned __int16 *pPath, WORD *pDriveLetter, int
 
     return Result;
 }
+// 对应原始驱动 0x14000A894（1242 字节）
 __int64 ParseNtExportDirTable(
     __int64 ImageBase, unsigned int ImageSize, __int64 NtImageBase,
     __int64 NtImageDelta, __int64 OutputEntry, unsigned int OutputEntrySize,
@@ -1765,6 +1781,7 @@ FoundName:
 
     return ResultCount;
 }
+// 对应原始驱动 0x14000B314（969 字节）
 __int64 ParseExportEntriesDetailed(
     __int64 TableEntry, unsigned int EntryCount, __int64 ImageBase,
     unsigned int ImageSize, __int64 NtImageBase, __int64 NtImageDelta,
@@ -1904,6 +1921,7 @@ SkipEntry2:
 
     return ResultCount;
 }
+// 对应原始驱动 0x14000A544（848 字节）
 __int64 ParseAndCompareExportEntries(
     __int64 ImageBase, unsigned int ImageSize, __int64 NtImageBase,
     __int64 NtImageDelta, __int64 OutputEntry, unsigned int OutputEntrySize,
@@ -2050,6 +2068,7 @@ NextSection:
 
     return ResultCount;
 }
+// 对应原始驱动 0x14000B090（642 字节）
 __int64 ParseNtExportAuxData(
     __int64 ImageBase, unsigned int ImageSize, __int64 NtImageBase,
     unsigned int NtImageDelta, __int64 OutputEntry, unsigned int OutputEntrySize,
@@ -2152,6 +2171,7 @@ __int64 ParseNtExportAuxData(
 
     return ResultCount;
 }
+// 对应原始驱动 0x14000A244（767 字节）
 __int64 ParseExportDirAndBuildIndex(
     __int64 ImageBase, unsigned int ImageSize, __int64 NtImageBase,
     __int64 NtImageDelta, __int64 OutputTable, unsigned int OutputSize)
@@ -2273,6 +2293,7 @@ FoundOrdinal:
 
     return ResultCount;
 }
+// 对应原始驱动 0x14000AD70（799 字节）
 __int64 ParseExportDirectoryEntries(
     __int64 ImageBase, unsigned int ImageSize, __int64 NtImageBase,
     __int64 NtImageDelta, unsigned __int64 OutputBuffer, unsigned int OutputSize)
@@ -2400,6 +2421,7 @@ __int64 ParseExportDirectoryEntries(
 
     return ResultCount;
 }
+// 对应原始驱动 0x14003AFDC（195 字节）
 char LookupDriverObjectEntry(
     unsigned int *pDriverArray,
     unsigned __int64 TargetAddress,
@@ -2456,6 +2478,7 @@ char LookupDriverObjectEntry(
     }
     return Result;
 }
+// 对应原始驱动 0x14003CD2C（542 字节）
 char ValidateDriverObjectAddress(
     __int64 pLdrEntry,
     __int64 pAddressOverride,
@@ -2595,6 +2618,7 @@ CopyName:
     }
     return Result;
 }
+// 对应原始驱动 0x14003A628（190 字节）
 void __fastcall FindHalDllInDriverList(
     unsigned int *pDriverArray,
     __int64 ArraySize,
@@ -2634,6 +2658,7 @@ void __fastcall FindHalDllInDriverList(
         *pImageSize = pEntry[8];
     }
 }
+// 对应原始驱动 0x14003A788（373 字节）
 __int16 __fastcall BuildDriverImagePath(__int64 pNameString, unsigned int BufferSize, __int64 pOutputPath)
 {
     __int64 Result;
@@ -2685,6 +2710,7 @@ __int16 __fastcall BuildDriverImagePath(__int64 pNameString, unsigned int Buffer
     }
     return (__int16)Result;
 }
+// 对应原始驱动 0x14003ADBC（543 字节）
 char __fastcall EnumerateDriverObjectTable(__int64 pEntry, __int64 TargetObject)
 {
     char Result;
@@ -2780,6 +2806,7 @@ char __fastcall EnumerateDriverObjectTable(__int64 pEntry, __int64 TargetObject)
     }
     return Result;
 }
+// 对应原始驱动 0x14003B570（1059 字节）
 char __fastcall EnumerateKernelDrivers(
     PVOID *pObjectStack,
     int StackSize,
@@ -2972,6 +2999,7 @@ NextBucket:
     ;
     return 0;
 }
+// 对应原始驱动 0x14003C8A0（201 字节）
 char __fastcall OpenDriverFile(PCWSTR pFilePath)
 {
     char Result;
@@ -2998,6 +3026,7 @@ char __fastcall OpenDriverFile(PCWSTR pFilePath)
     }
     return Result;
 }
+// 对应原始驱动 0x140005A58（111 字节）
 __int64 __fastcall FindPESectionByRva(__int64 PeBase, unsigned int PeSize, unsigned int TargetRva)
 {
     __int64 PeHeaderRva;
@@ -3027,6 +3056,7 @@ __int64 __fastcall FindPESectionByRva(__int64 PeBase, unsigned int PeSize, unsig
     }
     return Result;
 }
+// 对应原始驱动 0x14000CFE4（44 字节）
 char __fastcall ValidateZeroPage(__int64 Address, unsigned __int64 LimitAddress)
 {
     _BYTE *CurrentByte;
@@ -3045,6 +3075,7 @@ char __fastcall ValidateZeroPage(__int64 Address, unsigned __int64 LimitAddress)
     }
     return 1;
 }
+// 对应原始驱动 0x14000BB88（267 字节）
 unsigned int __fastcall CalcSectionAlignedSize(unsigned __int64 Address, unsigned __int64 LimitAddress)
 {
     unsigned __int64 PageBase;
@@ -3063,6 +3094,7 @@ unsigned int __fastcall CalcSectionAlignedSize(unsigned __int64 Address, unsigne
 
     return AlignedSize;
 }
+// 对应原始驱动 0x14000BAE0（166 字节）
 unsigned int __fastcall CalcSectionRangeSize(unsigned __int64 StartAddress, unsigned __int64 EndAddress)
 {
     if (EndAddress <= StartAddress)
@@ -3071,6 +3103,7 @@ unsigned int __fastcall CalcSectionRangeSize(unsigned __int64 StartAddress, unsi
         return 0x1000;
     return (unsigned int)(EndAddress - StartAddress);
 }
+// 对应原始驱动 0x14000BC94（91 字节）
 unsigned int __fastcall CompareExportNamePrefix(_BYTE *pBuffer1, _BYTE *pBuffer2, unsigned __int64 LimitAddress)
 {
     unsigned int PrefixLen;
@@ -3087,6 +3120,7 @@ unsigned int __fastcall CompareExportNamePrefix(_BYTE *pBuffer1, _BYTE *pBuffer2
     }
     return PrefixLen;
 }
+// 对应原始驱动 0x14000CF90（83 字节）
 char __fastcall CheckExportNamePrefixCombined(_BYTE *pBuffer1, _BYTE *pBuffer2, unsigned int CompareSize)
 {
     unsigned int Index;
@@ -3125,6 +3159,7 @@ char __fastcall CheckExportNamePrefixCombined(_BYTE *pBuffer1, _BYTE *pBuffer2, 
     }
     return 0;
 }
+// 对应原始驱动 0x14000CF20（109 字节）
 char __fastcall CheckExportNamePrefixWin10V2(_BYTE *pBuffer1, _BYTE *pBuffer2, unsigned int CompareSize)
 {
     unsigned int Index = 0;
@@ -3172,6 +3207,7 @@ char __fastcall CheckExportNamePrefixWin10V2(_BYTE *pBuffer1, _BYTE *pBuffer2, u
     }
     return 0;
 }
+// 对应原始驱动 0x14000BCF0（52 字节）
 char __fastcall FindExportEntryByAddress(__int64 TargetAddress, __int64 FilterTable, unsigned int FilterTableSize)
 {
     unsigned int EntryIndex;
@@ -3188,6 +3224,7 @@ char __fastcall FindExportEntryByAddress(__int64 TargetAddress, __int64 FilterTa
     }
     return 0;
 }
+// 对应原始驱动 0x14000C260（150 字节）
 char __fastcall BtreeSearchByKey(unsigned __int8 *pKeyData, unsigned int *pOutOrdinal, unsigned int EntryCount)
 {
     unsigned int LowIndex, HighIndex, MidIndex;
@@ -3218,6 +3255,7 @@ char __fastcall BtreeSearchByKey(unsigned __int8 *pKeyData, unsigned int *pOutOr
 
     return 0;
 }
+// 对应原始驱动 0x14000CDD4（219 字节）
 char __fastcall ClassifyModuleTypeHalOrNt(const char *ModuleName, __int64 *pExportDirBase, unsigned int *pExportDirCount)
 {
     if (!ModuleName || !pExportDirBase || !pExportDirCount)
@@ -3243,6 +3281,7 @@ char __fastcall ClassifyModuleTypeHalOrNt(const char *ModuleName, __int64 *pExpo
 
     return 0;
 }
+// 对应原始驱动 0x14000C550（183 字节）
 void __fastcall ParseExportSectionAndIndex(__int64 ImageBase, unsigned int ImageSize, unsigned int RegRefCount)
 {
     if (!ImageBase || !ImageSize)
@@ -3256,6 +3295,7 @@ void __fastcall ParseExportSectionAndIndex(__int64 ImageBase, unsigned int Image
         }
     }
 }
+// 对应原始驱动 0x14000D010（115 字节）
 char __fastcall ReadModuleFileToBuffer(
     const char *ModuleName,
     void **ppBuffer,
@@ -3293,6 +3333,7 @@ char __fastcall ReadModuleFileToBuffer(
         return 1;
     }
 }
+// 对应原始驱动 0x140077768（77 字节）
 char __fastcall ValidateEnumerationResult(__int64 pCheckFlagFunc, __int64 CurrentAddr, __int64 Offset)
 {
     unsigned __int8 (__fastcall *pCheckFunc)(__int64);
@@ -3309,6 +3350,7 @@ char __fastcall ValidateEnumerationResult(__int64 pCheckFlagFunc, __int64 Curren
 
     return 0;
 }
+// 对应原始驱动 0x14005110C（117 字节）
 __int64 ResolveDriverRelativeAddresses(__int64 DriverInfo, __int64 Flags, int **pRelocTable)
 {
     char Result;
@@ -3345,6 +3387,7 @@ __int64 ResolveDriverRelativeAddresses(__int64 DriverInfo, __int64 Flags, int **
     }
     return Result;
 }
+// 对应原始驱动 0x140050FE0（299 字节）
 __int64 ResolveDriverEntryAddresses(__int64 DriverInfo)
 {
     char Result;
@@ -3409,6 +3452,7 @@ __int64 ResolveDriverEntryAddresses(__int64 DriverInfo)
     }
     return Result;
 }
+// 对应原始驱动 0x14002A5C8（82 字节）
 __int64 ResolveKernelModuleBasePair(__int64 CpuNumber, ULONG_PTR *pMsrPair)
 {
     unsigned __int64 MsrBaseLstar;
@@ -3447,6 +3491,7 @@ __int64 ResolveKernelModuleBasePair2(__int64 CpuNumber, ULONG_PTR *pMsrPair)
     }
     return 1;
 }
+// 对应原始驱动 0x14006E4A0（139 字节）
 __int64 AdjustKernelModuleSectionPointers(void)
 {
     __int64 EprocessField191;
@@ -3476,6 +3521,7 @@ __int64 AdjustKernelModuleSectionPointers(void)
     }
     return result;
 }
+// 对应原始驱动 0x140078910（285 字节）
 __int64 __fastcall ResolveKernelModuleIndex(
     enum _GLOBAL_TABLE_INDEX SectionType,
     enum _GLOBAL_TABLE_INDEX ResultTableIndex,
@@ -3521,6 +3567,7 @@ __int64 __fastcall ResolveKernelModuleIndex(
     }
     return Result;
 }
+// 对应原始驱动 0x14002C1D8（193 字节）
 __int64 __fastcall WalkKernelModuleList(unsigned __int64 *pModuleList, _DWORD *pOutputBuffer, _DWORD *pMaxEntries)
 {
     unsigned int EntryCount;
@@ -3545,6 +3592,7 @@ __int64 __fastcall WalkKernelModuleList(unsigned __int64 *pModuleList, _DWORD *p
     }
     return EntryCount;
 }
+// 对应原始驱动 0x140051E90（247 字节）
 __int64 BuildDriverInfoEntries(unsigned int *EntryArray, unsigned int BufferSize)
 {
     char Result;
@@ -3606,6 +3654,7 @@ __int64 BuildDriverInfoEntries(unsigned int *EntryArray, unsigned int BufferSize
     }
     return Result;
 }
+// 对应原始驱动 0x14002C29C（96 字节）
 __int64 ParseKernelModuleDiskInfo(void)
 {
     bool Result;
@@ -3620,6 +3669,7 @@ __int64 ParseKernelModuleDiskInfo(void)
     }
     return Result;
 }
+// 对应原始驱动 0x140045F58（239 字节）
 void ParseRegistryDriverExportDir(void)
 {
     char Result;
@@ -3665,6 +3715,7 @@ void ParseRegistryDriverExportDir(void)
             FillExportEntrySlot((__int64)pExportTable);
     }
 }
+// 对应原始驱动 0x140051184（141 字节）
 __int64 ParseExportDirForDriver(__int64 DriverInfo, __int64 Context, __int64 PeBuffer, unsigned int PeSize)
 {
     char Result;
@@ -3698,6 +3749,7 @@ __int64 ParseExportDirForDriver(__int64 DriverInfo, __int64 Context, __int64 PeB
     }
     return Result;
 }
+// 对应原始驱动 0x140031F8C（300 字节）
 void BuildProcessContextExportTable(void)
 {
     __int64 NtoskrnlBase;
@@ -3756,6 +3808,7 @@ void BuildProcessContextExportTable(void)
         ExFree(pFileBuffer);
     }
 }
+// 对应原始驱动 0x1400461A8（285 字节）
 char ReadRegistryDriverFile(char **pFileBuffer, unsigned int *pFileSize)
 {
     char Result;
@@ -3790,6 +3843,7 @@ char ReadRegistryDriverFile(char **pFileBuffer, unsigned int *pFileSize)
     }
     return Result;
 }
+// 对应原始驱动 0x140045B90（781 字节）
 char ParseKernelModuleSectionTable(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
 {
     __int64 PeOffset;
@@ -3919,6 +3973,7 @@ LABEL_FOUND_SECTION:
     }
     return Result;
 }
+// 对应原始驱动 0x140037CD8（299 字节）
 char ReadNtoskrnlForObjectContext(char **pFileBuffer, unsigned int *pFileSize)
 {
     char Success;
@@ -3955,6 +4010,7 @@ char ReadNtoskrnlForObjectContext(char **pFileBuffer, unsigned int *pFileSize)
     }
     return Success;
 }
+// 对应原始驱动 0x140057A48（161 字节）
 char FindPatchThreadWindowsExport(
     __int64 FileBuffer,
     unsigned int FileSize)
@@ -3988,6 +4044,7 @@ char FindPatchThreadWindowsExport(
 
     return Result;
 }
+// 对应原始驱动 0x140057AEC（595 字节）
 char QueryProcessModuleFilePath(
     __int64 Process,
     __int64 ModuleBase,
@@ -4098,6 +4155,7 @@ char QueryProcessModuleFilePath(
 
     return Result;
 }
+// 对应原始驱动 0x14003F274（413 字节）
 char ScanKernelPeExportSection()
 {
     char Result;
@@ -4182,6 +4240,7 @@ char ScanKernelPeExportSection()
 
     return Result;
 }
+// 对应原始驱动 0x14003F060（531 字节）
 char ScanKernelPeExportData()
 {
     char Result;
@@ -4302,6 +4361,7 @@ char ScanKernelPeExportData()
 
     return Result;
 }
+// 对应原始驱动 0x14003F414（460 字节）
 char EnumProcessPeExportData()
 {
     char Result;
@@ -4394,6 +4454,7 @@ char EnumProcessPeExportData()
 
     return Result;
 }
+// 对应原始驱动 0x14003F7D0（453 字节）
 char EnumProcessPeExportDataByIndex()
 {
     char Result;
@@ -4483,6 +4544,7 @@ char EnumProcessPeExportDataByIndex()
 
     return Result;
 }
+// 对应原始驱动 0x14003F5E0（496 字节）
 char EnumProcessPeExportDataEx()
 {
     __int64 Process;
@@ -4589,6 +4651,7 @@ char EnumProcessPeExportDataEx()
 
     return 0;
 }
+// 对应原始驱动 0x140051CD0（161 字节）
 char __fastcall ValidateWin32kBaseDriverImage(__int64 DiskBuffer, unsigned int DiskSize)
 {
     unsigned int Result;
@@ -4613,6 +4676,7 @@ char __fastcall ValidateWin32kBaseDriverImage(__int64 DiskBuffer, unsigned int D
 
     return (char)Result;
 }
+// 对应原始驱动 0x14000CCCC（262 字节）
 __int64 __fastcall BtreeInsertExportEntry(unsigned __int8 *Name, int Ordinal, unsigned int Key)
 {
     __int64 CurrentNode;
@@ -4684,6 +4748,7 @@ __int64 __fastcall BtreeInsertExportEntry(unsigned __int8 *Name, int Ordinal, un
     }
     return result;
 }
+// 对应原始驱动 0x1400575C4（220 字节）
 _DWORD *__fastcall BtreeBufferAllocator(__int64 *pAllocator, unsigned int RequestSize, unsigned int BlockSize)
 {
     __int64 Size;
@@ -4727,6 +4792,7 @@ _DWORD *__fastcall BtreeBufferAllocator(__int64 *pAllocator, unsigned int Reques
     }
     return (_DWORD *)pCurrentPos;
 }
+// 对应原始驱动 0x140071CEC（72 字节）
 __int64 __fastcall RBTreeRotateLeft(__int64 Node, _QWORD *Root)
 {
     __int64 ParentNode;
@@ -4756,6 +4822,7 @@ __int64 __fastcall RBTreeRotateLeft(__int64 Node, _QWORD *Root)
     *(_QWORD *)(Node + 8) = ParentNode;
     return result;
 }
+// 对应原始驱动 0x140071D34（72 字节）
 __int64 __fastcall RBTreeRotateRight(__int64 Node, _QWORD *Root)
 {
     __int64 ParentNode;
@@ -4785,6 +4852,7 @@ __int64 __fastcall RBTreeRotateRight(__int64 Node, _QWORD *Root)
     *(_QWORD *)(Node + 8) = ParentNode;
     return result;
 }
+// 对应原始驱动 0x140071D7C（240 字节）
 _DWORD *__fastcall RBTreeInsertFixup(__int64 NewNode, _QWORD *Root)
 {
     __int64 CurrentNode;
@@ -4846,6 +4914,7 @@ _DWORD *__fastcall RBTreeInsertFixup(__int64 NewNode, _QWORD *Root)
     *(_DWORD *)*Root = 1;
     return result;
 }
+// 对应原始驱动 0x14000CEB0（109 字节）
 char __fastcall CheckExportNamePrefixWin10(_BYTE *pBuffer1, char *pBuffer2, unsigned int CompareSize)
 {
     char Result = 0;

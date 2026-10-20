@@ -143,6 +143,7 @@ __int64 OpenTcpIpDriverSection(void)
     EncodedPath[6] = 112;     EncodedPath[7] = 0;
     return OpenFileSection((__int64)EncodedPath);
 }
+// 对应原始驱动 0x14003D388（116 字节）
 __int64 OpenKbdClassDriverSection(void)
 {
     _DWORD EncodedPath[10];
@@ -153,6 +154,7 @@ __int64 OpenKbdClassDriverSection(void)
     EncodedPath[8] = 0;       EncodedPath[9] = 0;
     return OpenFileSection((__int64)EncodedPath);
 }
+// 对应原始驱动 0x14003383C（100 字节）
 __int64 GetSsdtFunctionBase2(void)
 {
     _DWORD EncodedName[8];
@@ -162,6 +164,7 @@ __int64 GetSsdtFunctionBase2(void)
     EncodedName[6] = 0;       EncodedName[7] = 0;
     return OpenFileSection((__int64)EncodedName);
 }
+// 对应原始驱动 0x140032ACC（103 字节）
 __int64 DecryptDiskDeviceContextStr(void)
 {
     _DWORD EncodedPath[8];
@@ -171,6 +174,7 @@ __int64 DecryptDiskDeviceContextStr(void)
     EncodedPath[6] = 105;     EncodedPath[7] = 0;
     return OpenFileSection((__int64)EncodedPath);
 }
+// 对应原始驱动 0x1400314B0（100 字节）
 __int64 GetSsdtFunctionBase4(void)
 {
     _DWORD EncodedName[8];
@@ -180,6 +184,7 @@ __int64 GetSsdtFunctionBase4(void)
     EncodedName[6] = 0;       EncodedName[7] = 0;
     return OpenFileSection((__int64)EncodedName);
 }
+// 对应原始驱动 0x140050E94（220 字节）
 _QWORD *FindDiskDriverModule(void)
 {
     _QWORD *Result = 0;
@@ -256,6 +261,7 @@ _QWORD *FindDiskDriverModule(void)
     }
     return (_QWORD *)Result;
 }
+// 对应原始驱动 0x1400504D4（164 字节）
 _QWORD *GetDiskDriverSection(void)
 {
     _QWORD *Result;
@@ -287,6 +293,7 @@ _QWORD *GetDiskDriverSection(void)
     }
     return Result;
 }
+// 对应原始驱动 0x14003DB6C（116 字节）
 __int64 OpenMountMgrDriverSection(void)
 {
     _DWORD EncodedPath[10];
@@ -297,6 +304,7 @@ __int64 OpenMountMgrDriverSection(void)
     EncodedPath[8] = 0;       EncodedPath[9] = 0;
     return OpenFileSection((__int64)EncodedPath);
 }
+// 对应原始驱动 0x140046A80（116 字节）
 __int64 BuildSyscallDriverPath(void)
 {
     _DWORD EncodedPath[10];
@@ -307,6 +315,7 @@ __int64 BuildSyscallDriverPath(void)
     EncodedPath[8] = 0;       EncodedPath[9] = 0;
     return OpenFileSection((__int64)EncodedPath);
 }
+// 对应原始驱动 0x140053EA4（95 字节）
 __int64 OpenWin32kSection(void)
 {
     _DWORD EncodedPath[6];
@@ -315,6 +324,7 @@ __int64 OpenWin32kSection(void)
     EncodedPath[4] = 6553716; EncodedPath[5] = 120;
     return OpenFileSection((__int64)EncodedPath);
 }
+// 对应原始驱动 0x1400864EC（116 字节）
 __int64 OpenWdfDriverSection(void)
 {
     _DWORD EncodedPath[10];

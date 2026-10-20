@@ -90,6 +90,7 @@ char DisableObjectProtect(__int64 DeviceObject, __int64 Irp, _DWORD *OutputBuffe
 // 从全局表取出 5 个已解析的例程指针（RtlInitUnicodeString / 打开对象 / 文件系统控制 / 关闭句柄 / 释放池），
 // 全部就绪时打开 \Callback 对象目录、下发 0xF000F 控制码取得其对象表，
 // 再以 0x100000 缓冲区遍历对象类型链表（WalkObjectTypeList）完成反保护
+// 对应原始驱动 0x140007D54（495 字节）
 char DisableObjectProtectEx(_DWORD *OutputBuffer, unsigned int BufferSize)
 {
     void (__fastcall *InitUnicodeStringFunc)(PUNICODE_STRING, const wchar_t *);
@@ -712,6 +713,7 @@ Cleanup:
 // 【修正 2026-10-19】旧实现把异或项写成恒 0 的 `ZeroMask`，
 //   等价于丢了 `(ObjectHeader >> 8)` 这一项 → GT[0x81B..0x81E] 全错
 //   （实测 0xBF/0x52/0x3E/0xA7，原始 0xC/0x3/0x2A/0x29）。
+// 对应原始驱动 0x1400798B4（58 字节）
 char CheckObjectTypeFlag(__int64 ObjectHeader)
 {
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x2800)
@@ -2197,6 +2199,7 @@ __int64 QueryObjectTypeByAddress(__int64 Object)
 // (>0x1772/Win8+ 通过 CheckObjectTypeFlagWrapper，否则直接比较类型指针)，
 // 匹配的条目递归入栈继续遍历；不匹配的条目通过 MatchObjectTypeEntry 过滤后，
 // 输出 144 字节/项的完整信息(索引号在 OutputBuffer+3544 处)。最大遍历 0x100000 个条目。
+// 对应原始驱动 0x14006FA64（1018 字节）
 char EnumObjectTypeDirectory(_QWORD **DirectoryStack, int MaxDepth, __int64 OutputBuffer, unsigned int OutputSize)
 {
     unsigned char (__fastcall *CheckTypeFunc)(__int64);
@@ -2328,6 +2331,7 @@ char EnumObjectTypeDirectory(_QWORD **DirectoryStack, int MaxDepth, __int64 Outp
 // 通过 GT 16925/16982/16931 中的函数指针，打开对象目录设备并发送 FSCTL，
 // 分配 0x100000 字节缓冲区，调用 TraverseHashTableWithCallback 遍历哈希表，
 // 查找名称匹配 "DR0" 的对象目录设备对象并返回
+// 对应原始驱动 0x140079654（605 字节）
 __int64 QueryObjectTypeDirectoryPath(void)
 {
     __int64 Result = 0;
@@ -2458,6 +2462,7 @@ __int64 QueryObjectTypeDirectoryPath(void)
 //      尝试，成功则带标志 0 去保护；四档全败直接返回 0。
 //      保护点：EnableDeviceObjectProtection(句柄, 标志) 返回 0 时置返回值 1，随后 ZwClose。
 // 【返回值】成功路径返回 1；全部失败返回 0。
+// 对应原始驱动 0x14000F8E4（676 字节）
 char InitObjectCallbackFiles(int ObjectName, char Flag)
 {
     __int16 *DeviceId = (__int16 *)(ULONG_PTR)ObjectName;   // rdi
@@ -2806,6 +2811,7 @@ bool ValidateKernelModuleAddressRange(__int64 LdrEntry)
 // ===== Functions moved from MissingFuncs.c =====
 
 // CheckObjectTypePointerMatch — 检查对象类型指针是否匹配
+// 对应原始驱动 0x140080794（90 字节）
 __int64 CheckObjectTypePointerMatch(__int64 VirtualAddress)
 {
     _QWORD *pObjectType;
@@ -2818,6 +2824,7 @@ __int64 CheckObjectTypePointerMatch(__int64 VirtualAddress)
 }
 
 // GetKernelObjectTypeInfo — 获取内核对象类型信息
+// 对应原始驱动 0x1400298C0（163 字节）
 __int64 GetKernelObjectTypeInfo(__int64 ObjectHeader)
 {
     char TypeByte;
@@ -2845,6 +2852,7 @@ __int64 GetKernelObjectTypeInfo(__int64 ObjectHeader)
 }
 
 // CmdEnumObjectsEx — 枚举对象扩展命令处理
+// 对应原始驱动 0x140036D54（346 字节）
 __int64 CmdEnumObjectsEx(__int64 Context, unsigned int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize)
 {
     SIZE_T BufferSize;
@@ -2881,6 +2889,7 @@ __int64 CmdEnumObjectsEx(__int64 Context, unsigned int InputSize, _DWORD *pOutpu
 }
 
 // CmdEnumObjectsLegacy — 枚举对象旧版命令处理
+// 对应原始驱动 0x140036EB0（234 字节）
 __int64 CmdEnumObjectsLegacy(__int64 Context, unsigned int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize)
 {
     SIZE_T BufferSize = OutputSize;
@@ -2907,6 +2916,7 @@ __int64 CmdEnumObjectsLegacy(__int64 Context, unsigned int InputSize, _DWORD *pO
 }
 
 // CmdObjectOperationByHandle — 通过句柄执行对象操作命令
+// 对应原始驱动 0x140036460（244 字节）
 char CmdObjectOperationByHandle(__int64 *pInputBuffer, int InputSize)
 {
     __int64 TargetHandle = 0;
@@ -2940,6 +2950,7 @@ char CmdObjectOperationByHandle(__int64 *pInputBuffer, int InputSize)
 }
 
 // DispatchObjectOperationInit — 分发对象操作初始化
+// 对应原始驱动 0x14003681C（69 字节）
 char DispatchObjectOperationInit(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Result = (unsigned int)GtRead(GtWindowsBuildNumber);
@@ -2956,6 +2967,7 @@ char DispatchObjectOperationInit(__int64 ImageBase, unsigned int ImageSize)
 }
 
 // CompareKernelPageAttached — 比较内核页附加
+// 对应原始驱动 0x14000D884（219 字节）
 char CompareKernelPageAttached(void *PageAddress, _DWORD *OutputBuffer, struct _KPROCESS *TargetProcess, __int64 (*ReadMemoryCallback)(void *))
 {
     char IsMatch = 0;
@@ -2982,6 +2994,7 @@ char CompareKernelPageAttached(void *PageAddress, _DWORD *OutputBuffer, struct _
 }
 
 // FindObjectOperationDataSection — 查找对象操作数据节区
+// 对应原始驱动 0x140036970（264 字节）
 __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, int ImageSize, int SectionBase)
 {
     unsigned int FoundOffset;
@@ -3029,6 +3042,7 @@ __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, int ImageSi
 }
 
 // FindObjectOperationBaseOffset — 查找对象操作基址偏移
+// 对应原始驱动 0x140036A78（351 字节）
 __int64 __fastcall FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSize, int SectionBase)
 {
     __int64 FoundOffset;
@@ -3095,6 +3109,7 @@ __int64 __fastcall FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSiz
 }
 
 // QueryObjectOperationByVersion — 根据版本查询对象操作偏移
+// 对应原始驱动 0x140036554（78 字节）
 __int64 __fastcall QueryObjectOperationByVersion(__int64 ImageBase, int ImageSize, int SectionBase)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x47BA)
@@ -3105,6 +3120,7 @@ __int64 __fastcall QueryObjectOperationByVersion(__int64 ImageBase, int ImageSiz
 
 // EnumProcessAndInitObjects — 枚举进程并初始化对象
 // 遍历指定进程的对象表，对每个对象调用 InitObjectAndQueryName
+// 对应原始驱动 0x14007EB18（171 字节）
 __int64 EnumProcessAndInitObjects(__int64 Process, char Flags)
 {
     char Result;
@@ -3155,6 +3171,7 @@ __int64 EnumProcessAndInitObjects(__int64 Process, char Flags)
 }
 
 // ParseObjectContextExportDir — 解析对象上下文导出目录
+// 对应原始驱动 0x140037A8C（231 字节）
 void ParseObjectContextExportDir(void)
 {
     char Success;
@@ -3199,6 +3216,7 @@ void ParseObjectContextExportDir(void)
 }
 
 // EnumerateProcessObjectTable — 枚举进程对象表：通过进程对象表枚举进程信息，检查进程是否受保护
+// 对应原始驱动 0x14007E0FC（226 字节）
 __int64 EnumerateProcessObjectTable(__int64 Process, __int64 OutputInfo)
 {
     char Result;
@@ -3257,6 +3275,7 @@ __int64 EnumerateProcessObjectTable(__int64 Process, __int64 OutputInfo)
 }
 
 // ResolveKernelObjectAddresses — 解析内核对象地址
+// 对应原始驱动 0x140029720（414 字节）
 __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
 {
     unsigned int TableIndex;
@@ -3372,6 +3391,7 @@ __int64 ResolveKernelObjectAddresses(__int64 pObjectTable)
 }
 
 // ModifyObjectHeaderFlagsByVersion — 按版本修改对象头标志
+// 对应原始驱动 0x14007A8D4（279 字节）
 char __fastcall ModifyObjectHeaderFlagsByVersion(__int64 ObjectHeader, char SetFlag)
 {
     char Result;
@@ -3426,6 +3446,7 @@ char __fastcall ModifyObjectHeaderFlagsByVersion(__int64 ObjectHeader, char SetF
 }
 
 // FindObjectOperationExportWin10 — 查找对象操作导出（Win10+）：在 ntoskrnl 镜像中查找 NtUserRegisterHotKey 导出函数的 RVA
+// 对应原始驱动 0x1400368C8（166 字节）
 __int64 __fastcall FindObjectOperationExportWin10(__int64 NtoskrnlBase, unsigned int ImageSize)
 {
     char Success;
@@ -3450,6 +3471,7 @@ __int64 __fastcall FindObjectOperationExportWin10(__int64 NtoskrnlBase, unsigned
 }
 
 // EnumObjectLinkedListSingle — 枚举对象单链表（Win7 旧版）：遍历单个桶链表（Next 在 bucket[4]），输出条目含对象指针、Eprocess/HandleTable/GrantedAccess
+// 对应原始驱动 0x140037500（347 字节）
 __int64 EnumObjectLinkedListSingle(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *pCount, int MaxEntries)
 {
     __int64 (__fastcall *pCallbackFunc)(_QWORD ***);
@@ -3515,6 +3537,7 @@ __int64 EnumObjectLinkedListSingle(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD
 }
 
 // FindObjectOperationOffset — 查找对象操作偏移：遍历 PE 节区条目，扫描 Type 1368 和 Type 1340 找到目标偏移量
+// 对应原始驱动 0x1400365A4（314 字节）
 __int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionBase)
 {
     unsigned int Result;
@@ -3562,6 +3585,7 @@ __int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionB
 }
 
 // FindObjectOperationSection — 查找对象操作节区（Win10+）：遍历 PE 节区条目，先扫描 Type 1340 标记 FoundFlag，然后扫描 Type 1368 获取目标 RVA 偏移
+// 对应原始驱动 0x1400366E0（313 字节）
 __int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int SectionBase)
 {
     unsigned int FoundOffset;
@@ -3618,6 +3642,7 @@ __int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int Section
 }
 
 // EnumObjectLinkedListWin8 — 枚举对象链表（Win8）：遍历 127 个桶，在每个桶中遍历链表条目，输出每个句柄的完整信息（7 个 QWORD）
+// 对应原始驱动 0x140037058（426 字节）
 __int64 EnumObjectLinkedListWin8(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *pCount, int MaxEntries)
 {
     _QWORD *pTable;
@@ -3703,6 +3728,7 @@ __int64 EnumObjectLinkedListWin8(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
 }
 
 // EnumObjectLinkedListWin7 — 枚举对象链表（Win7）：遍历 127 个桶，每个桶中通过 Next 指针（+4 即 bucket[4]）遍历链表，输出 7 个 QWORD 条目
+// 对应原始驱动 0x1400372C0（425 字节）
 __int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *pCount, int MaxEntries)
 {
     _QWORD *pTable;
@@ -3788,6 +3814,7 @@ __int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
 }
 
 // ParseNtExportSections — 解析 NT 导出节区（对象上下文版本）：从 GT 获取节区基址，通过遍历节区条目查找 Type 1298/1294 填充函数表
+// 对应原始驱动 0x14003765C（863 字节）
 char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTable)
 {
     char Result;
@@ -3917,6 +3944,7 @@ LABEL_FOUND_SECTION:
 }
 
 // InitObjectOperationLegacy — 初始化对象操作（旧版 Win7/Win8）：从 GT 获取服务表基址，解析系统调用号
+// 对应原始驱动 0x140036864（99 字节）
 __int64 InitObjectOperationLegacy(void)
 {
     __int64 pServiceTable;
@@ -3939,6 +3967,7 @@ __int64 InitObjectOperationLegacy(void)
 }
 
 // ResolveSyscallAddressesInProcess — 在进程中解析系统调用地址：附加到目标进程上下文，通过系统调用号解析系统调用地址并写入全局表
+// 对应原始驱动 0x14007FFA0（286 字节）
 __int64 ResolveSyscallAddressesInProcess(void)
 {
     __int64 Result;
@@ -3978,6 +4007,7 @@ __int64 ResolveSyscallAddressesInProcess(void)
         KeUnstackDetachProcess(&ApcState);
     return Result;
 }
+// 对应原始驱动 0x1400091FC（333 字节）
 char RemoveDeviceObject(__int64 DriverObject)
 {
     char Result;
@@ -4040,6 +4070,7 @@ LABEL_11:
 }
 
 
+// 对应原始驱动 0x140009680（98 字节）
 char RemoveTdxDriverObject(__int64 DriverObject)
 {
     _DWORD EncodedPath[6];
@@ -4054,6 +4085,7 @@ char RemoveTdxDriverObject(__int64 DriverObject)
 }
 
 
+// 对应原始驱动 0x1400096E4（340 字节）
 char RemoveHarddiskVolume1Device(__int64 DriverObject)
 {
     char Result;
@@ -4117,6 +4149,7 @@ LABEL_11:
 }
 
 
+// 对应原始驱动 0x140009600（127 字节）
 char RemovePnpManagerDriverObject(__int64 DriverObject)
 {
     _DWORD EncodedPath[10];
@@ -4135,6 +4168,7 @@ char RemovePnpManagerDriverObject(__int64 DriverObject)
 }
 
 
+// 对应原始驱动 0x140008F7C（524 字节）
 __int64 OpenDeviceObjectForEnum(__int64 DeviceContext)
 {
     // 函数指针：从全局表读取
@@ -4718,7 +4752,7 @@ NEXT_ENTRY:
 
 // DispatchObjectTypeQuery — 分发对象类型查询
 // 调用对象类型结构中的查询函数，完成后调用完成通知回调
-// 对应原始驱动 sub_140083A84
+// 对应原始驱动 0x140083A40（65 字节；0x140083A84 是函数内部标签）
 __int64 (__fastcall *__fastcall DispatchObjectTypeQuery(__int64 ObjectTypeEntry))(_QWORD)
 {
     __int64 (__fastcall *NotifyFunc)(_QWORD);
@@ -4762,6 +4796,7 @@ __int64 (__fastcall *__fastcall DispatchObjectTypeQuery(__int64 ObjectTypeEntry)
 //          0x2A3 分支：`(WORD - 0xD02) <= 3` 则同上；
 //   6) 收尾：调 r15(局部[0x80])（关闭对象），返回 ebx（0 或 0xC0000001）。
 // 【返回值】0 表示已处理；0xC0000001(STATUS_UNSUCCESSFUL) 表示前置失败。
+// 对应原始驱动 0x140010460（606 字节）
 __int64 EnableDeviceObjectProtection(__int64 ObjectHandle, char Flag)
 {
     __int64  Result = 0xC0000001;             // ebx

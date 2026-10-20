@@ -222,6 +222,7 @@ ULONG64 CopyMemoryNoWriteProtect(void *Destination, const void *Source, ULONG Si
 //   那是「CPU 是否支持 VT-x」，不是「VMX 是否已启用」。VM 内 CPUID 的 VMX
 //   位常被 hypervisor 屏蔽（返回 0），而原始判据是 CR4.VMXE。
 //   实机实测：旧实现返回 0 → GT[0x2D5] 恒 0；原始活体该槽为 1。
+// 对应原始驱动 0x14000158E（26 字节）
 BOOLEAN CheckVmxEnabled(void)
 {
     return (__readcr4() & 0x20) != 0;
@@ -461,6 +462,7 @@ void *AllocExBufferAndQuerySystemInfo(unsigned int SystemInformationClass)
 }
 
 // CmdQueryDiskInfo — 查询磁盘信息命令处理
+// 对应原始驱动 0x140049860（281 字节）
 __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
 {
     unsigned int Part1Size, Part2Size;
@@ -505,6 +507,7 @@ __int64 CmdQueryDiskInfo(char *Dst, SIZE_T Length)
 }
 
 // CmdQuerySystemInfoExV2 — 查询系统信息（扩展版 V2）
+// 对应原始驱动 0x140049730（303 字节）
 __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
 {
     unsigned int Part1Size, Part2Size;
@@ -675,6 +678,7 @@ LABEL_20:
 }
 
 // InitUnicodeStringBuffer — 初始化 Unicode 字符串缓冲区
+// 对应原始驱动 0x1400726A0（37 字节）
 __int64 InitUnicodeStringBuffer(__int64 Buffer, __int64 StringPtr, unsigned int MaxLength)
 {
     if (MaxLength < 2)
@@ -720,6 +724,7 @@ void FreeAllocatedBuffers(void *Buffer1, void *Buffer2, void *Buffer3, void *Buf
 //   成功则回写所需大小与四个输出指针。
 // 【尺寸算术（忠实还原）】size = 首次查询返回的长度 + 0x1000；
 //   每个缓冲分配 Count * size 字节（同一 size，未随类型变化）。
+// 对应原始驱动 0x140047894（542 字节）
 __int64 QuerySystemInfoAllocateBuffers(
     unsigned int SystemInformationClass,
     __int64 Argument2,
@@ -831,6 +836,7 @@ __int64 QuerySystemInfoAllocateBuffers(
 //   var_58 = IO_STATUS_BLOCK(0x10)。
 // 【参数】无。
 // 【返回值】原始无显式返回值使用（eax 为 RtlInitUnicodeString 尾值），此处返回 0。
+// 对应原始驱动 0x140047C50（428 字节）
 __int64 BuildSystemRootPath(void)
 {
     /* ① 栈上构造路径 L"\\SystemRoot\\"（原始：6 个立即数分别写入 var_48..var_34） */
@@ -928,6 +934,7 @@ __int64 BuildSystemRootPath(void)
 }
 // CheckWin2k3Sp2 -- 检查 Win2K3 SP2
 // 调用 IoGetCurrentProcess 获取当前 EPROCESS，检查偏移 0x98 的最高位是否为 1
+// 对应原始驱动 0x1400210F4（48 字节）
 __int64 CheckWin2k3Sp2(void)
 {
     __int64 Result = 0;
@@ -960,6 +967,7 @@ char CheckBootSectorErrorsReal(__int64 Buffer, unsigned int Size)
 }
 
 // CmdQueryFileEndOfFile -- 查询文件结束位置
+// 对应原始驱动 0x14002EE9C（47 字节）
 __int64 CmdQueryFileEndOfFile(HANDLE FileHandle, _QWORD *pResult)
 {
     if (!FileHandle || !pResult)
@@ -988,12 +996,14 @@ void InitDriverModuleParsing(void)
 }
 
 // ReadWdfLoaderModule -- 读取 WDF Loader 模块
+// 对应原始驱动 0x140087E80（292 字节）
 bool ReadWdfLoaderModule(_QWORD *pBuffer, unsigned int *pBufferSize)
 {
     if (!pBuffer || !pBufferSize)
         return 0;
     return 0;
 }
+// 对应原始驱动 0x140047DFC（477 字节）
 char BuildDevicePath(char *Buffer, unsigned int BufferSize)
 {
     char Result;
@@ -1077,6 +1087,7 @@ char BuildDevicePath(char *Buffer, unsigned int BufferSize)
     return 1;
 }
 
+// 对应原始驱动 0x140049270（630 字节）
 char QuerySystemInfoPart1(_DWORD *OutputBuffer, unsigned int OutputBufferSize, _DWORD *pOutputSize)
 {
     char Result;
@@ -1180,6 +1191,7 @@ char QuerySystemInfoPart1(_DWORD *OutputBuffer, unsigned int OutputBufferSize, _
     return Result;
 }
 
+// 对应原始驱动 0x1400494E8（447 字节）
 char QuerySystemInfoPart2(_DWORD *OutputBuffer, unsigned int OutputBufferSize, _DWORD *pOutputSize)
 {
     char Result;

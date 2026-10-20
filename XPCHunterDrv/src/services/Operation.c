@@ -4108,6 +4108,7 @@ __int64 DeviceIoControlWithBufferOperation(char *pInputBuffer, int InputSize, un
 
     return Result;
 }
+// 对应原始驱动 0x1400738A8（140 字节）
 char __fastcall SendIoControlWithVersionBranch(
     char *OutputBuffer,
     int Command,
@@ -4316,6 +4317,7 @@ __int64 OpenSectionObjectOperation(char *pInputBuffer, int InputSize, unsigned i
 // 【收尾】先恢复 HookTarget2 并关闭 SecondHandle，再恢复 HookTarget1、
 //   还原 KTHREAD 字节、关闭 FirstHandle；Status == 0x8000001A 时把 *pResult 清 0。
 // =========================================================================
+// 对应原始驱动 0x140072EC8（811 字节）
 __int64 SendWriteMemoryIoControl(unsigned char *pResult, __int64 ProcessId, int PageIndex, int AddressField, unsigned int *pOutputBuffer, unsigned int OutputSize, __int64 ResultBuffer, unsigned char Flag)
 {
     int Result;                                 // ← 对应 edi：状态与内层调用结果**共用同一寄存器**

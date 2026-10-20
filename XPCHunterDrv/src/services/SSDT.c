@@ -779,6 +779,7 @@ CheckFound:
 //                   普通版 = `48 FF 21` + 其后 +7 处 == 0F 1F 44 00 00（NOP）
 //     收尾比对类型：Ex = 1296/1369，普通版 = 1296/1368
 // 【入参】PeBuffer=PE 缓冲；PatternBuffer=参照缓冲（可空）；BufferSize；UsePESectionParser
+// 对应原始驱动 0x14007A048（600 字节）
 char __fastcall ScanPESectionPatternsEx(_BYTE *PeBuffer, char *PatternBuffer,
                                         int BufferSize, char UsePESectionParser)
 {
@@ -896,6 +897,7 @@ L_LABEL22:                                                             // 0x1400
 //   → e_lfanew = *(int*)(Buffer+0x3C)；要求 e_lfanew < BufferSize
 //     且 e_lfanew+24 < BufferSize → 返回 (*(DWORD*)(Buffer+e_lfanew) == 0x4550)
 //   （0x4550 即 PE 签名的前 4 字节）；否则返回 0。
+// 对应原始驱动 0x14007A2DC（74 字节）
 char __fastcall ValidatePeHeaderSignature(__int64 Buffer, unsigned int BufferSize)
 {
     char Result = 0;
@@ -1046,6 +1048,7 @@ _QWORD *InitKernelRoutineTable(void)
 //   只释放 RawFileData。悬空指针随即被 BuildHookTable 取出并传给 GetExportDirSize，
 //   读 [Src+0x3C] 时页面已回收/未映射 → BSOD 0x50（Arg1 为页对齐的池地址）。
 //   原始控制流（LABEL_10 只 ExFree(RawFileData)）：成功时 Src 与展开缓冲均保留。
+// 对应原始驱动 0x1400051F0（386 字节）
 char ReadNtoskrnlFile(void)
 {
     char Success = 0;
@@ -1330,6 +1333,7 @@ static __int64 FindPESectionByNameReturnVaLocal(PUCHAR PeBase, PCHAR SectionName
 //   用 FileAlignment 对齐 SizeOfRawData，按边界调整节尺寸，
 //   然后 ExAlloc(对齐后镜像大小+256)、memset 清零、拷头、逐节 memmove 展开。
 // 【返回值】1 = 成功（*OutBuffer/*OutSize 有效）；0 = 失败。
+// 对应原始驱动 0x140005D4C（699 字节）
 char ReadNtFileToBuffer(PUCHAR Src, ULONG MaxCount, PUCHAR *OutBuffer, PULONG OutSize)
 {
     ULONG  SrcSize = MaxCount;          // v4

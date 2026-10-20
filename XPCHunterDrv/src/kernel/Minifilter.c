@@ -171,6 +171,7 @@ bool InitMiniFilterDriver(__int64 Reserved, __int64 Reserved2, _DWORD *OutputBuf
 //     否则节点 = *节点 继续；
 //   未命中返回 0。
 // =========================================================================
+// 对应原始驱动 0x140012A80（247 字节）
 char __fastcall RemoveMiniFilterContextNode(_QWORD *ContextNode)
 {
     char Result = 0;
@@ -237,6 +238,7 @@ char __fastcall RemoveMiniFilterContextNode(_QWORD *ContextNode)
 // 【逻辑】校验输入缓冲位于用户空间且大小为 16 → ProbeForRead 后读出两个 QWORD；
 //   两者都须 > MmSystemRangeStart 且构建号 >= 0x1771；
 //   然后转调 RemoveMiniFilterContextNode（传读出的 16 字节）并返回其结果是否为 1。
+// 对应原始驱动 0x140012B78（175 字节）
 bool __fastcall MiniFilterInstanceQuery(_OWORD *InputBuffer, int BufferSize)
 {
     char Result = 0;
@@ -1112,6 +1114,7 @@ L_1400159E3:
 //   r14=PeBase(GT[0x20])  esi=PeSize(GT[0x21])  rdi=NtImageBase(GT[3])
 //   rbx=SectionAddr(GT[0x170])  r12d=GT[0x439F]  r15d=GT[0x41C5]
 //   r13=PE 可选头 ImageBase（e_lfanew+0x30）  ebp=轮次  ebx=SavedSectionOffset
+// 对应原始驱动 0x140014EE4（509 字节）
 __int64 MiniFilterPreCleanup(void)
 {
     ULONG64 PeBase;
@@ -1228,6 +1231,7 @@ __int64 MiniFilterPreCleanup(void)
 //         ValidateAddressWithSize 校验后填 {节点, 名字截断 0x40 字节, 字段计数}，
 //         再逐条把 (Cur+0x10, Cur+0x28, Cur+0x30) 三个字段拷入表尾；
 //         若本条目无子项则不动 OutCount，有则 +1。
+// 对应原始驱动 0x140012620（938 字节）
 void EnumMiniFilterContextList(__int64 OutArray, ULONG MaxEntries,
                                ULONG *OutCount, ULONG64 Limit)
 {
@@ -1415,6 +1419,7 @@ L_OUTER_NEXT:                                                // 0x140012954
 //   → FnQuery(&QueryOut, 1, &Attr)，非负则 FnInit(Handle, 0xF000F, 0, 0, &QueryOut)，
 //   非负则 ExAlloc(1, 0x100000) 取缓冲、写入查询结果、调 EnumMiniFilterContextList
 //   → ExFree 缓冲 → FnClose(查询结果) → FnFree(句柄)。恒返回 0。
+// 对应原始驱动 0x14001241C（515 字节）
 UCHAR OpenMiniFilterVolumeFile(__int64 OutStruct, ULONG OutSize)
 {
     __int64 FnOpen, FnQuery, FnInit, FnClose, FnFree;
@@ -1512,6 +1517,7 @@ char MiniFilterInstanceSetup(void *FltFilter, void *Instance, void *Buffer, ULON
 // 【逆向来源】人工阅读反汇编逐条转写 —— 原实现是 `return STATUS_SUCCESS;` 空壳。
 // 【要点】用魔数 0xA41A41A41A41A41B 实现无符号除法：
 //   条目数 = (BufferSize - 0x278) / 0x278 + 1。
+// 对应原始驱动 0x14001B2B4（176 字节）
 char MiniFilterPreFastIo(void *Filter, void *CallbackData, void *Buffer, ULONG BufferSize)
 {
     UCHAR Result = 0;
@@ -3113,6 +3119,7 @@ __int64 MiniFilterCommPortCleanup(__int64 Unknown, __int64 Unknown2, _DWORD *Out
 // 【命名同步 2026-09-21】此前该函数体被错误地挂在 MiniFilterCommPortConnect 名下，
 //   而后者在原始中是一个独立的 54 字节"只做一次"守卫包装（见下方同名函数）。
 //   本次按命名审计文档拆开：本体归名 RegisterCommPortReplyCallback，包装另行实现。
+// 对应原始驱动 0x140019898（62 字节）
 char RegisterCommPortReplyCallback(void)
 {
     char Result = 0;
@@ -3309,6 +3316,7 @@ LONG CleanupMiniFilter(void)
 // 【说明】本函数与 AcquireMiniFilterMutexEx 结构完全相同，唯一差异是**调用哪一个**：
 //   本函数 `call rdi`（0x4277），Ex 版 `call rbx`（0x4274）。
 //   两槽的语义应为「取锁/放锁」一对，槽名待考，故此处以裸索引标注。
+// 对应原始驱动 0x14007182C（72 字节）
 GT_NOINLINE void AcquireMiniFilterMutex(void)
 {
     __int64 FuncA = GtRead((GLOBAL_TABLE_INDEX)0x4274);   // 0x140071836
@@ -3533,6 +3541,7 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
 #define DSC32(o)  (*(ULONG   *)(Desc + (o)))
 #define DSC64(o)  (*(ULONG64 *)(Desc + (o)))
 
+// 对应原始驱动 0x1400166EC（3005 字节）
 __int64 ParseNtImageSections(PUCHAR ImageBase, ULONG ImageSize)
 {
     UCHAR  DescBuf[0x120];          // rbp-0x30：节区描述符
@@ -4203,6 +4212,7 @@ void InitFsFilterExportTable(void)
 //   （= GtRtlInitUnicodeStringFunc / GtIoCreateFileFunc /
 //      GtCloseHandleFunc / GtDriverObjectListHead，枚举值已逐一核对吻合）。
 // 【返回值】OpenFileSection 的返回值（文件节对象句柄；失败为 0）。
+// 对应原始驱动 0x1400174F8（124 字节）
 __int64 OpenWin32kSysSection(void)
 {
     WCHAR PathBuffer[20];
@@ -4231,6 +4241,7 @@ __int64 OpenWin32kSysSection(void)
 //   以 `*（某个内核对象，见 rip+0xB39EE）` 为参数调用它；
 //   返回值 >= 0 则置 1（`cmovns`）。
 //   本函数**不写入任何 GT**。
+// 对应原始驱动 0x140019A0C（53 字节）
 __int64 UnregisterCommPortCallback(void)
 {
     char Result = 0;
@@ -4455,6 +4466,7 @@ char RegisterFormatPathCallback(void)
 //   (GtTotalSize|GtEprocessField155|0x100) 注册 MiniFilterFilterUnload，然后置位并返回 1。
 // 【命名说明】名字与实际功能（注册回调）不符，与 MiniFilterCommPortConnect 同族；
 //   改名归入命名轮，此处先按伪代码补全实现。
+// 对应原始驱动 0x14001A0E8（69 字节）
 __int64 MiniFilterFormatFileNameWithContext(void)
 {
     char Result = 0;
@@ -4480,6 +4492,7 @@ __int64 MiniFilterFormatFileNameWithContext(void)
 // 【⚠ 修正记录】此前注释写"需要 FltGetStreamFileObjectContext 获取文件名" —— **错误**。
 //   实际：校验输出缓冲可写且 BufferSize == 4 → ProbeForWrite
 //   → 把 GT (GtMiniFilterFormatNameReady) 是否非 0 作为结果写回输出缓冲 → 返回 1。
+// 对应原始驱动 0x14001A130（110 字节）
 __int64 MiniFilterFormatFileNameEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize)
 {
     int Result = 0;
@@ -4578,6 +4591,7 @@ UCHAR MiniFilterFormatFileNameWithPath(void)
 // 【⚠ 修正记录】此前注释写"需要 FltGetStreamFileObjectContext 获取文件名" —— **错误**。
 //   与 MiniFilterFormatFileNameEx 同构，只是查询的 GT 槽不同
 //   （GtMiniFilterFormatNameExReady = 0x8F1）。
+// 对应原始驱动 0x14001A1A0（110 字节）
 __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _DWORD *OutputBuffer, int BufferSize)
 {
     int Result = 0;
@@ -4605,6 +4619,7 @@ __int64 MiniFilterFormatFileNameWithPathEx(__int64 Unknown, __int64 Unknown2, _D
 //   若 (*a3 & 0x100) 且 KeGetCurrentIrql() < 2（PASSIVE_LEVEL 或 APC_LEVEL）
 //   → PatchPeHeaderMagic((__int64)a3)；
 //   返回 AcquireMiniFilterMutex() 的结果（释放互斥并返回其返回值）。
+// 对应原始驱动 0x14001A210（48 字节）
 __int64 *MiniFilterQueryIdleRoutine(__int64 a1, __int64 a2, _DWORD *a3)
 {
     AcquireMiniFilterMutexEx();
@@ -4856,6 +4871,7 @@ L_DONE:
 //   命中且 RVA 有效（< 模块大小）→
 //   GtWrite(GT 0x7FA, RVA) 与 GtWrite(GT 0x7FB, 基址 + RVA)，返回 1。
 // =========================================================================
+// 对应原始驱动 0x14001B600（300 字节）
 char __fastcall FindFwpsTcpIpDispatchTableStr(__int64 ModuleBase, unsigned int ModuleSize)
 {
     char Result = 0;
@@ -4889,6 +4905,7 @@ char __fastcall FindFwpsTcpIpDispatchTableStr(__int64 ModuleBase, unsigned int M
 // 【逻辑】与上者同构，但只尝试一个导出名 "FwpsL2DispatchTableAndGlobalsSet0"，
 //   命中写 GtWrite(GT 0x7FE, RVA) 与 GtWrite(GT 0x7FF, 基址 + RVA)。
 // =========================================================================
+// 对应原始驱动 0x14001B520（224 字节）
 char __fastcall FindFwpsL2DispatchTable(__int64 ModuleBase, unsigned int ModuleSize)
 {
     char Result = 0;
@@ -4925,6 +4942,7 @@ char __fastcall FindFwpsL2DispatchTable(__int64 ModuleBase, unsigned int ModuleS
 //     且 +0x50 >= 8 → 写 GT 0x7FC 与 GT 0x7FD（= +0x50 >> 3）。
 //   两路都遇 1349 提前结束。
 // =========================================================================
+// 对应原始驱动 0x14001B990（629 字节）
 char __fastcall FindFwpsTcpIpDispatchTable(__int64 a1, unsigned int a2)
 {
     char Result = 0;
@@ -5436,6 +5454,7 @@ char __fastcall FindWfpNblInfoDispatchTableClear(__int64 PeBase, unsigned int Pe
 //     · 类型 1349(0x545) → 结束；
 //     · 类型 1294(0x50E) 且 (字段+0x88 & 0x10000) 且 (字段+0x40 != 0)
 //       且 字段+0x50 == 64 且 字段+0x8C == 1 → 写 GT 0x7D6 = 字段+0x40，返回 1。
+// 对应原始驱动 0x140069784（319 字节）
 char __fastcall ScanWfpDeviceObjectSection(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -5497,6 +5516,7 @@ char __fastcall ScanWfpDeviceObjectSection(__int64 PeBase, unsigned int PeSize)
 //     类型 0x545 结束；类型 0x50E 且 字段+0x88 == 0x40000 且 字段+0x40 非零
 //     且 字段+0x50 == 64 且 字段+0x8C == 1 → 算 RVA = 累计 + 字段+0x40 - PeBase，
 //     非 0 且 < PeSize 时写 GT 0x7D3 = 基址 + RVA，返回 1。
+// 对应原始驱动 0x140069A50（379 字节）
 char __fastcall ScanWfpMacShimSections(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -5567,6 +5587,7 @@ char __fastcall ScanWfpMacShimSections(__int64 PeBase, unsigned int PeSize)
 //   再取 GT 0x1A1 作模块基址；要求均满足后初始化上下文，最多扫 0x1E 条：
 //     类型 0x545 结束；类型 360(0x168) 且 字段+0x88 == 0x40000 且 字段+0x40 非零
 //     且 字段+0x50 == 64 → 写 GT 0x7D0 = 基址 + RVA，返回 1。
+// 对应原始驱动 0x1400690C4（369 字节）
 char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -5728,6 +5749,7 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
 //   类型 0x558 且 标记已置 → 由 字段+0x38 算 RVA，合法则进入内层。
 //   内层（上限 0x64）：类型 0x558 → 置标记2；其余分支按 1243 / 1298 / 其它 分流，
 //   记录两个候选 RVA 并在两者相符时写 GT 0x7CC/0x7CD（= 基址 + 各候选），返回 1。
+// 对应原始驱动 0x140069238（715 字节）
 char __fastcall ScanNsiGetModuleDataSection(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -5887,6 +5909,7 @@ char __fastcall ScanNsiGetModuleDataSection(__int64 PeBase, unsigned int PeSize)
 //      类型 1049 且 字段+0x50==64 且 字段+0x88==0x2000000 且 候选非0
 //        且 (基址+候选) == GtRead(0x7BA) 且 v8 == 字段+0x40
 //        → 写 GT 0x7C0 = 字段+0x40，返回 1。
+// 对应原始驱动 0x1400687D0（550 字节）
 char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -5988,6 +6011,7 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
 //   · 类型 1351(0x547) 且 v8==1 且 字段+0x70==0x40000
 //       且 字段+0x40!=0 且 字段+0x80==0x800000 且 字段+0x78==1 → 算 RVA，
 //       合法且 (构建号 >= 0x585D 或 v9==0) 时 v9 = RVA；随后 v8 = v15
+// 对应原始驱动 0x14006A508（652 字节）
 char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -6114,6 +6138,7 @@ char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize)
 //       (b) 字段+0x88==0x40000 且 字段+0x78 != 0 且 字段+0x70==64 且 字段+0x74==1
 //           → 算 RVA，非 0 且 < PeSize 且 v8==0 时 v8 = RVA；
 //     每轮末尾若 v7 与 v8 均非 0 → 写 GT 0x7B4=v8、0x7B5=基址+v8、0x7B6=v7，返回 1。
+// 对应原始驱动 0x14006A794（468 字节）
 char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -6208,6 +6233,7 @@ char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize)
 //       类型 0x558 且 标记3 → 算 RVA(v21) 进入 L4；
 //   L4（上限 0x1E）：类型 1298 且 字段+0x88==0x40000 且 字段+0x78!=0
 //       且 字段+0x50==64 → 算 RVA(v24)，合法则写 GT 0x7D9 = 基址 + v24，返回 1。
+// 对应原始驱动 0x140068ABC（912 字节）
 char __fastcall ScanKernelMemoryDataSection(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -6407,6 +6433,7 @@ char __fastcall ScanKernelMemoryDataSection(__int64 PeBase, unsigned int PeSize)
 //   L4（上限 0x1E）：类型 1296(0x510) 且 字段+0x88==0x40000 且 字段+0x78!=0
 //       且 字段+0x50==64 且 !字段+0x58 → 算 RVA(v23)，合法则
 //       写 GT 0x7DC = v16、GT 0x7DD = 基址 + v23，返回 1。
+// 对应原始驱动 0x140069D54（982 字节）
 char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -6588,6 +6615,7 @@ char __fastcall ScanKfdDriverSectionV2(__int64 PeBase, unsigned int PeSize)
 //       且 字段+0x50==64 且 !字段+0x58 → 算 RVA(v22)，合法则
 //       写 GT 0x7DC = v15、GT 0x7DD = 基址 + v22，返回 1。
 // 【返回值】0（未命中）；1（命中）；L2 读条目失败路径返回 0。
+// 对应原始驱动 0x14006A12C（986 字节）
 char __fastcall ScanKfdDriverSectionV3(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
@@ -6777,6 +6805,7 @@ char __fastcall ScanKfdDriverSectionV3(__int64 PeBase, unsigned int PeSize)
 //   写 GT 0x31A = ntoskrnl 模块基址 + RVA。
 // 【返回值】伪代码里是 `result`（读条目失败时为 ReadPESectionEntry 的返回值，
 //   命中时为 GtWrite 的返回值）。此处按项目惯例以 __int64 返回同一表达式。
+// 对应原始驱动 0x1400888FC（356 字节）
 __int64 FindWin32kSectionByType(void)
 {
     __int64  Win32kBase;         // v0 = GtRead(0x20)
@@ -6848,6 +6877,7 @@ __int64 FindWin32kSectionByType(void)
 // 【返回值】Result 初值 1；只有走到"打开成功"分支才被赋值为
 //   (查询结果 != STATUS_OBJECT_NAME_NOT_FOUND(0xC0000034))，
 //   即"打开失败 / 函数指针缺失"都返回 1（原始如此，非笔误）。
+// 对应原始驱动 0x140019678（265 字节）
 char __fastcall OpenFileQueryInfo(__int64 FilePath, __int64 Context)
 {
     char     Result = 1;
@@ -6895,6 +6925,7 @@ char __fastcall OpenFileQueryInfo(__int64 FilePath, __int64 Context)
 //   buf[1](OBJECT_NAME_INFORMATION.NameBuffer) == buf+2（即名字紧跟结构体）
 //   且 (WORD)buf == Size+16 <= Size+32 且 (UINT)(WORD)buf < Size+32 →
 //   在名字末尾补 NUL 并返回该缓冲；否则 ExFree 后返回 0。
+// 对应原始驱动 0x1400197BC（220 字节）
 _QWORD *__fastcall QueryAllocFilePath(__int64 FileObject)
 {
     __int64  Result = 0;
@@ -6952,6 +6983,7 @@ _QWORD *__fastcall QueryAllocFilePath(__int64 FileObject)
 //        memmove(目录, 目录长) → 在目录末尾写 L'\\' → memmove(名字, 名字长) → 末尾补 NUL；
 //        随后 ExFree(目录缓冲)；
 //   ④ 若拼出完整路径：Result = (OpenFileCheckExists(路径) == 0)，再 ExFree(路径)。
+// 对应原始驱动 0x140019438（362 字节）
 bool __fastcall CheckCommPortFilePathExists(unsigned __int16 **FilePathInfo)
 {
     unsigned __int16 *NameStruct;
@@ -7017,6 +7049,7 @@ bool __fastcall CheckCommPortFilePathExists(unsigned __int16 **FilePathInfo)
 //   写入目标是 GT 0x800（基址+RVA）与 GT 0x801（条目数）；
 //   高版本路径的条目数**固定为 12**；低版本路径为 +0x50 >> 3。
 // =========================================================================
+// 对应原始驱动 0x14001B72C（611 字节）
 char __fastcall FindFwpsDispatchTableWin8(__int64 a1, unsigned int a2)
 {
     char Result = 0;
@@ -7119,6 +7152,7 @@ char __fastcall FindFwpsDispatchTableWin8(__int64 a1, unsigned int a2)
 //     GT 0x800 为空 → FindFwpsDispatchTableWin8
 //   最后 ExFree 文件缓冲。
 // =========================================================================
+// 对应原始驱动 0x14001BE80（154 字节）
 void InitFwpsDispatchTables(void)
 {
     unsigned int FileSize = 0;
@@ -7151,6 +7185,7 @@ void InitFwpsDispatchTables(void)
 //   输出缓冲须非空、大小 >= 8*(EntryCount-1)+16、位于用户空间；
 //   ProbeForWrite + 清零后：*OutputBuffer = EntryCount，
 //   memmove(OutputBuffer+2, TableData, 8*EntryCount) —— 即把表项数组拷到 +8 处。
+// 对应原始驱动 0x14001BD44（316 字节）
 char __fastcall MiniFilterAcquireForModWrite(__int64 FilterObject, __int64 CallbackData,
                                             unsigned int *OutputBuffer, unsigned int BufferSize)
 {
@@ -7332,6 +7367,7 @@ bool CmdCollectAllCpuGdtEntries(__int64 FilterObject, __int64 CallbackData,
 //   既丢了返回值语义（原始返回 1），也漏掉了唯一动作 GtWrite。
 // 【逆向来源】⚠ 本函数**可被 Hex-Rays 正常反编译**（4 行伪代码），按伪代码实现。
 // 【逻辑】GtWrite(GT 0x2E5, 0) —— 向该标志槽写 0（"服务器侧"），返回 1。
+// 对应原始驱动 0x140019A44（23 字节）
 char MiniFilterServerContext(void)
 {
     GtWrite(GtCallbackField23, 0);
@@ -7343,6 +7379,7 @@ char MiniFilterServerContext(void)
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译（4 行伪代码），按伪代码实现。
 // 【逻辑】GtWrite(GT 0x2E5, 1) —— 向同一标志槽写 1（"客户端侧"），返回 1。
 //   与 MiniFilterServerContext 构成 0/1 配对，用于区分当前处理侧。
+// 对应原始驱动 0x140019A5C（26 字节）
 char MiniFilterClientContext(void)
 {
     GtWrite(GtCallbackField23, 1);
@@ -7911,6 +7948,7 @@ __int64 (__fastcall *__fastcall FsFilterCreateCallback(__int64 FilterContext))(_
 
 
 // BuildFsFilterDriverPath1 — 构建文件系统过滤器驱动路径1
+// 对应原始驱动 0x14000DBC0（103 字节）
 __int64 BuildFsFilterDriverPath1()
 {
     _DWORD EncodedPath[8];
@@ -7921,6 +7959,7 @@ __int64 BuildFsFilterDriverPath1()
 }
 
 // BuildFsFilterDriverPath2 — 构建文件系统过滤器驱动路径2
+// 对应原始驱动 0x14000EADC（100 字节）
 __int64 BuildFsFilterDriverPath2()
 {
     _DWORD EncodedPath[8];
@@ -7931,6 +7970,7 @@ __int64 BuildFsFilterDriverPath2()
 }
 
 // BuildRegistryDriverPath — 构建注册表驱动路径
+// 对应原始驱动 0x140045EE4（116 字节）
 __int64 BuildRegistryDriverPath()
 {
     _DWORD EncodedBuffer[10];
@@ -7941,6 +7981,7 @@ __int64 BuildRegistryDriverPath()
 }
 
 // CheckFilePathFilter — 检查文件路径是否被过滤屏蔽
+// 对应原始驱动 0x14002D1E8（258 字节）
 __int64 CheckFilePathFilter(__int64 FilePath, unsigned int FilePathLength)
 {
     int Filter1;
@@ -7966,6 +8007,7 @@ __int64 CheckFilePathFilter(__int64 FilePath, unsigned int FilePathLength)
 }
 
 // InitFileSystemExportTable — 初始化文件系统导出表
+// 对应原始驱动 0x14000E24C（340 字节）
 __int64 InitFileSystemExportTable(char Is64Bit)
 {
     __int64 ExportTableAddr;
@@ -8033,6 +8075,7 @@ __int64 CopyFsFilterEntryTable(__int64 OutputBuffer, char Is64Bit)
     return Result;
 }
 
+// 对应原始驱动 0x14003EAA8（809 字节）
 char EnumerateProcessCallbackContext(void)
 {
     char Result;
@@ -8149,6 +8192,7 @@ char EnumerateProcessCallbackContext(void)
 //   构建号判断方向（原始为 `Loaded < 0x55F0` 时才检查 0x545 结束）。
 // 【GT】0x61=当前 EPROCESS、0x42D0=CurrentOffset、0x43A8=SectionBase、0x20=SectionSize、
 //   0x21=NtoskrnlBase、3=NtoskrnlImageBase、0x914=构建号、写 0x2B8 / 0x2BA。
+// 对应原始驱动 0x14003EE40（541 字节）
 __int64 EnumFileSystemCallbackEntries(void)
 {
     __int64 Result;
@@ -8311,6 +8355,7 @@ __int64 EnumFileSystemCallbackEntries(void)
 //   0x38 VirtualAddress   0x40 VirtualSize    0x50 Characteristics  0x58 SectionIndex
 //   0x70 SectionName      0x78 RawDataSize    0x88 SectionAlignment  0x90 RelocEntryIndex
 //   0xDC MiscInfo         0xF0 SizeOfRawData  0x118 SectionNamePtr
+// 对应原始驱动 0x14000E634（1190 字节）
 char ParseNtRelocSection(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
 {
     __int64 SectionOffset;
@@ -9629,6 +9674,7 @@ __int64 FindKernelDataSectionForStringParam(void)
 //   再遇到 0x558 节区且带 0x4000000 标志、VirtualAddress 非 0 且标志已置时，
 //   按 (VirtualAddress - KernelBase + 累计大小) 算出结果写入全局表 0x184；
 //   遇到 0x545 类型节区立即返回
+// 对应原始驱动 0x140013E6C（454 字节）
 __int64 FindKernelDataSectionByDebug(void)
 {
     char FoundFlag;
@@ -9982,6 +10028,7 @@ __int64 SelectMiniFilterDirEnumCallback(void)
 //   [0x40]==1 → 收尾返回；否则前进下一字节。四标志跨字节持久。
 // 写入槽位：0x32E/0x32F/0x330/0x331、0x332/0x333、0x334/0x335、0x337
 // ============================================================
+// 对应原始驱动 0x140015A48（1257 字节）
 __int64 MiniFilterPreDirEnum(void)
 {
     const ULONG64 PeBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x20);   /* r12  0x140015A7F */
@@ -10435,6 +10482,7 @@ char __fastcall PatchPeHeaderMagic(__int64 QueryResult)
 //   两个调用方（InitCallbackFunctions、MemoryOperation.c:809）均忽略该值；
 //   此处显式返回 0 以消除不确定性，并如实记录该差异。
 // =========================================================================
+// 对应原始驱动 0x1400344BC（2359 字节）
 ULONG64 InitCallbackFunctionTable(unsigned int Mode)
 {
     __int64 FnRtlInitUnicodeString;
@@ -10746,6 +10794,7 @@ L_FREE_FILE:                                        // 0x140034B06
 //   OutCount=(dword*)OutputBuffer、OutBuffer=OutputBuffer+8、MaxCount=条目上限。
 //   条目步长 0x270(=624) 与 CopyAleEndpointEntry 的写入范围（+0..+0x270）一致。
 // =========================================================================
+// 对应原始驱动 0x14001B090（427 字节）
 __int64 EnumerateAleEndpointLayer(__int64 FilePath, _DWORD *OutCount, __int64 OutBuffer, int MaxCount)
 {
     unsigned int ResultCount = 0;
@@ -10802,6 +10851,7 @@ __int64 EnumerateAleEndpointLayer(__int64 FilePath, _DWORD *OutCount, __int64 Ou
 //   步长 78 个 QWORD（= 0x270 字节，与条目步长一致）比较；命中返回 1，
 //   遍历完计数次未命中返回 0。
 // =========================================================================
+// 对应原始驱动 0x14001B4F4（41 字节）
 char FindAleEndpointDuplicate(__int64 EndpointData, _DWORD *EndpointList)
 {
     unsigned int Count = *(unsigned int *)EndpointList;
@@ -10834,6 +10884,7 @@ char FindAleEndpointDuplicate(__int64 EndpointData, _DWORD *EndpointList)
 // 【⚠ 缓冲区范围】写入区间 OutputBuffer+0..+0x270（8+259*2+... ≤ 624），
 //   与调用方条目步长 0x270 吻合 —— 无越界。
 // =========================================================================
+// 对应原始驱动 0x14001B364（399 字节）
 char CopyAleEndpointEntry(__int64 OutputBuffer, __int64 EndpointEntry)
 {
     __int64 EndpointData;
@@ -10900,6 +10951,7 @@ char CopyAleEndpointEntry(__int64 OutputBuffer, __int64 EndpointEntry)
 //   `\FileSystem\RAW`（裸卷文件系统）—— 名字与实物不符，属 IDA 命名问题
 //   （同 §7.3 记录的那类），此处如实保留 IDA 名并在注释中留档。
 // =========================================================================
+// 对应原始驱动 0x14001B23C（120 字节）
 __int64 EnumerateAleEndpointLayers(_DWORD *OutCount, __int64 OutBuffer, int MaxCount)
 {
     _DWORD LayerIds[16];

@@ -1096,6 +1096,7 @@ char ReadWin32kBaseDriverFile(__int64 *pBuffer, unsigned int *pBufferSize)
     return Result;
 }
 
+// 对应原始驱动 0x14007D4E4（579 字节）
 __int64 __fastcall ProcessDiskSectorData(
     __int64 ObjectHandle,
     __int64 arg2,
@@ -1246,6 +1247,7 @@ Cleanup:
 // 【其余逻辑】与 Ex 版完全一致：长度检查 → 拼接"基串 + '\' + 子串" →
 //   UNICODE_STRING + OBJECT_ATTRIBUTES → 打开(0x20019) → 查询(类别 2) →
 //   Result = (*(DWORD*)(SwapBuffer + 0x14) != 0) → 释放句柄
+// 对应原始驱动 0x140074D5C（411 字节）
 __int64 ReadKernelMemoryViaSwap(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize)
 {
     NTSTATUS(__fastcall *OpenObjectFunc)(HANDLE *, ULONG, POBJECT_ATTRIBUTES);
@@ -1332,6 +1334,7 @@ __int64 ReadKernelMemoryViaSwap(void *InputBuffer, void *OutputBuffer, void *Swa
 //   5) 打开(&句柄, 0x20019, &OA)
 //   6) 查询(句柄, 2, SwapBuffer, BufferSize, &实际长度) —— 结果覆盖写入同一缓冲区
 //   7) Result = (*(DWORD*)(SwapBuffer + 0x14) != 0)；最后释放句柄
+// 对应原始驱动 0x140075874（385 字节）
 __int64 ReadKernelMemoryViaSwapEx(void *InputBuffer, void *OutputBuffer, void *SwapBuffer, unsigned int BufferSize)
 {
     NTSTATUS(__fastcall *OpenObjectFunc)(HANDLE *, ULONG, POBJECT_ATTRIBUTES);
@@ -1389,6 +1392,7 @@ __int64 ReadKernelMemoryViaSwapEx(void *InputBuffer, void *OutputBuffer, void *S
     }
     return Result;
 }
+// 对应原始驱动 0x14007A5F0（5 字节）
 void *j_GetCurrentFiber(void)
 {
     return GetCurrentFiber();

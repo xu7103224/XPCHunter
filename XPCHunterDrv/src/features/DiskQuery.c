@@ -25,6 +25,7 @@ extern __int64 ReadWriteKernelMemory(void);
 // 简单函数实现
 // =======================================================================
 
+// 对应原始驱动 0x140047FDC（1074 字节）
 char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSize)
 {
     char Result;
@@ -194,6 +195,7 @@ char QueryDiskInfoAta(char *Buffer, unsigned int BufferSize, unsigned int *OutSi
     return Result;
 }
 
+// 对应原始驱动 0x140048CC0（1047 字节）
 char SendAtaScsiCommand(char *Buffer, unsigned int BufferSize, unsigned int *OutSize)
 {
     char Result;

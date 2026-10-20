@@ -52,6 +52,7 @@ PCOMMAND_HANDLER g_CommandHandlerTable[CMD_OPCODE_COUNT];
  * ============================================================ */
 
 
+// 对应原始驱动 0x140080ED4（937 字节）
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     ULONG BuildNumber;    // 构建号的**值**（与全局 extern NtBuildNumber 的地址区分）
@@ -311,6 +312,7 @@ __int64 GetWindowsBuildNumber(void)
 //     ; (build==0x55F0 || build==0x585D || build==0x5867) → r8d=1
 //     ; 返回 r8b | r9b
 // 【返回值】1 = 受支持；0 = 不受支持。
+// 对应原始驱动 0x140082658（199 字节）
 BOOLEAN IsWindowsVersionSupported(void)
 {
     ULONG Build;
@@ -352,6 +354,7 @@ BOOLEAN IsWindowsVersionSupported(void)
 //   若为空、或就是当前进程 → 返回 1（放行）；
 //   否则调 ValidateProcessObject(该进程, 0)，按"返回 0"判为有权，
 //   并把 GT GtCallbackField125 清 0。
+// 对应原始驱动 0x1400812B0（97 字节）
 __int64 CheckProcessAccess(void)
 {
     struct _KPROCESS *ProtectedProcess;
@@ -379,6 +382,7 @@ __int64 CheckProcessAccess(void)
 //   （模式与结果槽的对应关系：0→GT 0x18F/0x18F 族、2→GT 0x190 族、1→GT 0x2A4 族，
 //     见 InitCallbackFunctionTable 的实现与 §待实现文档）
 //   返回最后一个 GtRead 的值（全已填时返回该值）。
+// 对应原始驱动 0x140033EE8（84 字节）
 __int64 InitCallbackFunctions(void)
 {
     __int64 Status;
@@ -748,6 +752,7 @@ void CleanupHashTable(void)
 //   运行期指针（见 DriverEntry.c:87 / :90），SHA1 结果每次不同，因此
 //   GT[0x877] 不能与另一次加载的基线逐字节比对，只能核对"是否为 4 个
 //   a-z 区间字符"这一形态特征。
+// 对应原始驱动 0x140029F0C（179 字节）
 __int64 InitGtKey(__int64 RegistryPath)
 {
     char PathHash[16];
@@ -813,6 +818,7 @@ __int64 InitGtKey(__int64 RegistryPath)
 // 【⚠ 待确认】GT 0x61 的语义（目标进程对象）、以及三元组表中各
 //   "类型索引"（0x16E..0x178、0x290..0x292）作为 FindKernelPESectionByType
 //   入参的取值方式，需在实现 FindKernelPESectionByType 的调用约定后核对。
+// 对应原始驱动 0x1400723EC（690 字节）
 ULONG64 InitImageNotify(void)
 {
     ULONG64 TargetProcess;
@@ -1030,6 +1036,7 @@ void ValidateObjReferences(__int64 Object1, __int64 Object2)
 //   0x7E0 FindKfdUnregisterCalloutEntryExport
 //   （0x914 组之后是按构建号二选一：>=0x47BA 用 ScanKfdDriverSectionV3，
 //     否则用 ScanKfdDriverSectionV2——两者是同一槽位的两个版本实现。）
+// 对应原始驱动 0x14006BF2C（768 字节）
 __int64 InitKernelMemoryContext(void)
 {
     ULONG64 FileBuffer = 0;     // [rbp+0x18]
@@ -1896,6 +1903,7 @@ L_NEXT:                                                     // 0x14001F8A2
 //   按原始逐条重写：遍历驱动链表，按**条目名称字节长度**分派，用局部编码 UTF16 串
 //   比对 LDR_DATA_TABLE_ENTRY[+0x60]，命中则写 [DllBase, SizeOfImage] 索引对。
 //   规格见 build/audit/分析_InitThreadNotify.md。
+// 对应原始驱动 0x14001F8E4（1655 字节）
 __int64 InitThreadNotify(void)
 {
     /* 名字表（名称 → 索引用 `GT[基址]`；+1 槽写 SizeOfImage）。
@@ -4776,6 +4784,7 @@ char InitNsiEnumerateObjects(void)
 //   6) 返回 1（表填完）；任一前置校验失败返回 0（edi 初值 0）。
 // 【参数】rbx = rcx（回调表基址）；r14 = rdx（输出首字段目标）；
 //   r8b = Is64Bit。
+// 对应原始驱动 0x14000DC28（1569 字节）
 __int64 InitFileSystemFilterCallbacks(__int64 FilterCallbackTable, _QWORD *OutFirstField, char Is64Bit)
 {
     __int64 Result = 0;          // dil
@@ -4969,6 +4978,7 @@ char ScanKernelMemForFsChanges(ULONG *EntryCountPtr, int ScanSize)
 //   扫描上限 0x100。
 // 【帧换算】上下文 = [rsp+0x40]；描述符 = [rbp-0x70]；rbp = rsp+0x130
 //   → 描述符起始 = rsp+0xC0，与 InitSection 版一致。
+// 对应原始驱动 0x14006DB78（520 字节）
 __int64 ScanKernelModuleDataSectionEx(void)
 {
     __int64  TargetAddr;        // rbx = GT 0x2E9
@@ -5084,6 +5094,7 @@ __int64 ScanKernelModuleDataSectionEx(void)
 //        字段+0x88==0x40000 且 字段+0x08 != 0 →
 //          候选 ebx = 字段+0x08 - 基址 + 累计（记下待上面的 0x558 分支确认）。
 // 【返回值】原始恒为 0（结果通过 GT 写出）。
+// 对应原始驱动 0x14006D974（515 字节）
 __int64 ScanKernelModuleInitSection(void)
 {
     __int64  TargetAddr;        // rbx = GT 0x4322
@@ -5191,6 +5202,7 @@ __int64 ScanKernelModuleInitSection(void)
 //     字段+0x50 = [rbp-0x20]（==64）         → 描述符+0x50
 //     字段+0x88 = [rbp+0x18]（==0x40000）    → 描述符+0x88
 //   （上述换算与 0x120 描述符布局逐项吻合。）
+// 对应原始驱动 0x14006E52C（545 字节）
 __int64 ScanKernelModulePageOrRsrcSection(void)
 {
     __int64  NtoskrnlBase;      // rsi = GT 0x20
@@ -5310,6 +5322,7 @@ __int64 ScanKernelModulePageOrRsrcSection(void)
 //   → 描述符起始 = rsp+0xD8。故
 //     字段+0x38=[rbp-0x28]、+0x50=[rbp-0x10]、+0x58=[rbp-8]、+0x88=[rbp+0x28]、
 //     字段+0x08=[rbp+0x18]、+0xF0=[rbp+0x90]、+0x118=[rbp+0xB8]。
+// 对应原始驱动 0x14006E26C（563 字节）
 __int64 ScanKernelModuleSectionByType(void)
 {
     __int64  TargetAddr;        // rbx = GT 0x1C1
@@ -5418,6 +5431,7 @@ __int64 ScanKernelModuleSectionByType(void)
 //   目标槽 GT 0x812（懒初始化传 (0x43AE, 0x812)）；写出 GT 0x1C9/0x1CA；
 //   第一个写值基址用 PE 头 ImageBase（r13）、第二个用 GT 3（rdi）；
 //   0x510 分支要求 字段+0x58 == 2；扫描上限 0x100。
+// 对应原始驱动 0x14006DD80（561 字节）
 __int64 ScanKernelModuleSectionForWin10(void)
 {
     __int64  TargetAddr;        // rbx = GT 0x812
@@ -5539,6 +5553,7 @@ __int64 ScanKernelModuleSectionForWin10(void)
 //   → 描述符起始 = rsp+0xF8。故 字段+0x38=[rbp-0x38]、+0x50=[rbp-0x20]、
 //   +0x58=[rbp-0x18]、+0x88=[rbp+0x18]、+0x08=[rbp+8]、+0x20=[rbp+0x20]、
 //   +0xF0=[rbp+0x80]、+0x118=[rbp+0xA8]。
+// 对应原始驱动 0x14006DFB4（696 字节）
 __int64 ScanKernelModuleSectionForWin10RS3(void)
 {
     __int64  TargetAddr;        // rbx = GT 0x1C4
@@ -5692,6 +5707,7 @@ void ScanVadForModifiedPages(ULONG *OutputBuffer, int MaxModifiedCount)
 //   ④ 取 e_lfanew=[+0x3C]，导出目录 RVA=[+0x88]、大小=[+0x8C]，一串边界校验
 //   ⑤ 遍历 AddressOfNames / AddressOfNameOrdinals / AddressOfFunctions
 //   ⑥ ExFree(映射基址)、ExFree(文件缓冲)；返回前读 GT 0x80F（副作用保留）
+// 对应原始驱动 0x140052320（968 字节）
 __int64 ScanWin32kDriverForPatterns(ULONG_PTR PatternBase, ULONG_PTR PatternSize)
 {
     WCHAR    PathBuf[32];

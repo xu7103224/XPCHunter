@@ -2345,6 +2345,7 @@ ULONG64 FindModuleInLoaderList(_QWORD **ModuleListHead, unsigned int EntryOffset
 // 匹配模式: 48 8D ?? ?? ?? ?? 48 89 ?? 58 (lea reg, [rip+offset]; mov [rax+xx], rbx)
 // 验证匹配地址处的 10 个 QWORD 指针是否全部在镜像范围内
 // 返回服务表 RVA，0 表示未找到
+// 对应原始驱动 0x140007840（212 字节）
 __int64 FindWin32kServiceTableByPattern(__int64 ImageBase, unsigned int ImageSize, unsigned int ExportOffset)
 {
     ULONG64 ImageBaseDelta;
@@ -2483,6 +2484,7 @@ ULONG64 FindUser32ModuleInList(unsigned int *ModuleListHead, unsigned int EntryO
 // 扫描 win32k 驱动 PE 节区，查找服务表入口
 // 遍历 PE 节表，匹配特定节特征（0x559/0x512/0x50E/0x558），返回服务表偏移
 // 反编译失败，从汇编分析实现
+// 对应原始驱动 0x1400075E4（604 字节）
 __int64 ScanWin32kSectionForServiceTable(__int64 ImageBase, unsigned int ImageSize)
 {
     ULONG EntryPoint;               // edi - PE AddressOfEntryPoint
@@ -2662,6 +2664,7 @@ __int64 CheckProcessObjectFlag(__int64 ProcessObject)
 }
 
 // CheckProcessJobObject — 检查进程作业对象，查询进程是否属于某个作业对象
+// 对应原始驱动 0x140079D20（195 字节）
 __int64 CheckProcessJobObject(__int64 ProcessHandle)
 {
     unsigned int ServiceCount;
@@ -2692,6 +2695,7 @@ __int64 CheckProcessJobObject(__int64 ProcessHandle)
 }
 
 // ReadProcessMemoryWithAttach — 附加并读取进程内存：附加到目标进程后使用系统调用查询进程内存信息，扫描PE节区
+// 对应原始驱动 0x14007F69C（566 字节）
 __int64 ReadProcessMemoryWithAttach(__int64 ProcessHandle)
 {
     char Result;
@@ -2771,6 +2775,7 @@ __int64 ReadProcessMemoryWithAttach(__int64 ProcessHandle)
 }
 
 // ExecuteWithThreadContext — 在线程上下文中执行
+// 对应原始驱动 0x140080DDC（246 字节）
 char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress)
 {
     unsigned int PrevModeOffset = (unsigned int)GtRead(GtSdstServiceCount);
@@ -2811,6 +2816,7 @@ char ExecuteWithThreadContext(__int64 Handle, __int64 VirtualAddress)
 }
 
 // ExecuteWithThreadFlagCleared — 清除线程标志后执行
+// 对应原始驱动 0x1400808E4（232 字节）
 __int64 ExecuteWithThreadFlagCleared(__int64 Address)
 {
     unsigned int PrevModeOffset = (unsigned int)GtRead(GtSdstServiceCount);
@@ -2839,6 +2845,7 @@ __int64 ExecuteWithThreadFlagCleared(__int64 Address)
 }
 
 // EnableProcessProtect — 启用进程保护
+// 对应原始驱动 0x140006BD0（514 字节）
 __int64 EnableProcessProtect(PVOID *Address, int InputSize, _DWORD *OutputBuffer, int OutputBufferSize)
 {
     PEPROCESS Process = 0;
@@ -2897,6 +2904,7 @@ Cleanup:
 }
 
 // ProcessOperationWithAttach — 挂载到目标进程上下文中执行操作：附加到进程，清除进程保护标志和页表标志，执行回调后分离
+// 对应原始驱动 0x140080428（455 字节）
 __int64 ProcessOperationWithAttach(struct _KPROCESS *TargetProcess)
 {
     bool Result;
@@ -2977,6 +2985,7 @@ __int64 ProcessOperationWithAttach(struct _KPROCESS *TargetProcess)
 }
 
 // UnlinkFromProcessMemoryList — 从进程内存链表解除链接
+// 对应原始驱动 0x140044DA4（182 字节）
 __int64 UnlinkFromProcessMemoryList(PVOID *pTargetPointer)
 {
     char Result;
@@ -3021,6 +3030,7 @@ __int64 UnlinkFromProcessMemoryList(PVOID *pTargetPointer)
 }
 
 // ValidateAndClearProcessContext — 验证并清除进程上下文
+// 对应原始驱动 0x140030398（135 字节）
 __int64 ValidateAndClearProcessContext(int CurrentProcessor, __int64 pContext)
 {
     char Result;
@@ -3170,6 +3180,7 @@ char TraverseEprocessListAndInit(struct _KPROCESS *Process)
     return 0;
 }
 
+// 对应原始驱动 0x140041028（107 字节）
 __int64 GetProcessDeviceMap(_QWORD *pEprocessPtr)
 {
     __int64 Result;
@@ -3228,6 +3239,7 @@ __int64 ResolveSyscallAddressesWithAttach(void)
 // BuildExportServiceTable -- 构建导出服务表
 // 读取 GT 服务表配置，调用 ParseNtRelocationTableEx 获取映像基址
 // 读取 user32.dll 文件，解析导出目录，构建服务条目表
+// 对应原始驱动 0x1400063E0（526 字节）
 char BuildExportServiceTable(PUCHAR ImageBase, ULONG ImageSize, PUCHAR ServiceTable, ULONG TableSize)
 {
     char Result = 0;

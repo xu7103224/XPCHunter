@@ -95,6 +95,7 @@ char RemoveFromModuleLinkedList(PVOID *pTargetEntry, char ListType)
     return Result;
 }
 
+// 对应原始驱动 0x140036F9C（187 字节）
 char RemoveObjectFromLinkedList(_QWORD *pObjectTable, __int64 TargetHandle)
 {
     char Success;
@@ -139,6 +140,7 @@ char RemoveObjectFromLinkedList(_QWORD *pObjectTable, __int64 TargetHandle)
     return Success;
 }
 
+// 对应原始驱动 0x140037204（187 字节）
 char RemoveObjectFromLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle)
 {
     char Success;
@@ -183,6 +185,7 @@ char RemoveObjectFromLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle
     return Success;
 }
 
+// 对应原始驱动 0x14003746C（145 字节）
 char RemoveObjectSingleLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHandle)
 {
     char Success;
@@ -211,6 +214,7 @@ char RemoveObjectSingleLinkedListLegacy(_QWORD *pObjectTable, __int64 TargetHand
     return Success;
 }
 
+// 对应原始驱动 0x1400669B8（2239 字节）
 char EnumKernelModules(__int64 UnusedParam1, __int64 UnusedParam2, _DWORD *pOutputBuffer, unsigned int BufferSize)
 {
     SIZE_T RemainingSize;

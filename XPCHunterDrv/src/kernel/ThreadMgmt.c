@@ -102,6 +102,7 @@ char DisableThreadProtect(unsigned int *Address, int ContextSize)
 // 【逻辑】若 InputBuffer+1 >= BufferSize（越界）→ 置 *OutputFlags |= 2；
 //   否则 OutputFlags[1] = 1，并把 InputBuffer 偏移 1 处的字节
 //   复制到 OutputBuffer 偏移 6 处，返回该字节。
+// 对应原始驱动 0x140010A0C（28 字节）
 char InitThreadCallback(__int64 InputBuffer, unsigned __int64 BufferSize,
                         _DWORD *OutputFlags, __int64 OutputBuffer)
 {
@@ -1240,6 +1241,7 @@ ULONG64 EnumerateThreadListEntries(
 
 // FindSystemRootEntry — 在线程信息中查找系统根目录条目
 // 比较进程名与编码的系统根目录模式，匹配时返回条目基址偏移
+// 对应原始驱动 0x14004D78C（284 字节）
 __int64 FindSystemRootEntry(_DWORD *ThreadInfoTable)
 {
     __int64 Result;
@@ -1402,6 +1404,7 @@ __int64 ResetThreadStateFlag(__int64 Thread, __int64 FlagOffset)
 //        写 *a2 = EntryIndex+1，随后 ExFree(Src)；
 //      否则（命中已有条目）：用已命中索引 MatchIndex 定位条目，
 //        若名称不同且新名更长 → 覆盖名称，随后 ExFree(Src)。
+// 对应原始驱动 0x14004BE6C（617 字节）
 void __fastcall EnumerateFileMappingSection(__int64 VadNode, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     ULONG   EntryIndex;         // v3
@@ -2117,6 +2120,7 @@ void EnumerateVadIterativeV1(_QWORD *VirtualAddress, __int64 Buffer, int MaxSize
 // 根据构建号选择不同字符串格式，构建 "svchost.exe"/"explorer.exe" 等系统进程名，
 // 从 GT 30 获取进程名偏移并比较。
 // 返回 1(svchost)/2(Search*)/3(sidebar)/4(explorer)/0(不匹配)
+// 对应原始驱动 0x14004CC4C（399 字节）
 __int64 MatchSystemProcessName(_QWORD *Process)
 {
     char SvchostStr[12] = "svchost.exe";

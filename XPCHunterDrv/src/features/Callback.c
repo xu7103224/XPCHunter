@@ -25,6 +25,7 @@ extern __int64 ReadWriteKernelMemory(void);
 // 简单函数实现
 // =======================================================================
 
+// 对应原始驱动 0x14001AE7C（289 字节）
 char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, ULONG64 ContextFlag, __int64 BaseOffset, __int64 (*CallbackFunc)(void))
 {
     ULONG64 ProtectedBase;
@@ -75,16 +76,19 @@ char MiniFilterStreamHandleCleanup(PRKPROCESS PROCESS, __int64 CallbackContext, 
     return IsSuccess >= 0;
 }
 
+// 对应原始驱动 0x140019CFC（8 字节）
 __int64 KernelNotifyRoutine(void *NotificationBuffer, size_t BufferSize)
 {
     return MiniFilterTeardownRoutine(NotificationBuffer, BufferSize, 1);
 }
 
+// 对应原始驱动 0x140019D04（8 字节）
 __int64 KernelNotifyRoutineEx(void *NotificationBuffer, size_t BufferSize)
 {
     return MiniFilterTeardownRoutine(NotificationBuffer, BufferSize, 0);
 }
 
+// 对应原始驱动 0x140011240（1005 字节）
 __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
 {
     char Success;
@@ -231,6 +235,7 @@ __int64 PowerCallbackRoutine(void **InputBuffer, int BufferSize)
     return Success;
 }
 
+// 对应原始驱动 0x140011630（707 字节）
 __int64 PowerCallbackUnregister(HANDLE *InputBuffer, int BufferSize)
 {
     char Success;
@@ -319,6 +324,7 @@ __int64 PowerCallbackUnregister(HANDLE *InputBuffer, int BufferSize)
     return Success;
 }
 
+// 对应原始驱动 0x1400118F4（651 字节）
 __int64 ShutdownCallbackUnregister(PRKPROCESS *InputBuffer, int BufferSize)
 {
     bool Success;

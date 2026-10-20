@@ -143,6 +143,7 @@ __int64 ClassifyPESectionType(PUCHAR Context);
 //   指令描述符的偏移，不是本上下文的；且调用点上下文只声明 8 字节，属栈越界。
 //   详见 PE_DECODE_CONTEXT 的注释。
 // ============================================================
+// 对应原始驱动 0x14008A7E4（95 字节）
 void InitPESectionReadContext(
     __int64 Base,
     ULONG Size,
@@ -180,6 +181,7 @@ void InitPESectionReadContext(
 // 解析 PE 文件中的节区指令字节，初始化结果结构体，
 // 遍历指令字节流并分发到指令解码器
 // ============================================================
+// 对应原始驱动 0x14008A54C（662 字节）
 __int64 ReadPESectionEntry(PUCHAR Context, PULONG SectionInfo)
 {
     ULONG Result = (ULONG)-1;
@@ -467,6 +469,7 @@ SET_DEFAULT_TYPE:
 //   旧实现读 +0x24（init=3）→ 恒走 `else` 的 2 字节分支。
 // 根据地址大小(1=32位,2=64位,其他=16位)返回对应的字段大小
 // ============================================================
+// 对应原始驱动 0x14008A844（54 字节）
 __int64 CalcPESectionFieldSize(PUCHAR Context)
 {
     INT AddrSize = CTX_D(Context, DEC_CTX_ADDR_SIZE);
@@ -1826,6 +1829,7 @@ __int64 DecodeReadSizeDependentImmediate(PUCHAR *Context)
 //   `00 21 FF` 之类的表项都会多算 1 字节，导致解码流整体错位
 //   （实机表现为 FindNtOpenThreadTargetWin8 扫不到 type==0x558 的条目）。
 // ============================================================
+// 对应原始驱动 0x14008BF68（158 字节）
 __int64 DecodeReadImmediateValue(PUCHAR *Context)
 {
     ULONG64 BufferEnd = Context[1];
@@ -2007,6 +2011,7 @@ __int64 DecodeOpcodeWithPrefixEx(PUCHAR *Context)
 //      旧实现写反到 +0xF4/+0xF8；
 //   6) 返回值为 5（读到位移）/1（仅 ModRM）/-1（越界）。
 // ============================================================
+// 对应原始驱动 0x14008C3FC（221 字节）
 __int64 DecodeModrmByte(ULONG64 BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx)
 {
     UCHAR ModrmByte;
@@ -2065,6 +2070,7 @@ __int64 DecodeModrmByte(ULONG64 BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx)
 //   REX 开关是 **+0x20（状态标志）& 0x40**、取值是 **+0x2C（类型 5 取值）**；
 //   RIP 相对寻址返回 5（读得下 4 字节位移）/ -1（越界）。
 // ============================================================
+// 对应原始驱动 0x14008C4DC（186 字节）
 __int64 DecodeModrmByteSimple(PUCHAR BufferPos, ULONG64 BufferEnd, PUCHAR DecodeCtx)
 {
     UCHAR ModrmByte;
@@ -2403,6 +2409,7 @@ __int64 InitDataTypeByIndex(
 //   +0x10 恒按 64 位写。与原始语义不符。
 // 根据ModRM解码结果设置操作数的类型标志和寄存器编号
 // ============================================================
+// 对应原始驱动 0x14008C7C4（167 字节）
 __int64 SetupDecodedInstructionState(
     PUCHAR OperandOut,
     PUCHAR DecodeCtx)
@@ -2847,6 +2854,7 @@ __int64 DecodeReadQwordImmediate(PUCHAR *Context)
 // 【逻辑】读 PE 头 +0x3C 处的签名偏移 → 取节数(+6) 与节头起始(+20/+24) →
 //   遍历节头（每节 40 字节）用 StringCompareCaseInsensitiveV2 比较节名 →
 //   命中且该节的文件偏移（+12）< 文件大小则返回之，否则返回 0。
+// 对应原始驱动 0x140005C28（137 字节）
 __int64 FindPESectionByName(__int64 PeBase, unsigned int PeSize, __int64 SectionName)
 {
     __int64 PeHeaderRva;
@@ -2879,6 +2887,7 @@ __int64 FindPESectionByName(__int64 PeBase, unsigned int PeSize, __int64 Section
 // 【逆向来源】⚠ 可被反编译（33 行伪代码），按伪代码实现（同上处修正说明）
 // 【逻辑】同上，但命中后需额外校验：节 VA(+8) < 文件大小 且 节大小(+12) < 文件大小
 //   且 VA+Size < 文件大小，才返回该节 VA；否则返回 0。
+// 对应原始驱动 0x140005CB4（151 字节）
 __int64 FindPESectionByNameReturnVa(__int64 PeBase, unsigned int PeSize, __int64 SectionName)
 {
     __int64 PeSignature;

@@ -121,6 +121,7 @@ bool __fastcall ReadNtFileForHookTable(_QWORD *pFileBuffer, unsigned int *pFileS
 // ===== Functions moved from MissingFuncs.c =====
 
 // GetSsdtTableOffset — 获取 SSDT 表偏移：根据 Windows 版本返回 SSDT 表与偏移之间的间距
+// 对应原始驱动 0x140040FB8（111 字节）
 __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
@@ -133,6 +134,7 @@ __int64 GetSsdtTableOffset(__int64 SsdtTable, __int64 DefaultOffset)
 }
 
 // ParseServiceTable — 解析服务表（分发函数）
+// 对应原始驱动 0x1400512F0（60 字节）
 __int64 ParseServiceTable(char *Src, size_t MaxCount)
 {
     unsigned int ServiceCount;
@@ -143,6 +145,7 @@ __int64 ParseServiceTable(char *Src, size_t MaxCount)
 }
 
 // GetSyscallContextBase — 获取系统调用上下文基址
+// 对应原始驱动 0x140047330（111 字节）
 __int64 GetSyscallContextBase()
 {
     _DWORD EncodedBuffer[8];
@@ -153,6 +156,7 @@ __int64 GetSyscallContextBase()
 }
 
 // FindNtoskrnlExportsInThreadEnv — 在线程环境中查找 ntoskrnl 导出
+// 对应原始驱动 0x14002BBB4（117 字节）
 __int64 FindNtoskrnlExportsInThreadEnv()
 {
     unsigned int FileSize;
@@ -176,6 +180,7 @@ __int64 FindNtoskrnlExportsInThreadEnv()
 }
 
 // RemoveServiceEntryFromList — 从服务表链表中移除条目(Win10)：遍历单向链表，通过比较地址找到匹配的服务条目节点，将其从链表中移除
+// 对应原始驱动 0x14005631C（145 字节）
 __int64 RemoveServiceEntryFromList(ULONG_PTR *pListHead, __int64 TargetAddress)
 {
     char Result;
@@ -205,6 +210,7 @@ __int64 RemoveServiceEntryFromList(ULONG_PTR *pListHead, __int64 TargetAddress)
 }
 
 // RemoveServiceEntryFromListEx — 从服务表链表中移除条目(Win8)：遍历双向链表，通过比较地址找到匹配的服务条目节点，更新相邻节点的 Flink/Blink 指针完成移除
+// 对应原始驱动 0x140056514（169 字节）
 __int64 RemoveServiceEntryFromListEx(__int64 ****pListHead, __int64 ***TargetAddress)
 {
     char Result;
@@ -242,6 +248,7 @@ __int64 RemoveServiceEntryFromListEx(__int64 ****pListHead, __int64 ***TargetAdd
 }
 
 // RemoveServiceTableNodeWin10 — 移除服务表节点(Win10 20H1+)：遍历双向链表，通过比较地址找到匹配的服务条目节点，更新相邻节点的 Flink/Blink 指针完成移除
+// 对应原始驱动 0x140056938（219 字节）
 __int64 RemoveServiceTableNodeWin10(__int64 ***pListHead, __int64 **TargetAddress)
 {
     char Result;
@@ -285,6 +292,7 @@ __int64 RemoveServiceTableNodeWin10(__int64 ***pListHead, __int64 **TargetAddres
 }
 
 // RemoveServiceTableNodeWin7 — 移除服务表节点(Win7)：遍历单向链表(偏移 8 为 next)，通过比较地址找到匹配节点并移除
+// 对应原始驱动 0x140056740（145 字节）
 __int64 RemoveServiceTableNodeWin7(ULONG_PTR *pListHead, __int64 TargetAddress)
 {
     char Result;
@@ -314,6 +322,7 @@ __int64 RemoveServiceTableNodeWin7(ULONG_PTR *pListHead, __int64 TargetAddress)
 }
 
 // FilterActiveHookEntries — 过滤活跃钩子条目
+// 对应原始驱动 0x1400860E0（111 字节）
 __int64 FilterActiveHookEntries(__int64 OutputBuffer, unsigned int EntryCount, enum _GLOBAL_TABLE_INDEX TableIndex)
 {
     __int64 *pTable = GtAlloc(TableIndex);
@@ -342,6 +351,7 @@ __int64 FilterActiveHookEntries(__int64 OutputBuffer, unsigned int EntryCount, e
 }
 
 // FindKernelPESectionByType — 按类型查找内核 PE 节区
+// 对应原始驱动 0x14007A6B8（317 字节）
 __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
 {
     unsigned int DefaultResult = 0x1000000;
@@ -376,6 +386,7 @@ __int64 FindKernelPESectionByType(enum _GLOBAL_TABLE_INDEX TypeIndex)
 }
 
 // VerifyServiceTableDriverFile — 验证服务表驱动文件：比较内存中的驱动镜像与磁盘文件 PE 头是否一致
+// 对应原始驱动 0x140051E18（119 字节）
 char __fastcall VerifyServiceTableDriverFile(__int64 DiskBuffer, unsigned int DiskSize)
 {
     __int64 KernelBase;
@@ -392,6 +403,7 @@ char __fastcall VerifyServiceTableDriverFile(__int64 DiskBuffer, unsigned int Di
 }
 
 // ResolveKernelModuleFunctionAddrs — 解析内核模块函数地址
+// 对应原始驱动 0x14007DDEC（319 字节）
 __int64 ResolveKernelModuleFunctionAddrs(void)
 {
     __int64 NtoskrnlDataBase;
@@ -439,6 +451,7 @@ __int64 ResolveKernelModuleFunctionAddrs(void)
 }
 
 // DispatchWin32kPatternMatching — 分发 Win32k 模式匹配：根据构建号选择旧版(Win8+)或 Win10+ 版模式匹配
+// 对应原始驱动 0x1400526E8（60 字节）
 __int64 DispatchWin32kPatternMatching(__int64 Buffer, unsigned int BufferSize)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x3839)
@@ -448,6 +461,7 @@ __int64 DispatchWin32kPatternMatching(__int64 Buffer, unsigned int BufferSize)
 }
 
 // InitMsrTable — 初始化 MSR 表
+// 对应原始驱动 0x14003069C（34 字节）
 __int64 InitMsrTable(void)
 {
     __int64 result;
@@ -460,6 +474,7 @@ __int64 InitMsrTable(void)
 }
 
 // ValidateHookEntries — 验证钩子条目：校验钩子条目的地址有效性，检测钩子是否被篡改
+// 对应原始驱动 0x1400859F0（235 字节）
 __int64 ValidateHookEntries(__int64 HookEntries, unsigned int EntryCount)
 {
     _QWORD *CurrentEntry;
@@ -519,6 +534,7 @@ __int64 ValidateHookEntries(__int64 HookEntries, unsigned int EntryCount)
 }
 
 // ResolveServiceTableBase — 解析服务表基址：读取 ntoskrnl 内核基址，结合服务表数据计算系统服务分发表（KiServiceTable）的基址并写入全局表
+// 对应原始驱动 0x1400579CC（121 字节）
 __int64 ResolveServiceTableBase(void)
 {
     __int64 ServiceTableBase;
@@ -547,6 +563,7 @@ __int64 ResolveServiceTableBase(void)
 }
 
 // RestoreSyscallHookByIndex — 按索引恢复系统调用钩子：根据索引恢复指定系统调用表的原始条目和代码
+// 对应原始驱动 0x1400872C4（315 字节）
 __int64 RestoreSyscallHookByIndex(char TableType, unsigned int HookIndex)
 {
     char Result;
@@ -610,6 +627,7 @@ __int64 RestoreSyscallHookByIndex(char TableType, unsigned int HookIndex)
 }
 
 // LookupDriverHashTable — 在驱动哈希表中查找：通过SHA1哈希值在Nt导出索引表中查找匹配的导出函数
+// 对应原始驱动 0x140082AF0（381 字节）
 __int64 LookupDriverHashTable(__int64 DriverName, _DWORD *pExportIndex)
 {
     char Result;
@@ -682,6 +700,7 @@ LABEL_DONE:
 }
 
 // EnumKernelDriverObjects — 枚举内核驱动对象：遍历 Win32k 服务表，填充驱动信息到输出缓冲区(每项 42 个 DWORD)
+// 对应原始驱动 0x1400521B0（365 字节）
 __int64 EnumKernelDriverObjects(_DWORD *OutputBuffer, unsigned int MaxEntries)
 {
     char Result;
@@ -737,6 +756,7 @@ __int64 EnumKernelDriverObjects(_DWORD *OutputBuffer, unsigned int MaxEntries)
 }
 
 // ScanWin32kPatternLegacy — 扫描 Win32k 模式（旧版 Win7/8）：从 GT 获取模块基址和大小，读取 PE 文件头，从 GT 获取系统调用号表，遍历填充服务表条目(RVA 和 VA)
+// 对应原始驱动 0x140052B34（192 字节）
 __int64 ScanWin32kPatternLegacy(__int64 OutputBuffer, unsigned int EntryCount)
 {
     char Result;
@@ -790,6 +810,7 @@ __int64 ScanWin32kPatternLegacy(__int64 OutputBuffer, unsigned int EntryCount)
 }
 
 // FindMatchingServiceEntry — 查找匹配的服务条目（每项 88 字节，名称在偏移 4 处，索引在偏移 0 处）
+// 对应原始驱动 0x140052134（121 字节）
 char __fastcall FindMatchingServiceEntry(__int64 ServiceTable, __int64 NameStr, unsigned int TableSize, unsigned int *pIndex)
 {
     unsigned int Index;
@@ -811,6 +832,7 @@ char __fastcall FindMatchingServiceEntry(__int64 ServiceTable, __int64 NameStr, 
 // ScanWin32kPatternWin10Plus — 扫描 ntoskrnl PE 重定位表查找 SSDT 条目（Win10+）
 // 在 PE 重定位表中查找 NtAddAtom 和 NtAdjustPrivilegesToken 的 VA 引用，通过它们的索引差值
 // 定位 SSDT 条目数组在 .data 段中的起始位置，将所有条目复制到输出缓冲区
+// 对应原始驱动 0x140052724（1037 字节）
 __int64 ScanWin32kPatternWin10Plus(__int64 Buffer, unsigned int BufferSize)
 {
     __int64 SsdtBase;
@@ -1012,6 +1034,7 @@ __int64 ScanWin32kPatternWin10Plus(__int64 Buffer, unsigned int BufferSize)
 }
 
 // CheckStringPrefixNt — 检查字符串前缀是否为 Nt
+// 对应原始驱动 0x140082720（23 字节）
 unsigned char CheckStringPrefixNt(__int64 NamePtr)
 {
     unsigned char *Name = (unsigned char *)NamePtr;
@@ -1021,6 +1044,7 @@ unsigned char CheckStringPrefixNt(__int64 NamePtr)
 }
 
 // BuildNtExportIndexTable — 构建 NT 导出索引表：读取 ntoskrnl.exe 文件，解析导出目录，构建以 Nt 为前缀的导出索引表
+// 对应原始驱动 0x140082738（211 字节）
 void BuildNtExportIndexTable(void)
 {
     unsigned int ExportDirSize;
@@ -1056,6 +1080,7 @@ void BuildNtExportIndexTable(void)
 }
 
 // ReadNtOsKrnlAndParseServiceTable — 读取 ntoskrnl 并解析服务表：读取 ntoskrnl 文件并解析服务表
+// 对应原始驱动 0x1400512BC（52 字节）
 void ReadNtOsKrnlAndParseServiceTable(void)
 {
     size_t MaxCount;
@@ -1071,6 +1096,7 @@ void ReadNtOsKrnlAndParseServiceTable(void)
 // ===== Functions moved from MissingFuncs.c =====
 
 // DispatchParseNtExportFunctions — 根据版本号分发 NT 导出函数解析
+// 对应原始驱动 0x14002A61C（39 字节）
 __int64 DispatchParseNtExportFunctions()
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4563)
@@ -1079,6 +1105,7 @@ __int64 DispatchParseNtExportFunctions()
 }
 
 // ReadNtOsKrnlFile — 读取ntoskrnl.exe文件
+// 对应原始驱动 0x140051818（261 字节）
 __int64 ReadNtOsKrnlFile(__int64 *pBuffer, __int64 *pSize)
 {
     bool Result;
@@ -1103,6 +1130,7 @@ __int64 ReadNtOsKrnlFile(__int64 *pBuffer, __int64 *pSize)
 }
 
 // ReadWin32kFullDriverFile — 读取win32kfull.sys文件
+// 对应原始驱动 0x140051A2C（266 字节）
 char ReadWin32kFullDriverFile(__int64 *pBuffer, unsigned int *pSize)
 {
     char Result;
@@ -1132,6 +1160,7 @@ char ReadWin32kFullDriverFile(__int64 *pBuffer, unsigned int *pSize)
 }
 
 // ValidateWin32kFullDriverImage — 验证 win32kfull.sys 驱动镜像：比较内存中的驱动镜像与磁盘文件 PE 头是否一致
+// 对应原始驱动 0x140051D74（161 字节）
 __int64 ValidateWin32kFullDriverImage(__int64 DiskBuffer, unsigned int DiskSize)
 {
     unsigned int Result;
@@ -1153,6 +1182,7 @@ __int64 ValidateWin32kFullDriverImage(__int64 DiskBuffer, unsigned int DiskSize)
     }
     return Result;
 }
+// 对应原始驱动 0x14004093C（381 字节）
 char FindSsdtServiceTableV1(void)
 {
     char Result;
@@ -1210,6 +1240,7 @@ char FindSsdtServiceTableV1(void)
 }
 
 
+// 对应原始驱动 0x140040ABC（341 字节）
 char FindSsdtServiceTableV2(void)
 {
     char Result;
@@ -1262,6 +1293,7 @@ char FindSsdtServiceTableV2(void)
 }
 
 
+// 对应原始驱动 0x140040DD0（327 字节）
 char FindSsdtServiceTableV3(void)
 {
     char Result;
@@ -1317,6 +1349,7 @@ char FindSsdtServiceTableV3(void)
 }
 
 
+// 对应原始驱动 0x14002B684（330 字节）
 bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int TargetSize, _OWORD *pRelocOffsets)
 {
     _OWORD RelocOut;
@@ -1365,6 +1398,7 @@ bool ParseNtDataSectionRelocs(__int64 SectionBase, int SectionOffset, int Target
 }
 
 
+// 对应原始驱动 0x140040C14（443 字节）
 __int64 ParseNtSectionsForShadowSsdt(void)
 {
     __int64 Result;
@@ -1467,6 +1501,7 @@ __int64 ParseNtSectionsForShadowSsdt(void)
 }
 
 
+// 对应原始驱动 0x1400407F8（322 字节）
 char FindSsdtSignatureInNtFile(
     unsigned __int8 *pScanBuffer,
     unsigned __int64 BufferEnd,
@@ -1536,6 +1571,7 @@ char FindSsdtSignatureInNtFile(
 }
 
 
+// 对应原始驱动 0x14003FCF8（198 字节）
 char FindSsdtServiceTableEntry(
     unsigned __int8 *pScanBuffer,
     unsigned __int64 BufferEnd,
@@ -1577,6 +1613,7 @@ char FindSsdtServiceTableEntry(
     return Result;
 }
 
+// 对应原始驱动 0x1400400A0（314 字节）
 char __fastcall ResolveSsdtNtOffset(
     unsigned __int8 *pScanBuffer,
     unsigned __int64 BufferEnd,
@@ -1637,6 +1674,7 @@ char __fastcall ResolveSsdtNtOffset(
 }
 
 
+// 对应原始驱动 0x14003FDC0（733 字节）
 bool __fastcall FindSsdtTableAddresses(
     __int64 pSectionData,
     int SectionEnd,
@@ -1768,6 +1806,7 @@ bool __fastcall FindSsdtTableAddresses(
 }
 
 
+// 对应原始驱动 0x1400401DC（471 字节）
 char __fastcall ResolveSsdtTablePointer(
     __int64 pSectionData,
     int SectionEnd,
@@ -1870,6 +1909,7 @@ char __fastcall ResolveSsdtTablePointer(
 }
 
 
+// 对应原始驱动 0x1400403B4（634 字节）
 char __fastcall ResolveSsdtTablePointerEx(
     __int64 pSectionData,
     int SectionEnd,
@@ -2200,6 +2240,7 @@ __int64 FindOpenProcessTokenOffset(__int64 TargetAddress, unsigned int TargetSiz
 // FindOpenProcessTokenTarget -- 查找 NtOpenProcess Token 目标（新版）
 // 两阶段扫描：先搜索子类型 0x53E 的 Magic 值标记位置，再搜索子类型 0x558 定位第二阶段基址
 // 然后搜索子类型 0x512（标志 0x40，类型 0x10000）或 0xE5（标志 0x10001）
+// 对应原始驱动 0x1400209A8（537 字节）
 __int64 FindOpenProcessTokenTarget(__int64 TargetAddress, unsigned int TargetSize)
 {
     __int64 Result = 0;
@@ -2431,6 +2472,7 @@ char __fastcall ParseSyscallTableDataSection(__int64 FileBuffer, unsigned int Fi
 //   ParseSyscallTableExportDir 在复刻中是空壳 —— 该链条尚有 5 个被调用方缺失
 //   （FindSyscallTableDescriptor / BuildExportSectionMapping / CollectSyscallEntries4 /
 //    CollectTwoSyscallTables / CollectSyscallExportEntries），见审计报告待办。
+// 对应原始驱动 0x140086150（856 字节）
 char ParseSyscallTableSections(__int64 FileBuffer, unsigned int FileSize, __int64 OutputTable)
 {
     ULONG64 Base = (ULONG64)FileBuffer;
@@ -2576,6 +2618,7 @@ L14008641B:
 // 【⚠ 枚举名说明】伪代码显示 `GtWrite(GtKeGetCurrentIrql, ...)` / `GtWrite(GtKeLowerIrql, ...)`，
 //   但 capstone 实测立即数为 **0x8B4 / 0x8B5**（原枚举无此二名，已按实测索引新增）。
 // =========================================================================
+// 对应原始驱动 0x140085E34（639 字节）
 char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 a3)
 {
     __int64 PeOffset;
@@ -2692,6 +2735,7 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
 // 【用途】FindSyscallTableDescriptor 定位到描述符后，本函数把描述符里的
 //   4 个"系统调用表地址"换算成相对节数据的偏移。
 // =========================================================================
+// 对应原始驱动 0x140086908（182 字节）
 char __fastcall BuildExportSectionMapping(__int64 a1, unsigned int a2)
 {
     unsigned __int64 SectionDataSize;
@@ -2749,6 +2793,7 @@ char __fastcall BuildExportSectionMapping(__int64 a1, unsigned int a2)
 //   +8 = RVA + a3、+0x10 起拷 16 字节节头，并 GtWrite(GT 0x8B6, 1)；
 //   任一有效即返回 1。
 // =========================================================================
+// 对应原始驱动 0x140086868（158 字节）
 char __fastcall CollectSyscallEntries4(__int64 a1, unsigned int a2, __int64 a3)
 {
     char Result = 0;
@@ -2787,6 +2832,7 @@ char __fastcall CollectSyscallEntries4(__int64 a1, unsigned int a2, __int64 a3)
 //     同样填表，每次迭代后 GtWrite(GT 0x8BE, 1)。
 //   任一段有计数即返回 1。
 // =========================================================================
+// 对应原始驱动 0x140086740（295 字节）
 char __fastcall CollectTwoSyscallTables(__int64 a1, unsigned int a2, __int64 a3)
 {
     char Result = 0;
@@ -2846,6 +2892,7 @@ char __fastcall CollectTwoSyscallTables(__int64 a1, unsigned int a2, __int64 a3)
 //   （**注意：本函数不写 +8 的地址字段** —— 与其它 Collect* 不同）；
 //   结束后 GtWrite(GT 0x8BF, 1)；若有命中则 FillExportEntrySlot。
 // =========================================================================
+// 对应原始驱动 0x140086690（174 字节）
 char __fastcall CollectSyscallExportEntries(__int64 a1, unsigned int a2, __int64 a3)
 {
     char Result = 0;

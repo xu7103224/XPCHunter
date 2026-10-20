@@ -237,6 +237,7 @@ __int64 ReadCpuMsrOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOut
     }
     return 0;
 }
+// 对应原始驱动 0x14002B494（102 字节）
 __int64 __fastcall CmdCheckModuleBaseChanged(__int64 CpuNumber, __int64 pMsrPair)
 {
     unsigned __int64 MsrLstar;
@@ -289,6 +290,7 @@ __int64 ReadCpuIdOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutp
     }
     return 0;
 }
+// 对应原始驱动 0x14002A090（391 字节）
 __int64 FindCpuMsrBaseLegacy(int MsrAddress)
 {
     unsigned int Result;
@@ -373,6 +375,7 @@ __int64 FindCpuMsrBaseLegacy(int MsrAddress)
     }
     return Result;
 }
+// 对应原始驱动 0x14002A218（318 字节）
 __int64 FindCpuMsrBaseWin10(int MsrAddress)
 {
     unsigned int Result;
@@ -440,6 +443,7 @@ __int64 FindCpuMsrBaseWin10(int MsrAddress)
     }
     return Result;
 }
+// 对应原始驱动 0x14002A05C（49 字节）
 __int64 DispatchCpuMsrBaseLookup(int MsrTableEntry)
 {
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4563)
@@ -447,6 +451,7 @@ __int64 DispatchCpuMsrBaseLookup(int MsrTableEntry)
     else
         return FindCpuMsrBaseLegacy(MsrTableEntry);
 }
+// 对应原始驱动 0x14002A004（87 字节）
 __int64 InitCpuMsrBaseOffsets(void)
 {
     __int64 MsrBase1;
@@ -470,6 +475,7 @@ __int64 InitCpuMsrBaseOffsets(void)
     }
     return result;
 }
+// 对应原始驱动 0x14002B4FC（390 字节）
 char FindCpuMsrDifferences(char *VirtualAddress, unsigned int Size, _QWORD *pDiffOffset)
 {
     char Result;
@@ -601,6 +607,7 @@ __int64 ReadCpuBaseAddrOperation(__int64 InputBuffer, __int64 InputSize, _DWORD 
     }
     return Result;
 }
+// 对应原始驱动 0x14002B7D0（266 字节）
 char CopyKernelMemoryToTarget(PVOID VirtualAddress, size_t Size)
 {
     char Result;
