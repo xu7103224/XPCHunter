@@ -76,7 +76,10 @@ __int64 ParseNtSectionsForModuleList1(void)
 
         unsigned int SectionSize = *(unsigned int *)((char *)SectionEntry + 0x60);
         CumulativeSize += SectionSize;
-        WORD SectionType = *(WORD *)((char *)SectionEntry + 0x1A0 + 6);
+        /* 【修正 2026-10-21】描述符只有 0x120 字节，类型不在描述符 +0x1A0 处；
+   原始经 `desc+0x118` 取出解码表条目指针再 +6 取类型（与 ScanTextSectionPattern 同一写法）。
+   旧代码读越界栈数据 → 类型永远不是 0x558/0x512 → GT[0x89C]/[0x89D] 永远为空。 */
+        WORD SectionType = *(WORD *)(*(ULONG64 *)((char *)SectionEntry + 0x118) + 6);
 
         if (SectionType == 0x558)
         {
@@ -144,7 +147,10 @@ __int64 ParseNtSectionsForModuleList2(void)
 
         unsigned int SectionSize = *(unsigned int *)((char *)SectionEntry + 0x60);
         CumulativeSize += SectionSize;
-        WORD SectionType = *(WORD *)((char *)SectionEntry + 0x1A0 + 6);
+        /* 【修正 2026-10-21】描述符只有 0x120 字节，类型不在描述符 +0x1A0 处；
+   原始经 `desc+0x118` 取出解码表条目指针再 +6 取类型（与 ScanTextSectionPattern 同一写法）。
+   旧代码读越界栈数据 → 类型永远不是 0x558/0x512 → GT[0x89C]/[0x89D] 永远为空。 */
+        WORD SectionType = *(WORD *)(*(ULONG64 *)((char *)SectionEntry + 0x118) + 6);
 
         if (SectionType == 0x558)
         {
