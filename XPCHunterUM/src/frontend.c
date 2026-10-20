@@ -550,6 +550,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     if (lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))
         return RunProcListCli();
 
+    /* 子视图调试入口：--windows-cli <pid> */
+    if (lpCmdLine && strstr(lpCmdLine, "--windows-cli")) {
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--windows-cli") + 13, NULL, 0);
+        FePrintProcessWindows(pid);
+        return 0;
+    }
+
     if (lpCmdLine && strstr(lpCmdLine, "--scan-cli"))
         return RunHeadless();
 

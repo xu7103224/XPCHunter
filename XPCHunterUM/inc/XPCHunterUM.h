@@ -165,6 +165,27 @@ BOOL FeLoadProcessPathWin32(ULONG Pid, WCHAR *Path, ULONG PathChars);
 void FeWideToAnsi(const WCHAR *Wide, char *Ansi, size_t AnsiChars);
 BOOL FePrintProcessList(XPCH_CLIENT *Client);
 
+/* ---- Process 页子视图（src/ProcessViews.c）---- */
+#define FE_WINDOW_ENTRY_TITLE_CHARS 256u
+
+typedef struct _FE_WINDOW_ENTRY {
+    ULONG64 Hwnd;
+    ULONG   ThreadId;
+    ULONG   ProcessId;
+    char    ClassName[128];
+    WCHAR   Title[FE_WINDOW_ENTRY_TITLE_CHARS];
+} FE_WINDOW_ENTRY;
+
+typedef struct _FE_WINDOW_LIST {
+    ULONG             Count;
+    ULONG             Capacity;
+    FE_WINDOW_ENTRY  *Items;
+} FE_WINDOW_LIST;
+
+BOOL FeLoadProcessWindows(ULONG Pid, ULONG MaxCount, FE_WINDOW_LIST *List);
+void FeFreeProcessWindows(FE_WINDOW_LIST *List);
+BOOL FePrintProcessWindows(ULONG Pid);
+
 #ifdef __cplusplus
 }
 #endif
