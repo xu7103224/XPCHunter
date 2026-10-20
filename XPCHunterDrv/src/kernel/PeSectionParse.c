@@ -74,37 +74,49 @@ __int64 ParseNtSectionsForModuleList1(void)
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
 
-        unsigned int SectionSize = *(unsigned int *)((char *)SectionEntry + 0x60);
-        CumulativeSize += SectionSize;
-        /* 【修正 2026-10-21】描述符只有 0x120 字节，类型不在描述符 +0x1A0 处；
-   原始经 `desc+0x118` 取出解码表条目指针再 +6 取类型（与 ScanTextSectionPattern 同一写法）。
-   旧代码读越界栈数据 → 类型永远不是 0x558/0x512 → GT[0x89C]/[0x89D] 永远为空。 */
-        WORD SectionType = *(WORD *)(*(ULONG64 *)((char *)SectionEntry + 0x118) + 6);
+        /* 【修正 2026-10-21】以下偏移均按原始 0x1400455E4 的循环体换算得到
+           （IDA 的栈名是 rsp 相对；描述符基址 = rsp+0x98）：
+             var_50  -> desc+0xF0  本轮消费字节数
+             var_28  -> desc+0x118 解码表条目指针（+6 才是类型）
+             var_108 -> desc+0x38  0x558 分支里的值
+             var_B8  -> desc+0x88 == 0x40000
+             var_C8  -> desc+0x78 != 0，同时是最终 RVA 的分量
+             var_F0  -> desc+0x50 == 0x40
+             var_E8  -> desc+0x58 == 1
+           旧代码用的 0xD0/0x120/0x110/0xE8/0xF0 是 rsp 偏移，全部错位。
+           另外原始把「读指针」本身（ctx+0x08，指针值）当累加量，不是整数偏移。 */
+        CumulativeSize = (__int64)(ReadContext.ReadPtr
+                        + *(unsigned int *)((PUCHAR)SectionEntry + 0xF0));
+        ReadContext.ReadPtr = (ULONG64)CumulativeSize;
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            break;
 
-        if (SectionType == 0x558)
         {
-            unsigned int Offset = *(unsigned int *)((char *)SectionEntry + 0xD0);
-            unsigned int CalculatedOffset = Offset - (unsigned int)KernelBase + (int)CumulativeSize;
-            if (CalculatedOffset == MatchOffset ||
-                (AltMatchOffset && CalculatedOffset == AltMatchOffset))
+            WORD SectionType = *(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+            if (SectionType == 0x558)
             {
-                FoundFlag = 1;
+                unsigned int Value = *(unsigned int *)((PUCHAR)SectionEntry + 0x38);
+                unsigned int Calculated = Value - (unsigned int)KernelBase + (unsigned int)CumulativeSize;
+
+                if (Calculated == MatchOffset || (AltMatchOffset && Calculated == AltMatchOffset))
+                    FoundFlag = 1;
             }
-        }
-        else if (SectionType == 0x512)
-        {
-            if (*(ULONG64 *)((char *)SectionEntry + 0x120) == 0x40000 &&
-                *(_DWORD *)((char *)SectionEntry + 0x110) &&
-                *(ULONG64 *)((char *)SectionEntry + 0xE8) == 0x40 &&
-                *(_DWORD *)((char *)SectionEntry + 0xF0) == 1 &&
-                FoundFlag == 1)
+            else if (SectionType == 0x512)
             {
-                unsigned int FieldValue = *(unsigned int *)((char *)SectionEntry + 0xD0);
-                unsigned int Result = FieldValue - (unsigned int)KernelBase + (int)CumulativeSize;
-                if (Result && (unsigned int)Result < KernelSize)
+                if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
+                    *(int *)((PUCHAR)SectionEntry + 0x78) != 0 &&
+                    *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40 &&
+                    *(int *)((PUCHAR)SectionEntry + 0x58) == 1 &&
+                    FoundFlag == 1)
                 {
-                    GtWrite(GtCallbackField112, NtImageBase + Result);
-                    return SectionIndex;
+                    unsigned int Rva = *(unsigned int *)((PUCHAR)SectionEntry + 0x78)
+                                     - (unsigned int)KernelBase + (unsigned int)CumulativeSize;
+                    if (Rva && Rva < KernelSize)
+                    {
+                        GtWrite(GtCallbackField112, NtImageBase + Rva);
+                        return SectionIndex;
+                    }
                 }
             }
         }
@@ -145,37 +157,49 @@ __int64 ParseNtSectionsForModuleList2(void)
         if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
             break;
 
-        unsigned int SectionSize = *(unsigned int *)((char *)SectionEntry + 0x60);
-        CumulativeSize += SectionSize;
-        /* 【修正 2026-10-21】描述符只有 0x120 字节，类型不在描述符 +0x1A0 处；
-   原始经 `desc+0x118` 取出解码表条目指针再 +6 取类型（与 ScanTextSectionPattern 同一写法）。
-   旧代码读越界栈数据 → 类型永远不是 0x558/0x512 → GT[0x89C]/[0x89D] 永远为空。 */
-        WORD SectionType = *(WORD *)(*(ULONG64 *)((char *)SectionEntry + 0x118) + 6);
+        /* 【修正 2026-10-21】以下偏移均按原始 0x1400455E4 的循环体换算得到
+           （IDA 的栈名是 rsp 相对；描述符基址 = rsp+0x98）：
+             var_50  -> desc+0xF0  本轮消费字节数
+             var_28  -> desc+0x118 解码表条目指针（+6 才是类型）
+             var_108 -> desc+0x38  0x558 分支里的值
+             var_B8  -> desc+0x88 == 0x40000
+             var_C8  -> desc+0x78 != 0，同时是最终 RVA 的分量
+             var_F0  -> desc+0x50 == 0x40
+             var_E8  -> desc+0x58 == 1
+           旧代码用的 0xD0/0x120/0x110/0xE8/0xF0 是 rsp 偏移，全部错位。
+           另外原始把「读指针」本身（ctx+0x08，指针值）当累加量，不是整数偏移。 */
+        CumulativeSize = (__int64)(ReadContext.ReadPtr
+                        + *(unsigned int *)((PUCHAR)SectionEntry + 0xF0));
+        ReadContext.ReadPtr = (ULONG64)CumulativeSize;
+        if (ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            break;
 
-        if (SectionType == 0x558)
         {
-            unsigned int Offset = *(unsigned int *)((char *)SectionEntry + 0xD0);
-            unsigned int CalculatedOffset = Offset - (unsigned int)KernelBase + (int)CumulativeSize;
-            if (CalculatedOffset == MatchOffset ||
-                (AltMatchOffset && CalculatedOffset == AltMatchOffset))
+            WORD SectionType = *(WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+
+            if (SectionType == 0x558)
             {
-                FoundFlag = 1;
+                unsigned int Value = *(unsigned int *)((PUCHAR)SectionEntry + 0x38);
+                unsigned int Calculated = Value - (unsigned int)KernelBase + (unsigned int)CumulativeSize;
+
+                if (Calculated == MatchOffset || (AltMatchOffset && Calculated == AltMatchOffset))
+                    FoundFlag = 1;
             }
-        }
-        else if (SectionType == 0x512)
-        {
-            if (*(ULONG64 *)((char *)SectionEntry + 0x120) == 0x40000 &&
-                *(_DWORD *)((char *)SectionEntry + 0x110) &&
-                *(ULONG64 *)((char *)SectionEntry + 0xE8) == 0x40 &&
-                *(_DWORD *)((char *)SectionEntry + 0xF0) == 1 &&
-                FoundFlag == 1)
+            else if (SectionType == 0x512)
             {
-                unsigned int FieldValue = *(unsigned int *)((char *)SectionEntry + 0xD0);
-                unsigned int Result = FieldValue - (unsigned int)KernelBase + (int)CumulativeSize;
-                if (Result && (unsigned int)Result < KernelSize)
+                if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
+                    *(int *)((PUCHAR)SectionEntry + 0x78) != 0 &&
+                    *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40 &&
+                    *(int *)((PUCHAR)SectionEntry + 0x58) == 1 &&
+                    FoundFlag == 1)
                 {
-                    GtWrite(GtCallbackField113, NtImageBase + Result);
-                    return SectionIndex;
+                    unsigned int Rva = *(unsigned int *)((PUCHAR)SectionEntry + 0x78)
+                                     - (unsigned int)KernelBase + (unsigned int)CumulativeSize;
+                    if (Rva && Rva < KernelSize)
+                    {
+                        GtWrite(GtCallbackField113, NtImageBase + Rva);
+                        return SectionIndex;
+                    }
                 }
             }
         }
