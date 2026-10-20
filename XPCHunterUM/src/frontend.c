@@ -28,10 +28,13 @@
 #define IDC_REFRESH     1008
 #define IDC_PROCLIST    1009
 #define IDC_PROCSTATUS  1010
+#define IDC_TABS        1011
+#define IDC_DETAIL      1012
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
-static HWND g_hProc, g_hProcStatus;
+static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
+static int  g_DetailTab = -1;
 
 /* Names for the commands we know (index = cmd - 0x20). Others show "-". */
 static const char *CmdName(ULONG cmd)
@@ -325,6 +328,153 @@ static void CreateProcColumns(HWND h)
     }
 }
 
+/* ---- 明细子视图（Modules / Threads / Windows）--------------------------- */
+
+static const char *g_TabNames[3] = { "Modules", "Threads", "Windows" };
+
+static ULONG GetSelectedPid(void)
+{
+    int i = (int)SendMessageA(g_hProc, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_SELECTED);
+    char buf[32];
+
+    if (i < 0)
+        return 0;
+    buf[0] = 0;
+    {
+        LVITEMA item;
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 0;
+        item.pszText = buf;
+        item.cchTextMax = sizeof(buf);
+        SendMessageA(g_hProc, LVM_GETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+    }
+    return (ULONG)strtoul(buf, NULL, 10);
+}
+
+static void DetailSetText(int row, int sub, const char *text)
+{
+    LVITEMA item;
+    ZeroMemory(&item, sizeof(item));
+    item.iSubItem = sub;
+    item.pszText = (LPSTR)text;
+    SendMessageA(g_hDetail, LVM_SETITEMTEXTA, (WPARAM)row, (LPARAM)&item);
+}
+
+static void DetailAddRow(const char *c0, const char *c1, const char *c2, const char *c3)
+{
+    LVITEMA item;
+    int row = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0);
+
+    ZeroMemory(&item, sizeof(item));
+    item.mask = LVIF_TEXT;
+    item.iItem = row;
+    item.pszText = (LPSTR)c0;
+    SendMessageA(g_hDetail, LVM_INSERTITEMA, 0, (LPARAM)&item);
+    if (c1) DetailSetText(row, 1, c1);
+    if (c2) DetailSetText(row, 2, c2);
+    if (c3) DetailSetText(row, 3, c3);
+}
+
+static void SetupDetailColumns(int tab)
+{
+    static const char *cols[3][4] = {
+        { "Base", "Size", "Name", "Path" },
+        { "TID", "Prio", "Start", "" },
+        { "HWND", "TID", "Class", "Title" },
+    };
+    static const int widths[3][4] = {
+        { 130, 90, 160, 380 },
+        { 70, 60, 150, 0 },
+        { 110, 60, 170, 340 },
+    };
+    LVCOLUMNA col;
+    int i, n = (tab == 1) ? 3 : 4;
+
+    while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
+        ;
+    SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
+    for (i = 0; i < n; i++) {
+        ZeroMemory(&col, sizeof(col));
+        col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        col.iSubItem = i;
+        col.pszText = (LPSTR)cols[tab][i];
+        col.cx = widths[tab][i];
+        SendMessageA(g_hDetail, LVM_INSERTCOLUMNA, i, (LPARAM)&col);
+    }
+}
+
+static void DoRefreshDetail(void)
+{
+    int tab = (int)SendMessageA(g_hTabs, TCM_GETCURSEL, 0, 0);
+    ULONG pid = GetSelectedPid();
+    char a[64], b[64], c[64], d[600];
+
+    if (tab < 0 || tab > 2)
+        tab = 0;
+    if (tab != g_DetailTab) {
+        g_DetailTab = tab;
+        SetupDetailColumns(tab);
+    } else {
+        SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
+    }
+
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Select a process to populate this view");
+        return;
+    }
+
+    if (tab == 0) {
+        FE_MODULE_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessModules(pid, 1024, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                char name[128], path[FE_MODULE_PATH_CHARS * 2];
+                FeWideToAnsi(list.Items[i].Name, name, sizeof(name));
+                FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)list.Items[i].Base);
+                sprintf_s(b, sizeof(b), "0x%lX", list.Items[i].Size);
+                DetailAddRow(a, b, name, path);
+            }
+            FeFreeProcessModules(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu modules: %lu", pid, n);
+    } else if (tab == 1) {
+        FE_THREAD_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessThreads(pid, 2048, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                sprintf_s(a, sizeof(a), "%lu", list.Items[i].ThreadId);
+                sprintf_s(b, sizeof(b), "%ld", list.Items[i].BasePriority);
+                sprintf_s(c, sizeof(c), "%p", (void *)(ULONG_PTR)list.Items[i].StartAddress);
+                DetailAddRow(a, b, c, NULL);
+            }
+            FeFreeProcessThreads(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu threads: %lu", pid, n);
+    } else {
+        FE_WINDOW_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessWindows(pid, 512, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                char title[FE_WINDOW_ENTRY_TITLE_CHARS * 2];
+                FeWideToAnsi(list.Items[i].Title, title, sizeof(title));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)list.Items[i].Hwnd);
+                sprintf_s(b, sizeof(b), "%lu", list.Items[i].ThreadId);
+                DetailAddRow(a, b, list.Items[i].ClassName[0] ? list.Items[i].ClassName : "(?)", title);
+            }
+            FeFreeProcessWindows(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu windows: %lu", pid, n);
+    }
+    SetWindowTextA(g_hProcStatus, d);
+}
+
 static void DoRefreshProcs(void)
 {
     FE_PROCESS_LIST list;
@@ -384,6 +534,31 @@ static void DoRefreshProcs(void)
 
     sprintf_s(buf, sizeof(buf), "Processes: %lu", count);
     SetWindowTextA(g_hProcStatus, buf);
+
+    /* 自动选中一行，让子视图立即有内容：优先 explorer.exe（System/Registry
+       这类进程没有用户模块，选中它们子视图会是空的）。 */
+    if (count) {
+        int pick = 0;
+        ULONG k;
+        for (k = 0; k < count; k++) {
+            char nm[32];
+            LVITEMA gi;
+            ZeroMemory(&gi, sizeof(gi));
+            gi.iSubItem = 1;
+            gi.pszText = nm;
+            gi.cchTextMax = sizeof(nm);
+            nm[0] = 0;
+            SendMessageA(g_hProc, LVM_GETITEMTEXTA, (WPARAM)k, (LPARAM)&gi);
+            if (_stricmp(nm, "explorer.exe") == 0) { pick = (int)k; break; }
+        }
+        {
+            LVITEMA si;
+            ZeroMemory(&si, sizeof(si));
+            si.stateMask = LVIS_SELECTED | LVIS_FOCUSED;
+            si.state = LVIS_SELECTED | LVIS_FOCUSED;
+            SendMessageA(g_hProc, LVM_SETITEMSTATE, (WPARAM)pick, (LPARAM)&si);
+        }
+    }
 }
 
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -423,6 +598,24 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         g_hProcStatus = CreateWindowA("STATIC", "Not connected", WS_CHILD | WS_VISIBLE | SS_LEFT,
                                       10, 376, 940, 20, hWnd, (HMENU)IDC_PROCSTATUS, hInst, NULL);
 
+        /* 明细子视图：tab + 一个 ListView（列随 tab 切换） */
+        g_hTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
+                                10, 400, 940, 24, hWnd, (HMENU)IDC_TABS, hInst, NULL);
+        {
+            TCITEMA t;
+            int k;
+            for (k = 0; k < 3; k++) {
+                ZeroMemory(&t, sizeof(t));
+                t.mask = TCIF_TEXT;
+                t.pszText = (LPSTR)g_TabNames[k];
+                SendMessageA(g_hTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
+            }
+        }
+        g_hDetail = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 424, 940, 190, hWnd, (HMENU)IDC_DETAIL, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hDetail, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -442,15 +635,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         h = rc.bottom;
         if (w < 200) w = 200;
         /* Process 列表占上方；底部固定给"命令测试器"留 170px */
-        /* 上：Process 列表（70 .. h-240）
-           中：状态栏（h-235 .. h-215）
-           下：命令测试器（h-210 .. h-10） */
+        /* 上：进程列表（70 .. h-500）
+           中：tab（h-496） + 明细列表（h-472 .. h-280）
+           下：状态栏（h-275） + 命令测试器（h-250 .. h-10） */
         if (g_hProc)
-            MoveWindow(g_hProc, 10, 70, w, (h - 240) - 70, TRUE);
+            MoveWindow(g_hProc, 10, 70, w, (h - 500) - 70, TRUE);
+        if (g_hTabs)
+            MoveWindow(g_hTabs, 10, h - 496, w, 24, TRUE);
+        if (g_hDetail)
+            MoveWindow(g_hDetail, 10, h - 472, w, 192, TRUE);
         if (g_hProcStatus)
-            MoveWindow(g_hProcStatus, 10, h - 235, w, 20, TRUE);
+            MoveWindow(g_hProcStatus, 10, h - 275, w, 20, TRUE);
         if (g_hList)
-            MoveWindow(g_hList, 10, h - 210, w, 200, TRUE);
+            MoveWindow(g_hList, 10, h - 250, w, 240, TRUE);
         return 0;
     }
 
@@ -462,6 +659,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SEND:    DoSend();    return 0;
         }
         return 0;
+
+    case WM_NOTIFY: {
+        NMHDR *nm = (NMHDR *)lParam;
+        if (nm->idFrom == IDC_TABS && nm->code == TCN_SELCHANGE) {
+            DoRefreshDetail();
+        } else if (nm->idFrom == IDC_PROCLIST && nm->code == LVN_ITEMCHANGED) {
+            NMLISTVIEW *lv = (NMLISTVIEW *)lParam;
+            if ((lv->uChanged & LVIF_STATE) &&
+                ((lv->uNewState & LVIS_SELECTED) || (lv->uOldState & LVIS_SELECTED)))
+                DoRefreshDetail();
+        }
+        return 0;
+    }
 
     case WM_DESTROY:
         if (g_Client.Opened)
@@ -588,7 +798,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
 
     hWnd = CreateWindowA("XPCHunterFrontend", "XPCHunter Frontend - Process",
                          WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-                         1000, 760, NULL, NULL, hInst, NULL);
+                         1000, 980, NULL, NULL, hInst, NULL);
     if (!hWnd)
         return 1;
 
