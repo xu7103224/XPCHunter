@@ -1,0 +1,13 @@
+14001ed40  4c8bc7               mov r8, rdi
+14001ed43  8bd3                 mov edx, ebx
+14001ed45  498bce               mov rcx, r14
+14001ed48  896c2420             mov dword ptr [rsp + 0x20], ebp
+14001ed4c  e86fefffff           call 0x14001dcc0
+14001ed51  4c8bce               mov r9, rsi
+14001ed54  4c8bc7               mov r8, rdi
+14001ed57  8bd3                 mov edx, ebx
+14001ed59  498bce               mov rcx, r14
+14001ed5c  896c2420             mov dword ptr [rsp + 0x20], ebp
+14001ed60  e81fecffff           call 0x14001d984
+14001ed65  e82428feff           call 0x14000158e
+14001ed6a  b9d5020000           mov ecx, 0x2d5

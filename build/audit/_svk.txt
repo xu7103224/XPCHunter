@@ -1,0 +1,2 @@
+14001dce0  e9b9260000           jmp 0x14002039e
+14001dce5  00498b               add byte ptr [rcx - 0x75], cl

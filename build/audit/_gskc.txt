@@ -1,0 +1,24 @@
+14001dea4  48895c2408           mov qword ptr [rsp + 8], rbx
+14001dea9  4889742410           mov qword ptr [rsp + 0x10], rsi
+14001deae  57                   push rdi
+14001deaf  4883ec20             sub rsp, 0x20
+14001deb3  488bda               mov rbx, rdx
+14001deb6  488bf1               mov rsi, rcx
+14001deb9  e832c70500           call 0x14007a5f0
+14001debe  48832600             and qword ptr [rsi], 0
+14001dec2  48832300             and qword ptr [rbx], 0
+14001dec6  b98b010000           mov ecx, 0x18b
+14001decb  488bf8               mov rdi, rax
+14001dece  e829c00000           call 0x140029efc
+14001ded3  85c0                 test eax, eax
+14001ded5  740d                 je 0x14001dee4
+14001ded7  4885ff               test rdi, rdi
+14001deda  7408                 je 0x14001dee4
+14001dedc  8bc8                 mov ecx, eax
+14001dede  4803cf               add rcx, rdi
+14001dee1  48890e               mov qword ptr [rsi], rcx
+14001dee4  488b5c2430           mov rbx, qword ptr [rsp + 0x30]
+14001dee9  488b742438           mov rsi, qword ptr [rsp + 0x38]
+14001deee  4883c420             add rsp, 0x20
+14001def2  5f                   pop rdi
+14001def3  c3                   ret 

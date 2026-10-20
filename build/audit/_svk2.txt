@@ -1,0 +1,17 @@
+14001dd50  4c8bcb               mov r9, rbx
+14001dd53  4c8bc7               mov r8, rdi
+14001dd56  4889442430           mov qword ptr [rsp + 0x30], rax
+14001dd5b  488d442440           lea rax, [rsp + 0x40]
+14001dd60  8bd6                 mov edx, esi
+14001dd62  4889442428           mov qword ptr [rsp + 0x28], rax
+14001dd67  8b842480000000       mov eax, dword ptr [rsp + 0x80]
+14001dd6e  488bcd               mov rcx, rbp
+14001dd71  89442420             mov dword ptr [rsp + 0x20], eax
+14001dd75  e832000000           call 0x14001ddac
+14001dd7a  488b542440           mov rdx, qword ptr [rsp + 0x40]
+14001dd7f  b944000000           mov ecx, 0x44
+14001dd84  e86bc20000           call 0x140029ff4
+14001dd89  488b542448           mov rdx, qword ptr [rsp + 0x48]
+14001dd8e  b945000000           mov ecx, 0x45
+14001dd93  488b5c2460           mov rbx, qword ptr [rsp + 0x60]
+14001dd98  488b6c2468           mov rbp, qword ptr [rsp + 0x68]

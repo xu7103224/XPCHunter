@@ -20,7 +20,7 @@ def gw(uc,s):
     i=uc.reg_read(UC_X86_REG_RCX)&0xFFFFFFFF
     v=uc.reg_read(UC_X86_REG_RDX)&MASK64
     s._gt_values[i]=v; w.append((i,v)); uc.reg_write(UC_X86_REG_RAX,v); s._do_ret(uc)
-sim.intercept(0x14001ED90,gr); sim.intercept(0x14001EDA0,gw)
+sim.intercept(ma('GtRead'),gr); sim.intercept(ma('GtWrite'),gw)
 d=open(os.path.join(HERE,'gt_orig_live.bin'),'rb').read()
 for i in range(len(d)//8):
     v=struct.unpack_from('<Q',d,i*8)[0]

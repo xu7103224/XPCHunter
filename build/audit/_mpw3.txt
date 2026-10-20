@@ -1,0 +1,42 @@
+140014e55  413bc4               cmp eax, r12d
+140014e58  7405                 je 0x140014e5f
+140014e5a  413bc7               cmp eax, r15d
+140014e5d  7574                 jne 0x140014ed3
+140014e5f  85db                 test ebx, ebx
+140014e61  7470                 je 0x140014ed3
+140014e63  3bdf                 cmp ebx, edi
+140014e65  736c                 jae 0x140014ed3
+140014e67  4a8d142b             lea rdx, [rbx + r13]
+140014e6b  b9a4010000           mov ecx, 0x1a4
+140014e70  e87f510100           call 0x140029ff4
+140014e75  4a8d1433             lea rdx, [rbx + r14]
+140014e79  b979010000           mov ecx, 0x179
+140014e7e  e871510100           call 0x140029ff4
+140014e83  488b8c24b0010000     mov rcx, qword ptr [rsp + 0x1b0]
+140014e8b  4833cc               xor rcx, rsp
+140014e8e  e81d7a0700           call 0x14008c8b0
+140014e93  4c8d9c24c0010000     lea r11, [rsp + 0x1c0]
+140014e9b  498b5b30             mov rbx, qword ptr [r11 + 0x30]
+140014e9f  498b6b38             mov rbp, qword ptr [r11 + 0x38]
+140014ea3  498b7340             mov rsi, qword ptr [r11 + 0x40]
+140014ea7  498be3               mov rsp, r11
+140014eaa  415f                 pop r15
+140014eac  415e                 pop r14
+140014eae  415d                 pop r13
+140014eb0  415c                 pop r12
+140014eb2  5f                   pop rdi
+140014eb3  c3                   ret 
+140014eb4  4881bc241801000000000400 cmp qword ptr [rsp + 0x118], 0x40000
+140014ec0  7511                 jne 0x140014ed3
+140014ec2  8b842408010000       mov eax, dword ptr [rsp + 0x108]
+140014ec9  85c0                 test eax, eax
+140014ecb  7406                 je 0x140014ed3
+140014ecd  8bd8                 mov ebx, eax
+140014ecf  2bdd                 sub ebx, ebp
+140014ed1  03d9                 add ebx, ecx
+140014ed3  ffc6                 inc esi
+140014ed5  81fe00010000         cmp esi, 0x100
+140014edb  73a6                 jae 0x140014e83
+140014edd  e919ffffff           jmp 0x140014dfb
+140014ee2  cc                   int3 
+140014ee3  cc                   int3 

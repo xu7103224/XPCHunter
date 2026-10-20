@@ -45,4 +45,5 @@ def run(drv,fn,rd,wr,readpese,init,label):
     print('%s kind=%s steps=%d'%(label,k,len(steps)))
     for e in steps[:16]: print('   ',e)
 run(ORIG,0x14001CC4C,0x140029EFC,0x140029FF4,0x14008A54C,0x14008A7E4,'ORIG')
-run(MINE,ma('DisableHookProtection'),0x14001ED90,0x14001EDA0,0x1400547E0,0x140054780,'MINE')
+run(MINE,ma('DisableHookProtection'),ma('GtRead'),ma('GtWrite'),
+    ma('ReadPESectionEntry'),ma('InitPESectionReadContext'),'MINE')

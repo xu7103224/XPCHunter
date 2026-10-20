@@ -1,0 +1,7 @@
+140022250  0000                 add byte ptr [rax], al
+140022252  e89d7d0000           call 0x140029ff4
+140022257  ba80580000           mov edx, 0x5880
+14002225c  b98b010000           mov ecx, 0x18b
+140022261  e88e7d0000           call 0x140029ff4
+140022266  ba00590000           mov edx, 0x5900
+14002226b  b98c010000           mov ecx, 0x18c

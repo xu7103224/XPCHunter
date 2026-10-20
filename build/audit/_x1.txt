@@ -1,0 +1,10 @@
+14001ccd3  488d5590             lea rdx, [rbp - 0x70]
+14001ccd7  488d4c2440           lea rcx, [rsp + 0x40]
+14001ccdc  e86bd80600           call 0x14008a54c
+14001cce1  85c0                 test eax, eax
+14001cce3  753b                 jne 0x14001cd20
+14001cce5  8b8580000000         mov eax, dword ptr [rbp + 0x80]
+14001cceb  488b4c2448           mov rcx, qword ptr [rsp + 0x48]
+14001ccf0  ba58050000           mov edx, 0x558
+14001ccf5  4803c8               add rcx, rax
+14001ccf8  488b85a8000000       mov rax, qword ptr [rbp + 0xa8]

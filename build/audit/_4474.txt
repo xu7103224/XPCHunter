@@ -1,0 +1,23 @@
+140082b00  0000                 add byte ptr [rax], al
+140082b02  00488b               add byte ptr [rax - 0x75], cl
+140082b05  057e150200           add eax, 0x2157e
+140082b0a  4833c4               xor rax, rsp
+140082b0d  4889842490000000     mov qword ptr [rsp + 0x90], rax
+140082b15  4c8bf1               mov r14, rcx
+140082b18  33db                 xor ebx, ebx
+140082b1a  b91d420000           mov ecx, 0x421d
+140082b1f  891a                 mov dword ptr [rdx], ebx
+140082b21  4c8bfa               mov r15, rdx
+140082b24  e8d373faff           call 0x140029efc
+140082b29  b972440000           mov ecx, 0x4472
+140082b2e  488bf0               mov rsi, rax
+140082b31  e8c673faff           call 0x140029efc
+140082b36  b975440000           mov ecx, 0x4475
+140082b3b  488bf8               mov rdi, rax
+140082b3e  e8b973faff           call 0x140029efc
+140082b43  488be8               mov rbp, rax
+140082b46  4885f6               test rsi, rsi
+140082b49  0f84de000000         je 0x140082c2d
+140082b4f  4885ff               test rdi, rdi
+140082b52  0f84d5000000         je 0x140082c2d
+140082b58  4885c0               test rax, rax

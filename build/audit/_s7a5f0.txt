@@ -1,0 +1,16 @@
+14007a5f0  e98f6ff8ff           jmp 0x140001584
+14007a5f5  cc                   int3 
+14007a5f6  cc                   int3 
+14007a5f7  cc                   int3 
+14007a5f8  488bc4               mov rax, rsp
+14007a5fb  48895808             mov qword ptr [rax + 8], rbx
+14007a5ff  48896810             mov qword ptr [rax + 0x10], rbp
+14007a603  48897018             mov qword ptr [rax + 0x18], rsi
+14007a607  48897820             mov qword ptr [rax + 0x20], rdi
+14007a60b  4156                 push r14
+14007a60d  4883ec20             sub rsp, 0x20
+14007a611  8bf9                 mov edi, ecx
+14007a613  33db                 xor ebx, ebx
+14007a615  8d4b42               lea ecx, [rbx + 0x42]
+14007a618  e8dff8faff           call 0x140029efc
+14007a61d  8d4b22               lea ecx, [rbx + 0x22]

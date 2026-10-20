@@ -71,3 +71,13 @@ build/sign/*.txt
 
 # 诊断期源文件备份（不入库，避免与权威源码混淆）
 *.probe_backup
+
+# 双机调试期间的临时产物（截图/scratch，非结论性证据，不入库）
+build/audit/*.png
+build/audit/*.bmp
+build/audit/_lm_*.txt
+build/audit/_split_tmp.txt
+build/audit/_gttest.bin
+build/audit/_mklm.py
+# ntoskrnl 已有入库副本 ntoskrnl_guest.exe（同 SHA1），不再重复
+build/audit/ntoskrnl_19045.exe

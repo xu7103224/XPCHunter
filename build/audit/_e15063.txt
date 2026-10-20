@@ -1,0 +1,8 @@
+140022af0  7405                 je 0x140022af7
+140022af2  ba98040000           mov edx, 0x498
+140022af7  e8f8740000           call 0x140029ff4
+140022afc  ba00590000           mov edx, 0x5900
+140022b01  b98b010000           mov ecx, 0x18b
+140022b06  e8e9740000           call 0x140029ff4
+140022b0b  ba80590000           mov edx, 0x5980
+140022b10  b98c010000           mov ecx, 0x18c

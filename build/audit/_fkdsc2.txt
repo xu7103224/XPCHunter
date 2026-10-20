@@ -1,0 +1,20 @@
+140013be0  0000                 add byte ptr [rax], al
+140013be2  0000                 add byte ptr [rax], al
+140013be4  0474                 add al, 0x74
+140013be6  0b8b8424c800         or ecx, dword ptr [rbx + 0xc82484]
+140013bec  0000                 add byte ptr [rax], al
+140013bee  85c0                 test eax, eax
+140013bf0  750f                 jne 0x140013c01
+140013bf2  ffc6                 inc esi
+140013bf4  81fe00020000         cmp esi, 0x200
+140013bfa  731c                 jae 0x140013c18
+140013bfc  e96affffff           jmp 0x140013b6b
+140013c01  2bc5                 sub eax, ebp
+140013c03  03c1                 add eax, ecx
+140013c05  3bc7                 cmp eax, edi
+140013c07  730f                 jae 0x140013c18
+140013c09  8bd0                 mov edx, eax
+140013c0b  b981010000           mov ecx, 0x181
+140013c10  4803d3               add rdx, rbx
+140013c13  e8dc630100           call 0x140029ff4
+140013c18  488b8c24b0010000     mov rcx, qword ptr [rsp + 0x1b0]

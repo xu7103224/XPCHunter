@@ -1,0 +1,33 @@
+14003c010  cd41                 int 0x41
+14003c012  8ac3                 mov al, bl
+14003c014  483bd3               cmp rdx, rbx
+14003c017  7505                 jne 0x14003c01e
+14003c019  413ac3               cmp al, r11b
+14003c01c  7525                 jne 0x14003c043
+14003c01e  488b05ab120500       mov rax, qword ptr [rip + 0x512ab]
+14003c025  483b18               cmp rbx, qword ptr [rax]
+14003c028  7619                 jbe 0x14003c043
+14003c02a  4103cb               add ecx, r11d
+14003c02d  418ac5               mov al, r13b
+14003c030  81f900100000         cmp ecx, 0x1000
+14003c036  770b                 ja 0x14003c043
+14003c038  4c396330             cmp qword ptr [rbx + 0x30], r12
+14003c03c  7405                 je 0x14003c043
+14003c03e  488b1b               mov rbx, qword ptr [rbx]
+14003c041  ebd1                 jmp 0x14003c014
+14003c043  418b0e               mov ecx, dword ptr [r14]
+14003c046  498d7e08             lea rdi, [r14 + 8]
+14003c04a  488bd3               mov rdx, rbx
+14003c04d  48895c2428           mov qword ptr [rsp + 0x28], rbx
+14003c052  4489ac24a8000000     mov dword ptr [rsp + 0xa8], r13d
+14003c05a  4869c128020000       imul rax, rcx, 0x228
+14003c061  4469f928020000       imul r15d, ecx, 0x228
+14003c068  4803f8               add rdi, rax
+14003c06b  4181c730020000       add r15d, 0x230
+14003c072  418acb               mov cl, r11b
+14003c075  483bd3               cmp rdx, rbx
+14003c078  7509                 jne 0x14003c083
+14003c07a  413acb               cmp cl, r11b
+14003c07d  0f8547020000         jne 0x14003c2ca
+14003c083  488b0546120500       mov rax, qword ptr [rip + 0x51246]
+14003c08a  483b18               cmp rbx, qword ptr [rax]
