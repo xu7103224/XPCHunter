@@ -1317,6 +1317,27 @@ char WriteProcessMemoryBuffer(_QWORD *InputParams)
     return Result;
 }
 
+/* EPROCESS.Peb 的字节偏移 —— GetProcessImagePathByAttach 的指针链起点。
+   这条链是：*(EPROCESS+Peb) -> PEB.Peb ；
+             *(PEB+0x18)    -> PEB.Ldr ；
+             *(Ldr+0x10)    -> InLoadOrderModuleList 的第一项（主模块的
+                               LDR_DATA_TABLE_ENTRY）；
+             +0x48/+0x50    -> FullDllName.Length / Buffer。
+   GT[GtEprocessField33] 语义上就是这个偏移（MemoryOps/HandleMgmt/ThreadMgmt 都按
+   Peb 偏移使用它），但它会被 HookSyscallNtSetInformationProcess 写成 PE 扫描结果
+   （原始 0x1400201A4 也是这样做），值一旦落在 0x100..0x1000 的"看起来合法"区间，
+   本函数就会去解引用 *(EPROCESS+off) 得到的垃圾指针 —— 实测 BSOD 0x3B
+   （GetProcessImagePathByAttach+0xD9，mov rsi,[rsi+0x18]）。
+   所以已知构建一律用下面这张表的正确值，未知构建才退回 GT 槽。 */
+static ULONG ProcPebOffset(void)
+{
+    ULONG Build = (ULONG)GtRead(GtWindowsBuildNumber);
+
+    if (Build >= 0x4539 && Build <= 0x4A65)   /* 17763(1809) .. 19045(22H2) */
+        return 0x3F8;
+    return 0;
+}
+
 // GetProcessImagePathByAttach — 通过附加(Attach)方式获取进程镜像路径
 // 对应原始驱动 sub_14004A3D4（538 字节）
 // 附加到目标进程后获取其镜像路径
@@ -1340,7 +1361,9 @@ char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **pI
     pPathBufCopy = pImagePathBuffer;
     Result = 0;
     *pImagePathBuffer = 0;
-    TargetProcess = (unsigned int)GtRead(GtEprocessField33);
+    TargetProcess = ProcPebOffset();                 /* 已知构建：用正确的 Peb 偏移 */
+    if (!TargetProcess)
+        TargetProcess = (unsigned int)GtRead(GtEprocessField33);
     if (TargetProcess != -1)
     {
         LookupStatus = PsLookupProcessByProcessId(ProcessId, &Process);
@@ -1353,13 +1376,17 @@ char GetProcessImagePathByAttach(PRKPROCESS PROCESS, HANDLE ProcessId, void **pI
             if (MmIsAddressValid((char *)PROCESS + TargetProcess) == 1)
             {
                 ImagePath = *(_QWORD *)((char *)PROCESS + TargetProcess);
-                if (ImagePath < (unsigned __int64)MmSystemRangeStart && ImagePath + 96 < (unsigned __int64)MmSystemRangeStart)
+                /* 【修正 2026-10-21】三处边界检查对 0 也成立（0 < 用户空间上限），
+                   而 System(4)/Idle 这类进程的 Peb 就是 0 —— 于是 *(0+0x18) 直接
+                   访问违例（实测 BSOD 0x3B，GetProcessImagePathByAttach+0xD9
+                   `mov rsi,[rsi+18h]`）。补空指针守卫；有效进程的行为不变。 */
+                if (ImagePath && ImagePath < (unsigned __int64)MmSystemRangeStart && ImagePath + 96 < (unsigned __int64)MmSystemRangeStart)
                 {
                     PathLen = *(_QWORD *)(ImagePath + 24);
-                    if (PathLen < (unsigned __int64)MmSystemRangeStart && PathLen + 72 < (unsigned __int64)MmSystemRangeStart)
+                    if (PathLen && PathLen < (unsigned __int64)MmSystemRangeStart && PathLen + 72 < (unsigned __int64)MmSystemRangeStart)
                     {
                         Status = *(_QWORD *)(PathLen + 16);
-                        if (Status < (unsigned __int64)MmSystemRangeStart && Status + 136 < (unsigned __int64)MmSystemRangeStart)
+                        if (Status && Status < (unsigned __int64)MmSystemRangeStart && Status + 136 < (unsigned __int64)MmSystemRangeStart)
                         {
                             Result = *(unsigned __int16 *)(Status + 72);
                             if ((unsigned int)Result > 0x1000)

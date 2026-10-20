@@ -2456,8 +2456,11 @@ __int64 InitEprocessOffsetsWin7(void)
         GtWrite(GtEprocessField32, 276);
     if ((ULONG)GtRead(GtEprocessField31) == -1)
         GtWrite(GtEprocessField31, 272);
+    /* 该槽语义是 EPROCESS.Peb 偏移（GetProcessImagePathByAttach 的链起点）。
+       17763..19045 的 Peb 在 0x3F8；更老的构建沿用 392。 */
     if ((ULONG)GtRead(GtEprocessField33) == -1)
-        GtWrite(GtEprocessField33, 392);
+        GtWrite(GtEprocessField33,
+                (BuildNumber >= 0x4539 && BuildNumber <= 0x4A65) ? 0x3F8 : 392);
     if ((ULONG)GtRead(GtEprocessField34) == -1)
         GtWrite(GtEprocessField34, 144);
     Field35 = (ULONG)GtRead(GtEprocessField35);
