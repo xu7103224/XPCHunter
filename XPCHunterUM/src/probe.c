@@ -334,7 +334,9 @@ int main(int argc, char **argv)
             printf("  dump 0x%02X outSize=0x%X -> %s, result=%u\n",
                    Cmd, DumpSize, dok ? "OK" : "REJECTED", dres);
 
-            if (dok && buf) {
+            /* 【修正 2026-10-21】很多命令（如 0x49）按设计返回结果字节 0，
+               但输出缓冲里有完整数据；--dump 正是用来逆布局的，必须无条件打印。 */
+            if (buf) {
                 for (off = 0; off < DumpSize; off += 16) {
                     int nz = 0, k;
                     for (k = 0; k < 16; k++) if (buf[off + k]) nz = 1;
