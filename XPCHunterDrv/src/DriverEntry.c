@@ -133,10 +133,31 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     InitProcessNotify();
     InitThreadNotify();
 
-    if (InitSdstTable() != 1 || ReadNtoskrnlFile() != 1) goto Cleanup1;
-    InitSyscallNumberTable();
-    BuildHookTable();
-    if (InitAllHookSubsystems() != 1) goto Cleanup2;
+    /* 【诊断 2026-10-20】把各初始化步骤的结果写进 GT 高位空闲槽
+       （0x9000..0x9002），供用户态读出，快速定位 DriverEntry 停在哪一步。
+       这些槽在原始驱动里从未使用。
+
+       【容错模式】初始化任一步失败**不再中止**，仍然创建设备与符号链接。
+       理由：当前目标是先打通命令通道。若在 InitSdstTable/ReadNtoskrnlFile
+       处直接 goto Cleanup，驱动会整体加载失败，用户态连设备都打不开，
+       无法进一步逐条验证 248 个命令。失败原因会保留在 GT[0x9000..2] 里，
+       由客户端读取并显示，后续再逐项修复。
+       注意：依赖这些初始化结果的命令会因此返回失败，这是预期行为，
+       也正是"逐条扫描命令、记录哪些失败"要暴露的信息。 */
+    {
+        char s1, s2, s3;
+        s1 = InitSdstTable();
+        GtWrite((GLOBAL_TABLE_INDEX)0x9000, (ULONG64)(UCHAR)s1);
+        s2 = ReadNtoskrnlFile();
+        GtWrite((GLOBAL_TABLE_INDEX)0x9001, (ULONG64)(UCHAR)s2);
+        if (s1 == 1 && s2 == 1)
+        {
+            InitSyscallNumberTable();
+            BuildHookTable();
+        }
+        s3 = InitAllHookSubsystems();
+        GtWrite((GLOBAL_TABLE_INDEX)0x9002, (ULONG64)(UCHAR)s3);
+    }
     InitImageNotify();
     InitDriverSection((_QWORD **)DriverObject->DriverSection);
     KeInitializeEvent(&g_Event, SynchronizationEvent, TRUE);
@@ -155,6 +176,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     Status = IoCreateDevice(DriverObject, 0, &DestStr, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
     if (Status < 0) goto Cleanup2;
+    GtWrite((GLOBAL_TABLE_INDEX)0x9003, 1);   /* 诊断：IoCreateDevice 成功 */
 
     ValidateObjReferences((__int64)DriverObject, (__int64)DeviceObject);
 
@@ -171,9 +193,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     Status = IoCreateSymbolicLink(&SymStr, &DestStr);
     if (Status < 0) { IoDeleteDevice(DeviceObject); goto Cleanup2; }
+    GtWrite((GLOBAL_TABLE_INDEX)0x9004, 1);   /* 诊断：IoCreateSymbolicLink 成功 */
 
     GtWrite(GtRegPathStringPtr, (__int64)RegistryPathCopyPtr);
     InitCommandHandlerTable();
+    GtWrite((GLOBAL_TABLE_INDEX)0x9005, 1);   /* 诊断：InitCommandHandlerTable 完成 */
     DriverObject->DriverUnload = (PDRIVER_UNLOAD)DriverUnload;
     DriverObject->MajorFunction[IRP_MJ_CREATE] = (PDRIVER_DISPATCH)DispatchCreateClose;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = (PDRIVER_DISPATCH)DispatchCreateClose;
