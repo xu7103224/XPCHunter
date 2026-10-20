@@ -2702,6 +2702,16 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x98) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(0x4E40 + 5));
     *(ULONG *)(Out + 0x9C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4E21);
 
+    /* 【诊断 2026-10-21】ParseNtSectionsForModuleList1/2 的 6 个入口输入槽
+       （任一为 0 就整函数直接 return，GT[0x89C]/[0x89D] 永远为空 = 0x49 空表）。
+       这里只导出低 32 位，够判断"缺哪一项"。 */
+    *(ULONG *)(Out + 0xA0) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x20);   /* KernelBase   */
+    *(ULONG *)(Out + 0xB8) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);   /* KernelSize   */
+    *(ULONG *)(Out + 0xBC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)3);      /* NtImageBase  */
+    *(ULONG *)(Out + 0xF4) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4420); /* SectionOffset*/
+    *(ULONG *)(Out + 0xF8) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4477); /* MatchOffset  */
+    *(ULONG *)(Out + 0xFC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4414); /* AltMatchOffset*/
+
     /* 【诊断 2026-10-21】按命令的分派器拒绝原因表 + 协议级拒绝计数表。
        用途：结果字节 0 无法区分"被拒"与"处理器执行完但设计上返回 0"，
        客户端据此把每条命令判为 HANDLED（处理器真的跑了）/ REJECTED(reason) /
