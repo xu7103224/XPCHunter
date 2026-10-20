@@ -128,6 +128,37 @@ BOOL FeLoadProcessPath(XPCH_CLIENT *Client, ULONG Pid, WCHAR *Path, ULONG PathCh
     return TRUE;
 }
 
+/* 用 Win32 文档化 API 取完整映像路径（不经过驱动的 0x2A）。
+   驱动的 GetProcessImagePathByAttach 手工 KeStackAttachProcess 追 PEB 链，
+   在本移植上会让 guest 挂死（一个 vCPU 空转、整体长时间无响应），暂不使用。
+   这里用 OpenProcess + QueryFullProcessImageNameW：
+     * 普通进程（含跨会话，只要有 PROCESS_QUERY_LIMITED_INFORMATION）都有效；
+     * System / PPL / 受保护进程会失败 → 调用方显示 "(?)"。 */
+BOOL FeLoadProcessPathWin32(ULONG Pid, WCHAR *Path, ULONG PathChars)
+{
+    HANDLE h;
+    DWORD len;
+
+    if (!Path || PathChars < 2)
+        return FALSE;
+    Path[0] = 0;
+
+    h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, Pid);
+    if (!h)
+        return FALSE;
+
+    len = PathChars;
+    if (!QueryFullProcessImageNameW(h, 0, Path, &len)) {
+        DWORD err = GetLastError();
+        CloseHandle(h);
+        SetLastError(err);
+        Path[0] = 0;
+        return FALSE;
+    }
+    CloseHandle(h);
+    return TRUE;
+}
+
 /* 宽字符 → 本地代码页（控制台/日志用）。转换失败时给 "?"。 */
 void FeWideToAnsi(const WCHAR *Wide, char *Ansi, size_t AnsiChars)
 {
@@ -158,12 +189,16 @@ BOOL FePrintProcessList(XPCH_CLIENT *Client)
 
     printf("processes: %lu\n", list.Count);
     for (i = 0; i < list.Count; i++) {
-        /* 短名来自条目 +0x08（驱动从 EPROCESS.ImageFileName 拷来）。
-           完整路径（0x2A）暂不调用：实机逐进程查询会让 guest 挂死（待修），
-           因此这里只输出短名。 */
-        printf("  pid=%-6lu eprocess=%p name=%s\n",
+        char path[FE_PROC_PATH_CHARS * 2];
+
+        /* 短名来自条目 +0x08（驱动从 EPROCESS.ImageFileName 拷来）；
+           完整路径用 QueryFullProcessImageNameW（不经过会挂死的驱动 0x2A）。 */
+        if (!FeLoadProcessPathWin32(list.Items[i].Pid, list.Items[i].Path, FE_PROC_PATH_CHARS))
+            list.Items[i].Path[0] = 0;
+        FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
+        printf("  pid=%-6lu eprocess=%p name=%-16s path=%s\n",
                list.Items[i].Pid, (void *)(ULONG_PTR)list.Items[i].Eprocess,
-               list.Items[i].Name[0] ? list.Items[i].Name : "(?)");
+               list.Items[i].Name[0] ? list.Items[i].Name : "(?)", path);
     }
 
     FeFreeProcessList(&list);

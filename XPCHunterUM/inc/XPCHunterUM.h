@@ -161,6 +161,7 @@ typedef struct _FE_PROCESS_LIST {
 BOOL FeLoadProcessList(XPCH_CLIENT *Client, ULONG MaxCount, FE_PROCESS_LIST *List);
 void FeFreeProcessList(FE_PROCESS_LIST *List);
 BOOL FeLoadProcessPath(XPCH_CLIENT *Client, ULONG Pid, WCHAR *Path, ULONG PathChars);
+BOOL FeLoadProcessPathWin32(ULONG Pid, WCHAR *Path, ULONG PathChars);
 void FeWideToAnsi(const WCHAR *Wide, char *Ansi, size_t AnsiChars);
 BOOL FePrintProcessList(XPCH_CLIENT *Client);
 
