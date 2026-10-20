@@ -128,6 +128,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     do { g_DeviceNameBuffer[DevNameIdx] = L"\\Device\\"[DevNameIdx]; } while (g_DeviceNameBuffer[DevNameIdx++]);
     DevNameIdx--;
     wcsncat(g_DeviceNameBuffer, DriverNameStart, 256 - DevNameIdx);
+    DevNameIdx = (ULONG)wcslen(g_DeviceNameBuffer);   /* 拼接后的实际字符数 */
 
     InitProcessNotify();
     InitThreadNotify();
@@ -140,7 +141,18 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     InitDriverSection((_QWORD **)DriverObject->DriverSection);
     KeInitializeEvent(&g_Event, SynchronizationEvent, TRUE);
 
-    RtlInitUnicodeString(&DestStr, L"\\Device\\View++ByLinxer");
+    /* 【修正 2026-10-20】设备名/符号链接名必须用**拼接缓冲区**构造，
+       而不是硬编码字面量。原始驱动就是这么做的：
+         wcsncat(g_DeviceNameBuffer, DriverNameStart, ...)
+         然后以该缓冲区 + 实际长度构造 UNICODE_STRING。
+       我方此前把两个缓冲区都拼好了却完全没用，仍用 L"..." 字面量：
+       一旦驱动被以别的服务名加载（DriverNameStart 取的是
+       RegistryPath 的最后一段），设备名与符号链接名就会与实际不符，
+       用户态按固定名打开时就会命中错误的/不存在的对象。 */
+    DestStr.Length        = (USHORT)(DevNameIdx * sizeof(WCHAR));
+    DestStr.MaximumLength = (USHORT)((DevNameIdx + 1) * sizeof(WCHAR));
+    DestStr.Buffer        = g_DeviceNameBuffer;
+
     Status = IoCreateDevice(DriverObject, 0, &DestStr, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
     if (Status < 0) goto Cleanup2;
 
@@ -151,8 +163,12 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     do { g_SymlinkNameBuffer[SymNameIdx] = L"\\DosDevices\\"[SymNameIdx]; } while (g_SymlinkNameBuffer[SymNameIdx++]);
     SymNameIdx--;
     wcsncat(g_SymlinkNameBuffer, DriverNameStart, 256 - SymNameIdx);
+    SymNameIdx = (ULONG)wcslen(g_SymlinkNameBuffer);   /* 拼接后的实际字符数 */
 
-    RtlInitUnicodeString(&SymStr, L"\\DosDevices\\View++ByLinxer");
+    SymStr.Length        = (USHORT)(SymNameIdx * sizeof(WCHAR));
+    SymStr.MaximumLength = (USHORT)((SymNameIdx + 1) * sizeof(WCHAR));
+    SymStr.Buffer        = g_SymlinkNameBuffer;
+
     Status = IoCreateSymbolicLink(&SymStr, &DestStr);
     if (Status < 0) { IoDeleteDevice(DeviceObject); goto Cleanup2; }
 
