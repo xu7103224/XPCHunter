@@ -1,0 +1,51 @@
+==== BEGIN ==== 
+[1] teardown any previous instance 
+[SC] ControlService 失败 1062:
+
+服务尚未启动。
+
+[SC] DeleteService 成功
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[2] install our driver under the original file name 
+已复制         1 个文件。
+copy_rc=0 
+DST_EXISTS
+[3] create the service name the original front end uses 
+[SC] CreateService 成功
+create_rc=0 
+[4] start it and confirm the device exists 
+
+SERVICE_NAME: View++ByLinxer 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 4  RUNNING 
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+        PID                : 0
+        FLAGS              : 
+start_rc=0 
+
+SERVICE_NAME: View++ByLinxer 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 4  RUNNING 
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+[5] run the ORIGINAL front end against our driver 
+launched=0 
+
+映像名称                       PID 会话名              会话#       内存使用 
+========================= ======== ================ =========== ============
+PCHunter64.exe                5008 Services                   0     10,832 K
+==== WDONE ==== 

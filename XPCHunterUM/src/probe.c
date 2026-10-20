@@ -212,6 +212,7 @@ int main(int argc, char **argv)
     BOOL Live = FALSE;
     BOOL Scan = FALSE;
     BOOL OpenOnly = FALSE;
+    BOOL Stats = FALSE;
     ULONG Cmd = 0x24;
     ULONG InValue = 0;
     ULONG ScanLo = XPCH_CMD_MIN;
@@ -225,6 +226,7 @@ int main(int argc, char **argv)
         if (_stricmp(argv[i], "--live") == 0) Live = TRUE;
         else if (_stricmp(argv[i], "--scan") == 0) Scan = TRUE;
         else if (_stricmp(argv[i], "--open-only") == 0) OpenOnly = TRUE;
+        else if (_stricmp(argv[i], "--stats") == 0) Stats = TRUE;
         else if (_stricmp(argv[i], "--cmd") == 0 && i + 1 < argc)
             Cmd = (ULONG)strtoul(argv[++i], NULL, 0);
         else if (_stricmp(argv[i], "--in") == 0 && i + 1 < argc)
@@ -303,6 +305,43 @@ int main(int argc, char **argv)
         if (OpenOnly) {
             XpchClose(&client);
             printf("\n=== done (open-only) ===\n");
+            return 0;
+        }
+
+        /* --stats: dump the driver-side per-command call counters through the
+           diagnostic command 0x13A (an empty slot in the original table, so
+           no real front end ever sends it). Use this right after running the
+           ORIGINAL PCHunter64.exe against this driver: any command with a
+           non-zero count was issued by that front end. */
+        if (Stats) {
+            enum { N = 283, REC = 16 };
+            ULONG *recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, N * REC);
+            UCHAR sres = 0;
+            BOOL sok = FALSE;
+            int used = 0;
+
+            if (recs)
+                sok = XpchInvoke(&client, 0x13A, NULL, 0, recs, N * REC, &sres);
+
+            printf("  stats dump 0x13A -> %s, result=%u\n",
+                   sok ? "OK" : "REJECTED", sres);
+
+            if (sok) {
+                for (c = 0; c < N; c++) {
+                    ULONG *r = (ULONG *)((BYTE *)recs + c * REC);
+                    if (r[1]) {   /* call count */
+                        printf("    0x%02X count=%-6lu lastResult=%lu lastPid=%lu\n",
+                               r[0], r[1], r[2], r[3]);
+                        used++;
+                    }
+                }
+                printf("    %d command(s) invoked since load\n", used);
+            }
+            if (recs)
+                HeapFree(GetProcessHeap(), 0, recs);
+
+            XpchClose(&client);
+            printf("\n=== done (stats) ===\n");
             return 0;
         }
 

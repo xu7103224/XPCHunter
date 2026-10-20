@@ -615,6 +615,16 @@ __declspec(noinline) __int64 IdentityReturnParam(__int64 Param);
 char ImageLoadCallbackRoutine(__int64 InputBuffer, ULONG64 BufferSize, _DWORD *OutputFlags, __int64 OutputBuffer);
 __int64 InitAllHookSubsystems(void);
 void InitCallbackContextHookTable(void);
+/* 【诊断 2026-10-20】每条命令的调用统计，供 CmdDumpCallStats(0x13A) 导出。
+   存放于全局表末尾 2048 个未使用槽（0x4800..0x4FFF）。 */
+#define CMD_STAT_COUNT  0x4800
+#define CMD_STAT_RESULT 0x4A00
+#define CMD_STAT_PID    0x4C00
+#define CMD_STAT_N      283
+
+__int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
+                         _DWORD *pOutputBuffer, int OutputSize);
+
 __int64 InitCommandHandlerTable(void);
 __declspec(noinline) __int64 InitDataTypeByIndex( PUCHAR DecodeCtx, ULONG64 TableEntry, ULONG DataIndex, PUCHAR OperandOut);
 

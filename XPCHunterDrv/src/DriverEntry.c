@@ -59,6 +59,19 @@ UCHAR g_DiagSymlink;
 UCHAR g_DiagCmdTable;
 UCHAR g_DiagInitDone;
 
+/*
+ * 兼容性观测：每条命令的调用次数 / 最近结果 / 最近调用进程。
+ * 索引 = Command - 0x20，共 283 项；由 DispatchDeviceControl 在
+ * 处理器返回后更新，xpch_probe --stats 读取。
+ *
+ * 存放位置：GT[0x4800 + i]（次数）、GT[0x4A00 + i]（结果）、
+ * GT[0x4C00 + i]（调用进程 PID）。0x4800..0x4FFF 是全局表末尾
+ * 2048 个空闲槽，原始驱动从未引用（脚本核对过 xpc_gt_enum.h 的
+ * 全部赋值），因此不会与任何既有语义冲突，也不会影响 GT 对比审计
+ * 对前 0x4800 槽的判定。
+ */
+/* 定义见 XPCHunterDrv.h（IoctlDispatch.c 的 CmdDumpCallStats 也要用） */
+
 // DriverEntry — 驱动入口函数
 // 对应原始驱动 sub_140080ED4
 
@@ -436,6 +449,18 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
          0x1400825BC  mov r13b, al   ; 只保留返回值低 8 位            */
     Result = (UCHAR)((__int64 (__fastcall *)(ULONG64, ULONG, ULONG64, ULONG))Handler)(
                  CtxPtr, OutSize, ExtraPtr, CtxSize);
+
+    /* 【兼容性观测 2026-10-20】记录每条命令被调用的次数与最近一次结果，
+       供 xpch_probe --stats 读回。用于证明外部前端（原版 PCHunter64.exe）
+       确实在使用本驱动。索引 = Command - 0x20。 */
+    if (Index < CMD_STAT_N)
+    {
+        GtWrite((GLOBAL_TABLE_INDEX)(CMD_STAT_COUNT + Index),
+                GtRead((GLOBAL_TABLE_INDEX)(CMD_STAT_COUNT + Index)) + 1);
+        GtWrite((GLOBAL_TABLE_INDEX)(CMD_STAT_RESULT + Index), Result);
+        GtWrite((GLOBAL_TABLE_INDEX)(CMD_STAT_PID + Index),
+                (__int64)(ULONG_PTR)PsGetCurrentProcessId());
+    }
 
     /* 0x1400825BF..5C6：清重入锁 */
     GtWrite((GLOBAL_TABLE_INDEX)0x355, 0);

@@ -351,6 +351,12 @@ __int64 InitCommandHandlerTable(void)
     Table[279] = (PCOMMAND_HANDLER)CmdKernelNotifyRoutine;
     Table[280] = (PCOMMAND_HANDLER)CmdKernelNotifyRoutineEx;
     Table[281] = (PCOMMAND_HANDLER)CmdRestoreDriverDispatch;
+    /* 【诊断专用 2026-10-20】命令 0x13A 在原始命令表里是空槽，任何版本的
+       前端都不会发送它。这里挂一个只读诊断处理器，把驱动侧的
+       "每条命令被调用多少次 / 最近结果 / 最近调用 PID" 导回用户态，
+       用于证明外部前端（原版 PCHunter64.exe）确实在使用本驱动。
+       它不改变任何既有命令的语义。 */
+    Table[282] = (PCOMMAND_HANDLER)CmdDumpCallStats;
 
     return (__int64)CmdRestoreDriverDispatch;
 }
@@ -2570,4 +2576,51 @@ __int64 CmdMiniFilterStreamHandle(__int64 InputBuffer, __int64 InputSize, _DWORD
             ObfDereferenceObject(Process);
     }
     return Result;
+}
+
+// ===================================================================
+// CmdDumpCallStats — 诊断专用（命令 0x13A）
+//
+// 原始命令表里 Table[282]（= 命令 0x13A）是空槽，任何前端都不会发送。
+// 本处理函数把 DispatchDeviceControl 记录的调用统计导出到用户缓冲，
+// 用于验证外部前端是否真的在用本驱动：
+//
+//   输出布局（每项 16 字节，共 283 项）：
+//     +0x00 ULONG  Command
+//     +0x04 ULONG  CallCount
+//     +0x08 ULONG  LastResult
+//     +0x0C ULONG  LastCallerPid
+//
+// 输入被忽略；要求 OutputSize >= 283*16 且缓冲在用户态范围内。
+// ===================================================================
+__int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
+                         _DWORD *pOutputBuffer, int OutputSize)
+{
+    ULONG Index;
+    PUCHAR Out;
+
+    UNREFERENCED_PARAMETER(InputBuffer);
+    UNREFERENCED_PARAMETER(InputSize);
+
+    if (!pOutputBuffer || OutputSize < (int)(CMD_STAT_N * 16))
+        return 0;
+    if ((ULONG64)pOutputBuffer >= MmUserProbeAddress ||
+        (ULONG64)pOutputBuffer + (CMD_STAT_N * 16) >= MmUserProbeAddress)
+        return 0;
+
+    ProbeForWrite(pOutputBuffer, CMD_STAT_N * 16, 4);
+
+    Out = (PUCHAR)pOutputBuffer;
+    for (Index = 0; Index < CMD_STAT_N; Index++)
+    {
+        *(ULONG *)(Out + 0x00) = 0x20 + Index;
+        *(ULONG *)(Out + 0x04) =
+            (ULONG)GtRead((GLOBAL_TABLE_INDEX)(CMD_STAT_COUNT + Index));
+        *(ULONG *)(Out + 0x08) =
+            (ULONG)GtRead((GLOBAL_TABLE_INDEX)(CMD_STAT_RESULT + Index));
+        *(ULONG *)(Out + 0x0C) =
+            (ULONG)GtRead((GLOBAL_TABLE_INDEX)(CMD_STAT_PID + Index));
+        Out += 16;
+    }
+    return 1;
 }
