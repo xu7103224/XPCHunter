@@ -37,11 +37,13 @@ static void HexDump(const char *Tag, const UCHAR *p, ULONG n)
 int main(int argc, char **argv)
 {
     BOOL Live = FALSE;
+    BOOL Scan = FALSE;
     ULONG Cmd = 0x24;
     int i;
 
     for (i = 1; i < argc; i++) {
         if (_stricmp(argv[i], "--live") == 0) Live = TRUE;
+        else if (_stricmp(argv[i], "--scan") == 0) Scan = TRUE;
         else if (_stricmp(argv[i], "--cmd") == 0 && i + 1 < argc)
             Cmd = (ULONG)strtoul(argv[++i], NULL, 0);
     }
