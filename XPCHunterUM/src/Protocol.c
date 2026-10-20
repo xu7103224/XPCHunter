@@ -294,15 +294,17 @@ void XpchClose(PXPCH_CLIENT Client)
 
 BOOL XpchInvoke(PXPCH_CLIENT Client,
                 ULONG Command,
-                PVOID Output, ULONG OutputSize,
-                PVOID Context, ULONG ContextSize,
-                PVOID Extra)
+                PVOID In, ULONG InSize,
+                PVOID Out, ULONG OutSize,
+                PUCHAR Result)
 {
     XPCH_REQUEST Req;
     UCHAR Digest[16];
     XPCH_MD5_CTX Md5;
     DWORD Returned = 0;
     BOOL Status;
+    BYTE ResultByte = 0;
+    UCHAR Stored = 0;
 
     if (!Client || !Client->Opened || !Client->Device)
         return FALSE;
@@ -310,15 +312,17 @@ BOOL XpchInvoke(PXPCH_CLIENT Client,
         SetLastError(ERROR_INVALID_PARAMETER);
         return FALSE;
     }
+    if (Result)
+        *Result = 0;
 
     ZeroMemory(&Req, sizeof(Req));
-    Req.Magic          = XPCH_MAGIC;
-    Req.Command        = Command;
-    Req.OutputBuffer   = (ULONG64)(ULONG_PTR)Output;
-    Req.ContextPointer = (ULONG64)(ULONG_PTR)Context;
-    Req.ExtraPointer   = (ULONG64)(ULONG_PTR)Extra;
-    Req.OutputSize     = OutputSize;
-    Req.ContextSize    = ContextSize;
+    Req.Magic         = XPCH_MAGIC;
+    Req.Command       = Command;
+    Req.ResultBytePtr = (ULONG64)(ULONG_PTR)&ResultByte;
+    Req.InPtr         = (ULONG64)(ULONG_PTR)In;
+    Req.OutPtr        = (ULONG64)(ULONG_PTR)Out;
+    Req.InSize        = InSize;
+    Req.OutSize       = OutSize;
 
     /* 校和：对明文前 0x28 字节求 MD5，取前 4 字节 */
     XpchMd5Init(&Md5);
@@ -333,8 +337,9 @@ BOOL XpchInvoke(PXPCH_CLIENT Client,
     XpchCryptBuffer((PUCHAR)&Req, XPCH_REQUEST_SIZE, Client->KeyByte);
 
     /*
-     * 原始用户态用同一块 0x30 缓冲做输入与输出（lpInBuffer 既作 InBuffer
-     * 又作 OutBuffer），这里保持一致。
+     * 入参长度必须是 0x30，ioctl 必须是设备名派生的值 —— 内核分别用
+     * IO_STACK_LOCATION 的 +0x10 / +0x18 比对（0x140082439 / 0x14008245B）。
+     * 原始用户态也用同一块 0x30 缓冲作输入与输出，这里保持一致。
      */
     Status = DeviceIoControl(Client->Device,
                              Client->IoControlCode,
@@ -343,23 +348,53 @@ BOOL XpchInvoke(PXPCH_CLIENT Client,
                              &Returned, NULL);
     if (!Status)
         return FALSE;
-    return Returned != 0;
+
+    /*
+     * 驱动**从不设置** Irp->IoStatus.Information（0x140082603 只有
+     * `and dword ptr [r14],0`，r14 = &IoStatus.Status），所以 lpBytesReturned
+     * 恒为 0，不能用它判断。真正的结果码是驱动写回 ResultBytePtr 的那 1 字节：
+     *   1 = 处理器执行且返回成功
+     *   0 = 请求在任一道关卡被拒（ioctl / magic / MD5 / 范围 / 就绪 / 权限 / 锁）
+     * 注意它写在独立的单字节变量里，不覆盖请求头（驱动用同一块 SystemBuffer
+     * 收发，所以 OutPtr 绝不能指向 Req 自身）。
+     */
+    UNREFERENCED_PARAMETER(Returned);
+    Stored = ResultByte;
+    if (Result)
+        *Result = Stored;
+    return Stored != 0;
 }
 
-/* Minimal handshake: only command 0x24 (CmdGetModuleCount).
+/* Handshake.
  *
- * Command 0x22 (CmdQueryProcessInfo) is deliberately NOT sent here. Its
- * handler dispatches on BufferSize (<= 0xA goes to CheckSsdtHookIntegrity,
- * otherwise QuerySsdHookByProcessInfo); with the null/zero arguments a
- * handshake would pass it enters a heavy path that has hung the guest
- * (observed: vmrun timeout 143, kd unreachable). 0x24 only validates the
- * output buffer and returns the build number, so it is the safest probe of
- * the whole pipeline: decrypt -> magic -> MD5 -> dispatch -> handler. */
+ * Two steps, and the order matters:
+ *
+ * 1) Command 0x22 (CmdQueryProcessInfo) is the ONLY command the dispatcher
+ *    lets through while GT[0x304] (the driver-ready flag) is still 0 -- see
+ *    the `GtRead(0x304) == 0 && Command != 0x22` guard at 0x140082532.
+ *    With InSize <= 0xA its handler runs CheckSsdtHookIntegrity, which is
+ *    the single place that sets GT[0x304] = 1 (SSDT.c). So 0x22 also acts
+ *    as the driver's own "initialize the hook subsystem" trigger; without
+ *    it every other command is rejected forever.
+ *
+ * 2) Command 0x24 (CmdGetModuleCount) then proves the ordinary dispatch
+ *    path works and returns the Windows build number, which tells us which
+ *    OS branch the driver picked.
+ *
+ * 0x22 needs out != NULL with outSize == 4 (CheckSsdtHookIntegrity writes
+ * a DWORD comparison result), and inSize <= 0xA to avoid the heavy
+ * QuerySsdHookByProcessInfo path that has hung the guest before. */
 BOOL XpchHandshake(PXPCH_CLIENT Client)
 {
     ULONG Build = 0;
+    ULONG Ssdt = 0;
+    UCHAR Result = 0;
 
-    if (XpchInvoke(Client, XPCH_CMD_GET_MODULE_COUNT, &Build, sizeof(Build), NULL, 0, NULL))
+    XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO,
+               NULL, 0, &Ssdt, sizeof(Ssdt), &Result);
+
+    if (XpchInvoke(Client, XPCH_CMD_GET_MODULE_COUNT,
+                   NULL, 0, &Build, sizeof(Build), &Result))
         return Build != 0;
 
     return FALSE;

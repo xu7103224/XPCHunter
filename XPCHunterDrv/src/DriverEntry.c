@@ -43,6 +43,22 @@ UNICODE_STRING g_SymlinkName;
 // 命令处理函数表
 PCOMMAND_HANDLER g_CommandHandlerTable[CMD_OPCODE_COUNT];
 
+/*
+ * DriverEntry 分步诊断（不占用全局表）。
+ *
+ * 早期版本把这些结果写进 GT[0x9000..0x9005]，但 GT_TABLE_CAPACITY 只有
+ * 0x5000 —— 越界写直接 BSOD 0x50。改成本文件的全局变量后，用 kd 读：
+ *     dq ViewPlusPlusByLinxer!g_DiagSdst ... （或直接 x 符号）
+ * 1 = 该步骤成功。
+ */
+UCHAR g_DiagSdst;
+UCHAR g_DiagNtoskrnl;
+UCHAR g_DiagHookSubsys;
+UCHAR g_DiagDevice;
+UCHAR g_DiagSymlink;
+UCHAR g_DiagCmdTable;
+UCHAR g_DiagInitDone;
+
 // DriverEntry — 驱动入口函数
 // 对应原始驱动 sub_140080ED4
 
@@ -133,75 +149,69 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     InitProcessNotify();
     InitThreadNotify();
 
-    /* 【诊断 2026-10-20】把各初始化步骤的结果写进 GT 高位空闲槽
-       （0x9000..0x9002），供用户态读出，快速定位 DriverEntry 停在哪一步。
-       这些槽在原始驱动里从未使用。
-
-       【容错模式】初始化任一步失败**不再中止**，仍然创建设备与符号链接。
-       理由：当前目标是先打通命令通道。若在 InitSdstTable/ReadNtoskrnlFile
-       处直接 goto Cleanup，驱动会整体加载失败，用户态连设备都打不开，
-       无法进一步逐条验证 248 个命令。失败原因会保留在 GT[0x9000..2] 里，
-       由客户端读取并显示，后续再逐项修复。
-       注意：依赖这些初始化结果的命令会因此返回失败，这是预期行为，
-       也正是"逐条扫描命令、记录哪些失败"要暴露的信息。 */
-    {
-        char s1, s2, s3;
-        s1 = InitSdstTable();
-        GtWrite((GLOBAL_TABLE_INDEX)0x9000, (ULONG64)(UCHAR)s1);
-        s2 = ReadNtoskrnlFile();
-        GtWrite((GLOBAL_TABLE_INDEX)0x9001, (ULONG64)(UCHAR)s2);
-        if (s1 == 1 && s2 == 1)
-        {
-            InitSyscallNumberTable();
-            BuildHookTable();
-        }
-        s3 = InitAllHookSubsystems();
-        GtWrite((GLOBAL_TABLE_INDEX)0x9002, (ULONG64)(UCHAR)s3);
-    }
+    /*
+     * 与原始 DriverEntry（0x1400810F9..0x140081111）完全一致：
+     *     if (InitSdstTable() != 1 || ReadNtoskrnlFile() != 1) goto LABEL_25;
+     *     InitSyscallNumberTable();
+     *     BuildHookTable();
+     *     if (InitAllHookSubsystems() != 1) goto LABEL_24;
+     *
+     * 【移除 2026-10-20】此前这里曾改成"容错模式"，把每一步的结果写进
+     * GT[0x9000..0x9002] 再继续执行。那是**越界写**：GT_TABLE_CAPACITY
+     * 只有 0x5000（见 xpc_gt_enum.h），0x9000 > 0x5000，所以
+     *     GtWrite(0x9000, ...)  →  mov [g_GlobalTable + 0x48000], rdx
+     * 落在了 .data 之后的非法页上，驱动一加载就 BSOD 0x50
+     * （实机：ViewPlusPlusByLinxer+0x1F2EA，写地址 0x...5517C060）。
+     * 诊断改用不占 GT 的独立全局变量 g_Diag*，由 kd 直接读。
+     */
+    g_DiagSdst = (UCHAR)InitSdstTable();
+    g_DiagNtoskrnl = (UCHAR)ReadNtoskrnlFile();
+    if (g_DiagSdst != 1 || g_DiagNtoskrnl != 1)
+        goto Cleanup1;
+    InitSyscallNumberTable();
+    BuildHookTable();
+    g_DiagHookSubsys = (UCHAR)InitAllHookSubsystems();
+    if (g_DiagHookSubsys != 1)
+        goto Cleanup2;
     InitImageNotify();
     InitDriverSection((_QWORD **)DriverObject->DriverSection);
     KeInitializeEvent(&g_Event, SynchronizationEvent, TRUE);
 
-    /* 【修正 2026-10-20】设备名/符号链接名必须用**拼接缓冲区**构造，
-       而不是硬编码字面量。原始驱动就是这么做的：
-         wcsncat(g_DeviceNameBuffer, DriverNameStart, ...)
-         然后以该缓冲区 + 实际长度构造 UNICODE_STRING。
-       我方此前把两个缓冲区都拼好了却完全没用，仍用 L"..." 字面量：
-       一旦驱动被以别的服务名加载（DriverNameStart 取的是
-       RegistryPath 的最后一段），设备名与符号链接名就会与实际不符，
-       用户态按固定名打开时就会命中错误的/不存在的对象。 */
-    DestStr.Length        = (USHORT)(DevNameIdx * sizeof(WCHAR));
-    DestStr.MaximumLength = (USHORT)((DevNameIdx + 1) * sizeof(WCHAR));
-    DestStr.Buffer        = g_DeviceNameBuffer;
-
+    /* 【修正 2026-10-20，以原始反汇编为准】设备名与符号链接名都是**硬编码
+       字面量**，不是从服务名派生：
+         0x140081144  RtlInitUnicodeString(&DestinationString, L"\\Device\\View++ByLinxer")
+         0x1400811DF  RtlInitUnicodeString(&SymbolicLinkName, L"\\DosDevices\\View++ByLinxer")
+       原始确实把 "\\Device\\" 拷进 g_DeviceNameBuffer、再 wcsncat 上服务名，
+       但那个缓冲区此后从未被使用（反汇编里没有对它取地址），纯属死代码。
+       此前我误以为要用拼接结果，导致设备名随服务名变化、用户态按固定名
+       打开时找不到对象（ERROR_FILE_NOT_FOUND）。现改回字面量。 */
+    RtlInitUnicodeString(&DestStr, L"\\Device\\View++ByLinxer");
     Status = IoCreateDevice(DriverObject, 0, &DestStr, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
     if (Status < 0) goto Cleanup2;
-    GtWrite((GLOBAL_TABLE_INDEX)0x9003, 1);   /* 诊断：IoCreateDevice 成功 */
+    g_DiagDevice = 1;
 
     ValidateObjReferences((__int64)DriverObject, (__int64)DeviceObject);
 
-    // Copy symlink name template "\\DosDevices\\"
+    // Copy symlink name template "\\DosDevices\\" (dead code in the original too)
     SymNameIdx = 0;
     do { g_SymlinkNameBuffer[SymNameIdx] = L"\\DosDevices\\"[SymNameIdx]; } while (g_SymlinkNameBuffer[SymNameIdx++]);
     SymNameIdx--;
     wcsncat(g_SymlinkNameBuffer, DriverNameStart, 256 - SymNameIdx);
     SymNameIdx = (ULONG)wcslen(g_SymlinkNameBuffer);   /* 拼接后的实际字符数 */
 
-    SymStr.Length        = (USHORT)(SymNameIdx * sizeof(WCHAR));
-    SymStr.MaximumLength = (USHORT)((SymNameIdx + 1) * sizeof(WCHAR));
-    SymStr.Buffer        = g_SymlinkNameBuffer;
-
+    RtlInitUnicodeString(&SymStr, L"\\DosDevices\\View++ByLinxer");
     Status = IoCreateSymbolicLink(&SymStr, &DestStr);
     if (Status < 0) { IoDeleteDevice(DeviceObject); goto Cleanup2; }
-    GtWrite((GLOBAL_TABLE_INDEX)0x9004, 1);   /* 诊断：IoCreateSymbolicLink 成功 */
+    g_DiagSymlink = 1;
 
     GtWrite(GtRegPathStringPtr, (__int64)RegistryPathCopyPtr);
     InitCommandHandlerTable();
-    GtWrite((GLOBAL_TABLE_INDEX)0x9005, 1);   /* 诊断：InitCommandHandlerTable 完成 */
+    g_DiagCmdTable = 1;
     DriverObject->DriverUnload = (PDRIVER_UNLOAD)DriverUnload;
     DriverObject->MajorFunction[IRP_MJ_CREATE] = (PDRIVER_DISPATCH)DispatchCreateClose;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = (PDRIVER_DISPATCH)DispatchCreateClose;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = (PDRIVER_DISPATCH)DispatchDeviceControl;
+    g_DiagInitDone = 1;
 
     if (Status >= 0) return Status;
 
@@ -323,9 +333,14 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     MD5_CONTEXT Md5;
     ULONG Command;
     ULONG Index;
+    ULONG OutSize;
+    ULONG CtxSize;
+    ULONG64 CtxPtr;
+    ULONG64 ExtraPtr;
+    ULONG64 OutPtr;
+    ULONG64 ProbeLimit;
     __int64 Handler;
-    BOOLEAN Result = FALSE;
-    NTSTATUS Status;
+    UCHAR Result = 0;
 
     UNREFERENCED_PARAMETER(DeviceObject);
 
@@ -334,9 +349,12 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     IoControlCode = IrpStack->Parameters.DeviceIoControl.IoControlCode;
     Buffer = Irp->AssociatedIrp.SystemBuffer;
 
-    /* 0x140082439 / 0x140082443 */
+    /* 0x140082439..446：InputBufferLength 必须 == 0x30，且系统缓冲非空。
+       注意原始在这两个条件下走的是**另一个**出口（loc_140082616），
+       返回 0xC0000001（STATUS_UNSUCCESSFUL），且不碰用户内存；
+       其余所有拒绝分支都走 loc_140082603（IoStatus=0，返回 0）。 */
     if (InputLength != 0x30 || Buffer == NULL)
-        goto Complete;
+        goto BadInput;
 
     /* 0x14008244C..45B：IoControlCode 必须等于设备名派生的 GT[0x1E0] */
     ExpectedCode = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x1E0);
@@ -358,16 +376,36 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     if (*(ULONG *)Digest != *(ULONG *)((PUCHAR)Buffer + 0x28))
         goto Complete;
 
-    /* 0x14008251E..52C：命令号与范围 */
+    /* 0x1400824C7..4D9：取出 4 个参数与 3 个用户指针 */
+    OutSize  = *(ULONG  *)((PUCHAR)Buffer + 0x20);
+    CtxSize  = *(ULONG  *)((PUCHAR)Buffer + 0x24);
+    CtxPtr   = *(ULONG64 *)((PUCHAR)Buffer + 0x10);
+    ExtraPtr = *(ULONG64 *)((PUCHAR)Buffer + 0x18);
+    OutPtr   = *(ULONG64 *)((PUCHAR)Buffer + 0x08);
+
+    /* 0x1400824DD..4FD：三个用户指针都必须低于 MmUserProbeAddress。
+       MmUserProbeAddress 本身是一个 ULONG64 变量，原始用二次解引用取值：
+           mov rax, cs:MmUserProbeAddress
+           mov rcx, [rax]                    ; rcx = 0x7FFFFFFF0000 */
+    ProbeLimit = MmUserProbeAddress;
+    if (CtxPtr >= ProbeLimit || ExtraPtr >= ProbeLimit || OutPtr >= ProbeLimit)
+        goto Complete;
+
+    /* 0x140082503..518：串行化。g_Event 是 SynchronizationEvent、初值 TRUE，
+       所以首个请求直接获得，后续请求排队。原始把第 5 个参数（Timeout）
+       清零后传 NULL，即**无限等待**；这里必须同样传 NULL。 */
+    KeWaitForSingleObject(&g_Event, Executive, KernelMode, FALSE, NULL);
+
+    /* 0x140082521..52C：命令号与范围 [0x20, 0x13A] */
     Command = *(ULONG *)((PUCHAR)Buffer + 4);
     if (Command - 0x20u > 0x11Au)
-        goto Complete;
+        goto Release;
 
-    /* 0x140082532..547：驱动就绪标志，未就绪时只放行查询命令 0x22 */
+    /* 0x140082532..544：驱动就绪标志；未就绪时只放行 0x22 */
     if (GtRead((GLOBAL_TABLE_INDEX)0x304) == 0 && Command != 0x22u)
-        goto Complete;
+        goto Release;
 
-    /* 0x14008254F..56B：非 0x22 时先初始化回调并置已初始化标志 */
+    /* 0x14008254A..56B：非 0x22 时先初始化回调并置已初始化标志 */
     if (Command != 0x22u)
     {
         InitCallbackFunctions();
@@ -377,39 +415,67 @@ NTSTATUS DispatchDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     /* 0x140082570..577：进程访问校验 */
     if (CheckProcessAccess() != 1)
-        goto Complete;
+        goto Release;
 
     /* 0x140082579..58D：命令表 GT[0x921 + (Command - 0x20)] */
     Index = Command - 0x20u;
     Handler = GtRead((GLOBAL_TABLE_INDEX)(0x921u + Index));
     if (Handler == 0)
-        goto Complete;
+        goto Release;
 
     /* 0x14008258F..5A6：重入锁 */
     if (GtRead((GLOBAL_TABLE_INDEX)0x355) != 0)
-        goto Complete;
+        goto Release;
     GtWrite((GLOBAL_TABLE_INDEX)0x355, 1);
 
-    /* 0x1400825AB..5BA：调用处理函数
-       rcx = [buf+0x10]（ContextPointer）
-       rdx = [buf+0x20]（OutputSize）
-       r8  = [buf+0x18]（ExtraPointer）
-       r9  = [buf+0x24]（ContextSize）         */
-    Result = ((__int64 (__fastcall *)(ULONG64, ULONG, ULONG64, ULONG))Handler)(
-                 *(ULONG64 *)((PUCHAR)Buffer + 0x10),
-                 *(ULONG *)((PUCHAR)Buffer + 0x20),
-                 *(ULONG64 *)((PUCHAR)Buffer + 0x18),
-                 *(ULONG *)((PUCHAR)Buffer + 0x24)) != 0;
+    /* 0x1400825AB..5BA：调用处理函数。原始寄存器映射：
+         0x1400825B7  mov rcx, r12   ; r12 = [buf+0x10]  ContextPointer
+         0x1400825B3  mov edx, ...   ; edx = [buf+0x20]  OutputSize
+         0x1400825B0  mov r8, r15    ; r15 = [buf+0x18]  ExtraPointer
+         0x1400825AB  mov r9d, ...   ; r9d = [buf+0x24]  ContextSize
+         0x1400825BC  mov r13b, al   ; 只保留返回值低 8 位            */
+    Result = (UCHAR)((__int64 (__fastcall *)(ULONG64, ULONG, ULONG64, ULONG))Handler)(
+                 CtxPtr, OutSize, ExtraPtr, CtxSize);
 
     /* 0x1400825BF..5C6：清重入锁 */
     GtWrite((GLOBAL_TABLE_INDEX)0x355, 0);
 
-Complete:
-    Status = Result ? STATUS_SUCCESS : STATUS_INVALID_PARAMETER;
-    Irp->IoStatus.Status = Status;
+Release:
+    /* 0x1400825CB..5D7：释放串行化事件 */
+    KeSetEvent(&g_Event, IO_NO_INCREMENT, FALSE);
+
+    /*
+     * 0x1400825DE..5F4：**无条件**把结果字节写回用户输出缓冲：
+     *     ProbeForRead([rdi+8], 1, 1); *(BYTE*)[rdi+8] = r13b;
+     * r13b 在 0x14008251E 被清零，只有在处理器实际执行后才被赋成
+     * 其返回值低 8 位。所以：
+     *     输出首字节 == 1  → 处理器执行且返回成功
+     *     输出首字节 == 0  → 请求被拒（ioctl/校验/范围/就绪/权限/锁任一未过）
+     * 这正是客户端判断成败的唯一依据。
+     */
+    ProbeForRead((PVOID)OutPtr, 1, 1);
+    *(PUCHAR)OutPtr = Result;
+    goto Complete;
+
+BadInput:
+    /* 0x140082616..629：长度/缓冲非法 → 返回 STATUS_UNSUCCESSFUL，不碰用户内存 */
+    Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
     Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return Status;
+    return STATUS_UNSUCCESSFUL;
+
+Complete:
+    /*
+     * 原始实现在这个出口无条件把 IoStatus.Status 置 0（0x140082603
+     * `and dword ptr [r14],0`，r14 = &Irp->IoStatus），并且从不写
+     * IoStatus.Information。因此 DeviceIoControl 恒成功、lpBytesReturned
+     * 恒为 0；成败只能看输出缓冲首字节。我方必须一致，否则客户端会把
+     * 每次调用判为失败（此前就是这样，所有命令都返回 FALSE）。
+     */
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return STATUS_SUCCESS;
 }
 
 // GetWindowsBuildNumber — 获取 Windows 构建号

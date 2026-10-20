@@ -8,13 +8,31 @@
 //   与驱动 GT[0x1E0]/GT[0x1E1] 完全一致。
 //
 // 请求结构（0x30 字节，全部字段在加密前填写）：
+//
+// 【2026-10-20 修正字段语义】早期按"Output/Context/Extra"命名，是错的。
+// 原始处理器统一签名为
+//     char Handler(PVOID In, ULONG InSize, PVOID Out, ULONG OutSize)
+// 分派器（0x1400825AB..5BA）的寄存器映射为
+//     rcx = [buf+0x10]   → In
+//     edx = [buf+0x20]   → InSize
+//     r8  = [buf+0x18]   → Out
+//     r9d = [buf+0x24]   → OutSize
+// 交叉验证：
+//   CmdGetModuleCount(in=?, inSize, out=DWORD*, outSize)
+//       → 要求 out != NULL 且 outSize == 4，把构建号写到 out
+//   CmdEnumThreads(PID*, 8, WCHAR[260], 520)
+//       → 要求 inSize == 8 && outSize == 520，读 *PID，写 0x208 字节路径
+//   CmdReadProcessMemory(ULONG64 *Addr, 8)
+//       → 要求 inSize == 8，只读 *Addr
+// 也就是说 **+0x08 不是数据缓冲**，它只是驱动写回 1 字节结果码的位置。
+//
 //     0x00  DWORD  Magic         = 0x20240810
 //     0x04  DWORD  Command       命令号 [0x20, 0x13A]
-//     0x08  QWORD  OutputBuffer
-//     0x10  QWORD  ContextPointer
-//     0x18  QWORD  ExtraPointer
-//     0x20  DWORD  OutputSize
-//     0x24  DWORD  ContextSize
+//     0x08  QWORD  ResultBytePtr 驱动写回 1 字节结果（1=成功）
+//     0x10  QWORD  InPtr         命令输入缓冲
+//     0x18  QWORD  OutPtr        命令输出缓冲
+//     0x20  DWORD  InSize        输入长度
+//     0x24  DWORD  OutSize       输出长度
 //     0x28  DWORD  Checksum      = MD5(明文前 0x28 字节)[0..3]
 // ============================================================================
 #ifndef XPCHUNTER_UM_H
@@ -43,26 +61,33 @@ extern "C" {
 typedef struct _XPCH_REQUEST {
     ULONG   Magic;              /* +0x00 */
     ULONG   Command;            /* +0x04 */
-    ULONG64 OutputBuffer;       /* +0x08 */
-    ULONG64 ContextPointer;     /* +0x10 */
-    ULONG64 ExtraPointer;       /* +0x18 */
-    ULONG   OutputSize;         /* +0x20 */
-    ULONG   ContextSize;        /* +0x24 */
+    ULONG64 ResultBytePtr;      /* +0x08 驱动写回 1 字节结果码 */
+    ULONG64 InPtr;              /* +0x10 输入缓冲 */
+    ULONG64 OutPtr;             /* +0x18 输出缓冲 */
+    ULONG   InSize;             /* +0x20 */
+    ULONG   OutSize;            /* +0x24 */
     ULONG   Checksum;           /* +0x28 */
     ULONG   Reserved;           /* +0x2C */
 } XPCH_REQUEST;
 #pragma pack(pop)
 
-/* 常用命令号（= 0x20 + 命令表下标） */
-#define XPCH_CMD_READ_PROCESS_MEMORY        0x20u
-#define XPCH_CMD_RESET_PROCESS_CONTEXT      0x21u
-#define XPCH_CMD_QUERY_PROCESS_INFO         0x22u   /* 唯一无需初始化的命令 */
-#define XPCH_CMD_GET_MODULE_COUNT           0x24u
-#define XPCH_CMD_ENUM_KERNEL_DRIVERS        0x25u
-#define XPCH_CMD_ENUM_THREADS               0x2Au
-#define XPCH_CMD_ENUM_KERNEL_MODULES        0x3Cu
-#define XPCH_CMD_THREAD_OPERATION           0x3Du
-#define XPCH_CMD_THREAD_MONITOR             0x3Eu
+/* 常用命令号（= 0x20 + 命令表下标）
+ *
+ * 名称与参数形状均取自原命令表 InitCommandHandlerTable (0x1400815B0)：
+ *   idx  = Command - 0x20，槽位 = GT[0x921 + idx] */
+#define XPCH_CMD_READ_PROCESS_MEMORY        0x20u  /* CmdReadProcessMemory      in: ULONG64 addr[1], inSize=8                    */
+#define XPCH_CMD_RESET_PROCESS_CONTEXT      0x21u  /* CmdResetProcessContext                                            */
+#define XPCH_CMD_QUERY_PROCESS_INFO         0x22u  /* CmdQueryProcessInfo       唯一无需初始化的命令                      */
+#define XPCH_CMD_GET_MODULE_COUNT           0x24u  /* CmdGetModuleCount         out: DWORD build#, outSize=4             */
+#define XPCH_CMD_ENUM_KERNEL_DRIVERS        0x25u  /* CmdEnumKernelDrivers                                              */
+#define XPCH_CMD_ENUM_HANDLES               0x26u  /* CmdEnumHandles                                                    */
+#define XPCH_CMD_CHECK_PROCESS_ACCESS       0x27u  /* CmdCheckProcessAccess                                             */
+#define XPCH_CMD_PROCESS_OPERATION          0x28u  /* CmdProcessOperation                                               */
+#define XPCH_CMD_ENUM_THREADS               0x2Au  /* CmdEnumThreads            in: ULONG pid, inSize=8; out: WCHAR[260], outSize=520 */
+#define XPCH_CMD_ENUM_KERNEL_MODULES        0x3Cu  /* CmdEnumKernelModules                                              */
+#define XPCH_CMD_THREAD_OPERATION           0x3Du  /* CmdThreadOperation                                                */
+#define XPCH_CMD_THREAD_MONITOR             0x3Eu  /* CmdThreadMonitor                                                  */
+#define XPCH_CMD_STUB_ALWAYS_TRUE           0x7Fu  /* CmdStubAlwaysTrue         (0x95 槽)                               */
 
 typedef struct _XPCH_CLIENT {
     HANDLE          Device;
@@ -83,21 +108,21 @@ void XpchCryptBuffer(PUCHAR Buffer, ULONG Size, UCHAR KeyByte);
 
 /*
  * 发送一次命令。
- *   Command     : 命令号
- *   Output      : 用户态输出缓冲（可为 NULL）
- *   OutputSize  : 输出缓冲大小
- *   Context     : 上下文指针（可为 NULL）
- *   ContextSize : 上下文大小
- *   Extra       : 附加指针（可为 NULL）
- * 返回内核 Handler 的返回值；通信失败返回 FALSE 并设置 LastError。
+ *   Command : 命令号
+ *   In      : 命令输入缓冲（可为 NULL）
+ *   InSize  : 输入长度（处理器会校验，例如 8 或 4）
+ *   Out     : 命令输出缓冲（可为 NULL）
+ *   OutSize : 输出长度（处理器会校验，例如 4 / 520 / 0x1000）
+ *   Result  : 可选；接收驱动写回的结果字节（1 = 处理器成功）
+ * 返回 TRUE 表示结果字节非零，即处理器真正执行且返回成功。
  */
 BOOL XpchInvoke(PXPCH_CLIENT Client,
                 ULONG Command,
-                PVOID Output, ULONG OutputSize,
-                PVOID Context, ULONG ContextSize,
-                PVOID Extra);
+                PVOID In, ULONG InSize,
+                PVOID Out, ULONG OutSize,
+                PUCHAR Result);
 
-/* 握手：0x22 探测 → 0x21 复位上下文 → 0x24 读构建号验证链路 */
+/* 握手：只发 0x24，读回构建号验证整条链路 */
 BOOL XpchHandshake(PXPCH_CLIENT Client);
 
 #ifdef __cplusplus

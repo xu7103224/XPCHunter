@@ -3451,8 +3451,8 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
     unsigned int SectionIndex;
     int CalculatedSize;
     __int16 SectionFlags;
-    char ReadContext[0x198];
-    ULONG SectionEntry[0x48];
+    PE_DECODE_CONTEXT ReadContext;
+    PE_INSN_DESCRIPTOR Desc;
     ULONG64 CumulativeSize = 0;
 
     FltEnumerateFiltersOfs = (unsigned int)GtRead(GtFltEnumerateFiltersOffset);
@@ -3465,45 +3465,49 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
     FltMgrBase = result;
     if (result && FltEnumerateFiltersOfs && FltEnumerateFiltersOfs < ExportSize)
     {
+        /* 【修正 2026-10-20】旧实现用 `ULONG SectionEntry[0x48]` 并把
+           类型指针当作 SectionEntry[14]（= +0x38），但描述符里 +0x38 是
+           EntrySize；类型指针在 **+0x118**（= [70]）。于是
+               *(__int16 *)((ULONG_PTR)SectionEntry[14] + 6)
+           把一个小整数当地址解引用 → 命令 0x10B（MiniFilterPreAcquire）
+           首次调用必崩（BSOD 0x3B）。
+           改用 PE_INSN_DESCRIPTOR + PE_DESC_* 宏，与其它扫描族保持一致；
+           同时去掉"读之前推进读指针"的错误（ReadPESectionEntry 自己推进）。 */
         InitPESectionReadContext(
             (__int64)(ExportBase + FltEnumerateFiltersOfs),
             ExportSize - FltEnumerateFiltersOfs,
-            2,
-            0,
-            -1,
-            0,
-            0,
+            2, 0, -1, 0, 0,
             (__int64)&ReadContext);
+
         for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            result = ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry);
+            result = ReadPESectionEntry((PUCHAR)&ReadContext, &Desc);
             if ((_DWORD)result)
                 break;
-            CalculatedSize = SectionEntry[7] + (ULONG)CumulativeSize;
-            CumulativeSize += SectionEntry[7];
-            SectionFlags = *(__int16 *)((PUCHAR)(ULONG_PTR)SectionEntry[14] + 6);
-            if (SectionFlags == 1296
-                && *(__int64 *)(SectionEntry + 9) == 0x40000
-                && SectionEntry[4]
-                && *(__int64 *)(SectionEntry + 8) == 64)
+
+            CalculatedSize = (int)(PE_DESC_SECTION_SIZE(&Desc) + CumulativeSize);
+            CumulativeSize += PE_DESC_SECTION_SIZE(&Desc);
+
+            SectionFlags = *(__int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&Desc) + 6);
+            if (SectionFlags == 1296 &&
+                PE_DESC_FIELD_VALUE2(&Desc) == 0x40000 &&
+                *(int *)((PUCHAR)&Desc + 0x40) &&
+                PE_DESC_FIELD_VALUE(&Desc) == 64)
             {
-                CurrentExecOffset = CalculatedSize + SectionEntry[4] - (ULONG)(ULONG_PTR)ExportBase;
+                CurrentExecOffset = CalculatedSize + *(int *)((PUCHAR)&Desc + 0x40)
+                                    - (int)(ULONG_PTR)ExportBase;
             }
-            else if (SectionFlags == 1298
-                && *(__int64 *)(SectionEntry + 9) == 0x40000)
+            else if (SectionFlags == 1298 &&
+                     PE_DESC_FIELD_VALUE2(&Desc) == 0x40000)
             {
-                if (SectionEntry[4])
+                if (*(int *)((PUCHAR)&Desc + 0x40) &&
+                    PE_DESC_FIELD_VALUE(&Desc) == 64)
                 {
-                    if (*(__int64 *)(SectionEntry + 8) == 64)
-                    {
-                        result = CalculatedSize + SectionEntry[4] - (unsigned int)(ULONG_PTR)ExportBase;
-                        if ((_DWORD)result)
-                        {
-                            if ((_DWORD)result == CurrentExecOffset)
-                                return GtWrite(GtFltEnumerateFilterDataSection, FltMgrBase + (unsigned int)result);
-                        }
-                    }
+                    result = CalculatedSize + *(int *)((PUCHAR)&Desc + 0x40)
+                             - (unsigned int)(ULONG_PTR)ExportBase;
+                    if ((_DWORD)result && (_DWORD)result == CurrentExecOffset)
+                        return GtWrite(GtFltEnumerateFilterDataSection,
+                                       FltMgrBase + (unsigned int)result);
                 }
             }
         }

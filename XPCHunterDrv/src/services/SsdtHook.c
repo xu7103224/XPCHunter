@@ -2033,28 +2033,35 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
     {
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
         {
-            PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
-            _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-            int FieldValue = 0, EntryField = 0, EntrySize = 0;
-            __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
-            unsigned int EntryCumulSize = 0;
+            /* 【修正 2026-10-20】描述符字段原先为独立局部（CumulativeSize /
+               FieldValue / EntryField / EntrySize / SectionChar / SectionAlignment /
+               EntryDataPtr / EntryCumulSize），恒为 0，`*(_WORD*)(EntryDataPtr+6)`
+               即解引用 NULL+6 → BSOD。改为从描述符读。 */
+            PE_DECODE_CONTEXT ReadContext;
+            PE_INSN_DESCRIPTOR SectionEntry;
+            __int64 CumulativeOffset = 0;
 
-            InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+            InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset,
+                                     2, 0, -1, 0, 0, (__int64)&ReadContext);
             int LoopIndex = 0;
             while (1)
             {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
                     break;
-                int SectionEnd = (int)(EntryCumulSize + CumulativeSize);
-                CumulativeSize += EntryCumulSize;
-                if (*(_WORD *)(EntryDataPtr + 6) == 1368)
+
+                int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeOffset);
+                CumulativeOffset += PE_DESC_SECTION_SIZE(&SectionEntry);
+
+                if (*(_WORD *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6) == 1368)
                 {
-                    if (FieldValue)
+                    /* +0x40 = EntryField */
+                    int EntryField = *(int *)((PUCHAR)&SectionEntry + 0x40);
+                    if (EntryField)
                     {
-                        unsigned int TargetRva = (unsigned int)(SectionEnd + FieldValue - ImageBase);
+                        unsigned int TargetRva = (unsigned int)(SectionEnd + EntryField - ImageBase);
                         if (TargetRva && TargetRva < ImageSize)
                         {
-                            NdisOffset = (unsigned int)(SectionEnd + FieldValue - ImageBase);
+                            NdisOffset = TargetRva;
                             break;
                         }
                     }
@@ -2064,47 +2071,70 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
             }
         }
         int VersionOffset = (GtRead(GtWindowsBuildNumber) == 16299) + 1;
-        PE_DECODE_CONTEXT DecodeContext; __int64 v19b = 0;   // DecodeContext 为 0x48 字节解码上下文（原 __int64 仅 8 字节）
-        _DWORD v20b[112];
-        int v21b = 0, v23b = 0, v24b = 0;
-        __int64 v22b = 0, v25b = 0, v27b = 0;
-        unsigned int v26b = 0;
-
-        InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
+        /* 【修正 2026-10-20】v19b..v27b 原先全是恒 0 的独立局部，
+           `*(_WORD*)(v27b + 6)` 即解引用 NULL+6 → BSOD。改为描述符字段：
+             v19b +0x00 累计读偏移（本地累加器）
+             v22b +0x78 EntrySize      (= PE_DESC_FIELD_SIZE)
+             v23b +0x58 FieldValue2    (int, +0x58)
+             v24b +0x40 EntryField     (int, +0x40)
+             v25b +0x88 SectionFlags   (= PE_DESC_FIELD_VALUE2)
+             v26b +0xF0 本次消费长度   (= PE_DESC_SECTION_SIZE)
+             v27b +0x118 类型指针      (= PE_DESC_SECTION_DATA) */
+        PE_DECODE_CONTEXT DecodeContext;
+        PE_INSN_DESCRIPTOR v20b;
+        __int64 v19b = 0;
         unsigned int InnerOffset = 0;
         int InnerLoop = 0;
+
+        InitPESectionReadContext(ImageBase + NdisOffset, ImageSize - NdisOffset,
+                                 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         while (1)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, v20b))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &v20b))
                 return 0;
-            int InnerEnd = (int)(v26b + v19b);
-            v19b += v26b;
-            __int16 SectionType = *(_WORD *)(v27b + 6);
-            if (SectionType == 1349)
-                return 0;
-            if (SectionType == 1298 && v25b == 0x40000 && v22b == 64)
+
+            int InnerEnd = (int)(PE_DESC_SECTION_SIZE(&v20b) + v19b);
+            v19b += PE_DESC_SECTION_SIZE(&v20b);
+
             {
-                if ((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0 && v23b == 1
-                    || (unsigned int)GtRead(GtWindowsBuildNumber) == 9600 && v23b == 5
-                    || (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
+                unsigned __int16 SectionType =
+                    *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&v20b) + 6);
+                if (SectionType == 1349)
+                    return 0;
+
+                if (SectionType == 1298 &&
+                    PE_DESC_FIELD_VALUE2(&v20b) == 0x40000 &&
+                    PE_DESC_FIELD_SIZE(&v20b) == 64)
                 {
-                    if (v19b + v24b - ImageBase && (int)v19b + v24b - (int)ImageBase < (int)ImageSize)
-                        InnerOffset = (unsigned int)(v19b + v24b - ImageBase);
-                }
-            }
-            __int16 SectionType2 = *(_WORD *)(v27b + 6);
-            if (SectionType2 == 1368)
-                goto LABEL_46;
-            if ((unsigned __int16)(SectionType2 - 1139) <= 1u)
-                break;
-            if (Found == 1)
-            {
-                if (SectionType2 == 1296 && v25b == 0x40000 && v22b == 64)
-                {
-                    if (InnerEnd + v24b - ImageBase && (unsigned int)(InnerEnd + v24b - ImageBase) < ImageSize && !--VersionOffset)
+                    if (((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0 &&
+                         *(int *)((PUCHAR)&v20b + 0x58) == 1) ||
+                        ((unsigned int)GtRead(GtWindowsBuildNumber) == 9600 &&
+                         *(int *)((PUCHAR)&v20b + 0x58) == 5) ||
+                        (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
                     {
-                        GtWrite(GtEprocessExtField41, SectionBaseCopy + (unsigned int)(InnerEnd + v24b - ImageBase));
-                        return 0;
+                        int localRva = v19b + *(int *)((PUCHAR)&v20b + 0x40) - (int)ImageBase;
+                        if (localRva && localRva < (int)ImageSize)
+                            InnerOffset = (unsigned int)localRva;
+                    }
+                }
+
+                if (SectionType == 1368)
+                    goto LABEL_46;
+                if ((unsigned __int16)(SectionType - 1139) <= 1u)
+                    break;
+
+                if (Found == 1)
+                {
+                    if (SectionType == 1296 &&
+                        PE_DESC_FIELD_VALUE2(&v20b) == 0x40000 &&
+                        PE_DESC_FIELD_SIZE(&v20b) == 64)
+                    {
+                        int localRva = InnerEnd + *(int *)((PUCHAR)&v20b + 0x40) - (int)ImageBase;
+                        if (localRva && (unsigned int)localRva < ImageSize && !--VersionOffset)
+                        {
+                            GtWrite(GtEprocessExtField41, SectionBaseCopy + localRva);
+                            return 0;
+                        }
                     }
                 }
             }
@@ -2137,72 +2167,99 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
     {
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
         {
-            PE_DECODE_CONTEXT DecodeContext; __int64 CumulativeSize2 = 0;   // DecodeContext 为 0x48 字节解码上下文
-            _DWORD SectionInfo[112];
-            __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
-            int RvaOffset = 0;
-            unsigned int FieldValue = 0, EntryField = 0;
+            /* 【修正 2026-10-20】描述符字段原先为独立局部
+               （CumulativeSize2 / CumulativeSize / SectionChar / EntrySize /
+                 RvaOffset / FieldValue / EntryField），恒为 0，条件永不成立。
+               改为从描述符读；+0x58 = EntrySize（原代码写作 [14]，即 +0x38）。 */
+            PE_DECODE_CONTEXT DecodeContext;
+            PE_INSN_DESCRIPTOR SectionInfo;
+            __int64 CumulativeSize2 = 0;
 
-            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
+                                     (__int64)&DecodeContext);
             char SectionBaseCopy = 0;
             int LoopIndex = 0;
             while (1)
             {
-            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionInfo))
                     return 0;
-                int SectionEnd = (int)(EntryField + CumulativeSize2);
-                CumulativeSize2 += EntryField;
-                __int16 TargetRva = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
-                if (TargetRva == 1296 && CumulativeSize == 64 && RvaOffset == 8 && SectionChar == 64)
+
+                int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionInfo) + CumulativeSize2);
+                CumulativeSize2 += PE_DESC_SECTION_SIZE(&SectionInfo);
+
                 {
-                    SectionBaseCopy = 1;
-                }
-                else if (SectionBaseCopy == 1)
-                {
-                    if (TargetRva == 1368)
+                    unsigned __int16 TargetRva =
+                        *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionInfo) + 6);
+
+                    if (TargetRva == 1296 &&
+                        *(int *)((PUCHAR)&SectionInfo + 0x38) == 64 &&
+                        *(int *)((PUCHAR)&SectionInfo + 0x40) == 8 &&
+                        PE_DESC_FIELD_VALUE(&SectionInfo) == 64)
                     {
-                        Found = (unsigned int)(SectionEnd + SectionInfo[14] - ImageBase);
+                        SectionBaseCopy = 1;
+                    }
+                    else if (SectionBaseCopy == 1 && TargetRva == 1368)
+                    {
+                        Found = (unsigned int)(SectionEnd
+                            + *(int *)((PUCHAR)&SectionInfo + 0x38) - (unsigned int)ImageBase);
                         break;
                     }
                 }
+
                 if (++LoopIndex >= 0x64)
                     return 0;
             }
         }
         if (Found && Found < ImageSize)
         {
-            PE_DECODE_CONTEXT DecodeContext2; __int64 EntryBase2 = 0;   // DecodeContext2 为 0x48 字节解码上下文
-            _DWORD ReadEntry2[112];
-            __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
-            int SectionChar2 = 0;
-            unsigned int FieldValue2 = 0, EntryDataPtr2 = 0;
-
-            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext2);
+            /* 【修正 2026-10-20】同上：描述符字段改为从 SectionEntry 读。 */
+            PE_DECODE_CONTEXT DecodeContext2;
+            PE_INSN_DESCRIPTOR ReadEntry2;
+            __int64 CumulativeOffset2 = 0;
             unsigned int InnerFound = 0;
             char InnerLoop = 0;
             int InnerEnd = 0;
+
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
+                                     (__int64)&DecodeContext2);
             while (1)
             {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, ReadEntry2))
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, &ReadEntry2))
                     return 0;
-                int SectionType = (int)(EntryDataPtr2 + EntryBase2);
-                EntryBase2 += EntryDataPtr2;
-                __int16 SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)ReadEntry2 + 0x118) + 6);
-                if (SectionType2 == 1349)
-                    return 0;
-                if (SectionType2 == 1298 && SectionType2 == 0x40000 && EntrySize2 == 64 && SectionChar2 == 1
-                    && SectionType + FieldValue2 - ImageBase && SectionType + FieldValue2 - (unsigned int)ImageBase < ImageSize)
+
+                int SectionRva = (int)(PE_DESC_SECTION_SIZE(&ReadEntry2) + CumulativeOffset2);
+                CumulativeOffset2 += PE_DESC_SECTION_SIZE(&ReadEntry2);
+
                 {
-                    InnerFound = (unsigned int)(SectionType + FieldValue2 - ImageBase);
+                    unsigned __int16 TypeId =
+                        *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&ReadEntry2) + 6);
+                    if (TypeId == 1349)
+                        return 0;
+
+                    if (TypeId == 1298 &&
+                        PE_DESC_FIELD_VALUE2(&ReadEntry2) == 0x40000 &&
+                        PE_DESC_FIELD_SIZE(&ReadEntry2) == 64 &&
+                        *(int *)((PUCHAR)&ReadEntry2 + 0x58) == 1)
+                    {
+                        unsigned int rva = (unsigned int)(SectionRva
+                            + PE_DESC_FIELD_VALUE(&ReadEntry2) - ImageBase);
+                        if (rva && rva < ImageSize)
+                            InnerFound = rva;
+                    }
+                    if (TypeId == 1368)
+                        goto LABEL_43;
                 }
-                if (SectionType2 == 1368)
-                    goto LABEL_43;
-                if ((unsigned __int16)(SectionType2 - 1139) <= 1u)
+
+                if ((unsigned __int16)(*(unsigned __int16 *)
+                        ((PUCHAR)PE_DESC_SECTION_DATA(&ReadEntry2) + 6) - 1139) <= 1u)
                     break;
-                if (InnerLoop == 1 && SectionType2 == 0x40000 && EntrySize2 == 64)
+
+                if (InnerLoop == 1 &&
+                    PE_DESC_FIELD_VALUE2(&ReadEntry2) == 0x40000 &&
+                    PE_DESC_FIELD_SIZE(&ReadEntry2) == 64)
                 {
-                    unsigned int result = (unsigned int)(SectionType + FieldValue2 - ImageBase);
+                    unsigned int result = (unsigned int)(SectionRva
+                        + PE_DESC_FIELD_VALUE(&ReadEntry2) - ImageBase);
                     if (result && result < ImageSize)
                         return GtWrite(GtEprocessExtField35, SectionBase + result);
                 }
@@ -2537,32 +2594,38 @@ __int16 ScanTextSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = SectionBase;
     if (SectionBase && Found && Found < ImageSize)
     {
-        PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
-        _DWORD SectionInfo[112];
-        int RvaOffset = 0;
-        __int64 CumulativeSize = 0, SectionChar = 0, EntrySize = 0;
-        unsigned int EntryField = 0;
+        PE_DECODE_CONTEXT DecodeContext;
+        PE_INSN_DESCRIPTOR SectionEntry;
+        unsigned int SectionSize = 0;
+        unsigned int TypeId;
 
         InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
         char SectionEnd = 0;
         for (unsigned int i = 0; i < 0x64; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionEntry))
                 break;
-            int TargetRva2 = (int)(EntryField + FieldValue2);
-            FieldValue2 += EntryField;
-            __int16 SectionType = *(_WORD *)(EntrySize + 6);
-            if ((unsigned __int16)(SectionType - 1139) <= 1u)
+            /* 【修正 2026-10-20】旧实现把描述符字段当成独立局部变量
+               （EntryField/EntrySize/SectionChar/CumulativeSize/RvaOffset），
+               它们从未被赋值恒为 0，于是 `*(_WORD*)(EntrySize+6)` 是解引用
+               NULL+6 → 命令 0xE1 首次调用必崩（BSOD 0x3B）。
+               描述符字段必须从 SectionEntry 里读。 */
+            int TargetRva2 = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + SectionSize);
+            SectionSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+            TypeId = *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6);
+            if ((unsigned __int16)(TypeId - 1139) <= 1u)
             {
                 SectionEnd = 1;
             }
             else if (SectionEnd == 1)
             {
-                if (SectionType == 1296 && SectionChar == 0x40000)
+                if (TypeId == 1296 && PE_DESC_FIELD_VALUE(&SectionEntry) == 0x40000)
                 {
-                    if (RvaOffset && CumulativeSize == 64)
+                    if (PE_DESC_FIELD_SIZE(&SectionEntry) &&
+                        PE_DESC_FIELD_VALUE2(&SectionEntry) == 64)
                     {
-                        unsigned int SectionType2 = (unsigned int)(TargetRva2 + RvaOffset - ImageBase);
+                        unsigned int SectionType2 = (unsigned int)(TargetRva2
+                            + PE_DESC_FIELD_SIZE(&SectionEntry) - ImageBase);
                         if (SectionType2 && SectionType2 < ImageSize)
                         {
                             GtWrite(GtEprocessExtField16, LoopIndex + SectionType2);
@@ -2587,38 +2650,45 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = GtRead(GtEprocessExtField11);
     if (LoopIndex && Found && Found < ImageSize)
     {
-        PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
-        _DWORD SectionInfo[112];
-        int CumulativeSize = 0;
-        __int64 RvaOffset = 0, EntryField = 0, SectionAlignment = 0;
-        unsigned int EntrySize = 0;
-
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
+        /* 【修正 2026-10-20】描述符字段原先声明为独立局部（CumulativeSize /
+           RvaOffset / EntryField / SectionAlignment / EntrySize），恒为 0，
+           条件永不成立。改为从 SectionEntry 描述符读。 */
+        PE_DECODE_CONTEXT DecodeContext;
+        PE_INSN_DESCRIPTOR SectionEntry;
         unsigned int SectionEnd = 0;
         unsigned int TargetRva = 0;
+        __int64 CumulativeOffset = 0;
+
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
+                                 (__int64)&DecodeContext);
         for (unsigned int i = 0; i < 0x32; ++i)
         {
-            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionEntry))
                 break;
-            int SectionType = (int)(EntrySize + FieldValue2);
-            FieldValue2 += EntrySize;
-            __int16 SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
-            if (SectionType2 == 1349)
-                break;
-            if (SectionType2 == 1294 && RvaOffset == 0x40000 && EntryField == 64)
+
+            int SectionRva = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeOffset);
+            CumulativeOffset += PE_DESC_SECTION_SIZE(&SectionEntry);
+
             {
-                unsigned int result = (unsigned int)(SectionType + CumulativeSize - ImageBase);
-                if (SectionType + CumulativeSize - (int)ImageBase)
+                unsigned __int16 TypeId =
+                    *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6);
+                if (TypeId == 1349)
+                    break;
+
+                if (TypeId == 1294 &&
+                    PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x40000 &&
+                    PE_DESC_FIELD_SIZE(&SectionEntry) == 64)
                 {
-                    if (result < ImageSize)
+                    unsigned int result = (unsigned int)(SectionRva
+                        + PE_DESC_FIELD_VALUE(&SectionEntry) - ImageBase);
+                    if (result && result < ImageSize)
                     {
                         if (SectionEnd)
                         {
-                            TargetRva = (unsigned int)(SectionType + CumulativeSize - ImageBase);
+                            TargetRva = result;
                             break;
                         }
-                        SectionEnd = (unsigned int)(SectionType + CumulativeSize - ImageBase);
+                        SectionEnd = result;
                     }
                 }
             }
@@ -2632,6 +2702,23 @@ __int64 ScanDataSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     return 0;
 }
 // 对应原始驱动 0x140062604（639 字节）
+//
+// 【重写 2026-10-20】旧实现把描述符字段当独立局部变量
+// （SectionChar / EntryField / SectionAlignment / EntrySize / EntryCumulSize /
+//  SectionInfoPtr / EntryDataPtr 全部恒 0），于是
+//      *(_WORD *)(SectionInfoPtr + 6)   → 解引用 NULL+6 → BSOD 0x3B
+//  这是命令 0xE1（CmdEnumProcessListEx）首次调用必崩的直接原因：
+//  该命令在 GT[0x366]==0 时走 InitKernelDataSectionTable → ScanTextSectionPattern
+//  → ScanInitSectionPattern。
+//
+// 字段偏移按原始伪代码的栈位移换算（SectionEntry 基址 rbp-0x70）：
+//   EntrySizeField   rbp-0x38 → +0x38   int
+//   EntryField       rbp-0x30 → +0x40   int
+//   SectionChar      rbp-0x20 → +0x50   __int64  (= PE_DESC_FIELD_VALUE)
+//   EntrySize        rbp+0x08 → +0x78   int      (= PE_DESC_FIELD_SIZE)
+//   SectionAlignment rbp+0x18 → +0x88   __int64  (= PE_DESC_FIELD_VALUE2)
+//   EntryCumulSize   rbp+0x80 → +0xF0   uint     (= PE_DESC_SECTION_SIZE)
+//   EntryDataPtr     rbp+0xA8 → +0x118  __int64  (= PE_DESC_SECTION_DATA)
 __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
 {
     unsigned int Found = (unsigned int)GtRead(GtEprocessExtField25);
@@ -2640,87 +2727,100 @@ __int16 ScanInitSectionPattern(__int64 ImageBase, unsigned int ImageSize)
         FindNdisMRegisterMiniportDriverExport(ImageBase, ImageSize);
         Found = (unsigned int)GtRead(GtEprocessExtField25);
     }
-    __int64 ExportOffset = GtRead(GtEprocessExtField11);
-    __int64 FieldValue = ExportOffset;
-    if (ExportOffset && Found && Found < ImageSize)
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    __int64 SectionBaseCopy = SectionBase;
+    if (SectionBase && Found && Found < ImageSize)
     {
+        PE_DECODE_CONTEXT ReadContext;
+        PE_INSN_DESCRIPTOR SectionEntry;
+        __int64 CumulativeSize = 0;
+        int BoundImportCount = 0;
+
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
         {
-            PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
-            _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-            int SectionChar = 0, EntryField = 0, SectionAlignment = 0;
-            __int64 EntrySize = 0, EntryCumulSize = 0, SectionInfoPtr = 0;
-            unsigned int EntryDataPtr = 0;
-
-            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&ReadContext);
-            int SectionBase = 0;
-            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
+                                     (__int64)&ReadContext);
+            CumulativeSize = 0;
+            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
             {
-                *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-                int LoopIndex = (int)(EntryDataPtr + CumulativeSize);
-                CumulativeSize += EntryDataPtr;
-                if ((unsigned __int16)(*(_WORD *)(SectionInfoPtr + 6) - 1368) <= 1u)
+                int BoundImportOffset = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeSize);
+                CumulativeSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+
+                if ((unsigned __int16)(*(_WORD *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6) - 1368) <= 1u)
                 {
-                    if (SectionChar)
+                    /* +0x38 = 该字段（无现成宏，直接按偏移取） */
+                    int EntrySizeField = *(int *)((PUCHAR)&SectionEntry + 0x38);
+                    if (EntrySizeField)
                     {
-                        unsigned int SectionEnd = (unsigned int)(LoopIndex + SectionChar - ImageBase);
-                        if (SectionEnd && SectionEnd < ImageSize)
+                        unsigned int FirstMatchOffset =
+                            (unsigned int)(BoundImportOffset + EntrySizeField - ImageBase);
+                        if (FirstMatchOffset && FirstMatchOffset < ImageSize)
                         {
-                            Found = (unsigned int)(LoopIndex + SectionChar - ImageBase);
+                            Found = BoundImportOffset + EntrySizeField - (unsigned int)ImageBase;
                             break;
                         }
                     }
                 }
-                if (++SectionBase >= 5)
+                if ((unsigned int)++BoundImportCount >= 5)
                     break;
             }
         }
-        PE_DECODE_CONTEXT DecodeContext2; __int64 EntryBase2 = 0;   // DecodeContext2 为 0x48 字节解码上下文
-        _DWORD ReadEntry2[112];
-        int SectionChar2 = 0, FieldValue2 = 0, FieldValue3 = 0;
-        __int64 EntrySize2 = 0, SectionType2 = 0, SectionInfoPtr2 = 0;
-        unsigned int EntryDataPtr2 = 0;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext2);
-        int TargetRva = 0;
-        int SectionType = 0;
-        for (unsigned int i = 0; i < 0x3E8; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, ReadEntry2))
-                break;
-            int SectionType3 = (int)(EntryDataPtr2 + EntryBase2);
-            EntryBase2 += EntryDataPtr2;
-            __int16 FieldValue2 = *(_WORD *)(SectionInfoPtr2 + 6);
-            if ((unsigned __int16)(FieldValue2 - 1139) <= 1u)
+            PE_DECODE_CONTEXT DecodeContext2;
+            PE_INSN_DESCRIPTOR ReadEntry2;
+            int SecondMatchOffset = 0;
+            int SecondMatchOffset2 = 0;
+
+            InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
+                                     (__int64)&DecodeContext2);
+            CumulativeSize = 0;
+
+            for (unsigned int i = 0; i < 0x3E8; ++i)
             {
-                TargetRva = 0;
-                SectionType = 0;
-            }
-            else
-            {
-                if (FieldValue2 == 1296)
+                if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, &ReadEntry2))
+                    break;
+
+                int SectionOffset = (int)(PE_DESC_SECTION_SIZE(&ReadEntry2) + CumulativeSize);
+                CumulativeSize += PE_DESC_SECTION_SIZE(&ReadEntry2);
+
+                unsigned __int16 SectionType =
+                    *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&ReadEntry2) + 6);
+
+                if ((unsigned __int16)(SectionType - 1139) <= 1u)
                 {
-                    if (SectionType2 == 0x40000 && FieldValue3 && EntrySize2 == 64)
+                    SecondMatchOffset  = 0;
+                    SecondMatchOffset2 = 0;
+                }
+                else if (SectionType == 1296)
+                {
+                    if (PE_DESC_FIELD_VALUE2(&ReadEntry2) == 0x40000 &&
+                        PE_DESC_FIELD_SIZE(&ReadEntry2) &&
+                        PE_DESC_FIELD_VALUE(&ReadEntry2) == 64)
                     {
-                        if (TargetRva)
+                        if (SecondMatchOffset)
                         {
-                            if (!SectionType)
-                                SectionType = (unsigned int)(SectionType3 + FieldValue3 - ImageBase);
+                            if (!SecondMatchOffset2)
+                                SecondMatchOffset2 = SectionOffset
+                                    + PE_DESC_FIELD_SIZE(&ReadEntry2) - (int)ImageBase;
                         }
                         else
                         {
-                            TargetRva = (unsigned int)(SectionType3 + FieldValue3 - ImageBase);
+                            SecondMatchOffset = SectionOffset
+                                + PE_DESC_FIELD_SIZE(&ReadEntry2) - (int)ImageBase;
                         }
                     }
                 }
-                else if (EntrySize2 == 0x40000)
+                else if (PE_DESC_FIELD_VALUE(&ReadEntry2) == 0x40000)
                 {
-                    if (FieldValue2 && SectionType2 == 64)
+                    int EntryField = *(int *)((PUCHAR)&ReadEntry2 + 0x40);
+                    if (EntryField && PE_DESC_FIELD_VALUE2(&ReadEntry2) == 64)
                     {
-                        unsigned int rva = (unsigned int)(SectionType3 + FieldValue2 - ImageBase);
-                        if (rva && rva < ImageSize && (TargetRva == (int)rva || SectionType == (int)rva))
+                        unsigned int rva = (unsigned int)(SectionOffset + EntryField - ImageBase);
+                        if (rva && rva < ImageSize &&
+                            (SecondMatchOffset == (int)rva || SecondMatchOffset2 == (int)rva))
                         {
-                            GtWrite(GtEprocessExtField27, FieldValue + rva);
+                            GtWrite(GtEprocessExtField27, SectionBaseCopy + rva);
                             return 0;
                         }
                     }
@@ -2743,42 +2843,51 @@ __int16 ScanPageSectionPattern(__int64 ImageBase, unsigned int ImageSize)
     __int64 LoopIndex = SectionBase;
     if (SectionBase && Found && Found < ImageSize)
     {
-        PE_DECODE_CONTEXT DecodeContext; __int64 FieldValue2 = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位；累加的是 FieldValue2）
-        _DWORD SectionInfo[112];
-        int CumulativeSize = 0, SectionChar = 0;
-        __int64 RvaOffset = 0, EntryField = 0, SectionAlignment = 0;
-        unsigned int EntrySize = 0;
+        /* 【修正 2026-10-20】同 ScanTextSectionPattern / ScanInitSectionPattern：
+           描述符字段原先被写成独立局部（CumulativeSize / SectionChar / RvaOffset /
+           EntryField / SectionAlignment / EntrySize），全部恒 0，于是
+               *(_WORD *)(SectionAlignment + 6) → 解引用 NULL+6 → BSOD 0x3B。
+           改为从 SectionEntry 描述符读。 */
+        PE_DECODE_CONTEXT DecodeContext;
+        PE_INSN_DESCRIPTOR SectionEntry;
+        unsigned int SectionSize = 0;
+        unsigned int SectionEnd = 0;
+        unsigned int SectionType;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
-        int SectionEnd = 0;
+        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
+                                 (__int64)&DecodeContext);
         for (unsigned int i = 0; i < 0x3E8; ++i)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, SectionInfo))
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionEntry))
                 break;
-            int TargetRva2 = (int)(EntrySize + FieldValue2);
-            FieldValue2 += EntrySize;
-            __int16 SectionType = *(_WORD *)(SectionAlignment + 6);
+
+            int TargetRva2 = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + SectionSize);
+            SectionSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+
+            SectionType = *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6);
             if ((unsigned __int16)(SectionType - 1139) <= 1u)
             {
                 SectionEnd = 0;
             }
-            else
+            else if (SectionType == 1296)
             {
-                if (SectionType == 1296)
+                if (PE_DESC_FIELD_VALUE(&SectionEntry) == 0x40000 &&
+                    PE_DESC_FIELD_SIZE(&SectionEntry) &&
+                    PE_DESC_FIELD_VALUE2(&SectionEntry) == 64)
+                    SectionEnd = (unsigned int)(TargetRva2
+                        + PE_DESC_FIELD_SIZE(&SectionEntry) - ImageBase);
+            }
+            else if (PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x40000)
+            {
+                if (PE_DESC_FIELD_SIZE(&SectionEntry) &&
+                    PE_DESC_FIELD_VALUE(&SectionEntry) == 64)
                 {
-                    if (EntryField == 0x40000 && SectionChar && RvaOffset == 64)
-                        SectionEnd = (unsigned int)(TargetRva2 + SectionChar - ImageBase);
-                }
-                else if (RvaOffset == 0x40000)
-                {
-                    if (CumulativeSize && EntryField == 64)
+                    unsigned int rva = (unsigned int)(TargetRva2
+                        + PE_DESC_FIELD_SIZE(&SectionEntry) - ImageBase);
+                    if (rva && rva < ImageSize && rva == SectionEnd)
                     {
-                        unsigned int rva = (unsigned int)(TargetRva2 + CumulativeSize - ImageBase);
-                        if (rva && rva < ImageSize && (int)rva == SectionEnd)
-                        {
-                            GtWrite(GtEprocessExtField19, LoopIndex + rva);
-                            return 0;
-                        }
+                        GtWrite(GtEprocessExtField19, LoopIndex + rva);
+                        return 0;
                     }
                 }
             }
@@ -2809,126 +2918,197 @@ char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize)
     return Result;
 }
 // 对应原始驱动 0x140067984（873 字节）
+//
+// 【重写 2026-10-20】旧实现把栈上多个变量**声明后从不赋值**就直接使用：
+//   SectionInfoPtr / EntrySizeField / EntryCumulSize / SectionChar / EntryField /
+//   EntryDataPtr / SectionAlignment / EntrySize 全是 0，于是
+//       int InnerFound = *(unsigned __int16 *)(SectionInfoPtr + 6);
+//   变成解引用 NULL+6 → 页错误 → BSOD 0x3B。
+//   实机复现：命令 0xD4（CmdEnumObjectTypes）首次调用必崩，因为该命令在
+//   GT[0x807]==0 时会走 InitTdiExportAndRelocTable → 本函数。
+//
+// 现在严格按 Hex-Rays 伪代码重写。ReadPESectionEntry 的输出是
+// 0x120 字节的 PE_INSN_DESCRIPTOR，伪代码里的 v22/v23/v24/v25/v26/v27/
+// v28/v29 都是该描述符的具名字段，用头文件里的 PE_DESC_* 宏访问：
+//   v22 = +0x40  (伪代码 rbp-0x20)
+//   v23 = +0x50  (= PE_DESC_FIELD_VALUE)
+//   v24 = +0x58  (伪代码 rbp-0x08)
+//   v25 = +0x70  (伪代码 rbp+0x10)
+//   v26 = +0x78  (= PE_DESC_FIELD_SIZE)
+//   v27 = +0x88  (= PE_DESC_FIELD_VALUE2)
+//   v28 = +0xF0  (= PE_DESC_SECTION_SIZE，本次消费字节数)
+//   v29 = +0x118 (= PE_DESC_SECTION_DATA，类型结构体指针)
+//
+// 注意伪代码里的 `v6`（= GT[0x802]，ntoskrnl 镜像大小）在原实现中
+// 被当作**基址**加到偏移上，这是原始行为，逐条保留。
+
+#define RELOC_DESC_QWORD(d, off)  (*(__int64 *)((PUCHAR)(d) + (off)))
+#define RELOC_DESC_DWORD(d, off)  (*(int *)((PUCHAR)(d) + (off)))
+#define RELOC_DESC_TYPEID(d)      (*(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(d) + 6))
+
 __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
 {
-    unsigned int Found = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)2052);
+    PE_INSN_DESCRIPTOR Desc;
+    PE_DECODE_CONTEXT  DecodeContext;
+    unsigned int Found;
+    __int64 NtoskrnlSize;
+    __int64 CumulativeOffset;
+    unsigned int FoundOffset;
+    unsigned int SecondaryOffset;
+    unsigned int LoopCount;
+    int  StateFlag;
+    char Seen1069;
+    int  MatchPhase;
+    int  TargetRva;
+    int  TypeId;
+    __int64 Result;
+
+    memset(&Desc, 0, sizeof(Desc));
+
+    Found = (unsigned int)GtRead(GtFwpsDispatchTableBase | GtPathBuffer00);   /* GT[0x804] */
     if (!Found)
     {
         FindDllInitExport(ImageBase, ImageSize);
-        Found = (unsigned int)GtRead((enum _GLOBAL_TABLE_INDEX)2052);
+        Found = (unsigned int)GtRead(GtFwpsDispatchTableBase | GtPathBuffer00);
     }
-    __int64 SectionBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
-    if (SectionBase && Found && Found < ImageSize)
-    {
-        PE_DECODE_CONTEXT DecodeContext; __int64 SectionEntry = 0;   // DecodeContext 实为 0x48 字节解码上下文（名字错位，累加的是 SectionEntry）
-        _DWORD FieldValue[112];
-        unsigned int SectionChar = 0, EntrySizeField = 0;
-        __int64 EntryField = 0, SectionAlignment = 0, EntryDataPtr = 0, SectionInfoPtr = 0;
-        int EntrySize = 0, EntryCumulSize = 0;
-        unsigned int ReadContext = 0;
-        char SectionType3 = 0;
-        int SectionType4 = 0;
 
-        InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0, (__int64)&DecodeContext);
-        int SectionBaseCopy = 0;
-        unsigned int LoopIndex = 0;
-        unsigned int SectionEnd = 0;
-        do
+    NtoskrnlSize = GtRead(GtFwpsDispatchTableBase | GtNtoskrnlImageSize);     /* GT[0x802] */
+    Result = NtoskrnlSize;
+    if (!NtoskrnlSize || !Found || Found >= ImageSize)
+        return Result;
+
+    InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
+                             (__int64)&DecodeContext);
+
+    StateFlag        = 0;
+    FoundOffset      = 0;
+    SecondaryOffset  = 0;
+    LoopCount        = 0;
+    Seen1069         = 0;
+    MatchPhase       = 0;
+    CumulativeOffset = 0;
+
+    while (LoopCount < 0x50)
+    {
+        Result = ReadPESectionEntry((PUCHAR)&DecodeContext, &Desc);
+        if ((_DWORD)Result)
+            return Result;
+
+        TargetRva = (int)(PE_DESC_SECTION_SIZE(&Desc) + CumulativeOffset);
+        CumulativeOffset += PE_DESC_SECTION_SIZE(&Desc);
+
+        if (!PE_DESC_SECTION_DATA(&Desc))
+            return Result;
+
+        TypeId = RELOC_DESC_TYPEID(&Desc);
+        if (TypeId == 1349)
+            return Result;
+
+        if (LoopCount >= 4 || StateFlag || TypeId != 1069)
+            goto Check1298;
+
+        /* 类型 1069 分支 */
+        if (RELOC_DESC_QWORD(&Desc, 0x50) != 0x40000 ||
+            !RELOC_DESC_DWORD(&Desc, 0x40) ||
+            RELOC_DESC_QWORD(&Desc, 0x88) != 0x1000000000LL ||
+            RELOC_DESC_QWORD(&Desc, 0x70))
+            goto NextEntry;
+
+        Result = (unsigned int)(TargetRva + RELOC_DESC_DWORD(&Desc, 0x40)
+                                - (unsigned int)ImageBase);
+        if (!(_DWORD)Result || (unsigned int)Result >= ImageSize)
+            goto NextEntry;
+
+        Seen1069    = 1;
+        FoundOffset = TargetRva + RELOC_DESC_DWORD(&Desc, 0x40) - (unsigned int)ImageBase;
+        TypeId      = 1139;
+
+Check1298:
+        if (TypeId == 1298 && RELOC_DESC_QWORD(&Desc, 0x88) == 0x40000 &&
+            RELOC_DESC_DWORD(&Desc, 0x78) && RELOC_DESC_QWORD(&Desc, 0x50) == 64)
         {
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, FieldValue))
-                return 0;
-            int TargetRva = (int)(EntrySizeField + SectionEntry);
-            SectionEntry += EntrySizeField;
-            int InnerFound = *(unsigned __int16 *)(SectionInfoPtr + 6);
-            if (InnerFound == 1349)
-                return 0;
-            if (ReadContext >= 4 || SectionBaseCopy || InnerFound != 1069)
+            if (RELOC_DESC_DWORD(&Desc, 0x58) == 1)
             {
-                // continue to next checks
+                FoundOffset = TargetRva + RELOC_DESC_DWORD(&Desc, 0x78) - (unsigned int)ImageBase;
+                if (FoundOffset >= ImageSize)
+                    FoundOffset = 0;
+            }
+            else if (RELOC_DESC_DWORD(&Desc, 0x58) == 2)
+            {
+                Result = (unsigned int)(TargetRva + RELOC_DESC_DWORD(&Desc, 0x78)
+                                        - (unsigned int)ImageBase);
+                SecondaryOffset = ((unsigned int)Result < ImageSize) ? (unsigned int)Result : 0;
+            }
+        }
+
+        if (MatchPhase == 1 && TypeId == 1298)
+        {
+            unsigned int InnerEnd;
+
+            if (RELOC_DESC_QWORD(&Desc, 0x88) != 0x40000 ||
+                !RELOC_DESC_DWORD(&Desc, 0x78) ||
+                RELOC_DESC_QWORD(&Desc, 0x50) != 64)
+                goto MarkPhase1;
+
+            InnerEnd = TargetRva + RELOC_DESC_DWORD(&Desc, 0x78) - (unsigned int)ImageBase;
+            if (!InnerEnd || InnerEnd >= ImageSize)
+                goto MarkPhase1;
+
+            if (Seen1069 != 1 && (unsigned int)GtRead(GtWindowsBuildNumber) < 0x2580)
+            {
+                enum _GLOBAL_TABLE_INDEX Slot = GtFwpsDispatchTableBase | GtPathBuffer04;
+                if (!GtRead(Slot))
+                    Result = GtWrite(Slot, NtoskrnlSize + InnerEnd);
+                else if (!(Slot = GtFwpsDispatchTableCount | GtPathBuffer02, GtRead(Slot)))
+                    Result = GtWrite(Slot, NtoskrnlSize + InnerEnd);
+                else if (!(Slot = GtFwpsDispatchTableCount | GtPathBuffer04, GtRead(Slot)))
+                    Result = GtWrite(Slot, NtoskrnlSize + InnerEnd);
             }
             else
             {
-                if (EntryField == 0x40000 && SectionChar && EntryDataPtr == 0x1000000000LL && !SectionAlignment)
-                {
-                    unsigned int result = (unsigned int)(TargetRva + SectionChar - ImageBase);
-                    if (result && result < ImageSize)
-                    {
-                        LoopIndex = (unsigned int)(TargetRva + SectionChar - ImageBase);
-                        InnerFound = 1139;
-                        SectionType3 = 1;
-                    }
-                }
+                enum _GLOBAL_TABLE_INDEX Slot = GtFwpsDispatchTableCount | GtPathBuffer02;
+                if (!GtRead(Slot))
+                    Result = GtWrite(Slot, NtoskrnlSize + InnerEnd);
+                else if (!(Slot = GtFwpsDispatchTableBase | GtPathBuffer04, GtRead(Slot)))
+                    Result = GtWrite(Slot, NtoskrnlSize + InnerEnd);
+                else if (!(Slot = GtFwpsDispatchTableCount | GtPathBuffer04, GtRead(Slot)))
+                    Result = GtWrite(Slot, NtoskrnlSize + InnerEnd);
             }
-            if (InnerFound == 1298 && EntryDataPtr == 0x40000 && EntryCumulSize && EntryField == 64)
+
+MarkPhase1:
+            StateFlag = 1;
+            goto NextEntry;
+        }
+
+        StateFlag = MatchPhase;
+        if ((unsigned int)(TypeId - 1139) <= 1)
+        {
+            if (MatchPhase)
             {
-                if (EntrySize == 1)
+                if (FoundOffset && SecondaryOffset)
                 {
-                    LoopIndex = (unsigned int)(TargetRva + EntryCumulSize - ImageBase);
-                    if (LoopIndex >= ImageSize)
-                        LoopIndex = 0;
-                }
-                else if (EntrySize == 2)
-                {
-                    unsigned int result = (unsigned int)(TargetRva + EntryCumulSize - ImageBase);
-                    SectionEnd = result < ImageSize ? result : 0;
+                    GtWrite(GtFwpsDispatchTableBase | GtEprocessOffsetBase,
+                            NtoskrnlSize + FoundOffset);
+                    return GtWrite(GtFwpsDispatchTableCount | GtEprocessOffsetBase,
+                                   NtoskrnlSize + SecondaryOffset);
                 }
             }
-            if (SectionType4 == 1 && InnerFound == 1298)
+            else if (FoundOffset)
             {
-                if (EntryDataPtr == 0x40000 && EntryCumulSize && EntryField == 64)
-                {
-                    unsigned int InnerEnd = (unsigned int)(TargetRva + EntryCumulSize - ImageBase);
-                    if (InnerEnd && InnerEnd < ImageSize)
-                    {
-                        if (SectionType3 != 1 && (unsigned int)GtRead(GtWindowsBuildNumber) < 0x2580)
-                        {
-                            int SectionType = 2056;
-                            if (!GtRead((enum _GLOBAL_TABLE_INDEX)2056))
-                                GtWrite((enum _GLOBAL_TABLE_INDEX)SectionType, SectionBase + InnerEnd);
-                            else if (!GtRead(GtPathBuffer03 | 0x800))
-                                GtWrite(GtPathBuffer03 | 0x800, SectionBase + InnerEnd);
-                            else if (!GtRead(GtSymlinkBuffer | 0x800))
-                                GtWrite(GtSymlinkBuffer | 0x800, SectionBase + InnerEnd);
-                        }
-                        else
-                        {
-                            if (!GtRead(GtPathBuffer03 | 0x800))
-                                GtWrite(GtPathBuffer03 | 0x800, SectionBase + InnerEnd);
-                            else if (!GtRead((enum _GLOBAL_TABLE_INDEX)2056))
-                                GtWrite((enum _GLOBAL_TABLE_INDEX)2056, SectionBase + InnerEnd);
-                            else if (!GtRead(GtSymlinkBuffer | 0x800))
-                                GtWrite(GtSymlinkBuffer | 0x800, SectionBase + InnerEnd);
-                        }
-                    }
-                }
-                SectionBaseCopy = 1;
-                goto LABEL_42;
+                Result = GtWrite(GtFwpsDispatchTableBase | GtPathBuffer02,
+                                 NtoskrnlSize + FoundOffset);
             }
-            SectionBaseCopy = SectionType4;
-            if ((unsigned int)(InnerFound - 1139) <= 1)
-            {
-                if (SectionType4)
-                {
-                    if (LoopIndex && SectionEnd)
-                    {
-                        GtWrite(GtEprocessOffsetBase | 0x800, SectionBase + LoopIndex);
-                        return GtWrite(GtEprocessField01 | 0x800, SectionBase + SectionEnd);
-                    }
-                }
-                else if (LoopIndex)
-                {
-                    GtWrite(GtPathBuffer02 | 0x800, SectionBase + LoopIndex);
-                }
-                SectionBaseCopy = SectionType4 + 1;
-                LoopIndex = 0;
-                SectionEnd = 0;
-                ++SectionType4;
-            }
-LABEL_42:
-            ++ReadContext;
-        } while (ReadContext < 0x50);
+            StateFlag       = MatchPhase + 1;
+            FoundOffset     = 0;
+            SecondaryOffset = 0;
+            MatchPhase++;
+        }
+
+NextEntry:
+        LoopCount++;
     }
-    return 0;
+
+    return Result;
 }
 // 对应原始驱动 0x1400317D0（285 字节）
 char ReadNtoskrnlFileToBuffer(void **pBuffer, unsigned int *pBufferSize)
@@ -3099,116 +3279,138 @@ __int16 ParseNtKernelDataSections(__int64 ImageBase, unsigned int ImageSize)
         InitDevOffset = (unsigned int)GtRead(GtEprocessExtField20);
     }
     __int64 SectionBase = GtRead(GtEprocessExtField11);
-    __int64 FoundMarker = SectionBase;
+    __int64 SectionBaseCopy = SectionBase;
     if (SectionBase && InitDevOffset && InitDevOffset < ImageSize)
     {
-        PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
-        _DWORD SectionEntry[112];           // 描述符：原 [8] 仅 32 字节
-        char SectionFlags = 0;
-        int EntrySize = 0;
-        __int64 SectionChar = 0;
-        int EntryField = 0;
-        int EntrySize2 = 0;
-        __int64 SectionAlignment = 0;
-        unsigned int EntryCumulSize = 0;
-        __int64 EntryDataPtr = 0;
-        int SectionType = 0;
+        /* 【重写 2026-10-20】旧实现用 `goto LABEL_SCAN` 跨过变量声明，
+           且描述符字段（EntryCumulSize / EntryDataPtr / SectionChar /
+           SectionAlignment / EntryField / EntrySize / EntrySize2 / SectionFlags）
+           全是独立局部、恒为 0，于是 `*(_WORD*)(EntryDataPtr+6)` 解引用
+           NULL+6 → BSOD。现按原始伪代码重写，字段一律从描述符读。
+           偏移（描述符基址 rbp-0x60）：
+             SectionFlags +0x20 (char)   EntrySize  +0x38 (int)
+             SectionChar  +0x50 (qword)  EntryField +0x58 (int)
+             EntrySize2   +0x78 (int)    SectionAlignment +0x88 (qword)
+             EntryCumulSize +0xF0 (uint) EntryDataPtr +0x118 (qword) */
+        PE_DECODE_CONTEXT ReadContext;
+        PE_INSN_DESCRIPTOR SectionEntry;
+        __int64 CumulativeSize = 0;
+        char FoundMarker = 0;
+        unsigned int SectionIndex = 0;
+        int SectionOffset = 0;
+        int IsWin10 = ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61);
 
-        InitPESectionReadContext(ImageBase + InitDevOffset, ImageSize - InitDevOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
-        char SectionIndex = 0;
-        unsigned int SectionOffset = 0;
+        InitPESectionReadContext(ImageBase + InitDevOffset, ImageSize - InitDevOffset,
+                                 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
-        if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4A61)
+        SectionBase = 0;
+        while (SectionIndex < 0x64)
         {
-            // Win10 19041+ 路径：找类型 1296+1368 组合
-            while (SectionOffset < 0x64)
-            {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
-                    break;
-                SectionType = (int)(EntryCumulSize + CumulativeSize);
-                CumulativeSize += EntryCumulSize;
-                __int16 SectionType2 = *(_WORD *)(EntryDataPtr + 6);
-                if (SectionType2 == 1296 && SectionChar == 64 && (SectionFlags & 8) != 0 && SectionAlignment == 0x20000 && EntrySize2 == 392)
-                {
-                    SectionIndex = 1;
-                }
-                else if (SectionIndex == 1 && SectionType2 == 1368)
-                {
-                    goto LABEL_SCAN;
-                }
-                ++SectionOffset;
-            }
-        }
-        else
-        {
-            // 旧版路径：找 bound import(1139/1140)+1368 组合
-            while (SectionOffset < 0x64)
-            {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
-                    break;
-                SectionType = (int)(EntryCumulSize + CumulativeSize);
-                CumulativeSize += EntryCumulSize;
-                __int16 InnerFound = *(_WORD *)(EntryDataPtr + 6);
-                if ((unsigned __int16)(InnerFound - 1139) <= 1u)
-                {
-                    SectionIndex = 1;
-                }
-                else if (SectionIndex == 1 && InnerFound == 1368)
-                {
-                    goto LABEL_SCAN;
-                }
-                ++SectionOffset;
-            }
-        }
-        return 0;
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
+                break;
 
-    char InnerLoopIndex = 0;
-    unsigned int InnerSectionOffset = 0;
+            SectionOffset = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeSize);
+            CumulativeSize += PE_DESC_SECTION_SIZE(&SectionEntry);
 
-LABEL_SCAN:
-    InnerSectionOffset = 0;
-        SectionBase = SectionType + EntrySize - ImageBase;
-        if ((_DWORD)SectionBase && (unsigned int)SectionBase < ImageSize)
-        {
-            InitPESectionReadContext(ImageBase + (unsigned int)SectionBase, ImageSize - (unsigned int)SectionBase, 2, 0, -1, 0, 0, (__int64)&ReadContext);
-            while (1)
             {
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
-                    break;
-                int InnerSectionType = (int)(EntryCumulSize + CumulativeSize);
-                CumulativeSize += EntryCumulSize;
-                __int16 SectionTypeId = *(_WORD *)(EntryDataPtr + 6);
-                if (SectionTypeId == 1298)
+                unsigned __int16 TypeId =
+                    *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6);
+
+                if (IsWin10)
                 {
-                    // 数据节区：检查是否为目标
-                    if (SectionAlignment == 0x40000 && EntrySize2 && SectionChar == 64 && EntryField == 1)
+                    if (TypeId == 1296 &&
+                        PE_DESC_FIELD_VALUE(&SectionEntry) == 64 &&
+                        (*(unsigned char *)((PUCHAR)&SectionEntry + 0x20) & 8) != 0 &&
+                        PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x20000 &&
+                        PE_DESC_FIELD_SIZE(&SectionEntry) == 392)
                     {
-                        if (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+                        FoundMarker = 1;
+                    }
+                }
+                else
+                {
+                    if ((unsigned __int16)(TypeId - 1139) <= 1u)
+                        FoundMarker = 1;
+                }
+
+                if (FoundMarker == 1 && TypeId == 1368)
+                {
+                    /* 进入内层扫描 */
+                    unsigned int InnerRva =
+                        (unsigned int)(SectionOffset
+                            + *(int *)((PUCHAR)&SectionEntry + 0x38) - (unsigned int)ImageBase);
+                    if (!InnerRva || InnerRva >= ImageSize)
+                        return (__int16)InnerRva;
+
+                    InitPESectionReadContext(ImageBase + InnerRva, ImageSize - InnerRva,
+                                             2, 0, -1, 0, 0, (__int64)&ReadContext);
+
+                    {
+                        char InnerFound = 0;
+                        unsigned int InnerLoopIndex = 0;
+                        int InnerSectionOffset;
+
+                        while (1)
                         {
-                            if ((unsigned __int16)(*(_WORD *)(EntryDataPtr + 6) - 1139) <= 1u)
+                            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
+                                break;
+
+                            InnerSectionOffset = (int)(PE_DESC_SECTION_SIZE(&SectionEntry)
+                                                       + CumulativeSize);
+                            CumulativeSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+
                             {
-                                InnerLoopIndex = 1;
-                                CumulativeSize += EntryCumulSize;
+                                unsigned __int16 InnerType =
+                                    *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6);
+
+                                if (InnerType == 1298)
+                                {
+                                    if (PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x40000 &&
+                                        PE_DESC_FIELD_SIZE(&SectionEntry) &&
+                                        PE_DESC_FIELD_VALUE(&SectionEntry) == 64 &&
+                                        *(int *)((PUCHAR)&SectionEntry + 0x58) == 1)
+                                    {
+                                        if (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext,
+                                                                              &SectionEntry))
+                                        {
+                                            if ((unsigned __int16)(*(unsigned __int16 *)
+                                                ((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6) - 1139) <= 1u)
+                                            {
+                                                InnerFound = 1;
+                                                CumulativeSize += PE_DESC_SECTION_SIZE(&SectionEntry);
+                                            }
+                                        }
+                                    }
+                                }
+                                else if (InnerFound == 1)
+                                {
+                                    if (InnerType == 1296 &&
+                                        PE_DESC_FIELD_VALUE2(&SectionEntry) == 0x40000 &&
+                                        PE_DESC_FIELD_SIZE(&SectionEntry) &&
+                                        PE_DESC_FIELD_VALUE(&SectionEntry) == 64)
+                                    {
+                                        unsigned int FinalRva = (unsigned int)(InnerSectionOffset
+                                            + PE_DESC_FIELD_SIZE(&SectionEntry)
+                                            - (unsigned int)ImageBase);
+                                        if (FinalRva && FinalRva < ImageSize)
+                                        {
+                                            GtWrite(GtEprocessExtField22,
+                                                    SectionBaseCopy + FinalRva);
+                                            return (__int16)FinalRva;
+                                        }
+                                    }
+                                }
                             }
+
+                            if (++InnerLoopIndex >= 0xC8)
+                                return (__int16)InnerSectionOffset;
                         }
                     }
+                    return (__int16)SectionOffset;
                 }
-                else if (InnerLoopIndex == 1)
-                {
-                    // 已标记，检查后续代码节区
-                    if (SectionTypeId == 1296 && SectionAlignment == 0x40000 && EntrySize2 && SectionChar == 64)
-                    {
-                        SectionBase = InnerSectionType + EntrySize2 - ImageBase;
-                        if ((_DWORD)SectionBase && (unsigned int)SectionBase < ImageSize)
-                        {
-                            GtWrite(GtEprocessExtField22, FoundMarker + (unsigned int)SectionBase);
-                            return (__int16)SectionBase;
-                        }
-                    }
-                }
-                if (++InnerSectionOffset >= 0xC8)
-                    break;
             }
+
+            SectionIndex++;
         }
     }
     return (__int16)SectionBase;

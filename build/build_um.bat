@@ -30,23 +30,35 @@ echo Compiling user-mode client...
 cl /nologo /c /W3 /O2 /GS /guard:cf- /utf-8 /DUNICODE /D_UNICODE ^
    /I"%INC_DIR%" ^
    /Fo"%OBJ_DIR%\\" ^
-   "%SRC_DIR%\Protocol.c" "%SRC_DIR%\probe.c"
+   "%SRC_DIR%\Protocol.c" "%SRC_DIR%\probe.c" "%SRC_DIR%\frontend.c"
 
 if errorlevel 1 (
     echo ERROR: compile failed
     exit /b 1
 )
 
-echo Linking...
+echo Linking probe...
 link /nologo /SUBSYSTEM:CONSOLE /MACHINE:X64 /OPT:REF /OPT:NOICF ^
      /OUT:"%BIN_DIR%\xpch_probe.exe" ^
      "%OBJ_DIR%\Protocol.obj" "%OBJ_DIR%\probe.obj" ^
      kernel32.lib user32.lib advapi32.lib
 
 if errorlevel 1 (
-    echo ERROR: link failed
+    echo ERROR: link probe failed
+    exit /b 1
+)
+
+echo Linking frontend...
+link /nologo /SUBSYSTEM:WINDOWS /MACHINE:X64 /OPT:REF /OPT:NOICF ^
+     /OUT:"%BIN_DIR%\xpch_frontend.exe" ^
+     "%OBJ_DIR%\Protocol.obj" "%OBJ_DIR%\frontend.obj" ^
+     kernel32.lib user32.lib advapi32.lib comctl32.lib gdi32.lib
+
+if errorlevel 1 (
+    echo ERROR: link frontend failed
     exit /b 1
 )
 
 echo Build complete: %BIN_DIR%\xpch_probe.exe
+echo Build complete: %BIN_DIR%\xpch_frontend.exe
 exit /b 0

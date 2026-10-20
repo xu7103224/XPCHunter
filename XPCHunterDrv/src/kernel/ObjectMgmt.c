@@ -2326,112 +2326,142 @@ char EnumObjectTypeDirectory(_QWORD **DirectoryStack, int MaxDepth, __int64 Outp
     return 1;
 }
 
-// QueryObjectTypeDirectoryPath — 查询对象类型目录路径
-// 对应原始驱动 sub_140079654
-// 通过 GT 16925/16982/16931 中的函数指针，打开对象目录设备并发送 FSCTL，
-// 分配 0x100000 字节缓冲区，调用 TraverseHashTableWithCallback 遍历哈希表，
-// 查找名称匹配 "DR0" 的对象目录设备对象并返回
-// 对应原始驱动 0x140079654（605 字节）
+// QueryObjectTypeDirectoryPath — 找到 Disk 驱动下的 DR0 卷设备对象
+// 对应原始驱动 sub_140079654（0x25D 字节）
+//
+// 【重写 2026-10-20，按 0x140079654..0x1400798B0 逐条反汇编】
+// 旧实现把 GT[0x421A] 当作 IoCreateFile 按 7 参调用，并在栈上手工拼
+// OBJECT_ATTRIBUTES。原始实际流程是：
+//
+//   GT[0x421D] = RtlInitUnicodeString
+//   GT[0x4160] = 指向对象类型指针的地址（需再解引用一次）
+//   GT[0x421A] = ObReferenceObjectByName （8 个参数，不是 IoCreateFile）
+//   GT[0x4220] = ObQueryNameString
+//   GT[0x4223] = ObfDereferenceObject     （不是 CloseHandle）
+//
+//   0x14007968D..6B3  栈上就地构造 L"\\Driver\\Disk"（6 个 DWORD）
+//   0x140079728..730  RtlInitUnicodeString(&us, path)
+//   0x14007973F       rax = *GT[0x4160]
+//   0x14007975B       ObReferenceObjectByName(&us, OBJ_CASE_INSENSITIVE(0x40),
+//                        NULL, 0, IoDriverObjectType, KernelMode, NULL, &DriverObj)
+//   0x140079765..769  rbx = DriverObject->DeviceObject (+0x8)
+//   0x14007977C..78E  遍历 NextDevice(+0x10)：DeviceType(+0x48)==7 (FILE_DEVICE_DISK)
+//                     且 Flags(+0x30)&0x40
+//   0x1400797A4       ObQueryNameString(DevObj, NULL, 0, &len) == 0xC0000004
+//   0x1400797C8       ExAlloc(0, len + 0x100)
+//   0x1400797E7       ObQueryNameString(DevObj, buf, len, &len)
+//   0x1400797EE..7FB  校验是 OBJECT_NAME_INFORMATION 且名字内联在 +0x10
+//   0x140079818..85C  WStringFindLastChar(name, '\\') 后取 3 字符，要求
+//                     (c0 & ~0x20)=='D'、(c1 & ~0x20)=='R'、c2=='0'
+//   0x14007985F       ExFree(buf)
+//   0x140079876..87E  ObfDereferenceObject(DriverObj)
+//
+// 实机 BSOD 0x3B（ObpLookupObjectName 内页错误）就是旧签名错位造成的：
+// 第 5 个参数本应是 IoDriverObjectType，旧实现按 IoCreateFile 传了 &Handle，
+// 内核把它当对象类型指针解引用。
 __int64 QueryObjectTypeDirectoryPath(void)
 {
-    __int64 Result = 0;
-    void (__fastcall *RtlInitUnicodeStringFunc)(_BYTE *, int *);
-    __int64 (*IoCreateFileFunc)(_BYTE *, __int64, __int64 *, _BYTE *, _QWORD, _QWORD, _QWORD);
-    int (*NtFsControlFileFunc)(_QWORD, _BYTE *, unsigned int, int *);
-    void (*CloseHandleFunc)(_QWORD *);
-    void (*ExFreePoolFunc)(_QWORD);
-    _DWORD EncodedPath[6];
-    _BYTE ObjectNameBuf[16];
-    __int64 Handle;
-    _BYTE ObjAttr[0x30];
-    __int64 DeviceObj;
-    __int64 CurrentDevice;
-    int ReturnLength;
+    typedef void   (__fastcall *PFN_RTL_INIT_UNICODE_STRING)(PUNICODE_STRING, PCWSTR);
+    typedef NTSTATUS (__fastcall *PFN_OB_REF_BY_NAME)(PUNICODE_STRING, ULONG, PVOID,
+                                                     ACCESS_MASK, PVOID, KPROCESSOR_MODE,
+                                                     PVOID, PVOID *);
+    typedef NTSTATUS (__fastcall *PFN_OB_QUERY_NAME)(PVOID, PVOID, ULONG, PULONG);
+    typedef void   (__fastcall *PFN_OB_DEREF)(PVOID);
 
-    RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, int *))GtRead(0x421D);
-    IoCreateFileFunc = (__int64 (*)(_BYTE *, __int64, __int64 *, _BYTE *, _QWORD, _QWORD, _QWORD))GtRead(0x421A);
-    NtFsControlFileFunc = (int (*)(_QWORD, _BYTE *, unsigned int, int *))GtRead(0x4220);
-    CloseHandleFunc = (void (*)(_QWORD *))GtRead(0x4223);
-    ExFreePoolFunc = (void (*)(_QWORD))GtRead(0x4223);
+    static const WCHAR DiskDriverPath[] = L"\\Driver\\Disk";
 
-    if (!RtlInitUnicodeStringFunc || !IoCreateFileFunc || !NtFsControlFileFunc || !CloseHandleFunc || !ExFreePoolFunc)
+    PFN_RTL_INIT_UNICODE_STRING RtlInitUs;
+    PFN_OB_REF_BY_NAME ObRefByName;
+    PFN_OB_QUERY_NAME  ObQueryName;
+    PFN_OB_DEREF       ObDeref;
+    PVOID   IoDriverObjectType;
+    UNICODE_STRING Name;
+    PVOID   DriverObject;
+    PVOID   DeviceObject;
+    ULONG   ReturnLength;
+    ULONG   AllocSize;
+    PUCHAR  QueryBuffer;
+    PUCHAR  NamePtr;
+    PWCHAR  pLastSlash;
+    __int64 Result;
+
+    Result             = 0;
+    RtlInitUs          = (PFN_RTL_INIT_UNICODE_STRING)GtRead((GLOBAL_TABLE_INDEX)0x421D);
+    ObRefByName        = (PFN_OB_REF_BY_NAME)GtRead((GLOBAL_TABLE_INDEX)0x421A);
+    ObQueryName        = (PFN_OB_QUERY_NAME)GtRead((GLOBAL_TABLE_INDEX)0x4220);
+    ObDeref            = (PFN_OB_DEREF)GtRead((GLOBAL_TABLE_INDEX)0x4223);
+    IoDriverObjectType = (PVOID)GtRead((GLOBAL_TABLE_INDEX)0x4160);
+
+    if (!RtlInitUs || !ObRefByName || !ObQueryName || !ObDeref || !IoDriverObjectType)
         return 0;
 
-    // Encoded: \Device\ObjectTypes
-    EncodedPath[0] = 0x44005C;
-    EncodedPath[1] = 0x690072;
-    EncodedPath[2] = 0x650076;
-    EncodedPath[3] = 0x5C0072;
-    EncodedPath[4] = 0x690044;
-    EncodedPath[5] = 0x6B0073;
+    /* 0x14007973F `mov rax, [rbx]`：GT[0x4160] 存的是"对象类型指针的地址"，
+       需要再解引用一次才拿到 IoDriverObjectType 本身。 */
+    if (MmIsAddressValid(IoDriverObjectType) != 1)
+        return 0;
+    IoDriverObjectType = *(PVOID *)IoDriverObjectType;
+    if (!IoDriverObjectType)
+        return 0;
 
-    RtlInitUnicodeStringFunc(ObjectNameBuf, EncodedPath);
+    RtlInitUs(&Name, DiskDriverPath);
 
-    // Set up object attributes
-    *(_DWORD *)(ObjAttr + 8) = 48;
-    *(_QWORD *)(ObjAttr + 16) = 0;
-    *(_DWORD *)(ObjAttr + 24) = 576;
-    *(_QWORD *)(ObjAttr + 28) = (_QWORD)ObjectNameBuf;
-    *(_QWORD *)(ObjAttr + 36) = 0;
+    DriverObject = NULL;
+    if (ObRefByName(&Name, OBJ_CASE_INSENSITIVE, NULL, 0,
+                    IoDriverObjectType, KernelMode, NULL, &DriverObject) < 0)
+        return 0;
+    if (!DriverObject)
+        return 0;
 
-    if ((int)IoCreateFileFunc(ObjectNameBuf, 64, &Handle, ObjAttr, 0, 0, 0) >= 0)
+    DeviceObject = *(PVOID *)((PUCHAR)DriverObject + 0x08);   /* DRIVER_OBJECT.DeviceObject */
+    while (DeviceObject)
     {
-        DeviceObj = *(_QWORD *)(Handle + 8);
-        if (DeviceObj)
+        /* DEVICE_OBJECT.DeviceType(+0x48) == FILE_DEVICE_DISK(7)
+           且 DEVICE_OBJECT.Flags(+0x30) & 0x40 */
+        if (*(ULONG *)((PUCHAR)DeviceObject + 0x48) == 7 &&
+            (*(ULONG *)((PUCHAR)DeviceObject + 0x30) & 0x40) != 0)
         {
-            CurrentDevice = DeviceObj;
-            while (CurrentDevice)
+            ReturnLength = 0;
+            if (ObQueryName(DeviceObject, NULL, 0, &ReturnLength) == STATUS_BUFFER_TOO_SMALL
+                && ReturnLength)
             {
-                // Check if type index == 7 (Directory object type) and flag 0x40 set
-                if (*(_DWORD *)(CurrentDevice + 0x48) == 7 && (*(_DWORD *)(CurrentDevice + 0x30) & 0x40) != 0)
+                AllocSize = ReturnLength + 0x100;
+                QueryBuffer = (PUCHAR)ExAlloc(0, AllocSize);
+                if (QueryBuffer)
                 {
-                    // 第一次 FSCTL 查询所需缓冲区大小（预期返回 STATUS_BUFFER_TOO_SMALL）
-                    ReturnLength = 0;
-                    if (NtFsControlFileFunc(CurrentDevice, 0, 0, &ReturnLength) == 0xC0000004 && ReturnLength)
+                    if (ObQueryName(DeviceObject, QueryBuffer, ReturnLength, &ReturnLength) >= 0)
                     {
-                        // 分配返回长度 + 0x100 的缓冲区
-                        unsigned int AllocSize = ReturnLength + 0x100;
-                        _BYTE *QueryBuffer = (_BYTE *)ExAlloc(0, AllocSize);
-                        if (QueryBuffer)
+                        /* OBJECT_NAME_INFORMATION：UNICODE_STRING 在 +0x00，
+                           字符串缓冲内联在 +0x10。 */
+                        if (*(PVOID *)(QueryBuffer + 0x08) == (PVOID)(QueryBuffer + 0x10))
                         {
-                            // 第二次 FSCTL 实际读取对象目录名
-                            if (NtFsControlFileFunc(CurrentDevice, QueryBuffer, ReturnLength, &ReturnLength) == 0)
+                            ULONG NameLen = *(USHORT *)QueryBuffer;
+                            if ((ULONG64)NameLen + 0x10 < AllocSize)
                             {
-                                // 校验缓冲区布局：第 1 个 QWORD 为字符串指针，指向数据区起始
-                                _QWORD *pNamePtr = (_QWORD *)QueryBuffer;
-                                if (pNamePtr[1] == (__int64)(QueryBuffer + 0x10))
+                                NamePtr = *(PUCHAR *)(QueryBuffer + 0x08);
+                                *(PWCHAR)(NamePtr + NameLen) = 0;
+                                pLastSlash = WStringFindLastChar((PWCHAR)NamePtr, L'\\');
+                                if (pLastSlash && GetStringLength(pLastSlash + 1) == 3)
                                 {
-                                    WORD NameLen = *(WORD *)QueryBuffer;
-                                    if ((unsigned int)(NameLen + 0x10) < AllocSize)
+                                    if (((pLastSlash[1] - L'D') & 0xFFDF) == 0 &&
+                                        ((pLastSlash[2] - L'R') & 0xFFDF) == 0 &&
+                                        (pLastSlash[3] == L'0'))
                                     {
-                                        // 末尾补零终止
-                                        *(WORD *)(pNamePtr[1] + NameLen) = 0;
-                                        // 查找最后一个 '\'，其后的名称应为 "DR0"（D/R 忽略大小写，0 精确匹配）
-                                        _WORD *pLastSlash = WStringFindLastChar((_WORD *)pNamePtr[1], L'\\');
-                                        if (pLastSlash && GetStringLength(pLastSlash + 1) == 3)
-                                        {
-                                            if (((pLastSlash[1] - L'D') & 0xFFDF) == 0 &&
-                                                ((pLastSlash[2] - L'R') & 0xFFDF) == 0 &&
-                                                pLastSlash[3] == L'0')
-                                            {
-                                                Result = CurrentDevice; // 匹配到 "\DR0" 对象目录
-                                            }
-                                        }
+                                        Result = (__int64)DeviceObject;
                                     }
                                 }
                             }
-                            ExFree(QueryBuffer);
-                            if (Result)
-                                break;
                         }
                     }
+                    ExFree(QueryBuffer);
+                    if (Result)
+                        break;
                 }
-                CurrentDevice = *(_QWORD *)(CurrentDevice + 0x10);
             }
         }
-        CloseHandleFunc((_QWORD *)Handle);
+        DeviceObject = *(PVOID *)((PUCHAR)DeviceObject + 0x10);   /* DEVICE_OBJECT.NextDevice */
     }
 
+    ObDeref(DriverObject);
     return Result;
 }
 
