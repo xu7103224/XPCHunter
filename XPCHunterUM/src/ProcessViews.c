@@ -474,8 +474,10 @@ BOOL FeLoadProcessHandles(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List)
         return FALSE;
     }
 
+    /* 【2026-10-21】类型名解析（NtQueryObject(ObjectTypesInformation)）在实机上
+       会让前端进程崩溃（变长数组解析越界），暂时关闭：Type 列显示类型索引。
+       待用更稳的方式（例如只解析首项 + 严格长度校验）恢复。 */
     ZeroMemory(typeNames, sizeof(typeNames));
-    FeLoadTypeNames(typeNames, 64);
 
     List->Items = (FE_HANDLE_ENTRY *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
                                                (SIZE_T)MaxCount * sizeof(FE_HANDLE_ENTRY));

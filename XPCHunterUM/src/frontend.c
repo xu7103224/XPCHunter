@@ -35,6 +35,7 @@ static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
 static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
 static int  g_DetailTab = -1;
+static int  g_StartTab = 0;   /* --tab N：启动时预选子视图页 */
 
 /* Names for the commands we know (index = cmd - 0x20). Others show "-". */
 static const char *CmdName(ULONG cmd)
@@ -628,6 +629,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 SendMessageA(g_hTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
             }
         }
+        SendMessageA(g_hTabs, TCM_SETCURSEL, (WPARAM)g_StartTab, 0);
         g_hDetail = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
                                     10, 424, 940, 190, hWnd, (HMENU)IDC_DETAIL, hInst, NULL);
@@ -778,6 +780,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return RunProcListCli();
 
     /* 子视图调试入口：--handles-cli <pid> */
+    if (lpCmdLine) {
+        char *pt = strstr(lpCmdLine, "--tab ");
+        if (pt) {
+            g_StartTab = atoi(pt + 6);
+            if (g_StartTab < 0 || g_StartTab > 3) g_StartTab = 0;
+        }
+    }
+
     if (lpCmdLine && strstr(lpCmdLine, "--handles-cli")) {
         ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--handles-cli") + 13, NULL, 0);
         FePrintProcessHandles(pid);
