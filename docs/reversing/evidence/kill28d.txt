@@ -1,0 +1,13 @@
+BEGIN 
+==== spawn 2 test procs ==== 
+==== BEFORE ==== 
+
+映像名称                       PID 会话名              会话#       内存使用 
+========================= ======== ================ =========== ============
+timeout.exe                   5992 Services                   0      4,136 K
+timeout.exe                   1804 Services                   0      4,136 K
+kill pid 5992 ep=FFFFC38A740C8080 via 0x28 -> OK
+kill pid 1804 ep=FFFFC38A73CF3080 via 0x28 -> OK
+==== AFTER ==== 
+信息: 没有运行的任务匹配指定标准。
+DONE 

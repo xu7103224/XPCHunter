@@ -1,0 +1,333 @@
+BEGIN 
+probe start
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 24 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  handshake 0x22 -> OK, result=1, ssdt=0
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x24 -> OK, result=1, GetLastError=0
+
+  scanning 0x20..0x13A (progress: scan_progress.txt)
+    accepted 23, rejected 255, skipped 5
+
+=== done ===
+SCAN_EXIT=0 
+probe start
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 24 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  stats dump 0x13A -> OK, result=1
+    0x20 count=1      lastResult=0 lastPid=6124
+    0x21 count=1      lastResult=0 lastPid=6124
+    0x22 count=17     lastResult=1 lastPid=5508
+    0x24 count=13     lastResult=1 lastPid=6124
+    0x26 count=1      lastResult=0 lastPid=6124
+    0x27 count=1      lastResult=1 lastPid=6124
+    0x28 count=7      lastResult=0 lastPid=2940
+    0x29 count=1      lastResult=0 lastPid=6124
+    0x2A count=1      lastResult=0 lastPid=6124
+    0x2B count=1      lastResult=0 lastPid=6124
+    0x2C count=1      lastResult=0 lastPid=6124
+    0x2D count=1      lastResult=0 lastPid=6124
+    0x2E count=1      lastResult=0 lastPid=6124
+    0x2F count=1      lastResult=0 lastPid=6124
+    0x31 count=1      lastResult=0 lastPid=6124
+    0x32 count=1      lastResult=0 lastPid=6124
+    0x33 count=1      lastResult=0 lastPid=6124
+    0x34 count=1      lastResult=0 lastPid=6124
+    0x35 count=1      lastResult=0 lastPid=6124
+    0x36 count=1      lastResult=0 lastPid=6124
+    0x37 count=1      lastResult=0 lastPid=6124
+    0x38 count=1      lastResult=0 lastPid=6124
+    0x39 count=1      lastResult=0 lastPid=6124
+    0x3A count=1      lastResult=0 lastPid=6124
+    0x3B count=1      lastResult=0 lastPid=6124
+    0x3C count=1      lastResult=0 lastPid=6124
+    0x3D count=1      lastResult=0 lastPid=6124
+    0x3E count=1      lastResult=0 lastPid=6124
+    0x3F count=1      lastResult=0 lastPid=6124
+    0x40 count=1      lastResult=0 lastPid=6124
+    0x41 count=1      lastResult=0 lastPid=6124
+    0x42 count=1      lastResult=0 lastPid=6124
+    0x43 count=1      lastResult=0 lastPid=6124
+    0x44 count=1      lastResult=0 lastPid=6124
+    0x45 count=1      lastResult=0 lastPid=6124
+    0x46 count=1      lastResult=0 lastPid=6124
+    0x47 count=1      lastResult=1 lastPid=6124
+    0x48 count=1      lastResult=0 lastPid=6124
+    0x49 count=1      lastResult=0 lastPid=6124
+    0x4A count=1      lastResult=0 lastPid=6124
+    0x4B count=1      lastResult=0 lastPid=6124
+    0x4C count=1      lastResult=0 lastPid=6124
+    0x4D count=1      lastResult=0 lastPid=6124
+    0x4E count=1      lastResult=0 lastPid=6124
+    0x4F count=1      lastResult=0 lastPid=6124
+    0x50 count=1      lastResult=0 lastPid=6124
+    0x51 count=1      lastResult=0 lastPid=6124
+    0x52 count=1      lastResult=1 lastPid=6124
+    0x53 count=1      lastResult=0 lastPid=6124
+    0x54 count=1      lastResult=0 lastPid=6124
+    0x55 count=1      lastResult=0 lastPid=6124
+    0x57 count=1      lastResult=0 lastPid=6124
+    0x58 count=1      lastResult=0 lastPid=6124
+    0x59 count=1      lastResult=0 lastPid=6124
+    0x5A count=1      lastResult=0 lastPid=6124
+    0x5B count=1      lastResult=0 lastPid=6124
+    0x5C count=1      lastResult=0 lastPid=6124
+    0x5D count=1      lastResult=0 lastPid=6124
+    0x5E count=1      lastResult=0 lastPid=6124
+    0x5F count=1      lastResult=0 lastPid=6124
+    0x60 count=1      lastResult=0 lastPid=6124
+    0x61 count=1      lastResult=0 lastPid=6124
+    0x62 count=1      lastResult=0 lastPid=6124
+    0x63 count=1      lastResult=0 lastPid=6124
+    0x64 count=1      lastResult=0 lastPid=6124
+    0x65 count=1      lastResult=0 lastPid=6124
+    0x66 count=1      lastResult=0 lastPid=6124
+    0x67 count=1      lastResult=0 lastPid=6124
+    0x68 count=1      lastResult=0 lastPid=6124
+    0x69 count=1      lastResult=0 lastPid=6124
+    0x6A count=1      lastResult=0 lastPid=6124
+    0x6B count=1      lastResult=0 lastPid=6124
+    0x6C count=1      lastResult=0 lastPid=6124
+    0x6D count=1      lastResult=0 lastPid=6124
+    0x6E count=1      lastResult=0 lastPid=6124
+    0x6F count=1      lastResult=0 lastPid=6124
+    0x70 count=1      lastResult=0 lastPid=6124
+    0x71 count=1      lastResult=0 lastPid=6124
+    0x72 count=1      lastResult=0 lastPid=6124
+    0x73 count=1      lastResult=0 lastPid=6124
+    0x74 count=1      lastResult=0 lastPid=6124
+    0x75 count=1      lastResult=0 lastPid=6124
+    0x76 count=1      lastResult=0 lastPid=6124
+    0x77 count=1      lastResult=0 lastPid=6124
+    0x78 count=1      lastResult=0 lastPid=6124
+    0x79 count=1      lastResult=0 lastPid=6124
+    0x7A count=1      lastResult=0 lastPid=6124
+    0x7B count=1      lastResult=0 lastPid=6124
+    0x7C count=1      lastResult=0 lastPid=6124
+    0x7D count=1      lastResult=0 lastPid=6124
+    0x7E count=1      lastResult=1 lastPid=6124
+    0x7F count=1      lastResult=1 lastPid=6124
+    0x80 count=1      lastResult=0 lastPid=6124
+    0x83 count=1      lastResult=1 lastPid=6124
+    0x84 count=1      lastResult=1 lastPid=6124
+    0x85 count=1      lastResult=0 lastPid=6124
+    0x86 count=1      lastResult=1 lastPid=6124
+    0x87 count=1      lastResult=1 lastPid=6124
+    0x88 count=1      lastResult=0 lastPid=6124
+    0x8F count=1      lastResult=1 lastPid=6124
+    0x90 count=1      lastResult=1 lastPid=6124
+    0x91 count=1      lastResult=0 lastPid=6124
+    0x98 count=1      lastResult=0 lastPid=6124
+    0x9C count=1      lastResult=1 lastPid=6124
+    0x9D count=1      lastResult=1 lastPid=6124
+    0x9E count=1      lastResult=0 lastPid=6124
+    0x9F count=1      lastResult=0 lastPid=6124
+    0xA0 count=1      lastResult=0 lastPid=6124
+    0xA1 count=1      lastResult=0 lastPid=6124
+    0xA2 count=2      lastResult=0 lastPid=6124
+    0xAB count=1      lastResult=0 lastPid=6124
+    0xAC count=1      lastResult=0 lastPid=6124
+    0xAD count=1      lastResult=0 lastPid=6124
+    0xAE count=1      lastResult=0 lastPid=6124
+    0xAF count=1      lastResult=0 lastPid=6124
+    0xB0 count=1      lastResult=0 lastPid=6124
+    0xB1 count=1      lastResult=0 lastPid=6124
+    0xB2 count=1      lastResult=0 lastPid=6124
+    0xB3 count=1      lastResult=0 lastPid=6124
+    0xB4 count=1      lastResult=0 lastPid=6124
+    0xB5 count=1      lastResult=0 lastPid=6124
+    0xB6 count=1      lastResult=0 lastPid=6124
+    0xB7 count=1      lastResult=0 lastPid=6124
+    0xB8 count=1      lastResult=0 lastPid=6124
+    0xB9 count=1      lastResult=0 lastPid=6124
+    0xBA count=1      lastResult=0 lastPid=6124
+    0xBB count=1      lastResult=0 lastPid=6124
+    0xBC count=1      lastResult=0 lastPid=6124
+    0xBD count=1      lastResult=0 lastPid=6124
+    0xC0 count=1      lastResult=0 lastPid=6124
+    0xC1 count=1      lastResult=0 lastPid=6124
+    0xC2 count=1      lastResult=0 lastPid=6124
+    0xC3 count=1      lastResult=0 lastPid=6124
+    0xC4 count=1      lastResult=0 lastPid=6124
+    0xC7 count=1      lastResult=1 lastPid=6124
+    0xC8 count=1      lastResult=1 lastPid=6124
+    0xC9 count=1      lastResult=0 lastPid=6124
+    0xCA count=1      lastResult=0 lastPid=6124
+    0xCB count=1      lastResult=0 lastPid=6124
+    0xCC count=1      lastResult=0 lastPid=6124
+    0xCD count=1      lastResult=0 lastPid=6124
+    0xCE count=1      lastResult=0 lastPid=6124
+    0xCF count=1      lastResult=1 lastPid=6124
+    0xD0 count=1      lastResult=1 lastPid=6124
+    0xD1 count=1      lastResult=0 lastPid=6124
+    0xD2 count=1      lastResult=0 lastPid=6124
+    0xD3 count=1      lastResult=0 lastPid=6124
+    0xD4 count=1      lastResult=0 lastPid=6124
+    0xD5 count=1      lastResult=0 lastPid=6124
+    0xD6 count=1      lastResult=0 lastPid=6124
+    0xD7 count=1      lastResult=0 lastPid=6124
+    0xD8 count=1      lastResult=0 lastPid=6124
+    0xDF count=1      lastResult=0 lastPid=6124
+    0xE0 count=1      lastResult=0 lastPid=6124
+    0xE1 count=1      lastResult=1 lastPid=6124
+    0xE2 count=1      lastResult=0 lastPid=6124
+    0xE3 count=1      lastResult=0 lastPid=6124
+    0xE4 count=32     lastResult=1 lastPid=6124
+    0xE5 count=1      lastResult=0 lastPid=6124
+    0x101 count=1      lastResult=0 lastPid=6124
+    0x102 count=1      lastResult=0 lastPid=6124
+    0x103 count=1      lastResult=0 lastPid=6124
+    0x104 count=1      lastResult=0 lastPid=6124
+    0x105 count=1      lastResult=0 lastPid=6124
+    0x106 count=1      lastResult=0 lastPid=6124
+    0x107 count=1      lastResult=0 lastPid=6124
+    0x108 count=1      lastResult=0 lastPid=6124
+    0x109 count=1      lastResult=0 lastPid=6124
+    0x10A count=1      lastResult=0 lastPid=6124
+    0x10B count=1      lastResult=0 lastPid=6124
+    0x10C count=1      lastResult=0 lastPid=6124
+    0x111 count=1      lastResult=0 lastPid=6124
+    0x112 count=1      lastResult=0 lastPid=6124
+    0x113 count=1      lastResult=0 lastPid=6124
+    0x114 count=1      lastResult=0 lastPid=6124
+    0x116 count=1      lastResult=1 lastPid=6124
+    0x117 count=1      lastResult=0 lastPid=6124
+    0x118 count=1      lastResult=0 lastPid=6124
+    0x127 count=1      lastResult=0 lastPid=6124
+    0x128 count=1      lastResult=0 lastPid=6124
+    0x129 count=1      lastResult=0 lastPid=6124
+    0x12A count=1      lastResult=0 lastPid=6124
+    0x12B count=1      lastResult=0 lastPid=6124
+    0x12C count=1      lastResult=0 lastPid=6124
+    0x12D count=1      lastResult=0 lastPid=6124
+    0x12E count=1      lastResult=0 lastPid=6124
+    0x12F count=1      lastResult=0 lastPid=6124
+    0x130 count=1      lastResult=0 lastPid=6124
+    0x135 count=1      lastResult=0 lastPid=6124
+    0x136 count=1      lastResult=0 lastPid=6124
+    0x137 count=1      lastResult=0 lastPid=6124
+    0x138 count=1      lastResult=0 lastPid=6124
+    0x139 count=1      lastResult=1 lastPid=6124
+    0x13A count=5      lastResult=0 lastPid=6124
+    0xFFFE count=16     lastResult=0 lastPid=5508
+    195 command(s) invoked since load
+    --- driver environment ---
+    build=18362  ndisVer=0x60053 processListHead=FFFFF8047BCE6788
+    ndisBase=FFFFF8047BC00000 ntoskrnlBase=FFFFF80476400000 kdSectReady=0
+    fltDataSection=0000000000000000 driverReady=1 win32kSvc=0000000000000000
+    ndisRead=0 ndisFileSize=0x0
+    openStatus=0x0 queryStatus=0x0
+    toBuf=0 rawStatus=0x0 rawSize=0x0
+    win10ListHead=FFFFF8047BCE6648 ndisIMOffset=0x7F890
+    raw env:
+      0000: BA 47 00 00 53 00 06 00 88 67 CE 7B 04 F8 FF FF
+      0010: 00 00 C0 7B 04 F8 FF FF 00 00 40 76 04 F8 FF FF
+      0020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0030: 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0040: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0050: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0060: 00 B0 06 00 10 AE 06 00 10 AE 06 00 0D 00 00 00
+      0070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0080: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0090: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      00A0: 00 00 A0 EF 00 00 00 00 90 F8 07 00 60 41 C3 7B
+      00B0: 48 66 CE 7B 04 F8 FF FF 00 20 AB 00 00 00 40 76
+      00C0: 01 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00
+      00D0: 00 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00
+      00E0: 48 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      00F0: 09 00 00 00 10 A0 36 00 00 00 00 00 30 09 77 00
+      0100: 00 00 A0 EF 00 A7 FF FF 00 00 40 76 04 F8 FF FF
+      0110: 00 20 AB 00 08 01 00 00 64 0B 00 00 64 0B 00 00
+      0120: 0C 01 00 00 00 00 00 00 FE 00 00 00 FE 00 00 00
+      0130: C0 C4 65 CB 50 26 88 00 C2 CD 58 FA F0 22 6C 76
+      0140: 90 FC A6 76 C0 8F 5B 76 C0 ED 66 00 C0 ED A6 76
+      0150: 00 00 00 00 00 00 00 00 32 02 00 00 00 00 00 00
+      0160: 06 00 00 00 BA 47 00 00 01 00 00 00 01 00 00 00
+      0170: 00 00 00 00 32 02 00 00 00 00 00 00 00 00 00 00
+      0180: 00 00 00 00 00 00 00 00 C0 C4 53 73 8A C3 FF FF
+      0190: D0 68 41 76 04 F8 FF FF F0 22 6C 76 04 F8 FF FF
+      01A0: 90 FC A6 76 04 F8 FF FF C0 8F 5B 76 04 F8 FF FF
+      01B0: 00 00 00 00 00 00 00 00 D0 68 41 76 D0 68 01 00
+      01C0: 00 00 00 00 00 00 00 00 00 00 00 00 09 00 00 00
+      01D0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      01E0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      01F0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0200: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0210: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0220: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0230: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0240: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0250: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0260: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0270: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0280: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0290: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      02A0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      02B0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      02C0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      02D0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      02E0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      02F0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0300: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0310: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0320: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0330: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0340: 00 00 00 00 09 00 00 00 09 00 00 00 00 00 00 00
+      0350: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0360: 00 00 00 00 09 00 00 00 09 00 00 00 09 00 00 00
+      0370: 09 00 00 00 09 00 00 00 09 00 00 00 00 00 00 00
+      0380: 00 00 00 00 00 00 00 00 09 00 00 00 09 00 00 00
+      0390: 09 00 00 00 09 00 00 00 09 00 00 00 09 00 00 00
+      03A0: 00 00 00 00 09 00 00 00 09 00 00 00 09 00 00 00
+      03B0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      03C0: 00 00 00 00 00 00 00 00 00 00 00 00 09 00 00 00
+      03D0: 09 00 00 00 09 00 00 00 09 00 00 00 09 00 00 00
+      03E0: 09 00 00 00 09 00 00 00 09 00 00 00 00 00 00 00
+      03F0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    --- BuildHookTable ---
+      PeBase=FFFFA700EFA00000 PeSize=0xAB2000 lfanew=0x108
+      ImageBase=FFFFF80476400000 ExportCount=2916 IdxEntries=2916
+      iter=268 hashZero=0 hits=254 writes=254
+      idx[0].hash=0xCB65C4C0 idx[0].rva=0x882650 targetHash=0xFA58CDC2
+      GT[41DB]=0x766C22F0 GT[41C3]=0x76A6FC90 GT[4334]=0x765B8FC0
+      GT[4159]=0x66EDC0 GT[415A]=0x76A6EDC0
+      GT[29C]=0x0 GT[29F]=0x0 GT[27]=0x232
+    --- 0xA2 terminate trace ---
+      stage=6 build=18362 isLegacy=0
+      check1=1 check2=1 sdst=562
+      dupRet=0 termRet=0 directRet=0x0
+      Ep=FFFFC38A7353C4C0
+      DirectFn=FFFFF804764168D0 (GT[0x42BC]=0x764168D0)
+      CheckFn=FFFFF804766C22F0 DupFn=FFFFF80476A6FC90 FreeFn=FFFFF804765B8FC0 TermFn=0000000000000000
+    --- 分派校准 ---
+    HANDLED=194  REJECTED=85  NOT-ATTEMPTED=4
+    HANDLED（处理器已执行；result=0 不代表失败）:
+      0x20(1,r0) 0x21(1,r0) 0x22(17,r1) 0x24(13,r1) 0x26(1,r0) 0x27(1,r1) 0x28(7,r0) 0x29(1,r0) 0x2A(1,r0) 0x2B(1,r0) 0x2C(1,r0) 0x2D(1,r0) 0x2E(1,r0) 0x2F(1,r0) 0x31(1,r0) 0x32(1,r0) 0x33(1,r0) 0x34(1,r0) 0x35(1,r0) 0x36(1,r0) 0x37(1,r0) 0x38(1,r0) 0x39(1,r0) 0x3A(1,r0) 0x3B(1,r0) 0x3C(1,r0) 0x3D(1,r0) 0x3E(1,r0) 0x3F(1,r0) 0x40(1,r0) 0x41(1,r0) 0x42(1,r0) 0x43(1,r0) 0x44(1,r0) 0x45(1,r0) 0x46(1,r0) 0x47(1,r1) 0x48(1,r0) 0x49(1,r0) 0x4A(1,r0) 0x4B(1,r0) 0x4C(1,r0) 0x4D(1,r0) 0x4E(1,r0) 0x4F(1,r0) 0x50(1,r0) 0x51(1,r0) 0x52(1,r1) 0x53(1,r0) 0x54(1,r0) 0x55(1,r0) 0x57(1,r0) 0x58(1,r0) 0x59(1,r0) 0x5A(1,r0) 0x5B(1,r0) 0x5C(1,r0) 0x5D(1,r0) 0x5E(1,r0) 0x5F(1,r0) 0x60(1,r0) 0x61(1,r0) 0x62(1,r0) 0x63(1,r0) 0x64(1,r0) 0x65(1,r0) 0x66(1,r0) 0x67(1,r0) 0x68(1,r0) 0x69(1,r0) 0x6A(1,r0) 0x6B(1,r0) 0x6C(1,r0) 0x6D(1,r0) 0x6E(1,r0) 0x6F(1,r0) 0x70(1,r0) 0x71(1,r0) 0x72(1,r0) 0x73(1,r0) 0x74(1,r0) 0x75(1,r0) 0x76(1,r0) 0x77(1,r0) 0x78(1,r0) 0x79(1,r0) 0x7A(1,r0) 0x7B(1,r0) 0x7C(1,r0) 0x7D(1,r0) 0x7E(1,r1) 0x7F(1,r1) 0x80(1,r0) 0x83(1,r1) 0x84(1,r1) 0x85(1,r0) 0x86(1,r1) 0x87(1,r1) 0x88(1,r0) 0x8F(1,r1) 0x90(1,r1) 0x91(1,r0) 0x98(1,r0) 0x9C(1,r1) 0x9D(1,r1) 0x9E(1,r0) 0x9F(1,r0) 0xA0(1,r0) 0xA1(1,r0) 0xA2(2,r0) 0xAB(1,r0) 0xAC(1,r0) 0xAD(1,r0) 0xAE(1,r0) 0xAF(1,r0) 0xB0(1,r0) 0xB1(1,r0) 0xB2(1,r0) 0xB3(1,r0) 0xB4(1,r0) 0xB5(1,r0) 0xB6(1,r0) 0xB7(1,r0) 0xB8(1,r0) 0xB9(1,r0) 0xBA(1,r0) 0xBB(1,r0) 0xBC(1,r0) 0xBD(1,r0) 0xC0(1,r0) 0xC1(1,r0) 0xC2(1,r0) 0xC3(1,r0) 0xC4(1,r0) 0xC7(1,r1) 0xC8(1,r1) 0xC9(1,r0) 0xCA(1,r0) 0xCB(1,r0) 0xCC(1,r0) 0xCD(1,r0) 0xCE(1,r0) 0xCF(1,r1) 0xD0(1,r1) 0xD1(1,r0) 0xD2(1,r0) 0xD3(1,r0) 0xD4(1,r0) 0xD5(1,r0) 0xD6(1,r0) 0xD7(1,r0) 0xD8(1,r0) 0xDF(1,r0) 0xE0(1,r0) 0xE1(1,r1) 0xE2(1,r0) 0xE3(1,r0) 0xE4(32,r1) 0xE5(1,r0) 0x101(1,r0) 0x102(1,r0) 0x103(1,r0) 0x104(1,r0) 0x105(1,r0) 0x106(1,r0) 0x107(1,r0) 0x108(1,r0) 0x109(1,r0) 0x10A(1,r0) 0x10B(1,r0) 0x10C(1,r0) 0x111(1,r0) 0x112(1,r0) 0x113(1,r0) 0x114(1,r0) 0x116(1,r1) 0x117(1,r0) 0x118(1,r0) 0x127(1,r0) 0x128(1,r0) 0x129(1,r0) 0x12A(1,r0) 0x12B(1,r0) 0x12C(1,r0) 0x12D(1,r0) 0x12E(1,r0) 0x12F(1,r0) 0x130(1,r0) 0x135(1,r0) 0x136(1,r0) 0x137(1,r0) 0x138(1,r0) 0x139(1,r1) 0x13A(5,r0)
+    REJECTED（分派器原因码）:
+      0x23(r9) 0x81(r9) 0x82(r9) 0x89(r9) 0x8A(r9) 0x8B(r9) 0x8C(r9) 0x8D(r9) 0x8E(r9) 0x92(r9) 0x93(r9) 0x94(r9) 0x95(r9) 0x96(r9) 0x97(r9) 0x99(r9) 0x9A(r9) 0x9B(r9) 0xA3(r9) 0xA4(r9) 0xA5(r9) 0xA6(r9) 0xA7(r9) 0xA8(r9) 0xA9(r9) 0xAA(r9) 0xBE(r9) 0xBF(r9) 0xC5(r9) 0xC6(r9) 0xD9(r9) 0xDA(r9) 0xDB(r9) 0xDC(r9) 0xDD(r9) 0xDE(r9) 0xE6(r9) 0xE7(r9) 0xE8(r9) 0xE9(r9) 0xEA(r9) 0xEB(r9) 0xEC(r9) 0xED(r9) 0xEE(r9) 0xEF(r9) 0xF0(r9) 0xF1(r9) 0xF2(r9) 0xF3(r9) 0xF4(r9) 0xF5(r9) 0xF6(r9) 0xF7(r9) 0xF8(r9) 0xF9(r9) 0xFA(r9) 0xFB(r9) 0xFC(r9) 0xFD(r9) 0xFE(r9) 0xFF(r9) 0x100(r9) 0x10D(r9) 0x10E(r9) 0x10F(r9) 0x110(r9) 0x119(r9) 0x11A(r9) 0x11B(r9) 0x11C(r9) 0x11D(r9) 0x11E(r9) 0x11F(r9) 0x120(r9) 0x121(r9) 0x122(r9) 0x123(r9) 0x124(r9) 0x125(r9) 0x126(r9) 0x131(r9) 0x132(r9) 0x133(r9) 0x134(r9)
+    协议级拒绝计数(reason 1..10): 1=0 2=0 3=0 4=0 5=0 6=0 7=0 8=0 9=85 10=0
+
+=== done (stats) ===
+DONE 

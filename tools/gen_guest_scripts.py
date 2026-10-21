@@ -40,12 +40,20 @@ echo ==== STEP5 0xA2 kill attempt ==== >> %LOG%
 echo KILL_EXIT=%errorlevel% >> %LOG%
 ping -n 3 127.0.0.1 > nul
 
-echo ==== STEP6 stats AFTER kill ==== >> %LOG%
+echo ==== STEP6 alive after 0xA2 ==== >> %LOG%
+tasklist /fi "imagename eq timeout.exe" >> %LOG% 2>&1
+
+echo ==== STEP7 0x28 kill attempt ==== >> %LOG%
+%PUB%\xpch_frontend.exe --kill28-cli %TESTPID% >> %LOG% 2>&1
+echo KILL28_EXIT=%errorlevel% >> %LOG%
+ping -n 4 127.0.0.1 > nul
+
+echo ==== STEP8 alive after 0x28 ==== >> %LOG%
+tasklist /fi "imagename eq timeout.exe" >> %LOG% 2>&1
+
+echo ==== STEP9 stats ==== >> %LOG%
 %PUB%\xpch_probe.exe --live --stats >> %LOG% 2>&1
 echo STATS2_EXIT=%errorlevel% >> %LOG%
-
-echo ==== STEP7 alive check ==== >> %LOG%
-tasklist /fi "imagename eq timeout.exe" >> %LOG% 2>&1
 
 echo DONE >> %LOG%
 exit /b 0

@@ -645,27 +645,64 @@ BOOL FePrintProcessMemory(ULONG Pid)
 // ---------------------------------------------------------------------------
 // 进程操作：命令 0x28 CmdProcessOperation
 //
-// 入参 16 字节 = { QWORD[0] = PID, QWORD[1] = EPROCESS（可为 0，由驱动按 PID 解析） }，
-// 输出无；结果字节 = 处理器返回值（1 成功）。
+// 入参 16 字节 = { QWORD[0] = PID, QWORD[1] = EPROCESS（可为 0，由驱动按 PID 解析） }。
 // 处理器内部：PsLookupProcessByProcessId → 跳过当前进程/自身 →
-//             ZeroProcessMemoryPages + ProcessOperationWithAttach。
+//             ZeroProcessMemoryPages（挂载到目标、逐 4KB 页清零用户空间）+ ProcessOperationWithAttach。
 //
 // 【2026-10-21 修正】0xA2 与 0x28 的入参格式**不同**，此前两者共用 16 字节输入，
 // 导致 0xA2 永远失败：
 //   0x28 CmdProcessOperation              要求 InputSize == 16，qword[0]=PID、qword[1]=EPROCESS
 //   0xA2 TerminateProcessByEProcessOperation 要求 InputSize == 8，qword[0]=**EPROCESS**
-//      （驱动 0x14004xxxx：`if (InputSize != 8) 直接返回 0`，随后把前 8 字节直接
-//        当 EPROCESS 解引用；实机 trace 停在该校验上，stage=6）
+//      （原始 0x140054430 `cmp edx,8 / jnz`：InputSize != 8 直接返回 0，
+//        随后把前 8 字节当 EPROCESS 解引用；实机 trace 停在该校验上，stage=6）
 // 所以按 ByEprocess 分别组装输入。
+//
+// 【2026-10-21 实测】0xA2 在 Win10 上**不终止进程**：驱动 build >= 0x1DB0 分支读
+//   GT[0x42BC]（18362 上解析为 KeCancelTimer，见 docs/reversing/Process页落地
+//   第 21 节），原始驱动同样如此。真正生效的是 **0x28**：内部
+//   ZeroProcessMemoryPages 把目标用户空间逐页清零，实机验证
+//   （build/audit/kill28b.txt）调用后目标 timeout.exe 从任务列表消失。
+//
+// 返回值语义：0x28 处理器的返回值按设计可能就是 0（分派校准文档已归类为
+// "result==0 但处理器确实执行"），所以这里**不看结果字节，改为按效果判定**：
+// 调用后重新枚举进程列表，PID 已消失才算成功。
 //
 // 注意：这是**破坏性操作**，GUI 侧必须二次确认；测试时只对自建进程使用。
 // ---------------------------------------------------------------------------
+
+/* 重新枚举进程列表，判断 PID 是否已不存在。
+ *
+ * 清零用户空间只是"让进程无法继续运行"；EPROCESS 真正从 PsActiveProcessHead
+ * 摘链、进程退出，要等目标线程被调度后由内核完成，有可观测的延迟。
+ * 所以这里做有限次重试（每次间隔 200ms），避免刚调用完就判失败。 */
+static BOOL FeProcessPidGone(XPCH_CLIENT *Client, ULONG Pid)
+{
+    FE_PROCESS_LIST list;
+    ULONG i, attempt;
+
+    for (attempt = 0; attempt < 25; attempt++)
+    {
+        BOOL present = FALSE;
+
+        if (FeLoadProcessList(Client, FE_PROC_DEFAULT_MAX, &list))
+        {
+            for (i = 0; i < list.Count; i++)
+            {
+                if (list.Items[i].Pid == Pid) { present = TRUE; break; }
+            }
+            FeFreeProcessList(&list);
+            if (!present)
+                return TRUE;
+        }
+        Sleep(200);
+    }
+    return FALSE;
+}
 
 BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEprocess)
 {
     ULONG64 in[2];
     UCHAR res = 0;
-    BOOL ok;
 
     if (!Client || !Client->Opened || !Pid)
         return FALSE;
@@ -676,14 +713,17 @@ BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEpro
         if (!Eprocess)
             return FALSE;
         in[0] = Eprocess;
-        ok = XpchInvoke(Client, 0xA2, in, 8, NULL, 0, &res);
+        XpchInvoke(Client, 0xA2, in, 8, NULL, 0, &res);
     }
     else
     {
         /* 0x28：PID + EPROCESS（16 字节）。 */
         in[0] = (ULONG64)Pid;
         in[1] = Eprocess;
-        ok = XpchInvoke(Client, 0x28, in, sizeof(in), NULL, 0, &res);
+        XpchInvoke(Client, 0x28, in, sizeof(in), NULL, 0, &res);
     }
-    return ok;
+
+    /* 结果字节在 0x28 上按设计可能就是 0，不能作为成功判据；
+       以"PID 是否已从进程列表消失"为准。 */
+    return FeProcessPidGone(Client, Pid);
 }

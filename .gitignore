@@ -87,3 +87,7 @@ build/audit/ntoskrnl_19045.exe
 
 # ntoskrnl.exe 本体（微软二进制，9.9MB）不入库；只保留派生出的导出映射
 build/audit/nt/*.exe
+
+# 前端 IDB 有 134MB，且每次 IDA 会话都会重写（二进制无有效 diff）。
+# 项目规则只要求提交**驱动**的 IDB（View++_Driver64.sys.i64，47MB），前端 IDB 不入库。
+samples/PCHunter_2024.09.02/PCHunter64.exe.i64

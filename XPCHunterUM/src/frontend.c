@@ -852,9 +852,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     if (lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))
         return RunProcListCli();
 
-    /* 子视图调试入口：--memory-cli <pid> */
-    if (lpCmdLine && strstr(lpCmdLine, "--kill-cli")) {
-        ULONG kpid = (ULONG)strtoul(strstr(lpCmdLine, "--kill-cli") + 11, NULL, 0);
+    /* 子视图调试入口：--memory-cli <pid>
+     *
+     * --kill-cli <pid>    走 0xA2（CmdTerminateProcessByEProcess）。
+     *   2026-10-21 实测结论：0xA2 在 Win10 上并不终止进程——驱动侧
+     *   build >= 0x1DB0 分支调用的是 GT[0x42BC]（18362 上解析为 KeCancelTimer），
+     *   原始驱动同样如此。保留该入口用于对照实验。
+     * --kill28-cli <pid>  走 0x28（CmdProcessOperation），内部
+     *   ZeroProcessMemoryPages 遍历目标用户空间逐页清零，这是真正终止的路径。 */
+    if (lpCmdLine && (strstr(lpCmdLine, "--kill-cli") || strstr(lpCmdLine, "--kill28-cli"))) {
+        BOOL use28 = strstr(lpCmdLine, "--kill28-cli") != NULL;
+        const char *argp = use28 ? (strstr(lpCmdLine, "--kill28-cli") + 13)
+                                 : (strstr(lpCmdLine, "--kill-cli") + 11);
+        ULONG kpid = (ULONG)strtoul(argp, NULL, 0);
         ULONG64 kep = 0;
         if (XpchOpen(&g_Client)) {
             FE_PROCESS_LIST list;
@@ -865,9 +875,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
                     if (list.Items[i].Pid == kpid) { kep = list.Items[i].Eprocess; break; }
                 FeFreeProcessList(&list);
             }
-            printf("kill pid %lu ep=%p -> %s\n", kpid, (void *)(ULONG_PTR)kep,
-                   FeKillProcess(&g_Client, kpid, kep, TRUE) ? "OK" : "FAILED");
-            /* 0xA2 CmdTerminateProcessByEProcess；0x28 只是清保护标志，不是终止 */
+            printf("kill pid %lu ep=%p via 0x%s -> %s\n", kpid, (void *)(ULONG_PTR)kep,
+                   use28 ? "28" : "A2",
+                   FeKillProcess(&g_Client, kpid, use28 ? 0 : kep, !use28) ? "OK" : "FAILED");
             XpchClose(&g_Client);
         } else {
             printf("open device failed\n");

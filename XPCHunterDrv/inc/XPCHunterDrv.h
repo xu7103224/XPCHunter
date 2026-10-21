@@ -391,7 +391,7 @@ void DecryptAndCompareStrings(__int64 Process, unsigned int *OutputBuffer, unsig
 __int64 DecryptDiskDeviceContextStr(void);
 __declspec(noinline) __int64 DecryptInputBuffer(PUCHAR Buffer);
 void DereferenceObjectSafe(__int64 Object);
-__declspec(noinline) void DisableCr0WriteProtect(void);
+__declspec(noinline) unsigned __int64 DisableCr0WriteProtect(unsigned __int64 *pOldCr0);
 __int64 DisableHookProtection(__int64 ImageBase, unsigned int ImageSize, __int64 UnusedParam, __int64 BaseAddress);
 __declspec(noinline) __int64 DisableObjectCallback(__int16 *DevicePath, _QWORD *pResult);
 __declspec(noinline) char __fastcall DisableObjectCallbackWithFallback(__int16 *DeviceId, _QWORD *Context);

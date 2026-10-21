@@ -644,6 +644,13 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtValidateObjectTypeFunc = 0x415A,      // 16730: 验证对象类型函数指针(InitObjectCallbackEntries)
     GtNtCreateFilePeOffset = 0x4172,            // 16754: NtCreateFile PE 偏移(QueryObjectTypeInformation)
     GtReadMemoryFunc = 0x41E4,              // 16868: 读取内存函数指针(ScanKernelMemForFsChanges/ScanVadForModifiedPages)
+    /* 【2026-10-21 实测定名】用 ntoskrnl 导出表反查（build/audit/nt/nt_exports.json）：
+       0x41E4 = MmGetPhysicalAddress、0x41E1 = MmGetVirtualForPhysical、
+       0x41DE = NtQuerySystemInformation、0x43A3 = &MmUserProbeAddress（数据导出，
+       解引用即用户态 VA 上限 0x7FFFFFFEFFFF）。旧名 GtValidateObjectFunc 是猜测，
+       与 HandleMgmt/ModuleMgmt 里的用法无关。 */
+    GtPhysToVaFunc = 0x41E1,                // 16865: MmGetVirtualForPhysical（物理帧 → VA）
+    GtUserVaMaxPtr = 0x43A3,                // 17315: &MmUserProbeAddress（解引用得用户 VA 上限）
     GtAltRegisterCallbackFunc = 0x41ED,     // 16877: 备用注册回调函数指针(InitObjectCallbackEntries)
     GtDereferenceObjectFunc = 0x41EA,       // 16874: 解除对象引用函数指针(InitObjectCallbackEntries)
     GtObjectTypeRefFunc = 0x4226,           // 16934: 对象类型引用函数指针(InitObjectCallbackEntries)

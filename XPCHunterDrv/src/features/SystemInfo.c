@@ -239,11 +239,24 @@ __int64 __fastcall WritePtrToAddress(_QWORD *pTarget)
 }
 
 // DisableCr0WriteProtect — 禁用 CR0 写保护
-// 对应原始驱动 sub_1400015A8
-void DisableCr0WriteProtect(void)
+// 对应原始驱动 0x1400015A8（5 条指令，0x10 字节）
+//
+// 【2026-10-21 修正】旧实现是无参 void，直接 `__writecr0(cr0 & ~0x10000)`，
+// 丢掉了原始"把旧 CR0 存进调用方缓冲"的语义。原始逐条：
+//   0x1400015A8  mov rax, cr0          ; 读当前 CR0
+//   0x1400015AB  mov [rcx], rax        ; 旧值写入 *pOldCr0
+//   0x1400015AE  and rax, 0FFFFFFFFFFFEFFFFh   ; 清 WP(bit16)
+//   0x1400015B4  mov cr0, rax
+//   0x1400015B7  retn                  ; 返回新 CR0
+// 配套 RestoreCr0WriteProtect(*pOldCr0)：0x1400015B8 `mov rax,[rcx] / mov cr0,rax`。
+// 二者必须配对使用，否则并发/嵌套场景下会永久打开写保护。
+unsigned __int64 DisableCr0WriteProtect(unsigned __int64 *pOldCr0)
 {
     ULONG64 Cr0Value = __readcr0();
-    __writecr0(Cr0Value & 0xFFFFFFFFFFFEFFFFULL);
+    *pOldCr0 = Cr0Value;
+    Cr0Value &= 0xFFFFFFFFFFFEFFFFULL;
+    __writecr0(Cr0Value);
+    return Cr0Value;
 }
 
 // BuildSystem32Path — 构建 System32 路径

