@@ -1513,47 +1513,71 @@ __int64 CmdEnumObjectAllTypes(__int64 OutputBuffer, __int64 OutputSize, char *Us
             ProbeForWrite(UserBuffer, UserBufferSize, 1u);
             memset(UserBuffer, 0, (unsigned int)TotalSize);
             MaxEntries = TotalSize / 0x838;
+            /* 【修正 2026-10-21】MaxEntries 是 unsigned __int64，后面每步都
+               `MaxEntries = MaxEntries - <已用条目数>`。一旦某个枚举器返回的
+               条目数**超过**当前剩余量（例如调用方给的 OutSize 只够 3 条，
+               而 EnumDeviceObjects 实写了更多），减法就下溢成接近 2^64 的
+               巨大值，后续枚举器拿到荒唐的上限 → 越界写 → 蓝屏/挂死。
+               实测 OutSize=0x2000（MaxEntries=3）时 0x056 直接把 guest 挂死。
+               这里把返回值夹到剩余量以内，下溢就不可能发生。 */
             DeviceCount = EnumDeviceObjects(UserBuffer, (unsigned int)MaxEntries);
+            if (DeviceCount < 0) DeviceCount = 0;
+            if ((unsigned __int64)DeviceCount > MaxEntries) DeviceCount = (int)MaxEntries;
             DevicePtr = &UserBuffer[2104 * DeviceCount];
-            MaxEntries = MaxEntries - DeviceCount;
+            if (DevicePtr > &UserBuffer[(ULONG)TotalSize]) DevicePtr = &UserBuffer[(ULONG)TotalSize];
+            MaxEntries -= (unsigned __int64)DeviceCount;
             DriverObjectDevice = QueryDriverObjectDevice((__int64)DevicePtr, (int)MaxEntries);
+            if (DriverObjectDevice < 0) DriverObjectDevice = 0;
+            if ((unsigned __int64)DriverObjectDevice > MaxEntries) DriverObjectDevice = (int)MaxEntries;
             TotalCount = DriverObjectDevice + DeviceCount;
             DevicePtr2 = (__int64)&DevicePtr[2104 * DriverObjectDevice];
-            MaxEntries = MaxEntries - DriverObjectDevice;
+            MaxEntries -= (unsigned __int64)DriverObjectDevice;
             FileSystemDriverObject = QueryFileSystemDriverObject(DevicePtr2, (int)MaxEntries);
+            if ((unsigned __int64)FileSystemDriverObject > MaxEntries) FileSystemDriverObject = (unsigned int)MaxEntries;
             TotalCount2 = FileSystemDriverObject + TotalCount;
             DevicePtr3 = 2104LL * FileSystemDriverObject + DevicePtr2;
-            MaxEntries = MaxEntries - FileSystemDriverObject;
+            MaxEntries -= (unsigned __int64)FileSystemDriverObject;
             FileSysCount = EnumFileSystemDeviceObjects(DevicePtr3, (int)MaxEntries);
+            if ((unsigned __int64)FileSysCount > MaxEntries) FileSysCount = (unsigned int)MaxEntries;
             TotalCount3 = FileSysCount + TotalCount2;
             DevicePtr4 = 2104LL * FileSysCount + DevicePtr3;
-            MaxEntries = MaxEntries - FileSysCount;
+            MaxEntries -= (unsigned __int64)FileSysCount;
             KbdClassCount = BuildDriverPathKbdClass(DevicePtr4, (int)MaxEntries);
+            if ((unsigned __int64)KbdClassCount > MaxEntries) KbdClassCount = (unsigned int)MaxEntries;
             TotalCount4 = KbdClassCount + TotalCount3;
             DevicePtr5 = 2104LL * KbdClassCount + DevicePtr4;
-            MaxEntries = MaxEntries - KbdClassCount;
+            MaxEntries -= (unsigned __int64)KbdClassCount;
             I8042prtCount = BuildDriverPathI8042prt(DevicePtr5, (int)MaxEntries);
+            if ((unsigned __int64)I8042prtCount > MaxEntries) I8042prtCount = (unsigned int)MaxEntries;
             TotalCount5 = I8042prtCount + TotalCount4;
             DevicePtr6 = 2104LL * I8042prtCount + DevicePtr5;
             RemainingCount = (int)MaxEntries - (int)I8042prtCount;
+            if (RemainingCount < 0) RemainingCount = 0;
             TcpipDriverObject = (unsigned int)QueryTcpipDriverObject(DevicePtr6, RemainingCount);
+            if (TcpipDriverObject > (unsigned int)RemainingCount) TcpipDriverObject = (unsigned int)RemainingCount;
             if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
             {
                 DevicePtr7 = 2104 * TcpipDriverObject + DevicePtr6;
                 RemainingCount2 = RemainingCount - (int)TcpipDriverObject;
                 VolmgrDriverObject = QueryVolmgrDriverObject(DevicePtr7, RemainingCount2);
+                if (VolmgrDriverObject > (unsigned int)RemainingCount2) VolmgrDriverObject = (unsigned int)RemainingCount2;
                 TotalCount5 += (int)VolmgrDriverObject + (int)TcpipDriverObject;
                 DevicePtr6 = 2104LL * VolmgrDriverObject + DevicePtr7;
                 RemainingCount = RemainingCount2 - VolmgrDriverObject;
                 TcpipDriverObject = QueryTdxDriverObject(DevicePtr6, RemainingCount);
+                if (TcpipDriverObject > (unsigned int)RemainingCount) TcpipDriverObject = (unsigned int)RemainingCount;
             }
             DevicePtr8 = 2104LL * (unsigned int)TcpipDriverObject + DevicePtr6;
             RemainingCount3 = RemainingCount - (int)TcpipDriverObject;
+            if (RemainingCount3 < 0) RemainingCount3 = 0;
             MouClassCount = BuildDriverPathMouClass(DevicePtr8, RemainingCount3);
+            if (MouClassCount > (unsigned int)RemainingCount3) MouClassCount = (unsigned int)RemainingCount3;
             TotalCount6 = (int)MouClassCount + (int)TcpipDriverObject + TotalCount5;
             DevicePtr9 = 2104LL * MouClassCount + DevicePtr8;
-            RemainingCount4 = RemainingCount3 - MouClassCount;
+            RemainingCount4 = RemainingCount3 - (int)MouClassCount;
+            if (RemainingCount4 < 0) RemainingCount4 = 0;
             NdisDriverObject = QueryNdisDriverObject(DevicePtr9, RemainingCount4);
+            if (NdisDriverObject > (unsigned int)RemainingCount4) NdisDriverObject = (unsigned int)RemainingCount4;
             PnpCount = QueryPnpManagerDriverObject(2104LL * NdisDriverObject + DevicePtr9, RemainingCount4 - NdisDriverObject)
                      + NdisDriverObject
                      + TotalCount6;

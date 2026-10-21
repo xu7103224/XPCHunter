@@ -221,6 +221,8 @@ int main(int argc, char **argv)
     ULONG ScanHi = XPCH_CMD_MAX;
     BOOL Raw = FALSE;
     ULONG RawSize = 0x4000;
+    ULONG RawInSize = 0;
+    ULONG RawInValue = 0;
     int i;
 
     fopen_s(&g_Log, "C:\\Users\\Public\\probe_trace.txt", "w");
@@ -250,6 +252,14 @@ int main(int argc, char **argv)
             Cmd = (ULONG)strtoul(argv[++i], NULL, 0);
             if (i + 1 < argc && argv[i + 1][0] != '-')
                 RawSize = (ULONG)strtoul(argv[++i], NULL, 0);
+        }
+        else if (_stricmp(argv[i], "--rawin") == 0) {
+            /* --rawin <insize> <value>：给 --raw 的命令附带入参。
+               许多处理器校验 InSize（如 8），没有入参就永远走"入参不合法"分支。 */
+            if (i + 2 < argc) {
+                RawInSize  = (ULONG)strtoul(argv[++i], NULL, 0);
+                RawInValue = (ULONG)strtoul(argv[++i], NULL, 0);
+            }
         }
     }
     if (ScanLo < XPCH_CMD_MIN) ScanLo = XPCH_CMD_MIN;
@@ -596,8 +606,22 @@ int main(int argc, char **argv)
                 return 1;
             }
             /* 直接用 XpchInvoke：TryCommand 会给未知命令强制 1 字节输出，
-               这里要的是按调用方指定的大小拿完整输出。 */
-            rok = XpchInvoke(&client, Cmd, NULL, 0, outBuf, RawSize, &rr);
+               这里要的是按调用方指定的大小拿完整输出。
+               RawInSize > 0 时先发一段入参（0x4C 等需要 8 字节输入的处理器）。 */
+            if (RawInSize)
+            {
+                UCHAR inBuf[64];
+                ULONG n = RawInSize > sizeof(inBuf) ? (ULONG)sizeof(inBuf) : RawInSize;
+                ULONG k;
+                ZeroMemory(inBuf, sizeof(inBuf));
+                for (k = 0; k < n && k < 8; k++)
+                    inBuf[k] = (UCHAR)((RawInValue >> (8 * k)) & 0xFF);
+                rok = XpchInvoke(&client, Cmd, inBuf, n, outBuf, RawSize, &rr);
+            }
+            else
+            {
+                rok = XpchInvoke(&client, Cmd, NULL, 0, outBuf, RawSize, &rr);
+            }
             printf("\n=== raw 0x%02X outSize=0x%lX -> %s result=%u ===\n",
                    Cmd, RawSize, rok ? "OK" : "REJECTED", rr);
             for (off = 0; off < RawSize; off += 16) {
