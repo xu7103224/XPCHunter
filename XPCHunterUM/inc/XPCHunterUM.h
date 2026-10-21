@@ -189,6 +189,60 @@ BOOL FePrintProcessWindows(ULONG Pid);
 /* ---- Modules 子视图（psapi，纯用户态）---- */
 #define FE_MODULE_PATH_CHARS 260u
 
+/* ---- Kernel 页：Kernel Module / Driver 两个子页 ----
+ *
+ * Kernel Module：已加载的内核模块（ntoskrnl/hal/各 .sys）。
+ *   数据源 psapi 的 EnumDeviceDrivers + GetDeviceDriverBaseNameW/FileNameW
+ *   （驱动侧 0x25/0x3C 的移植缺陷见 docs/reversing/GT槽号审计 与
+ *     Process页落地 的说明；等 0x25 实机验通后再作为主源替换）。
+ *   EnumDeviceDrivers 只给基址，**大小由相邻基址差值推算**（按基址排序后）。
+ *
+ * Driver：系统里注册的内核驱动服务（注册表 Services + SCM 状态）。
+ *   数据源 OpenSCManager + EnumServicesStatusEx(SERVICE_DRIVER) + QueryServiceConfig。
+ */
+#define FE_KMOD_NAME_CHARS 64u
+#define FE_KMOD_PATH_CHARS 320u
+
+typedef struct _FE_KMODULE {
+    ULONG64 Base;
+    ULONG64 Size;                              /* 相邻基址差值；最后一个为 0 */
+    char    Name[FE_KMOD_NAME_CHARS];          /* 映像名，如 ntoskrnl.exe */
+    char    Path[FE_KMOD_PATH_CHARS];          /* \SystemRoot\System32\... */
+} FE_KMODULE;
+
+typedef struct _FE_KMODULE_LIST {
+    ULONG        Count;
+    ULONG        Capacity;
+    FE_KMODULE  *Items;
+} FE_KMODULE_LIST;
+
+BOOL FeLoadKernelModules(FE_KMODULE_LIST *List);
+void FeFreeKernelModules(FE_KMODULE_LIST *List);
+BOOL FePrintKernelModules(void);
+
+#define FE_DRV_NAME_CHARS  128u
+#define FE_DRV_PATH_CHARS  320u
+#define FE_DRV_DISP_CHARS  160u
+
+typedef struct _FE_DRIVER {
+    char  Name[FE_DRV_NAME_CHARS];             /* 服务名 */
+    char  Display[FE_DRV_DISP_CHARS];
+    char  Path[FE_DRV_PATH_CHARS];             /* ImagePath */
+    DWORD State;                               /* SERVICE_RUNNING 等 */
+    DWORD Start;                               /* SERVICE_BOOT_START 等 */
+    DWORD Type;                                /* SERVICE_KERNEL_DRIVER / FILE_SYSTEM_DRIVER */
+} FE_DRIVER;
+
+typedef struct _FE_DRIVER_LIST {
+    ULONG       Count;
+    ULONG       Capacity;
+    FE_DRIVER  *Items;
+} FE_DRIVER_LIST;
+
+BOOL FeLoadDrivers(FE_DRIVER_LIST *List);
+void FeFreeDrivers(FE_DRIVER_LIST *List);
+BOOL FePrintDrivers(void);
+
 typedef struct _FE_MODULE_ENTRY {
     ULONG64 Base;
     ULONG   Size;

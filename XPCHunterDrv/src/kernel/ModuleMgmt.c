@@ -167,11 +167,21 @@ void *FindExportEntryByName(char *Dst)
     return memset(Dst, 0, 0x228);
 }
 // 对应原始驱动 0x14004F9F4（206 字节）
+//
+// 【2026-10-21 修正两处】
+// ① 本地上下文必须是 **24 字节**。原始 0x14004FA75..FA82 是
+//      movups xmm0,[rbx] / movups [rbp-0x20],xmm0   ; 拷 16 字节
+//      movsd  xmm1,[rbx+0x10] / movsd [rbp-0x10],xmm1 ; 再拷 8 字节
+//    → 局部缓冲 rbp-0x20 起共 24 字节。旧移植用 `_OWORD Buffer`（16 字节）
+//    后又让 EnumProcessInformationWorker 读 +16，属**栈越界读**。
+// ② worker 的 BufferSize 取**本函数的第 4 参数 OutputSize**：
+//      0x14004FA09  mov esi, r9d        ; esi = OutputSize
+//      0x14004FA88  mov r8d, esi        ; BufferSize = OutputSize
+//    旧移植却用输入里的 `*((__int64*)Address + 2)`，语义完全不同。
 __int64 CmdEnumKernelModules(_OWORD *Address, int InputSize, volatile void *OutputBuffer, unsigned int BufferSize)
 {
     char Result = 0;
-    _OWORD Buffer;
-    __int64 ProcessInfoSize;
+    struct { __int64 Ctx[3]; } Buffer;
 
     if (!Address || InputSize != 24 ||
         (ULONG64)Address >= MmUserProbeAddress ||
@@ -183,9 +193,10 @@ __int64 CmdEnumKernelModules(_OWORD *Address, int InputSize, volatile void *Outp
 
     ProbeForRead(Address, 0x18, 4);
     ProbeForWrite(OutputBuffer, BufferSize, 1);
-    Buffer = *Address;
-    ProcessInfoSize = *((__int64 *)Address + 2);
-    return EnumProcessInformationWorker((char *)&Buffer, (__int64)OutputBuffer, (unsigned int)ProcessInfoSize);
+    Buffer.Ctx[0] = *(const __int64 *)Address;
+    Buffer.Ctx[1] = *((const __int64 *)Address + 1);
+    Buffer.Ctx[2] = *((const __int64 *)Address + 2);
+    return EnumProcessInformationWorker((char *)&Buffer, (__int64)OutputBuffer, BufferSize);
 }
 // 【GT 索引修正 2026-10-13】原用十进制 2075/2076(=0x81B/0x81C)，
 //   原始为 **0x89C / 0x89D**（依据原始 0x1400457A4 的

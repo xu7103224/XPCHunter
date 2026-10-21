@@ -219,6 +219,8 @@ int main(int argc, char **argv)
     ULONG InValue = 0;
     ULONG ScanLo = XPCH_CMD_MIN;
     ULONG ScanHi = XPCH_CMD_MAX;
+    BOOL Raw = FALSE;
+    ULONG RawSize = 0x4000;
     int i;
 
     fopen_s(&g_Log, "C:\\Users\\Public\\probe_trace.txt", "w");
@@ -241,6 +243,14 @@ int main(int argc, char **argv)
             ScanLo = (ULONG)strtoul(argv[++i], NULL, 0);
         else if (_stricmp(argv[i], "--hi") == 0 && i + 1 < argc)
             ScanHi = (ULONG)strtoul(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--raw") == 0 && i + 1 < argc) {
+            /* --raw <cmd> [outsize]：发送单条命令并把输出缓冲按 16 字节一行
+               十六进制导出，用于离线推断尚未文档化的命令输出布局。 */
+            Raw = TRUE;
+            Cmd = (ULONG)strtoul(argv[++i], NULL, 0);
+            if (i + 1 < argc && argv[i + 1][0] != '-')
+                RawSize = (ULONG)strtoul(argv[++i], NULL, 0);
+        }
     }
     if (ScanLo < XPCH_CMD_MIN) ScanLo = XPCH_CMD_MIN;
     if (ScanHi > XPCH_CMD_MAX) ScanHi = XPCH_CMD_MAX;
@@ -549,6 +559,35 @@ int main(int argc, char **argv)
                             NULL, 0, &build, sizeof(build), &res);
             printf("  handshake 0x24 -> %s, result=%u, build=%lu (0x%lX)\n",
                    ok ? "OK" : "REJECTED", res, build, build);
+        }
+
+        if (Raw) {
+            UCHAR *outBuf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, RawSize);
+            UCHAR rr = 0;
+            BOOL rok;
+            ULONG off;
+
+            if (!outBuf) {
+                printf("out of memory\n");
+                XpchClose(&client);
+                return 1;
+            }
+            /* 直接用 XpchInvoke：TryCommand 会给未知命令强制 1 字节输出，
+               这里要的是按调用方指定的大小拿完整输出。 */
+            rok = XpchInvoke(&client, Cmd, NULL, 0, outBuf, RawSize, &rr);
+            printf("\n=== raw 0x%02X outSize=0x%lX -> %s result=%u ===\n",
+                   Cmd, RawSize, rok ? "OK" : "REJECTED", rr);
+            for (off = 0; off < RawSize; off += 16) {
+                ULONG j;
+                printf("  %04lX:", off);
+                for (j = 0; j < 16 && off + j < RawSize; j++)
+                    printf(" %02X", outBuf[off + j]);
+                printf("\n");
+            }
+            HeapFree(GetProcessHeap(), 0, outBuf);
+            XpchClose(&client);
+            printf("=== done (raw) ===\n");
+            return 0;
         }
 
         ok = TryCommand(&client, Cmd, 0, 0x1000, InValue, &res);

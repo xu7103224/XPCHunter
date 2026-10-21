@@ -432,7 +432,28 @@ __int64 CmdGetModuleCount(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutpu
 }
 
 // CmdEnumKernelDrivers — 枚举内核驱动程序列表
-// 对应原始驱动 sub_14004F340
+// 对应原始驱动 0x14004F340
+//
+// 【2026-10-21 修正：入参上下文 24 字节，不是 1 字节】
+// 原始在栈上构造一个 24 字节上下文（rsp+0x30，反编译变量 v18/v19/v20）：
+//     0x14004F4xx  v20 = pDriverObjectFunc()      ; IoGetCurrentProcess()
+//                  v19 = pObjectTypeFunc()         ; PsGetCurrentProcessId()
+//                  v18[0] = 1
+//                  v12 = pCurrentThreadFunc()      ; PsGetCurrentThreadId()
+//                  EnumProcessInformationWorker(v18, OutputBuffer, BufferSize)
+// 即 +0 字节 = 1（InfoFlag）、+8 = 当前进程 ID、+16 = 当前 EPROCESS。
+// EnumProcessInformationWorker 把 +8 当 PID（PsLookupProcessByProcessId）、
+// 把 +16 当 EPROCESS（ValidateProcessObject/ReferenceObjectSafe），
+// 都为零时还会用 +16 回填查到的 EPROCESS。
+//
+// 旧移植只声明了 `char HasData = 1;` 并把它当上下文传入，+8/+16 是**未初始化的
+// 栈垃圾** → 内核拿垃圾值去 PsLookupProcessByProcessId / ValidateProcessObject。
+// 实机表现：`--raw 0x25` 直接把 guest 打到自旋（CPU 147%）并最终 bugcheck 0x139。
+//
+// 三个槽的真实含义（用 ntoskrnl 导出表反查基线槽位确认）：
+//     GtObjectTypeRefFunc                                                  = PsGetCurrentProcessId
+//     GtTotalSize|GtObjectTypeField42|GtDriverObject  (0x4271, 93 组)      = IoGetCurrentProcess
+//     GtUninstallHookSyscallPeOffset|GtEprocessField120 (0x42AA, 112 组)   = PsGetCurrentThreadId
 __int64 CmdEnumKernelDrivers(__int64 InputBuffer, __int64 InputSize, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     if (!OutputBuffer || BufferSize <= 0x50)
@@ -448,11 +469,22 @@ __int64 CmdEnumKernelDrivers(__int64 InputBuffer, __int64 InputSize, _DWORD *Out
     __int64 (*pCurrentThreadFunc)(void) = (__int64 (*)(void))ServiceTable;
     if (!pObjectTypeFunc || !pDriverObjectFunc || !ServiceTable)
         return 0;
-    __int64 FuncResult1 = pDriverObjectFunc();
-    __int64 FuncResult2 = pObjectTypeFunc();
-    char HasData = 1;
+
+    /* 与原始一致：24 字节上下文，+0 是 InfoFlag，+8 是 PID，+16 是 EPROCESS。
+       （原始只初始化 +0/+8/+16，中间字节是栈垃圾且从不被读，这里显式清零更安全。） */
+    struct {
+        __int64 Context[3];
+    } EnumContext;
+    EnumContext.Context[0] = 0;
+    EnumContext.Context[1] = 0;
+    EnumContext.Context[2] = 0;
+    *((char *)&EnumContext) = 1;
+
+    EnumContext.Context[2] = pDriverObjectFunc();   /* +16 = IoGetCurrentProcess() */
+    EnumContext.Context[1] = pObjectTypeFunc();     /* +8  = PsGetCurrentProcessId() */
     __int64 CallbackResult = pCurrentThreadFunc();
-    int Result = EnumProcessInformationWorker(&HasData, (__int64)OutputBuffer, BufferSize);
+
+    int Result = EnumProcessInformationWorker((char *)&EnumContext, (__int64)OutputBuffer, BufferSize);
     if (Result)
     {
         unsigned int HeaderValue = OutputBuffer[4];

@@ -31,10 +31,18 @@
 #define IDC_TABS        1011
 #define IDC_DETAIL      1012
 #define IDC_KILL        1013
+/* Kernel 页（独立窗口） */
+#define IDC_KERNEL      1014
+#define IDC_KM_REFRESH  1020
+#define IDC_KM_TABS     1021
+#define IDC_KM_LIST     1022
+#define IDC_KM_STATUS   1023
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
 static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
+static HWND g_hKernel, g_hKmTabs, g_hKmList, g_hKmStatus;
+static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
 static int  g_StartTab = 0;   /* --tab N：启动时预选子视图页 */
 
@@ -649,6 +657,226 @@ static void DoRefreshProcs(void)
     }
 }
 
+/* ==========================================================================
+ * Kernel 页（对应原版 PCHunter 的第 2 个主 Tab，先落两个子页）
+ *
+ *   Kernel Module : EnumDeviceDrivers + GetDeviceDriverBaseNameW/FileNameW
+ *   Driver        : SCM 的 SERVICE_DRIVER 枚举 + QueryServiceConfig
+ *
+ * 做成独立窗口而不是主窗口内的分页，是为了不改动已实机验证过的 Process 页
+ * 布局（Process 页的坐标与 WM_SIZE 都是硬编码的）。等其余页面补齐后，
+ * 这些页会统一收进一个主 Tab 栏里。
+ * ========================================================================== */
+static void CreateKmColumns(HWND hList, int tab)
+{
+    LVCOLUMNA c;
+
+    while (ListView_DeleteColumn(hList, 0))
+        ;
+
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    if (tab == 0) {
+        c.pszText = "Base";      c.cx = 140; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Size";      c.cx = 90;  c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Name";      c.cx = 160; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Path";      c.cx = 520; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else {
+        c.pszText = "Service";   c.cx = 180; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "State";     c.cx = 100; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Start";     c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "ImagePath"; c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    }
+}
+
+static void KmSetText(HWND hList, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(hList, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void DoRefreshKernel(void)
+{
+    char status[256];
+
+    if (!g_hKmList || !g_hKmStatus)
+        return;
+    ListView_DeleteAllItems(g_hKmList);
+    CreateKmColumns(g_hKmList, g_KmTab);
+
+    if (g_KmTab == 0) {
+        FE_KMODULE_LIST list;
+        ULONG i;
+        if (!FeLoadKernelModules(&list)) {
+            sprintf_s(status, sizeof(status),
+                      "Kernel Module: load failed, GetLastError=%lu", GetLastError());
+            SetWindowTextA(g_hKmStatus, status);
+            return;
+        }
+        for (i = 0; i < list.Count; i++) {
+            LVITEMA it;
+            char base[32], size[32];
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            sprintf_s(base, sizeof(base), "%016I64X", list.Items[i].Base);
+            sprintf_s(size, sizeof(size), "0x%I64X", list.Items[i].Size);
+            it.pszText = base;
+            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            KmSetText(g_hKmList, (int)i, 1, size);
+            KmSetText(g_hKmList, (int)i, 2,
+                      list.Items[i].Name[0] ? list.Items[i].Name : "(?)");
+            KmSetText(g_hKmList, (int)i, 3,
+                      list.Items[i].Path[0] ? list.Items[i].Path : "(?)");
+        }
+        sprintf_s(status, sizeof(status), "Kernel Module: %lu loaded modules", list.Count);
+        FeFreeKernelModules(&list);
+    } else {
+        FE_DRIVER_LIST list;
+        ULONG i;
+        if (!FeLoadDrivers(&list)) {
+            sprintf_s(status, sizeof(status),
+                      "Driver: load failed, GetLastError=%lu", GetLastError());
+            SetWindowTextA(g_hKmStatus, status);
+            return;
+        }
+        for (i = 0; i < list.Count; i++) {
+            LVITEMA it;
+            const char *st;
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            it.pszText = list.Items[i].Name;
+            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            switch (list.Items[i].State) {
+            case SERVICE_RUNNING:   st = "RUNNING";  break;
+            case SERVICE_STOPPED:   st = "STOPPED";  break;
+            case SERVICE_START_PENDING: st = "STARTING"; break;
+            case SERVICE_STOP_PENDING:  st = "STOPPING"; break;
+            default:                st = "?";        break;
+            }
+            KmSetText(g_hKmList, (int)i, 1, st);
+            switch (list.Items[i].Start) {
+            case SERVICE_BOOT_START:   st = "BOOT";   break;
+            case SERVICE_SYSTEM_START: st = "SYSTEM"; break;
+            case SERVICE_AUTO_START:   st = "AUTO";   break;
+            case SERVICE_DEMAND_START: st = "DEMAND"; break;
+            case SERVICE_DISABLED:     st = "DISABLED"; break;
+            default:                   st = "?";      break;
+            }
+            KmSetText(g_hKmList, (int)i, 2, st);
+            KmSetText(g_hKmList, (int)i, 3,
+                      list.Items[i].Path[0] ? list.Items[i].Path : "(?)");
+        }
+        sprintf_s(status, sizeof(status), "Driver: %lu kernel driver services", list.Count);
+        FeFreeDrivers(&list);
+    }
+    SetWindowTextA(g_hKmStatus, status);
+}
+
+static LRESULT CALLBACK KernelWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg) {
+    case WM_CREATE: {
+        HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
+        TCITEMA t;
+        int k;
+
+        CreateWindowA("BUTTON", "Refresh", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      10, 10, 90, 28, hWnd, (HMENU)IDC_KM_REFRESH, hInst, NULL);
+        g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | WS_VISIBLE | SS_LEFT,
+                                    110, 16, 860, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
+
+        g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
+                                  10, 46, 960, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
+        for (k = 0; k < 2; k++) {
+            ZeroMemory(&t, sizeof(t));
+            t.mask = TCIF_TEXT;
+            t.pszText = (LPSTR)(k == 0 ? "Kernel Module" : "Driver");
+            SendMessageA(g_hKmTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
+        }
+        SendMessageA(g_hKmTabs, TCM_SETCURSEL, 0, 0);
+
+        g_hKmList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 76, 960, 500, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        CreateKmColumns(g_hKmList, 0);
+        DoRefreshKernel();
+        SetWindowTextA(hWnd, "XPCHunter Frontend - Kernel");
+        return 0;
+    }
+
+    case WM_SIZE: {
+        RECT rc;
+        int w;
+        GetClientRect(hWnd, &rc);
+        w = rc.right - 20;
+        if (w < 300) w = 300;
+        if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, 46, w, 24, TRUE);
+        if (g_hKmList)   MoveWindow(g_hKmList, 10, 76, w, rc.bottom - 86, TRUE);
+        if (g_hKmStatus) MoveWindow(g_hKmStatus, 110, 16, w - 100, 20, TRUE);
+        return 0;
+    }
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDC_KM_REFRESH) {
+            DoRefreshKernel();
+            return 0;
+        }
+        return 0;
+
+    case WM_NOTIFY: {
+        NMHDR *nm = (NMHDR *)lParam;
+        if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
+            g_KmTab = (int)SendMessageA(g_hKmTabs, TCM_GETCURSEL, 0, 0);
+            DoRefreshKernel();
+        }
+        return 0;
+    }
+
+    case WM_CLOSE:
+        DestroyWindow(hWnd);
+        return 0;
+
+    case WM_DESTROY:
+        g_hKernel = NULL;
+        g_hKmTabs = g_hKmList = g_hKmStatus = NULL;
+        return 0;
+    }
+    return DefWindowProcA(hWnd, msg, wParam, lParam);
+}
+
+static void ShowKernelWindow(HINSTANCE hInst)
+{
+    static BOOL registered = FALSE;
+
+    if (g_hKernel) {
+        SetForegroundWindow(g_hKernel);
+        return;
+    }
+    if (!registered) {
+        WNDCLASSA wc;
+        ZeroMemory(&wc, sizeof(wc));
+        wc.lpfnWndProc = KernelWndProc;
+        wc.hInstance = hInst;
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.lpszClassName = "XPCHKernel";
+        if (!RegisterClassA(&wc))
+            return;
+        registered = TRUE;
+    }
+    g_hKernel = CreateWindowExA(0, "XPCHKernel", "XPCHunter Frontend - Kernel",
+                                WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                                CW_USEDEFAULT, CW_USEDEFAULT, 1000, 640,
+                                NULL, NULL, hInst, NULL);
+}
+
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
@@ -665,6 +893,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                       360, 10, 70, 28, hWnd, (HMENU)IDC_SEND, hInst, NULL);
         CreateWindowA("BUTTON", "Kill", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       675, 10, 90, 28, hWnd, (HMENU)IDC_KILL, hInst, NULL);
+        /* Kernel 页入口（原版第 2 个主 Tab；先落 Kernel Module / Driver 两个子页） */
+        CreateWindowA("BUTTON", "Kernel", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      780, 10, 90, 28, hWnd, (HMENU)IDC_KERNEL, hInst, NULL);
 
         CreateWindowA("STATIC", "cmd", WS_CHILD | WS_VISIBLE,
                       445, 16, 30, 20, hWnd, NULL, hInst, NULL);
@@ -715,6 +946,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         CreateListColumns(g_hList);
 
         SetWindowTextA(hWnd, "XPCHunter Frontend - Process");
+        /* --kernel-gui：启动即打开 Kernel 页（截图/取证用；两个子页的数据源
+           都是纯用户态 API，不依赖驱动，因此无驱动时也能正常显示） */
+        if (strstr(GetCommandLineA(), "--kernel-gui"))
+            ShowKernelWindow(hInst);
         return 0;
     }
 
@@ -749,6 +984,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SCAN:    DoScan();    return 0;
         case IDC_SEND:    DoSend();    return 0;
         case IDC_KILL:    DoKillSelected(); return 0;
+        case IDC_KERNEL:  ShowKernelWindow((HINSTANCE)GetWindowLongPtrA(hWnd, GWLP_HINSTANCE)); return 0;
         }
         return 0;
 
@@ -851,6 +1087,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
 
     if (lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))
         return RunProcListCli();
+
+    /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
+    if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
+        return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--drivers-cli"))
+        return FePrintDrivers() ? 0 : 1;
 
     /* 子视图调试入口：--memory-cli <pid>
      *
