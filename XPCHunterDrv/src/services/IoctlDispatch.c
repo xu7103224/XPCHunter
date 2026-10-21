@@ -2798,6 +2798,42 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
        注：槽 0x422F/0x4160/0x4163 已用 ntoskrnl 导出表反查确认为
            IoFileObjectType / IoDriverObjectType / IoDeviceObjectType。 */
     *(ULONG64 *)(Out + 0x1C0) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x422F); /* IoFileObjectType   */
+
+    /* 【诊断 2026-10-21】系统调用表链条的关键槽位。
+       0x117/0x42 等命令依赖它们；任一为 0 链条就断在对应环节。
+         0x240 GT[0x8AE] wdf01000.sys 模块基址（链条起点）
+         0x248 GT[0x8B4] 描述符偏移（FindSyscallTableDescriptor 产出）
+         0x250 GT[0x8B5] 描述符运行期地址
+         0x258 GT[0x8B7] 第一张表条目数
+         0x260 GT[0x8B9] 第一张表指针
+         0x268 GT[0x8BA] 第二张表条目数
+         0x270 GT[0x8BC] 第二张表指针
+         0x278 GT[0x8BD] 第一张表已收集标志
+         0x27C GT[0x8BE] 第二张表已收集标志
+         0x280 "wdf01000.sys" 字符串是否已解码（InitThreadNotify 的产物）
+         0x288 GT[0x21A4] 第一张表缓冲
+         0x290 GT[0x2DB0] 第二张表缓冲 */
+    *(ULONG64 *)(Out + 0x240) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8AE);
+    *(ULONG64 *)(Out + 0x248) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8B4);
+    *(ULONG64 *)(Out + 0x250) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8B5);
+    *(ULONG *)(Out + 0x258) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8B7);
+    *(ULONG64 *)(Out + 0x260) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8B9);
+    *(ULONG *)(Out + 0x268) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8BA);
+    *(ULONG64 *)(Out + 0x270) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8BC);
+    *(ULONG *)(Out + 0x278) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8BD);
+    *(ULONG *)(Out + 0x27C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8BE);
+    *(ULONG64 *)(Out + 0x288) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x21A4);
+    *(ULONG64 *)(Out + 0x290) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x2DB0);
+    *(ULONG *)(Out + 0x298) = g_DiagNotifyDriverObj;
+    *(ULONG *)(Out + 0x29C) = g_DiagNotifyEntryHead;
+    *(ULONG *)(Out + 0x2A0) = g_DiagNotifyNodes;
+    *(ULONG *)(Out + 0x2A4) = g_DiagNotifyFound;
+    *(ULONG *)(Out + 0x2A8) = g_DiagNotifyNameFirst;
+    *(ULONG *)(Out + 0x2AC) = g_DiagChainStage;
+    *(ULONG *)(Out + 0x2B0) = g_DiagChainWdfSize;
+    *(ULONG *)(Out + 0x2B4) = g_DiagChainWdfRet;
+    *(ULONG *)(Out + 0x2B8) = g_DiagChainFindRet;
+    *(ULONG *)(Out + 0x2BC) = g_DiagChainNtExport;
     *(ULONG64 *)(Out + 0x1C8) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4160); /* IoDriverObjectType */
     *(ULONG64 *)(Out + 0x1D0) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4163); /* IoDeviceObjectType */
     {

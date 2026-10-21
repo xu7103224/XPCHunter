@@ -101,6 +101,24 @@ ULONG g_DiagKillSdst;
 ULONG g_DiagKillDupRet;
 ULONG g_DiagKillTermRet;
 ULONG g_DiagKillDirectRet;
+
+/* 【诊断 2026-10-21】InitThreadNotify 遍历统计。
+   GT[0x8AE]（wdf01000.sys 基址）是系统调用表链条的起点，
+   若它为 0 则 0x117/0x42 全部返回 0。这几个计数说明遍历走到了哪。 */
+ULONG g_DiagNotifyDriverObj;   /* GT[1] DriverObject */
+ULONG g_DiagNotifyEntryHead;   /* ListHead + 0x28 */
+ULONG g_DiagNotifyNodes;       /* 遍历到的节点数 */
+ULONG g_DiagNotifyFound;       /* 名字匹配命中数 */
+ULONG g_DiagNotifyNameFirst;   /* 第一个节点名字的前 4 字符（调试用） */
+
+/* 【诊断 2026-10-21】ParseSyscallTableExportDir 链条逐级结果。
+   0 = 未走到；1 = 成功；其它 = 具体失败点。 */
+ULONG g_DiagChainStage;      /* 1=开始 2=读到wdf 3=Find 4=Build 5=DataSec
+                                6=Sections 7=ParseNtExport 8=三个Collect */
+ULONG g_DiagChainWdfSize;    /* ReadWdfLibraryModule 返回的文件大小 */
+ULONG g_DiagChainWdfRet;     /* ReadWdfLibraryModule 的返回值 */
+ULONG g_DiagChainFindRet;    /* FindSyscallTableDescriptor 返回值 */
+ULONG g_DiagChainNtExport;   /* ParseNtExportDir 返回值 */
 ULONG64 g_DiagKillEp;
 ULONG64 g_DiagKillDirectFn;
 ULONG64 g_DiagKillCheckFn;
@@ -209,7 +227,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     DevNameIdx = (ULONG)wcslen(g_DeviceNameBuffer);   /* 拼接后的实际字符数 */
 
     InitProcessNotify();
-    InitThreadNotify();
+    { __int64 nret = InitThreadNotify(); g_DiagNotifyFound = nret ? 1u : 0u; (void)nret; }
 
     /*
      * 与原始 DriverEntry（0x1400810F9..0x140081111）完全一致：
@@ -2268,16 +2286,21 @@ __int64 InitThreadNotify(void)
     Found = 0;
 
     ListHead = (ULONG64)GtRead(GtDriverObject);             // 0x14001F91B: GtRead(1)
+    g_DiagNotifyDriverObj = (ULONG)ListHead;
     if (!ListHead)
         return 0;
 
     EntryHead = *(ULONG64 *)(ListHead + 0x28);              // 0x14001FB91 表头
+    g_DiagNotifyEntryHead = (ULONG)EntryHead;
+    if (!EntryHead)
+        return Found;
     Node = *(ULONG64 *)EntryHead;                           // 0x14001FB95 首节点
 
     if (Node == EntryHead)                                  // 0x14001FB9B 空链
         return Found;
 
 L_THREAD_LOOP:                                              // 0x14001FBA7
+    g_DiagNotifyNodes++;
     if (Node <= (ULONG64)MmSystemRangeStart)                // 0x14001FBAE 整函数提前返回
         return Found;
 
@@ -2288,6 +2311,11 @@ L_THREAD_LOOP:                                              // 0x14001FBA7
     NameBuf      = *(ULONG64 *)(Node + 0x60);
     NameLenBytes = (ULONG)*(USHORT *)(Node + 0x58);         // 0x14001FBCF
     NameChars    = NameLenBytes >> 1;
+    if (!g_DiagNotifyNameFirst && NameBuf && NameChars >= 2
+        && MmIsAddressValid((PVOID)NameBuf) == 1) {
+        ULONG64 *pName = (ULONG64 *)NameBuf;
+        g_DiagNotifyNameFirst = (ULONG)(*pName & 0xFFFFFFFF);
+    }
 
     /* 按名称字节长度分派（原始是 cmp r15w,ax 链）。
        每个分支内的候选名与该分支的写入索引一一对应，均已用活体 GT 表 + kd `lm` 反查确认。 */

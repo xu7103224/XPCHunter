@@ -1447,13 +1447,25 @@ void ParseSyscallTableExportDir(void)
     unsigned int FileSize = 0;
     void *pFileBuffer = 0;
 
+    g_DiagChainStage = 0x100;   /* 无条件打点：进入函数即置 0x100 */
     WdfModuleBase = GtRead((GLOBAL_TABLE_INDEX)0x8AE);
-    if (WdfModuleBase && ReadWdfLibraryModule((_QWORD *)&pFileBuffer, &FileSize))
+    g_DiagChainStage = WdfModuleBase ? 1 : 0x101;
+    if (WdfModuleBase)
     {
-        FindSyscallTableDescriptor((__int64)pFileBuffer, FileSize, WdfModuleBase);
+        g_DiagChainWdfRet = ReadWdfLibraryModule((_QWORD *)&pFileBuffer, &FileSize) ? 1u : 0u;
+        g_DiagChainWdfSize = FileSize;
+        if (g_DiagChainWdfRet) g_DiagChainStage = 2;
+    }
+    if (WdfModuleBase && pFileBuffer && FileSize)
+    {
+        g_DiagChainFindRet = (ULONG)FindSyscallTableDescriptor((__int64)pFileBuffer, FileSize, WdfModuleBase);
+        g_DiagChainStage = 3;
         BuildExportSectionMapping((__int64)pFileBuffer, FileSize);
+        g_DiagChainStage = 4;
         ParseSyscallTableDataSection((__int64)pFileBuffer, FileSize, WdfModuleBase);
+        g_DiagChainStage = 5;
         ParseSyscallTableSections((__int64)pFileBuffer, FileSize, WdfModuleBase);
+        g_DiagChainStage = 6;
         if (ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, (ULONG64)WdfModuleBase, 0) == 1)
         {
             CollectSyscallEntries4((__int64)pFileBuffer, FileSize, WdfModuleBase);
