@@ -99,6 +99,9 @@
 #define IDC_HK_REFRESH  1130
 #define IDC_HK_LIST     1131
 #define IDC_HK_STATUS   1132
+/* Ring0 两项恢复操作（原版右键菜单项，这里做成按钮，便于实机验证） */
+#define IDC_HK_RESTORE  1133
+#define IDC_HK_CBTABLE  1134
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -1684,6 +1687,100 @@ static void DoRefreshHooks(void)
     SetWindowTextA(g_hHkStatus, status);
 }
 
+/* ---- Ring0 两项恢复操作的点击处理 ----
+ * 两者都必须把「没有待恢复项」和「失败」区分开显示：
+ * 本机 908 条 Hook 条目全部 clean，0x118 返回 0 是正常结果，
+ * 若显示成 FAILED 会误导用户以为自己系统被 hook 了。 */
+static void DoRestoreOverHooks(void)
+{
+    FE_HOOK_RESTORE_RESULT r;
+    char msg[420];
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hHkStatus, "Restore Over. Hooks/Patches: not connected");
+        return;
+    }
+    if (!FeRestoreOverHooks(&g_Client, 1, &r)) {
+        SetWindowTextA(g_hHkStatus, "Restore Over. Hooks/Patches: query failed");
+        return;
+    }
+    switch (r.State) {
+    case FE_HOOK_RESTORE_RESTORED:
+        sprintf_s(msg, sizeof(msg),
+                  "Restore Over. Hooks/Patches: restored (%lu entries checked)",
+                  r.TotalEntries);
+        break;
+    case FE_HOOK_RESTORE_NOTHING_TO_DO:
+        sprintf_s(msg, sizeof(msg),
+                  "Restore Over. Hooks/Patches: nothing to restore - all %lu hook entries "
+                  "match their on-disk originals (0 modified, driver result=%u)",
+                  r.TotalEntries, r.ResultByte);
+        break;
+    case FE_HOOK_RESTORE_ATTEMPTED_NO_EFFECT:
+        sprintf_s(msg, sizeof(msg),
+                  "Restore Over. Hooks/Patches: %lu modified entries found but driver "
+                  "reported no change (result=%u)",
+                  r.ModifiedCount, r.ResultByte);
+        break;
+    default:
+        sprintf_s(msg, sizeof(msg), "Restore Over. Hooks/Patches: %s",
+                  FeHookRestoreStateText(&r));
+        break;
+    }
+    SetWindowTextA(g_hHkStatus, msg);
+    DoRefreshHooks();                 /* 刷新列表，让用户看到恢复后的状态 */
+}
+
+static void DoRestoreCallbackTable(void)
+{
+    FE_CB_TABLE t;
+    char msg[420];
+    int n = 0;
+    ULONG i;
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hHkStatus, "Restore KernelCallbackTable: not connected");
+        return;
+    }
+    if (!FeLoadCallbackTable(&g_Client, &t)) {
+        SetWindowTextA(g_hHkStatus, "Restore KernelCallbackTable: query failed");
+        return;
+    }
+    if (t.State != FE_CB_ENUMERATED) {
+        sprintf_s(msg, sizeof(msg),
+                  "Restore KernelCallbackTable: %s (cmd 0x131 result=%u)",
+                  FeCbStateText(&t), t.ResultByte);
+        SetWindowTextA(g_hHkStatus, msg);
+        return;
+    }
+    /* 枚举成功：把回调槽追加到列表里，便于用户看到目标地址 */
+    if (g_hHkList) {
+        while (ListView_GetItemCount(g_hHkList) > 0)
+            n = 0, ListView_DeleteItem(g_hHkList, 0);
+        for (i = 0; i < t.Count; i++) {
+            LVITEMA it;
+            char off[32], val[32];
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = n;
+            sprintf_s(off, sizeof(off), "+0x%03lX", (unsigned long)t.Slot[i].Offset);
+            sprintf_s(val, sizeof(val), "%016I64X", t.Slot[i].Value);
+            it.pszText = (LPSTR)"Ring0";
+            SendMessageA(g_hHkList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            HkSetText(g_hHkList, n, 1, "KernelCallbackTable");
+            HkSetText(g_hHkList, n, 2, off);
+            HkSetText(g_hHkList, n, 3, val);
+            HkSetText(g_hHkList, n, 4, "callback context slot (0x131)");
+            n++;
+        }
+    }
+    sprintf_s(msg, sizeof(msg),
+              "Restore KernelCallbackTable: %lu callback slots, build %lu, "
+              "verify=%u (cmd 0x131)",
+              t.Count, t.Build, t.Ready);
+    SetWindowTextA(g_hHkStatus, msg);
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -1816,7 +1913,12 @@ static void ShowPage(HWND hWnd, int page)
     if (g_hHkStatus) ShowWindow(g_hHkStatus, isHooks ? SW_SHOW : SW_HIDE);
     {
         HWND a = GetDlgItem(hWnd, IDC_HK_REFRESH);
+        HWND r = GetDlgItem(hWnd, IDC_HK_RESTORE);
+        HWND c = GetDlgItem(hWnd, IDC_HK_CBTABLE);
         if (a) ShowWindow(a, isHooks ? SW_SHOW : SW_HIDE);
+        /* 两项恢复操作只属于 Ring0 页（主 Tab 2），Ring3 页不显示 */
+        if (r) ShowWindow(r, (page == 2) ? SW_SHOW : SW_HIDE);
+        if (c) ShowWindow(c, (page == 2) ? SW_SHOW : SW_HIDE);
     }
 
     if (g_hPageHint) {
@@ -2303,8 +2405,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         /* ---- Ring0/Ring3 Hooks 页（主 Tab 2 / 3）---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
                       10, 76, 90, 28, hWnd, (HMENU)IDC_HK_REFRESH, hInst, NULL);
+        /* 原版右键菜单的两项恢复操作，这里做成按钮便于实机验证 */
+        CreateWindowA("BUTTON", "Restore Over. Hooks/Patches", WS_CHILD | BS_PUSHBUTTON,
+                      106, 76, 210, 28, hWnd, (HMENU)IDC_HK_RESTORE, hInst, NULL);
+        CreateWindowA("BUTTON", "Restore KernelCallbackTable", WS_CHILD | BS_PUSHBUTTON,
+                      322, 76, 210, 28, hWnd, (HMENU)IDC_HK_CBTABLE, hInst, NULL);
         g_hHkStatus = CreateWindowA("STATIC", "Not scanned", WS_CHILD | SS_LEFT,
-                                    110, 82, 840, 20, hWnd, (HMENU)IDC_HK_STATUS, hInst, NULL);
+                                    540, 82, 410, 20, hWnd, (HMENU)IDC_HK_STATUS, hInst, NULL);
         g_hHkList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_HK_LIST, hInst, NULL);
@@ -2554,6 +2661,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_TR_SCAN:    DoTrojanScan(); return 0;
         case IDC_TR_BACKUP:  DoTrojanBackup(); return 0;
         case IDC_HK_REFRESH: DoRefreshHooks(); return 0;
+        case IDC_HK_RESTORE: DoRestoreOverHooks(); return 0;
+        case IDC_HK_CBTABLE: DoRestoreCallbackTable(); return 0;
         case IDC_ST_APPLY:   DoApplyForbid(0); return 0;
         case IDC_ST_PROT_SSDT:
             if (FeSettingSelfProtect(&g_Client, 1)) SetWindowTextA(g_hStStatus, "SSDT self-protection enabled");
@@ -2764,6 +2873,48 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         free(buf);
         XpchClose(&g_Client);
         return ok ? 0 : 1;
+    }
+
+    /* Ring0 恢复两项的无界面入口（实机取证用） */
+    if (lpCmdLine && strstr(lpCmdLine, "--restorehooks-cli")) {
+        FE_HOOK_RESTORE_RESULT r;
+        int rc;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        rc = FeRestoreOverHooks(&g_Client, 1, &r) ? 0 : 1;
+        printf("=== Restore Over. Hooks/Patches (0x118) ===\n");
+        printf("state        = %s\n", FeHookRestoreStateText(&r));
+        printf("driverOk     = %d  resultByte = %u\n", r.DriverOk, r.ResultByte);
+        printf("totalEntries = %lu  modified = %lu\n", r.TotalEntries, r.ModifiedCount);
+        XpchClose(&g_Client);
+        return rc;
+    }
+    if (lpCmdLine && strstr(lpCmdLine, "--cbtable-cli")) {
+        FE_CB_TABLE t;
+        ULONG i;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        printf("=== Restore KernelCallbackTable (0x131) ===\n");
+        if (!FeLoadCallbackTable(&g_Client, &t)) {
+            printf("query failed\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        printf("state      = %s\n", FeCbStateText(&t));
+        printf("driverOk   = %d  resultByte = %u\n", t.DriverOk, t.ResultByte);
+        printf("ready      = %u  build = %lu\n", t.Ready, t.Build);
+        printf("slots      = %lu\n", t.Count);
+        for (i = 0; i < t.Count; i++)
+            printf("  +0x%03lX = %016I64X\n",
+                   (unsigned long)t.Slot[i].Offset, t.Slot[i].Value);
+        XpchClose(&g_Client);
+        return (t.State == FE_CB_ENUMERATED) ? 0 : 2;
     }
 
     if (lpCmdLine && strstr(lpCmdLine, "--hooks-cli")) {

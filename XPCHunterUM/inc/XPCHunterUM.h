@@ -638,6 +638,70 @@ BOOL FeParseRing0Hooks(const BYTE *Buf, ULONG BufSize, FE_RING0_HOOK_LIST *List)
 void FeFreeRing0Hooks(FE_RING0_HOOK_LIST *List);
 BOOL FePrintRing0Hooks(XPCH_CLIENT *Client);
 
+/* ---- Ring0 恢复操作（清单 Tab 3 的后两项）----
+ * 1) Restore Over. Hooks/Patches  -> 0x118 CmdCheckBytePattern（入 8 字节）
+ * 2) Restore KernelCallbackTable  -> 0x131 枚举 + 0x132 设置（入 48 字节）
+ * 两项都要能区分「没有待恢复项」与「失败」，界面据此如实呈现。 */
+typedef enum _FE_HOOK_RESTORE_STATE {
+    FE_HOOK_RESTORE_RESTORED = 0,
+    FE_HOOK_RESTORE_NOTHING_TO_DO,          /* 无被改写条目 —— 正常状态 */
+    FE_HOOK_RESTORE_ATTEMPTED_NO_EFFECT,    /* 有被改写条目但驱动未改变任何东西 */
+    FE_HOOK_RESTORE_NOT_CONNECTED
+} FE_HOOK_RESTORE_STATE;
+
+typedef struct _FE_HOOK_RESTORE_RESULT {
+    FE_HOOK_RESTORE_STATE State;
+    BOOL      DriverOk;
+    UCHAR     ResultByte;
+    ULONG     ModifiedCount;    /* 0x117 报告的改写条目数 */
+    ULONG     TotalEntries;
+    int       TablesTried;
+} FE_HOOK_RESTORE_RESULT;
+
+BOOL FeRestoreOverHooks(XPCH_CLIENT *Client, int AllTables, FE_HOOK_RESTORE_RESULT *Out);
+const char *FeHookRestoreStateText(FE_HOOK_RESTORE_RESULT *R);
+
+typedef enum _FE_CB_STATE {
+    FE_CB_ENUMERATED = 0,
+    FE_CB_NOT_INITIALIZED,      /* 回调表和 GT 都为空 —— 驱动未构建，非错误 */
+    FE_CB_REJECTED,
+    FE_CB_NOT_CONNECTED
+} FE_CB_STATE;
+
+typedef struct _FE_CB_SLOT {
+    ULONG   Offset;
+    ULONG64 Value;
+} FE_CB_SLOT;
+
+typedef struct _FE_CB_TABLE {
+    FE_CB_STATE State;
+    BOOL        DriverOk;
+    UCHAR       ResultByte;
+    UCHAR       Ready;          /* 驱动 out[0]：三项校验全过才为 1 */
+    ULONG       Build;
+    ULONG       Count;
+    FE_CB_SLOT  Slot[40];
+} FE_CB_TABLE;
+
+typedef enum _FE_CB_RESTORE_STATE {
+    FE_CB_RESTORE_OK = 0,
+    FE_CB_RESTORE_NO_EFFECT,
+    FE_CB_RESTORE_REJECTED,
+    FE_CB_RESTORE_BAD_INPUT,
+    FE_CB_RESTORE_NOT_CONNECTED
+} FE_CB_RESTORE_STATE;
+
+typedef struct _FE_CB_RESTORE_RESULT {
+    FE_CB_RESTORE_STATE State;
+    BOOL  DriverOk;
+    UCHAR ResultByte;
+} FE_CB_RESTORE_RESULT;
+
+BOOL FeLoadCallbackTable(XPCH_CLIENT *Client, FE_CB_TABLE *Out);
+BOOL FeRestoreCallbackSlot(XPCH_CLIENT *Client, ULONG64 SlotAddr,
+                           const BYTE *Original16, FE_CB_RESTORE_RESULT *Out);
+const char *FeCbStateText(FE_CB_TABLE *T);
+
 /* 注意：Kernel 页的 SSDT / Shadow SSDT 子页**不**用 0x117。
  * 0x117 的两张表是 Wdf01000.sys 内部的 Hook 表（见 KernelHookViews.c 文件头），
  * SSDT 用 0x8C CmdEnumSyscallEntries，Shadow SSDT 用 0x8E

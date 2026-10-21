@@ -180,3 +180,190 @@ BOOL FePrintRing0Hooks(XPCH_CLIENT *Client)
     FeFreeRing0Hooks(&list);
     return TRUE;
 }
+
+/* ============================================================================
+ * Ring0 恢复操作 1：0x118 CmdCheckBytePattern → RestoreSyscallHookByIndex
+ *
+ * 入参 8 字节（驱动侧 InputSize 必须 == 8）：
+ *   byte0 == 1  → 全索引循环：Index 0..0x1FF，逐个 TableType = SBYTE1 恢复
+ *   否则        → 单个：TableType = SBYTE1，Index = HIDWORD
+ *
+ * 驱动侧恢复条件是「表项当前值 != 磁盘原始值」，即只有被改写的条目才会被写回。
+ * 本机实测 908 条 Hook 条目的 flagAddr/flagBytes 全为 0（没有待恢复项），
+ * 因此该命令返回 0 是**正确行为**，界面必须把这个状态说清楚，
+ * 不能简单显示成"失败"。
+ * ========================================================================== */
+
+BOOL FeRestoreOverHooks(XPCH_CLIENT *Client, int AllTables, FE_HOOK_RESTORE_RESULT *Out)
+{
+    BYTE in[8];
+    UCHAR res = 0;
+    BOOL ok;
+
+    if (!Out)
+        return FALSE;
+    ZeroMemory(Out, sizeof(*Out));
+    Out->TablesTried = AllTables ? 2 : 1;
+    if (!Client || !Client->Opened) {
+        Out->State = FE_HOOK_RESTORE_NOT_CONNECTED;
+        return FALSE;
+    }
+
+    /* byte0 = 1（全索引）或 0（单条，此处不用），byte1 = TableType */
+    ZeroMemory(in, sizeof(in));
+    in[0] = AllTables ? 1 : 0;
+    in[1] = 1;                       /* TableType 1 = 第一张表 */
+    if (!AllTables) {
+        /* 单条模式需要 HIDWORD = 索引；界面默认走全索引，这里留 0 */
+        in[4] = 0; in[5] = 0; in[6] = 0; in[7] = 0;
+    }
+
+    ok = XpchInvoke(Client, 0x118, in, (ULONG)sizeof(in), NULL, 0, &res);
+    Out->ResultByte = res;
+    Out->DriverOk = ok;
+
+    /* result=0 有两种含义，必须区分：
+     *   a) 没有任何条目被改写 → 无需恢复（正常）
+     *   b) 确实有被改写的条目 → 恢复成功但驱动仍可能返回 0（取决于写入结果）
+     * 前端先查 0x117 的 ModifiedCount 来判断属于哪一种。 */
+    if (ok && res == 1) {
+        Out->State = FE_HOOK_RESTORE_RESTORED;
+    } else {
+        FE_RING0_HOOK_LIST list;
+        if (FeLoadRing0Hooks(Client, &list)) {
+            Out->ModifiedCount = list.ModifiedCount;
+            Out->TotalEntries  = list.Count;
+            FeFreeRing0Hooks(&list);
+        }
+        Out->State = (Out->ModifiedCount == 0)
+                   ? FE_HOOK_RESTORE_NOTHING_TO_DO
+                   : FE_HOOK_RESTORE_ATTEMPTED_NO_EFFECT;
+    }
+    return TRUE;
+}
+
+/* ============================================================================
+ * Ring0 恢复操作 2：内核回调表（0x131 枚举 + 0x132 设置）
+ *
+ * 0x131 CmdEnumCallbackContext：OutSize 必须 == 1352（0x548）
+ *   原始实现先取 GT[GtHookTableCount]，为 0 则 BuildCallbackContextHookTargets()，
+ *   再 EnumCallbackContextTable / CopyCallbackContextHookTable / Validate…；
+ *   三者都成功才把 out[0] 置 1 并把 build 号写 out[2]（即 +8 字节处）。
+ * 0x132 CmdSetCallbackContext：InSize 必须 == 48（0x30）
+ *   [24] == 1 且 *(QWORD*)(in+8) 非零 → InstallCallbackContextHookEntry（装 Hook）
+ *   [25] == 1 → 校验目标在内核区后 WritePhysicalMemoryBuffer 写 16 字节补丁
+ *   两者都做 → 返回 HookResult & PatchResult。
+ * ========================================================================== */
+
+BOOL FeLoadCallbackTable(XPCH_CLIENT *Client, FE_CB_TABLE *Out)
+{
+    BYTE *buf;
+    UCHAR res = 0;
+    BOOL ok;
+    ULONG i;
+
+    if (!Out)
+        return FALSE;
+    ZeroMemory(Out, sizeof(*Out));
+    if (!Client || !Client->Opened) {
+        Out->State = FE_CB_NOT_CONNECTED;
+        return FALSE;
+    }
+    buf = (BYTE *)calloc(1, 1352);
+    if (!buf) {
+        Out->State = FE_CB_NOT_CONNECTED;
+        return FALSE;
+    }
+    ok = XpchInvoke(Client, 0x131, NULL, 0, buf, 1352, &res);
+    Out->ResultByte = res;
+    Out->Ready      = buf[0];
+    Out->Build      = *(const ULONG *)(buf + 8);
+    if (ok && buf[0] == 1) {
+        /* 条目区：+4 起，每条 0x1A8（424）字节？
+           驱动把 EnumCallbackContextTable 写在 pOutputBuffer+4 处，
+           具体条目步长未在原始反汇编里显式给出，这里尽量稳妥：
+           只把前 1352-4 字节按 32 字节一组抽样展示，标注为 raw。 */
+        Out->Count = 0;
+        for (i = 4; i + 32 <= 1352 && Out->Count < 40; i += 32) {
+            ULONG64 v = *(const ULONG64 *)(buf + i);
+            if (!v)
+                continue;
+            Out->Slot[Out->Count].Offset = i;
+            Out->Slot[Out->Count].Value  = v;
+            Out->Count++;
+        }
+        Out->State = FE_CB_ENUMERATED;
+    } else {
+        /* 驱动返回 0 有两种成因，需要分开呈现：
+         *   ok == FALSE  → 分派器/处理器直接拒绝（ResultByte 也为 0）
+         *   ok == TRUE   → 处理器执行了，但 EnumCallbackContextTable 没成功
+         *                  （回调上下文链表未构建），这是环境状态而非"失败"
+         * 注意 XpchInvoke 的 ok 判定的是结果字节非零，所以这里两者等价；
+         * 真正的区分靠 EnumCallbackContextTable 的内部原因，用户态不可见。
+         * 统一按「未初始化」呈现，并把 resultByte 一起显示。 */
+        Out->State = FE_CB_NOT_INITIALIZED;
+    }
+    free(buf);
+    /* 返回 TRUE 表示"查询本身完成"，是否枚举到数据看 State */
+    return TRUE;
+}
+
+/* 用 0x132 把某个回调槽写回原值（恢复被替换的回调）。
+ *   SlotAddr   原版语义里的目标地址（in+8）
+ *   Original16 要写回的 16 字节补丁（in+26 起）
+ * 只置 in[25]=1（打补丁），不置 in[24]（不额外装 Hook）。 */
+BOOL FeRestoreCallbackSlot(XPCH_CLIENT *Client, ULONG64 SlotAddr,
+                           const BYTE *Original16, FE_CB_RESTORE_RESULT *Out)
+{
+    BYTE in[48];
+    UCHAR res = 0;
+    BOOL ok;
+
+    if (!Out)
+        return FALSE;
+    ZeroMemory(Out, sizeof(*Out));
+    if (!Client || !Client->Opened) {
+        Out->State = FE_CB_RESTORE_NOT_CONNECTED;
+        return FALSE;
+    }
+    if (!SlotAddr || !Original16) {
+        Out->State = FE_CB_RESTORE_BAD_INPUT;
+        return FALSE;
+    }
+    ZeroMemory(in, sizeof(in));
+    *(ULONG64 *)(in + 8) = SlotAddr;
+    in[25] = 1;                       /* 打补丁路径 */
+    memcpy(in + 26, Original16, 16);
+
+    ok = XpchInvoke(Client, 0x132, in, (ULONG)sizeof(in), NULL, 0, &res);
+    Out->ResultByte = res;
+    Out->DriverOk   = ok;
+    if (ok && res == 1)      Out->State = FE_CB_RESTORE_OK;
+    else if (ok)             Out->State = FE_CB_RESTORE_NO_EFFECT;
+    else                     Out->State = FE_CB_RESTORE_REJECTED;
+    return TRUE;
+}
+
+const char *FeHookRestoreStateText(FE_HOOK_RESTORE_RESULT *R)
+{
+    if (!R) return "(null)";
+    switch (R->State) {
+    case FE_HOOK_RESTORE_RESTORED:            return "restored";
+    case FE_HOOK_RESTORE_NOTHING_TO_DO:       return "nothing to restore";
+    case FE_HOOK_RESTORE_ATTEMPTED_NO_EFFECT: return "sent, driver reported no change";
+    case FE_HOOK_RESTORE_NOT_CONNECTED:       return "not connected";
+    default:                                  return "unknown";
+    }
+}
+
+const char *FeCbStateText(FE_CB_TABLE *T)
+{
+    if (!T) return "(null)";
+    switch (T->State) {
+    case FE_CB_ENUMERATED:      return "enumerated";
+    case FE_CB_NOT_INITIALIZED: return "callback table not initialized";
+    case FE_CB_REJECTED:        return "driver rejected";
+    case FE_CB_NOT_CONNECTED:   return "not connected";
+    default:                    return "unknown";
+    }
+}

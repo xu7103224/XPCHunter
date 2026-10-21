@@ -1,0 +1,21 @@
+BEGIN 
+[SC] CreateService 失败 1073:
+
+指定的服务已存在。
+
+[SC] StartService 失败 1056:
+
+服务的实例已在运行中。
+
+=== restore hooks (0x118) === 
+=== Restore Over. Hooks/Patches (0x118) ===
+state        = nothing to restore
+driverOk     = 0  resultByte = 0
+totalEntries = 908  modified = 0
+=== callback table (0x131) === 
+=== Restore KernelCallbackTable (0x131) ===
+state      = callback table not initialized
+driverOk   = 0  resultByte = 0
+ready      = 0  build = 0
+slots      = 0
+DONE 
