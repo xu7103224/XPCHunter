@@ -80,6 +80,14 @@
 #define IDC_FE_CLEAR    1104
 #define IDC_FE_LIST     1105
 #define IDC_FE_STATUS   1106
+/* Setting 页 */
+#define IDC_ST_LIST     1110
+#define IDC_ST_STATUS   1111
+#define IDC_ST_APPLY    1112
+#define IDC_ST_REFRESH  1113
+#define IDC_ST_PROT_SSDT 1114
+#define IDC_ST_PROT_SHADOW 1115
+#define IDC_ST_TRAY     1116
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -98,6 +106,9 @@ static int g_ExamLoaded = 0;
 static HWND g_hFePath, g_hFeList, g_hFeStatus;
 static FE_FIREEYE_JOB g_FeJob;
 static int g_FeHasJob = 0;
+static HWND g_hStList, g_hStStatus;
+static FE_OBJ_TYPES g_StObjTypes;
+static int g_StObjReady = 0;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -1311,6 +1322,143 @@ static void DoFireeyeRecords(void)
     FeFireeyeFreeRecords(&rl);
 }
 
+/* ---- Setting 页（主 Tab 10）----
+ * 三项可用 Forbid（对应已确认的 IoFile/Driver/DeviceObjectType）
+ * + 四项标注"未定位对象类型"
+ * + 两项自保护（占位，需 0xD2/0xD3 的 21712 字节输出）
+ * + 托盘最小化开关 */
+static void StSetText(HWND h, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(h, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void DoRefreshSetting(void)
+{
+    LVCOLUMNA c;
+    char status[320];
+
+    if (!g_hStList || !g_hStStatus)
+        return;
+    ListView_DeleteAllItems(g_hStList);
+    while (ListView_DeleteColumn(g_hStList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Setting"; c.cx = 250; c.iSubItem = 0; ListView_InsertColumn(g_hStList, 0, &c);
+    c.pszText = "State";   c.cx = 110; c.iSubItem = 1; ListView_InsertColumn(g_hStList, 1, &c);
+    c.pszText = "Note";    c.cx = 560; c.iSubItem = 2; ListView_InsertColumn(g_hStList, 2, &c);
+
+    if (g_Client.Opened)
+        g_StObjReady = FeSettingReadObjectTypes(&g_Client, &g_StObjTypes) ? 1 : 0;
+
+    {
+        int n = 0;
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Forbid Creating File");
+        StSetText(g_hStList, n, 1, "ready");
+        StSetText(g_hStList, n, 2,
+                  g_StObjReady ? "IoFileObjectType resolved" : "needs driver connection (Connect first)");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Forbid Loading Driver");
+        StSetText(g_hStList, n, 1, "ready");
+        StSetText(g_hStList, n, 2,
+                  g_StObjReady ? "IoDriverObjectType resolved" : "needs driver connection");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Forbid Creating Device");
+        StSetText(g_hStList, n, 1, "ready");
+        StSetText(g_hStList, n, 2,
+                  g_StObjReady ? "IoDeviceObjectType resolved" : "needs driver connection");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Forbid Creating Process");
+        StSetText(g_hStList, n, 1, "unavailable");
+        StSetText(g_hStList, n, 2, "IoProcessObjectType slot not yet located");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Forbid Creating Thread");
+        StSetText(g_hStList, n, 1, "unavailable");
+        StSetText(g_hStList, n, 2, "IoThreadObjectType slot not yet located");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Forbid Injecting Module");
+        StSetText(g_hStList, n, 1, "unavailable");
+        StSetText(g_hStList, n, 2, "IoSectionObjectType slot not yet located");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Forbid Locking Work Station");
+        StSetText(g_hStList, n, 1, "unavailable");
+        StSetText(g_hStList, n, 2, "IoDesktopObjectType slot not yet located");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "SelfProtection (SSDT)");
+        StSetText(g_hStList, n, 1, "via buttons");
+        StSetText(g_hStList, n, 2, "0xD2 EnableProcessProtect / 0xD3 disable, applies to this process");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "SelfProtection (Shadow SSDT)");
+        StSetText(g_hStList, n, 1, "via buttons");
+        StSetText(g_hStList, n, 2, "same handler; shadow variant chosen by driver per target");
+        n++;
+
+        ListView_InsertItem(g_hStList, NULL);
+        StSetText(g_hStList, n, 0, "Minimize to tray on close");
+        StSetText(g_hStList, n, 1, FeSettingGetMinimizeToTray() ? "ON" : "OFF");
+        StSetText(g_hStList, n, 2, "persisted in HKCU\Software\XPCHunterReplica");
+        n++;
+    }
+    sprintf_s(status, sizeof(status),
+              "Object types: %s | Forbid available: 3 of 6 | Tray minimize: %s",
+              g_StObjReady ? "resolved" : "not connected",
+              FeSettingGetMinimizeToTray() ? "ON" : "OFF");
+    SetWindowTextA(g_hStStatus, status);
+}
+
+static void DoApplyForbid(int Which)
+{
+    ULONG64 target = 0;
+    UCHAR res = 0;
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hStStatus, "Not connected - click Connect first");
+        return;
+    }
+    if (!g_StObjReady) {
+        SetWindowTextA(g_hStStatus, "Object types not resolved");
+        return;
+    }
+    switch (Which) {
+    case 0: target = g_StObjTypes.File;   break;
+    case 1: target = g_StObjTypes.Driver; break;
+    case 2: target = g_StObjTypes.Device; break;
+    }
+    if (!target) {
+        SetWindowTextA(g_hStStatus, "Object type address is zero");
+        return;
+    }
+    if (FeSettingSetForbid(&g_Client, target, 0, 1, &res)) {
+        char msg[256];
+        sprintf_s(msg, sizeof(msg), "Forbid applied (result byte = %u)", res);
+        SetWindowTextA(g_hStStatus, msg);
+    } else {
+        SetWindowTextA(g_hStStatus, "Forbid request rejected by driver");
+    }
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -1322,6 +1470,7 @@ static void ShowPage(HWND hWnd, int page)
     int isOther = (page == 13);      /* 第 14 个 Tab = Other */
     int isExam = (page == 9);        /* 第 10 个 Tab = Examination */
     int isFireeye = (page == 11);    /* 第 12 个 Tab = Fireeye */
+    int isSetting = (page == 10);    /* 第 11 个 Tab = Setting */
     char hint[512];
     HWND hKill, hRef;
 
@@ -1408,9 +1557,24 @@ static void ShowPage(HWND hWnd, int page)
         if (d) ShowWindow(d, isFireeye ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hStList)   ShowWindow(g_hStList,   isSetting ? SW_SHOW : SW_HIDE);
+    if (g_hStStatus) ShowWindow(g_hStStatus, isSetting ? SW_SHOW : SW_HIDE);
+    {
+        HWND a = GetDlgItem(hWnd, IDC_ST_REFRESH);
+        HWND b = GetDlgItem(hWnd, IDC_ST_APPLY);
+        HWND c = GetDlgItem(hWnd, IDC_ST_PROT_SSDT);
+        HWND d = GetDlgItem(hWnd, IDC_ST_PROT_SHADOW);
+        HWND e = GetDlgItem(hWnd, IDC_ST_TRAY);
+        if (a) ShowWindow(a, isSetting ? SW_SHOW : SW_HIDE);
+        if (b) ShowWindow(b, isSetting ? SW_SHOW : SW_HIDE);
+        if (c) ShowWindow(c, isSetting ? SW_SHOW : SW_HIDE);
+        if (d) ShowWindow(d, isSetting ? SW_SHOW : SW_HIDE);
+        if (e) ShowWindow(e, isSetting ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
         if (isProc || isKernel || isStartup || isServices || isRegistry || isFile ||
-            isOther || isExam || isFireeye) {
+            isOther || isExam || isFireeye || isSetting) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1769,6 +1933,27 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 130, 940, 480, hWnd, (HMENU)IDC_FE_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hFeList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
+        /* ---- Setting 页（主 Tab 10）---- */
+        CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 90, 28, hWnd, (HMENU)IDC_ST_REFRESH, hInst, NULL);
+        CreateWindowA("BUTTON", "Forbid File", WS_CHILD | BS_PUSHBUTTON,
+                      106, 76, 100, 28, hWnd, NULL, hInst, NULL);
+        CreateWindowA("BUTTON", "Apply File", WS_CHILD | BS_PUSHBUTTON,
+                      212, 76, 90, 28, hWnd, (HMENU)IDC_ST_APPLY, hInst, NULL);
+        CreateWindowA("BUTTON", "Protect SSDT", WS_CHILD | BS_PUSHBUTTON,
+                      308, 76, 110, 28, hWnd, (HMENU)IDC_ST_PROT_SSDT, hInst, NULL);
+        CreateWindowA("BUTTON", "Protect Shadow", WS_CHILD | BS_PUSHBUTTON,
+                      424, 76, 120, 28, hWnd, (HMENU)IDC_ST_PROT_SHADOW, hInst, NULL);
+        CreateWindowA("BUTTON", "Tray Toggle", WS_CHILD | BS_PUSHBUTTON,
+                      550, 76, 110, 28, hWnd, (HMENU)IDC_ST_TRAY, hInst, NULL);
+        g_hStStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    670, 82, 280, 20, hWnd, (HMENU)IDC_ST_STATUS, hInst, NULL);
+        g_hStList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 110, 940, 500, hWnd, (HMENU)IDC_ST_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hStList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        DoRefreshSetting();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1836,6 +2021,23 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 10) {
+            int listY = pageTop + 34;
+            int listH = pageBottom - listY;
+            HWND a = GetDlgItem(hWnd, IDC_ST_REFRESH);
+            HWND b = GetDlgItem(hWnd, IDC_ST_APPLY);
+            HWND c = GetDlgItem(hWnd, IDC_ST_PROT_SSDT);
+            HWND d = GetDlgItem(hWnd, IDC_ST_PROT_SHADOW);
+            HWND e = GetDlgItem(hWnd, IDC_ST_TRAY);
+            if (listH < 100) listH = 100;
+            if (a) MoveWindow(a, 10, pageTop, 90, 28, TRUE);
+            if (b) MoveWindow(b, 212, pageTop, 90, 28, TRUE);
+            if (c) MoveWindow(c, 308, pageTop, 110, 28, TRUE);
+            if (d) MoveWindow(d, 424, pageTop, 120, 28, TRUE);
+            if (e) MoveWindow(e, 550, pageTop, 110, 28, TRUE);
+            if (g_hStStatus) MoveWindow(g_hStStatus, 670, pageTop + 6, w - 660, 20, TRUE);
+            if (g_hStList)   MoveWindow(g_hStList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 11) {
             int listY = pageTop + 56;
             int listH = pageBottom - listY;
@@ -1955,6 +2157,22 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         case IDC_FE_RECORDS: DoFireeyeRecords(); return 0;
         case IDC_FE_CLEAR:   FeFireeyeDeleteRecords(); DoFireeyeRecords(); return 0;
+        case IDC_ST_REFRESH: DoRefreshSetting(); return 0;
+        case IDC_ST_APPLY:   DoApplyForbid(0); return 0;
+        case IDC_ST_PROT_SSDT:
+            if (FeSettingSelfProtect(&g_Client, 1)) SetWindowTextA(g_hStStatus, "SSDT self-protection enabled");
+            else SetWindowTextA(g_hStStatus, "SelfProtection rejected (needs 21712-byte output)");
+            return 0;
+        case IDC_ST_PROT_SHADOW:
+            if (FeSettingSelfProtect(&g_Client, 0)) SetWindowTextA(g_hStStatus, "SSDT self-protection disabled");
+            else SetWindowTextA(g_hStStatus, "SelfProtection rejected");
+            return 0;
+        case IDC_ST_TRAY: {
+            BOOL on = FeSettingGetMinimizeToTray();
+            FeSettingSetMinimizeToTray(on ? FALSE : TRUE);
+            DoRefreshSetting();
+            return 0;
+        }
         }
         return 0;
 
@@ -1979,6 +2197,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshExamination();
             if (page == 11)
                 DoFireeyeAnalyse();
+            if (page == 10)
+                DoRefreshSetting();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
@@ -2092,6 +2312,26 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--setting-cli")) {
+        FE_OBJ_TYPES ot;
+        int ok;
+        int i;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed\n");
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        ok = FeSettingReadObjectTypes(&g_Client, &ot);
+        printf("object types: %s\n", ok ? "available" : "NOT READY (driver did not export)");
+        printf("  IoFileObjectType   = %p\n", (void *)(ULONG_PTR)ot.File);
+        printf("  IoDriverObjectType = %p\n", (void *)(ULONG_PTR)ot.Driver);
+        printf("  IoDeviceObjectType = %p\n", (void *)(ULONG_PTR)ot.Device);
+        for (i = 0; i < 13; i++)
+            printf("  extra[%2d]          = %p\n", i, (void *)(ULONG_PTR)ot.Extra[i]);
+        printf("  minimize-to-tray   = %d\n", FeSettingGetMinimizeToTray());
+        XpchClose(&g_Client);
+        return 0;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--fireeye-cli")) {
         const char *p = strstr(lpCmdLine, "--fireeye-cli") + 13;
         char path[MAX_PATH]; size_t n = 0;

@@ -560,6 +560,21 @@ void   FeFireeyeFreeRecords(FE_FIREEYE_RECORD_LIST *List);
 BOOL   FeFireeyeDeleteRecords(void);
 BOOL   FePrintFireeye(const char *Path);
 
+/* ---- Setting 页（原版第 11 个主 Tab，9 项）---- */
+typedef struct _FE_OBJ_TYPES {
+    ULONG64 File;
+    ULONG64 Driver;
+    ULONG64 Device;
+    ULONG64 Extra[13];
+} FE_OBJ_TYPES;
+
+BOOL FeSettingReadObjectTypes(XPCH_CLIENT *Client, FE_OBJ_TYPES *Out);
+BOOL FeSettingSetForbid(XPCH_CLIENT *Client, ULONG64 TargetObject, ULONG OperationType,
+                        int Enable, UCHAR *pResult);
+BOOL FeSettingSelfProtect(XPCH_CLIENT *Client, int Enable);
+BOOL FeSettingGetMinimizeToTray(void);
+BOOL FeSettingSetMinimizeToTray(BOOL Enable);
+
 #ifdef __cplusplus
 }
 #endif

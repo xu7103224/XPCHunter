@@ -2791,6 +2791,27 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x1B8) = (ULONG)GtRead(GtTerminateProcessByEprocess);
     *(ULONG *)(Out + 0x1BC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x42BB);   /* 118 组 RVA 槽 */
 
+    /* 【诊断 2026-10-21】0x79 CmdCallbackControl 的 TargetObject 必须精确等于
+       驱动解析出的 IoXxxObjectType 地址（驱动会逐一比对，不匹配直接返回 0）。
+       Setting 页的 6 个 Forbid 需要这些地址，因此在此导出（QWORD）。
+         0x1C0 .. 0x1FF  16 个候选对象类型槽（与 CallbackControlOperation 的比对列表同源）
+       注：槽 0x422F/0x4160/0x4163 已用 ntoskrnl 导出表反查确认为
+           IoFileObjectType / IoDriverObjectType / IoDeviceObjectType。 */
+    *(ULONG64 *)(Out + 0x1C0) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x422F); /* IoFileObjectType   */
+    *(ULONG64 *)(Out + 0x1C8) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4160); /* IoDriverObjectType */
+    *(ULONG64 *)(Out + 0x1D0) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4163); /* IoDeviceObjectType */
+    {
+        /* 其余候选项按 CallbackControlOperation 的比对顺序逐个导出，
+           供前端挑选（Process/Thread/Section/Desktop 等在此列）。 */
+        static const ULONG ExtraSlots[13] = {
+            0x4161, 0x4162, 0x4164, 0x4165, 0x4166, 0x4167, 0x4168,
+            0x4169, 0x416A, 0x416B, 0x416C, 0x416D, 0x416E
+        };
+        ULONG i;
+        for (i = 0; i < 13; i++)
+            *(ULONG64 *)(Out + 0x1D8 + i * 8) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)ExtraSlots[i]);
+    }
+
     /* 【诊断 2026-10-21】按命令的分派器拒绝原因表 + 协议级拒绝计数表。
        用途：结果字节 0 无法区分"被拒"与"处理器执行完但设计上返回 0"，
        客户端据此把每条命令判为 HANDLED（处理器真的跑了）/ REJECTED(reason) /

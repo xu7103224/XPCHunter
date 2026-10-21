@@ -627,7 +627,7 @@ void InitCallbackContextHookTable(void);
    0x160..0x1BF：0xA2 终止路径逐级 trace。
    CMD_STAT_DIAG_OFFSET 随之右移，客户端（XPCHunterUM/src/probe.c）
    必须用同一个常量，不能再硬编码。 */
-#define CMD_ENV_SIZE     0x1C0
+#define CMD_ENV_SIZE     0x240
 
 /* 【诊断 2026-10-21】BuildHookTable 分步计数（定义在 DriverEntry.c）。
    0xA2 的三个前置槽 0x41DB/0x41C3/0x4334 都是 GT[0x4158+3k+2]，
