@@ -1,0 +1,41 @@
+startup items: 39
+  [64] HKLM\...\Run                       SecurityHealth               %windir%\system32\SecurityHealthSystray.exe
+  [64] HKLM\...\Run                       VMware User Process          "C:\Program Files\VMware\VMware Tools\vmtoolsd.exe" -n vmusr
+  [64] HKCU\...\Run                       OneDrive                     "C:\Users\xuq\AppData\Local\Microsoft\OneDrive\OneDrive.exe" /background
+  [64] HKCU\...\Run                       Microsoft Edge Update        "C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.299.15\MicrosoftEdgeUpdateCore.exe"
+  [32] HKCU\...\Run (Wow64)               OneDrive                     "C:\Users\xuq\AppData\Local\Microsoft\OneDrive\OneDrive.exe" /background
+  [32] HKCU\...\Run (Wow64)               Microsoft Edge Update        "C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.299.15\MicrosoftEdgeUpdateCore.exe"
+  [64] ShellServiceObjectDelayLoad        WebCheck                     {E6FB5E20-DE35-11CF-9C87-00AA005127ED}
+  [32] ShellServiceObjectDelayLoad(W64)   WebCheck                     {E6FB5E20-DE35-11CF-9C87-00AA005127ED}
+  [64] CLSID hijack (HKCU over HKLM)      {018D5C66-4533-4307-9B53-224DE2ED1FE6} HKCU=%systemroot%\system32\shell32.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {03B29243-35DA-4858-920E-B70A007DF5AA} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.217.3\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {1BF42E4C-4AF4-4CFD-A1A0-CF2960B8F63E} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {20894375-46AE-46E2-BAFD-CB38975CDCE6} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {41B09861-5409-4D44-8CA4-D49FBFAA2E6F} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.195.49\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {4410DC33-BC7C-496B-AA84-4AEA3EEE75F7} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileCoAuthLib64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {448DD314-7FBB-429C-9DAA-C05A00D235A8} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.215.9\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {4F8EC152-2CED-40DE-A14E-203D75648CE4} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.287.9\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {5AB7172C-9C11-405C-8DD5-AF20F3606282} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {5E9DEE2B-5F44-4C87-84B8-D2E7B11D7017} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.229.3\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {5EA43877-C6D8-4885-B77A-C0BB27E94372} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.299.15\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {674CB023-C9D4-4286-B1FF-A1FF76AD4B27} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.227.11\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {6A49690B-7DB6-424B-81CE-F51078F2A58D} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.203.13\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {7AFDFDDB-F914-11E4-8377-6C3BE50D980C} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {81093D63-7825-417B-BFC8-ADC63FA4E53D} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.299.15\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {82CA8DE3-01AD-4CEA-9D75-BE4C51810A9E} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {8716D913-AB2A-4B12-B247-E9DD6246562B} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.299.15\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {899A7D72-F512-42A0-AFBD-F44EC8869ED9} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.291.9\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {9AA2F32D-362A-42D9-9328-24A483E2CCC3} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {A0396A93-DC06-4AEF-BEE9-95FFCCAEF20E} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {A78ED123-AB77-406B-9962-2A5D9D2F7F30} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {BBACC218-34EA-4666-9D7A-C78F2274A524} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {BCF99248-58CE-4562-B227-14D1E171B49D} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.221.3\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {BEA218D2-6950-497B-9434-61683EC065FE} HKCU=C:\Users\xuq\AppData\Local\Programs\Python\Launcher\pyshellext.amd64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {C5FF006E-2AE9-408C-B85B-2DFDD5449D9C} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {C88B3957-621C-415B-8EE5-B688FC7EF924} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.195.61\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {CB3D0F55-BC2C-4C1A-85ED-23ED75B5106B} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {ECCE2756-C45D-4E13-BC2D-EC9F138997E6} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.199.11\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {F241C880-6982-4CE5-8CF7-7085BA96DA5A} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] Winlogon (Userinit/Shell)          Userinit                     C:\Windows\system32\userinit.exe,
+  [64] Winlogon (Userinit/Shell)          Shell                        explorer.exe
+EXIT=0 

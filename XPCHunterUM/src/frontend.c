@@ -38,14 +38,19 @@
 #define IDC_KM_LIST     1022
 #define IDC_KM_STATUS   1023
 /* 14 个主 Tab 容器 */
-#define IDC_MAINTABS    1030
+#define IDC_MAIN_TABS   1030
 #define IDC_PAGEHINT    1031
+/* Startup Info 页 */
+#define IDC_SU_REFRESH  1040
+#define IDC_SU_LIST     1041
+#define IDC_SU_STATUS   1042
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
 static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
 static HWND g_hKmTabs, g_hKmList, g_hKmStatus;
 static HWND g_hMainTabs, g_hPageHint;
+static HWND g_hSuList, g_hSuStatus;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -681,10 +686,69 @@ static void DoRefreshProcs(void)
  * 不伪造功能。
  * ========================================================================== */
 
+/* ---- Startup Info 页（主 Tab 6）---- */
+static void SuSetText(HWND hList, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(hList, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void CreateSuColumns(HWND hList)
+{
+    LVCOLUMNA c;
+    while (ListView_DeleteColumn(hList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Location"; c.cx = 210; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+    c.pszText = "View";     c.cx = 45;  c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+    c.pszText = "Name";     c.cx = 240; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+    c.pszText = "Data";     c.cx = 640; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+}
+
+static void DoRefreshStartup(void)
+{
+    FE_STARTUP_LIST list;
+    char status[256];
+    ULONG i;
+
+    if (!g_hSuList || !g_hSuStatus)
+        return;
+    ListView_DeleteAllItems(g_hSuList);
+    CreateSuColumns(g_hSuList);
+
+    if (!FeLoadStartupItems(&list)) {
+        sprintf_s(status, sizeof(status), "Startup Info: 0 items");
+        SetWindowTextA(g_hSuStatus, status);
+        return;
+    }
+    for (i = 0; i < list.Count; i++) {
+        LVITEMA it;
+        char view[16];
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)i;
+        it.pszText = list.Items[i].Location;
+        SendMessageA(g_hSuList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        sprintf_s(view, sizeof(view), "%lu", list.Items[i].View);
+        SuSetText(g_hSuList, (int)i, 1, view);
+        SuSetText(g_hSuList, (int)i, 2, list.Items[i].Name);
+        SuSetText(g_hSuList, (int)i, 3, list.Items[i].Data);
+    }
+    sprintf_s(status, sizeof(status), "Startup Info: %lu items (16 locations, Wow64 split)", list.Count);
+    SetWindowTextA(g_hSuStatus, status);
+    FeFreeStartupItems(&list);
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
     int isKernel = (page == 1);
+    int isStartup = (page == 6);     /* 0-based：第 7 个 Tab = Startup Info */
     char hint[512];
     HWND hKill, hRef;
 
@@ -702,8 +766,15 @@ static void ShowPage(HWND hWnd, int page)
     hRef = GetDlgItem(hWnd, IDC_KM_REFRESH);
     if (hRef) ShowWindow(hRef, isKernel ? SW_SHOW : SW_HIDE);
 
+    if (g_hSuList)   ShowWindow(g_hSuList,   isStartup ? SW_SHOW : SW_HIDE);
+    if (g_hSuStatus) ShowWindow(g_hSuStatus, isStartup ? SW_SHOW : SW_HIDE);
+    {
+        HWND hSu = GetDlgItem(hWnd, IDC_SU_REFRESH);
+        if (hSu) ShowWindow(hSu, isStartup ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
-        if (isProc || isKernel) {
+        if (isProc || isKernel || isStartup) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -875,7 +946,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         /* ---- 14 个主 Tab 容器（M1）---- */
         g_hMainTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
-                                    10, 44, 940, 24, hWnd, (HMENU)IDC_MAINTABS, hInst, NULL);
+                                    10, 44, 940, 24, hWnd, (HMENU)IDC_MAIN_TABS, hInst, NULL);
         {
             TCITEMA t;
             int k;
@@ -945,6 +1016,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         CreateKmColumns(g_hKmList, 0);
         DoRefreshKernel();
 
+        /* ---- Startup Info 页（主 Tab 6）---- */
+        CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 90, 28, hWnd, (HMENU)IDC_SU_REFRESH, hInst, NULL);
+        g_hSuStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    110, 82, 840, 20, hWnd, (HMENU)IDC_SU_STATUS, hInst, NULL);
+        g_hSuList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 110, 940, 510, hWnd, (HMENU)IDC_SU_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hSuList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        CreateSuColumns(g_hSuList);
+        DoRefreshStartup();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1012,6 +1095,15 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 6) {
+            int listY = pageTop + 34;
+            int listH = pageBottom - listY;
+            HWND hSu = GetDlgItem(hWnd, IDC_SU_REFRESH);
+            if (listH < 100) listH = 100;
+            if (hSu) MoveWindow(hSu, 10, pageTop, 90, 28, TRUE);
+            if (g_hSuStatus) MoveWindow(g_hSuStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (g_hSuList)   MoveWindow(g_hSuList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else {
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         }
@@ -1026,16 +1118,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SEND:    DoSend();    return 0;
         case IDC_KILL:    DoKillSelected(); return 0;
         case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
+        case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
         }
         return 0;
 
     case WM_NOTIFY: {
         NMHDR *nm = (NMHDR *)lParam;
-        if (nm->idFrom == IDC_MAINTABS && nm->code == TCN_SELCHANGE) {
+        if (nm->idFrom == IDC_MAIN_TABS && nm->code == TCN_SELCHANGE) {
             int page = (int)SendMessageA(g_hMainTabs, TCM_GETCURSEL, 0, 0);
             ShowPage(hWnd, page);
             if (page == 1)
                 DoRefreshKernel();
+            if (page == 6)
+                DoRefreshStartup();
             return 0;
         }
         if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
@@ -1144,6 +1239,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--startup-cli"))
+        return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--drivers-cli"))
         return FePrintDrivers() ? 0 : 1;
 

@@ -243,6 +243,34 @@ BOOL FeLoadDrivers(FE_DRIVER_LIST *List);
 void FeFreeDrivers(FE_DRIVER_LIST *List);
 BOOL FePrintDrivers(void);
 
+/* ---- Startup Info 页（原版第 7 个主 Tab）----
+ * 覆盖 16 类自启动位置；全部是注册表读取，不依赖驱动。
+ * Wow64 视图分别枚举（32/64），与原版"含 Wow64 版本"一致。 */
+#define FE_STARTUP_LOC_CHARS  96u
+#define FE_STARTUP_NAME_CHARS 256u
+#define FE_STARTUP_DATA_CHARS 512u
+#define FE_STARTUP_KEY_CHARS  512u
+
+typedef struct _FE_STARTUP_ENTRY {
+    char Location[FE_STARTUP_LOC_CHARS];   /* 位置标签 */
+    char Name[FE_STARTUP_NAME_CHARS];      /* 值名 / 子键名 */
+    char Data[FE_STARTUP_DATA_CHARS];      /* 命令行 / DLL 路径 */
+    char Hive[8];                          /* "HKLM" / "HKCU" */
+    char SubKey[FE_STARTUP_KEY_CHARS];     /* 注册表子键（删除/复制路径用） */
+    ULONG View;                            /* 64 / 32（Wow64） */
+} FE_STARTUP_ENTRY;
+
+typedef struct _FE_STARTUP_LIST {
+    ULONG              Count;
+    ULONG              Capacity;
+    FE_STARTUP_ENTRY  *Items;
+} FE_STARTUP_LIST;
+
+BOOL FeLoadStartupItems(FE_STARTUP_LIST *List);
+void FeFreeStartupItems(FE_STARTUP_LIST *List);
+BOOL FePrintStartupItems(void);
+BOOL FeDeleteStartupItem(const FE_STARTUP_ENTRY *Item);
+
 typedef struct _FE_MODULE_ENTRY {
     ULONG64 Base;
     ULONG   Size;
