@@ -1050,6 +1050,9 @@ __declspec(noinline) bool ReadDiskPortDriverFile(_QWORD *OutBuffer, unsigned int
 char ReadFileIntoBuffer(__int64 SrcAddress, unsigned int BufferSize, char *DstBuffer);
 __int64 ReadFileRawData(WORD *FilePath, void **OutBuffer, ULONG *OutSize, char RequirePeHeader);
 __declspec(noinline) void ReadGdtr(void *pGdtr);
+/* MASM 模块（src\sgdt.asm）：MSVC x64 没有 __sgdt、也无内联汇编，
+   这一个是原版 0x14000171F 的逐字节等价实现 `sgdt fword ptr [rcx]; ret`。 */
+void ReadGdtrAsm(void *pGdtr);
 char ReadKernelExportDirFile(_QWORD *OutBuffer, unsigned int *OutSize);
 __declspec(noinline) __int64 ReadKernelMemoryToUserBuffer(__int64 UnusedParam1, __int64 UnusedParam2, _QWORD *pOutputBuffer, int BufferSize);
 __declspec(noinline) bool ReadKbdClassSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize);

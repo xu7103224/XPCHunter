@@ -54,6 +54,14 @@ if errorlevel 1 (
 )
 
 echo.
+REM Step 1b: assemble MASM module (sgdt.asm - MSVC x64 has no __sgdt)
+echo Step 1b: Assembling MASM module...
+"%VS2019_DIR%\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64\ml64.exe" /nologo /c /Fo"%OBJ_DIR%\sgdt.obj" "%SRC_DIR%\sgdt.asm"
+if errorlevel 1 (
+    echo ERROR: MASM assembly failed!
+    exit /b 1
+)
+
 echo Step 2: Linking...
 REM /OPT:NOICF disables COMDAT folding. The original driver does NOT use ICF:
 REM functions that differ only by a constant argument (CmdThreadOperation vs
