@@ -1,0 +1,10 @@
+registry handles: query failed (KeyTypeIndex=-1, GetLastError=0)
+--- 
+hidden registry items: 3
+  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\NetworkServiceTriggers\Triggers\1f81d131-3fac-4537-9e0c-7e7b0c2f4b55\ProtectedPrefixAdministratorsSensorDataService
+      reason: key name has control chars or trailing space/dot
+  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\NetworkServiceTriggers\Triggers\1f81d131-3fac-4537-9e0c-7e7b0c2f4b55\ProtectedPrefixLocalServiceMSAJPipe
+      reason: key name has control chars or trailing space/dot
+  HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.
+      reason: key name has control chars or trailing space/dot
+EXIT=0 

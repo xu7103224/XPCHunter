@@ -384,6 +384,47 @@ BOOL FePrintServices(void);
 BOOL FeDeleteService(const char *ServiceName);
 int  FeVerifyFileSignature(const char *Path);
 
+/* ---- Registry 页（原版第 6 个主 Tab，5 项）----
+ * Reg Handle      : 全系统 ObjectType = "Key" 的句柄
+ * Hidden Item     : 控制字符/尾随空格键名 + HKCU\Software\Classes 独占项
+ * Copy Key/RegPath/RegValue/RegData : 由 GUI 列承载 */
+#define FE_REGH_MAX 400000u
+#define FE_REGH_PATH_CHARS 512u
+
+typedef struct _FE_REG_HANDLE_ENTRY {
+    ULONG64 Object;
+    ULONG64 Handle;
+    ULONG   Pid;
+    ULONG   Access;
+} FE_REG_HANDLE_ENTRY;
+
+typedef struct _FE_REG_HANDLE_LIST {
+    ULONG                Count;
+    ULONG                Capacity;
+    FE_REG_HANDLE_ENTRY *Items;
+    int                  KeyTypeIndex;   /* "Key" 的对象类型索引，-1 表示没找到 */
+} FE_REG_HANDLE_LIST;
+
+BOOL FeLoadRegistryHandles(ULONG MaxCount, FE_REG_HANDLE_LIST *List);
+void FeFreeRegistryHandles(FE_REG_HANDLE_LIST *List);
+BOOL FePrintRegistryHandles(void);
+
+typedef struct _FE_REG_HIDDEN_ENTRY {
+    char Path[FE_REGH_PATH_CHARS];
+    char Reason[192];
+    int  Depth;
+} FE_REG_HIDDEN_ENTRY;
+
+typedef struct _FE_REG_HIDDEN_LIST {
+    ULONG                Count;
+    ULONG                Capacity;
+    FE_REG_HIDDEN_ENTRY *Items;
+} FE_REG_HIDDEN_LIST;
+
+BOOL FeLoadHiddenRegKeys(FE_REG_HIDDEN_LIST *List);
+void FeFreeHiddenRegKeys(FE_REG_HIDDEN_LIST *List);
+BOOL FePrintHiddenRegKeys(void);
+
 #ifdef __cplusplus
 }
 #endif

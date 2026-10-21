@@ -417,22 +417,43 @@ static void FeLoadTypeNames(char names[][64], int maxNames)
         st = pNtQo(NULL, 3, buf, size, &ret);
     }
     if (st >= 0) {
-        PUCHAR p = (PUCHAR)buf;
-        PUCHAR end = p + ret;
+        /* ObjectTypesInformation 的返回缓冲区开头是 ULONG NumberOfTypes，
+           数组从 +8 开始（8 字节对齐）。之前从 buf 起解析，把 NumberOfTypes
+           和填充当成了第一个 OBJECT_TYPE_INFORMATION，于是所有 TypeName
+           都指向错位地址，读出来是垃圾。 */
+        PUCHAR p = (PUCHAR)buf + 2 * sizeof(ULONG);
+        PUCHAR end = (PUCHAR)buf + ret;
         while (p + sizeof(FE_OBJ_TYPE_INFO) <= end) {
             FE_OBJ_TYPE_INFO *ti = (FE_OBJ_TYPE_INFO *)p;
-            ULONG adv = (ULONG)(sizeof(FE_OBJ_TYPE_INFO) + ti->TypeName.MaximumLength);
+            ULONG adv;
+            USHORT maxLen = ti->TypeName.MaximumLength;
+            USHORT len = ti->TypeName.Length;
+
+            /* 严格校验：MaximumLength 必须合理、Length 不得大于 MaximumLength，
+               推进量必须 >= 头部且不越界。任何一条不满足就停止解析，
+               保留已经解析出来的部分（宁缺勿崩）。 */
+            if (maxLen > 0x200 || len > maxLen) {
+                break;
+            }
+            adv = (ULONG)(sizeof(FE_OBJ_TYPE_INFO) + maxLen);
             adv = (adv + 7) & ~7u;
-            if (ti->TypeIndex < (UCHAR)maxNames && ti->TypeName.Buffer) {
-                ULONG n = ti->TypeName.Length / sizeof(WCHAR);
+            if (adv < (ULONG)sizeof(FE_OBJ_TYPE_INFO) || (PUCHAR)(p + adv) > end)
+                break;
+
+            if (ti->TypeIndex < (UCHAR)maxNames && ti->TypeName.Buffer && len) {
+                ULONG n = len / sizeof(WCHAR);
                 if (n > 60) n = 60;
                 if (n) {
-                    WideCharToMultiByte(CP_ACP, 0, ti->TypeName.Buffer, (int)n,
-                                        names[ti->TypeIndex], 64, NULL, NULL);
-                    names[ti->TypeIndex][n] = 0;
+                    /* TypeName.Buffer 是内核写回的指针，在用户态地址空间里
+                       指向同一块缓冲区的内部——用它之前先确认落在 buf..end 内。 */
+                    PUCHAR nb = (PUCHAR)ti->TypeName.Buffer;
+                    if (nb >= (PUCHAR)buf && nb + n * sizeof(WCHAR) <= end) {
+                        WideCharToMultiByte(CP_ACP, 0, (WCHAR *)nb, (int)n,
+                                            names[ti->TypeIndex], 64, NULL, NULL);
+                        names[ti->TypeIndex][n] = 0;
+                    }
                 }
             }
-            if (!adv) break;
             p += adv;
         }
     }
@@ -474,10 +495,15 @@ BOOL FeLoadProcessHandles(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List)
         return FALSE;
     }
 
-    /* 【2026-10-21】类型名解析（NtQueryObject(ObjectTypesInformation)）在实机上
-       会让前端进程崩溃（变长数组解析越界），暂时关闭：Type 列显示类型索引。
-       待用更稳的方式（例如只解析首项 + 严格长度校验）恢复。 */
-    ZeroMemory(typeNames, sizeof(typeNames));
+    /* 类型名解析（NtQueryObject(ObjectTypesInformation)）。
+       2026-10-21 之前这里被 ZeroMemory 关掉过，原因是变长数组解析越界导致前端崩溃。
+       现在恢复了，但加了严格的长度校验（见 FeLoadTypeNames 的 adv 检查）：
+         · 每项的 TypeName.Length 必须 <= MaximumLength
+         · 推进量必须 >= 头部大小，且不得越过缓冲区末尾
+         · 最多解析 maxNames 项、名字截断到 60 字符
+       有了名字之后，Process 页的 Handles Type 列和 Registry 页的 Reg Handle
+       才能按类型过滤（"Key"）。 */
+    FeLoadTypeNames(typeNames, 64);
 
     List->Items = (FE_HANDLE_ENTRY *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
                                                (SIZE_T)MaxCount * sizeof(FE_HANDLE_ENTRY));

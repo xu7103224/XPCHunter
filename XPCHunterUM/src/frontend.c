@@ -48,6 +48,11 @@
 #define IDC_SV_REFRESH  1050
 #define IDC_SV_LIST     1051
 #define IDC_SV_STATUS   1052
+/* Registry 页 */
+#define IDC_RG_REFRESH  1060
+#define IDC_RG_TABS     1061
+#define IDC_RG_LIST     1062
+#define IDC_RG_STATUS   1063
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -56,6 +61,8 @@ static HWND g_hKmTabs, g_hKmList, g_hKmStatus;
 static HWND g_hMainTabs, g_hPageHint;
 static HWND g_hSuList, g_hSuStatus;
 static HWND g_hSvList, g_hSvStatus;
+static HWND g_hRgTabs, g_hRgList, g_hRgStatus;
+static int  g_RgTab = 0;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -816,12 +823,112 @@ static void DoRefreshServices(void)
     FeFreeServices(&list);
 }
 
+/* ---- Registry 页（主 Tab 5）----
+ * 两个子页：
+ *   Reg Handle     全系统 ObjectType="Key" 的句柄（pid / handle / access / object）
+ *   Hidden Item    控制字符键名 + HKCU\Software\Classes 独占项
+ * 四列都可在列表里选中复制（Copy Key Name / RegPath / RegValue / RegData 由
+ * 用户复制对应列实现；原版的复制菜单项文本与此一一对应）。 */
+static void RgSetText(HWND hList, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(hList, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void CreateRgColumns(HWND hList, int tab)
+{
+    LVCOLUMNA c;
+    while (ListView_DeleteColumn(hList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    if (tab == 0) {
+        c.pszText = "PID";     c.cx = 80;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Handle";  c.cx = 110; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Access";  c.cx = 110; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Key Object"; c.cx = 640; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else {
+        c.pszText = "RegPath"; c.cx = 700; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Reason";  c.cx = 260; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Depth";   c.cx = 70;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+    }
+}
+
+static void DoRefreshRegistry(void)
+{
+    char status[256];
+
+    if (!g_hRgList || !g_hRgStatus)
+        return;
+    ListView_DeleteAllItems(g_hRgList);
+    CreateRgColumns(g_hRgList, g_RgTab);
+
+    if (g_RgTab == 0) {
+        FE_REG_HANDLE_LIST list;
+        ULONG i;
+        if (!FeLoadRegistryHandles(FE_REGH_MAX, &list)) {
+            sprintf_s(status, sizeof(status),
+                      "Reg Handle: query failed (KeyTypeIndex=%ld)", (long)list.KeyTypeIndex);
+            SetWindowTextA(g_hRgStatus, status);
+            return;
+        }
+        for (i = 0; i < list.Count; i++) {
+            LVITEMA it;
+            char pid[24], h[32], acc[32], obj[32];
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            sprintf_s(pid, sizeof(pid), "%lu", list.Items[i].Pid);
+            it.pszText = pid;
+            SendMessageA(g_hRgList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            sprintf_s(h, sizeof(h), "0x%I64X", list.Items[i].Handle);
+            sprintf_s(acc, sizeof(acc), "0x%lX", list.Items[i].Access);
+            sprintf_s(obj, sizeof(obj), "%016I64X", list.Items[i].Object);
+            RgSetText(g_hRgList, (int)i, 1, h);
+            RgSetText(g_hRgList, (int)i, 2, acc);
+            RgSetText(g_hRgList, (int)i, 3, obj);
+        }
+        sprintf_s(status, sizeof(status),
+                  "Reg Handle: %lu open Key handles system-wide (type index %ld)",
+                  list.Count, (long)list.KeyTypeIndex);
+        SetWindowTextA(g_hRgStatus, status);
+        FeFreeRegistryHandles(&list);
+    } else {
+        FE_REG_HIDDEN_LIST list;
+        ULONG i;
+        if (!FeLoadHiddenRegKeys(&list)) {
+            SetWindowTextA(g_hRgStatus, "Hidden Item: query failed");
+            return;
+        }
+        for (i = 0; i < list.Count; i++) {
+            LVITEMA it;
+            char depth[16];
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            it.pszText = list.Items[i].Path;
+            SendMessageA(g_hRgList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            RgSetText(g_hRgList, (int)i, 1, list.Items[i].Reason);
+            sprintf_s(depth, sizeof(depth), "%d", list.Items[i].Depth);
+            RgSetText(g_hRgList, (int)i, 2, depth);
+        }
+        sprintf_s(status, sizeof(status), "Hidden Item: %lu suspicious registry keys", list.Count);
+        SetWindowTextA(g_hRgStatus, status);
+        FeFreeHiddenRegKeys(&list);
+    }
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
     int isKernel = (page == 1);
     int isStartup = (page == 6);     /* 0-based：第 7 个 Tab = Startup Info */
     int isServices = (page == 7);    /* 第 8 个 Tab = Services */
+    int isRegistry = (page == 5);    /* 第 6 个 Tab = Registry */
     char hint[512];
     HWND hKill, hRef;
 
@@ -853,8 +960,16 @@ static void ShowPage(HWND hWnd, int page)
         if (hSv) ShowWindow(hSv, isServices ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hRgTabs)   ShowWindow(g_hRgTabs,   isRegistry ? SW_SHOW : SW_HIDE);
+    if (g_hRgList)   ShowWindow(g_hRgList,   isRegistry ? SW_SHOW : SW_HIDE);
+    if (g_hRgStatus) ShowWindow(g_hRgStatus, isRegistry ? SW_SHOW : SW_HIDE);
+    {
+        HWND hRg = GetDlgItem(hWnd, IDC_RG_REFRESH);
+        if (hRg) ShowWindow(hRg, isRegistry ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
-        if (isProc || isKernel || isStartup || isServices) {
+        if (isProc || isKernel || isStartup || isServices || isRegistry) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1120,6 +1235,31 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         CreateSvColumns(g_hSvList);
         DoRefreshServices();
 
+        /* ---- Registry 页（主 Tab 5）---- */
+        CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 90, 28, hWnd, (HMENU)IDC_RG_REFRESH, hInst, NULL);
+        g_hRgStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    110, 82, 840, 20, hWnd, (HMENU)IDC_RG_STATUS, hInst, NULL);
+        g_hRgTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
+                                  10, 110, 940, 24, hWnd, (HMENU)IDC_RG_TABS, hInst, NULL);
+        {
+            TCITEMA t;
+            int k;
+            static const char *rgNames[2] = { "Reg Handle", "Hidden Item" };
+            for (k = 0; k < 2; k++) {
+                ZeroMemory(&t, sizeof(t));
+                t.mask = TCIF_TEXT;
+                t.pszText = (LPSTR)rgNames[k];
+                SendMessageA(g_hRgTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
+            }
+        }
+        g_hRgList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 140, 940, 476, hWnd, (HMENU)IDC_RG_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hRgList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        CreateRgColumns(g_hRgList, 0);
+        DoRefreshRegistry();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1187,6 +1327,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 5) {
+            int listY = pageTop + 64;
+            int listH = pageBottom - listY;
+            HWND hRg = GetDlgItem(hWnd, IDC_RG_REFRESH);
+            if (listH < 100) listH = 100;
+            if (hRg) MoveWindow(hRg, 10, pageTop, 90, 28, TRUE);
+            if (g_hRgStatus) MoveWindow(g_hRgStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (g_hRgTabs)   MoveWindow(g_hRgTabs, 10, pageTop + 34, w, 24, TRUE);
+            if (g_hRgList)   MoveWindow(g_hRgList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 7) {
             int listY = pageTop + 34;
             int listH = pageBottom - listY;
@@ -1221,6 +1371,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
         case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
         case IDC_SV_REFRESH: DoRefreshServices(); return 0;
+        case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
         }
         return 0;
 
@@ -1235,6 +1386,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshStartup();
             if (page == 7)
                 DoRefreshServices();
+            if (page == 5)
+                DoRefreshRegistry();
+            return 0;
+        }
+        if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
+            g_RgTab = (int)SendMessageA(g_hRgTabs, TCM_GETCURSEL, 0, 0);
+            DoRefreshRegistry();
             return 0;
         }
         if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
@@ -1343,6 +1501,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--reghandles-cli"))
+        return FePrintRegistryHandles() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--reghidden-cli"))
+        return FePrintHiddenRegKeys() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--services-cli"))
         return FePrintServices() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--startup-cli"))

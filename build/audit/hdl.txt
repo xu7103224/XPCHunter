@@ -1,0 +1,96 @@
+handles of pid 6480: 88
+  handle=0x4      type=@ABCDEFGà(„;ú           access=0x12019F   object=FFFF9D0F28514610
+  handle=0x8      type=                        access=0x1F0003   object=FFFF9D0F294CE560
+  handle=0xC      type=                        access=0x1F0003   object=FFFF9D0F294D4F60
+  handle=0x10     type= 	
+ !"#$%&'()*+,-./0123456789:;<=> access=0x1        object=FFFF9D0F27F130E0
+  handle=0x14     type=.                        access=0x1F0003   object=FFFF9D0F24F2BE00
+  handle=0x18     type=ÐôÏÂ,                    access=0xF00FF    object=FFFF9D0F28CD4640
+  handle=0x1C     type=(?)                      access=0x100002   object=FFFF9D0F27974B00
+  handle=0x20     type= 	
+ !"#$%&'()*+,-./0123456789:;<=> access=0x1        object=FFFF9D0F27F12E70
+  handle=0x24     type=(?)                      access=0x100002   object=FFFF9D0F27977BE0
+  handle=0x28     type= 	
+ !"#$%&'()*+,-./0123456789:;<=> access=0x1        object=FFFF9D0F27F12CD0
+  handle=0x2C     type=Ç                        access=0x804      object=FFFF9D0F24F2B530
+  handle=0x30     type=Ç                        access=0x804      object=FFFF9D0F24F2B1B0
+  handle=0x34     type=Ç                        access=0x804      object=FFFF9D0F24F2B290
+  handle=0x38     type=(?)                      access=0x3        object=FFFFB400E0E4ADE0
+  handle=0x3C     type=                        access=0x1F0003   object=FFFF9D0F294D5560
+  handle=0x40     type=                        access=0x1F0003   object=FFFF9D0F294D5E60
+  handle=0x44     type=@ABCDEFGà(„;ú           access=0x100020   object=FFFF9D0F27E24330
+  handle=0x48     type=@ABCDEFGà(„;ú           access=0x12019F   object=FFFF9D0F27E22260
+  handle=0x4C     type=Ç                        access=0x804      object=FFFF9D0F24F2B370
+  handle=0x50     type=H                        access=0x1F0001   object=FFFF9D0F23140450
+  handle=0x54     type=@ABCDEFGà(„;ú           access=0x12019F   object=FFFF9D0F2851B370
+  handle=0x58     type=@ABCDEFGà(„;ú           access=0x120196   object=FFFF9D0F2851F6A0
+  handle=0x5C     type=@ABCDEFGà(„;ú           access=0x12019F   object=FFFF9D0F2851D2B0
+  handle=0x60     type=Ç                        access=0x804      object=FFFF9D0F24F2BED0
+  handle=0x64     type=Ç                        access=0x804      object=FFFF9D0F24F2A730
+  handle=0x68     type=Ç                        access=0x804      object=FFFF9D0F24F2D750
+  handle=0x6C     type=.                        access=0x1F0003   object=FFFF9D0F24F2DBC0
+  handle=0x70     type=ÐôÏÂ,                    access=0xF00FF    object=FFFF9D0F28DD4060
+  handle=0x74     type=(?)                      access=0x100002   object=FFFF9D0F27975E20
+  handle=0x78     type= 	
+ !"#$%&'()*+,-./0123456789:;<=> access=0x1        object=FFFF9D0F27F131B0
+  handle=0x7C     type=(?)                      access=0x100002   object=FFFF9D0F27976260
+  handle=0x80     type= 	
+ !"#$%&'()*+,-./0123456789:;<=> access=0x1        object=FFFF9D0F27F13900
+  handle=0x84     type=(?)                      access=0x1        object=FFFFB400EDE32270
+  handle=0x88     type=(?)                      access=0x20019    object=FFFFB400EDE32A70
+  handle=0x8C     type=Ç                        access=0x804      object=FFFF9D0F24F2CB10
+  handle=0x90     type=Ç                        access=0x804      object=FFFF9D0F24F2C5D0
+  handle=0x94     type=Ç                        access=0x804      object=FFFF9D0F24F2DAD0
+  handle=0x98     type=(?)                      access=0x9        object=FFFFB400EDE32B70
+  handle=0x9C     type=                        access=0x1F0003   object=FFFF9D0F294D9960
+  handle=0xA0     type=.                        access=0x1F0003   object=FFFF9D0F24F2DD80
+  handle=0xA4     type=ÐôÏÂ,                    access=0xF037F    object=FFFF9D0F23627480
+  handle=0xA8     type=                        access=0xF01FF    object=FFFF9D0F21AFB810
+  handle=0xAC     type=ÐôÏÂ,                    access=0xF037F    object=FFFF9D0F23627480
+  handle=0xB8     type=@ABCDEFGà(„;ú           access=0x100001   object=FFFF9D0F27E22D50
+  handle=0xBC     type=Ç                        access=0x804      object=FFFF9D0F24F2D590
+  handle=0xC0     type=(?)                      access=0xF003F    object=FFFFB400EE317670
+  handle=0xC4     type=Ç                        access=0x804      object=FFFF9D0F24F2D3D0
+  handle=0xC8     type=Ç                        access=0x804      object=FFFF9D0F24F2CCD0
+  handle=0xCC     type=Ç                        access=0x804      object=FFFF9D0F24F2C410
+  handle=0xD0     type=Ç                        access=0x804      object=FFFF9D0F24F2C250
+  handle=0xD4     type=                        access=0x1F0003   object=FFFF9D0F294DBFE0
+  handle=0xD8     type=@ABCDEFGà(„;ú           access=0x100001   object=FFFF9D0F27E22EE0
+  handle=0xDC     type= 	
+ !"#$%&'()*+,-./0123456789:;<=> access=0x1        object=FFFF9D0F27F13D10
+  handle=0xE0     type=(?)                      access=0x20019    object=FFFFB400EE317C70
+  handle=0xE4     type=(?)                      access=0x20019    object=FFFFB400EE317E70
+  handle=0xE8     type=                        access=0x1F0003   object=FFFF9D0F294DB1E0
+  handle=0xEC     type=(?)                      access=0x20019    object=FFFFB400EE31A170
+  handle=0xF0     type=(?)                      access=0x20019    object=FFFFB400EE319770
+  handle=0xF4     type=                        access=0x1F0003   object=FFFF9D0F294DBD60
+  handle=0xF8     type=Ç                        access=0x804      object=FFFF9D0F24F2D130
+  handle=0xFC     type=Ç                        access=0x804      object=FFFF9D0F24F2CE90
+  handle=0x100    type=Ç                        access=0x804      object=FFFF9D0F24F2DC90
+  handle=0x104    type=                        access=0x1F0003   object=FFFF9D0F294DB360
+  handle=0x108    type=@ABCDEFGà(„;ú           access=0x12019F   object=FFFF9D0F2851D2B0
+  handle=0x10C    type=                        access=0x1F0003   object=FFFF9D0F294DB4E0
+  handle=0x110    type=                        access=0x1F0003   object=FFFF9D0F294DBA60
+  handle=0x114    type=                        access=0x1F0003   object=FFFF9D0F294DC060
+  handle=0x118    type=                        access=0x1F0003   object=FFFF9D0F294DB6E0
+  handle=0x11C    type=                        access=0x1F0003   object=FFFF9D0F294DC660
+  handle=0x120    type=Ç                        access=0x804      object=FFFF9D0F24F2C950
+  handle=0x124    type=(?)                      access=0xF        object=FFFFB400E34A5A20
+  handle=0x128    type=Ç                        access=0x804      object=FFFF9D0F24F2D830
+  handle=0x12C    type=Ç                        access=0x804      object=FFFF9D0F24F2D210
+  handle=0x130    type=Ç                        access=0x804      object=FFFF9D0F24F2C4F0
+  handle=0x134    type=Ç                        access=0x804      object=FFFF9D0F24F2D910
+  handle=0x138    type=Ç                        access=0x804      object=FFFF9D0F24F2C870
+  handle=0x13C    type=Ç                        access=0x804      object=FFFF9D0F24F2D9F0
+  handle=0x140    type=Ç                        access=0x804      object=FFFF9D0F24F2C6B0
+  handle=0x144    type=Ç                        access=0x804      object=FFFF9D0F24F2C790
+  handle=0x148    type=Ç                        access=0x804      object=FFFF9D0F24F2D2F0
+  handle=0x14C    type=Ç                        access=0x804      object=FFFF9D0F24F2D4B0
+  handle=0x150    type=Ç                        access=0x804      object=FFFF9D0F24F2E7F0
+  handle=0x154    type=Ç                        access=0x804      object=FFFF9D0F24F2E630
+  handle=0x158    type=Ç                        access=0x804      object=FFFF9D0F24F2F6D0
+  handle=0x15C    type=(?)                      access=0x20019    object=FFFFB400EE319270
+  handle=0x160    type=                        access=0x1F0003   object=FFFF9D0F294DC460
+  handle=0x164    type=(?)                      access=0x20019    object=FFFFB400EE319B70
+  handle=0x220    type=@ABCDEFGà(„;ú           access=0x120196   object=FFFF9D0F262DA550
+TP=6480 
