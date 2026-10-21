@@ -40,6 +40,7 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <ctype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -574,6 +575,34 @@ BOOL FeSettingSetForbid(XPCH_CLIENT *Client, ULONG64 TargetObject, ULONG Operati
 BOOL FeSettingSelfProtect(XPCH_CLIENT *Client, int Enable);
 BOOL FeSettingGetMinimizeToTray(void);
 BOOL FeSettingSetMinimizeToTray(BOOL Enable);
+
+/* ---- Trojan Detection 页（原版第 13 个主 Tab，10 项）----
+ * MBR 读写走用户态 \.\PhysicalDriveN（驱动 0xCA/0xCC 仍是空槽）。 */
+#define FE_MBR_SIZE 512u
+
+typedef struct _FE_TROJAN_REPORT {
+    int    MbrState;              /* 0=OK 1=Unknown 2=read failed 3=backup found */
+    char   MbrDetail[256];
+    BYTE   MbrSector[FE_MBR_SIZE];
+    BYTE   BackupMbr[FE_MBR_SIZE];
+    ULONG64 BackupSector;         /* 找到备份原始 MBR 的扇区号；0=没找到 */
+    int    ZeroAccess;            /* 1 = 命中 ZeroAccess 特征 */
+    int    LspOk;
+    char   LspDetail[256];
+    int    SafebootOk;
+    char   SafebootDetail[256];
+} FE_TROJAN_REPORT;
+
+BOOL FeReadMbrSector(int DriveIndex, ULONG64 SectorIndex, BYTE Out[512], DWORD *pError);
+BOOL FeWriteMbrSector(int DriveIndex, ULONG64 SectorIndex, const BYTE In[512], DWORD *pError);
+int  FeCheckMbr(const BYTE Mbr[512], char *Detail, size_t DetailChars);
+BOOL FeFindZeroAccess(int DriveIndex, FE_TROJAN_REPORT *R);
+BOOL FeBackupMbr(int DriveIndex, const char *Path, FE_TROJAN_REPORT *R);
+BOOL FeRestoreMbr(int DriveIndex, const char *Path, DWORD *pError);
+BOOL FeCheckLsp(FE_TROJAN_REPORT *R);
+BOOL FeCheckSafeboot(FE_TROJAN_REPORT *R);
+BOOL FeRepairSafeboot(void);
+BOOL FePrintTrojanReport(int DriveIndex);
 
 #ifdef __cplusplus
 }

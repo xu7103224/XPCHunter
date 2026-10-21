@@ -1,0 +1,7 @@
+=== Trojan Detection (PhysicalDrive0) ===
+MBR: MBR OK!
+     signature OK, 379 non-zero boot bytes, 1 partition(s)
+ZeroAccess: not detected
+LSP: OK (cannot open LSP catalog)
+Safeboot: OK (SafeBoot policy normal)
+EXIT=0 

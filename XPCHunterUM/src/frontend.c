@@ -88,6 +88,13 @@
 #define IDC_ST_PROT_SSDT 1114
 #define IDC_ST_PROT_SHADOW 1115
 #define IDC_ST_TRAY     1116
+/* Trojan Detection 页 */
+#define IDC_TR_SCAN     1120
+#define IDC_TR_BACKUP   1121
+#define IDC_TR_RESTORE  1122
+#define IDC_TR_REPAIR   1123
+#define IDC_TR_LIST     1124
+#define IDC_TR_STATUS   1125
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -109,6 +116,9 @@ static int g_FeHasJob = 0;
 static HWND g_hStList, g_hStStatus;
 static FE_OBJ_TYPES g_StObjTypes;
 static int g_StObjReady = 0;
+static HWND g_hTrList, g_hTrStatus;
+static FE_TROJAN_REPORT g_TrReport;
+static int g_TrLoaded = 0;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -1459,6 +1469,109 @@ static void DoApplyForbid(int Which)
     }
 }
 
+/* ---- Trojan Detection 页（主 Tab 12）---- */
+static void TrSetText(HWND h, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(h, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void DoTrojanScan(void)
+{
+    LVCOLUMNA c;
+    char status[320];
+
+    if (!g_hTrList || !g_hTrStatus)
+        return;
+    ListView_DeleteAllItems(g_hTrList);
+    while (ListView_DeleteColumn(g_hTrList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Item";   c.cx = 230; c.iSubItem = 0; ListView_InsertColumn(g_hTrList, 0, &c);
+    c.pszText = "Result"; c.cx = 110; c.iSubItem = 1; ListView_InsertColumn(g_hTrList, 1, &c);
+    c.pszText = "Detail"; c.cx = 580; c.iSubItem = 2; ListView_InsertColumn(g_hTrList, 2, &c);
+
+    SetWindowTextA(g_hTrStatus, "Scanning PhysicalDrive0...");
+    ZeroMemory(&g_TrReport, sizeof(g_TrReport));
+    g_TrLoaded = FeFindZeroAccess(0, &g_TrReport) ? 1 : 0;
+
+    {
+        int n = 0;
+        static const char *stateTxt[] = { "MBR OK!", "Unknow MBR!", "read failed", "(backup found)" };
+        ListView_InsertItem(g_hTrList, NULL);
+        TrSetText(g_hTrList, n, 0, "Scan MBR");
+        TrSetText(g_hTrList, n, 1, stateTxt[g_TrReport.MbrState >= 0 && g_TrReport.MbrState <= 3
+                                          ? g_TrReport.MbrState : 2]);
+        TrSetText(g_hTrList, n, 2, g_TrReport.MbrDetail);
+        n++;
+
+        ListView_InsertItem(g_hTrList, NULL);
+        TrSetText(g_hTrList, n, 0, "Check MBR Rootkit");
+        TrSetText(g_hTrList, n, 1, g_TrReport.ZeroAccess ? "INFECTED" : "clean");
+        TrSetText(g_hTrList, n, 2, g_TrReport.ZeroAccess
+                  ? "Find ZeroAccess Rootkit!"
+                  : "no int13 + shadow-MBR signature combination");
+        n++;
+
+        ListView_InsertItem(g_hTrList, NULL);
+        TrSetText(g_hTrList, n, 0, "Original MBR backup");
+        if (g_TrReport.BackupSector) {
+            char d[128];
+            sprintf_s(d, sizeof(d), "Original MBR has been found in sector %I64u",
+                      g_TrReport.BackupSector);
+            TrSetText(g_hTrList, n, 1, "found");
+            TrSetText(g_hTrList, n, 2, d);
+        } else {
+            TrSetText(g_hTrList, n, 1, "none");
+            TrSetText(g_hTrList, n, 2, "no readable shadow MBR in sectors 1..8");
+        }
+        n++;
+
+        FeCheckLsp(&g_TrReport);
+        ListView_InsertItem(g_hTrList, NULL);
+        TrSetText(g_hTrList, n, 0, "LSP");
+        TrSetText(g_hTrList, n, 1, g_TrReport.LspOk ? "OK" : "suspicious");
+        TrSetText(g_hTrList, n, 2, g_TrReport.LspDetail);
+        n++;
+
+        FeCheckSafeboot(&g_TrReport);
+        ListView_InsertItem(g_hTrList, NULL);
+        TrSetText(g_hTrList, n, 0, "Safeboot");
+        TrSetText(g_hTrList, n, 1, g_TrReport.SafebootOk ? "OK" : "tampered");
+        TrSetText(g_hTrList, n, 2, g_TrReport.SafebootDetail);
+        n++;
+    }
+    sprintf_s(status, sizeof(status),
+              "MBR: %s | ZeroAccess: %s | LSP: %s | Safeboot: %s",
+              g_TrReport.MbrState == 0 ? "OK" :
+              g_TrReport.MbrState == 1 ? "UNKNOWN" : "read-fail",
+              g_TrReport.ZeroAccess ? "FOUND" : "clean",
+              g_TrReport.LspOk ? "OK" : "suspicious",
+              g_TrReport.SafebootOk ? "OK" : "tampered");
+    SetWindowTextA(g_hTrStatus, status);
+}
+
+static void DoTrojanBackup(void)
+{
+    char path[MAX_PATH];
+    if (!g_TrLoaded)
+        DoTrojanScan();
+    GetTempPathA(MAX_PATH, path);
+    strcat_s(path, sizeof(path), "PCHunter_MBR_Backup.bin");
+    if (FeBackupMbr(0, path, &g_TrReport)) {
+        char msg[400];
+        sprintf_s(msg, sizeof(msg), "MBR backed up to %s", path);
+        SetWindowTextA(g_hTrStatus, msg);
+    } else {
+        SetWindowTextA(g_hTrStatus, "MBR backup failed");
+    }
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -1471,6 +1584,7 @@ static void ShowPage(HWND hWnd, int page)
     int isExam = (page == 9);        /* 第 10 个 Tab = Examination */
     int isFireeye = (page == 11);    /* 第 12 个 Tab = Fireeye */
     int isSetting = (page == 10);    /* 第 11 个 Tab = Setting */
+    int isTrojan = (page == 12);     /* 第 13 个 Tab = Trojan Detection */
     char hint[512];
     HWND hKill, hRef;
 
@@ -1572,9 +1686,22 @@ static void ShowPage(HWND hWnd, int page)
         if (e) ShowWindow(e, isSetting ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hTrList)   ShowWindow(g_hTrList,   isTrojan ? SW_SHOW : SW_HIDE);
+    if (g_hTrStatus) ShowWindow(g_hTrStatus, isTrojan ? SW_SHOW : SW_HIDE);
+    {
+        HWND a = GetDlgItem(hWnd, IDC_TR_SCAN);
+        HWND b = GetDlgItem(hWnd, IDC_TR_BACKUP);
+        HWND c = GetDlgItem(hWnd, IDC_TR_RESTORE);
+        HWND d = GetDlgItem(hWnd, IDC_TR_REPAIR);
+        if (a) ShowWindow(a, isTrojan ? SW_SHOW : SW_HIDE);
+        if (b) ShowWindow(b, isTrojan ? SW_SHOW : SW_HIDE);
+        if (c) ShowWindow(c, isTrojan ? SW_SHOW : SW_HIDE);
+        if (d) ShowWindow(d, isTrojan ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
         if (isProc || isKernel || isStartup || isServices || isRegistry || isFile ||
-            isOther || isExam || isFireeye || isSetting) {
+            isOther || isExam || isFireeye || isSetting || isTrojan) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1954,6 +2081,23 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         ListView_SetExtendedListViewStyle(g_hStList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         DoRefreshSetting();
 
+        /* ---- Trojan Detection 页（主 Tab 12）---- */
+        CreateWindowA("BUTTON", "Scan MBR", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 100, 28, hWnd, (HMENU)IDC_TR_SCAN, hInst, NULL);
+        CreateWindowA("BUTTON", "Backup MBR", WS_CHILD | BS_PUSHBUTTON,
+                      116, 76, 110, 28, hWnd, (HMENU)IDC_TR_BACKUP, hInst, NULL);
+        CreateWindowA("BUTTON", "Reset MBR", WS_CHILD | BS_PUSHBUTTON,
+                      232, 76, 100, 28, hWnd, (HMENU)IDC_TR_RESTORE, hInst, NULL);
+        CreateWindowA("BUTTON", "Repair All", WS_CHILD | BS_PUSHBUTTON,
+                      338, 76, 100, 28, hWnd, (HMENU)IDC_TR_REPAIR, hInst, NULL);
+        g_hTrStatus = CreateWindowA("STATIC", "Not scanned", WS_CHILD | SS_LEFT,
+                                    446, 82, 500, 20, hWnd, (HMENU)IDC_TR_STATUS, hInst, NULL);
+        g_hTrList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 110, 940, 500, hWnd, (HMENU)IDC_TR_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hTrList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        DoTrojanScan();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -2021,6 +2165,21 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 12) {
+            int listY = pageTop + 34;
+            int listH = pageBottom - listY;
+            HWND a = GetDlgItem(hWnd, IDC_TR_SCAN);
+            HWND b = GetDlgItem(hWnd, IDC_TR_BACKUP);
+            HWND c = GetDlgItem(hWnd, IDC_TR_RESTORE);
+            HWND d = GetDlgItem(hWnd, IDC_TR_REPAIR);
+            if (listH < 100) listH = 100;
+            if (a) MoveWindow(a, 10, pageTop, 100, 28, TRUE);
+            if (b) MoveWindow(b, 116, pageTop, 110, 28, TRUE);
+            if (c) MoveWindow(c, 232, pageTop, 100, 28, TRUE);
+            if (d) MoveWindow(d, 338, pageTop, 100, 28, TRUE);
+            if (g_hTrStatus) MoveWindow(g_hTrStatus, 446, pageTop + 6, w - 436, 20, TRUE);
+            if (g_hTrList)   MoveWindow(g_hTrList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 10) {
             int listY = pageTop + 34;
             int listH = pageBottom - listY;
@@ -2158,6 +2317,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_FE_RECORDS: DoFireeyeRecords(); return 0;
         case IDC_FE_CLEAR:   FeFireeyeDeleteRecords(); DoFireeyeRecords(); return 0;
         case IDC_ST_REFRESH: DoRefreshSetting(); return 0;
+        case IDC_TR_SCAN:    DoTrojanScan(); return 0;
+        case IDC_TR_BACKUP:  DoTrojanBackup(); return 0;
         case IDC_ST_APPLY:   DoApplyForbid(0); return 0;
         case IDC_ST_PROT_SSDT:
             if (FeSettingSelfProtect(&g_Client, 1)) SetWindowTextA(g_hStStatus, "SSDT self-protection enabled");
@@ -2199,6 +2360,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoFireeyeAnalyse();
             if (page == 10)
                 DoRefreshSetting();
+            if (page == 12)
+                DoTrojanScan();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
@@ -2312,6 +2475,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--trojan-cli"))
+        return FePrintTrojanReport(0) ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--setting-cli")) {
         FE_OBJ_TYPES ot;
         int ok;
