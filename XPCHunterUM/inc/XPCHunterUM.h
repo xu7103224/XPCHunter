@@ -39,6 +39,7 @@
 #define XPCHUNTER_UM_H
 
 #include <windows.h>
+#include <shellapi.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -462,6 +463,36 @@ typedef struct _FE_INSN {
     unsigned char Length;
 } FE_INSN;
 int FeDisasmOne(const unsigned char *Code, int Remaining, FE_INSN *Out);
+
+/* ---- Other 页（原版第 14 个主 Tab，4 项）---- */
+typedef struct _FE_OS_INFO {
+    ULONG Major, Minor, Build, UBR, PlatformId;
+    char  ProductName[160];
+    char  DisplayVersion[64];
+    char  CurrentBuild[32];
+    char  VersionString[64];
+    char  MarketName[96];
+} FE_OS_INFO;
+
+BOOL FeLoadOsInfo(FE_OS_INFO *Info);
+BOOL FePrintOsInfo(void);
+
+typedef struct _FE_FILE_VER {
+    ULONG FileVersionMS, FileVersionLS, ProductVersionMS, ProductVersionLS;
+    ULONG FileFlags, FileOS, FileType;
+    char  FileVersion[48];
+    char  FileVersionStr[64];
+    char  CompanyName[192];
+    char  FileDescription[256];
+    char  ProductName[192];
+    char  InternalName[96];
+    char  OriginalFilename[128];
+} FE_FILE_VER;
+
+BOOL FeLoadFileVersion(const char *Path, FE_FILE_VER *Out);
+BOOL FePrintFileVersion(const char *Path);
+BOOL FeBuildOnlineQueryUrl(const char *Query, int Target, char *Out, size_t OutChars);
+BOOL FeOpenUrl(const char *Url);
 
 #ifdef __cplusplus
 }

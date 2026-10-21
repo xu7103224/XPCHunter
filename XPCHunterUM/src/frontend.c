@@ -60,6 +60,12 @@
 #define IDC_FL_STATUS   1073
 #define IDC_FL_DEL      1074
 #define IDC_FL_VERIFY   1075
+/* Other 页 */
+#define IDC_OT_LIST     1080
+#define IDC_OT_STATUS   1081
+#define IDC_OT_PATH     1082
+#define IDC_OT_VERIFY   1083
+#define IDC_OT_QUERY    1084
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -71,6 +77,7 @@ static HWND g_hSvList, g_hSvStatus;
 static HWND g_hRgTabs, g_hRgList, g_hRgStatus;
 static int  g_RgTab = 0;
 static HWND g_hFlDir, g_hFlList, g_hFlStatus;
+static HWND g_hOtList, g_hOtStatus, g_hOtPath;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -1012,6 +1019,83 @@ static void DoRefreshFiles(void)
     FeFreeDirectory(&list);
 }
 
+/* ---- Other 页（主 Tab 13）---- */
+static void OtAddRow(const char *k, const char *v)
+{
+    LVITEMA it;
+    int i = ListView_GetItemCount(g_hOtList);
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = i;
+    it.pszText = (LPSTR)k;
+    SendMessageA(g_hOtList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+    {
+        LVITEMA t2;
+        ZeroMemory(&t2, sizeof(t2));
+        t2.mask = LVIF_TEXT;
+        t2.iSubItem = 1;
+        t2.pszText = (LPSTR)v;
+        SendMessageA(g_hOtList, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&t2);
+    }
+}
+
+static void DoRefreshOther(void)
+{
+    LVCOLUMNA c;
+    FE_OS_INFO os;
+    char buf[512];
+
+    if (!g_hOtList || !g_hOtStatus)
+        return;
+    ListView_DeleteAllItems(g_hOtList);
+    while (ListView_DeleteColumn(g_hOtList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Item";  c.cx = 220; c.iSubItem = 0; ListView_InsertColumn(g_hOtList, 0, &c);
+    c.pszText = "Value"; c.cx = 690; c.iSubItem = 1; ListView_InsertColumn(g_hOtList, 1, &c);
+
+    /* Windows 版本识别表 */
+    if (FeLoadOsInfo(&os)) {
+        OtAddRow("Windows version", os.VersionString);
+        OtAddRow("Market name", os.MarketName);
+        OtAddRow("Product name", os.ProductName[0] ? os.ProductName : "(?)");
+        OtAddRow("Display version", os.DisplayVersion[0] ? os.DisplayVersion : "(?)");
+        OtAddRow("Current build", os.CurrentBuild[0] ? os.CurrentBuild : "(?)");
+        sprintf_s(buf, sizeof(buf), "%lu", os.PlatformId);
+        OtAddRow("Platform id", buf);
+    } else {
+        OtAddRow("Windows version", "(RtlGetVersion failed)");
+    }
+
+    /* 当前用户的常见系统文件版本信息（FileVersion / Corporation 示例） */
+    {
+        static const char *samples[] = {
+            "C:\Windows\System32\ntoskrnl.exe",
+            "C:\Windows\System32\kernel32.dll",
+            "C:\Windows\System32\ntdll.dll",
+        };
+        ULONG i;
+        for (i = 0; i < 3; i++) {
+            FE_FILE_VER v;
+            if (FeLoadFileVersion(samples[i], &v)) {
+                char key[128];
+                const char *base = samples[i];
+                const char *p = base;
+                while (*p) { if (*p == 92) base = p + 1; p++; }
+                sprintf_s(key, sizeof(key), "%s FileVersion", base);
+                OtAddRow(key, v.FileVersionStr[0] ? v.FileVersionStr : v.FileVersion);
+                sprintf_s(key, sizeof(key), "%s Company", base);
+                OtAddRow(key, v.CompanyName[0] ? v.CompanyName : "(?)");
+            }
+        }
+    }
+    sprintf_s(buf, sizeof(buf),
+              "Other: OS %s; %d file-version samples",
+              os.MarketName[0] ? os.MarketName : "?", ListView_GetItemCount(g_hOtList));
+    SetWindowTextA(g_hOtStatus, buf);
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -1020,6 +1104,7 @@ static void ShowPage(HWND hWnd, int page)
     int isServices = (page == 7);    /* 第 8 个 Tab = Services */
     int isRegistry = (page == 5);    /* 第 6 个 Tab = Registry */
     int isFile = (page == 8);        /* 第 9 个 Tab = File */
+    int isOther = (page == 13);      /* 第 14 个 Tab = Other */
     char hint[512];
     HWND hKill, hRef;
 
@@ -1071,8 +1156,18 @@ static void ShowPage(HWND hWnd, int page)
         if (h3) ShowWindow(h3, isFile ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hOtList)   ShowWindow(g_hOtList,   isOther ? SW_SHOW : SW_HIDE);
+    if (g_hOtStatus) ShowWindow(g_hOtStatus, isOther ? SW_SHOW : SW_HIDE);
+    if (g_hOtPath)   ShowWindow(g_hOtPath,   isOther ? SW_SHOW : SW_HIDE);
+    {
+        HWND h1 = GetDlgItem(hWnd, IDC_OT_VERIFY);
+        HWND h2 = GetDlgItem(hWnd, IDC_OT_QUERY);
+        if (h1) ShowWindow(h1, isOther ? SW_SHOW : SW_HIDE);
+        if (h2) ShowWindow(h2, isOther ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
-        if (isProc || isKernel || isStartup || isServices || isRegistry || isFile) {
+        if (isProc || isKernel || isStartup || isServices || isRegistry || isFile || isOther) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1382,6 +1477,22 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         CreateFlColumns(g_hFlList);
         DoRefreshFiles();
 
+        /* ---- Other 页（主 Tab 13）---- */
+        g_hOtPath = CreateWindowA("EDIT", "C:\Windows\System32\ntoskrnl.exe",
+                                  WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
+                                  10, 76, 620, 24, hWnd, (HMENU)IDC_OT_PATH, hInst, NULL);
+        CreateWindowA("BUTTON", "Verify", WS_CHILD | BS_PUSHBUTTON,
+                      640, 74, 70, 28, hWnd, (HMENU)IDC_OT_VERIFY, hInst, NULL);
+        CreateWindowA("BUTTON", "Query Online", WS_CHILD | BS_PUSHBUTTON,
+                      716, 74, 110, 28, hWnd, (HMENU)IDC_OT_QUERY, hInst, NULL);
+        g_hOtStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    836, 80, 120, 20, hWnd, (HMENU)IDC_OT_STATUS, hInst, NULL);
+        g_hOtList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 108, 940, 500, hWnd, (HMENU)IDC_OT_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hOtList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        DoRefreshOther();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1449,6 +1560,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 13) {
+            int listY = pageTop + 56;
+            int listH = pageBottom - listY;
+            HWND h1 = GetDlgItem(hWnd, IDC_OT_VERIFY);
+            HWND h2 = GetDlgItem(hWnd, IDC_OT_QUERY);
+            if (listH < 100) listH = 100;
+            if (g_hOtPath)   MoveWindow(g_hOtPath, 10, pageTop, w - 300, 24, TRUE);
+            if (h1) MoveWindow(h1, w - 280, pageTop - 2, 70, 28, TRUE);
+            if (h2) MoveWindow(h2, w - 204, pageTop - 2, 110, 28, TRUE);
+            if (g_hOtStatus) MoveWindow(g_hOtStatus, 10, pageTop + 26, w, 20, TRUE);
+            if (g_hOtList)   MoveWindow(g_hOtList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 8) {
             int listY = pageTop + 36;
             int listH = pageBottom - listY;
@@ -1511,6 +1634,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SV_REFRESH: DoRefreshServices(); return 0;
         case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
         case IDC_FL_GO:      DoRefreshFiles(); return 0;
+        case IDC_OT_VERIFY:  DoRefreshOther(); return 0;
         }
         return 0;
 
@@ -1529,6 +1653,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshRegistry();
             if (page == 8)
                 DoRefreshFiles();
+            if (page == 13)
+                DoRefreshOther();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
@@ -1642,6 +1768,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--os-cli"))
+        return FePrintOsInfo() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--filever-cli")) {
+        const char *p = strstr(lpCmdLine, "--filever-cli") + 13;
+        char path[MAX_PATH]; size_t n = 0;
+        while (*p == ' ' || *p == '"') p++;
+        while (*p && *p != '"' && n + 1 < sizeof(path)) path[n++] = *p++;
+        while (n && (path[n - 1] == 32 || path[n - 1] == 13 || path[n - 1] == 10)) path[--n] = 0;
+        return FePrintFileVersion(path) ? 0 : 1;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--files-cli")) {
         const char *d = strstr(lpCmdLine, "--files-cli") + 12;
         char dir[MAX_PATH];

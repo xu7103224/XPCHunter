@@ -30,7 +30,7 @@ echo Compiling user-mode client...
 cl /nologo /c /W3 /O2 /GS /guard:cf- /utf-8 /DUNICODE /D_UNICODE ^
    /I"%INC_DIR%" ^
    /Fo"%OBJ_DIR%\\" ^
-   "%SRC_DIR%\Protocol.c" "%SRC_DIR%\ProcessList.c" "%SRC_DIR%\ProcessViews.c" "%SRC_DIR%\KernelViews.c" "%SRC_DIR%\StartupViews.c" "%SRC_DIR%\ServiceViews.c" "%SRC_DIR%\RegistryViews.c" "%SRC_DIR%\FileViews.c" "%SRC_DIR%\probe.c" "%SRC_DIR%\frontend.c"
+   "%SRC_DIR%\Protocol.c" "%SRC_DIR%\ProcessList.c" "%SRC_DIR%\ProcessViews.c" "%SRC_DIR%\KernelViews.c" "%SRC_DIR%\StartupViews.c" "%SRC_DIR%\ServiceViews.c" "%SRC_DIR%\RegistryViews.c" "%SRC_DIR%\FileViews.c" "%SRC_DIR%\OtherViews.c" "%SRC_DIR%\probe.c" "%SRC_DIR%\frontend.c"
 
 if errorlevel 1 (
     echo ERROR: compile failed
@@ -51,8 +51,8 @@ if errorlevel 1 (
 echo Linking frontend...
 link /nologo /SUBSYSTEM:WINDOWS /MACHINE:X64 /OPT:REF /OPT:NOICF ^
      /OUT:"%BIN_DIR%\xpch_frontend.exe" ^
-     "%OBJ_DIR%\Protocol.obj" "%OBJ_DIR%\frontend.obj" "%OBJ_DIR%\ProcessList.obj" "%OBJ_DIR%\ProcessViews.obj" "%OBJ_DIR%\KernelViews.obj" "%OBJ_DIR%\StartupViews.obj" "%OBJ_DIR%\ServiceViews.obj" "%OBJ_DIR%\RegistryViews.obj" "%OBJ_DIR%\FileViews.obj" ^
-     kernel32.lib user32.lib advapi32.lib comctl32.lib psapi.lib gdi32.lib psapi.lib
+     "%OBJ_DIR%\Protocol.obj" "%OBJ_DIR%\frontend.obj" "%OBJ_DIR%\ProcessList.obj" "%OBJ_DIR%\ProcessViews.obj" "%OBJ_DIR%\KernelViews.obj" "%OBJ_DIR%\StartupViews.obj" "%OBJ_DIR%\ServiceViews.obj" "%OBJ_DIR%\RegistryViews.obj" "%OBJ_DIR%\FileViews.obj" "%OBJ_DIR%\OtherViews.obj" ^
+     kernel32.lib user32.lib advapi32.lib comctl32.lib psapi.lib gdi32.lib version.lib shell32.lib wintrust.lib crypt32.lib
 
 if errorlevel 1 (
     echo ERROR: link frontend failed
