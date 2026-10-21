@@ -1,0 +1,140 @@
+BEGIN 
+==== RTZ81 create/start ==== 
+[SC] CreateService 成功
+
+SERVICE_NAME: RTZ81 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 4  RUNNING 
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+        PID                : 0
+        FLAGS              : 
+START_RTZ81=0 
+        STATE              : 4  RUNNING 
+probe start
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 9C 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  handshake 0x22 -> OK, result=1, ssdt=0
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x9C -> OK, result=1, GetLastError=0
+
+=== done ===
+==== RTZ81 stop ==== 
+
+SERVICE_NAME: RTZ81 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 1  STOPPED 
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+STOP_RTZ81=0 
+[SC] DeleteService 成功
+STILL_ALIVE_RTZ81 
+==== RTZ82 create/start ==== 
+[SC] CreateService 成功
+
+SERVICE_NAME: RTZ82 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 4  RUNNING 
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+        PID                : 0
+        FLAGS              : 
+START_RTZ82=0 
+        STATE              : 4  RUNNING 
+probe start
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 9C 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  handshake 0x22 -> OK, result=1, ssdt=0
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x9C -> OK, result=1, GetLastError=0
+
+=== done ===
+==== RTZ82 stop ==== 
+
+SERVICE_NAME: RTZ82 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 1  STOPPED 
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+STOP_RTZ82=0 
+[SC] DeleteService 成功
+STILL_ALIVE_RTZ82 
+==== RTZ83 create/start ==== 
+[SC] CreateService 成功
+
+SERVICE_NAME: RTZ83 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 4  RUNNING 
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+        PID                : 0
+        FLAGS              : 
+START_RTZ83=0 
+        STATE              : 4  RUNNING 
+probe start
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 9C 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  handshake 0x22 -> OK, result=1, ssdt=0
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x9C -> OK, result=1, GetLastError=0
+
+=== done ===
+==== RTZ83 stop ==== 
+
+SERVICE_NAME: RTZ83 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 1  STOPPED 
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+STOP_RTZ83=0 
+[SC] DeleteService 成功
+STILL_ALIVE_RTZ83 
+ALLDONE 
