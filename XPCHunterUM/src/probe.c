@@ -429,10 +429,33 @@ int main(int argc, char **argv)
                     printf("    win10ListHead=%p ndisIMOffset=0x%lX\n",
                            (void *)*(ULONG64 *)(env + 0xB0),
                            (ULONG)*(ULONG *)(env + 0xA8));
+                    /* 0x2C0..0x2F8：SSDT/Shadow SSDT（0x8C/0x8E）链条的诊断。
+                       OpenFileSection 要求 0x421D/0x421A/0x4223/0x4160 四个槽
+                       全部非零，任一个为 0 就整体返回 0。 */
+                    printf("    --- 0x8C/0x8E chain ---\n");
+                    printf("    RtlInitUnicodeString(0x421D)=%p\n",
+                           (void *)*(ULONG64 *)(env + 0x2C0));
+                    printf("    IoCreateFile(0x421A)        =%p\n",
+                           (void *)*(ULONG64 *)(env + 0x2C8));
+                    printf("    CloseHandle(0x4223)         =%p\n",
+                           (void *)*(ULONG64 *)(env + 0x2D0));
+                    printf("    DriverObjectListHead(0x4160)=%p\n",
+                           (void *)*(ULONG64 *)(env + 0x2D8));
+                    printf("    ready0x8C(GT[0x1E1])        =%lu\n",
+                           (ULONG)*(ULONG64 *)(env + 0x2E0));
+                    printf("    ready0x8E(GT[0x2DA])        =%lu\n",
+                           (ULONG)*(ULONG64 *)(env + 0x2E8));
+                    printf("    openStage                   =0x%lX\n",
+                           *(ULONG *)(env + 0x2F0));
+                    printf("    openStatus(NTSTATUS)        =0x%lX\n",
+                           *(ULONG *)(env + 0x2F4));
+                    printf("    openHandle                  =%p\n",
+                           (void *)*(ULONG64 *)(env + 0x2F8));
                     {
                         int off2;
+                        /* 只转储环境块本体（0x300）；再往后是分派器诊断表 */
                         printf("    raw env:");
-                        for (off2 = 0; off2 < ENV; off2++) {
+                        for (off2 = 0; off2 < 0x300; off2++) {
                             if ((off2 & 15) == 0) printf("\n      %04X:", off2);
                             printf(" %02X", env[off2]);
                         }

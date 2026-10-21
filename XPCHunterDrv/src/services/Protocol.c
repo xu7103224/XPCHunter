@@ -945,17 +945,40 @@ __int64 OpenFileSection(__int64 EncodedPath)
     CloseFunc = (void (*)(void))GtRead(GtCloseHandleFunc);
     DriverListHead = (_QWORD *)GtRead(GtDriverObjectListHead);
 
+    /* 【诊断】逐级 trace：OpenFileSection 只返回 0/句柄，不返回失败原因，
+       所以把每一步中间量写进 g_DiagOpen*，由 0x13A 导出。
+       stage: 1=取到槽 2=已调 IoCreateFile 3=NTSTATUS>=0 4=拿到句柄
+              0x10|bits = 某个槽为 0（bit0 RtlInit/1 IoCreateFile/2 Close/3 DriverList）*/
+    g_DiagOpenStage = 1;
+    g_DiagOpenStatus = 0;
+    g_DiagOpenHandle = 0;
     if (!InitUnicodeFunc || !CreateFileFunc || !CloseFunc || !DriverListHead)
+    {
+        g_DiagOpenStage = 0x10
+                        | (ULONG)(!InitUnicodeFunc ? 1 : 0)
+                        | (ULONG)(!CreateFileFunc   ? 2 : 0)
+                        | (ULONG)(!CloseFunc        ? 4 : 0)
+                        | (ULONG)(!DriverListHead   ? 8 : 0);
         return Result;
+    }
 
     InitUnicodeFunc(UnicodeBuffer, EncodedPath);
     Status = 0;
-    if (CreateFileFunc(UnicodeBuffer, 64, 0, 0, *DriverListHead, Status, 0, &FileHandle) >= 0)
+    g_DiagOpenStage = 2;
     {
-        if (FileHandle)
+        LONG NtStatus = CreateFileFunc(UnicodeBuffer, 64, 0, 0, *DriverListHead,
+                                       Status, 0, &FileHandle);
+        g_DiagOpenStatus = NtStatus;
+        g_DiagOpenHandle = (ULONG64)FileHandle;
+        if (NtStatus >= 0)
         {
-            Result = FileHandle;
-            CloseFunc();
+            g_DiagOpenStage = 3;
+            if (FileHandle)
+            {
+                g_DiagOpenStage = 4;
+                Result = FileHandle;
+                CloseFunc();
+            }
         }
     }
 

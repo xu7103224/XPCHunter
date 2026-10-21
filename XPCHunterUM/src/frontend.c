@@ -1868,7 +1868,7 @@ static void CreateKmColumns(HWND hList, int tab)
         c.pszText = "Start";     c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "ImagePath"; c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
     } else {
-        /* SSDT / Shadow SSDT（0x8C / 0x8E，OutSize 必须为 1352） */
+        /* SSDT / Shadow SSDT（0xAC / 0xAE，OutSize 必须为 1352） */
         c.pszText = "Index";     c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
         c.pszText = "Address";   c.cx = 190; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Original";  c.cx = 190; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
@@ -1964,66 +1964,77 @@ static void DoRefreshKernel(void)
         FeFreeDrivers(&list);
     } else {
         /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）
-         * 数据源：0x8C CmdEnumSyscallEntries / 0x8E CmdEnumShadowSyscallEntries。
-         * 这两个命令要求 OutSize == 1352（0x548），输出 +0 为就绪字节、
-         * +1 为 build 号、+8 起为条目区。
          *
-         * 【不要用 0x117 冒充】0x117 的两张表是 Wdf01000.sys 内部的 Hook 表
-         * （GT[0x8AE] 由 InitThreadNotify 用 "Wdf01000.sys" 匹配填充），
-         * 属于 Ring0 Hooks 页，与 SSDT 无关。 */
+         * 【正确的数据源】0x101 CmdReadSsdtEntryTable / 0x102
+         * CmdReadSsdtEntryTableEx —— 直接读 KiServiceTable 的表项。
+         * 输出布局（实机验证）：
+         *   +0x00 DWORD WindowsBuildNumber
+         *   +0x04 DWORD 条目数 N
+         *   +0x08 起     N 个 QWORD 函数地址
+         * 缓冲要求：>= 8*(N-1)+16；实测 N=23（0x101）/ 139（0x102），给 0x1000 够。
+         *
+         * 【走过的弯路，记录以免再犯】
+         *   1) 命令号算错：Table[i] 对应命令 0x20+i。CmdEnumSyscallEntries 是
+         *      Table[140] -> 0xAC，不是 0x8C（0x8C=Table[108]，落在
+         *      RtlZeroMemory(&Table[105],0x30) 的空槽区间）。同理 Shadow 是 0xAE。
+         *   2) 0xAC/0xAE 确实是真实数据，但枚举的是 tcpip.sys / kbdclass.sys
+         *      的驱动服务表（EnumSyscallTable7 -> OpenTcpIpDriverSection、
+         *      EnumShadowSyscallTable -> OpenKbdClassDriverSection），不是内核 SSDT。
+         *      28 项、每条 48 字节、+0x00 索引、+0x10 地址。
+         *   3) 0x42 CmdQuerySsdtInfo 名字叫 SSDT，实际转调 CmdEnumDriverObjects
+         *      枚举驱动对象，与 SSDT 无关。0xE6/0xEA/0x105 本机均返回 0。
+         *   4) 0x117 那两张表是 Wdf01000.sys 内部的 Hook 表，属 Ring0 Hooks 页。 */
         UCHAR ready = 0;
         BYTE *buf;
         int table = (g_KmTab == 2) ? 1 : 2;
         BOOL ok;
+        ULONG cmd = (g_KmTab == 2) ? 0x101 : 0x102;
 
-        buf = (BYTE *)calloc(1, 1352);
+        buf = (BYTE *)calloc(1, 0x1000);
         if (!buf) {
             SetWindowTextA(g_hKmStatus, "SSDT: out of memory");
             return;
         }
         ok = (g_Client.Opened)
-           ? XpchInvoke(&g_Client, table == 1 ? 0x8C : 0x8E, NULL, 0,
-                        buf, 1352, &ready)
+           ? XpchInvoke(&g_Client, cmd, NULL, 0, buf, 0x1000, &ready)
            : FALSE;
-        if (!ok || ready != 1) {
+        if (!ok) {
             sprintf_s(status, sizeof(status),
-                      "%s: driver returned 0 (0x%02X)%s",
-                      table == 1 ? "SSDT" : "Shadow SSDT",
-                      table == 1 ? 0x8C : 0x8E,
-                      g_Client.Opened ? " — export-table chain not initialized"
-                                      : " — not connected");
+                      "%s: driver rejected (0x%03X)%s",
+                      table == 1 ? "SSDT" : "Shadow SSDT", cmd,
+                      g_Client.Opened ? "" : " - not connected");
             SetWindowTextA(g_hKmStatus, status);
             free(buf);
             return;
         }
         {
-            ULONG count = 0, i;
-            ULONG build = *(ULONG *)(buf + 4);
-            /* +8 起为条目：每项 8 字节地址；计数由 0x548 容量反推不可靠，
-               驱动未显式给出条数，按 (1352-8)/8 = 168 上限展示非零项。 */
-            for (i = 0; i < 168; i++) {
-                ULONG64 addr = *(ULONG64 *)(buf + 8 + 8 * i);
-                char idx[32], cur[32];
+            ULONG count = *(ULONG *)(buf + 4);
+            ULONG build = *(ULONG *)(buf + 0);
+            ULONG shown = 0, i;
+
+            if (count > 300)              /* 防御：驱动给的 N 不合理就不读 */
+                count = 0;
+            for (i = 0; i < count; i++) {
+                ULONG64 addr = *(ULONG64 *)(buf + 8 + 8ULL * i);
+                char sidx[32], cur[32];
                 LVITEMA it;
-                if (!addr)
-                    continue;
                 ZeroMemory(&it, sizeof(it));
                 it.mask = LVIF_TEXT;
-                it.iItem = (int)count;
-                sprintf_s(idx, sizeof(idx), "%lu", (unsigned long)i);
+                it.iItem = (int)shown;
+                sprintf_s(sidx, sizeof(sidx), "%lu", (unsigned long)i);
                 sprintf_s(cur, sizeof(cur), "%016I64X", addr);
-                it.pszText = idx;
+                it.pszText = sidx;
                 SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
-                KmSetText(g_hKmList, (int)count, 1, cur);
-                KmSetText(g_hKmList, (int)count, 2, "-");
-                KmSetText(g_hKmList, (int)count, 3, "unknown");
-                KmSetText(g_hKmList, (int)count, 4, "-");
-                count++;
+                KmSetText(g_hKmList, (int)shown, 1, cur);
+                KmSetText(g_hKmList, (int)shown, 2, "-");
+                KmSetText(g_hKmList, (int)shown, 3, addr ? "present" : "null");
+                KmSetText(g_hKmList, (int)shown, 4,
+                          table == 1 ? "KiServiceTable entry" : "extended service table entry");
+                shown++;
             }
             sprintf_s(status, sizeof(status),
-                      "%s: %lu entries (build %lu, cmd 0x%02X)",
-                      table == 1 ? "SSDT" : "Shadow SSDT", count, build,
-                      table == 1 ? 0x8C : 0x8E);
+                      "%s: %lu entries (build %lu, cmd 0x%03X)",
+                      table == 1 ? "SSDT" : "Shadow SSDT", shown, build, cmd);
         }
         free(buf);
     }
@@ -2713,43 +2724,48 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         XpchClose(&g_Client);
         return rc;
     }
-    /* Kernel→SSDT / Shadow SSDT 子页：--ssdt-cli [1|2] */
+    /* Kernel->SSDT / Shadow SSDT 子页：--ssdt-cli [1|2]
+     * 数据源 0x101（SSDT）/ 0x102（Shadow SSDT），与 GUI 子页同一命令。 */
     if (lpCmdLine && strstr(lpCmdLine, "--ssdt-cli")) {
         const char *p = strstr(lpCmdLine, "--ssdt-cli") + 11;
         int table = 1;
         BYTE *buf;
         UCHAR ready = 0;
         BOOL ok;
-        ULONG i, count = 0;
+        ULONG cmd, i, count, build, shown = 0;
         while (*p == ' ') p++;
         if (*p >= '1' && *p <= '2')
             table = *p - '0';
+        cmd = (table == 1) ? 0x101 : 0x102;
         if (!XpchOpen(&g_Client)) {
             printf("open device failed, GetLastError=%lu\n", GetLastError());
             return 1;
         }
         XpchHandshake(&g_Client);
-        buf = (BYTE *)calloc(1, 1352);
+        buf = (BYTE *)calloc(1, 0x1000);
         if (!buf) { XpchClose(&g_Client); return 1; }
-        ok = XpchInvoke(&g_Client, table == 1 ? 0x8C : 0x8E, NULL, 0,
-                        buf, 1352, &ready);
-        printf("=== %s (cmd 0x%02X) -> %s result=%u ===\n",
-               table == 1 ? "SSDT" : "Shadow SSDT",
-               table == 1 ? 0x8C : 0x8E, ok ? "OK" : "REJECTED", ready);
-        if (ok && ready == 1) {
-            printf("build=%lu\n", *(ULONG *)(buf + 4));
-            for (i = 0; i < 168; i++) {
-                ULONG64 addr = *(ULONG64 *)(buf + 8 + 8 * i);
-                if (!addr) continue;
-                printf("  [%03lu] %016I64X\n", (unsigned long)i, addr);
-                count++;
+        ok = XpchInvoke(&g_Client, cmd, NULL, 0, buf, 0x1000, &ready);
+        printf("=== %s (cmd 0x%03X) -> %s result=%u ===\n",
+               table == 1 ? "SSDT" : "Shadow SSDT", cmd,
+               ok ? "OK" : "REJECTED", ready);
+        if (ok) {
+            build = *(ULONG *)(buf + 0);
+            count = *(ULONG *)(buf + 4);
+            printf("build=%lu count=%lu\n", build, count);
+            if (count <= 300) {
+                for (i = 0; i < count; i++) {
+                    ULONG64 addr = *(ULONG64 *)(buf + 8 + 8ULL * i);
+                    printf("  [%03lu] %016I64X\n", (unsigned long)i, addr);
+                    shown++;
+                }
             }
-            printf("entries=%lu\n", count);
+            printf("entries=%lu\n", shown);
         }
         free(buf);
         XpchClose(&g_Client);
-        return (ok && ready == 1) ? 0 : 1;
+        return ok ? 0 : 1;
     }
+
     if (lpCmdLine && strstr(lpCmdLine, "--hooks-cli")) {
         const char *p = strstr(lpCmdLine, "--hooks-cli") + 11;
         ULONG pid = GetCurrentProcessId();

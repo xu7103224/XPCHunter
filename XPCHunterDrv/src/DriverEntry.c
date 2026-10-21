@@ -119,6 +119,15 @@ ULONG g_DiagChainWdfSize;    /* ReadWdfLibraryModule 返回的文件大小 */
 ULONG g_DiagChainWdfRet;     /* ReadWdfLibraryModule 的返回值 */
 ULONG g_DiagChainFindRet;    /* FindSyscallTableDescriptor 返回值 */
 ULONG g_DiagChainNtExport;   /* ParseNtExportDir 返回值 */
+
+/* 【诊断 2026-10-21】OpenFileSection 内部逐级 trace（0x8C/0x8E 链条）。
+   OpenFileSection 不返回失败原因，只返回 0 或句柄，所以在这里把每一步的
+   中间量记下来：stage 表示走到第几步，status 是 IoCreateFile 的 NTSTATUS，
+   handle 是它写回的句柄。 */
+ULONG g_DiagOpenStage;
+LONG  g_DiagOpenStatus;
+ULONG64 g_DiagOpenHandle;
+
 ULONG64 g_DiagKillEp;
 ULONG64 g_DiagKillDirectFn;
 ULONG64 g_DiagKillCheckFn;

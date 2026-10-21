@@ -2848,6 +2848,22 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
             *(ULONG64 *)(Out + 0x1D8 + i * 8) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)ExtraSlots[i]);
     }
 
+    *(ULONG64 *)(Out + 0x2C0) = (ULONG64)GtRead(GtRtlInitUnicodeStringFunc); /* 0x421D */
+    *(ULONG64 *)(Out + 0x2C8) = (ULONG64)GtRead(GtIoCreateFileFunc);         /* 0x421A */
+    *(ULONG64 *)(Out + 0x2D0) = (ULONG64)GtRead(GtCloseHandleFunc);          /* 0x4223 */
+    *(ULONG64 *)(Out + 0x2D8) = (ULONG64)GtRead(GtDriverObjectListHead);     /* 0x4160（同 0x1C8） */
+    /* SSDT / Shadow SSDT 链条（0x8C / 0x8E）的就绪位与结果。
+       OpenFileSection 需要上面 4 个槽全部非零；任一个为 0 就返回 0。 */
+    *(ULONG64 *)(Out + 0x2E0) = (ULONG64)GtRead(GtEprocessField135 | 0x100);  /* 0x8C 就绪位 */
+    *(ULONG64 *)(Out + 0x2E8) = (ULONG64)GtRead(GtCallbackField15);           /* 0x8E 就绪位 */
+    /* 【不要在这里调 OpenTcpIpDriverSection()】它内部会 `call` GT 里的
+       RtlInitUnicodeString / IoCreateFile / CloseHandle 三个函数指针，
+       一旦某个槽不是可执行地址就直接 0x3B。诊断函数必须无副作用。
+       要判断链条是否通，看上面 4 个槽是否全非零即可。 */
+    *(ULONG *)(Out + 0x2F0) = g_DiagOpenStage;   /* OpenFileSection 走到第几步 */
+    *(ULONG *)(Out + 0x2F4) = (ULONG)g_DiagOpenStatus;  /* IoCreateFile 的 NTSTATUS */
+    *(ULONG64 *)(Out + 0x2F8) = g_DiagOpenHandle;       /* IoCreateFile 写回的句柄 */
+
     /* 【诊断 2026-10-21】按命令的分派器拒绝原因表 + 协议级拒绝计数表。
        用途：结果字节 0 无法区分"被拒"与"处理器执行完但设计上返回 0"，
        客户端据此把每条命令判为 HANDLED（处理器真的跑了）/ REJECTED(reason) /
