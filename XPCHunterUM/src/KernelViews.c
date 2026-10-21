@@ -538,3 +538,47 @@ BOOL FePrintHiddenDrivers(void)
     FeFreeHiddenDrivers(&suspicious);
     return TRUE;
 }
+
+/* ---------------------------------------------------- SSDT 恢复（0xE7 / 0xEB）
+ * 原版 SSDT 页状态栏的 Restore / Restore All 对应驱动里的两个命令：
+ *   0xE7 CmdRestoreSsdtTable  —— 无输入，恢复服务表描述符（全量）
+ *   0xEB CmdSetSsdtEntry      —— 输入 4 字节选择子 0..6：
+ *                                0 恢复 ServiceTableCount，
+ *                                1..6 把 KiServiceTable[1..6] 写回初始化时保存的地址
+ * 返回值：1 成功，0 拒绝（参数/表指针不满足）。 */
+BOOL FeRestoreSsdtAll(XPCH_CLIENT *Client, BYTE *pResult)
+{
+    BYTE out[1];
+    UCHAR res = 0;
+    BOOL ok;
+
+    if (pResult)
+        *pResult = 0;
+    if (!Client || !Client->Opened)
+        return FALSE;
+    ZeroMemory(out, sizeof(out));
+    ok = XpchInvoke(Client, 0xE7, NULL, 0, out, sizeof(out), &res);
+    if (pResult)
+        *pResult = res;
+    return ok;
+}
+
+BOOL FeRestoreSsdtEntry(XPCH_CLIENT *Client, ULONG Selector, BYTE *pResult)
+{
+    DWORD in = (DWORD)Selector;
+    BYTE out[1];
+    UCHAR res = 0;
+    BOOL ok;
+
+    if (pResult)
+        *pResult = 0;
+    if (!Client || !Client->Opened)
+        return FALSE;
+    if (Selector > 6)
+        return FALSE;
+    ZeroMemory(out, sizeof(out));
+    ok = XpchInvoke(Client, 0xEB, &in, sizeof(in), out, sizeof(out), &res);
+    if (pResult)
+        *pResult = res;
+    return ok;
+}

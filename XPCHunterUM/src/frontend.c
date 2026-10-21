@@ -56,6 +56,8 @@ static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
 #define IDC_KM_COPYNAME   1025
 #define IDC_KM_COPYPATH   1026
 #define IDC_KM_DRVOP      1027
+#define IDC_KM_RESTORE    1066
+#define IDC_KM_RESTOREALL 1067
 
 /* Driver 子页操作（原版右键菜单 5 项，Locate in Registry Tab 未实现） */
 #define DRVOP_VERIFY      0
@@ -1885,6 +1887,11 @@ static void ShowPage(HWND hWnd, int page)
         b = GetDlgItem(hWnd, IDC_KM_COPYNAME);   if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
         b = GetDlgItem(hWnd, IDC_KM_COPYPATH);   if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
         b = GetDlgItem(hWnd, IDC_KM_DRVOP);      if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
+        /* Restore / Restore All 只在 SSDT / Shadow SSDT 子页出现 */
+        b = GetDlgItem(hWnd, IDC_KM_RESTORE);
+        if (b) ShowWindow(b, (isKernel && (g_KmTab == 2 || g_KmTab == 3)) ? SW_SHOW : SW_HIDE);
+        b = GetDlgItem(hWnd, IDC_KM_RESTOREALL);
+        if (b) ShowWindow(b, (isKernel && (g_KmTab == 2 || g_KmTab == 3)) ? SW_SHOW : SW_HIDE);
     }
 
     if (g_hSuList)   ShowWindow(g_hSuList,   isStartup ? SW_SHOW : SW_HIDE);
@@ -2756,6 +2763,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
            与原版一样放在右键菜单里，这个按钮只是把同一个菜单弹出来便于取证。 */
         CreateWindowA("BUTTON", "Driver Ops", WS_CHILD | BS_PUSHBUTTON,
                       480, 76, 90, 28, hWnd, (HMENU)IDC_KM_DRVOP, hInst, NULL);
+        /* SSDT / Shadow SSDT 子页的 Restore / Restore All */
+        CreateWindowA("BUTTON", "Restore", WS_CHILD | BS_PUSHBUTTON,
+                      480, 76, 90, 28, hWnd, (HMENU)IDC_KM_RESTORE, hInst, NULL);
+        CreateWindowA("BUTTON", "Restore All", WS_CHILD | BS_PUSHBUTTON,
+                      574, 76, 100, 28, hWnd, (HMENU)IDC_KM_RESTOREALL, hInst, NULL);
         g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
                                     576, 82, 374, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
         g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
@@ -2985,9 +2997,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (pk && g_hKmTabs) {
                 int kt = atoi(pk + 8);
                 if (kt >= 0 && kt <= 7) {
+                    HWND b;
                     g_KmTab = kt;
                     SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);
                     DoRefreshKernel();
+                    b = GetDlgItem(hWnd, IDC_KM_RESTORE);
+                    if (b) ShowWindow(b, (kt == 2 || kt == 3) ? SW_SHOW : SW_HIDE);
+                    b = GetDlgItem(hWnd, IDC_KM_RESTOREALL);
+                    if (b) ShowWindow(b, (kt == 2 || kt == 3) ? SW_SHOW : SW_HIDE);
+                    b = GetDlgItem(hWnd, IDC_KM_DRVOP);
+                    if (b) ShowWindow(b, (kt == 2 || kt == 3) ? SW_HIDE : SW_SHOW);
                 }
             }
         }
@@ -3045,6 +3064,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 if (b) { MoveWindow(b, 386, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
                 b = GetDlgItem(hWnd, IDC_KM_DRVOP);
                 if (b) { MoveWindow(b, 480, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                b = GetDlgItem(hWnd, IDC_KM_RESTORE);
+                if (b) { MoveWindow(b, 480, pageTop, 90, 28, TRUE); }
+                b = GetDlgItem(hWnd, IDC_KM_RESTOREALL);
+                if (b) { MoveWindow(b, 574, pageTop, 100, 28, TRUE); }
             }
             if (g_hKmStatus) MoveWindow(g_hKmStatus, 576, pageTop + 6,
                                         (w > 700 ? w - 576 : 200), 34, TRUE);
@@ -3212,6 +3235,40 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_KM_COPYNAME: DoCopyKmColumn(0, "Driver name"); return 0;
         case IDC_KM_COPYPATH: DoCopyKmColumn(3, "Driver path"); return 0;
         case IDC_KM_DRVOP:    DoDriverContextMenu(hWnd, -1, -1); return 0;
+        case IDC_KM_RESTORE:
+        case IDC_KM_RESTOREALL: {
+            BYTE res = 0;
+            char msg[256];
+            if (!g_Client.Opened) {
+                SetWindowTextA(g_hKmStatus, "SSDT restore: not connected to the driver");
+                return 0;
+            }
+            if (wParam == IDC_KM_RESTOREALL) {
+                BOOL ok = FeRestoreSsdtAll(&g_Client, &res);
+                sprintf_s(msg, sizeof(msg), "Restore All (0xE7): %s, result=%u",
+                          ok ? "sent" : "rejected", res);
+            } else {
+                int sel = ListView_GetNextItem(g_hKmList, -1, LVNI_SELECTED);
+                if (sel < 0) {
+                    SetWindowTextA(g_hKmStatus,
+                                   "Restore: select an SSDT entry row first");
+                    return 0;
+                }
+                if (sel > 6) {
+                    sprintf_s(msg, sizeof(msg),
+                              "Restore: driver 0xEB only covers selectors 0..6 "
+                              "(ServiceTableCount and KiServiceTable[1..6]); "
+                              "row %d is not restorable", sel);
+                } else {
+                    BOOL ok = FeRestoreSsdtEntry(&g_Client, (ULONG)sel, &res);
+                    sprintf_s(msg, sizeof(msg),
+                              "Restore entry %d (0xEB): %s, result=%u",
+                              sel, ok ? "sent" : "rejected", res);
+                }
+            }
+            SetWindowTextA(g_hKmStatus, msg);
+            return 0;
+        }
         case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
         case IDC_SV_REFRESH: DoRefreshServices(); return 0;
         case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
@@ -3329,6 +3386,17 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
             g_KmTab = (int)SendMessageA(g_hKmTabs, TCM_GETCURSEL, 0, 0);
             DoRefreshKernel();
+            /* Restore / Restore All 只在 SSDT 子页显示 */
+            {
+                HWND b;
+                BOOL showSsdt = (g_KmTab == 2 || g_KmTab == 3);
+                b = GetDlgItem(hWnd, IDC_KM_RESTORE);
+                if (b) ShowWindow(b, showSsdt ? SW_SHOW : SW_HIDE);
+                b = GetDlgItem(hWnd, IDC_KM_RESTOREALL);
+                if (b) ShowWindow(b, showSsdt ? SW_SHOW : SW_HIDE);
+                b = GetDlgItem(hWnd, IDC_KM_DRVOP);
+                if (b) ShowWindow(b, showSsdt ? SW_HIDE : SW_SHOW);
+            }
             return 0;
         }
         if (nm->idFrom == IDC_TABS && nm->code == TCN_SELCHANGE) {
@@ -3612,6 +3680,29 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
         return FePrintHiddenDrivers() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--ssdt-restore-cli")) {
+        const char *p = strstr(lpCmdLine, "--ssdt-restore-cli") + 18;
+        BYTE res = 0;
+        BOOL ok;
+        while (*p == ' ')
+            p++;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (p[0] == 'a' || p[0] == 'A') {
+            ok = FeRestoreSsdtAll(&g_Client, &res);
+            printf("Restore All (0xE7) -> %s result=%u\n", ok ? "OK" : "REJECTED", res);
+        } else {
+            ULONG sel = (ULONG)strtoul(p, NULL, 0);
+            ok = FeRestoreSsdtEntry(&g_Client, sel, &res);
+            printf("Restore entry %lu (0xEB) -> %s result=%u\n",
+                   (unsigned long)sel, ok ? "OK" : "REJECTED", res);
+        }
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--drivers-cli"))
         return FePrintDrivers() ? 0 : 1;
 

@@ -271,6 +271,11 @@ BOOL FeLoadHiddenDrivers(FE_HDRV_LIST *Hidden, FE_HDRV_LIST *Suspicious);
 void FeFreeHiddenDrivers(FE_HDRV_LIST *List);
 BOOL FePrintHiddenDrivers(void);
 
+/* ---- SSDT 恢复（原版 SSDT 页状态栏 Restore / Restore All）----
+ * 0xE7 全量恢复服务表描述符；0xEB 按选择子 0..6 恢复单个表项/计数。 */
+BOOL FeRestoreSsdtAll(XPCH_CLIENT *Client, BYTE *pResult);
+BOOL FeRestoreSsdtEntry(XPCH_CLIENT *Client, ULONG Selector, BYTE *pResult);
+
 /* ---- Driver 子页操作（原版右键菜单）----
  * 全部走 SCM + WinVerifyTrust，不依赖驱动。 */
 BOOL FeResolveDriverPath(const char *ServiceName, char *Out, size_t OutChars);
