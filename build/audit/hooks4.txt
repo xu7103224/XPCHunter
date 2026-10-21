@@ -1,0 +1,3 @@
+HOOKTEST_PID= 
+hooktest.exe not running 
+patched IAT at 00007FF773E96000 (was 00007FFF0FF69E40) -> 00000174C76B0000

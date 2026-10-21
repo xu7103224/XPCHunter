@@ -95,6 +95,10 @@
 #define IDC_TR_REPAIR   1123
 #define IDC_TR_LIST     1124
 #define IDC_TR_STATUS   1125
+/* Hooks 页（Ring0 = 主 Tab 2，Ring3 = 主 Tab 3） */
+#define IDC_HK_REFRESH  1130
+#define IDC_HK_LIST     1131
+#define IDC_HK_STATUS   1132
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -119,6 +123,7 @@ static int g_StObjReady = 0;
 static HWND g_hTrList, g_hTrStatus;
 static FE_TROJAN_REPORT g_TrReport;
 static int g_TrLoaded = 0;
+static HWND g_hHkList, g_hHkStatus;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -1572,6 +1577,92 @@ static void DoTrojanBackup(void)
     }
 }
 
+/* ---- Ring0 / Ring3 Hooks 页（主 Tab 2 / 3）----
+ * Ring3 扫 IAT 越界；Ring0 标 blocked（驱动链缺 6 个函数，见
+ * docs/reversing/Hooks页落地_2026-10-21.md）。 */
+static void HkSetText(HWND h, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(h, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void DoRefreshHooks(void)
+{
+    LVCOLUMNA c;
+    FE_HOOK_LIST list;
+    char status[320];
+    int n = 0;
+    ULONG i;
+
+    if (!g_hHkList || !g_hHkStatus)
+        return;
+    ListView_DeleteAllItems(g_hHkList);
+    while (ListView_DeleteColumn(g_hHkList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Type";    c.cx = 110; c.iSubItem = 0; ListView_InsertColumn(g_hHkList, 0, &c);
+    c.pszText = "Owner";   c.cx = 160; c.iSubItem = 1; ListView_InsertColumn(g_hHkList, 1, &c);
+    c.pszText = "IAT";     c.cx = 160; c.iSubItem = 2; ListView_InsertColumn(g_hHkList, 2, &c);
+    c.pszText = "Target";  c.cx = 160; c.iSubItem = 3; ListView_InsertColumn(g_hHkList, 3, &c);
+    c.pszText = "Note";    c.cx = 340; c.iSubItem = 4; ListView_InsertColumn(g_hHkList, 4, &c);
+
+    /* Ring0：三项，全部 blocked */
+    ListView_InsertItem(g_hHkList, NULL);
+    HkSetText(g_hHkList, n, 0, "Ring0");
+    HkSetText(g_hHkList, n, 1, "(kernel)");
+    HkSetText(g_hHkList, n, 2, "-");
+    HkSetText(g_hHkList, n, 3, "-");
+    HkSetText(g_hHkList, n, 4,
+              "Hook table enumeration BLOCKED: ParseSyscallTableExportDir is a stub, "
+              "6 callees missing (~2000 bytes)");
+    n++;
+    ListView_InsertItem(g_hHkList, NULL);
+    HkSetText(g_hHkList, n, 0, "Ring0");
+    HkSetText(g_hHkList, n, 1, "(kernel)");
+    HkSetText(g_hHkList, n, 2, "-");
+    HkSetText(g_hHkList, n, 3, "-");
+    HkSetText(g_hHkList, n, 4, "Restore Over. Hooks/Patches: BLOCKED (same chain)");
+    n++;
+    ListView_InsertItem(g_hHkList, NULL);
+    HkSetText(g_hHkList, n, 0, "Ring0");
+    HkSetText(g_hHkList, n, 1, "(kernel)");
+    HkSetText(g_hHkList, n, 2, "-");
+    HkSetText(g_hHkList, n, 3, "-");
+    HkSetText(g_hHkList, n, 4, "Restore KernelCallbackTable Replaced: BLOCKED (same chain)");
+    n++;
+
+    /* Ring3：实扫 */
+    if (FeScanRing3Hooks(GetCurrentProcessId(), &list)) {
+        for (i = 0; i < list.Count; i++) {
+            char a[32], t[32], note[192];
+            ListView_InsertItem(g_hHkList, NULL);
+            HkSetText(g_hHkList, n, 0, "Ring3");
+            HkSetText(g_hHkList, n, 1, list.Items[i].Owner);
+            sprintf_s(a, sizeof(a), "%016I64X", list.Items[i].IatAddress);
+            sprintf_s(t, sizeof(t), "%016I64X", list.Items[i].Target);
+            HkSetText(g_hHkList, n, 2, a);
+            HkSetText(g_hHkList, n, 3, t);
+            sprintf_s(note, sizeof(note), "%s-->Ring3 Hook  (%s)",
+                      list.Items[i].Owner, list.Items[i].TargetModule);
+            HkSetText(g_hHkList, n, 4, note);
+            n++;
+        }
+        sprintf_s(status, sizeof(status),
+                  "Ring0: blocked (6 missing callees) | Ring3: %lu suspicious IAT entries "
+                  "(self pid %lu)", list.Count, GetCurrentProcessId());
+        FeFreeHooks(&list);
+    } else {
+        sprintf_s(status, sizeof(status),
+                  "Ring0: blocked | Ring3: scan failed, GetLastError=%lu", GetLastError());
+    }
+    SetWindowTextA(g_hHkStatus, status);
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -1585,6 +1676,7 @@ static void ShowPage(HWND hWnd, int page)
     int isFireeye = (page == 11);    /* 第 12 个 Tab = Fireeye */
     int isSetting = (page == 10);    /* 第 11 个 Tab = Setting */
     int isTrojan = (page == 12);     /* 第 13 个 Tab = Trojan Detection */
+    int isHooks = (page == 2 || page == 3);  /* Ring0 Hooks / Ring3 Hooks */
     char hint[512];
     HWND hKill, hRef;
 
@@ -1699,9 +1791,16 @@ static void ShowPage(HWND hWnd, int page)
         if (d) ShowWindow(d, isTrojan ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hHkList)   ShowWindow(g_hHkList,   isHooks ? SW_SHOW : SW_HIDE);
+    if (g_hHkStatus) ShowWindow(g_hHkStatus, isHooks ? SW_SHOW : SW_HIDE);
+    {
+        HWND a = GetDlgItem(hWnd, IDC_HK_REFRESH);
+        if (a) ShowWindow(a, isHooks ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
         if (isProc || isKernel || isStartup || isServices || isRegistry || isFile ||
-            isOther || isExam || isFireeye || isSetting || isTrojan) {
+            isOther || isExam || isFireeye || isSetting || isTrojan || isHooks) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -2098,6 +2197,17 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         ListView_SetExtendedListViewStyle(g_hTrList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         DoTrojanScan();
 
+        /* ---- Ring0/Ring3 Hooks 页（主 Tab 2 / 3）---- */
+        CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 90, 28, hWnd, (HMENU)IDC_HK_REFRESH, hInst, NULL);
+        g_hHkStatus = CreateWindowA("STATIC", "Not scanned", WS_CHILD | SS_LEFT,
+                                    110, 82, 840, 20, hWnd, (HMENU)IDC_HK_STATUS, hInst, NULL);
+        g_hHkList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 110, 940, 500, hWnd, (HMENU)IDC_HK_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hHkList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        DoRefreshHooks();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -2165,6 +2275,15 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 2 || g_MainTab == 3) {
+            int listY = pageTop + 34;
+            int listH = pageBottom - listY;
+            HWND a = GetDlgItem(hWnd, IDC_HK_REFRESH);
+            if (listH < 100) listH = 100;
+            if (a) MoveWindow(a, 10, pageTop, 90, 28, TRUE);
+            if (g_hHkStatus) MoveWindow(g_hHkStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (g_hHkList)   MoveWindow(g_hHkList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 12) {
             int listY = pageTop + 34;
             int listH = pageBottom - listY;
@@ -2319,6 +2438,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_ST_REFRESH: DoRefreshSetting(); return 0;
         case IDC_TR_SCAN:    DoTrojanScan(); return 0;
         case IDC_TR_BACKUP:  DoTrojanBackup(); return 0;
+        case IDC_HK_REFRESH: DoRefreshHooks(); return 0;
         case IDC_ST_APPLY:   DoApplyForbid(0); return 0;
         case IDC_ST_PROT_SSDT:
             if (FeSettingSelfProtect(&g_Client, 1)) SetWindowTextA(g_hStStatus, "SSDT self-protection enabled");
@@ -2362,6 +2482,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshSetting();
             if (page == 12)
                 DoTrojanScan();
+            if (page == 2 || page == 3)
+                DoRefreshHooks();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
@@ -2475,6 +2597,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--hooks-cli")) {
+        const char *p = strstr(lpCmdLine, "--hooks-cli") + 11;
+        ULONG pid = GetCurrentProcessId();
+        while (*p == ' ') p++;
+        if (*p >= '0' && *p <= '9')
+            pid = (ULONG)strtoul(p, NULL, 0);
+        return FePrintRing3Hooks(pid) ? 0 : 1;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--trojan-cli"))
         return FePrintTrojanReport(0) ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--setting-cli")) {

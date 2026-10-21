@@ -40,6 +40,7 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <psapi.h>
 #include <ctype.h>
 
 #ifdef __cplusplus
@@ -603,6 +604,36 @@ BOOL FeCheckLsp(FE_TROJAN_REPORT *R);
 BOOL FeCheckSafeboot(FE_TROJAN_REPORT *R);
 BOOL FeRepairSafeboot(void);
 BOOL FePrintTrojanReport(int DriveIndex);
+
+/* ---- Ring0/Ring3 Hooks 页（原版第 3、4 个主 Tab，共 5 项）----
+ * Ring3：用户态扫 IAT 是否指向所有已加载模块之外。
+ * Ring0：驱动 Hook 表链条未补齐（ParseSyscallTableExportDir 空壳），
+ *        界面如实标 blocked。 */
+#define FE_HOOK_MAX 500u
+
+typedef struct _FE_HOOK_RANGE {
+    ULONG64 Base;
+    ULONG64 Size;
+    char    Name[64];
+} FE_HOOK_RANGE;
+
+typedef struct _FE_HOOK_ENTRY {
+    char    Owner[64];
+    char    TargetModule[64];
+    ULONG64 IatAddress;
+    ULONG64 Target;
+} FE_HOOK_ENTRY;
+
+typedef struct _FE_HOOK_LIST {
+    ULONG           Count;
+    ULONG           Capacity;
+    FE_HOOK_ENTRY  *Items;
+    int             Ring0Blocked;
+} FE_HOOK_LIST;
+
+BOOL FeScanRing3Hooks(ULONG Pid, FE_HOOK_LIST *List);
+void FeFreeHooks(FE_HOOK_LIST *List);
+BOOL FePrintRing3Hooks(ULONG Pid);
 
 #ifdef __cplusplus
 }

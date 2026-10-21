@@ -1,0 +1,7 @@
+=== Ring0 Hooks (pid 8348) ===
+blocked: driver hook-table chain incomplete
+  ParseSyscallTableExportDir is a stub; 6 callees missing (~2000 bytes)
+  see docs/reversing/Hooks页落地_2026-10-21.md
+=== Ring3 Hooks (pid 8348): 0 suspicious IAT entries ===
+(no IAT entry points outside all loaded modules)
+EXIT=0 
