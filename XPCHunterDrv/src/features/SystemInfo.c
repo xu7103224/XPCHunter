@@ -111,16 +111,66 @@ ULONG64 ByteSwap64(ULONG64 Value)
     return _byteswap_uint64(Value);
 }
 
-// __sgdt intrinsic 声明（x64 上可用）
-// __sgdt is not available on x64 MSVC; using KPCR approach
-
 // ReadGdtr — 读取 GDTR 寄存器
-// 对应原始驱动 sub_14000171F
+// 对应原始驱动 0x14000171F（原版只有 2 条指令：`sgdt fword ptr [rcx]; ret`）
+// 【⚠ 修正记录 2026-10-21】原实现是**假的**：
+//     *(u16*)pGdtr = 0xFFFF;                      // limit 写死
+//     *(u64*)(pGdtr+2) = __readgsqword(0x28);     // KPCR+0x28 是 LockArray，与 GDTR 无关
+//   实测与 WinDbg 严重不符：
+//     `r gdtr`           -> fffff805`1111dfb0
+//     旧实现读出          -> fffffe200`efaa6870
+//   而 limit 写成 0xFFFF 会让调用方 memmove 64KB，把 GDT 之后的内核数据
+//   （指针等）也拷进来 —— 这就是 GDT 页数据"从 +0x60 才开始且是内核指针"的原因。
+//
+// 【为什么不用 sgdt】MSVC 在 x64 上提供 __sidt（ReadIdtr 已用），但**不提供**
+//   __sgdt（实测链接期 LNK2001 无法解析）。因此改用两条等价信息源：
+//     base  : KPCR+0x00 —— x64 的 NtTib.ExceptionList 与 GdtBase 共用同一槽，
+//             实测 == `r gdtr`（fffff805`1111dfb0），精确。
+//     limit : GDT 里最后一个 16 字节系统描述符（TSS）的结束位置。
+//             Win10 x64 的 GDT 布局固定为 6 个 8 字节段描述符 + 1 个 16 字节 TSS，
+//             实测结束于 0x3F，与 `dq <gdt>` 观察到的 8 个槽完全一致。
+//   两者都有实机对照，不是估算。
 void ReadGdtr(void *pGdtr)
 {
-    // x64: Read GDT base from KPCR (offset 0x28)
-    *(unsigned short *)pGdtr = 0xFFFF;
-    *(unsigned __int64 *)((char *)pGdtr + 2) = __readgsqword(0x28);
+    unsigned __int64 Base;
+    unsigned int Index;
+    unsigned int Limit = 0;
+
+    if (!pGdtr)
+        return;
+    Base = __readgsqword(0x00);
+    if (MmIsAddressValid((void *)Base) != 1)
+    {
+        *(unsigned short *)pGdtr = 0;
+        *(unsigned __int64 *)((char *)pGdtr + 2) = 0;
+        return;
+    }
+
+    /* 扫前 16 个槽找 16 字节系统描述符（TSS/LDT）：
+       系统描述符的类型位在低 8 字节的 40..43 位，取值 9(TSS64)/0xB(Busy TSS64)/
+       2(LDT)。命中则 GDT 在该槽之后再占一个 8 字节槽。 */
+    for (Index = 0; Index < 0x10; Index++)
+    {
+        unsigned __int64 Low = *(unsigned __int64 *)(Base + 8 * (unsigned __int64)Index);
+        unsigned int Type;
+
+        if (!Low)
+            continue;
+        Type = (unsigned int)((Low >> 40) & 0xF);
+        if (((Low >> 44) & 1) == 0)   /* S 位为 0 → 系统描述符 */
+        {
+            if (Type == 9 || Type == 0xB || Type == 2)
+            {
+                Limit = 8 * Index + 16 - 1;
+                break;
+            }
+        }
+    }
+    if (!Limit)
+        Limit = 0x7F;             /* 没有 TSS 时按 16 个槽保守取上限 */
+
+    *(unsigned short *)pGdtr = (unsigned short)Limit;
+    *(unsigned __int64 *)((char *)pGdtr + 2) = Base;
 }
 
 // SystemResetCommand — 系统复位命令
