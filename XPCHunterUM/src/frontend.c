@@ -1594,9 +1594,11 @@ static void DoRefreshHooks(void)
 {
     LVCOLUMNA c;
     FE_HOOK_LIST list;
-    char status[320];
+    FE_RING0_HOOK_LIST r0;
+    char status[420];
     int n = 0;
     ULONG i;
+    BOOL r0ok;
 
     if (!g_hHkList || !g_hHkStatus)
         return;
@@ -1605,38 +1607,53 @@ static void DoRefreshHooks(void)
         ;
     ZeroMemory(&c, sizeof(c));
     c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
-    c.pszText = "Type";    c.cx = 110; c.iSubItem = 0; ListView_InsertColumn(g_hHkList, 0, &c);
-    c.pszText = "Owner";   c.cx = 160; c.iSubItem = 1; ListView_InsertColumn(g_hHkList, 1, &c);
-    c.pszText = "IAT";     c.cx = 160; c.iSubItem = 2; ListView_InsertColumn(g_hHkList, 2, &c);
+    c.pszText = "Type";    c.cx = 80;  c.iSubItem = 0; ListView_InsertColumn(g_hHkList, 0, &c);
+    c.pszText = "Owner";   c.cx = 150; c.iSubItem = 1; ListView_InsertColumn(g_hHkList, 1, &c);
+    c.pszText = "IAT/Index"; c.cx = 130; c.iSubItem = 2; ListView_InsertColumn(g_hHkList, 2, &c);
     c.pszText = "Target";  c.cx = 160; c.iSubItem = 3; ListView_InsertColumn(g_hHkList, 3, &c);
-    c.pszText = "Note";    c.cx = 340; c.iSubItem = 4; ListView_InsertColumn(g_hHkList, 4, &c);
+    c.pszText = "Note";    c.cx = 420; c.iSubItem = 4; ListView_InsertColumn(g_hHkList, 4, &c);
 
-    /* Ring0：三项，全部 blocked */
-    ListView_InsertItem(g_hHkList, NULL);
-    HkSetText(g_hHkList, n, 0, "Ring0");
-    HkSetText(g_hHkList, n, 1, "(kernel)");
-    HkSetText(g_hHkList, n, 2, "-");
-    HkSetText(g_hHkList, n, 3, "-");
-    HkSetText(g_hHkList, n, 4,
-              "Hook table enumeration BLOCKED: ParseSyscallTableExportDir is a stub, "
-              "6 callees missing (~2000 bytes)");
-    n++;
-    ListView_InsertItem(g_hHkList, NULL);
-    HkSetText(g_hHkList, n, 0, "Ring0");
-    HkSetText(g_hHkList, n, 1, "(kernel)");
-    HkSetText(g_hHkList, n, 2, "-");
-    HkSetText(g_hHkList, n, 3, "-");
-    HkSetText(g_hHkList, n, 4, "Restore Over. Hooks/Patches: BLOCKED (same chain)");
-    n++;
-    ListView_InsertItem(g_hHkList, NULL);
-    HkSetText(g_hHkList, n, 0, "Ring0");
-    HkSetText(g_hHkList, n, 1, "(kernel)");
-    HkSetText(g_hHkList, n, 2, "-");
-    HkSetText(g_hHkList, n, 3, "-");
-    HkSetText(g_hHkList, n, 4, "Restore KernelCallbackTable Replaced: BLOCKED (same chain)");
-    n++;
+    /* ---- Ring0：0x117 的两张系统调用表（GT[0x8B7] / GT[0x8BA]）----
+     * 每条 = 表内索引 + 当前地址 + 磁盘原始地址 + 原始 16 字节 + 两个改写标志。 */
+    r0ok = FeLoadRing0Hooks(&g_Client, &r0);
+    if (r0ok) {
+        for (i = 0; i < r0.Count; i++) {
+            const FE_RING0_HOOK_ENTRY *e = &r0.Items[i];
+            char idx[48], tgt[32], note[220];
+            ListView_InsertItem(g_hHkList, NULL);
+            HkSetText(g_hHkList, n, 0, "Ring0");
+            HkSetText(g_hHkList, n, 1,
+                      e->TableIndex == 1 ? "HookTable1 (GT[0x8B7])"
+                                         : "HookTable2 (GT[0x8BA])");
+            sprintf_s(idx, sizeof(idx), "[%lu]", (unsigned long)e->Index);
+            sprintf_s(tgt, sizeof(tgt), "%016I64X", e->Current);
+            HkSetText(g_hHkList, n, 2, idx);
+            HkSetText(g_hHkList, n, 3, tgt);
+            sprintf_s(note, sizeof(note), "%s%s  %s",
+                      e->FlagAddr  ? "[ADDR CHANGED] " : "",
+                      e->FlagBytes ? "[BYTES PATCHED] " : "",
+                      e->Disasm);
+            HkSetText(g_hHkList, n, 4, note);
+            n++;
+        }
+        sprintf_s(status, sizeof(status),
+                  "Ring0: build %lu, %lu entries (table1 %lu / table2 %lu), %lu patched | ",
+                  r0.Build, r0.Count, r0.Count1, r0.Count2, r0.ModifiedCount);
+        FeFreeRing0Hooks(&r0);
+    } else {
+        ListView_InsertItem(g_hHkList, NULL);
+        HkSetText(g_hHkList, n, 0, "Ring0");
+        HkSetText(g_hHkList, n, 1, "(kernel)");
+        HkSetText(g_hHkList, n, 2, "-");
+        HkSetText(g_hHkList, n, 3, "-");
+        HkSetText(g_hHkList, n, 4,
+                  g_Client.Opened ? "0x117 returned no entries"
+                                  : "not connected: click Connect first");
+        n++;
+        sprintf_s(status, sizeof(status), "Ring0: no data | ");
+    }
 
-    /* Ring3：实扫 */
+    /* ---- Ring3：实扫 ---- */
     if (FeScanRing3Hooks(GetCurrentProcessId(), &list)) {
         for (i = 0; i < list.Count; i++) {
             char a[32], t[32], note[192];
@@ -1652,13 +1669,17 @@ static void DoRefreshHooks(void)
             HkSetText(g_hHkList, n, 4, note);
             n++;
         }
-        sprintf_s(status, sizeof(status),
-                  "Ring0: blocked (6 missing callees) | Ring3: %lu suspicious IAT entries "
-                  "(self pid %lu)", list.Count, GetCurrentProcessId());
+        {
+            char tail[160];
+            sprintf_s(tail, sizeof(tail), "Ring3: %lu suspicious IAT entries (pid %lu)",
+                      list.Count, GetCurrentProcessId());
+            strcat_s(status, sizeof(status), tail);
+        }
         FeFreeHooks(&list);
     } else {
-        sprintf_s(status, sizeof(status),
-                  "Ring0: blocked | Ring3: scan failed, GetLastError=%lu", GetLastError());
+        char tail[96];
+        sprintf_s(tail, sizeof(tail), "Ring3: scan failed, GetLastError=%lu", GetLastError());
+        strcat_s(status, sizeof(status), tail);
     }
     SetWindowTextA(g_hHkStatus, status);
 }
@@ -1841,11 +1862,18 @@ static void CreateKmColumns(HWND hList, int tab)
         c.pszText = "Size";      c.cx = 90;  c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Name";      c.cx = 160; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "Path";      c.cx = 520; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
-    } else {
+    } else if (tab == 1) {
         c.pszText = "Service";   c.cx = 180; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
         c.pszText = "State";     c.cx = 100; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Start";     c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "ImagePath"; c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else {
+        /* SSDT / Shadow SSDT（0x8C / 0x8E，OutSize 必须为 1352） */
+        c.pszText = "Index";     c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Address";   c.cx = 190; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Original";  c.cx = 190; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "State";     c.cx = 130; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+        c.pszText = "Note";      c.cx = 360; c.iSubItem = 4; ListView_InsertColumn(hList, 4, &c);
     }
 }
 
@@ -1895,7 +1923,7 @@ static void DoRefreshKernel(void)
         }
         sprintf_s(status, sizeof(status), "Kernel Module: %lu loaded modules", list.Count);
         FeFreeKernelModules(&list);
-    } else {
+    } else if (g_KmTab == 1) {
         FE_DRIVER_LIST list;
         ULONG i;
         if (!FeLoadDrivers(&list)) {
@@ -1934,6 +1962,70 @@ static void DoRefreshKernel(void)
         }
         sprintf_s(status, sizeof(status), "Driver: %lu kernel driver services", list.Count);
         FeFreeDrivers(&list);
+    } else {
+        /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）
+         * 数据源：0x8C CmdEnumSyscallEntries / 0x8E CmdEnumShadowSyscallEntries。
+         * 这两个命令要求 OutSize == 1352（0x548），输出 +0 为就绪字节、
+         * +1 为 build 号、+8 起为条目区。
+         *
+         * 【不要用 0x117 冒充】0x117 的两张表是 Wdf01000.sys 内部的 Hook 表
+         * （GT[0x8AE] 由 InitThreadNotify 用 "Wdf01000.sys" 匹配填充），
+         * 属于 Ring0 Hooks 页，与 SSDT 无关。 */
+        UCHAR ready = 0;
+        BYTE *buf;
+        int table = (g_KmTab == 2) ? 1 : 2;
+        BOOL ok;
+
+        buf = (BYTE *)calloc(1, 1352);
+        if (!buf) {
+            SetWindowTextA(g_hKmStatus, "SSDT: out of memory");
+            return;
+        }
+        ok = (g_Client.Opened)
+           ? XpchInvoke(&g_Client, table == 1 ? 0x8C : 0x8E, NULL, 0,
+                        buf, 1352, &ready)
+           : FALSE;
+        if (!ok || ready != 1) {
+            sprintf_s(status, sizeof(status),
+                      "%s: driver returned 0 (0x%02X)%s",
+                      table == 1 ? "SSDT" : "Shadow SSDT",
+                      table == 1 ? 0x8C : 0x8E,
+                      g_Client.Opened ? " — export-table chain not initialized"
+                                      : " — not connected");
+            SetWindowTextA(g_hKmStatus, status);
+            free(buf);
+            return;
+        }
+        {
+            ULONG count = 0, i;
+            ULONG build = *(ULONG *)(buf + 4);
+            /* +8 起为条目：每项 8 字节地址；计数由 0x548 容量反推不可靠，
+               驱动未显式给出条数，按 (1352-8)/8 = 168 上限展示非零项。 */
+            for (i = 0; i < 168; i++) {
+                ULONG64 addr = *(ULONG64 *)(buf + 8 + 8 * i);
+                char idx[32], cur[32];
+                LVITEMA it;
+                if (!addr)
+                    continue;
+                ZeroMemory(&it, sizeof(it));
+                it.mask = LVIF_TEXT;
+                it.iItem = (int)count;
+                sprintf_s(idx, sizeof(idx), "%lu", (unsigned long)i);
+                sprintf_s(cur, sizeof(cur), "%016I64X", addr);
+                it.pszText = idx;
+                SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+                KmSetText(g_hKmList, (int)count, 1, cur);
+                KmSetText(g_hKmList, (int)count, 2, "-");
+                KmSetText(g_hKmList, (int)count, 3, "unknown");
+                KmSetText(g_hKmList, (int)count, 4, "-");
+                count++;
+            }
+            sprintf_s(status, sizeof(status),
+                      "%s: %lu entries (build %lu, cmd 0x%02X)",
+                      table == 1 ? "SSDT" : "Shadow SSDT", count, build,
+                      table == 1 ? 0x8C : 0x8E);
+        }
+        free(buf);
     }
     SetWindowTextA(g_hKmStatus, status);
 }
@@ -2027,8 +2119,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            static const char *kmNames[2] = { "Kernel Module", "Driver" };
-            for (k = 0; k < 2; k++) {
+            static const char *kmNames[4] = { "Kernel Module", "Driver", "SSDT", "Shadow SSDT" };
+            for (k = 0; k < 4; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)kmNames[k];
@@ -2220,11 +2312,23 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             const char *cl = GetCommandLineA();
             int page = 0;
             const char *p = cl ? strstr(cl, "--page ") : NULL;
+            const char *pk;
             if (p) page = atoi(p + 7);
             if (cl && strstr(cl, "--kernel-gui")) page = 1;
             if (page < 0 || page > 13) page = 0;
             SendMessageA(g_hMainTabs, TCM_SETCURSEL, (WPARAM)page, 0);
             ShowPage(hWnd, page);
+            /* --kmtab N：预选 Kernel 页的子页（0 Module / 1 Driver / 2 SSDT /
+               3 Shadow SSDT）。用于截图取证与回归。 */
+            pk = cl ? strstr(cl, "--kmtab ") : NULL;
+            if (pk && g_hKmTabs) {
+                int kt = atoi(pk + 8);
+                if (kt >= 0 && kt <= 3) {
+                    g_KmTab = kt;
+                    SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);
+                    DoRefreshKernel();
+                }
+            }
         }
 
         SetWindowTextA(hWnd, "PC Hunter Replica");
@@ -2597,6 +2701,55 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    /* Ring0 Hooks 页：0x117 的两张系统调用表 */
+    if (lpCmdLine && strstr(lpCmdLine, "--ring0-cli")) {
+        int rc;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        rc = FePrintRing0Hooks(&g_Client) ? 0 : 1;
+        XpchClose(&g_Client);
+        return rc;
+    }
+    /* Kernel→SSDT / Shadow SSDT 子页：--ssdt-cli [1|2] */
+    if (lpCmdLine && strstr(lpCmdLine, "--ssdt-cli")) {
+        const char *p = strstr(lpCmdLine, "--ssdt-cli") + 11;
+        int table = 1;
+        BYTE *buf;
+        UCHAR ready = 0;
+        BOOL ok;
+        ULONG i, count = 0;
+        while (*p == ' ') p++;
+        if (*p >= '1' && *p <= '2')
+            table = *p - '0';
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        buf = (BYTE *)calloc(1, 1352);
+        if (!buf) { XpchClose(&g_Client); return 1; }
+        ok = XpchInvoke(&g_Client, table == 1 ? 0x8C : 0x8E, NULL, 0,
+                        buf, 1352, &ready);
+        printf("=== %s (cmd 0x%02X) -> %s result=%u ===\n",
+               table == 1 ? "SSDT" : "Shadow SSDT",
+               table == 1 ? 0x8C : 0x8E, ok ? "OK" : "REJECTED", ready);
+        if (ok && ready == 1) {
+            printf("build=%lu\n", *(ULONG *)(buf + 4));
+            for (i = 0; i < 168; i++) {
+                ULONG64 addr = *(ULONG64 *)(buf + 8 + 8 * i);
+                if (!addr) continue;
+                printf("  [%03lu] %016I64X\n", (unsigned long)i, addr);
+                count++;
+            }
+            printf("entries=%lu\n", count);
+        }
+        free(buf);
+        XpchClose(&g_Client);
+        return (ok && ready == 1) ? 0 : 1;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--hooks-cli")) {
         const char *p = strstr(lpCmdLine, "--hooks-cli") + 11;
         ULONG pid = GetCurrentProcessId();

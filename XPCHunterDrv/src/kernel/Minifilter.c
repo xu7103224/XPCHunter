@@ -375,23 +375,47 @@ __int64 *__fastcall MiniFilterFilterUnload(__int64 ProcessId, __int64 BaseAddres
 }
 
 // MiniFilterNotifyRoutine — Minifilter 通知例程
-// 将文件名写入 GT 0x3400 缓冲区，通知用户态程序文件操作事件
 // 对应原始驱动 sub_140019AD8
-__int64 MiniFilterNotifyRoutine(wchar_t *Name, ULONG NameLength)
+// 【逆向来源】原始可被 Hex-Rays 正常反编译，按伪代码逐字还原。
+// 【逻辑】取 g_Mutex → MiniFilterQueryFileName 判重 → 未命中则
+//   ExAllocatePool(2*Len + 16) 分配节点：
+//     +0x00 next 指针（串入 g_Pointer 单链表头）
+//     +0x08 DWORD 字符数
+//     +0x0C 起  文件名宽字符，尾随 L'\0'
+//   返回 1 表示已入表；已存在或分配失败返回 0。
+// 【⚠ 修正记录 2026-10-21】旧实现是**推测的**"把文件名写进 GT[0x3400]
+//   通知用户态"——与原版语义完全不同（原版既不碰 GT 也不通知，只维护
+//   文件名去重链表），属 G5「无占位/猜测实现」不通过项。已按原始重写。
+__int64 MiniFilterNotifyRoutine(wchar_t *FileName, ULONG NameLength)
 {
-    if (!Name || !NameLength)
-        return 1;
-    if (MmIsAddressValid(Name) != 1)
-        return 1;
-    __int64 NotifyBuffer = GtRead(GtEprocessModuleListOffset | GtPspExitThreadAddr | 0x3400);
-    if (!NotifyBuffer || (unsigned __int64)NotifyBuffer < (unsigned __int64)MmSystemRangeStart)
-        return 1;
-    if (MmIsAddressValid((void *)NotifyBuffer) != 1)
-        return 1;
-    // 复制文件名到通知缓冲区
-    ULONG CopyLen = min(NameLength * 2, 256);
-    memcpy((void *)NotifyBuffer, Name, CopyLen);
-    return 1;
+    char Result = 0;
+    ULONG LengthChars = NameLength;
+    volatile ULONG64 *Pool;
+    volatile ULONG64 *PoolEntry;
+    ULONG64 OldHead;
+
+    if (!FileName || !NameLength)
+        return 0;
+
+    KeWaitForSingleObject(&g_Mutex, Executive, 0, 0, 0);
+    if (!MiniFilterQueryFileName(FileName))
+    {
+        Pool = (volatile ULONG64 *)ExAllocatePool(PagedPool, 2 * LengthChars + 16);
+        PoolEntry = Pool;
+        if (Pool)
+        {
+            *Pool = 0;
+            *((_DWORD *)Pool + 2) = LengthChars;
+            memmove((char *)Pool + 12, FileName, 2 * LengthChars);
+            *((_WORD *)PoolEntry + LengthChars + 6) = 0;
+            OldHead = (ULONG64)g_Pointer;
+            Result = 1;
+            *PoolEntry = OldHead;
+            g_Pointer = (volatile PVOID)PoolEntry;
+        }
+    }
+    KeReleaseMutex(&g_Mutex, 0);
+    return Result;
 }
 
 // MiniFilterPreCreate — 预处理创建

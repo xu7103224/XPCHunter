@@ -607,9 +607,42 @@ BOOL FePrintTrojanReport(int DriveIndex);
 
 /* ---- Ring0/Ring3 Hooks 页（原版第 3、4 个主 Tab，共 5 项）----
  * Ring3：用户态扫 IAT 是否指向所有已加载模块之外。
- * Ring0：驱动 Hook 表链条未补齐（ParseSyscallTableExportDir 空壳），
- *        界面如实标 blocked。 */
+ * Ring0：驱动 0x117 返回两张系统调用表（GT[0x8B7] / GT[0x8BA]），
+ *        见 KernelHookViews.c 的文件头对其布局与语义的完整说明。 */
 #define FE_HOOK_MAX 500u
+
+/* 0x117 的单个条目（40 字节） */
+typedef struct _FE_RING0_HOOK_ENTRY {
+    ULONG   TableIndex;        /* 1 = 第一张表(SSDT)，2 = 第二张表(Shadow SSDT) */
+    unsigned char FlagAddr;    /* +0x00：表项当前值 != 磁盘原始值 → 被改写 */
+    unsigned char FlagBytes;   /* +0x01：内存前 16 字节 != 磁盘 16 字节 → inline patch */
+    ULONG   Index;             /* +0x04：表内索引 */
+    ULONG64 Current;           /* +0x08：当前地址 */
+    ULONG64 Original;          /* +0x10：磁盘原始地址 */
+    unsigned char Bytes[16];   /* +0x18：磁盘原始指令前 16 字节 */
+    char    Disasm[96];        /* 由 Bytes 解出的助记符（仅用于展示） */
+} FE_RING0_HOOK_ENTRY;
+
+typedef struct _FE_RING0_HOOK_LIST {
+    ULONG               Count;
+    ULONG               Capacity;
+    FE_RING0_HOOK_ENTRY *Items;
+    ULONG               Build;
+    ULONG               Count1;         /* 第一张表条目数 */
+    ULONG               Count2;         /* 第二张表条目数 */
+    ULONG               ModifiedCount;  /* 命中任一改写标志的条目数 */
+} FE_RING0_HOOK_LIST;
+
+BOOL FeLoadRing0Hooks(XPCH_CLIENT *Client, FE_RING0_HOOK_LIST *List);
+BOOL FeParseRing0Hooks(const BYTE *Buf, ULONG BufSize, FE_RING0_HOOK_LIST *List);
+void FeFreeRing0Hooks(FE_RING0_HOOK_LIST *List);
+BOOL FePrintRing0Hooks(XPCH_CLIENT *Client);
+
+/* 注意：Kernel 页的 SSDT / Shadow SSDT 子页**不**用 0x117。
+ * 0x117 的两张表是 Wdf01000.sys 内部的 Hook 表（见 KernelHookViews.c 文件头），
+ * SSDT 用 0x8C CmdEnumSyscallEntries，Shadow SSDT 用 0x8E
+ * CmdEnumShadowSyscallEntries，且两者都要求 OutSize == 1352。
+ */
 
 typedef struct _FE_HOOK_RANGE {
     ULONG64 Base;

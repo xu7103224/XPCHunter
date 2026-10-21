@@ -1010,11 +1010,39 @@ void InitDriverModuleParsing(void)
 
 // ReadWdfLoaderModule -- 读取 WDF Loader 模块
 // 对应原始驱动 0x140087E80（292 字节）
+// 【逆向来源】原始可被 Hex-Rays 正常反编译，按伪代码逐字还原。
+// 【逻辑】用 20 个 DWORD 组成的编码路径（= "wdfldr.sys" 的宽字符 + 尾部 0x73）
+//   调 ReadFileRawData 读文件 → ReadNtFileToBuffer 展开成 PE 缓冲 → ExFree 原始数据。
+// 【⚠ 修正记录 2026-10-21】原为 `if (!pBuffer...) return 0; return 0;` 空壳 ——
+//   静默失败型，导致 EnumSsdtHooks 的 InitDriverModuleParsing 永不生效、
+//   0x118 CmdEnumHookDetail 恒返回 0。G5（无占位代码）不通过的直接原因。
 bool ReadWdfLoaderModule(_QWORD *pBuffer, unsigned int *pBufferSize)
 {
+    bool Result = 0;
+    size_t MaxCount = 0;
+    void *Src = 0;
+    int EncodedPath[20];
+
+    EncodedPath[0]  = 5439580; EncodedPath[1]  = 7536761;
+    EncodedPath[2]  = 6619252; EncodedPath[3]  = 5374061;
+    EncodedPath[4]  = 7274607; EncodedPath[5]  = 6029428;
+    EncodedPath[6]  = 7929971; EncodedPath[7]  = 7602291;
+    EncodedPath[8]  = 7143525; EncodedPath[9]  = 3276851;
+    EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
+    EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
+    EncodedPath[14] = 7798876; EncodedPath[15] = 6684772;
+    EncodedPath[16] = 6553708; EncodedPath[17] = 3014770;
+    EncodedPath[18] = 7929971; EncodedPath[19] = 115;
+
     if (!pBuffer || !pBufferSize)
         return 0;
-    return 0;
+    if (!(unsigned int)ReadFileRawData((WORD *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    {
+        Result = ReadNtFileToBuffer((PUCHAR)Src, (ULONG)MaxCount,
+                                    (PUCHAR *)pBuffer, (PULONG)pBufferSize) == 1;
+        ExFree(Src);
+    }
+    return Result;
 }
 // 对应原始驱动 0x140047DFC（477 字节）
 char BuildDevicePath(char *Buffer, unsigned int BufferSize)
