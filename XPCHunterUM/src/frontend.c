@@ -18,6 +18,20 @@
 
 #pragma comment(lib, "comctl32.lib")
 
+/* 本文件是 /DUNICODE 编译的，而所有列表标题都是 ANSI 字面量（LVCOLUMNA）。
+ * ListView_InsertColumn 在 UNICODE 下展开成 LVM_INSERTCOLUMNW (0x1061)，
+ * 会把 char* 当 wchar_t* 读，表头就成了乱码。这里统一改走 ANSI 通道。 */
+static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
+{
+    LVCOLUMNA copy;
+
+    if (!pc)
+        return 0;
+    copy = *pc;
+    return (int)SendMessageA(h, LVM_INSERTCOLUMNA, (WPARAM)i, (LPARAM)&copy);
+}
+#define ListView_InsertColumn(h, i, pc) FeInsertColumnA((h), (i), (pc))
+
 #define IDC_CONNECT     1001
 #define IDC_SCAN        1002
 #define IDC_SEND        1003
@@ -41,6 +55,14 @@
 #define IDC_KM_ONLYLOADED 1024
 #define IDC_KM_COPYNAME   1025
 #define IDC_KM_COPYPATH   1026
+#define IDC_KM_DRVOP      1027
+
+/* Driver 子页操作（原版右键菜单 5 项，Locate in Registry Tab 未实现） */
+#define DRVOP_VERIFY      0
+#define DRVOP_VERIFY_ALL  1
+#define DRVOP_UNLOAD      2
+#define DRVOP_DEL_FILE    3
+#define DRVOP_DEL_FILE_REG 4
 /* 14 个主 Tab 容器 */
 #define IDC_MAIN_TABS   1030
 #define IDC_PAGEHINT    1031
@@ -112,6 +134,7 @@ static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
 static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
 static HWND g_hKmTabs, g_hKmList, g_hKmStatus;
 static HWND g_hMainTabs, g_hPageHint;
+static HWND g_hMainWnd;
 static HWND g_hSuList, g_hSuStatus;
 static HWND g_hSvList, g_hSvStatus;
 static HWND g_hRgTabs, g_hRgList, g_hRgStatus;
@@ -1821,6 +1844,7 @@ static void ShowPage(HWND hWnd, int page)
         b = GetDlgItem(hWnd, IDC_KM_ONLYLOADED); if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
         b = GetDlgItem(hWnd, IDC_KM_COPYNAME);   if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
         b = GetDlgItem(hWnd, IDC_KM_COPYPATH);   if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
+        b = GetDlgItem(hWnd, IDC_KM_DRVOP);      if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
     }
 
     if (g_hSuList)   ShowWindow(g_hSuList,   isStartup ? SW_SHOW : SW_HIDE);
@@ -2297,11 +2321,208 @@ static void DoCopyKmColumn(int SubItem, const char *What)
     SetWindowTextA(g_hKmStatus, msg);
 }
 
+/* 取 Kernel 列表当前选中行的驱动服务名。Driver 子页第 0 列就是服务名。 */
+static BOOL KmSelectedDriverName(char *Out, size_t OutChars)
+{
+    int sel;
+    LVITEMA it;
+
+    if (Out && OutChars)
+        Out[0] = 0;
+    if (!g_hKmList || !Out || !OutChars)
+        return FALSE;
+    sel = ListView_GetNextItem(g_hKmList, -1, LVNI_SELECTED);
+    if (sel < 0)
+        return FALSE;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = sel;
+    it.iSubItem = 0;
+    it.pszText = Out;
+    it.cchTextMax = (int)OutChars;
+    if (!SendMessageA(g_hKmList, LVM_GETITEMTEXTA, (WPARAM)sel, (LPARAM)&it))
+        return FALSE;
+    return Out[0] != 0;
+}
+
+/* Driver 子页的 5 个右键操作。破坏性操作先弹二次确认（原版同样要求确认）。 */
+static void DoDriverOp(int Op)
+{
+    char name[FE_DRV_NAME_CHARS];
+    char msg[1024];
+    char path[1024];
+    DWORD err = 0;
+
+    if (!g_hKmStatus)
+        return;
+    if (g_KmTab != 1) {
+        SetWindowTextA(g_hKmStatus, "Switch to the Driver subpage first");
+        return;
+    }
+
+    if (Op == DRVOP_VERIFY_ALL) {
+        ULONG valid = 0, invalid = 0, missing = 0, total = 0;
+        SetWindowTextA(g_hKmStatus, "Verifying all driver signatures...");
+        UpdateWindow(g_hKmStatus);
+        FeVerifyAllDrivers(&valid, &invalid, &missing, &total);
+        sprintf_s(msg, sizeof(msg),
+                  "Verify All Driver Signature: total %lu / valid %lu / invalid or unsigned %lu / file missing %lu",
+                  (unsigned long)total, (unsigned long)valid,
+                  (unsigned long)invalid, (unsigned long)missing);
+        SetWindowTextA(g_hKmStatus, msg);
+        return;
+    }
+
+    if (!KmSelectedDriverName(name, sizeof(name))) {
+        SetWindowTextA(g_hKmStatus, "Select a driver row first");
+        return;
+    }
+
+    switch (Op) {
+    case DRVOP_VERIFY: {
+        int trusted;
+        if (!FeResolveDriverPath(name, path, sizeof(path))) {
+            sprintf_s(msg, sizeof(msg), "%s: cannot resolve ImagePath", name);
+            SetWindowTextA(g_hKmStatus, msg);
+            return;
+        }
+        {
+            WCHAR wpath[1024];
+            MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, 1024);
+            if (GetFileAttributesW(wpath) == INVALID_FILE_ATTRIBUTES) {
+                sprintf_s(msg, sizeof(msg), "%s: file not found (%s)", name, path);
+                SetWindowTextA(g_hKmStatus, msg);
+                return;
+            }
+        }
+        trusted = FeVerifyFileSignature(path);
+        sprintf_s(msg, sizeof(msg), "Verify Driver Signature: %s -> %s  (%s)",
+                  name,
+                  trusted ? "signature valid and trusted" : "no signature or not trusted",
+                  path);
+        SetWindowTextA(g_hKmStatus, msg);
+        return;
+    }
+    case DRVOP_UNLOAD: {
+        int r;
+        sprintf_s(msg, sizeof(msg),
+                  "Unload driver \"%s\"?\n\n"
+                  "This stops the service. Stopping a driver that is in use can bugcheck "
+                  "the machine immediately.\n\nContinue?",
+                  name);
+        r = MessageBoxA(g_hMainWnd, msg, "Unload Driver (Dangerous)",
+                         MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+        if (r != IDYES) {
+            SetWindowTextA(g_hKmStatus, "Unload cancelled");
+            return;
+        }
+        if (FeUnloadDriverService(name, &err))
+            sprintf_s(msg, sizeof(msg), "Unload Driver: %s -> stop requested", name);
+        else
+            sprintf_s(msg, sizeof(msg), "Unload Driver: %s -> failed, GetLastError=%lu",
+                      name, (unsigned long)err);
+        /* 先刷新列表，再把结果写回状态栏，否则会被 DoRefreshKernel 的计数覆盖 */
+        DoRefreshKernel();
+        SetWindowTextA(g_hKmStatus, msg);
+        return;
+    }
+    case DRVOP_DEL_FILE:
+    case DRVOP_DEL_FILE_REG: {
+        int r;
+        char deleted[1024];
+        sprintf_s(msg, sizeof(msg),
+                  "%s\n\nDriver: %s\n\nDelete the driver file from disk? This cannot be undone.",
+                  Op == DRVOP_DEL_FILE_REG ? "Delete Driver (File And Reg)"
+                                           : "Delete Driver (File)",
+                  name);
+        r = MessageBoxA(g_hMainWnd, msg, "Delete Driver File",
+                         MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+        if (r != IDYES) {
+            SetWindowTextA(g_hKmStatus, "Delete cancelled");
+            return;
+        }
+        if (Op == DRVOP_DEL_FILE_REG) {
+            DWORD fileErr = 0, regErr = 0;
+            FeDeleteDriverFileAndReg(name, deleted, sizeof(deleted), &fileErr, &regErr);
+            if (fileErr)
+                sprintf_s(msg, sizeof(msg),
+                          "Delete Driver (File And Reg): %s -> file delete failed, "
+                          "GetLastError=%lu", name, (unsigned long)fileErr);
+            else if (regErr)
+                sprintf_s(msg, sizeof(msg),
+                          "Delete Driver (File And Reg): %s -> file deleted (%s), "
+                          "service key delete failed, GetLastError=%lu",
+                          name, deleted, (unsigned long)regErr);
+            else
+                sprintf_s(msg, sizeof(msg),
+                          "Delete Driver (File And Reg): %s -> file deleted (%s), "
+                          "service key deleted", name, deleted);
+        } else {
+            FeDeleteDriverFile(name, deleted, sizeof(deleted), &err);
+            if (err)
+                sprintf_s(msg, sizeof(msg),
+                          "Delete Driver (File): %s -> failed, GetLastError=%lu",
+                          name, (unsigned long)err);
+            else
+                sprintf_s(msg, sizeof(msg),
+                          "Delete Driver (File): %s -> deleted %s", name, deleted);
+        }
+        DoRefreshKernel();
+        SetWindowTextA(g_hKmStatus, msg);
+        return;
+    }
+    default:
+        return;
+    }
+}
+
+/* Driver 子页右键菜单：与原版一致的操作集合。 */
+static void DoDriverContextMenu(HWND hWnd, int X, int Y)
+{
+    HMENU hMenu;
+    int cmd;
+
+    if (g_KmTab != 1)
+        return;
+    hMenu = CreatePopupMenu();
+    if (!hMenu)
+        return;
+    AppendMenuA(hMenu, MF_STRING, 4001, "Verify Driver Signature");
+    AppendMenuA(hMenu, MF_STRING, 4002, "Verify All Driver Signature");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 4003, "Unload Driver (Dangerous)");
+    AppendMenuA(hMenu, MF_STRING, 4004, "Delete Driver (File)");
+    AppendMenuA(hMenu, MF_STRING, 4005, "Delete Driver (File And Reg)");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 4006, "Copy Driver Name");
+    AppendMenuA(hMenu, MF_STRING, 4007, "Copy Driver Path");
+    if (X == -1 && Y == -1) {
+        RECT rc;
+        GetWindowRect(g_hKmList, &rc);
+        X = rc.left + 40;
+        Y = rc.top + 40;
+    }
+    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
+                         X, Y, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
+    switch (cmd) {
+    case 4001: DoDriverOp(DRVOP_VERIFY);     break;
+    case 4002: DoDriverOp(DRVOP_VERIFY_ALL); break;
+    case 4003: DoDriverOp(DRVOP_UNLOAD);     break;
+    case 4004: DoDriverOp(DRVOP_DEL_FILE);   break;
+    case 4005: DoDriverOp(DRVOP_DEL_FILE_REG); break;
+    case 4006: DoCopyKmColumn(0, "Driver name"); break;
+    case 4007: DoCopyKmColumn(3, "Driver path"); break;
+    default: break;
+    }
+}
+
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
     case WM_CREATE: {
         HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
+        g_hMainWnd = hWnd;
 
         CreateWindowA("BUTTON", "Connect", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       10, 10, 90, 28, hWnd, (HMENU)IDC_CONNECT, hInst, NULL);
@@ -2381,13 +2602,17 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                       10, 76, 90, 28, hWnd, (HMENU)IDC_KM_REFRESH, hInst, NULL);
         /* 原版 Driver 页的三个右键菜单项，做成按钮便于实机验证 */
         CreateWindowA("BUTTON", "Only Show Loaded Driver", WS_CHILD | BS_AUTOCHECKBOX,
-                      106, 80, 190, 24, hWnd, (HMENU)IDC_KM_ONLYLOADED, hInst, NULL);
-        CreateWindowA("BUTTON", "Copy Driver Name", WS_CHILD | BS_PUSHBUTTON,
-                      302, 76, 140, 28, hWnd, (HMENU)IDC_KM_COPYNAME, hInst, NULL);
-        CreateWindowA("BUTTON", "Copy Driver Path", WS_CHILD | BS_PUSHBUTTON,
-                      448, 76, 140, 28, hWnd, (HMENU)IDC_KM_COPYPATH, hInst, NULL);
+                      88, 80, 200, 24, hWnd, (HMENU)IDC_KM_ONLYLOADED, hInst, NULL);
+        CreateWindowA("BUTTON", "Copy Name", WS_CHILD | BS_PUSHBUTTON,
+                      292, 76, 90, 28, hWnd, (HMENU)IDC_KM_COPYNAME, hInst, NULL);
+        CreateWindowA("BUTTON", "Copy Path", WS_CHILD | BS_PUSHBUTTON,
+                      386, 76, 90, 28, hWnd, (HMENU)IDC_KM_COPYPATH, hInst, NULL);
+        /* 其余 5 项（Verify / Verify All / Unload / Delete File / Delete File+Reg）
+           与原版一样放在右键菜单里，这个按钮只是把同一个菜单弹出来便于取证。 */
+        CreateWindowA("BUTTON", "Driver Ops", WS_CHILD | BS_PUSHBUTTON,
+                      480, 76, 90, 28, hWnd, (HMENU)IDC_KM_DRVOP, hInst, NULL);
         g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
-                                    596, 82, 354, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
+                                    576, 82, 374, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
         g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
                                   10, 110, 940, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
         {
@@ -2657,14 +2882,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 }
                 /* 原版 Driver 页的三个右键菜单项 */
                 b = GetDlgItem(hWnd, IDC_KM_ONLYLOADED);
-                if (b) { MoveWindow(b, 106, pageTop + 4, 190, 24, TRUE); ShowWindow(b, SW_SHOW); }
+                if (b) { MoveWindow(b, 88, pageTop + 4, 200, 24, TRUE); ShowWindow(b, SW_SHOW); }
                 b = GetDlgItem(hWnd, IDC_KM_COPYNAME);
-                if (b) { MoveWindow(b, 302, pageTop, 140, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                if (b) { MoveWindow(b, 292, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
                 b = GetDlgItem(hWnd, IDC_KM_COPYPATH);
-                if (b) { MoveWindow(b, 448, pageTop, 140, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                if (b) { MoveWindow(b, 386, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                b = GetDlgItem(hWnd, IDC_KM_DRVOP);
+                if (b) { MoveWindow(b, 480, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
             }
-            if (g_hKmStatus) MoveWindow(g_hKmStatus, 596, pageTop + 6,
-                                        (w > 700 ? w - 596 : 200), 34, TRUE);
+            if (g_hKmStatus) MoveWindow(g_hKmStatus, 576, pageTop + 6,
+                                        (w > 700 ? w - 576 : 200), 34, TRUE);
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
@@ -2814,6 +3041,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         case IDC_KM_COPYNAME: DoCopyKmColumn(0, "Driver name"); return 0;
         case IDC_KM_COPYPATH: DoCopyKmColumn(3, "Driver path"); return 0;
+        case IDC_KM_DRVOP:    DoDriverContextMenu(hWnd, -1, -1); return 0;
         case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
         case IDC_SV_REFRESH: DoRefreshServices(); return 0;
         case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
@@ -2858,6 +3086,22 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         return 0;
 
+    case WM_CONTEXTMENU: {
+        HWND from = (HWND)wParam;
+        if (from == g_hKmList) {
+            int x = (short)LOWORD(lParam);
+            int y = (short)HIWORD(lParam);
+            if (x == -1 && y == -1) {
+                RECT rc;
+                GetWindowRect(g_hKmList, &rc);
+                x = rc.left + 40;
+                y = rc.top + 40;
+            }
+            DoDriverContextMenu(hWnd, x, y);
+            return 0;
+        }
+        break;
+    }
     case WM_NOTIFY: {
         NMHDR *nm = (NMHDR *)lParam;
         if (nm->idFrom == IDC_MAIN_TABS && nm->code == TCN_SELCHANGE) {
@@ -3104,6 +3348,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     }
     if (lpCmdLine && strstr(lpCmdLine, "--trojan-cli"))
         return FePrintTrojanReport(0) ? 0 : 1;
+    /* Driver 子页操作的无 UI 入口（取证/回归用，与右键菜单同一套实现） */
+    if (lpCmdLine && strstr(lpCmdLine, "--drvop-cli")) {
+        FeDriverOpsCli(lpCmdLine);
+        return 0;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--setting-cli")) {
         FE_OBJ_TYPES ot;
         int ok;

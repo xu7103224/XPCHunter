@@ -246,6 +246,17 @@ BOOL FeLoadDrivers(FE_DRIVER_LIST *List);
 void FeFreeDrivers(FE_DRIVER_LIST *List);
 BOOL FePrintDrivers(void);
 
+/* ---- Driver 子页操作（原版右键菜单）----
+ * 全部走 SCM + WinVerifyTrust，不依赖驱动。 */
+BOOL FeResolveDriverPath(const char *ServiceName, char *Out, size_t OutChars);
+BOOL FeUnloadDriverService(const char *ServiceName, DWORD *pError);
+BOOL FeDeleteDriverFile(const char *ServiceName, char *DeletedPath,
+                        size_t PathChars, DWORD *pError);
+BOOL FeDeleteDriverFileAndReg(const char *ServiceName, char *DeletedPath,
+                              size_t PathChars, DWORD *pFileErr, DWORD *pRegErr);
+void FeVerifyAllDrivers(ULONG *pValid, ULONG *pInvalid, ULONG *pMissing, ULONG *pTotal);
+BOOL FeDriverOpsCli(const char *CmdLine);
+
 /* ---- Startup Info 页（原版第 7 个主 Tab）----
  * 覆盖 16 类自启动位置；全部是注册表读取，不依赖驱动。
  * Wow64 视图分别枚举（32/64），与原版"含 Wow64 版本"一致。 */

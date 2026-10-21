@@ -1,0 +1,101 @@
+# Driver 子页操作 — 实机证据（2026-10-22, Win10 18362 测试模式, 1 CPU）
+
+前端：xpch_frontend.exe（Release/um_x64），主机侧通过 VMware Tools guest-ops 执行，
+所有命令均以 xuq（管理员）身份运行。
+
+## 1. Verify All Driver Signature（全量）
+
+    C:\Users\Public\xpch_frontend.exe --drvop-cli verifyall
+    Verify All Driver Signature: total=376 valid=194 invalidOrUnsigned=169 missingFile=13
+
+（加入测试服务后再次执行）
+
+    Verify All Driver Signature: total=378 valid=194 invalidOrUnsigned=170 missingFile=14
+
+GUI 状态栏同一实现：
+
+    Verify All Driver Signature: total 378 / valid 194 / invalid or unsigned 170 / file missing 14
+
+## 2. Verify Driver Signature（单条）
+
+    C:\Users\Public\xpch_frontend.exe --drvop-cli resolve ACPI
+    ACPI -> C:\Windows\System32\drivers\ACPI.sys
+
+    --drvop-cli verify ACPI
+    ACPI: signature valid and trusted   (C:\Windows\System32\drivers\ACPI.sys)
+
+    --drvop-cli verify volsnap
+    volsnap: signature valid and trusted   (C:\Windows\System32\drivers\volsnap.sys)
+
+自家测试签名驱动（自签证书未进信任根，故如实报不信任）：
+
+    --drvop-cli verify VPCHN
+    VPCHN: no signature or not trusted   (C:\Users\Public\VPChainN.sys)
+
+GUI 状态栏：
+
+    Verify Driver Signature: ACPI -> signature valid and trusted  (C:\Windows\System32\drivers\ACPI.sys)
+
+## 3. Unload Driver(Dangerous)
+
+先把自己的驱动加载起来：
+
+    sc create VPCHN binPath= C:\Users\Public\VPChainN.sys type= kernel start= demand
+    sc start VPCHN           -> STATE: 4 RUNNING
+
+通过本工具的卸载路径停止：
+
+    --drvop-cli unload VPCHN
+    Unload VPCHN: stop requested (GetLastError=0)
+    sc query VPCHN           -> STATE: 1 STOPPED
+
+对未启动的服务（正确上报错误码）：
+
+    --drvop-cli unload xpchdummy
+    Unload xpchdummy: failed (GetLastError=1062)
+
+GUI 二次确认框默认按钮为「否」，标题 `Unload Driver (Dangerous)`。
+
+## 4. Delete Driver(File)
+
+    --drvop-cli delfile xpchdummy
+    Delete xpchdummy: C:\Users\Public\dummy.sys (GetLastError=0)
+
+    dir C:\Users\Public\dummy.sys   -> 找不到文件
+    sc query xpchdummy              -> STATE: 1 STOPPED   （文件删除不影响服务键）
+
+## 5. Delete Driver(File And Reg)
+
+初版用 RegDeleteKeyW，遇到带 `Instances\1` 子键的驱动服务返回 5(拒绝访问)：
+
+    Delete Driver (File And Reg): failed, GetLastError=5
+
+    reg query "HKLM\SYSTEM\CurrentControlSet\Services\ZQL1"
+      ...\ZQL1\Instances      DefaultInstance = 1
+      ...\ZQL1\Instances\1    Altitude = 315000
+
+改为 RegDeleteTreeW 后：
+
+    --drvop-cli delfilereg ZQL1
+    Delete(File+Reg) ZQL1: file=C:\Users\Public\VPChainI.sys(0) regkey=deleted(0)
+
+    reg query "HKLM\SYSTEM\CurrentControlSet\Services\ZQL1"
+    错误: 系统找不到指定的注册表项或值。
+    dir C:\Users\Public\VPChainI.sys  -> 找不到文件
+
+GUI 对 ZQD1 执行同一路径后同样确认服务键与文件都已消失。
+
+## 6. 表头乱码修复（顺带发现）
+
+/DUNICODE 编译下 ListView_InsertColumn 展开为 LVM_INSERTCOLUMNW，把 ANSI 列标题
+当宽字符读，全部列表表头显示为乱码。新增 FeInsertColumnA() 统一走
+LVM_INSERTCOLUMNA，Kernel 页表头恢复为 Service / State / Start / ImagePath。
+
+## 截图
+
+- kernel_driver_ops_menu_2026-10-22.png        右键菜单 7 项
+- kernel_driver_verify_2026-10-22.png          单条校验状态栏
+- kernel_driver_verifyall_2026-10-22.png       全量校验状态栏
+- kernel_driver_delete_confirm_2026-10-22.png  删除二次确认
+- kernel_driver_headers_fixed_2026-10-22.png   表头修复后
+- kernel_driver_loaded_only_2026-10-22.png     Only Show Loaded Driver（145/378）
