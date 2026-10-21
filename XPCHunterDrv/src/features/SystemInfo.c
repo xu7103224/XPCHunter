@@ -613,6 +613,24 @@ __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Cal
         pSetAffinity = (void (*)(__int64 *, _BYTE *))GtRead((GLOBAL_TABLE_INDEX)0x4405);
         pRestoreAffinity = GtRead((GLOBAL_TABLE_INDEX)0x4408);
         pRestoreAffinityFunc = (__int64 (*)(_BYTE *))pRestoreAffinity;
+        /* 【修正 2026-10-21】这三个槽在复刻里**没有任何写入者**，运行时却非零
+           （实测被写成 0x1986f0 这类 RVA 值）。原版直接 `call` 它们，于是
+           跳到一个无效地址 → KiPageFault。WinDbg 实证：
+             RIP = 0x1986f0（低地址，明显是 RVA 而非 VA）
+             ← VPChainJ+0x7cb2d  ForEachProcessor 内 `call rbp`
+             ← VPChainJ+0x39030  IoPortOperationDispatch
+             ← 命令 0x046 CmdIoPortOperation
+           这类"槽里放的是 RVA 还是 VA 没确认"的情况下，必须先验可执行性：
+           不在内核区间或不可读就当作"该 API 不可用"，退化成单次回调。 */
+        if (pGetAffinity && (MmIsAddressValid((void *)pGetAffinity) != 1))
+            pGetAffinity = 0;
+        if (pSetAffinity && (MmIsAddressValid((void *)pSetAffinity) != 1))
+            pSetAffinity = 0;
+        if (pRestoreAffinity && (MmIsAddressValid((void *)pRestoreAffinity) != 1))
+        {
+            pRestoreAffinity = 0;
+            pRestoreAffinityFunc = 0;
+        }
         if (pGetAffinity)
         {
             if (pSetAffinity)
@@ -650,6 +668,16 @@ __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Cal
     pSetAffinityLegacy = (void (*)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x402C);
     pRestoreAffinityLegacy = GtRead((GLOBAL_TABLE_INDEX)0x402F);
     pRestoreAffinityFuncLegacy = (__int64 (*)(void))pRestoreAffinityLegacy;
+    /* 同样先验可执行性（旧版路径的三个槽） */
+    if (pGetActiveProc && (MmIsAddressValid((void *)pGetActiveProc) != 1))
+        pGetActiveProc = 0;
+    if (pSetAffinityLegacy && (MmIsAddressValid((void *)pSetAffinityLegacy) != 1))
+        pSetAffinityLegacy = 0;
+    if (pRestoreAffinityLegacy && (MmIsAddressValid((void *)pRestoreAffinityLegacy) != 1))
+    {
+        pRestoreAffinityLegacy = 0;
+        pRestoreAffinityFuncLegacy = 0;
+    }
     if (!pGetActiveProc || !pSetAffinityLegacy || !pRestoreAffinityLegacy)
         return ((__int64 (*)(_QWORD, __int64))CallbackFunc)(0, ContextCopy);
 
