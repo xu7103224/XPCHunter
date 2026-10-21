@@ -1,0 +1,66 @@
+BEGIN 
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] OpenService 失败 1060:
+
+指定的服务未安装。
+
+[SC] CreateService 成功
+[SC] StartService 失败 183:
+
+当文件已存在时，无法创建该文件。
+
+START=183 
+
+SERVICE_NAME: RTZ73 
+        TYPE               : 1  KERNEL_DRIVER  
+        STATE              : 1  STOPPED 
+        WIN32_EXIT_CODE    : 183  (0xb7)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+---- register registry callback (cmd 0x9C) ---- 
+probe start
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  plain request first 0x10 bytes: 10 08 24 20 9C 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  handshake 0x22 -> REJECTED, result=0, ssdt=0
+  handshake 0x24 -> REJECTED, result=0, build=0 (0x0)
+  command 0x9C -> REJECTED, result=0, GetLastError=87
+
+=== done ===
+REG_EXIT=0 
+---- unload ---- 
+[SC] ControlService 失败 1062:
+
+服务尚未启动。
+
+STOP=1062 
+---- hammer the registry ---- 
+ALIVE 
+
+映像名称                       PID 会话名              会话#       内存使用 
+========================= ======== ================ =========== ============
+cmd.exe                       2872 Services                   0      3,864 K
+cmd.exe                       7580 Services                   0      4,624 K
+DONE 

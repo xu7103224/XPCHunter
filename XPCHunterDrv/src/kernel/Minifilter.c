@@ -4247,22 +4247,37 @@ __int64 OpenWin32kSysSection(void)
 // 【⚠ 修正记录 2026-10-13】原为**伪造实现**：
 //   读 GtCommPortCallbackReady(=0x8F2) 后置 0 返回 1。与原始无关。
 //   发现方式：差分报原始读 GT **0x42D1**（函数指针槽）。
-// 【原始逻辑】取 GT 0x42D1 的函数指针，若非 0 则
-//   以 `*（某个内核对象，见 rip+0xB39EE）` 为参数调用它；
-//   返回值 >= 0 则置 1（`cmovns`）。
-//   本函数**不写入任何 GT**。
-// 对应原始驱动 0x140019A0C（53 字节）
+//
+// 【2026-10-21 关键修正：cookie 传值而非传址】
+//   槽 0x42D1 = 125 组的 VA 槽，用 ntoskrnl 导出表反查为 **CmUnRegisterCallback**
+//   （注册侧 0x42CE = 124 组 = CmRegisterCallback）。
+//   原始反汇编（0x140019A0C，17 条指令）：
+//     0x140019A12  mov ecx, 42D1h / call GtRead      ; rax = CmUnRegisterCallback
+//     0x140019A1E  test rax,rax / jz 返回 0
+//     0x140019A23  mov rcx, cs:g_CommPortContext     ; ← **取 cookie 的"值"**
+//     0x140019A2A  call rax                          ; CmUnRegisterCallback(Cookie)
+//     0x140019A34  test eax,eax / cmovns             ; STATUS >= 0 → 返回 1
+//   `CmUnRegisterCallback` 的原型是 `NTSTATUS CmUnRegisterCallback(LARGE_INTEGER Cookie)`，
+//   **cookie 按值放在 RCX**；而注册侧 `CmRegisterCallback(Function, Context, PLARGE_INTEGER Cookie)`
+//   的 cookie 是**出参指针**。
+//   此前本移植把注销侧也写成 `Callback(&g_CommPortContext)`（传地址），
+//   于是传给内核的 cookie 是一个栈/全局地址，与注册时写入的值不匹配：
+//   注销**从未真正生效**。后果是整个驱动跑完后
+//   `CmRegisterCallback` 的名单里仍留着 MiniFilterCommPortReplyDone，
+//   一旦 `sc stop` 卸载了驱动映像，任何注册表操作都会跳进已释放的代码页
+//   → BSOD 0x50（实机 faulting instruction: <Unloaded_ViewPlusPlusNew.sys>+0x33C40
+//   = MiniFilterCommPortReplyDone，见 docs/reversing/GT槽号审计_2026-10-21.md 第七节）。
 __int64 UnregisterCommPortCallback(void)
 {
     char Result = 0;
-    __int64 (*Callback)(void *);
-    void   *Argument;
+    __int64 (*Callback)(__int64);
+    __int64 Argument;
 
-    Callback = (__int64 (*)(void *))GtRead((GLOBAL_TABLE_INDEX)0x42D1);   // 0x140019A19
+    Callback = (__int64 (*)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x42D1);  // 0x140019A19
     if (!Callback)                                                        // 0x140019A1E
         return Result;
 
-    Argument = &g_CommPortContext;                                        // 0x140019A23（rip+0xB39EE → g_CommPortContext）
+    Argument = g_CommPortContext;                                         // 0x140019A23 mov rcx, cs:...（取**值**）
     if (Callback(Argument) >= 0)                                          // 0x140019A2A/36（cmovns）
         Result = 1;
     return Result;
