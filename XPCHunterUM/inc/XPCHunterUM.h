@@ -352,6 +352,38 @@ BOOL FePrintProcessMemory(ULONG Pid);
 /* ---- 进程操作（0x28 / 0xA2，破坏性）---- */
 BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEprocess);
 
+/* ---- Services 页（原版第 8 个主 Tab，9 项）----
+ * 数据源：SCM 枚举 + 注册表 Services 子树（取原始 ImagePath / ServiceDll）
+ * 隐藏服务判定：注册表 Services 下有子键、但 SCM 清单里没有。 */
+#define FE_SVC_NAME_CHARS   160u
+#define FE_SVC_DISP_CHARS   192u
+#define FE_SVC_PATH_CHARS   512u
+
+typedef struct _FE_SERVICE_ENTRY {
+    char  Name[FE_SVC_NAME_CHARS];
+    char  Display[FE_SVC_DISP_CHARS];
+    char  ImagePath[FE_SVC_PATH_CHARS];      /* 注册表原始值 */
+    char  ResolvedPath[FE_SVC_PATH_CHARS];   /* 去引号+展开环境变量后的 exe */
+    char  ServiceDll[FE_SVC_PATH_CHARS];
+    DWORD State;
+    DWORD Start;
+    DWORD Type;
+} FE_SERVICE_ENTRY;
+
+typedef struct _FE_SERVICE_LIST {
+    ULONG             Count;
+    ULONG             Capacity;
+    FE_SERVICE_ENTRY *Items;
+    ULONG             HiddenCount;       /* 注册表有、SCM 无 */
+    ULONG             RegServiceCount;   /* 注册表 Services 子键总数 */
+} FE_SERVICE_LIST;
+
+BOOL FeLoadServices(FE_SERVICE_LIST *List);
+void FeFreeServices(FE_SERVICE_LIST *List);
+BOOL FePrintServices(void);
+BOOL FeDeleteService(const char *ServiceName);
+int  FeVerifyFileSignature(const char *Path);
+
 #ifdef __cplusplus
 }
 #endif

@@ -44,6 +44,10 @@
 #define IDC_SU_REFRESH  1040
 #define IDC_SU_LIST     1041
 #define IDC_SU_STATUS   1042
+/* Services 页 */
+#define IDC_SV_REFRESH  1050
+#define IDC_SV_LIST     1051
+#define IDC_SV_STATUS   1052
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -51,6 +55,7 @@ static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
 static HWND g_hKmTabs, g_hKmList, g_hKmStatus;
 static HWND g_hMainTabs, g_hPageHint;
 static HWND g_hSuList, g_hSuStatus;
+static HWND g_hSvList, g_hSvStatus;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -744,11 +749,79 @@ static void DoRefreshStartup(void)
     FeFreeStartupItems(&list);
 }
 
+/* ---- Services 页（主 Tab 7）---- */
+static void SvSetText(HWND hList, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(hList, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void CreateSvColumns(HWND hList)
+{
+    LVCOLUMNA c;
+    while (ListView_DeleteColumn(hList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Service";     c.cx = 200; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+    c.pszText = "State";       c.cx = 80;  c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+    c.pszText = "ServiceDll";  c.cx = 70;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+    c.pszText = "ImagePath / Resolved"; c.cx = 640; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+}
+
+static void DoRefreshServices(void)
+{
+    FE_SERVICE_LIST list;
+    char status[256];
+    ULONG i;
+
+    if (!g_hSvList || !g_hSvStatus)
+        return;
+    ListView_DeleteAllItems(g_hSvList);
+    CreateSvColumns(g_hSvList);
+
+    if (!FeLoadServices(&list)) {
+        SetWindowTextA(g_hSvStatus, "Services: load failed");
+        return;
+    }
+    for (i = 0; i < list.Count; i++) {
+        LVITEMA it;
+        const char *st;
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)i;
+        it.pszText = list.Items[i].Name;
+        SendMessageA(g_hSvList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        switch (list.Items[i].State) {
+        case SERVICE_RUNNING: st = "RUNNING"; break;
+        case SERVICE_STOPPED: st = "STOPPED"; break;
+        case SERVICE_START_PENDING: st = "STARTING"; break;
+        case SERVICE_STOP_PENDING: st = "STOPPING"; break;
+        default: st = "?"; break;
+        }
+        SvSetText(g_hSvList, (int)i, 1, st);
+        SvSetText(g_hSvList, (int)i, 2, list.Items[i].ServiceDll[0] ? "yes" : "-");
+        SvSetText(g_hSvList, (int)i, 3,
+                  list.Items[i].ResolvedPath[0] ? list.Items[i].ResolvedPath :
+                  (list.Items[i].ImagePath[0] ? list.Items[i].ImagePath : "(?)"));
+    }
+    sprintf_s(status, sizeof(status),
+              "Services: %lu / Hidden Services: %lu  (registry keys: %lu)",
+              list.Count, list.HiddenCount, list.RegServiceCount);
+    SetWindowTextA(g_hSvStatus, status);
+    FeFreeServices(&list);
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
     int isKernel = (page == 1);
     int isStartup = (page == 6);     /* 0-based：第 7 个 Tab = Startup Info */
+    int isServices = (page == 7);    /* 第 8 个 Tab = Services */
     char hint[512];
     HWND hKill, hRef;
 
@@ -773,8 +846,15 @@ static void ShowPage(HWND hWnd, int page)
         if (hSu) ShowWindow(hSu, isStartup ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hSvList)   ShowWindow(g_hSvList,   isServices ? SW_SHOW : SW_HIDE);
+    if (g_hSvStatus) ShowWindow(g_hSvStatus, isServices ? SW_SHOW : SW_HIDE);
+    {
+        HWND hSv = GetDlgItem(hWnd, IDC_SV_REFRESH);
+        if (hSv) ShowWindow(hSv, isServices ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
-        if (isProc || isKernel || isStartup) {
+        if (isProc || isKernel || isStartup || isServices) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1028,6 +1108,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         CreateSuColumns(g_hSuList);
         DoRefreshStartup();
 
+        /* ---- Services 页（主 Tab 7）---- */
+        CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 90, 28, hWnd, (HMENU)IDC_SV_REFRESH, hInst, NULL);
+        g_hSvStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    110, 82, 840, 20, hWnd, (HMENU)IDC_SV_STATUS, hInst, NULL);
+        g_hSvList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 110, 940, 510, hWnd, (HMENU)IDC_SV_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hSvList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        CreateSvColumns(g_hSvList);
+        DoRefreshServices();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1095,6 +1187,15 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 7) {
+            int listY = pageTop + 34;
+            int listH = pageBottom - listY;
+            HWND hSv = GetDlgItem(hWnd, IDC_SV_REFRESH);
+            if (listH < 100) listH = 100;
+            if (hSv) MoveWindow(hSv, 10, pageTop, 90, 28, TRUE);
+            if (g_hSvStatus) MoveWindow(g_hSvStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (g_hSvList)   MoveWindow(g_hSvList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 6) {
             int listY = pageTop + 34;
             int listH = pageBottom - listY;
@@ -1119,6 +1220,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_KILL:    DoKillSelected(); return 0;
         case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
         case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
+        case IDC_SV_REFRESH: DoRefreshServices(); return 0;
         }
         return 0;
 
@@ -1131,6 +1233,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshKernel();
             if (page == 6)
                 DoRefreshStartup();
+            if (page == 7)
+                DoRefreshServices();
             return 0;
         }
         if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
@@ -1239,6 +1343,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--services-cli"))
+        return FePrintServices() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--startup-cli"))
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--drivers-cli"))
