@@ -439,6 +439,29 @@ BOOL FeLoadHiddenRegKeys(FE_REG_HIDDEN_LIST *List);
 void FeFreeHiddenRegKeys(FE_REG_HIDDEN_LIST *List);
 BOOL FePrintHiddenRegKeys(void);
 
+/* ---- Registry 页「Key」子页：按路径读取某个键的值 ----
+ * 路径写法：HKLM\SYSTEM\CurrentControlSet\Services\ACPI（根名大小写不敏感，
+ * 也接受 HKEY_LOCAL_MACHINE / HKCU / HKCR / HKU / HKCC）。 */
+#define FE_REGV_NAME_CHARS 256u
+#define FE_REGV_DATA_CHARS 512u
+
+typedef struct _FE_REG_VALUE_ENTRY {
+    char Name[FE_REGV_NAME_CHARS];   /* "(Default)" 表示空名值 */
+    char Type[48];
+    char Data[FE_REGV_DATA_CHARS];
+} FE_REG_VALUE_ENTRY;
+
+typedef struct _FE_REG_VALUE_LIST {
+    ULONG               Count;
+    ULONG               Capacity;
+    FE_REG_VALUE_ENTRY *Items;
+    DWORD               LastError;
+} FE_REG_VALUE_LIST;
+
+BOOL FeLoadRegValues(const char *Path, FE_REG_VALUE_LIST *List);
+void FeFreeRegValues(FE_REG_VALUE_LIST *List);
+BOOL FePrintRegValues(const char *Path);
+
 /* ---- File 页（原版第 9 个主 Tab，10 项）----
  * 目录浏览 + 隐藏文件判定 + 占用检测 + 待删检测 + 签名校验 + 迷你反汇编。 */
 #define FE_FILE_NAME_CHARS 260u

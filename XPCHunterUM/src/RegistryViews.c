@@ -5,10 +5,13 @@
 //   Reg Handle                枚举全系统 ObjectType 为 Key 的句柄
 //                             （NtQuerySystemInformation(SystemExtendedHandleInformation)
 //                               + ObjectTypesInformation 取类型名 → 只挑 "Key"）
-//   View CmpNotifyChange      列出已注册的 CmRegisterCallback / CmRegisterCallbackEx
-//                             回调（用户态拿不到内核回调链，这里给出"通知变更"的
-//                             可观测替代：把注册表变更监视（RegNotifyChangeKeyValue）
-//                             挂到最常见的几个键上，记录实际发生的变更）
+//   View CmpNotifyChange      原版列出已注册的 CmRegisterCallback /
+//                             CmRegisterCallbackEx 回调链。用户态拿不到这条链，
+//                             要用驱动命令 0x127（CmdEnumRegistryContext），
+//                             该命令尚未验证出数据，所以本项**未实现**，
+//                             也不拿 Hidden Item 子页冒充（见验收清单 Tab 6）。
+//   Key                       按路径打开一个键并列出它的值（只读），
+//                             Kernel 页的 "Locate in Registry Tab" 落到这里
 //   Copy Key Name / RegPath / RegValue / RegData
 //                             条目行里分别带这四列，右键/选中即可复制
 //   Find Hidden Item          隐藏键检测：
@@ -475,5 +478,234 @@ BOOL FePrintHiddenRegKeys(void)
     if (list.Count > 40)
         printf("  ... (%lu more)\n", list.Count - 40);
     FeFreeHiddenRegKeys(&list);
+    return TRUE;
+}
+
+/* ------------------------------------------------------------- Key 子页
+ * 原版 Registry 页可以按路径打开一个键看它的值；Kernel 页的
+ * "Locate in Registry Tab" 就是跳到这里并定位到 Services\<驱动名>。
+ * 这里只做只读枚举：RegEnumValueW 取名字/类型/数据。 */
+
+static HKEY FeRegRootFromName(const WCHAR *name, ULONG nameChars, const WCHAR **rest)
+{
+    static const struct { const WCHAR *n; HKEY h; } roots[] = {
+        { L"HKLM", HKEY_LOCAL_MACHINE }, { L"HKEY_LOCAL_MACHINE", HKEY_LOCAL_MACHINE },
+        { L"HKCU", HKEY_CURRENT_USER },  { L"HKEY_CURRENT_USER", HKEY_CURRENT_USER },
+        { L"HKCR", HKEY_CLASSES_ROOT },  { L"HKEY_CLASSES_ROOT", HKEY_CLASSES_ROOT },
+        { L"HKU",  HKEY_USERS },         { L"HKEY_USERS", HKEY_USERS },
+        { L"HKCC", HKEY_CURRENT_CONFIG },{ L"HKEY_CURRENT_CONFIG", HKEY_CURRENT_CONFIG },
+    };
+    ULONG i;
+
+    for (i = 0; i < sizeof(roots) / sizeof(roots[0]); i++) {
+        size_t n = wcslen(roots[i].n);
+        if (nameChars >= n && _wcsnicmp(name, roots[i].n, n) == 0) {
+            const WCHAR *p = name + n;
+            while (*p == L'\\')
+                p++;
+            *rest = p;
+            return roots[i].h;
+        }
+    }
+    return NULL;
+}
+
+static const char *FeRegTypeName(DWORD type)
+{
+    switch (type) {
+    case REG_NONE:                       return "REG_NONE";
+    case REG_SZ:                         return "REG_SZ";
+    case REG_EXPAND_SZ:                  return "REG_EXPAND_SZ";
+    case REG_BINARY:                     return "REG_BINARY";
+    case REG_DWORD:                      return "REG_DWORD";
+    case REG_DWORD_BIG_ENDIAN:           return "REG_DWORD_BIG_ENDIAN";
+    case REG_LINK:                       return "REG_LINK";
+    case REG_MULTI_SZ:                   return "REG_MULTI_SZ";
+    case REG_RESOURCE_LIST:              return "REG_RESOURCE_LIST";
+    case REG_FULL_RESOURCE_DESCRIPTOR:   return "REG_FULL_RESOURCE_DESCRIPTOR";
+    case REG_RESOURCE_REQUIREMENTS_LIST: return "REG_RESOURCE_REQUIREMENTS_LIST";
+    case REG_QWORD:                      return "REG_QWORD";
+    default:                             return "REG_?";
+    }
+}
+
+static void FeFormatRegData(DWORD type, const BYTE *data, DWORD bytesOfData,
+                            char *out, size_t outChars)
+{
+    if (!out || outChars == 0)
+        return;
+    out[0] = 0;
+    if (!data || bytesOfData == 0)
+        return;
+
+    if (type == REG_SZ || type == REG_EXPAND_SZ) {
+        const WCHAR *w = (const WCHAR *)data;
+        size_t maxChars = bytesOfData / sizeof(WCHAR);
+        size_t len = 0;
+        while (len < maxChars && w[len])
+            len++;
+        WideCharToMultiByte(CP_ACP, 0, w, (int)len, out, (int)outChars - 1, NULL, NULL);
+        out[outChars - 1] = 0;
+        return;
+    }
+    if (type == REG_DWORD && bytesOfData >= 4) {
+        DWORD v = *(const DWORD *)data;
+        sprintf_s(out, outChars, "0x%08lX (%lu)", (unsigned long)v, (unsigned long)v);
+        return;
+    }
+    if (type == REG_QWORD && bytesOfData >= 8) {
+        unsigned __int64 v = *(const unsigned __int64 *)data;
+        sprintf_s(out, outChars, "0x%016I64X", v);
+        return;
+    }
+    if (type == REG_MULTI_SZ) {
+        const WCHAR *w = (const WCHAR *)data;
+        size_t maxChars = bytesOfData / sizeof(WCHAR);
+        size_t i = 0, used = 0;
+        while (i < maxChars && w[i]) {
+            size_t len = 0;
+            while (i + len < maxChars && w[i + len])
+                len++;
+            {
+                char item[256];
+                int n = WideCharToMultiByte(CP_ACP, 0, w + i, (int)len, item,
+                                            (int)sizeof(item) - 1, NULL, NULL);
+                if (n < 0)
+                    n = 0;
+                item[n] = 0;
+                if (used && used < outChars - 1)
+                    out[used++] = ';';
+                if (used < outChars - 1) {
+                    size_t copy = strlen(item);
+                    if (copy > outChars - 1 - used)
+                        copy = outChars - 1 - used;
+                    memcpy(out + used, item, copy);
+                    used += copy;
+                }
+            }
+            i += len + 1;
+        }
+        out[used] = 0;
+        return;
+    }
+    /* 其余按十六进制，最多 24 字节 */
+    {
+        DWORD i, n = bytesOfData > 24 ? 24 : bytesOfData;
+        size_t used = 0;
+        for (i = 0; i < n && used + 4 < outChars; i++)
+            used += (size_t)sprintf_s(out + used, outChars - used, "%02X ", data[i]);
+        if (bytesOfData > n && used + 4 < outChars)
+            strcat_s(out, outChars, "...");
+    }
+}
+
+BOOL FeLoadRegValues(const char *Path, FE_REG_VALUE_LIST *List)
+{
+    WCHAR wpath[1024];
+    const WCHAR *subkey = NULL;
+    HKEY root, hk = NULL;
+    DWORD idx = 0;
+    LONG rc;
+
+    if (!List)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+    if (!Path || !Path[0]) {
+        List->LastError = ERROR_INVALID_PARAMETER;
+        return FALSE;
+    }
+    MultiByteToWideChar(CP_ACP, 0, Path, -1, wpath, 1024);
+    {
+        WCHAR *p = wpath;
+        size_t len;
+        while (*p == L' ')
+            p++;
+        /* 命令行里带引号的写法（--regkey-cli "HKLM\..."）也接受 */
+        if (p[0] == L'"')
+            p++;
+        len = wcslen(p);
+        while (len && (p[len - 1] == L'"' || p[len - 1] == L' '))
+            p[--len] = 0;
+        root = FeRegRootFromName(p, (ULONG)wcslen(p), &subkey);
+        if (!root || !subkey || !subkey[0]) {
+            List->LastError = ERROR_INVALID_NAME;
+            return FALSE;
+        }
+        rc = RegOpenKeyExW(root, subkey, 0, KEY_READ | KEY_WOW64_64KEY, &hk);
+        if (rc != ERROR_SUCCESS) {
+            List->LastError = (DWORD)rc;
+            return FALSE;
+        }
+    }
+
+    for (;;) {
+        WCHAR nameW[256];
+        BYTE dataBuf[4096];
+        DWORD nameLen = 256, dataLen = sizeof(dataBuf), type = 0;
+
+        rc = RegEnumValueW(hk, idx, nameW, &nameLen, NULL, &type,
+                           dataBuf, &dataLen);
+        if (rc == ERROR_NO_MORE_ITEMS)
+            break;
+        if (rc != ERROR_SUCCESS && rc != ERROR_MORE_DATA) {
+            List->LastError = (DWORD)rc;
+            break;
+        }
+        if (List->Count == List->Capacity) {
+            ULONG cap = List->Capacity ? List->Capacity * 2 : 32;
+            FE_REG_VALUE_ENTRY *p = (FE_REG_VALUE_ENTRY *)realloc(
+                List->Items, (size_t)cap * sizeof(FE_REG_VALUE_ENTRY));
+            if (!p) {
+                List->LastError = ERROR_NOT_ENOUGH_MEMORY;
+                break;
+            }
+            List->Items = p;
+            List->Capacity = cap;
+        }
+        {
+            FE_REG_VALUE_ENTRY *e = &List->Items[List->Count];
+            ZeroMemory(e, sizeof(*e));
+            if (nameLen == 0)
+                strcpy_s(e->Name, sizeof(e->Name), "(Default)");
+            else
+                WideCharToMultiByte(CP_ACP, 0, nameW, (int)nameLen, e->Name,
+                                    (int)sizeof(e->Name) - 1, NULL, NULL);
+            strcpy_s(e->Type, sizeof(e->Type), FeRegTypeName(type));
+            FeFormatRegData(type, dataBuf, rc == ERROR_MORE_DATA ? 0 : dataLen,
+                            e->Data, sizeof(e->Data));
+            List->Count++;
+        }
+        idx++;
+    }
+    RegCloseKey(hk);
+    return List->LastError == ERROR_SUCCESS;
+}
+
+void FeFreeRegValues(FE_REG_VALUE_LIST *List)
+{
+    if (!List)
+        return;
+    free(List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FePrintRegValues(const char *Path)
+{
+    FE_REG_VALUE_LIST list;
+    ULONG i;
+
+    if (!FeLoadRegValues(Path, &list)) {
+        printf("reg key: cannot open %s (error %lu)\n", Path ? Path : "(null)",
+               (unsigned long)list.LastError);
+        FeFreeRegValues(&list);
+        return FALSE;
+    }
+    printf("reg key: %s (%lu values)\n", Path, list.Count);
+    for (i = 0; i < list.Count; i++)
+        printf("  %-28s %-20s %s\n", list.Items[i].Name, list.Items[i].Type,
+               list.Items[i].Data);
+    FeFreeRegValues(&list);
     return TRUE;
 }

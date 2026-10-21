@@ -79,6 +79,8 @@ static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
 #define IDC_RG_TABS     1061
 #define IDC_RG_LIST     1062
 #define IDC_RG_STATUS   1063
+#define IDC_RG_PATH     1064
+#define IDC_RG_GO       1065
 /* File 页 */
 #define IDC_FL_DIR      1070
 #define IDC_FL_GO       1071
@@ -139,6 +141,8 @@ static HWND g_hSuList, g_hSuStatus;
 static HWND g_hSvList, g_hSvStatus;
 static HWND g_hRgTabs, g_hRgList, g_hRgStatus;
 static int  g_RgTab = 0;
+/* Key 子页当前打开的路径；Kernel 页 "Locate in Registry Tab" 会改写它 */
+static char g_RgPath[512] = "HKLM\\SYSTEM\\CurrentControlSet\\Services";
 static HWND g_hFlDir, g_hFlList, g_hFlStatus;
 static HWND g_hOtList, g_hOtStatus, g_hOtPath;
 static HWND g_hExList, g_hExStatus;
@@ -943,6 +947,10 @@ static void CreateRgColumns(HWND hList, int tab)
         c.pszText = "Handle";  c.cx = 110; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Access";  c.cx = 110; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "Key Object"; c.cx = 640; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else if (tab == 2) {
+        c.pszText = "Value Name"; c.cx = 240; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Type";       c.cx = 170; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Data";       c.cx = 530; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
     } else {
         c.pszText = "RegPath"; c.cx = 700; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
         c.pszText = "Reason";  c.cx = 260; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
@@ -989,6 +997,38 @@ static void DoRefreshRegistry(void)
                   list.Count, (long)list.KeyTypeIndex);
         SetWindowTextA(g_hRgStatus, status);
         FeFreeRegistryHandles(&list);
+    } else if (g_RgTab == 2) {
+        FE_REG_VALUE_LIST list;
+        ULONG i;
+        char shown[640];
+        HWND ed = GetDlgItem(GetParent(g_hRgList), IDC_RG_PATH);
+        if (ed)
+            GetWindowTextA(ed, g_RgPath, (int)sizeof(g_RgPath));
+        if (!FeLoadRegValues(g_RgPath, &list)) {
+            sprintf_s(status, sizeof(status), "Key: cannot open %s (error %lu)",
+                      g_RgPath, (unsigned long)list.LastError);
+            SetWindowTextA(g_hRgStatus, status);
+            /* 路径不存在也要把输入框里的内容留下来，方便改 */
+            if (ed)
+                SetWindowTextA(ed, g_RgPath);
+            FeFreeRegValues(&list);
+            return;
+        }
+        for (i = 0; i < list.Count; i++) {
+            LVITEMA it;
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            it.pszText = list.Items[i].Name;
+            SendMessageA(g_hRgList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            RgSetText(g_hRgList, (int)i, 1, list.Items[i].Type);
+            RgSetText(g_hRgList, (int)i, 2, list.Items[i].Data);
+        }
+        /* 状态栏同时显示路径，截断到放得下 */
+        sprintf_s(shown, sizeof(shown), "%s", g_RgPath);
+        sprintf_s(status, sizeof(status), "Key: %s -> %lu values", shown, list.Count);
+        SetWindowTextA(g_hRgStatus, status);
+        FeFreeRegValues(&list);
     } else {
         FE_REG_HIDDEN_LIST list;
         ULONG i;
@@ -1866,7 +1906,12 @@ static void ShowPage(HWND hWnd, int page)
     if (g_hRgStatus) ShowWindow(g_hRgStatus, isRegistry ? SW_SHOW : SW_HIDE);
     {
         HWND hRg = GetDlgItem(hWnd, IDC_RG_REFRESH);
+        HWND hPath = GetDlgItem(hWnd, IDC_RG_PATH);
+        HWND hGo = GetDlgItem(hWnd, IDC_RG_GO);
         if (hRg) ShowWindow(hRg, isRegistry ? SW_SHOW : SW_HIDE);
+        /* 路径框只在 Key 子页出现 */
+        if (hPath) ShowWindow(hPath, (isRegistry && g_RgTab == 2) ? SW_SHOW : SW_HIDE);
+        if (hGo) ShowWindow(hGo, (isRegistry && g_RgTab == 2) ? SW_SHOW : SW_HIDE);
     }
 
     if (g_hFlDir)    ShowWindow(g_hFlDir,    isFile ? SW_SHOW : SW_HIDE);
@@ -2476,6 +2521,51 @@ static void DoDriverOp(int Op)
     }
 }
 
+/* 原版 Driver 页的 "Locate in Registry Tab"：跳到 Registry 页的 Key 子页，
+ * 直接打开 HKLM\SYSTEM\CurrentControlSet\Services\<驱动名>。 */
+static void DoLocateDriverInRegistry(void)
+{
+    char name[FE_DRV_NAME_CHARS];
+    HWND hPath, hGo;
+
+    if (!KmSelectedDriverName(name, sizeof(name))) {
+        SetWindowTextA(g_hKmStatus, "Select a driver row first");
+        return;
+    }
+    sprintf_s(g_RgPath, sizeof(g_RgPath),
+              "HKLM\\SYSTEM\\CurrentControlSet\\Services\\%s", name);
+
+    /* 切主 Tab 到 Registry（索引 5）；ShowPage 内部会同步 g_MainTab */
+    if (g_hMainTabs)
+        SendMessageA(g_hMainTabs, TCM_SETCURSEL, 5, 0);
+    if (g_hMainWnd)
+        ShowPage(g_hMainWnd, 5);
+
+    /* 切 Registry 子 Tab 到 Key（索引 2） */
+    g_RgTab = 2;
+    if (g_hRgTabs)
+        SendMessageA(g_hRgTabs, TCM_SETCURSEL, 2, 0);
+
+    hPath = GetDlgItem(g_hMainWnd, IDC_RG_PATH);
+    hGo = GetDlgItem(g_hMainWnd, IDC_RG_GO);
+    if (hPath) {
+        SetWindowTextA(hPath, g_RgPath);
+        ShowWindow(hPath, SW_SHOW);
+    }
+    if (hGo)
+        ShowWindow(hGo, SW_SHOW);
+
+    DoRefreshRegistry();
+    /* ShowPage 只在 Process 页重排布局，这里手动触发一次，让 Key 子页的
+       多一行路径框布局（状态栏下移、Tab 与列表跟着下移）生效 */
+    if (g_hMainWnd) {
+        RECT rc;
+        GetClientRect(g_hMainWnd, &rc);
+        SendMessageA(g_hMainWnd, WM_SIZE, SIZE_RESTORED,
+                     MAKELPARAM(rc.right, rc.bottom));
+    }
+}
+
 /* Driver 子页右键菜单：与原版一致的操作集合。 */
 static void DoDriverContextMenu(HWND hWnd, int X, int Y)
 {
@@ -2496,6 +2586,7 @@ static void DoDriverContextMenu(HWND hWnd, int X, int Y)
     AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuA(hMenu, MF_STRING, 4006, "Copy Driver Name");
     AppendMenuA(hMenu, MF_STRING, 4007, "Copy Driver Path");
+    AppendMenuA(hMenu, MF_STRING, 4008, "Locate in Registry Tab");
     if (X == -1 && Y == -1) {
         RECT rc;
         GetWindowRect(g_hKmList, &rc);
@@ -2513,6 +2604,7 @@ static void DoDriverContextMenu(HWND hWnd, int X, int Y)
     case 4005: DoDriverOp(DRVOP_DEL_FILE_REG); break;
     case 4006: DoCopyKmColumn(0, "Driver name"); break;
     case 4007: DoCopyKmColumn(3, "Driver path"); break;
+    case 4008: DoLocateDriverInRegistry();       break;
     default: break;
     }
 }
@@ -2663,13 +2755,23 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                       10, 76, 90, 28, hWnd, (HMENU)IDC_RG_REFRESH, hInst, NULL);
         g_hRgStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
                                     110, 82, 840, 20, hWnd, (HMENU)IDC_RG_STATUS, hInst, NULL);
+        /* Key 子页的路径框（只在选中 Key 子页时显示） */
+        {
+            HWND hPath = CreateWindowA("EDIT", g_RgPath,
+                                       WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
+                                       110, 76, 580, 24, hWnd, (HMENU)IDC_RG_PATH, hInst, NULL);
+            CreateWindowA("BUTTON", "Go", WS_CHILD | BS_PUSHBUTTON,
+                          698, 74, 50, 28, hWnd, (HMENU)IDC_RG_GO, hInst, NULL);
+            ShowWindow(hPath, SW_HIDE);
+            ShowWindow(GetDlgItem(hWnd, IDC_RG_GO), SW_HIDE);
+        }
         g_hRgTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
                                   10, 110, 940, 24, hWnd, (HMENU)IDC_RG_TABS, hInst, NULL);
         {
             TCITEMA t;
             int k;
-            static const char *rgNames[2] = { "Reg Handle", "Hidden Item" };
-            for (k = 0; k < 2; k++) {
+            static const char *rgNames[3] = { "Reg Handle", "Hidden Item", "Key" };
+            for (k = 0; k < 3; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)rgNames[k];
@@ -2994,13 +3096,27 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hFlList)   MoveWindow(g_hFlList, 10, listY + 20, w, listH - 20, TRUE);
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 5) {
-            int listY = pageTop + 64;
-            int listH = pageBottom - listY;
             HWND hRg = GetDlgItem(hWnd, IDC_RG_REFRESH);
+            HWND hPath = GetDlgItem(hWnd, IDC_RG_PATH);
+            HWND hGo = GetDlgItem(hWnd, IDC_RG_GO);
+            int tabsY, listY, listH;
+            if (g_RgTab == 2) {
+                /* Key 子页多一行路径框：Refresh | [path] [Go] / status / tabs / list */
+                tabsY = pageTop + 56;
+                listY = pageTop + 86;
+                if (hPath) MoveWindow(hPath, 110, pageTop + 2,
+                                      (w > 800 ? w - 330 : 300), 24, TRUE);
+                if (hGo) MoveWindow(hGo, (w > 800 ? w - 212 : 418), pageTop, 50, 28, TRUE);
+                if (g_hRgStatus) MoveWindow(g_hRgStatus, 110, pageTop + 30, w - 100, 20, TRUE);
+            } else {
+                tabsY = pageTop + 34;
+                listY = pageTop + 64;
+                if (g_hRgStatus) MoveWindow(g_hRgStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            }
+            listH = pageBottom - listY;
             if (listH < 100) listH = 100;
             if (hRg) MoveWindow(hRg, 10, pageTop, 90, 28, TRUE);
-            if (g_hRgStatus) MoveWindow(g_hRgStatus, 110, pageTop + 6, w - 100, 20, TRUE);
-            if (g_hRgTabs)   MoveWindow(g_hRgTabs, 10, pageTop + 34, w, 24, TRUE);
+            if (g_hRgTabs)   MoveWindow(g_hRgTabs, 10, tabsY, w, 24, TRUE);
             if (g_hRgList)   MoveWindow(g_hRgList, 10, listY, w, listH, TRUE);
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 7) {
@@ -3045,6 +3161,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
         case IDC_SV_REFRESH: DoRefreshServices(); return 0;
         case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
+        case IDC_RG_GO:      DoRefreshRegistry(); return 0;
         case IDC_FL_GO:      DoRefreshFiles(); return 0;
         case IDC_OT_VERIFY:  DoRefreshOther(); return 0;
         case IDC_EX_RUN:     DoRefreshExamination(); return 0;
@@ -3132,8 +3249,27 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
+            HWND hPath, hGo;
             g_RgTab = (int)SendMessageA(g_hRgTabs, TCM_GETCURSEL, 0, 0);
+            hPath = GetDlgItem(hWnd, IDC_RG_PATH);
+            hGo = GetDlgItem(hWnd, IDC_RG_GO);
+            if (hPath) {
+                ShowWindow(hPath, g_RgTab == 2 ? SW_SHOW : SW_HIDE);
+                if (g_RgTab == 2)
+                    SetWindowTextA(hPath, g_RgPath);
+                if (hGo)
+                    SetWindowTextA(hGo, "Go");
+                if (hGo)
+                    ShowWindow(hGo, g_RgTab == 2 ? SW_SHOW : SW_HIDE);
+            }
             DoRefreshRegistry();
+            /* Key 子页多一行路径框，切子页时要重排 */
+            {
+                RECT rc;
+                GetClientRect(hWnd, &rc);
+                SendMessageA(hWnd, WM_SIZE, SIZE_RESTORED,
+                             MAKELPARAM(rc.right, rc.bottom));
+            }
             return 0;
         }
         if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
@@ -3352,6 +3488,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     if (lpCmdLine && strstr(lpCmdLine, "--drvop-cli")) {
         FeDriverOpsCli(lpCmdLine);
         return 0;
+    }
+    if (lpCmdLine && strstr(lpCmdLine, "--regkey-cli")) {
+        const char *p = strstr(lpCmdLine, "--regkey-cli") + 12;
+        while (*p == ' ')
+            p++;
+        return FePrintRegValues(*p ? p : "HKLM\\SYSTEM\\CurrentControlSet\\Services") ? 0 : 1;
     }
     if (lpCmdLine && strstr(lpCmdLine, "--setting-cli")) {
         FE_OBJ_TYPES ot;
