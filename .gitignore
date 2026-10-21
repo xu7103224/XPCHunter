@@ -84,3 +84,6 @@ build/audit/ntoskrnl_19045.exe
 
 # IDA MCP 运行时目录（临时会话/缓存）
 .ida-mcp/
+
+# ntoskrnl.exe 本体（微软二进制，9.9MB）不入库；只保留派生出的导出映射
+build/audit/nt/*.exe

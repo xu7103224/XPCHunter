@@ -622,7 +622,46 @@ void InitCallbackContextHookTable(void);
 #define CMD_STAT_PID    0x4C00
 #define CMD_STAT_N       283
 #define CMD_OPEN_REC_SIZE 16
-#define CMD_ENV_SIZE     0x100
+/* 【2026-10-21 扩容 0x100 → 0x1C0】
+   0x100..0x15F：BuildHookTable 分步计数与目标槽采样；
+   0x160..0x1BF：0xA2 终止路径逐级 trace。
+   CMD_STAT_DIAG_OFFSET 随之右移，客户端（XPCHunterUM/src/probe.c）
+   必须用同一个常量，不能再硬编码。 */
+#define CMD_ENV_SIZE     0x1C0
+
+/* 【诊断 2026-10-21】BuildHookTable 分步计数（定义在 DriverEntry.c）。
+   0xA2 的三个前置槽 0x41DB/0x41C3/0x4334 都是 GT[0x4158+3k+2]，
+   即 BuildHookTable 写入的"解析出的绝对地址"槽。这些计数定位它停在哪一步。 */
+extern ULONG64 g_DiagHookPeBase;
+extern ULONG g_DiagHookPeSize;
+extern ULONG64 g_DiagHookImageBase;
+extern ULONG g_DiagHookExportCount;
+extern ULONG g_DiagHookIdxEntries;
+extern ULONG g_DiagHookIter;
+extern ULONG g_DiagHookHashZero;
+extern ULONG g_DiagHookHits;
+extern ULONG g_DiagHookWrites;
+extern ULONG g_DiagHookFirstIdxHash;
+extern ULONG g_DiagHookFirstIdxRva;
+extern ULONG g_DiagHookTargetHash;
+extern ULONG g_DiagHookPeLfanew;   /* GT[0x20] 的 e_lfanew（校验缓冲区确为 PE） */
+
+/* 【诊断 2026-10-21】 0xA2 终止路径逐级 trace（定义在 DriverEntry.c）。 */
+extern ULONG g_DiagKillStage;
+extern ULONG g_DiagKillBuild;
+extern ULONG g_DiagKillCheck1;
+extern ULONG g_DiagKillCheck2;
+extern ULONG g_DiagKillIsLegacy;
+extern ULONG g_DiagKillSdst;
+extern ULONG g_DiagKillDupRet;
+extern ULONG g_DiagKillTermRet;
+extern ULONG g_DiagKillDirectRet;
+extern ULONG64 g_DiagKillEp;
+extern ULONG64 g_DiagKillDirectFn;
+extern ULONG64 g_DiagKillCheckFn;
+extern ULONG64 g_DiagKillDupFn;
+extern ULONG64 g_DiagKillFreeFn;
+extern ULONG64 g_DiagKillTermFn;
 
 /* 【诊断 2026-10-21】结果字节无法区分"被拒"与"处理器执行后返回 0"：
    分派器在两条路径上都把输出首字节写成 0（见 DriverEntry.c 的说明），

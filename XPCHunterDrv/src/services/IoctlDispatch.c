@@ -2712,6 +2712,53 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0xF8) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4477); /* MatchOffset  */
     *(ULONG *)(Out + 0xFC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4414); /* AltMatchOffset*/
 
+    /* 【诊断 2026-10-21】BuildHookTable 分步计数 + 0xA2 的三个前置槽采样。
+       0x41DB / 0x41C3 / 0x4334 都是 GT[0x4158+3k+2]，由 BuildHookTable 的
+       `GtWrite(i+2, RVA + ImageBase)` 写入；为 0 说明整表没填出来。
+       这段落在 env 块扩容出来的 0x100..0x17F。 */
+    *(ULONG64 *)(Out + 0x100) = g_DiagHookPeBase;      /* GT[0x20] 展开镜像（QWORD） */
+    *(ULONG64 *)(Out + 0x108) = g_DiagHookImageBase;   /* GT[3]   运行期基址（QWORD）*/
+    *(ULONG *)(Out + 0x110) = g_DiagHookPeSize;        /* GT[0x21] 镜像大小   */
+    *(ULONG *)(Out + 0x114) = g_DiagHookPeLfanew;      /* GT[0x20] 的 e_lfanew */
+    *(ULONG *)(Out + 0x118) = g_DiagHookExportCount;   /* GetExportDirSize 返回 */
+    *(ULONG *)(Out + 0x11C) = g_DiagHookIdxEntries;    /* 索引表条目数        */
+    *(ULONG *)(Out + 0x120) = g_DiagHookIter;          /* 循环迭代次数        */
+    *(ULONG *)(Out + 0x124) = g_DiagHookHashZero;      /* 哈希槽为 0 的次数   */
+    *(ULONG *)(Out + 0x128) = g_DiagHookHits;          /* 查找命中次数        */
+    *(ULONG *)(Out + 0x12C) = g_DiagHookWrites;        /* 实际写入次数        */
+    *(ULONG *)(Out + 0x130) = g_DiagHookFirstIdxHash;  /* 索引表[0].hash      */
+    *(ULONG *)(Out + 0x134) = g_DiagHookFirstIdxRva;   /* 索引表[0].rva       */
+    *(ULONG *)(Out + 0x138) = g_DiagHookTargetHash;    /* GT[0x41D9] 目标哈希 */
+    *(ULONG *)(Out + 0x13C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x41DB); /* GtObjectTypeCheckFlag */
+    *(ULONG *)(Out + 0x140) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x41C3); /* DuplicateHandle      */
+    *(ULONG *)(Out + 0x144) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4334); /* ExFreePool           */
+    *(ULONG *)(Out + 0x148) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4159); /* 第 1 组 RVA          */
+    *(ULONG *)(Out + 0x14C) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x415A); /* 第 1 组 VA           */
+    *(ULONG *)(Out + 0x150) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x29C);  /* GtKernelDataField11  */
+    *(ULONG *)(Out + 0x154) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x29F);  /* GtKernelDataField13  */
+    *(ULONG *)(Out + 0x158) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)39);     /* GtSdstServiceCount   */
+
+    /* 【诊断 2026-10-21】 0xA2 TerminateProcessByEProcessOperation 逐级 trace。
+       stage：1=GT[0x41DB]为0 2=对象类型校验不过 3=legacy 路径
+              4=直接终止已调用 5=GT[0x42BC]为0 6=入参校验失败 */
+    *(ULONG *)(Out + 0x160) = g_DiagKillStage;
+    *(ULONG *)(Out + 0x164) = g_DiagKillBuild;
+    *(ULONG *)(Out + 0x168) = g_DiagKillCheck1;
+    *(ULONG *)(Out + 0x16C) = g_DiagKillCheck2;
+    *(ULONG *)(Out + 0x170) = g_DiagKillIsLegacy;
+    *(ULONG *)(Out + 0x174) = g_DiagKillSdst;
+    *(ULONG *)(Out + 0x178) = g_DiagKillDupRet;
+    *(ULONG *)(Out + 0x17C) = g_DiagKillTermRet;
+    *(ULONG *)(Out + 0x180) = g_DiagKillDirectRet;
+    *(ULONG64 *)(Out + 0x188) = g_DiagKillEp;
+    *(ULONG64 *)(Out + 0x190) = g_DiagKillDirectFn;
+    *(ULONG64 *)(Out + 0x198) = g_DiagKillCheckFn;
+    *(ULONG64 *)(Out + 0x1A0) = g_DiagKillDupFn;
+    *(ULONG64 *)(Out + 0x1A8) = g_DiagKillFreeFn;
+    *(ULONG64 *)(Out + 0x1B0) = g_DiagKillTermFn;
+    *(ULONG *)(Out + 0x1B8) = (ULONG)GtRead(GtTerminateProcessByEprocess);
+    *(ULONG *)(Out + 0x1BC) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x42BB);   /* 118 组 RVA 槽 */
+
     /* 【诊断 2026-10-21】按命令的分派器拒绝原因表 + 协议级拒绝计数表。
        用途：结果字节 0 无法区分"被拒"与"处理器执行完但设计上返回 0"，
        客户端据此把每条命令判为 HANDLED（处理器真的跑了）/ REJECTED(reason) /

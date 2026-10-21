@@ -4448,16 +4448,37 @@ void BuildHookTable(void)
     ImageBase = GtRead(GtNtoskrnlModuleBase);
     ExportDirVa = GtRead(GtEprocessField22);
     ExportDirSize = (unsigned int)GtRead(GtEprocessField23);
+
+    g_DiagHookImageBase = (ULONG64)ImageBase;
+    g_DiagHookPeBase = (ULONG64)ExportDirVa;
+    g_DiagHookPeSize = ExportDirSize;
+    g_DiagHookExportCount = 0;
+    g_DiagHookIdxEntries = 0;
+    g_DiagHookIter = 0;
+    g_DiagHookHashZero = 0;
+    g_DiagHookHits = 0;
+    g_DiagHookWrites = 0;
+    g_DiagHookFirstIdxHash = 0;
+    g_DiagHookFirstIdxRva = 0;
+    g_DiagHookTargetHash = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x41D9);
+    g_DiagHookPeLfanew = (ExportDirVa && ExportDirSize > 0x40)
+        ? *(int *)(ExportDirVa + 0x3C) : 0;
+
     if (ImageBase && ExportDirVa && ExportDirSize)
     {
         ExportCount = (unsigned int)GetExportDirSize(ExportDirVa, ExportDirSize);
+        g_DiagHookExportCount = ExportCount;
         if (ExportCount)
         {
             ExportRva = ExAlloc(PagedPool, 12LL * ExportCount);
             if (ExportRva)
             {
-                if ((unsigned int)BuildExportIndexTable(ExportDirVa, ExportDirSize, ExportRva, ExportCount, 0))
+                unsigned int IdxEntries = (unsigned int)BuildExportIndexTable(ExportDirVa, ExportDirSize, ExportRva, ExportCount, 0);
+                g_DiagHookIdxEntries = IdxEntries;
+                if (IdxEntries)
                 {
+                    g_DiagHookFirstIdxHash = *(unsigned int *)((PUCHAR)ExportRva + 4);
+                    g_DiagHookFirstIdxRva = *(unsigned int *)((PUCHAR)ExportRva + 8);
                     /* 【修正 2026-10-20】循环上界：原始 0x140003BDA `mov esi,4158h` 起，
                    0x140003C13 `cmp esi,447Ch` —— 上界是**立即数 0x447C**。
                    旧代码写成 `GtTotalSize | GtEprocessField114 | 0x400`
@@ -4468,13 +4489,22 @@ void BuildHookTable(void)
                      (unsigned int)TableIndex < 0x447Cu;
                      TableIndex = (enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 3))
                     {
-                        int FuncAddress = (int)GtRead(TableIndex);
-                        unsigned int ExportOffset = (unsigned int)LookupExportFuncAddr((__int64)ExportRva, ExportCount, FuncAddress);
+                        __int64 RawHash = GtRead(TableIndex);
+                        int FuncAddress = (int)RawHash;
+                        unsigned int ExportOffset;
+
+                        g_DiagHookIter++;
+                        if (!RawHash)
+                            g_DiagHookHashZero++;
+
+                        ExportOffset = (unsigned int)LookupExportFuncAddr((__int64)ExportRva, ExportCount, FuncAddress);
                         if (ExportOffset)
                         {
                             __int64 ExportAddress = ExportOffset;
+                            g_DiagHookHits++;
                             GtWrite((enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 1), ExportOffset);
                             GtWrite((enum _GLOBAL_TABLE_INDEX)((int)TableIndex + 2), ExportAddress + ImageBase);
+                            g_DiagHookWrites++;
                         }
                     }
                 }

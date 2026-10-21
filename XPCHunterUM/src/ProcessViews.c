@@ -648,8 +648,15 @@ BOOL FePrintProcessMemory(ULONG Pid)
 // 入参 16 字节 = { QWORD[0] = PID, QWORD[1] = EPROCESS（可为 0，由驱动按 PID 解析） }，
 // 输出无；结果字节 = 处理器返回值（1 成功）。
 // 处理器内部：PsLookupProcessByProcessId → 跳过当前进程/自身 →
-//             ZeroProcessMemoryPages + ProcessOperationWithAttach（终止）。
-// 另外 0xA2 CmdTerminateProcessByEProcess 走 EPROCESS 直接终止，接口同上。
+//             ZeroProcessMemoryPages + ProcessOperationWithAttach。
+//
+// 【2026-10-21 修正】0xA2 与 0x28 的入参格式**不同**，此前两者共用 16 字节输入，
+// 导致 0xA2 永远失败：
+//   0x28 CmdProcessOperation              要求 InputSize == 16，qword[0]=PID、qword[1]=EPROCESS
+//   0xA2 TerminateProcessByEProcessOperation 要求 InputSize == 8，qword[0]=**EPROCESS**
+//      （驱动 0x14004xxxx：`if (InputSize != 8) 直接返回 0`，随后把前 8 字节直接
+//        当 EPROCESS 解引用；实机 trace 停在该校验上，stage=6）
+// 所以按 ByEprocess 分别组装输入。
 //
 // 注意：这是**破坏性操作**，GUI 侧必须二次确认；测试时只对自建进程使用。
 // ---------------------------------------------------------------------------
@@ -657,15 +664,26 @@ BOOL FePrintProcessMemory(ULONG Pid)
 BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEprocess)
 {
     ULONG64 in[2];
-    ULONG cmd = ByEprocess ? 0xA2 : 0x28;
     UCHAR res = 0;
     BOOL ok;
 
     if (!Client || !Client->Opened || !Pid)
         return FALSE;
 
-    in[0] = (ULONG64)Pid;
-    in[1] = Eprocess;
-    ok = XpchInvoke(Client, cmd, in, sizeof(in), NULL, 0, &res);
+    if (ByEprocess)
+    {
+        /* 0xA2：只要 EPROCESS（8 字节）。 */
+        if (!Eprocess)
+            return FALSE;
+        in[0] = Eprocess;
+        ok = XpchInvoke(Client, 0xA2, in, 8, NULL, 0, &res);
+    }
+    else
+    {
+        /* 0x28：PID + EPROCESS（16 字节）。 */
+        in[0] = (ULONG64)Pid;
+        in[1] = Eprocess;
+        ok = XpchInvoke(Client, 0x28, in, sizeof(in), NULL, 0, &res);
+    }
     return ok;
 }

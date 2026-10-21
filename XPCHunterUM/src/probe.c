@@ -429,6 +429,59 @@ int main(int argc, char **argv)
                         printf("\n");
                     }
 
+                    /* --- BuildHookTable 分步诊断（2026-10-21）------------------
+                       0xA2 的三个前置槽 0x41DB/0x41C3/0x4334 都是
+                       GT[0x4158+3k+2]，由 BuildHookTable 的
+                       `GtWrite(i+2, RVA + ImageBase)` 写入。它们为 0 说明
+                       整张表没填出来；这些计数说明停在哪一步。 */
+                    printf("    --- BuildHookTable ---\n");
+                    printf("      PeBase=%p PeSize=0x%lX lfanew=0x%lX\n",
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x100),
+                           *(ULONG *)(env + 0x110),
+                           *(ULONG *)(env + 0x114));
+                    printf("      ImageBase=%p ExportCount=%lu IdxEntries=%lu\n",
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x108),
+                           *(ULONG *)(env + 0x118), *(ULONG *)(env + 0x11C));
+                    printf("      iter=%lu hashZero=%lu hits=%lu writes=%lu\n",
+                           *(ULONG *)(env + 0x120), *(ULONG *)(env + 0x124),
+                           *(ULONG *)(env + 0x128), *(ULONG *)(env + 0x12C));
+                    printf("      idx[0].hash=0x%lX idx[0].rva=0x%lX targetHash=0x%lX\n",
+                           *(ULONG *)(env + 0x130), *(ULONG *)(env + 0x134),
+                           *(ULONG *)(env + 0x138));
+                    printf("      GT[41DB]=0x%lX GT[41C3]=0x%lX GT[4334]=0x%lX\n",
+                           *(ULONG *)(env + 0x13C), *(ULONG *)(env + 0x140),
+                           *(ULONG *)(env + 0x144));
+                    printf("      GT[4159]=0x%lX GT[415A]=0x%lX\n",
+                           *(ULONG *)(env + 0x148), *(ULONG *)(env + 0x14C));
+                    printf("      GT[29C]=0x%lX GT[29F]=0x%lX GT[27]=0x%lX\n",
+                           *(ULONG *)(env + 0x150), *(ULONG *)(env + 0x154),
+                           *(ULONG *)(env + 0x158));
+
+                    /* --- 0xA2 终止路径 trace（2026-10-21）----------------
+                       stage：1=GT[0x41DB]为0 2=对象类型校验不过
+                              3=legacy 路径 4=直接终止已调用
+                              5=GT[0x42BC]为0 6=入参校验失败 */
+                    printf("    --- 0xA2 terminate trace ---\n");
+                    printf("      stage=%lu build=%lu isLegacy=%lu\n",
+                           *(ULONG *)(env + 0x160), *(ULONG *)(env + 0x164),
+                           *(ULONG *)(env + 0x170));
+                    printf("      check1=%lu check2=%lu sdst=%lu\n",
+                           *(ULONG *)(env + 0x168), *(ULONG *)(env + 0x16C),
+                           *(ULONG *)(env + 0x174));
+                    printf("      dupRet=%ld termRet=%lu directRet=0x%lX\n",
+                           (long)*(ULONG *)(env + 0x178),
+                           *(ULONG *)(env + 0x17C), *(ULONG *)(env + 0x180));
+                    printf("      Ep=%p\n",
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x188));
+                    printf("      DirectFn=%p (GT[0x42BC]=0x%lX)\n",
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x190),
+                           *(ULONG *)(env + 0x1B8));
+                    printf("      CheckFn=%p DupFn=%p FreeFn=%p TermFn=%p\n",
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x198),
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x1A0),
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x1A8),
+                           (void *)(ULONG_PTR)*(ULONG64 *)(env + 0x1B0));
+
                     /* --- 分派校准 -------------------------------------------------
                        结果字节 0 既可能是"被分派器拒绝"，也可能是"处理器执行完
                        但设计上返回 0"（例如 0x20 读进程内存、0x28 进程操作）。
@@ -438,7 +491,7 @@ int main(int argc, char **argv)
                          count==0 && diag==0      → NOT-ATTEMPTED（本轮没试过）
                        diag 表位于 env + CMD_ENV_SIZE（见 XPCHunterDrv.h）。 */
                     {
-                        const ULONG *diag = (const ULONG *)(const void *)(env + 0x100);
+                        const ULONG *diag = (const ULONG *)(const void *)(env + 0x1C0);
                         const ULONG *rej = diag + 283;
                         ULONG k, handled = 0, rejected = 0, unattempted = 0;
 

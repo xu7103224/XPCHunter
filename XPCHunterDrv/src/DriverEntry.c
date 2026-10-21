@@ -60,6 +60,55 @@ UCHAR g_DiagCmdTable;
 UCHAR g_DiagInitDone;
 
 /*
+ * BuildHookTable 分步诊断（2026-10-21）。
+ *
+ * 0xA2（TerminateProcessByEProcessOperation）的前置槽 0x41DB / 0x41C3 / 0x4334
+ * 实测为 0。这三个槽都是 GT[0x4158+3k+2]，即 BuildHookTable 写入的
+ * "解析出的绝对地址" 槽（见原始 0x140003B3C：GtWrite(i+1, RVA)、
+ * GtWrite(i+2, RVA+ImageBase)）。因此它们为 0 只能是 BuildHookTable
+ * 一个都没写成功。这几个计数器定位它停在哪一步。
+ */
+ULONG64 g_DiagHookPeBase;      /* GT[0x20]：展开后的 ntoskrnl 镜像（指针，勿截断） */
+ULONG g_DiagHookPeSize;        /* GT[0x21]：镜像大小 */
+ULONG64 g_DiagHookImageBase;   /* GT[3]：运行期基址（指针，勿截断） */
+ULONG g_DiagHookExportCount;   /* GetExportDirSize 返回值 */
+ULONG g_DiagHookIdxEntries;    /* BuildExportIndexTable 返回条目数 */
+ULONG g_DiagHookIter;          /* 循环迭代次数 */
+ULONG g_DiagHookHashZero;      /* 读到哈希为 0 的次数 */
+ULONG g_DiagHookHits;          /* LookupExportFuncAddr 命中次数 */
+ULONG g_DiagHookWrites;        /* 实际写入 i+1/i+2 的次数 */
+ULONG g_DiagHookFirstIdxHash;  /* 索引表第 0 条的 hash（判断表是否为空） */
+ULONG g_DiagHookFirstIdxRva;   /* 索引表第 0 条的 rva */
+ULONG g_DiagHookTargetHash;    /* GT[0x41D9]：0x41DB 那一组的哈希 */
+ULONG g_DiagHookPeLfanew;      /* GT[0x20] 的 e_lfanew（校验缓冲区确为 PE） */
+
+/*
+ * 0xA2 TerminateProcessByEProcessOperation 逐级 trace（2026-10-21）。
+ * 实测返回 0 且进程存活。该函数的成功路径由
+ * `GtWindowsBuildNumber < 0x1DB0`（7600 = Win7）选择：
+ *   IsLegacy==1 → DuplicateHandle 取句柄 + TerminateFunc（legacy 前置 6 个槽）
+ *   IsLegacy==0 → 直接调 GT[GtUninstallHookSyscallPeOffset | GtEprocessField138] = GT[0x42BC]
+ * Win10 18362 上 IsLegacy 恒为 0，所以真正前置是 GT[0x42BC]。
+ * stage：1=GT[0x41DB]为0  2=对象类型校验不过  3=legacy 路径
+ *        4=直接终止已调用  5=GT[0x42BC]为0  6=入参校验失败
+ */
+ULONG g_DiagKillStage;
+ULONG g_DiagKillBuild;
+ULONG g_DiagKillCheck1;
+ULONG g_DiagKillCheck2;
+ULONG g_DiagKillIsLegacy;
+ULONG g_DiagKillSdst;
+ULONG g_DiagKillDupRet;
+ULONG g_DiagKillTermRet;
+ULONG g_DiagKillDirectRet;
+ULONG64 g_DiagKillEp;
+ULONG64 g_DiagKillDirectFn;
+ULONG64 g_DiagKillCheckFn;
+ULONG64 g_DiagKillDupFn;
+ULONG64 g_DiagKillFreeFn;
+ULONG64 g_DiagKillTermFn;
+
+/*
  * 兼容性观测：每条命令的调用次数 / 最近结果 / 最近调用进程。
  * 索引 = Command - 0x20，共 283 项；由 DispatchDeviceControl 在
  * 处理器返回后更新，xpch_probe --stats 读取。

@@ -2381,6 +2381,15 @@ __int64 TerminateProcessByEProcessOperation(char *pInputBuffer, int InputSize, u
     __int64 Handle; // [rsp+58h] [rbp-30h] BYREF
     unsigned int SdstServiceCount;
 
+    /* 【诊断 2026-10-21】0xA2 实测返回 0 且进程存活。本函数的成功路径有两条，
+       由 `GtWindowsBuildNumber < 0x1DB0`（7600 = Win7）选择：
+         IsLegacy==1 → DuplicateHandleFunc 取句柄 + 临时清 KTHREAD 字段 + TerminateFunc
+         IsLegacy==0 → 直接调 GT[GtUninstallHookSyscallPeOffset | GtEprocessField138]
+       Win10 18362 上 IsLegacy 恒为 0，所以真正的前置是**后者那个槽**，
+       而不是先前记录的 6 个 legacy 前置。下面把每一级的实际取值记下来。 */
+    g_DiagKillStage = 0;
+    g_DiagKillBuild = (ULONG)GtRead(GtWindowsBuildNumber);
+
     Result = 0;
     if (pInputBuffer && InputSize == 8
         && (unsigned __int64)pInputBuffer < MmUserProbeAddress
@@ -2388,15 +2397,32 @@ __int64 TerminateProcessByEProcessOperation(char *pInputBuffer, int InputSize, u
     {
         ProbeForRead(pInputBuffer, 8, 8);
         EprocessAddr = *(__int64 *)pInputBuffer;
+        g_DiagKillEp = (ULONG64)EprocessAddr;
         CheckObjectTypeFunc = (unsigned __int8 (__fastcall *)(__int64))GtRead(GtObjectTypeCheckFlag);
         SdstServiceCount = (unsigned int)GtRead(GtSdstServiceCount);
         DuplicateHandleFunc = (int (__fastcall *)(__int64, __int64, _QWORD, __int64, _QWORD, _BYTE, __int64 *))GtRead(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54);
         KernelDataField11 = (_QWORD *)GtRead(GtKernelDataField11);
         FreeFunc = (void (__fastcall *)(__int64))GtRead(GtExFreePoolFunc);
         TerminateFunc = (unsigned int (__fastcall *)(__int64, _QWORD))GtRead(GtKernelDataField13);
-        if (CheckObjectTypeFunc)
+
+        g_DiagKillCheckFn = (ULONG64)CheckObjectTypeFunc;
+        g_DiagKillDupFn = (ULONG64)DuplicateHandleFunc;
+        g_DiagKillFreeFn = (ULONG64)FreeFunc;
+        g_DiagKillTermFn = (ULONG64)TerminateFunc;
+        g_DiagKillSdst = SdstServiceCount;
+
+        if (!CheckObjectTypeFunc)
         {
-            if (CheckObjectTypeFunc(EprocessAddr) == 1 && CheckObjectTypeFunc(EprocessAddr + 63) == 1)
+            g_DiagKillStage = 1;            /* GT[0x41DB] 为 0 */
+        }
+        else
+        {
+            ULONG Check1 = (ULONG)CheckObjectTypeFunc(EprocessAddr);
+            ULONG Check2 = (ULONG)CheckObjectTypeFunc(EprocessAddr + 63);
+            g_DiagKillCheck1 = Check1;
+            g_DiagKillCheck2 = Check2;
+
+            if (Check1 == 1 && Check2 == 1)
             {
                 IsLegacy = 0;
                 if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x1DB0
@@ -2408,27 +2434,46 @@ __int64 TerminateProcessByEProcessOperation(char *pInputBuffer, int InputSize, u
                 {
                     IsLegacy = *(char *)(EprocessAddr + 240) == 1;
                 }
+                g_DiagKillIsLegacy = IsLegacy ? 1 : 0;
+
                 if (IsLegacy)
                 {
+                    g_DiagKillStage = 3;    /* legacy 路径 */
                     if (SdstServiceCount != -1 && DuplicateHandleFunc && KernelDataField11 && FreeFunc && TerminateFunc
-                        && DuplicateHandleFunc(EprocessAddr, 512, 0, 0x10000000, *KernelDataField11, 0, &Handle) >= 0)
+                        && (g_DiagKillDupRet = (ULONG)DuplicateHandleFunc(EprocessAddr, 512, 0, 0x10000000, *KernelDataField11, 0, &Handle)) >= 0)
                     {
                         CurrentThread = KeGetCurrentThread();
                         SavedThreadField = *((char *)CurrentThread + SdstServiceCount);
                         *((char *)CurrentThread + SdstServiceCount) = 0;
                         Result = TerminateFunc(Handle, 0) == 0;
+                        g_DiagKillTermRet = (ULONG)Result;
                         *((char *)CurrentThread + SdstServiceCount) = SavedThreadField;
                         FreeFunc(Handle);
                     }
                 }
                 else
                 {
-                    DirectTerminateFunc = (__int64 (__fastcall *)(__int64))GtRead(GtUninstallHookSyscallPeOffset | GtEprocessField138);
+                    DirectTerminateFunc = (__int64 (__fastcall *)(__int64))GtRead(GtTerminateProcessByEprocess);
+                    g_DiagKillDirectFn = (ULONG64)DirectTerminateFunc;
                     if (DirectTerminateFunc)
-                        return DirectTerminateFunc(EprocessAddr);
+                    {
+                        __int64 DirectRet = DirectTerminateFunc(EprocessAddr);
+                        g_DiagKillStage = 4;    /* 直接终止路径已调用 */
+                        g_DiagKillDirectRet = (ULONG)DirectRet;
+                        return DirectRet;
+                    }
+                    g_DiagKillStage = 5;        /* GT[0x42BC] 为 0 */
                 }
             }
+            else
+            {
+                g_DiagKillStage = 2;            /* 对象类型校验不通过 */
+            }
         }
+    }
+    else
+    {
+        g_DiagKillStage = 6;                    /* 入参校验失败 */
     }
     return Result;
 }

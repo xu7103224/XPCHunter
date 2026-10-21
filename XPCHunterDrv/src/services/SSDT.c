@@ -329,44 +329,73 @@ __int64 LookupExportFuncAddr(__int64 ExportIndexTable, unsigned int EntryCount, 
 }
 
 // GetExportDirSize — 获取导出目录中的函数数量
-// 对应原始驱动 sub_140005800
+// 对应原始驱动 sub_140005800（0x140005800..0x1400058A2，48 条指令）
+//
+// 【2026-10-21 修正】旧实现的 IMAGE_EXPORT_DIRECTORY 字段偏移整体**错位一格**：
+//   把 +0x20 当作 AddressOfFunctions（实为 AddressOfNames）、+0x18 当作
+//   NumberOfFunctions（实为 NumberOfNames）、+0x24 当作 AddressOfNames
+//   （实为 AddressOfNameOrdinals）、+0x1C 当作 AddressOfNameOrdinals
+//   （实为 AddressOfFunctions）。返回的变量名叫 NumberOfFunctions，
+//   实际读的是 +0x18 = NumberOfNames，返回值恰好对，但四条边界校验全部
+//   校验在错误的表上，形同虚设。
+//
+// 原始语义（逐条对应反汇编）：
+//   0x14000580F  rax  = *(int*)(PeBase+0x3C)              ; e_lfanew
+//   0x140005818  r11d = *(ULONG*)(PeBase+rax+0x88)        ; ExportDirRva
+//   0x140005820  ecx  = *(ULONG*)(PeBase+rax+0x8C)        ; ExportDirSize
+//   0x140005827  edi  = ExportDirRva + ExportDirSize      ; ExportDirEnd
+//   四条范围校验：Rva < PeSize、Rva+0x28 < PeSize、Size < PeSize、End < PeSize
+//   0x140005843  AddressOfNames      = +0x20，须 >= ExportDirRva
+//   0x140005848  NumberOfNames       = +0x18
+//   Names 表：AddressOfNames + 4*NumberOfNames < ExportDirEnd，且 4*NumberOfNames < ExportDirSize
+//   0x140005865  AddressOfNameOrdinals = +0x24，须 >= ExportDirRva
+//   Ordinals 表：AddressOfNameOrdinals + 2*NumberOfNames < ExportDirEnd
+//   0x140005878  AddressOfFunctions  = +0x1C，须 >= ExportDirRva
+//   0x140005882  NumberOfFunctions   = +0x14
+//   0x14000588E  cmovb ebx, esi  → **返回 NumberOfNames**（不是 NumberOfFunctions！
+//                 IDA 自动生成的函数注释写的 "returns NumberOfFunctions" 是错的，
+//                 以 cmovb 的源操作数 esi = [+0x18] = NumberOfNames 为准）
 __int64 GetExportDirSize(__int64 PeBase, unsigned int PeSize)
 {
+    ULONG Result = 0;
     ULONG PeHeaderRva;
     ULONG ExportDirRva, ExportDirSize, ExportDirEnd;
-    ULONG AddressOfFunctions, NumberOfFunctions;
-    ULONG FuncTableSize;
-    ULONG AddressOfNames, AddressOfOrdinals;
+    ULONG AddressOfNames, NumberOfNames;
+    ULONG AddressOfNameOrdinals, AddressOfFunctions, NumberOfFunctions;
 
-    PeHeaderRva = *(int *)(PeBase + 60);
-    ExportDirRva = *(unsigned int *)(PeHeaderRva + PeBase + 136);
-    ExportDirSize = *(unsigned int *)(PeHeaderRva + PeBase + 140);
-    ExportDirEnd = ExportDirSize + ExportDirRva;
+    PeHeaderRva = *(int *)(PeBase + 0x3C);
+    ExportDirRva = *(unsigned int *)(PeBase + PeHeaderRva + 0x88);
+    ExportDirSize = *(unsigned int *)(PeBase + PeHeaderRva + 0x8C);
+    ExportDirEnd = ExportDirRva + ExportDirSize;
 
-    if (ExportDirRva >= PeSize || ExportDirRva + 40 >= PeSize ||
-        ExportDirSize >= PeSize || ExportDirEnd >= PeSize)
+    if (ExportDirRva >= PeSize
+        || ExportDirRva + 0x28 >= PeSize
+        || ExportDirSize >= PeSize
+        || ExportDirEnd >= PeSize)
         return 0;
 
-    AddressOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 32);
-    NumberOfFunctions = *(unsigned int *)(ExportDirRva + PeBase + 24);
+    AddressOfNames = *(unsigned int *)(PeBase + ExportDirRva + 0x20);
+    NumberOfNames = *(unsigned int *)(PeBase + ExportDirRva + 0x18);
 
-    if ((ULONG)AddressOfFunctions < ExportDirRva)
+    if (AddressOfNames < ExportDirRva
+        || AddressOfNames + 4 * NumberOfNames >= ExportDirEnd
+        || 4 * NumberOfNames >= ExportDirSize)
         return 0;
 
-    FuncTableSize = 4 * NumberOfFunctions;
-    if (FuncTableSize + AddressOfFunctions >= ExportDirEnd || FuncTableSize >= ExportDirSize)
+    AddressOfNameOrdinals = *(unsigned int *)(PeBase + ExportDirRva + 0x24);
+    if (AddressOfNameOrdinals < ExportDirRva
+        || AddressOfNameOrdinals + 2 * NumberOfNames >= ExportDirEnd)
         return 0;
 
-    AddressOfNames = *(unsigned int *)(ExportDirRva + PeBase + 36);
-    if ((ULONG)AddressOfNames < ExportDirRva || AddressOfNames + 2 * NumberOfFunctions >= ExportDirEnd)
+    AddressOfFunctions = *(unsigned int *)(PeBase + ExportDirRva + 0x1C);
+    if (AddressOfFunctions < ExportDirRva)
         return 0;
 
-    AddressOfOrdinals = *(unsigned int *)(ExportDirRva + PeBase + 28);
-    if ((ULONG)AddressOfOrdinals < ExportDirRva ||
-        AddressOfOrdinals + 4 * *(unsigned int *)(ExportDirRva + PeBase + 20) >= ExportDirEnd)
-        return 0;
+    NumberOfFunctions = *(unsigned int *)(PeBase + ExportDirRva + 0x14);
+    if (AddressOfFunctions + 4 * NumberOfFunctions < ExportDirEnd)
+        Result = NumberOfNames;
 
-    return NumberOfFunctions;
+    return Result;
 }
 
 // CheckSsdtHookIntegrity — 检查 SSDT Hook 完整性

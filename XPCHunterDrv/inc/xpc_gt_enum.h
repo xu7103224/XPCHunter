@@ -795,6 +795,15 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtNtCreateProcessPeSectionOffset = 0x429D,   // 17053: NtCreateProcess Hook PE 节区偏移
     GtDisableHookProtectionPeOffset = 0x42D9,    // 17113: 禁用 Hook 保护 PE 偏移
     GtUninstallHookSyscallPeOffset = 0x4228,     // 16936: 卸载 Hook 系统调用 PE 偏移
+    /* 【2026-10-21 实测修正】CmdTerminateProcessByEProcess(0xA2) 在
+       build >= 0x1DB0 分支上用的是**单一立即数** 0x42BC（原始 0x140054609
+       `mov ecx, 42BCh`）。此前本移植把它写成
+       `GtUninstallHookSyscallPeOffset | GtEprocessField138` = 0x4228|0x8A
+       = 0x42AA —— **错槽**：0x42AA 是 112 组（PsGetCurrentThreadId）的 VA 槽，
+       于是 0xA2 调用的是 PsGetCurrentThreadId，返回当前线程号 0x1308，
+       进程完全不受影响。0x42BC 是 118 组（KeCancelTimer）的 VA 槽，
+       其 RVA 槽为 0x42BB、哈希槽为 0x42BA。 */
+    GtTerminateProcessByEprocess = 0x42BC,       // 17084: 0xA2 在 Win10 上直接调用的函数（118 组 VA）
     GtNtDeleteKeyPeSectionOffset = 0x4393,       // 17299: NtDeleteKey Hook PE 节区偏移
     GtDisableHookProtectionAddr1 = 0x817,        // 2071: 禁用 Hook 保护目标地址 1(DisableHookProtection)
     GtDisableHookProtectionAddr2 = 0x818,        // 2072: 禁用 Hook 保护目标地址 2(DisableHookProtection)
