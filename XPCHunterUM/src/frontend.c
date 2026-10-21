@@ -72,6 +72,14 @@
 #define IDC_EX_EXPORT   1092
 #define IDC_EX_LIST     1093
 #define IDC_EX_STATUS   1094
+/* Fireeye 页 */
+#define IDC_FE_PATH     1100
+#define IDC_FE_ANALYSE  1101
+#define IDC_FE_OPEN     1102
+#define IDC_FE_RECORDS  1103
+#define IDC_FE_CLEAR    1104
+#define IDC_FE_LIST     1105
+#define IDC_FE_STATUS   1106
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -87,6 +95,9 @@ static HWND g_hOtList, g_hOtStatus, g_hOtPath;
 static HWND g_hExList, g_hExStatus;
 static FE_EXAM_RESULT g_ExamResult;
 static int g_ExamLoaded = 0;
+static HWND g_hFePath, g_hFeList, g_hFeStatus;
+static FE_FIREEYE_JOB g_FeJob;
+static int g_FeHasJob = 0;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -1182,6 +1193,124 @@ static void DoExportExamination(void)
     }
 }
 
+/* ---- Fireeye 页（主 Tab 11）---- */
+static void FeSetText(HWND h, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(h, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void DoFireeyeAnalyse(void)
+{
+    char path[MAX_PATH], status[512];
+    int rc;
+
+    if (!g_hFePath || !g_hFeList || !g_hFeStatus)
+        return;
+    GetWindowTextA(g_hFePath, path, sizeof(path));
+    if (!path[0]) {
+        SetWindowTextA(g_hFeStatus, "Enter a file path first");
+        return;
+    }
+    rc = FeFireeyePrecheck(path, &g_FeJob);
+    g_FeHasJob = (rc != 0);
+
+    ListView_DeleteAllItems(g_hFeList);
+    {
+        LVCOLUMNA c;
+        while (ListView_DeleteColumn(g_hFeList, 0))
+            ;
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        c.pszText = "Field"; c.cx = 160; c.iSubItem = 0; ListView_InsertColumn(g_hFeList, 0, &c);
+        c.pszText = "Value"; c.cx = 750; c.iSubItem = 1; ListView_InsertColumn(g_hFeList, 1, &c);
+    }
+    {
+        const char *base = path;
+        const char *p = path;
+        char msg[512], url[512];
+        while (*p) { if (*p == 92 || *p == 47) base = p + 1; p++; }
+
+        FeSetText(g_hFeList, 0, 0, "Path");
+        ListView_InsertItem(g_hFeList, NULL);
+        FeSetText(g_hFeList, 0, 1, path);
+
+        if (rc == 2) {
+            FeFireeyeMsMessage(base, msg, sizeof(msg));
+            FeSetText(g_hFeList, 1, 0, "Verdict");
+            ListView_InsertItem(g_hFeList, NULL);
+            FeSetText(g_hFeList, 1, 1, "DO NOT UPLOAD (Microsoft file)");
+            FeSetText(g_hFeList, 2, 0, "Message");
+            ListView_InsertItem(g_hFeList, NULL);
+            FeSetText(g_hFeList, 2, 1, msg);
+            FeSetText(g_hFeList, 3, 0, "Company");
+            ListView_InsertItem(g_hFeList, NULL);
+            FeSetText(g_hFeList, 3, 1, g_FeJob.Company);
+            sprintf_s(status, sizeof(status), "%s", msg);
+        } else if (rc == 0) {
+            FeSetText(g_hFeList, 1, 0, "Error");
+            ListView_InsertItem(g_hFeList, NULL);
+            FeSetText(g_hFeList, 1, 1, g_FeJob.Message);
+            sprintf_s(status, sizeof(status), "Analysis failed: %s", g_FeJob.Message);
+        } else {
+            FeSetText(g_hFeList, 1, 0, "SHA-256");
+            ListView_InsertItem(g_hFeList, NULL);
+            FeSetText(g_hFeList, 1, 1, g_FeJob.Sha256);
+            FeFireeyeBuildUrl(&g_FeJob, url, sizeof(url));
+            FeSetText(g_hFeList, 2, 0, "Query URL");
+            ListView_InsertItem(g_hFeList, NULL);
+            FeSetText(g_hFeList, 2, 1, url);
+            FeSetText(g_hFeList, 3, 0, "Upload");
+            ListView_InsertItem(g_hFeList, NULL);
+            FeSetText(g_hFeList, 3, 1,
+                      "not sent - click 'Open Query' to review in browser (user action)");
+            sprintf_s(status, sizeof(status),
+                      "Ready to query (SHA-256 computed); nothing uploaded yet. Records: %lu",
+                      FeFireeyeRecordCount());
+        }
+    }
+    SetWindowTextA(g_hFeStatus, status);
+}
+
+static void DoFireeyeRecords(void)
+{
+    FE_FIREEYE_RECORD_LIST rl;
+    ULONG i;
+    char status[256];
+
+    if (!g_hFeList || !g_hFeStatus)
+        return;
+    ListView_DeleteAllItems(g_hFeList);
+    {
+        LVCOLUMNA c;
+        while (ListView_DeleteColumn(g_hFeList, 0))
+            ;
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        c.pszText = "Time";   c.cx = 160; c.iSubItem = 0; ListView_InsertColumn(g_hFeList, 0, &c);
+        c.pszText = "SHA-256"; c.cx = 400; c.iSubItem = 1; ListView_InsertColumn(g_hFeList, 1, &c);
+        c.pszText = "Path";   c.cx = 360; c.iSubItem = 2; ListView_InsertColumn(g_hFeList, 2, &c);
+    }
+    if (!FeFireeyeListRecords(&rl)) {
+        sprintf_s(status, sizeof(status), "No upload records yet");
+        SetWindowTextA(g_hFeStatus, status);
+        return;
+    }
+    for (i = 0; i < rl.Count; i++) {
+        ListView_InsertItem(g_hFeList, NULL);
+        FeSetText(g_hFeList, (int)i, 0, rl.Items[i].Time);
+        FeSetText(g_hFeList, (int)i, 1, rl.Items[i].Sha256);
+        FeSetText(g_hFeList, (int)i, 2, rl.Items[i].Path);
+    }
+    sprintf_s(status, sizeof(status), "Upload records: %lu", rl.Count);
+    SetWindowTextA(g_hFeStatus, status);
+    FeFireeyeFreeRecords(&rl);
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -1192,6 +1321,7 @@ static void ShowPage(HWND hWnd, int page)
     int isFile = (page == 8);        /* 第 9 个 Tab = File */
     int isOther = (page == 13);      /* 第 14 个 Tab = Other */
     int isExam = (page == 9);        /* 第 10 个 Tab = Examination */
+    int isFireeye = (page == 11);    /* 第 12 个 Tab = Fireeye */
     char hint[512];
     HWND hKill, hRef;
 
@@ -1264,8 +1394,23 @@ static void ShowPage(HWND hWnd, int page)
         if (h3) ShowWindow(h3, isExam ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hFePath)   ShowWindow(g_hFePath,   isFireeye ? SW_SHOW : SW_HIDE);
+    if (g_hFeList)   ShowWindow(g_hFeList,   isFireeye ? SW_SHOW : SW_HIDE);
+    if (g_hFeStatus) ShowWindow(g_hFeStatus, isFireeye ? SW_SHOW : SW_HIDE);
+    {
+        HWND a = GetDlgItem(hWnd, IDC_FE_ANALYSE);
+        HWND b = GetDlgItem(hWnd, IDC_FE_OPEN);
+        HWND c = GetDlgItem(hWnd, IDC_FE_RECORDS);
+        HWND d = GetDlgItem(hWnd, IDC_FE_CLEAR);
+        if (a) ShowWindow(a, isFireeye ? SW_SHOW : SW_HIDE);
+        if (b) ShowWindow(b, isFireeye ? SW_SHOW : SW_HIDE);
+        if (c) ShowWindow(c, isFireeye ? SW_SHOW : SW_HIDE);
+        if (d) ShowWindow(d, isFireeye ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
-        if (isProc || isKernel || isStartup || isServices || isRegistry || isFile || isOther || isExam) {
+        if (isProc || isKernel || isStartup || isServices || isRegistry || isFile ||
+            isOther || isExam || isFireeye) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1605,6 +1750,25 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_EX_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hExList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
+        /* ---- Fireeye 页（主 Tab 11）---- */
+        g_hFePath = CreateWindowA("EDIT", "C:\Windows\System32\ntoskrnl.exe",
+                                  WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
+                                  10, 76, 520, 24, hWnd, (HMENU)IDC_FE_PATH, hInst, NULL);
+        CreateWindowA("BUTTON", "Analyse", WS_CHILD | BS_PUSHBUTTON,
+                      540, 74, 80, 28, hWnd, (HMENU)IDC_FE_ANALYSE, hInst, NULL);
+        CreateWindowA("BUTTON", "Open Query", WS_CHILD | BS_PUSHBUTTON,
+                      626, 74, 100, 28, hWnd, (HMENU)IDC_FE_OPEN, hInst, NULL);
+        CreateWindowA("BUTTON", "Records", WS_CHILD | BS_PUSHBUTTON,
+                      732, 74, 80, 28, hWnd, (HMENU)IDC_FE_RECORDS, hInst, NULL);
+        CreateWindowA("BUTTON", "Clear", WS_CHILD | BS_PUSHBUTTON,
+                      818, 74, 70, 28, hWnd, (HMENU)IDC_FE_CLEAR, hInst, NULL);
+        g_hFeStatus = CreateWindowA("STATIC", "Ready", WS_CHILD | SS_LEFT,
+                                    10, 106, 940, 20, hWnd, (HMENU)IDC_FE_STATUS, hInst, NULL);
+        g_hFeList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 130, 940, 480, hWnd, (HMENU)IDC_FE_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hFeList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1672,6 +1836,22 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 11) {
+            int listY = pageTop + 56;
+            int listH = pageBottom - listY;
+            HWND a = GetDlgItem(hWnd, IDC_FE_ANALYSE);
+            HWND b = GetDlgItem(hWnd, IDC_FE_OPEN);
+            HWND c = GetDlgItem(hWnd, IDC_FE_RECORDS);
+            HWND d = GetDlgItem(hWnd, IDC_FE_CLEAR);
+            if (listH < 100) listH = 100;
+            if (g_hFePath)   MoveWindow(g_hFePath, 10, pageTop, w - 420, 24, TRUE);
+            if (a) MoveWindow(a, w - 400, pageTop - 2, 80, 28, TRUE);
+            if (b) MoveWindow(b, w - 314, pageTop - 2, 100, 28, TRUE);
+            if (c) MoveWindow(c, w - 208, pageTop - 2, 80, 28, TRUE);
+            if (d) MoveWindow(d, w - 122, pageTop - 2, 70, 28, TRUE);
+            if (g_hFeStatus) MoveWindow(g_hFeStatus, 10, pageTop + 28, w, 20, TRUE);
+            if (g_hFeList)   MoveWindow(g_hFeList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 9) {
             int listY = pageTop + 34;
             int listH = pageBottom - listY;
@@ -1763,6 +1943,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_EX_RUN:     DoRefreshExamination(); return 0;
         case IDC_EX_CANCEL:  FeExamCancel(); return 0;
         case IDC_EX_EXPORT:  DoExportExamination(); return 0;
+        case IDC_FE_ANALYSE: DoFireeyeAnalyse(); return 0;
+        case IDC_FE_OPEN: {
+            char url[512];
+            if (g_FeHasJob && FeFireeyeBuildUrl(&g_FeJob, url, sizeof(url))) {
+                FeOpenUrl(url);
+                FeFireeyeAddRecord(&g_FeJob);
+                DoFireeyeRecords();
+            }
+            return 0;
+        }
+        case IDC_FE_RECORDS: DoFireeyeRecords(); return 0;
+        case IDC_FE_CLEAR:   FeFireeyeDeleteRecords(); DoFireeyeRecords(); return 0;
         }
         return 0;
 
@@ -1785,6 +1977,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshOther();
             if (page == 9)
                 DoRefreshExamination();
+            if (page == 11)
+                DoFireeyeAnalyse();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
@@ -1898,6 +2092,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--fireeye-cli")) {
+        const char *p = strstr(lpCmdLine, "--fireeye-cli") + 13;
+        char path[MAX_PATH]; size_t n = 0;
+        while (*p == ' ' || *p == '"') p++;
+        while (*p && *p != '"' && n + 1 < sizeof(path)) path[n++] = *p++;
+        while (n && (path[n-1] == 32 || path[n-1] == 13 || path[n-1] == 10)) path[--n] = 0;
+        return FePrintFireeye(path) ? 0 : 1;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--exam-cli"))
         return FePrintExamination() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--os-cli"))

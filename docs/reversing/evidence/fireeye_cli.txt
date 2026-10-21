@@ -1,0 +1,11 @@
+fireeye analysis for: C:\Windows\System32\ntoskrnl.exe
+  verdict : DO NOT UPLOAD
+  message : ntoskrnl.exe is belong to Microsoft,it don't upload to FireEye's site
+  company : Microsoft Corporation
+---- 
+fireeye analysis for: C:\Users\Public\xpch_frontend.exe
+  sha256  : 24263aa68672c11de384688e77f2f1d11ac855ce574022e22357c9c1c01972e3
+  query   : https://www.virscan.org/search?search=24263aa68672c11de384688e77f2f1d11ac855ce574022e22357c9c1c01972e3
+  note    : upload requires explicit user confirmation (GUI dialog)
+  records : 0 existing
+EXIT=0 

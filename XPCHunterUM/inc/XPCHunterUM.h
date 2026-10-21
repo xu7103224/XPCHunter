@@ -523,6 +523,43 @@ void FeExamCancel(void);
 void FeExamResetCancel(void);
 int  FeExamIsCancelled(void);
 
+/* ---- Fireeye 页（原版第 12 个主 Tab，7 项）----
+ * 云查客户端。**不自动发起网络请求**：
+ *   只做本地判定（微软签名 → 拒绝上传）、生成哈希查询 URL、记录上传历史。
+ *   文件本体上传未实现（火眼 API key 已失效）。 */
+typedef struct _FE_FIREEYE_JOB {
+    char Path[FE_FILE_PATH_CHARS];
+    char Sha256[72];
+    char Company[192];
+    char Message[192];
+    int  IsMicrosoft;
+} FE_FIREEYE_JOB;
+
+/* 返回：2=微软文件拒绝上传 1=可查询 0=失败 */
+int  FeFireeyePrecheck(const char *Path, FE_FIREEYE_JOB *Job);
+BOOL FeFireeyeBuildUrl(const FE_FIREEYE_JOB *Job, char *Out, size_t OutChars);
+void FeFireeyeMsMessage(const char *FileName, char *Out, size_t OutChars);
+BOOL FeFileSha256(const char *Path, char *OutHex, size_t OutChars);
+
+typedef struct _FE_FIREEYE_RECORD {
+    char Time[32];
+    char Sha256[72];
+    char Path[FE_FILE_PATH_CHARS];
+} FE_FIREEYE_RECORD;
+
+typedef struct _FE_FIREEYE_RECORD_LIST {
+    ULONG               Count;
+    ULONG               Capacity;
+    FE_FIREEYE_RECORD  *Items;
+} FE_FIREEYE_RECORD_LIST;
+
+BOOL   FeFireeyeAddRecord(const FE_FIREEYE_JOB *Job);
+ULONG  FeFireeyeRecordCount(void);
+BOOL   FeFireeyeListRecords(FE_FIREEYE_RECORD_LIST *List);
+void   FeFireeyeFreeRecords(FE_FIREEYE_RECORD_LIST *List);
+BOOL   FeFireeyeDeleteRecords(void);
+BOOL   FePrintFireeye(const char *Path);
+
 #ifdef __cplusplus
 }
 #endif
