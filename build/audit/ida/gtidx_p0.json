@@ -1,0 +1,5508 @@
+{
+  "n": 500,
+  "hits": [
+    {
+      "addr": "0x140001609",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140001609                 mov     rcx, 19Ah       ; Index"
+        }
+      ],
+      "function": "CallQuerySystemInformation",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003b54",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003B54                 mov     ecx, 3          ; Index"
+        }
+      ],
+      "function": "BuildHookTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003b5e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003B5E                 mov     ecx, 20h ; ' '  ; Index"
+        }
+      ],
+      "function": "BuildHookTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003b6b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003B6B                 mov     ecx, 21h ; '!'  ; Index"
+        }
+      ],
+      "function": "BuildHookTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003bd1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003BD1                 call    BuildExportIndexTable ; \u6784\u5efa\u5bfc\u51fa\u7d22\u5f15\u8868\u3002\u904d\u5386 PE \u5bfc\u51fa\u76ee\u5f55\uff0c\u8ba1\u7b97\u6bcf\u4e2a\u5bfc\u51fa\u51fd\u6570\u540d\u7684 SHA1 \u54c8\u5e0c\uff0c\u5b58\u50a8\u5230\u7d22\u5f15\u8868\u3002"
+        }
+      ],
+      "function": "BuildHookTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003bdf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003BDF                 mov     ecx, esi        ; Index"
+        }
+      ],
+      "function": "BuildHookTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003bf8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003BF8                 lea     ecx, [rsi+1]    ; Index"
+        }
+      ],
+      "function": "BuildHookTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003c08",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003C08                 lea     ecx, [rsi+2]    ; Index"
+        }
+      ],
+      "function": "BuildHookTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003c50",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003C50                 mov     ecx, 1          ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003c5d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003C5D                 xor     ecx, ecx        ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003c93",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003C93                 mov     ecx, esi        ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003c9a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003C9A                 lea     ecx, [rsi+1]    ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003cac",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003CAC                 lea     ecx, [rsi+2]    ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003cbe",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003CBE                 lea     ecx, [rsi+3]    ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003cd0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003CD0                 lea     ecx, [rsi+4]    ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003de9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003DE9                 mov     ecx, 2          ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003df6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003DF6                 mov     ecx, 3          ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003e00",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003E00                 mov     ecx, 9          ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003f42",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003F42                 mov     ecx, 2          ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003f51",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003F51                 mov     ecx, 3          ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003f5b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003F5B                 mov     ecx, 9          ; Index"
+        }
+      ],
+      "function": "InitSdstTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003fcd",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003FCD                 mov     ecx, 415Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003fdc",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003FDC                 mov     ecx, 4158h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003feb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003FEB                 mov     ecx, 415Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140003ffa",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140003FFA                 mov     ecx, 4161h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004009",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004009                 mov     ecx, 4164h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004018",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004018                 mov     ecx, 4167h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004027",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004027                 mov     ecx, 416Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004036",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004036                 mov     ecx, 416Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004045",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004045                 mov     ecx, 4170h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004054",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004054                 mov     ecx, 4173h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004063",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004063                 mov     ecx, 4176h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004072",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004072                 mov     ecx, 4179h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004081",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004081                 mov     ecx, 4188h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004090",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004090                 mov     ecx, 417Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000409f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000409F                 mov     ecx, 417Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400040ae",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400040AE                 mov     ecx, 4182h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400040bd",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400040BD                 mov     ecx, 4185h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400040cc",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400040CC                 mov     ecx, 418Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400040db",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400040DB                 mov     ecx, 418Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400040ea",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400040EA                 mov     ecx, 4191h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400040f9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400040F9                 mov     ecx, 4194h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004108",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004108                 mov     ecx, 4197h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004117",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004117                 mov     ecx, 419Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004126",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004126                 mov     ecx, 419Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004135",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004135                 mov     ecx, 41A0h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004144",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004144                 mov     ecx, 41A3h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004153",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004153                 mov     ecx, 41A6h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004162",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004162                 mov     ecx, 41A9h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004171",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004171                 mov     ecx, 41ACh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004180",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004180                 mov     ecx, 41AFh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000418f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000418F                 mov     ecx, 41B2h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000419e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000419E                 mov     ecx, 41B5h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400041ad",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400041AD                 mov     ecx, 41B8h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400041bc",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400041BC                 mov     ecx, 41BBh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400041cb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400041CB                 mov     ecx, 41BEh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400041da",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400041DA                 mov     ecx, 41C1h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400041e9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400041E9                 mov     ecx, 41C4h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400041f8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400041F8                 mov     ecx, 41C7h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004207",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004207                 mov     ecx, 41CAh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004216",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004216                 mov     ecx, 41CDh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004225",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004225                 mov     ecx, 41D0h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004234",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004234                 mov     ecx, 41D3h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004243",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004243                 mov     ecx, 41D6h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004252",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004252                 mov     ecx, 41D9h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004261",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004261                 mov     ecx, 41DCh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004270",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004270                 mov     ecx, 41DFh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000427f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000427F                 mov     ecx, 41E2h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000428e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000428E                 mov     ecx, 41E5h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000429d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000429D                 mov     ecx, 41E8h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400042ac",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400042AC                 mov     ecx, 41EBh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400042bb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400042BB                 mov     ecx, 41EEh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400042ca",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400042CA                 mov     ecx, 41F1h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400042d9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400042D9                 mov     ecx, 41F4h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400042e8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400042E8                 mov     ecx, 41F7h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400042f7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400042F7                 mov     ecx, 41FAh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004306",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004306                 mov     ecx, 41FDh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004315",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004315                 mov     ecx, 4200h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004324",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004324                 mov     ecx, 4203h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004333",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004333                 mov     ecx, 4206h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004342",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004342                 mov     ecx, 4209h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004351",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004351                 mov     ecx, 420Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004360",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004360                 mov     ecx, 420Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000436f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000436F                 mov     ecx, 4212h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000437e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000437E                 mov     ecx, 4215h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000438d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000438D                 mov     ecx, 4218h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000439c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000439C                 mov     ecx, 421Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400043ab",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400043AB                 mov     ecx, 421Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400043ba",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400043BA                 mov     ecx, 4221h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400043c9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400043C9                 mov     ecx, 4224h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400043d8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400043D8                 mov     ecx, 4227h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400043e7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400043E7                 mov     ecx, 422Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400043f6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400043F6                 mov     ecx, 422Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004405",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004405                 mov     ecx, 4230h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004414",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004414                 mov     ecx, 4236h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004423",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004423                 mov     ecx, 4233h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004432",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004432                 mov     ecx, 4239h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004441",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004441                 mov     ecx, 423Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004450",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004450                 mov     ecx, 423Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000445f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000445F                 mov     ecx, 4242h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000446e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000446E                 mov     ecx, 4245h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000447d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000447D                 mov     ecx, 4248h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000448c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000448C                 mov     ecx, 424Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000449b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000449B                 mov     ecx, 424Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400044aa",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400044AA                 mov     ecx, 4251h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400044b9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400044B9                 mov     ecx, 4254h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400044c8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400044C8                 mov     ecx, 4257h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400044d7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400044D7                 mov     ecx, 425Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400044e6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400044E6                 mov     ecx, 425Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400044f5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400044F5                 mov     ecx, 4260h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004504",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004504                 mov     ecx, 4263h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004513",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004513                 mov     ecx, 4266h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004522",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004522                 mov     ecx, 4269h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004531",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004531                 mov     ecx, 426Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004540",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004540                 mov     ecx, 426Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000454f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000454F                 mov     ecx, 4272h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000455e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000455E                 mov     ecx, 4275h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000456d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000456D                 mov     ecx, 4278h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000457c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000457C                 mov     ecx, 427Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000458b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000458B                 mov     ecx, 427Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000459a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000459A                 mov     ecx, 4281h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400045a9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400045A9                 mov     ecx, 4284h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400045b8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400045B8                 mov     ecx, 4287h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400045c7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400045C7                 mov     ecx, 428Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400045d6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400045D6                 mov     ecx, 428Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400045e5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400045E5                 mov     ecx, 4290h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400045f4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400045F4                 mov     ecx, 4293h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004603",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004603                 mov     ecx, 4296h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004612",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004612                 mov     ecx, 4299h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004621",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004621                 mov     ecx, 429Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004630",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004630                 mov     ecx, 429Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000463f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000463F                 mov     ecx, 42A2h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000464e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000464E                 mov     ecx, 42A5h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000465d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000465D                 mov     ecx, 42A8h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000466c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000466C                 mov     ecx, 42ABh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000467b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000467B                 mov     ecx, 42AEh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000468a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000468A                 mov     ecx, 42B1h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004699",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004699                 mov     ecx, 42B4h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400046a8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400046A8                 mov     ecx, 42B7h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400046b7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400046B7                 mov     ecx, 42BAh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400046c6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400046C6                 mov     ecx, 42BDh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400046d5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400046D5                 mov     ecx, 42C0h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400046e4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400046E4                 mov     ecx, 42C3h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400046f3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400046F3                 mov     ecx, 42C6h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004702",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004702                 mov     ecx, 42C9h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004711",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004711                 mov     ecx, 42CCh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004720",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004720                 mov     ecx, 42CFh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000472f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000472F                 mov     ecx, 42D2h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000473e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000473E                 mov     ecx, 42D5h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000474d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000474D                 mov     ecx, 42D8h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000475c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000475C                 mov     ecx, 42DBh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000476b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000476B                 mov     ecx, 42DEh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000477a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000477A                 mov     ecx, 42E1h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004789",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004789                 mov     ecx, 42E4h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004798",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004798                 mov     ecx, 42E7h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400047a7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400047A7                 mov     ecx, 42EAh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400047b6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400047B6                 mov     ecx, 42EDh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400047c5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400047C5                 mov     ecx, 42F0h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400047d4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400047D4                 mov     ecx, 42F3h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400047e3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400047E3                 mov     ecx, 42F6h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400047f2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400047F2                 mov     ecx, 42F9h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004801",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004801                 mov     ecx, 42FCh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004810",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004810                 mov     ecx, 42FFh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000481f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000481F                 mov     ecx, 4302h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000482e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000482E                 mov     ecx, 4305h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000483d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000483D                 mov     ecx, 4308h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000484c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000484C                 mov     ecx, 430Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000485b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000485B                 mov     ecx, 430Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000486a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000486A                 mov     ecx, 4311h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004879",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004879                 mov     ecx, 4314h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004888",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004888                 mov     ecx, 4317h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004897",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004897                 mov     ecx, 431Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400048a6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400048A6                 mov     ecx, 431Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400048b5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400048B5                 mov     ecx, 4320h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400048c4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400048C4                 mov     ecx, 4323h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400048d3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400048D3                 mov     ecx, 4326h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400048e2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400048E2                 mov     ecx, 4329h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400048f1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400048F1                 mov     ecx, 432Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004900",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004900                 mov     ecx, 432Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000490f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000490F                 mov     ecx, 4332h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000491e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000491E                 mov     ecx, 4335h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000492d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000492D                 mov     ecx, 4338h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000493c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000493C                 mov     ecx, 433Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000494b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000494B                 mov     ecx, 433Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000495a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000495A                 mov     ecx, 4341h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004969",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004969                 mov     ecx, 4344h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004978",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004978                 mov     ecx, 4347h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004987",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004987                 mov     ecx, 434Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004996",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004996                 mov     ecx, 434Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400049a5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400049A5                 mov     ecx, 4350h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400049b4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400049B4                 mov     ecx, 4353h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400049c3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400049C3                 mov     ecx, 4356h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400049d2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400049D2                 mov     ecx, 4359h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400049e1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400049E1                 mov     ecx, 435Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400049f0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400049F0                 mov     ecx, 435Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400049ff",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400049FF                 mov     ecx, 4362h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a0e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A0E                 mov     ecx, 4365h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a1d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A1D                 mov     ecx, 4368h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a2c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A2C                 mov     ecx, 436Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a3b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A3B                 mov     ecx, 436Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a4a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A4A                 mov     ecx, 4371h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a59",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A59                 mov     ecx, 4374h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a68",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A68                 mov     ecx, 4377h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a77",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A77                 mov     ecx, 437Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a86",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A86                 mov     ecx, 437Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004a95",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004A95                 mov     ecx, 4380h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004aa4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004AA4                 mov     ecx, 4383h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ab3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004AB3                 mov     ecx, 4386h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ac2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004AC2                 mov     ecx, 4389h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ad1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004AD1                 mov     ecx, 438Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ae0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004AE0                 mov     ecx, 438Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004aef",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004AEF                 mov     ecx, 4392h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004afe",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004AFE                 mov     ecx, 4395h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b0d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B0D                 mov     ecx, 4398h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b1c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B1C                 mov     ecx, 439Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b2b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B2B                 mov     ecx, 439Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b3a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B3A                 mov     ecx, 43A1h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b49",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B49                 mov     ecx, 43A4h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b58",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B58                 mov     ecx, 43A7h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b67",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B67                 mov     ecx, 43AAh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b76",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B76                 mov     ecx, 43ADh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b85",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B85                 mov     ecx, 43B0h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004b94",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004B94                 mov     ecx, 43B3h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ba3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004BA3                 mov     ecx, 43B6h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004bb2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004BB2                 mov     ecx, 43B9h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004bc1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004BC1                 mov     ecx, 43BCh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004bd0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004BD0                 mov     ecx, 43BFh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004bdf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004BDF                 mov     ecx, 43C2h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004bee",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004BEE                 mov     ecx, 43C5h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004bfd",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004BFD                 mov     ecx, 43C8h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c0c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C0C                 mov     ecx, 43CBh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c1b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C1B                 mov     ecx, 43CEh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c2a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C2A                 mov     ecx, 43D1h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c39",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C39                 mov     ecx, 43D4h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c48",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C48                 mov     ecx, 43D7h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c57",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C57                 mov     ecx, 43DAh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c66",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C66                 mov     ecx, 43DDh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c75",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C75                 mov     ecx, 43E0h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c84",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C84                 mov     ecx, 43E3h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004c93",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004C93                 mov     ecx, 43E6h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ca2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004CA2                 mov     ecx, 43E9h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004cb1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004CB1                 mov     ecx, 43ECh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004cc0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004CC0                 mov     ecx, 43EFh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ccf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004CCF                 mov     ecx, 43F2h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004cde",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004CDE                 mov     ecx, 43F5h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ced",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004CED                 mov     ecx, 43F8h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004cfc",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004CFC                 mov     ecx, 43FBh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d0b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D0B                 mov     ecx, 43FEh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d1a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D1A                 mov     ecx, 4401h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d29",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D29                 mov     ecx, 4404h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d38",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D38                 mov     ecx, 4407h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d47",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D47                 mov     ecx, 440Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d56",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D56                 mov     ecx, 440Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d65",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D65                 mov     ecx, 4410h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d74",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D74                 mov     ecx, 4413h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d83",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D83                 mov     ecx, 4416h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004d92",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004D92                 mov     ecx, 4419h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004da1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004DA1                 mov     ecx, 441Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004db0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004DB0                 mov     ecx, 441Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004dbf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004DBF                 mov     ecx, 4422h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004dce",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004DCE                 mov     ecx, 4425h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ddd",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004DDD                 mov     ecx, 4428h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004dec",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004DEC                 mov     ecx, 442Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004dfb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004DFB                 mov     ecx, 442Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e0a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E0A                 mov     ecx, 4431h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e19",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E19                 mov     ecx, 4434h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e28",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E28                 mov     ecx, 4437h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e37",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E37                 mov     ecx, 443Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e46",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E46                 mov     ecx, 443Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e55",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E55                 mov     ecx, 4440h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e64",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E64                 mov     ecx, 4443h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e73",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E73                 mov     ecx, 4446h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e82",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E82                 mov     ecx, 4449h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004e91",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004E91                 mov     ecx, 444Ch      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ea0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004EA0                 mov     ecx, 444Fh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004eaf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004EAF                 mov     ecx, 4452h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ebe",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004EBE                 mov     ecx, 4455h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004ecd",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004ECD                 mov     ecx, 4458h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004edc",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004EDC                 mov     ecx, 445Bh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004eeb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004EEB                 mov     ecx, 445Eh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004efa",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004EFA                 mov     ecx, 4461h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f09",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F09                 mov     ecx, 4464h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f18",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F18                 mov     ecx, 4467h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f27",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F27                 mov     ecx, 446Ah      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f36",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F36                 mov     ecx, 446Dh      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f45",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F45                 mov     ecx, 4470h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f54",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F54                 mov     ecx, 4473h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f63",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F63                 mov     ecx, 4476h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140004f72",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140004F72                 mov     ecx, 4479h      ; Index"
+        }
+      ],
+      "function": "InitSyscallNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005103",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005103                 lea     ecx, [rbx+20h]  ; Index"
+        }
+      ],
+      "function": "CheckSsdtHookIntegrity",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000510e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000510E                 lea     ecx, [rbx+21h]  ; Index"
+        }
+      ],
+      "function": "CheckSsdtHookIntegrity",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005119",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005119                 lea     ecx, [rbx+3]    ; Index"
+        }
+      ],
+      "function": "CheckSsdtHookIntegrity",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005124",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005124                 lea     ecx, [rbx+2]    ; Index"
+        }
+      ],
+      "function": "CheckSsdtHookIntegrity",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005165",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005165                 mov     ecx, esi        ; Index"
+        }
+      ],
+      "function": "CheckSsdtHookIntegrity",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005173",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005173                 mov     ecx, esi        ; Index"
+        }
+      ],
+      "function": "CheckSsdtHookIntegrity",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400051c9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400051C9                 mov     ecx, 304h       ; Index"
+        }
+      ],
+      "function": "CheckSsdtHookIntegrity",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005204",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005204                 lea     ecx, [rbx+4]    ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000520c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000520C                 lea     ecx, [rbx+3]    ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400052c4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400052C4                 lea     ecx, [rbx+20h]  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400052cf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400052CF                 lea     ecx, [rbx+21h]  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400052db",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400052DB                 mov     ecx, 22h ; '\"'  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400052f9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400052F9                 mov     ecx, 23h ; '#'  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005307",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005307                 mov     ecx, 24h ; '$'  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005314",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005314                 mov     ecx, 4Ch ; 'L'  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005322",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005322                 mov     ecx, 4Dh ; 'M'  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000533d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000533D                 mov     ecx, 4Eh ; 'N'  ; Index"
+        }
+      ],
+      "function": "ReadNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000537e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000537E                 mov     ecx, 20h ; ' '  ; Index"
+        }
+      ],
+      "function": "CleanupNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005388",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005388                 mov     ecx, 4Ch ; 'L'  ; Index"
+        }
+      ],
+      "function": "CleanupNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400053a7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400053A7                 lea     ecx, [rdx+20h]  ; Index"
+        }
+      ],
+      "function": "CleanupNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400053be",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400053BE                 lea     ecx, [rdx+4Ch]  ; Index"
+        }
+      ],
+      "function": "CleanupNtoskrnlFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005484",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005484 ; __int64 __fastcall FindExportByNameInPeBody(__int64, unsigned int, __int64, int)"
+        }
+      ],
+      "function": "FindExportByNameInPeBody",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140005610",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140005610 ; __int64 __fastcall BuildExportIndexTable(__int64, unsigned int, _BYTE *, unsigned int, unsigned __int8 (__fastcall *)(__int64))"
+        }
+      ],
+      "function": "BuildExportIndexTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400061ea",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400061EA                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "ParseNtImageSectionHeaders",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006406",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006406                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "BuildExportServiceTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006418",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006418                 mov     ecx, 312h       ; Index"
+        }
+      ],
+      "function": "BuildExportServiceTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006425",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006425                 mov     ecx, 11D8h      ; Index"
+        }
+      ],
+      "function": "BuildExportServiceTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006434",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006434                 mov     ecx, 313h       ; Index"
+        }
+      ],
+      "function": "BuildExportServiceTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006441",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006441                 mov     ecx, 1568h      ; Index"
+        }
+      ],
+      "function": "BuildExportServiceTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000666a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000666A                 call    FindExportByNameInPeBody ; \u5728 PE \u6587\u4ef6\u4e2d\u6309\u540d\u79f0\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u904d\u5386\u5bfc\u51fa\u540d\u79f0\u8868\uff0c\u6bd4\u8f83\u5b57\u7b26\u4e32\uff0c\u8fd4\u56de\u5bf9\u5e94 RVA\u3002"
+        }
+      ],
+      "function": "ResolveWin32kServiceTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400066a0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400066A0                 mov     ecx, 313h       ; Index"
+        }
+      ],
+      "function": "ResolveWin32kServiceTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006710",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006710                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "BuildPeServiceNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006757",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006757                 mov     ecx, 11D8h      ; Index"
+        }
+      ],
+      "function": "BuildPeServiceNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000676d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000676D                 mov     ecx, 1568h      ; Index"
+        }
+      ],
+      "function": "BuildPeServiceNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006777",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006777                 mov     ecx, 311h       ; Index"
+        }
+      ],
+      "function": "BuildPeServiceNumberTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000681d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000681D                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "CopyValidServiceEntries",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006838",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006838                 mov     ecx, 1568h      ; Index"
+        }
+      ],
+      "function": "CopyValidServiceEntries",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006905",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006905                 lea     ecx, [rdi+2Bh]  ; Index"
+        }
+      ],
+      "function": "ParseNtRelocationTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006918",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006918                 mov     ecx, 312h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocationTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006927",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006927                 mov     ecx, 810h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocationTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000693c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000693C                 mov     ecx, 313h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocationTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006949",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006949                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocationTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006cf3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006CF3                 mov     ecx, 311h       ; Index"
+        }
+      ],
+      "function": "EnableProcessProtect",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006d13",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006D13                 mov     ecx, 311h       ; Index"
+        }
+      ],
+      "function": "EnableProcessProtect",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006d31",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006D31                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "EnableProcessProtect",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006d3d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006D3D                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "EnableProcessProtect",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140006f5b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140006F5B                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "WriteProcessMemoryValue",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400071e3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400071E3                 mov     ecx, 314h       ; Index"
+        }
+      ],
+      "function": "WriteProcessMemoryBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000793d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000793D                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "ResolveWin32kServiceTableEx",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140007d86",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140007D86                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "DisableObjectProtectEx",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140007d93",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140007D93                 mov     ecx, 4238h      ; Index"
+        }
+      ],
+      "function": "DisableObjectProtectEx",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140007da0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140007DA0                 mov     ecx, 41C6h      ; Index"
+        }
+      ],
+      "function": "DisableObjectProtectEx",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140007dad",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140007DAD                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "DisableObjectProtectEx",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140007dbf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140007DBF                 mov     ecx, 4334h      ; Index"
+        }
+      ],
+      "function": "DisableObjectProtectEx",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140007f68",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140007F68                 mov     ecx, 41DBh      ; Index"
+        }
+      ],
+      "function": "WalkObjectTypeList",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140007fdc",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140007FDC                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "WalkObjectTypeList",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008048",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008048                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "WalkObjectTypeList",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008315",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008315                 mov     ecx, 43E8h      ; Index"
+        }
+      ],
+      "function": "EnableObjectProtect",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400083e6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400083E6                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "QueryDriverObjectByPath",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400083f8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400083F8                 mov     ecx, 421Ah      ; Index"
+        }
+      ],
+      "function": "QueryDriverObjectByPath",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008405",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008405                 mov     ecx, 4160h      ; Index"
+        }
+      ],
+      "function": "QueryDriverObjectByPath",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008412",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008412                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "QueryDriverObjectByPath",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008538",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008538                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "EnumDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008546",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008546                 mov     ecx, 4235h      ; Index"
+        }
+      ],
+      "function": "EnumDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008554",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008554                 mov     ecx, 41C6h      ; Index"
+        }
+      ],
+      "function": "EnumDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008562",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008562                 mov     ecx, 422Fh      ; Index"
+        }
+      ],
+      "function": "EnumDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000856f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000856F                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "EnumDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000857c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000857C                 mov     ecx, 4334h      ; Index"
+        }
+      ],
+      "function": "EnumDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400087d5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400087D5                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "QueryDriverObjectDevice",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400087e4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400087E4                 mov     ecx, 4256h      ; Index"
+        }
+      ],
+      "function": "QueryDriverObjectDevice",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400087f1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400087F1                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "QueryDriverObjectDevice",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008d19",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008D19                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "EnumFileSystemDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008d28",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008D28                 mov     ecx, 4256h      ; Index"
+        }
+      ],
+      "function": "EnumFileSystemDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008d35",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008D35                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "EnumFileSystemDeviceObjects",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008e79",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008E79                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "RemoveObjectListEntry",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008e88",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008E88                 mov     ecx, 421Ah      ; Index"
+        }
+      ],
+      "function": "RemoveObjectListEntry",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008e95",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008E95                 mov     ecx, 4160h      ; Index"
+        }
+      ],
+      "function": "RemoveObjectListEntry",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008ea2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008EA2                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "RemoveObjectListEntry",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008fb0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008FB0                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "OpenDeviceObjectForEnum",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008fbc",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008FBC                 mov     ecx, 4235h      ; Index"
+        }
+      ],
+      "function": "OpenDeviceObjectForEnum",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008fca",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008FCA                 mov     ecx, 41C6h      ; Index"
+        }
+      ],
+      "function": "OpenDeviceObjectForEnum",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008fd7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008FD7                 mov     ecx, 422Fh      ; Index"
+        }
+      ],
+      "function": "OpenDeviceObjectForEnum",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008fe4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008FE4                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "OpenDeviceObjectForEnum",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140008ff1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140008FF1                 mov     ecx, 4334h      ; Index"
+        }
+      ],
+      "function": "OpenDeviceObjectForEnum",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000922b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000922B                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "RemoveDeviceObject",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140009237",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140009237                 mov     ecx, 4256h      ; Index"
+        }
+      ],
+      "function": "RemoveDeviceObject",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140009244",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140009244                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "RemoveDeviceObject",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x140009713",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:0000000140009713                 mov     ecx, 421Dh      ; Index"
+        }
+      ],
+      "function": "RemoveHarddiskVolume1Device",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000971f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000971F                 mov     ecx, 4256h      ; Index"
+        }
+      ],
+      "function": "RemoveHarddiskVolume1Device",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000972c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000972C                 mov     ecx, 4223h      ; Index"
+        }
+      ],
+      "function": "RemoveHarddiskVolume1Device",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x1400099b8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:00000001400099B8                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "CmdEnumObjectAllTypes",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a0bb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A0BB                 lea     ecx, [rbx+6Ch]  ; Index"
+        }
+      ],
+      "function": "InitRegCallback",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a0c7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A0C7                 lea     ecx, [rbx+6Ch]  ; Index"
+        }
+      ],
+      "function": "InitRegCallback",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a174",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A174                 call    FindExportEntryByName ; \u6309\u540d\u79f0\u67e5\u627e\u5bfc\u51fa\u6761\u76ee\u3002\u5728\u6a21\u5757\u7f13\u51b2\u533a\u4e2d\u5339\u914d\u9a71\u52a8\u5bf9\u8c61\u548c\u51fd\u6570\u5730\u5740\uff0c\u590d\u5236\u4e0b\u4e00\u4e2a\u6761\u76ee\u5230\u8f93\u51fa\u7f13\u51b2\u533a\u3002"
+        }
+      ],
+      "function": "InitRegCallback",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a1c1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A1C1                 lea     ecx, [rbx+6Bh]  ; Index"
+        }
+      ],
+      "function": "FindRegCallbackEntry",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a244",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A244 ; __int64 __fastcall ParseExportDirAndBuildIndex(__int64, unsigned int, __int64, __int64, __int64, unsigned int)"
+        }
+      ],
+      "function": "ParseExportDirAndBuildIndex",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a266",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A266                 lea     ecx, [rax+6Ch]  ; Index"
+        }
+      ],
+      "function": "ParseExportDirAndBuildIndex",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a389",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A389                 call    ParseExportSectionAndIndex ; \u89e3\u6790\u5bfc\u51fa\u8282\u533a\u548c\u7d22\u5f15\u3002\u904d\u5386 PE \u5bfc\u51fa\u8868\uff0c\u5c06\u524d\u5411\u5bfc\u51fa\u51fd\u6570\u63d2\u5165 B \u6811\u7d22\u5f15\u3002"
+        }
+      ],
+      "function": "ParseExportDirAndBuildIndex",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a4b8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A4B8                 call    FindExportByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u5728\u6a21\u5757\u7f13\u51b2\u533a\u4e2d\u641c\u7d22\u5305\u542b\u6307\u5b9a\u5730\u5740\u7684\u5bfc\u51fa\u6761\u76ee\u3002"
+        }
+      ],
+      "function": "ParseExportDirAndBuildIndex",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a704",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A704                 call    FindExportEntryByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u6761\u76ee\u3002\u5728\u5bfc\u51fa\u6761\u76ee\u8868\u4e2d\u641c\u7d22\u6307\u5b9a\u5730\u5740\u7684\u6761\u76ee\uff0c\u5224\u65ad\u662f\u5426\u5df2\u5b58\u5728\u3002"
+        }
+      ],
+      "function": "ParseAndCompareExportEntries",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000a77d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000A77D                 call    FindExportByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u5728\u6a21\u5757\u7f13\u51b2\u533a\u4e2d\u641c\u7d22\u5305\u542b\u6307\u5b9a\u5730\u5740\u7684\u5bfc\u51fa\u6761\u76ee\u3002"
+        }
+      ],
+      "function": "ParseAndCompareExportEntries",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ac6c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000AC6C                 call    FindExportByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u5728\u6a21\u5757\u7f13\u51b2\u533a\u4e2d\u641c\u7d22\u5305\u542b\u6307\u5b9a\u5730\u5740\u7684\u5bfc\u51fa\u6761\u76ee\u3002"
+        }
+      ],
+      "function": "ParseNtExportDirTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ad99",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000AD99                 lea     ecx, [r12+6Ch]  ; Index"
+        }
+      ],
+      "function": "ParseExportDirectoryEntries",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000afdf",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000AFDF                 call    FindExportByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u5728\u6a21\u5757\u7f13\u51b2\u533a\u4e2d\u641c\u7d22\u5305\u542b\u6307\u5b9a\u5730\u5740\u7684\u5bfc\u51fa\u6761\u76ee\u3002"
+        }
+      ],
+      "function": "ParseExportDirectoryEntries",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b0d9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B0D9                 mov     ecx, 2B3h       ; Index"
+        }
+      ],
+      "function": "ParseNtExportAuxData",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b0f5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B0F5                 mov     ecx, 339h       ; Index"
+        }
+      ],
+      "function": "ParseNtExportAuxData",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b102",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B102                 mov     ecx, 2AAh       ; Index"
+        }
+      ],
+      "function": "ParseNtExportAuxData",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b10f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B10F                 mov     ecx, 33Ch       ; Index"
+        }
+      ],
+      "function": "ParseNtExportAuxData",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b21b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B21B                 call    FindExportByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u5728\u6a21\u5757\u7f13\u51b2\u533a\u4e2d\u641c\u7d22\u5305\u542b\u6307\u5b9a\u5730\u5740\u7684\u5bfc\u51fa\u6761\u76ee\u3002"
+        }
+      ],
+      "function": "ParseNtExportAuxData",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b4ce",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B4CE                 call    FindExportEntryByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u6761\u76ee\u3002\u5728\u5bfc\u51fa\u6761\u76ee\u8868\u4e2d\u641c\u7d22\u6307\u5b9a\u5730\u5740\u7684\u6761\u76ee\uff0c\u5224\u65ad\u662f\u5426\u5df2\u5b58\u5728\u3002"
+        }
+      ],
+      "function": "ParseExportEntriesDetailed",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b577",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B577                 call    FindExportByAddress ; \u6309\u5730\u5740\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u5728\u6a21\u5757\u7f13\u51b2\u533a\u4e2d\u641c\u7d22\u5305\u542b\u6307\u5b9a\u5730\u5740\u7684\u5bfc\u51fa\u6761\u76ee\u3002"
+        }
+      ],
+      "function": "ParseExportEntriesDetailed",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b7f3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B7F3                 call    ParseExportDirAndBuildIndex ; \u89e3\u6790\u5bfc\u51fa\u76ee\u5f55\u5e76\u6784\u5efa\u7d22\u5f15\u3002\u904d\u5386 PE \u5bfc\u51fa\u8868\uff0c\u4e3a\u6bcf\u4e2a\u5bfc\u51fa\u51fd\u6570\u6784\u5efa\u7d22\u5f15\u6761\u76ee\uff0c\u5305\u542b RVA\u3001\u5730\u5740\u3001\u540d\u79f0\u548c\u5e8f\u53f7\u3002"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b8d5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B8D5                 mov     ecx, 6Ch ; 'l'  ; Index"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b90a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B90A                 mov     ecx, 23Dh       ; Index"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b921",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B921                 mov     ecx, 23Dh       ; Index"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b92e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B92E                 mov     ecx, 23Eh       ; Index"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b99f",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B99F                 mov     ecx, 23Ch       ; Index"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b9b6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B9B6                 mov     ecx, 23Ch       ; Index"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000b9c3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000B9C3                 mov     ecx, 42h ; 'B'  ; Index"
+        }
+      ],
+      "function": "ParseNtKernelFile",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000bcf0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BCF0 ; char __fastcall FindExportEntryByAddress(__int64, __int64, unsigned int)"
+        }
+      ],
+      "function": "FindExportEntryByAddress",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000bd84",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BD84                 lea     ecx, [r14+50h]  ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000bda3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BDA3                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000bdb8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BDB8                 mov     ecx, 8F6h       ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000bddd",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BDDD                 mov     ecx, 8F4h       ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000be02",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BE02                 mov     ecx, 61h ; 'a'  ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000be46",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BE46                 mov     ecx, 429Bh      ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000be58",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BE58                 mov     ecx, 429Eh      ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000be6a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BE6A                 mov     ecx, 4367h      ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000be7c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BE7C                 mov     ecx, 42A1h      ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000be8b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BE8B                 mov     ecx, 42A4h      ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000be9a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BE9A                 mov     ecx, 436Ah      ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000bea9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BEA9                 mov     ecx, 42A7h      ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000bfa1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000BFA1                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "ReadFileIntoBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c1e6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C1E6                 mov     ecx, 6Bh ; 'k'  ; Index"
+        }
+      ],
+      "function": "InitRegNotify",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c1ff",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C1FF                 lea     ecx, [rbx+6Bh]  ; Index"
+        }
+      ],
+      "function": "InitRegNotify",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c20b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C20B                 lea     ecx, [rdx+6Ch]  ; Index"
+        }
+      ],
+      "function": "InitRegNotify",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c213",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C213                 mov     ecx, 16Dh       ; Index"
+        }
+      ],
+      "function": "InitRegNotify",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c22c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C22C                 mov     ecx, 16Dh       ; Index"
+        }
+      ],
+      "function": "InitRegNotify",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c236",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C236                 lea     ecx, [rbx+6Dh]  ; Index"
+        }
+      ],
+      "function": "InitRegNotify",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c24c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C24C                 mov     ecx, 354h       ; Index"
+        }
+      ],
+      "function": "InitRegNotify",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c27e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C27E                 add     ecx, 6Dh ; 'm'  ; Index"
+        }
+      ],
+      "function": "BtreeSearchByKey",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c31e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C31E                 mov     ecx, 424Ah      ; Index"
+        }
+      ],
+      "function": "LookupModuleByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c32e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C32E                 mov     ecx, 424Dh      ; Index"
+        }
+      ],
+      "function": "LookupModuleByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c33b",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C33B                 mov     ecx, 4250h      ; Index"
+        }
+      ],
+      "function": "LookupModuleByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c3a3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C3A3                 mov     ecx, 4          ; Index"
+        }
+      ],
+      "function": "LookupModuleByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c3ad",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C3AD                 mov     ecx, 3          ; Index"
+        }
+      ],
+      "function": "LookupModuleByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c3ce",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C3CE                 mov     ecx, 6Bh ; 'k'  ; Index"
+        }
+      ],
+      "function": "LookupModuleByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c4e0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C4E0 ; _DWORD *__fastcall FindExportByAddress(unsigned __int64)"
+        }
+      ],
+      "function": "FindExportByAddress",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c4ef",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C4EF                 lea     ecx, [rbx+6Bh]  ; Index"
+        }
+      ],
+      "function": "FindExportByAddress",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c550",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C550 ; __int64 __fastcall ParseExportSectionAndIndex(__int64, unsigned int, unsigned int)"
+        }
+      ],
+      "function": "ParseExportSectionAndIndex",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c608",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C608 ; void *__fastcall FindExportEntryByName(char *Dst)"
+        }
+      ],
+      "function": "FindExportEntryByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c624",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C624                 mov     ecx, 6Bh ; 'k'  ; Index"
+        }
+      ],
+      "function": "FindExportEntryByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c77e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C77E                 mov     ecx, 354h       ; Index"
+        }
+      ],
+      "function": "InitRegFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c7a2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C7A2                 mov     ecx, 354h       ; Index"
+        }
+      ],
+      "function": "InitRegFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c7eb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C7EB                 lea     ecx, [rdi+6Bh]  ; Index"
+        }
+      ],
+      "function": "InitRegFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c7fb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C7FB                 lea     ecx, [rdi+6Dh]  ; Index"
+        }
+      ],
+      "function": "InitRegFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c8f5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C8F5                 mov     ecx, 3          ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c937",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C937                 lea     ecx, [rsi+65h]  ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c982",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C982                 mov     ecx, 66h ; 'f'  ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000c9d3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000C9D3                 mov     ecx, 67h ; 'g'  ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ca28",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CA28                 mov     ecx, 64h ; 'd'  ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ca43",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CA43                 mov     ecx, 64h ; 'd'  ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000caa1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CAA1                 mov     ecx, 63h ; 'c'  ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cb0a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CB0A                 mov     ecx, 1CDh       ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cb5e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CB5E                 mov     ecx, 23Fh       ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cb79",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CB79                 mov     ecx, 23Fh       ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cbd8",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CBD8                 mov     ecx, 33Ch       ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cc2c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CC2C                 mov     ecx, 2AAh       ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cc8c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CC8C                 mov     ecx, 23Dh       ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cc99",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CC99                 mov     ecx, 23Eh       ; Index"
+        }
+      ],
+      "function": "InitKernelRoutineTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ccf2",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CCF2                 add     ecx, 6Dh ; 'm'  ; Index"
+        }
+      ],
+      "function": "BtreeInsertExportEntry",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cd52",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CD52                 mov     ecx, 16Dh       ; Index"
+        }
+      ],
+      "function": "BtreeInsertExportEntry",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cdfa",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CDFA                 lea     ecx, [rbx+6Bh]  ; Index"
+        }
+      ],
+      "function": "ClassifyModuleTypeHalOrNt",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cec7",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CEC7                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "CheckExportNamePrefixWin10",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000cf37",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000CF37                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "CheckExportNamePrefixWin10V2",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000d088",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000D088                 mov     ecx, 23Eh       ; Index"
+        }
+      ],
+      "function": "FreeFsCallbackBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000d0a1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000D0A1                 mov     ecx, 23Eh       ; Index"
+        }
+      ],
+      "function": "FreeFsCallbackBuffer",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000d1ce",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000D1CE                 lea     ecx, [rdi+61h]  ; Index"
+        }
+      ],
+      "function": "RegNotifyCallback",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000d7cb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000D7CB                 mov     ecx, 61h ; 'a'  ; Index"
+        }
+      ],
+      "function": "ScanKernelMemForFsChanges",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000d7f0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000D7F0                 mov     ecx, 41E4h      ; Index"
+        }
+      ],
+      "function": "ScanKernelMemForFsChanges",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000d979",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000D979                 mov     ecx, 61h ; 'a'  ; Index"
+        }
+      ],
+      "function": "ScanVadForModifiedPages",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000d993",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000D993                 mov     ecx, 41E4h      ; Index"
+        }
+      ],
+      "function": "ScanVadForModifiedPages",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e267",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E267                 mov     ecx, 8A8h       ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e27d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E27D                 mov     ecx, 1BB0h      ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e305",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E305                 mov     ecx, 8B0h       ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e318",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E318                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e332",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E332                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e34c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E34C                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e35d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E35D                 mov     ecx, 8AAh       ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e36c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E36C                 mov     ecx, 1D3Ch      ; Index"
+        }
+      ],
+      "function": "InitFileSystemExportTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e3c3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E3C3                 mov     ecx, ebx        ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e3d3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E3D3                 mov     ecx, ebx        ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e3e5",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E3E5                 mov     ecx, 2F1h       ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e3fb",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E3FB                 mov     ecx, 1BB0h      ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e41d",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E41D                 mov     ecx, ebx        ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e455",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E455                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e46c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E46C                 mov     ecx, 2F1h       ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e47e",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E47E                 mov     ecx, 1D3Ch      ; Index"
+        }
+      ],
+      "function": "ParseFsFilterDriverExport",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e529",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E529                 mov     ecx, 1D3Ch      ; Index"
+        }
+      ],
+      "function": "CopyFsFilterEntryTable",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e584",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E584 ; char __fastcall FindExportInFileByName(__int64, unsigned int, __int64)"
+        }
+      ],
+      "function": "FindExportInFileByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e5a1",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E5A1                 mov     ecx, 2F1h       ; Index"
+        }
+      ],
+      "function": "FindExportInFileByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e5ff",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E5FF                 call    FindExportByNameInPeBody ; \u5728 PE \u6587\u4ef6\u4e2d\u6309\u540d\u79f0\u67e5\u627e\u5bfc\u51fa\u51fd\u6570\u3002\u904d\u5386\u5bfc\u51fa\u540d\u79f0\u8868\uff0c\u6bd4\u8f83\u5b57\u7b26\u4e32\uff0c\u8fd4\u56de\u5bf9\u5e94 RVA\u3002"
+        }
+      ],
+      "function": "FindExportInFileByName",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e66a",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E66A                 mov     ecx, 8A8h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocSection",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e877",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E877                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocSection",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000e9c3",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000E9C3                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocSection",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ea4c",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000EA4C                 mov     ecx, 914h       ; Index"
+        }
+      ],
+      "function": "ParseNtRelocSection",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ebb9",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000EBB9                 mov     ecx, r14d       ; Index"
+        }
+      ],
+      "function": "InitFileSystemFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ebd6",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000EBD6                 mov     ecx, r14d       ; Index"
+        }
+      ],
+      "function": "InitFileSystemFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ebe0",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000EBE0                 mov     ecx, 8B1h       ; Index"
+        }
+      ],
+      "function": "InitFileSystemFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000ebff",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000EBFF                 mov     ecx, 8B1h       ; Index"
+        }
+      ],
+      "function": "InitFileSystemFilter",
+      "segment": ".text"
+    },
+    {
+      "addr": "0x14000eef4",
+      "matches": [
+        {
+          "kind": "comment",
+          "text": ".text:000000014000EEF4 ; char __fastcall PatchFsFilterDriverIndex(__int64, char)"
+        }
+      ],
+      "function": "PatchFsFilterDriverIndex",
+      "segment": ".text"
+    }
+  ],
+  "cursor": {
+    "next": "0x14000eef9"
+  }
+}

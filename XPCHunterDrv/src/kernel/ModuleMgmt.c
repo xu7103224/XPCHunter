@@ -4076,10 +4076,16 @@ char QueryProcessModuleFilePath(
 
     Result = 0;
 
+    /* 【2026-10-21 修正】槽号按原始 0x140057AEC 的立即数逐条核对：
+       0x140057B0F mov ecx,415Ah / 0x140057B1B mov ecx,4223h / 0x140057B28 mov ecx,41C3h
+       0x140057B35 mov ecx,4166h / 0x140057B42 mov ecx,4334h / 0x140057B4F mov ebx,28Fh
+       旧代码第 3 项写成 GtEprocessField54(=64)、第 4 项写成 GtTotalSize(=0x4000)，
+       都是漏了/用错了常量（0x4000 只是 OR 的基数，单独用不是有效槽）。
+       槽号审计工具：tools/gt_index_audit_cs.py */
     pValidateFunc = (unsigned int (__fastcall *)(__int64, __int64 *))GtRead(GtValidateObjectTypeFunc);
     pCloseFunc = (void (__fastcall *)(__int64))GtRead(GtCloseHandleFunc);
-    pOpenHandleFunc = (unsigned int (__fastcall *)(__int64, __int64, ULONG64, __int64, ULONG64, char, __int64 *))GtRead(GtEprocessField54);
-    pTypeValue = (ULONG64 *)GtRead(GtTotalSize);
+    pOpenHandleFunc = (unsigned int (__fastcall *)(__int64, __int64, ULONG64, __int64, ULONG64, char, __int64 *))GtRead(GtNtDuplicateObjectPeSectionOffset | GtEprocessField54);
+    pTypeValue = (ULONG64 *)GtRead(GtObjectTypeQueryFunc2);
     pFreeFunc = (void (__fastcall *)(__int64))GtRead(GtExFreePoolFunc);
     pEnumModuleFunc = (__int64 (__fastcall *)(__int64, __int64, __int64, ULONG64 *, __int64, char *))GtRead(GtKernelDataField03);
 
