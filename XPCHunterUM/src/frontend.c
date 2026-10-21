@@ -53,6 +53,13 @@
 #define IDC_RG_TABS     1061
 #define IDC_RG_LIST     1062
 #define IDC_RG_STATUS   1063
+/* File 页 */
+#define IDC_FL_DIR      1070
+#define IDC_FL_GO       1071
+#define IDC_FL_LIST     1072
+#define IDC_FL_STATUS   1073
+#define IDC_FL_DEL      1074
+#define IDC_FL_VERIFY   1075
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -63,6 +70,7 @@ static HWND g_hSuList, g_hSuStatus;
 static HWND g_hSvList, g_hSvStatus;
 static HWND g_hRgTabs, g_hRgList, g_hRgStatus;
 static int  g_RgTab = 0;
+static HWND g_hFlDir, g_hFlList, g_hFlStatus;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -922,6 +930,88 @@ static void DoRefreshRegistry(void)
     }
 }
 
+/* ---- File 页（主 Tab 8）---- */
+static void FlSetText(HWND hList, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(hList, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void CreateFlColumns(HWND hList)
+{
+    LVCOLUMNA c;
+    while (ListView_DeleteColumn(hList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Name";       c.cx = 300; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+    c.pszText = "Size";       c.cx = 110; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+    c.pszText = "Attr";       c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+    c.pszText = "Flags";      c.cx = 150; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    c.pszText = "Path";       c.cx = 500; c.iSubItem = 4; ListView_InsertColumn(hList, 4, &c);
+}
+
+static void DoRefreshFiles(void)
+{
+    FE_FILE_LIST list;
+    char dir[MAX_PATH];
+    char status[256];
+    ULONG i;
+
+    if (!g_hFlList || !g_hFlStatus || !g_hFlDir)
+        return;
+    GetWindowTextA(g_hFlDir, dir, sizeof(dir));
+    if (!dir[0])
+        strcpy_s(dir, sizeof(dir), "C:\Windows\System32");
+
+    ListView_DeleteAllItems(g_hFlList);
+    CreateFlColumns(g_hFlList);
+
+    if (!FeLoadDirectory(dir, &list)) {
+        sprintf_s(status, sizeof(status), "Files: cannot open \"%s\", GetLastError=%lu",
+                  dir, GetLastError());
+        SetWindowTextA(g_hFlStatus, status);
+        return;
+    }
+    for (i = 0; i < list.Count; i++) {
+        LVITEMA it;
+        char sz[32], attr[32], flags[128], name[FE_FILE_NAME_CHARS + 4];
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)i;
+        /* Rootkit 可疑项按原版样式加括号 */
+        if (list.Items[i].Suspect)
+            sprintf_s(name, sizeof(name), "(%s)", list.Items[i].Name);
+        else
+            strcpy_s(name, sizeof(name), list.Items[i].Name);
+        it.pszText = name;
+        SendMessageA(g_hFlList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        sprintf_s(sz, sizeof(sz), "%I64u", list.Items[i].Size);
+        sprintf_s(attr, sizeof(attr), "0x%lX", list.Items[i].Attributes);
+        flags[0] = 0;
+        if (list.Items[i].DeletePending)
+            strcat_s(flags, sizeof(flags), "DELETE-PENDING ");
+        if (list.Items[i].LockedCount) {
+            char lk[64];
+            sprintf_s(lk, sizeof(lk), "LOCKED(pid=%lu) ", list.Items[i].LockOwners[0]);
+            strcat_s(flags, sizeof(flags), lk);
+        }
+        FlSetText(g_hFlList, (int)i, 1, sz);
+        FlSetText(g_hFlList, (int)i, 2, attr);
+        FlSetText(g_hFlList, (int)i, 3, flags);
+        FlSetText(g_hFlList, (int)i, 4, list.Items[i].Path);
+    }
+    sprintf_s(status, sizeof(status),
+              "%s: %lu files  (suspect: %lu, delete-pending: %lu, locked: %lu)",
+              dir, list.Count, list.HiddenCount, list.PendingCount, list.LockedCount);
+    SetWindowTextA(g_hFlStatus, status);
+    FeFreeDirectory(&list);
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -929,6 +1019,7 @@ static void ShowPage(HWND hWnd, int page)
     int isStartup = (page == 6);     /* 0-based：第 7 个 Tab = Startup Info */
     int isServices = (page == 7);    /* 第 8 个 Tab = Services */
     int isRegistry = (page == 5);    /* 第 6 个 Tab = Registry */
+    int isFile = (page == 8);        /* 第 9 个 Tab = File */
     char hint[512];
     HWND hKill, hRef;
 
@@ -968,8 +1059,20 @@ static void ShowPage(HWND hWnd, int page)
         if (hRg) ShowWindow(hRg, isRegistry ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hFlDir)    ShowWindow(g_hFlDir,    isFile ? SW_SHOW : SW_HIDE);
+    if (g_hFlList)   ShowWindow(g_hFlList,   isFile ? SW_SHOW : SW_HIDE);
+    if (g_hFlStatus) ShowWindow(g_hFlStatus, isFile ? SW_SHOW : SW_HIDE);
+    {
+        HWND h1 = GetDlgItem(hWnd, IDC_FL_GO);
+        HWND h2 = GetDlgItem(hWnd, IDC_FL_DEL);
+        HWND h3 = GetDlgItem(hWnd, IDC_FL_VERIFY);
+        if (h1) ShowWindow(h1, isFile ? SW_SHOW : SW_HIDE);
+        if (h2) ShowWindow(h2, isFile ? SW_SHOW : SW_HIDE);
+        if (h3) ShowWindow(h3, isFile ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
-        if (isProc || isKernel || isStartup || isServices || isRegistry) {
+        if (isProc || isKernel || isStartup || isServices || isRegistry || isFile) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1260,6 +1363,25 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         CreateRgColumns(g_hRgList, 0);
         DoRefreshRegistry();
 
+        /* ---- File 页（主 Tab 8）---- */
+        g_hFlDir = CreateWindowA("EDIT", "C:\Windows\System32",
+                                 WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
+                                 10, 76, 560, 24, hWnd, (HMENU)IDC_FL_DIR, hInst, NULL);
+        CreateWindowA("BUTTON", "Go", WS_CHILD | BS_PUSHBUTTON,
+                      580, 74, 50, 28, hWnd, (HMENU)IDC_FL_GO, hInst, NULL);
+        CreateWindowA("BUTTON", "Verify", WS_CHILD | BS_PUSHBUTTON,
+                      636, 74, 70, 28, hWnd, (HMENU)IDC_FL_VERIFY, hInst, NULL);
+        CreateWindowA("BUTTON", "Delete", WS_CHILD | BS_PUSHBUTTON,
+                      712, 74, 70, 28, hWnd, (HMENU)IDC_FL_DEL, hInst, NULL);
+        g_hFlStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    790, 80, 160, 20, hWnd, (HMENU)IDC_FL_STATUS, hInst, NULL);
+        g_hFlList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 108, 940, 500, hWnd, (HMENU)IDC_FL_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hFlList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        CreateFlColumns(g_hFlList);
+        DoRefreshFiles();
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1327,6 +1449,22 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 8) {
+            int listY = pageTop + 36;
+            int listH = pageBottom - listY;
+            if (listH < 100) listH = 100;
+            if (g_hFlDir)    MoveWindow(g_hFlDir, 10, pageTop, w - 320, 24, TRUE);
+            {
+                HWND h1 = GetDlgItem(hWnd, IDC_FL_GO);
+                HWND h2 = GetDlgItem(hWnd, IDC_FL_VERIFY);
+                HWND h3 = GetDlgItem(hWnd, IDC_FL_DEL);
+                if (h1) MoveWindow(h1, w - 310 + 10, pageTop - 2, 50, 28, TRUE);
+                if (h2) MoveWindow(h2, w - 250 + 10, pageTop - 2, 70, 28, TRUE);
+                if (h3) MoveWindow(h3, w - 174 + 10, pageTop - 2, 70, 28, TRUE);
+            }
+            if (g_hFlStatus) MoveWindow(g_hFlStatus, 10, pageTop + 26, w, 20, TRUE);
+            if (g_hFlList)   MoveWindow(g_hFlList, 10, listY + 20, w, listH - 20, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 5) {
             int listY = pageTop + 64;
             int listH = pageBottom - listY;
@@ -1372,6 +1510,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
         case IDC_SV_REFRESH: DoRefreshServices(); return 0;
         case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
+        case IDC_FL_GO:      DoRefreshFiles(); return 0;
         }
         return 0;
 
@@ -1388,6 +1527,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshServices();
             if (page == 5)
                 DoRefreshRegistry();
+            if (page == 8)
+                DoRefreshFiles();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
@@ -1501,6 +1642,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--files-cli")) {
+        const char *d = strstr(lpCmdLine, "--files-cli") + 12;
+        char dir[MAX_PATH];
+        size_t n = 0;
+        while (*d == ' ' || *d == '"') d++;
+        while (*d && *d != '"' && n + 1 < sizeof(dir))
+            dir[n++] = *d++;
+        dir[n] = 0;
+        /* 去掉尾部空白（cmd 重定向/引号容易带出来） */
+        while (n && (dir[n - 1] == ' ' || dir[n - 1] == 13 || dir[n - 1] == 10))
+            dir[--n] = 0;
+        return FePrintDirectory(n ? dir : "C:\Windows\System32") ? 0 : 1;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--reghandles-cli"))
         return FePrintRegistryHandles() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--reghidden-cli"))

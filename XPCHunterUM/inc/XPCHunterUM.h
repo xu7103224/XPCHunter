@@ -425,6 +425,44 @@ BOOL FeLoadHiddenRegKeys(FE_REG_HIDDEN_LIST *List);
 void FeFreeHiddenRegKeys(FE_REG_HIDDEN_LIST *List);
 BOOL FePrintHiddenRegKeys(void);
 
+/* ---- File 页（原版第 9 个主 Tab，10 项）----
+ * 目录浏览 + 隐藏文件判定 + 占用检测 + 待删检测 + 签名校验 + 迷你反汇编。 */
+#define FE_FILE_NAME_CHARS 260u
+#define FE_FILE_PATH_CHARS 520u
+
+typedef struct _FE_FILE_ENTRY {
+    char    Name[FE_FILE_NAME_CHARS];
+    char    Path[FE_FILE_PATH_CHARS];
+    ULONG64 Size;
+    DWORD   Attributes;
+    ULONG   LockedCount;
+    ULONG   LockOwners[4];
+    unsigned char IsDir;
+    unsigned char Suspect;         /* 名字可疑（标红 / 加括号） */
+    unsigned char DeletePending;   /* 已标记删除但仍被持有 */
+} FE_FILE_ENTRY;
+
+typedef struct _FE_FILE_LIST {
+    ULONG          Count;
+    ULONG          Capacity;
+    FE_FILE_ENTRY *Items;
+    ULONG          HiddenCount;
+    ULONG          PendingCount;
+    ULONG          LockedCount;
+} FE_FILE_LIST;
+
+BOOL FeLoadDirectory(const char *Dir, FE_FILE_LIST *List);
+void FeFreeDirectory(FE_FILE_LIST *List);
+BOOL FePrintDirectory(const char *Dir);
+BOOL FeDeleteFileEx(const char *Path, DWORD *pError);
+BOOL FeCopyFileEx(const char *From, const char *To, DWORD *pError);
+
+typedef struct _FE_INSN {
+    char Mnemonic[32];
+    unsigned char Length;
+} FE_INSN;
+int FeDisasmOne(const unsigned char *Code, int Remaining, FE_INSN *Out);
+
 #ifdef __cplusplus
 }
 #endif
