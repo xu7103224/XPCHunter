@@ -37,6 +37,10 @@
 #define IDC_KM_TABS     1021
 #define IDC_KM_LIST     1022
 #define IDC_KM_STATUS   1023
+/* Driver 子页：只显示已加载 + 复制名/路径（原版右键菜单项） */
+#define IDC_KM_ONLYLOADED 1024
+#define IDC_KM_COPYNAME   1025
+#define IDC_KM_COPYPATH   1026
 /* 14 个主 Tab 容器 */
 #define IDC_MAIN_TABS   1030
 #define IDC_PAGEHINT    1031
@@ -129,6 +133,7 @@ static int g_TrLoaded = 0;
 static HWND g_hHkList, g_hHkStatus;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
+static int  g_KmOnlyLoaded = 0;
 static int  g_DetailTab = -1;
 static int  g_StartTab = 0;   /* --tab N：启动时预选 Process 的子视图页 */
 
@@ -1811,6 +1816,12 @@ static void ShowPage(HWND hWnd, int page)
     if (g_hKmStatus) ShowWindow(g_hKmStatus, isKernel ? SW_SHOW : SW_HIDE);
     hRef = GetDlgItem(hWnd, IDC_KM_REFRESH);
     if (hRef) ShowWindow(hRef, isKernel ? SW_SHOW : SW_HIDE);
+    {
+        HWND b;
+        b = GetDlgItem(hWnd, IDC_KM_ONLYLOADED); if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
+        b = GetDlgItem(hWnd, IDC_KM_COPYNAME);   if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
+        b = GetDlgItem(hWnd, IDC_KM_COPYPATH);   if (b) ShowWindow(b, isKernel ? SW_SHOW : SW_HIDE);
+    }
 
     if (g_hSuList)   ShowWindow(g_hSuList,   isStartup ? SW_SHOW : SW_HIDE);
     if (g_hSuStatus) ShowWindow(g_hSuStatus, isStartup ? SW_SHOW : SW_HIDE);
@@ -2052,9 +2063,14 @@ static void DoRefreshKernel(void)
         for (i = 0; i < list.Count; i++) {
             LVITEMA it;
             const char *st;
+            int row;
+            /* Only Show Loaded Driver：只保留 RUNNING 的服务 */
+            if (g_KmOnlyLoaded && list.Items[i].State != SERVICE_RUNNING)
+                continue;
+            row = ListView_GetItemCount(g_hKmList);
             ZeroMemory(&it, sizeof(it));
             it.mask = LVIF_TEXT;
-            it.iItem = (int)i;
+            it.iItem = row;
             it.pszText = list.Items[i].Name;
             SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
             switch (list.Items[i].State) {
@@ -2064,7 +2080,7 @@ static void DoRefreshKernel(void)
             case SERVICE_STOP_PENDING:  st = "STOPPING"; break;
             default:                st = "?";        break;
             }
-            KmSetText(g_hKmList, (int)i, 1, st);
+            KmSetText(g_hKmList, row, 1, st);
             switch (list.Items[i].Start) {
             case SERVICE_BOOT_START:   st = "BOOT";   break;
             case SERVICE_SYSTEM_START: st = "SYSTEM"; break;
@@ -2073,11 +2089,14 @@ static void DoRefreshKernel(void)
             case SERVICE_DISABLED:     st = "DISABLED"; break;
             default:                   st = "?";      break;
             }
-            KmSetText(g_hKmList, (int)i, 2, st);
-            KmSetText(g_hKmList, (int)i, 3,
+            KmSetText(g_hKmList, row, 2, st);
+            KmSetText(g_hKmList, row, 3,
                       list.Items[i].Path[0] ? list.Items[i].Path : "(?)");
         }
-        sprintf_s(status, sizeof(status), "Driver: %lu kernel driver services", list.Count);
+        sprintf_s(status, sizeof(status),
+                  "Driver: %lu kernel driver services%s",
+                  (ULONG)ListView_GetItemCount(g_hKmList),
+                  g_KmOnlyLoaded ? " (loaded only)" : "");
         FeFreeDrivers(&list);
     } else if (g_KmTab == 4) {
         /* Device 子页：0x056 CmdEnumObjectAllTypes（0x2000 起不再蓝屏） */
@@ -2231,6 +2250,53 @@ static void DoRefreshKernel(void)
     SetWindowTextA(g_hKmStatus, status);
 }
 
+/* 把 Kernel 列表当前选中行的某列复制到剪贴板。
+ * 原版 Driver 页右键菜单有 Copy Driver Name / Copy Driver Path，
+ * 这里做成按钮。复制后把内容回显到状态栏，便于截图取证。 */
+static void DoCopyKmColumn(int SubItem, const char *What)
+{
+    char text[MAX_PATH * 2];
+    char msg[MAX_PATH + 96];
+    int sel;
+    LVITEMA it;
+
+    if (!g_hKmList || !g_hKmStatus)
+        return;
+    sel = ListView_GetNextItem(g_hKmList, -1, LVNI_SELECTED);
+    if (sel < 0) {
+        SetWindowTextA(g_hKmStatus, "Select a row first");
+        return;
+    }
+    ZeroMemory(&it, sizeof(it));
+    ZeroMemory(text, sizeof(text));
+    it.mask = LVIF_TEXT;
+    it.iItem = sel;
+    it.iSubItem = SubItem;
+    it.pszText = text;
+    it.cchTextMax = (int)sizeof(text);
+    if (!SendMessageA(g_hKmList, LVM_GETITEMTEXTA, (WPARAM)sel, (LPARAM)&it) || !text[0]) {
+        SetWindowTextA(g_hKmStatus, "Selected row has no text in that column");
+        return;
+    }
+    if (!OpenClipboard(g_hKmList))
+        return;
+    EmptyClipboard();
+    {
+        HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, strlen(text) + 1);
+        if (h) {
+            void *p = GlobalLock(h);
+            if (p) {
+                memcpy(p, text, strlen(text) + 1);
+                GlobalUnlock(h);
+                SetClipboardData(CF_TEXT, h);
+            }
+        }
+    }
+    CloseClipboard();
+    sprintf_s(msg, sizeof(msg), "%s copied: %s", What, text);
+    SetWindowTextA(g_hKmStatus, msg);
+}
+
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
@@ -2313,8 +2379,15 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         /* ---- Kernel 页（主 Tab 1）：刷新 + 子页 Tab + 列表 + 状态 ---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
                       10, 76, 90, 28, hWnd, (HMENU)IDC_KM_REFRESH, hInst, NULL);
+        /* 原版 Driver 页的三个右键菜单项，做成按钮便于实机验证 */
+        CreateWindowA("BUTTON", "Only Show Loaded Driver", WS_CHILD | BS_AUTOCHECKBOX,
+                      106, 80, 190, 24, hWnd, (HMENU)IDC_KM_ONLYLOADED, hInst, NULL);
+        CreateWindowA("BUTTON", "Copy Driver Name", WS_CHILD | BS_PUSHBUTTON,
+                      302, 76, 140, 28, hWnd, (HMENU)IDC_KM_COPYNAME, hInst, NULL);
+        CreateWindowA("BUTTON", "Copy Driver Path", WS_CHILD | BS_PUSHBUTTON,
+                      448, 76, 140, 28, hWnd, (HMENU)IDC_KM_COPYPATH, hInst, NULL);
         g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
-                                    110, 82, 840, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
+                                    596, 82, 354, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
         g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
                                   10, 110, 940, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
         {
@@ -2577,12 +2650,21 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (listH < 100) listH = 100;
             {
                 HWND hRef = GetDlgItem(hWnd, IDC_KM_REFRESH);
+                HWND b;
                 if (hRef) {
                     MoveWindow(hRef, 10, pageTop, 90, 28, TRUE);
                     ShowWindow(hRef, SW_SHOW);
                 }
+                /* 原版 Driver 页的三个右键菜单项 */
+                b = GetDlgItem(hWnd, IDC_KM_ONLYLOADED);
+                if (b) { MoveWindow(b, 106, pageTop + 4, 190, 24, TRUE); ShowWindow(b, SW_SHOW); }
+                b = GetDlgItem(hWnd, IDC_KM_COPYNAME);
+                if (b) { MoveWindow(b, 302, pageTop, 140, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                b = GetDlgItem(hWnd, IDC_KM_COPYPATH);
+                if (b) { MoveWindow(b, 448, pageTop, 140, 28, TRUE); ShowWindow(b, SW_SHOW); }
             }
-            if (g_hKmStatus) MoveWindow(g_hKmStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (g_hKmStatus) MoveWindow(g_hKmStatus, 596, pageTop + 6,
+                                        (w > 700 ? w - 596 : 200), 34, TRUE);
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
@@ -2726,6 +2808,12 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SEND:    DoSend();    return 0;
         case IDC_KILL:    DoKillSelected(); return 0;
         case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
+        case IDC_KM_ONLYLOADED:
+            g_KmOnlyLoaded = (IsDlgButtonChecked(hWnd, IDC_KM_ONLYLOADED) == BST_CHECKED) ? 1 : 0;
+            DoRefreshKernel();
+            return 0;
+        case IDC_KM_COPYNAME: DoCopyKmColumn(0, "Driver name"); return 0;
+        case IDC_KM_COPYPATH: DoCopyKmColumn(3, "Driver path"); return 0;
         case IDC_SU_REFRESH: DoRefreshStartup(); return 0;
         case IDC_SV_REFRESH: DoRefreshServices(); return 0;
         case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
