@@ -7400,8 +7400,22 @@ bool CmdCollectAllCpuGdtEntries(__int64 FilterObject, __int64 CallbackData,
                                     _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     bool Result = 0;
-    _DWORD *ContextPtr;
-    unsigned int ContextSize;
+    /* 【修正 2026-10-21 · GDT 越界写根因】
+       原版把上下文布局定义成
+           _DWORD *ContextPtr;   // +0
+           unsigned int ContextSize; // +8   ← 注意是 +8，中间有 4 字节填充
+       CmdCollectGdtrEntries 里用 `((unsigned int *)ContextBuffer + 2)` 取容量，
+       即 +8；而原实现在这里声明成两个**独立局部变量**，编译器不保证
+       ContextSize 落在 ContextPtr 之后 8 字节处 → 读到栈垃圾当容量，
+       边界检查失效 → 第二个处理器条目写越界。
+       WinDbg 实证：`mov dword ptr [r8+rdi+4],esi`（CmdCollectGdtrEntries 写
+       ProcessorNumber）在 VPChainM+0x38f01 处 page fault。
+       改用显式结构体，layout 与内核侧一致。 */
+    struct {
+        _DWORD *Ptr;            /* +0 */
+        unsigned int Size;      /* +8 */
+        unsigned int Padding;   /* +12 */
+    } Context;
 
     if (OutputBuffer && BufferSize >= 0x10018 &&
         (unsigned __int64)OutputBuffer < MmUserProbeAddress &&
@@ -7410,10 +7424,11 @@ bool CmdCollectAllCpuGdtEntries(__int64 FilterObject, __int64 CallbackData,
         ProbeForWrite(OutputBuffer, BufferSize, 1u);
         memset(OutputBuffer, 0, BufferSize);
         *OutputBuffer = 0;
-        ContextSize = BufferSize;
-        ContextPtr = OutputBuffer;
+        Context.Ptr = OutputBuffer;
+        Context.Size = BufferSize;
+        Context.Padding = 0;
         ForEachProcessor(CmdCollectGdtrEntriesThunk,
-                         (__int64)&ContextPtr);
+                         (__int64)&Context);
         return *OutputBuffer != 0;
     }
     return Result;

@@ -622,6 +622,35 @@ __int64 CmdQuerySystemInfoExV2(char *Dst, SIZE_T Length)
 
 // ===== Functions moved from MissingFuncs.c =====
 
+// ResolveAffinityApi — 取亲和性相关 nt 例程（GT 槽为空/无效时按名字解析）
+// 【背景】原版把 KeGetProcessorNumberFromIndex / KeSetSystemGroupAffinityThread /
+//   KeRevertToUserGroupAffinityThread / KeQueryActiveProcessors /
+//   KeSetSystemAffinityThread / KeRevertToUserAffinityThread 这六个地址放在
+//   GT[0x4402]/[0x4405]/[0x4408] 与 GT[0x403E]/[0x402C]/[0x402F]，
+//   由 GT 描述表初始化填写。复刻里没有那套描述表，槽位残留了 0x1986f0 这类
+//   非指针值，ForEachProcessor 直接 call 就会跳到无效地址（实测 0x046 因此蓝屏）。
+//   这里沿用本驱动已有的兜底做法（见 QueryDeviceObjectInfo）：槽位不可用时用
+//   MmGetSystemRoutineAddress 按导出名解析，并回写槽位，行为与原版等价。
+static __int64 ResolveAffinityApi(GLOBAL_TABLE_INDEX Slot, const WCHAR *Name)
+{
+    __int64 Value = (__int64)GtRead(Slot);
+
+    if (Value > (__int64)MmSystemRangeStart && MmIsAddressValid((void *)Value) == 1)
+        return Value;
+
+    {
+        UNICODE_STRING NameString;
+        WCHAR NameBuf[40];
+
+        wcsncpy_s(NameBuf, 40, Name, _TRUNCATE);
+        RtlInitUnicodeString(&NameString, NameBuf);
+        Value = (__int64)MmGetSystemRoutineAddress(&NameString);
+        if (Value)
+            GtWrite(Slot, Value);
+    }
+    return Value;
+}
+
 // ForEachProcessor — 对每个处理器核心执行回调函数
 // 对应原始驱动 sub_1400780B4
 // 逐处理器设置亲和性并调用回调，支持新旧两种 API（Win10 组亲和性 / 旧版处理器掩码）
@@ -659,28 +688,13 @@ __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Cal
     ObjectTableCode = (unsigned int)GetObjectTableCode();
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
     {
-        pGetAffinity = (__int64 (*)(_QWORD, __int16 *))GtRead((GLOBAL_TABLE_INDEX)0x4402);
-        pSetAffinity = (void (*)(__int64 *, _BYTE *))GtRead((GLOBAL_TABLE_INDEX)0x4405);
-        pRestoreAffinity = GtRead((GLOBAL_TABLE_INDEX)0x4408);
+        pGetAffinity = (__int64 (*)(_QWORD, __int16 *))
+            ResolveAffinityApi((GLOBAL_TABLE_INDEX)0x4402, L"KeGetProcessorNumberFromIndex");
+        pSetAffinity = (void (*)(__int64 *, _BYTE *))
+            ResolveAffinityApi((GLOBAL_TABLE_INDEX)0x4405, L"KeSetSystemGroupAffinityThread");
+        pRestoreAffinity = ResolveAffinityApi((GLOBAL_TABLE_INDEX)0x4408,
+                                             L"KeRevertToUserGroupAffinityThread");
         pRestoreAffinityFunc = (__int64 (*)(_BYTE *))pRestoreAffinity;
-        /* 【修正 2026-10-21】这三个槽在复刻里**没有任何写入者**，运行时却非零
-           （实测被写成 0x1986f0 这类 RVA 值）。原版直接 `call` 它们，于是
-           跳到一个无效地址 → KiPageFault。WinDbg 实证：
-             RIP = 0x1986f0（低地址，明显是 RVA 而非 VA）
-             ← VPChainJ+0x7cb2d  ForEachProcessor 内 `call rbp`
-             ← VPChainJ+0x39030  IoPortOperationDispatch
-             ← 命令 0x046 CmdIoPortOperation
-           这类"槽里放的是 RVA 还是 VA 没确认"的情况下，必须先验可执行性：
-           不在内核区间或不可读就当作"该 API 不可用"，退化成单次回调。 */
-        if (pGetAffinity && (MmIsAddressValid((void *)pGetAffinity) != 1))
-            pGetAffinity = 0;
-        if (pSetAffinity && (MmIsAddressValid((void *)pSetAffinity) != 1))
-            pSetAffinity = 0;
-        if (pRestoreAffinity && (MmIsAddressValid((void *)pRestoreAffinity) != 1))
-        {
-            pRestoreAffinity = 0;
-            pRestoreAffinityFunc = 0;
-        }
         if (pGetAffinity)
         {
             if (pSetAffinity)
@@ -714,20 +728,13 @@ __int64 ForEachProcessor(__int64 (*pCallbackFunc)(__int64, __int64), __int64 Cal
         return ((__int64 (*)(_QWORD, __int64))CallbackFunc)(0, ContextCopy);
     }
 
-    pGetActiveProc = (__int64 (*)(void))GtRead((GLOBAL_TABLE_INDEX)0x403E);
-    pSetAffinityLegacy = (void (*)(__int64))GtRead((GLOBAL_TABLE_INDEX)0x402C);
-    pRestoreAffinityLegacy = GtRead((GLOBAL_TABLE_INDEX)0x402F);
+    pGetActiveProc = (__int64 (*)(void))
+        ResolveAffinityApi((GLOBAL_TABLE_INDEX)0x403E, L"KeQueryActiveProcessors");
+    pSetAffinityLegacy = (void (*)(__int64))
+        ResolveAffinityApi((GLOBAL_TABLE_INDEX)0x402C, L"KeSetSystemAffinityThread");
+    pRestoreAffinityLegacy = ResolveAffinityApi((GLOBAL_TABLE_INDEX)0x402F,
+                                               L"KeRevertToUserAffinityThread");
     pRestoreAffinityFuncLegacy = (__int64 (*)(void))pRestoreAffinityLegacy;
-    /* 同样先验可执行性（旧版路径的三个槽） */
-    if (pGetActiveProc && (MmIsAddressValid((void *)pGetActiveProc) != 1))
-        pGetActiveProc = 0;
-    if (pSetAffinityLegacy && (MmIsAddressValid((void *)pSetAffinityLegacy) != 1))
-        pSetAffinityLegacy = 0;
-    if (pRestoreAffinityLegacy && (MmIsAddressValid((void *)pRestoreAffinityLegacy) != 1))
-    {
-        pRestoreAffinityLegacy = 0;
-        pRestoreAffinityFuncLegacy = 0;
-    }
     if (!pGetActiveProc || !pSetAffinityLegacy || !pRestoreAffinityLegacy)
         return ((__int64 (*)(_QWORD, __int64))CallbackFunc)(0, ContextCopy);
 
