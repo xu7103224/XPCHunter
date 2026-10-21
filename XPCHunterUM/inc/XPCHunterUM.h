@@ -246,6 +246,31 @@ BOOL FeLoadDrivers(FE_DRIVER_LIST *List);
 void FeFreeDrivers(FE_DRIVER_LIST *List);
 BOOL FePrintDrivers(void);
 
+/* ---- Hidden Drivers / Suspicious DriverObject ----
+ * 判据：内核已加载模块的文件名在 SCM 驱动服务里找不到对应项（隐藏），
+ * 以及路径不在系统目录、磁盘无文件、或文件名不是 *.sys（可疑驱动对象）。 */
+#define FE_HDRV_NAME_CHARS 64u
+#define FE_HDRV_PATH_CHARS 320u
+#define FE_HDRV_REASON_CHARS 192u
+
+typedef struct _FE_HDRV_ENTRY {
+    char    Name[FE_HDRV_NAME_CHARS];
+    ULONG64 Base;
+    ULONG64 Size;
+    char    Path[FE_HDRV_PATH_CHARS];
+    char    Reason[FE_HDRV_REASON_CHARS];
+} FE_HDRV_ENTRY;
+
+typedef struct _FE_HDRV_LIST {
+    ULONG          Count;
+    ULONG          Capacity;
+    FE_HDRV_ENTRY *Items;
+} FE_HDRV_LIST;
+
+BOOL FeLoadHiddenDrivers(FE_HDRV_LIST *Hidden, FE_HDRV_LIST *Suspicious);
+void FeFreeHiddenDrivers(FE_HDRV_LIST *List);
+BOOL FePrintHiddenDrivers(void);
+
 /* ---- Driver 子页操作（原版右键菜单）----
  * 全部走 SCM + WinVerifyTrust，不依赖驱动。 */
 BOOL FeResolveDriverPath(const char *ServiceName, char *Out, size_t OutChars);

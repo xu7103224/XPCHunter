@@ -2049,6 +2049,13 @@ static void CreateKmColumns(HWND hList, int tab)
         c.pszText = "State";     c.cx = 100; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Start";     c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "ImagePath"; c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else if (tab == 6 || tab == 7) {
+        /* Hidden Drivers / Suspicious DriverObject */
+        c.pszText = "Name";   c.cx = 200; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Base";   c.cx = 150; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Size";   c.cx = 90;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Path";   c.cx = 300; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+        c.pszText = "Reason"; c.cx = 200; c.iSubItem = 4; ListView_InsertColumn(hList, 4, &c);
     } else if (tab == 4) {
         /* Device（0x056）：Type / DeviceObject / Driver / Device / Object / Path */
         c.pszText = "Type";   c.cx = 50;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
@@ -2167,6 +2174,22 @@ static void DoRefreshKernel(void)
                   (ULONG)ListView_GetItemCount(g_hKmList),
                   g_KmOnlyLoaded ? " (loaded only)" : "");
         FeFreeDrivers(&list);
+        /* 原版 Driver 页状态栏同时给出隐藏驱动/可疑驱动对象计数 */
+        {
+            FE_HDRV_LIST hid, sus;
+            if (FeLoadHiddenDrivers(&hid, &sus)) {
+                char tail[160];
+                char head[256];
+                sprintf_s(tail, sizeof(tail),
+                          "   |   Drivers: %lu / Hidden Drivers: %lu / "
+                          "Suspicious DriverObject: %lu",
+                          (ULONG)ListView_GetItemCount(g_hKmList), hid.Count, sus.Count);
+                strcpy_s(head, sizeof(head), status);
+                sprintf_s(status, sizeof(status), "%s%s", head, tail);
+                FeFreeHiddenDrivers(&hid);
+                FeFreeHiddenDrivers(&sus);
+            }
+        }
     } else if (g_KmTab == 4) {
         /* Device 子页：0x056 CmdEnumObjectAllTypes（0x2000 起不再蓝屏） */
         FE_DEVICE_LIST dev;
@@ -2240,6 +2263,36 @@ static void DoRefreshKernel(void)
         sprintf_s(status, sizeof(status),
                   "Object: %lu entries (build %lu, cmd 0x0D5)", obj.Count, obj.Build);
         FeFreeKernelObjectList(&obj);
+    } else if (g_KmTab == 6 || g_KmTab == 7) {
+        /* Hidden Drivers / Suspicious DriverObject（用户态比对，无需驱动） */
+        FE_HDRV_LIST hidden, susp;
+        FE_HDRV_LIST *show;
+        ULONG i;
+        if (!FeLoadHiddenDrivers(&hidden, &susp)) {
+            SetWindowTextA(g_hKmStatus, "Hidden/Suspicious: query failed");
+            return;
+        }
+        show = (g_KmTab == 6) ? &hidden : &susp;
+        for (i = 0; i < show->Count; i++) {
+            LVITEMA it;
+            char base[32], size[32];
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            it.pszText = show->Items[i].Name[0] ? show->Items[i].Name : "(?)";
+            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            sprintf_s(base, sizeof(base), "%016I64X", show->Items[i].Base);
+            sprintf_s(size, sizeof(size), "0x%I64X", show->Items[i].Size);
+            KmSetText(g_hKmList, (int)i, 1, base);
+            KmSetText(g_hKmList, (int)i, 2, size);
+            KmSetText(g_hKmList, (int)i, 3, show->Items[i].Path);
+            KmSetText(g_hKmList, (int)i, 4, show->Items[i].Reason);
+        }
+        sprintf_s(status, sizeof(status),
+                  "Hidden Drivers: %lu / Suspicious DriverObject: %lu",
+                  hidden.Count, susp.Count);
+        FeFreeHiddenDrivers(&hidden);
+        FeFreeHiddenDrivers(&susp);
     } else {
         /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）
          *
@@ -2710,9 +2763,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            static const char *kmNames[6] = { "Kernel Module", "Driver", "SSDT",
-                                              "Shadow SSDT", "Device", "Object" };
-            for (k = 0; k < 6; k++) {
+            static const char *kmNames[8] = { "Kernel Module", "Driver", "SSDT",
+                                              "Shadow SSDT", "Device", "Object",
+                                              "Hidden Drivers", "Suspicious DriverObj" };
+            for (k = 0; k < 8; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)kmNames[k];
@@ -2926,11 +2980,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             SendMessageA(g_hMainTabs, TCM_SETCURSEL, (WPARAM)page, 0);
             ShowPage(hWnd, page);
             /* --kmtab N：预选 Kernel 页的子页（0 Module / 1 Driver / 2 SSDT /
-               3 Shadow SSDT）。用于截图取证与回归。 */
+               3 Shadow SSDT / 4 Device / 5 Object / 6 Hidden / 7 Suspicious） */
             pk = cl ? strstr(cl, "--kmtab ") : NULL;
             if (pk && g_hKmTabs) {
                 int kt = atoi(pk + 8);
-                if (kt >= 0 && kt <= 5) {
+                if (kt >= 0 && kt <= 7) {
                     g_KmTab = kt;
                     SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);
                     DoRefreshKernel();
@@ -3556,6 +3610,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintServices() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--startup-cli"))
         return FePrintStartupItems() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
+        return FePrintHiddenDrivers() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--drivers-cli"))
         return FePrintDrivers() ? 0 : 1;
 

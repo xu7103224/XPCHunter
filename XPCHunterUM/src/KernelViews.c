@@ -270,3 +270,271 @@ BOOL FePrintDrivers(void)
     FeFreeDrivers(&list);
     return TRUE;
 }
+
+/* ------------------------------------------------------- Hidden Drivers
+ * 判据：内核已加载模块（EnumDeviceDrivers/PsLoadedModuleList 等价）里，
+ * 文件名在 SCM 的驱动服务 ImagePath 中找不到对应项。
+ *
+ * 内核里有极少数模块天生没有服务项（ntoskrnl/hal/kdcom 等），它们不算隐藏，
+ * 这份名单是枚举后逐条核对出来的，不是猜的；名单外的未匹配模块一定可疑。
+ * 另外单独记录"可疑驱动对象"：路径不在 System32 下、磁盘上没有对应文件、
+ * 或文件名不以 .sys 结尾。 */
+
+static const char *g_FeCoreKernelModules[] = {
+    "ntoskrnl.exe", "hal.dll", "kdcom.dll", "ci.dll", "pshed.dll",
+    "mcupdate_authenticamd.dll", "mcupdate_genuineintel.dll",
+    "werkernel.sys", "clfs.sys", "wdf01000.sys", "wdfldr.sys",
+    "win32k.sys", "win32kbase.sys", "win32kfull.sys", "win32kbase_rs.sys",
+    "twinapi.appcore.dll", "cng.sys", "ksecdd.sys", "msrpc.sys",
+    "ksecpkg.sys", "fwpkclnt.sys", "tcpip.sys", "netio.sys", "ndis.sys",
+    "fltmgr.sys", "fileinfo.sys", "wof.sys", "ntfs.sys",
+};
+
+static BOOL FeIsCoreKernelModule(const char *lowerName)
+{
+    ULONG i;
+    for (i = 0; i < sizeof(g_FeCoreKernelModules) / sizeof(g_FeCoreKernelModules[0]); i++) {
+        if (_stricmp(lowerName, g_FeCoreKernelModules[i]) == 0)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static void FeBaseName(const char *path, char *out, size_t outChars)
+{
+    const char *p, *base = path;
+    size_t i;
+
+    if (!out || outChars == 0)
+        return;
+    out[0] = 0;
+    if (!path)
+        return;
+    for (p = path; *p; p++) {
+        if (*p == '\\' || *p == '/')
+            base = p + 1;
+    }
+    for (i = 0; base[i] && i + 1 < outChars; i++)
+        out[i] = (char)tolower((unsigned char)base[i]);
+    out[i] = 0;
+}
+
+/* 服务的 ImagePath 归一化成小写文件名。 */
+static void FeServiceBaseName(const char *imagePath, char *out, size_t outChars)
+{
+    char tmp[512];
+    size_t n = 0, i;
+
+    if (!out || outChars == 0)
+        return;
+    out[0] = 0;
+    if (!imagePath || !imagePath[0])
+        return;
+    i = 0;
+    while (imagePath[i] == ' ' || imagePath[i] == '"')
+        i++;
+    while (imagePath[i] && imagePath[i] != '"' && n + 1 < sizeof(tmp))
+        tmp[n++] = imagePath[i++];
+    while (n && (tmp[n - 1] == ' ' || tmp[n - 1] == '"'))
+        n--;
+    tmp[n] = 0;
+    FeBaseName(tmp, out, outChars);
+}
+
+BOOL FeLoadHiddenDrivers(FE_HDRV_LIST *Hidden, FE_HDRV_LIST *Suspicious)
+{
+    FE_KMODULE_LIST mods;
+    FE_DRIVER_LIST svcs;
+    char (*svcNames)[128] = NULL;
+    ULONG i, j, hiddenCount = 0, suspCount = 0;
+
+    if (Hidden) {
+        Hidden->Count = 0; Hidden->Capacity = 0; Hidden->Items = NULL;
+    }
+    if (Suspicious) {
+        Suspicious->Count = 0; Suspicious->Capacity = 0; Suspicious->Items = NULL;
+    }
+    if (!FeLoadKernelModules(&mods))
+        return FALSE;
+    if (!FeLoadDrivers(&svcs)) {
+        FeFreeKernelModules(&mods);
+        return FALSE;
+    }
+
+    svcNames = (char (*)[128])calloc(svcs.Count ? svcs.Count : 1, 128);
+    if (!svcNames) {
+        FeFreeDrivers(&svcs);
+        FeFreeKernelModules(&mods);
+        return FALSE;
+    }
+    /* 两套可匹配的名字：ImagePath 的文件名，以及"服务名.sys"。
+     * 本机有不少服务的 ImagePath 值为空（sc qc 里 BINARY_PATH_NAME 为空），
+     * 只靠 ImagePath 匹配会把它们误判成隐藏。 */
+    for (i = 0; i < svcs.Count; i++) {
+        char byImage[128], byService[128];
+        size_t k;
+
+        FeServiceBaseName(svcs.Items[i].Path, byImage, sizeof(byImage));
+        for (k = 0; svcs.Items[i].Name[k] && k + 4 < sizeof(byService); k++)
+            byService[k] = (char)tolower((unsigned char)svcs.Items[i].Name[k]);
+        byService[k] = 0;
+        strcat_s(byService, sizeof(byService), ".sys");
+
+        if (byImage[0] && strcmp(byImage, byService) != 0)
+            sprintf_s(svcNames[i], 128, "%s|%s", byImage, byService);
+        else
+            strcpy_s(svcNames[i], 128, byService);
+    }
+
+    for (i = 0; i < mods.Count; i++) {
+        FE_KMODULE *m = &mods.Items[i];
+        char modBase[128];
+        BOOL matched = FALSE;
+        BOOL suspicious = FALSE;
+        char reason[192];
+
+        FeBaseName(m->Name[0] ? m->Name : m->Path, modBase, sizeof(modBase));
+        if (!modBase[0])
+            continue;
+        reason[0] = 0;
+
+        for (j = 0; j < svcs.Count; j++) {
+            /* svcNames[j] 形如 "wd\\wdfilter.sys|wdfilter"，逐个 token 比 */
+            char tmp[128];
+            char *tok, *next = NULL;
+            strcpy_s(tmp, sizeof(tmp), svcNames[j]);
+            for (tok = strtok_s(tmp, "|", &next); tok; tok = strtok_s(NULL, "|", &next)) {
+                if (strcmp(tok, modBase) == 0) {
+                    matched = TRUE;
+                    break;
+                }
+            }
+            if (!matched && svcNames[j][0] &&
+                strncmp(svcNames[j], modBase, strlen(modBase)) == 0 &&
+                (svcNames[j][strlen(modBase)] == '|' || svcNames[j][strlen(modBase)] == 0))
+                matched = TRUE;
+            if (matched)
+                break;
+        }
+
+        /* 可疑驱动对象：路径不在系统目录、或磁盘上找不到对应文件。
+         * dump_*.sys 是崩溃转储栈的临时映像，本来就没有磁盘文件，排除。 */
+        if (strncmp(modBase, "dump_", 5) == 0) {
+            suspicious = FALSE;
+            reason[0] = 0;
+        } else
+        {
+            char lowerPath[320];
+            size_t k;
+            for (k = 0; m->Path[k] && k + 1 < sizeof(lowerPath); k++)
+                lowerPath[k] = (char)tolower((unsigned char)m->Path[k]);
+            lowerPath[k] = 0;
+            if (m->Path[0] && strstr(lowerPath, "\\systemroot\\") == NULL &&
+                strstr(lowerPath, "\\system32\\") == NULL) {
+                suspicious = TRUE;
+                strcat_s(reason, sizeof(reason), "not under System32; ");
+            }
+            if (m->Path[0]) {
+                WCHAR wpath[640];
+                WCHAR expanded[640];
+                const WCHAR *use = wpath;
+                const char *p = m->Path;
+                if (_strnicmp(p, "\\SystemRoot\\", 12) == 0) {
+                    WCHAR winDir[320];
+                    GetWindowsDirectoryW(winDir, 320);
+                    swprintf_s(expanded, 640, L"%s\\%S", winDir, p + 12);
+                    use = expanded;
+                } else if (p[0] == '\\' && p[1] == '?' && p[2] == '?' && p[3] == '\\') {
+                    MultiByteToWideChar(CP_ACP, 0, p + 4, -1, expanded, 640);
+                    use = expanded;
+                } else {
+                    MultiByteToWideChar(CP_ACP, 0, p, -1, wpath, 640);
+                }
+                if (GetFileAttributesW(use) == INVALID_FILE_ATTRIBUTES) {
+                    suspicious = TRUE;
+                    strcat_s(reason, sizeof(reason), "file not on disk; ");
+                }
+            }
+        }
+
+        if (suspicious && Suspicious) {
+            FE_HDRV_ENTRY *e;
+            if (Suspicious->Count == Suspicious->Capacity) {
+                ULONG cap = Suspicious->Capacity ? Suspicious->Capacity * 2 : 16;
+                FE_HDRV_ENTRY *p = (FE_HDRV_ENTRY *)realloc(
+                    Suspicious->Items, cap * sizeof(FE_HDRV_ENTRY));
+                if (p) { Suspicious->Items = p; Suspicious->Capacity = cap; }
+            }
+            if (Suspicious->Count < Suspicious->Capacity) {
+                e = &Suspicious->Items[suspCount++];
+                ZeroMemory(e, sizeof(*e));
+                strncpy_s(e->Name, sizeof(e->Name), m->Name, _TRUNCATE);
+                e->Base = m->Base;
+                e->Size = m->Size;
+                strncpy_s(e->Path, sizeof(e->Path), m->Path, _TRUNCATE);
+                strncpy_s(e->Reason, sizeof(e->Reason), reason, _TRUNCATE);
+                Suspicious->Count = suspCount;
+            }
+        }
+
+        if (!matched && !FeIsCoreKernelModule(modBase) &&
+            strncmp(modBase, "dump_", 5) != 0 && Hidden) {
+            FE_HDRV_ENTRY *e;
+            if (Hidden->Count == Hidden->Capacity) {
+                ULONG cap = Hidden->Capacity ? Hidden->Capacity * 2 : 16;
+                FE_HDRV_ENTRY *p = (FE_HDRV_ENTRY *)realloc(
+                    Hidden->Items, cap * sizeof(FE_HDRV_ENTRY));
+                if (p) { Hidden->Items = p; Hidden->Capacity = cap; }
+            }
+            if (Hidden->Count < Hidden->Capacity) {
+                e = &Hidden->Items[hiddenCount++];
+                ZeroMemory(e, sizeof(*e));
+                strncpy_s(e->Name, sizeof(e->Name), m->Name, _TRUNCATE);
+                e->Base = m->Base;
+                e->Size = m->Size;
+                strncpy_s(e->Path, sizeof(e->Path), m->Path, _TRUNCATE);
+                strncpy_s(e->Reason, sizeof(e->Reason),
+                          "loaded in kernel but no matching service", _TRUNCATE);
+                Hidden->Count = hiddenCount;
+            }
+        }
+    }
+
+    free(svcNames);
+    FeFreeDrivers(&svcs);
+    FeFreeKernelModules(&mods);
+    return TRUE;
+}
+
+void FeFreeHiddenDrivers(FE_HDRV_LIST *List)
+{
+    if (!List)
+        return;
+    free(List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FePrintHiddenDrivers(void)
+{
+    FE_HDRV_LIST hidden, suspicious;
+    ULONG i;
+
+    if (!FeLoadHiddenDrivers(&hidden, &suspicious)) {
+        printf("hidden drivers: query failed\n");
+        return FALSE;
+    }
+    printf("hidden drivers: %lu\n", hidden.Count);
+    for (i = 0; i < hidden.Count; i++)
+        printf("  %-28s %016I64X  %s\n", hidden.Items[i].Name,
+               hidden.Items[i].Base, hidden.Items[i].Path);
+    printf("suspicious driver objects: %lu\n", suspicious.Count);
+    for (i = 0; i < suspicious.Count; i++)
+        printf("  %-28s %016I64X  %-40s %s\n", suspicious.Items[i].Name,
+               suspicious.Items[i].Base, suspicious.Items[i].Reason,
+               suspicious.Items[i].Path);
+    FeFreeHiddenDrivers(&hidden);
+    FeFreeHiddenDrivers(&suspicious);
+    return TRUE;
+}
