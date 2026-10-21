@@ -1561,7 +1561,17 @@ __int64 CmdEnumObjectAllTypes(__int64 OutputBuffer, __int64 OutputSize, char *Us
                 RemainingCount2 = RemainingCount - (int)TcpipDriverObject;
                 VolmgrDriverObject = QueryVolmgrDriverObject(DevicePtr7, RemainingCount2);
                 if (VolmgrDriverObject > (unsigned int)RemainingCount2) VolmgrDriverObject = (unsigned int)RemainingCount2;
-                TotalCount5 += (int)VolmgrDriverObject + (int)TcpipDriverObject;
+                /* 【修正 2026-10-21】原版在 0x1400099C9 有 `add esi, r14d`
+                   （累加 TcpipDriverObject），0x1400099F2 再 `add esi, eax`
+                   （累加 VolmgrDriverObject）；而 jb（build<0x1770）跳到
+                   loc_140009A1A 时**只**执行那一条 `add esi, r14d`。
+                   也就是说 TcpipDriverObject 在两条路径上都只累加一次。
+                   我方原写法在 Volmgr 分支里把 TcpipDriverObject 也加进
+                   TotalCount5，随后 TotalCount6 又加一次 → 重复计数，
+                   导致 NormalizeModulePaths 的 EntryCount 偏大 → 按偏大的
+                   条目数步进 1052 字节 → 越界读 → 0xC0000005。
+                   这里改为只累加 Volmgr。 */
+                TotalCount5 += (int)VolmgrDriverObject;
                 DevicePtr6 = 2104LL * VolmgrDriverObject + DevicePtr7;
                 RemainingCount = RemainingCount2 - VolmgrDriverObject;
                 TcpipDriverObject = QueryTdxDriverObject(DevicePtr6, RemainingCount);

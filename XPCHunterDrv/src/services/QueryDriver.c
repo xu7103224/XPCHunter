@@ -78,8 +78,16 @@ BOOLEAN CopySectionString(__int64 OutputBuffer, __int64 DeviceEntry, __int64 Dri
     if ((_DWORD)NameChars)
         *(_WORD *)(OutputBuffer + 2 * NameChars + 24) = 0;
 
-    // Device name
+    /* 【修正 2026-10-21】原实现在这里直接解引用 *(DeviceEntry+8) 且不校验，
+       一旦 DeviceEntry 来自边界之外的链表节点，读 DeviceObjEntry+56 就是
+       0xC0000005。原版同样没校验，但原版调用方从不会把越界指针传进来；
+       我方 0x056 的条目计数曾可超出缓冲区，于是这条路径被打穿。
+       这里补两道校验，不改变正常路径的行为。 */
+    if (MmIsAddressValid((void *)DeviceEntry) != 1)
+        return 0;
     __int64 DeviceObjEntry = *(_QWORD *)(DeviceEntry + 8);
+    if (!DeviceObjEntry || MmIsAddressValid((void *)(DeviceObjEntry + 72)) != 1)
+        return 0;
     unsigned int DeviceNameLen = *(unsigned __int16 *)(DeviceObjEntry + 56);
     *(_WORD *)(OutputBuffer + 544) = 0;
     void *DevNameBuffer = *(void **)(DeviceObjEntry + 64);
@@ -153,17 +161,31 @@ __int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
     void (__fastcall *ExFreePoolFunc)(__int64);
 
     __int64 FileHandle;
-    __int64 IoStatusBlock;
     __int64 DeviceObjectPtr;
-    __int64 ResultInfo;
     __int64 FsControlCode;
-    ULONG OaLength;
-    ULONG64 OaRootDir;
-    ULONG64 OaObjectName;
-    ULONG OaAttributes;
-    _OWORD IoStatusBlockBuf;
+    /* 【修正 2026-10-21 · 0x056 蓝屏根因】
+       原实现把 UNICODE_STRING 存进 `__int64 ResultInfo`（8 字节），
+       而 RtlInitUnicodeString 要写满 16 字节（Length/MaximumLength/Buffer
+       + 4 字节填充）→ 溢出到相邻局部变量，把紧接着的 OaLength 等冲掉；
+       同时 OBJECT_ATTRIBUTES 由 4 个独立局部拼成，编译器不保证它们
+       按 Length/RootDirectory/ObjectName/Attributes 的顺序连续排列，
+       于是 IoCreateFile 读到的 ObjectName 是垃圾指针 →
+       解引用 → 0xC0000005（0x3B）。
+       这里改用真正的结构体，保证布局与内核期望一致。 */
+    UNICODE_STRING DeviceName;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    IO_STATUS_BLOCK IoStatusBlock;
     ULONG PathBuffer[4];
-    ULONG InitResult;
+    /* 【修正 2026-10-21 · 0x056 蓝屏真因】
+       原为 `ULONG InitResult`。InitSystemPath() 返回的是 64 位内核指针
+       （实测 ffffc30a`0d132b30），存进 ULONG 后被截断成 0x0d132b30，
+       紧接着 `*(WORD *)(ULONG_PTR)InitResult` 解引用这个用户态垃圾地址
+       → 0xC0000005。
+       WinDbg 实证：崩溃点 VPChainG+0x68391 的 `movzx eax,word ptr [rcx]`，
+       而 rcx 正是被 `mov ecx,eax` 截断后的低 32 位；
+       bugcheck Arg3 = ffffc30a`0d132b30 与截断前的原指针完全吻合。
+       必须用 64 位承载。 */
+    ULONG64 InitResult;
 
     // 读取函数指针
     RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
@@ -188,41 +210,45 @@ __int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
     PathBuffer[3] = 0x5C;       // L"\\"
 
     // 获取系统根路径，提取驱动器号
-    InitResult = (ULONG)(ULONG_PTR)InitSystemPath();
+    InitResult = (ULONG64)InitSystemPath();
     if (!InitResult)
     {
         return 0;
     }
 
     // 替换路径中的驱动器号
-    ((WORD *)PathBuffer)[4] = *(WORD *)(ULONG_PTR)InitResult;
-    ExFree((void *)(ULONG_PTR)InitResult);
+    ((WORD *)PathBuffer)[4] = *(WORD *)InitResult;
+    ExFree((void *)InitResult);
 
-    // 初始化 Unicode 字符串
-    RtlInitUnicodeStringFunc((_BYTE *)&ResultInfo, (_DWORD *)PathBuffer);
+    /* 初始化 Unicode 字符串。
+       RtlInitUnicodeString 会写 16 字节，DeviceName 必须是真正的
+       UNICODE_STRING（16 字节），不能是 8 字节的标量。 */
+    RtlInitUnicodeStringFunc((_BYTE *)&DeviceName, (_DWORD *)PathBuffer);
 
-    // 设置 OBJECT_ATTRIBUTES
-    OaLength = 0x30;                       // sizeof(OBJECT_ATTRIBUTES)
-    OaRootDir = 0;                         // 根目录为空
-    OaAttributes = 0x240;                  // OBJ_CASE_INSENSITIVE
-    OaObjectName = (ULONG64)&ResultInfo;   // 指向 Unicode 字符串
+    /* OBJECT_ATTRIBUTES：必须用结构体，保证字段连续且顺序正确。
+       Attributes = 0x240 = OBJ_CASE_INSENSITIVE(0x40) | OBJ_KERNEL_HANDLE(0x200) */
+    ObjectAttributes.Length                   = sizeof(OBJECT_ATTRIBUTES);   /* 0x30 */
+    ObjectAttributes.RootDirectory            = NULL;
+    ObjectAttributes.ObjectName               = &DeviceName;
+    ObjectAttributes.Attributes               = 0x240;
+    ObjectAttributes.SecurityDescriptor       = NULL;
+    ObjectAttributes.SecurityQualityOfService = NULL;
 
-    // 清零 IO_STATUS_BLOCK
-    ((ULONG64 *)&IoStatusBlockBuf)[0] = 0;
-    ((ULONG64 *)&IoStatusBlockBuf)[1] = 0;
+    RtlZeroMemory(&IoStatusBlock, sizeof(IoStatusBlock));
 
     // 调用 CreateFile 打开设备
     if ((ULONG)CreateFileFunc1(
         (__int64)&FileHandle,
-        0x100000,                     // DesiredAccess: SYNCHRONIZE
-        (__int64)&OaLength,           // ObjectAttributes
-        (__int64)&IoStatusBlockBuf,   // IoStatusBlock
-        0,                            // AllocationSize
-        0,                            // FileAttributes
-        3,                            // ShareAccess: FILE_SHARE_READ|FILE_SHARE_WRITE
-        1,                            // CreateDisposition: FILE_OPEN
-        0x21,                         // CreateOptions: FILE_SYNCHRONOUS_IO_NONALERT
-        0) != 0)                      // EaLength
+        0x100000,                       // DesiredAccess: SYNCHRONIZE
+        (__int64)&ObjectAttributes,     // ObjectAttributes
+        (__int64)&IoStatusBlock,        // IoStatusBlock
+        0,                              // AllocationSize
+        0,                              // FileAttributes
+        3,                              // ShareAccess
+        1,                              // CreateDisposition: FILE_OPEN
+        0x21,                           // CreateOptions
+        0,                              // EaBuffer
+        0) != 0)                        // EaLength
     {
         return 0;
     }
@@ -245,9 +271,12 @@ __int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
     }
 
     // 从文件对象获取设备对象
-    if (!GetDeviceObjectFromFileObject(IoStatusBlock, (ULONG64 *)&DeviceObjectPtr, NULL))
+    /* IoStatusBlock 现在是真正的 IO_STATUS_BLOCK（16 字节），
+       取 Information 字段作为设备对象指针。 */
+    if (!GetDeviceObjectFromFileObject((__int64)IoStatusBlock.Information,
+                                       (ULONG64 *)&DeviceObjectPtr, NULL))
     {
-        CloseHandleFunc(IoStatusBlock);
+        CloseHandleFunc((__int64)IoStatusBlock.Information);
         ExFreePoolFunc(FileHandle);
         return 0;
     }
@@ -268,7 +297,7 @@ __int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
     }
 
     // 清理
-    CloseHandleFunc(IoStatusBlock);
+    CloseHandleFunc((__int64)IoStatusBlock.Information);
     ExFreePoolFunc(FileHandle);
     return EntryCount;
 }
@@ -336,7 +365,19 @@ __int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 O
     void (__fastcall *RtlInitStrFunc)(_BYTE *, __int64) = (void (__fastcall *)(_BYTE *, __int64))GtRead(GtRtlInitUnicodeStringFunc);
     int (__fastcall *IoCreateFileFunc)(_BYTE *, __int64, _QWORD, _QWORD, _QWORD, _BYTE, _QWORD, __int64 *) = (int (__fastcall *)(_BYTE *, __int64, _QWORD, _QWORD, _QWORD, _BYTE, _QWORD, __int64 *))GtRead(GtIoCreateFileFunc);
     _QWORD *DriverListHead = (_QWORD *)GtRead(GtDriverObjectListHead);
-    void (*CloseHandleFunc)(void) = (void (*)(void))GtRead(GtCloseHandleFunc);
+    /* 【修正 2026-10-21 · 0x056 第二处蓝屏根因】
+       原声明为 `void (*)(void)`，调用处写 `CloseHandleFunc();` **不传参数**。
+       但 0x4223 实际是 ObDereferenceObject：它把 rcx 当作 OBJECT_HEADER
+       指针做 `lock xadd [rcx-0x30]`。不传参 → rcx 是上一条指令残留的垃圾
+       → 0xC0000005。
+       WinDbg 实证调用栈：
+         nt!ObfDereferenceObject+0x26
+         VPChainH+0x68616   ← 本函数内 (0x684f0+0x126)
+         VPChainH+0x25a9b   ← CmdEnumObjectAllTypes 调 QueryFileSystem…
+       原版在 0x1400084D9 是 `mov rcx,[rsp+88h+var_48]` 后才调用，
+       var_48 就是 IoCreateFile 写回的句柄/对象指针。
+       这里补上参数。 */
+    void (*CloseHandleFunc)(__int64) = (void (*)(__int64))GtRead(GtCloseHandleFunc);
 
     if (RtlInitStrFunc && IoCreateFileFunc && DriverListHead && CloseHandleFunc)
     {
@@ -361,7 +402,7 @@ __int64 QueryDriverObjectByPath(__int64 TargetPath, int MaxNameLength, __int64 O
                         ++Result;
                     }
                 }
-                CloseHandleFunc();
+                CloseHandleFunc(FileHandle);
             }
         }
     }

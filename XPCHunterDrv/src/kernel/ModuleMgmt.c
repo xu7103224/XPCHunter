@@ -487,9 +487,22 @@ void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount)
     TempBuffer = ExAlloc(PagedPool, 0x410);
     if (!TempBuffer) goto Cleanup;
 
+    /* 【修正 2026-10-21】EntryCount 由调用方（0x056）从各枚举器返回值累加而来，
+       一旦某一步多算，这里就会按超出的条目数继续步进 1052 字节并解引用
+       `*PathPtr` → 读到用户缓冲区之外 → 0xC0000005（0x056 第二次蓝屏）。
+       这里按 EntryCount 的双重上界自我约束：
+         a) 不超过调用方给的 EntryCount
+         b) 不超过「缓冲区能容纳的条目数」，用最高合理偏移反推
+       由于本函数拿不到缓冲区长度，采用保守上限 0x1000 条（调用方 0x056
+       最大 OutSize 也远小于此），并且每步用 MmIsAddressValid 兜底。 */
+    if (EntryCount > 0x1000)
+        EntryCount = 0x1000;
     PathPtr = (short *)(OutputBuffer + 1584);
     for (EntryIndex = 0; EntryIndex < EntryCount; EntryIndex++)
     {
+        /* 路径字段本身必须先可读，否则 *PathPtr 就是越界读 */
+        if (MmIsAddressValid(PathPtr) != 1)
+            break;
         if (!*PathPtr) goto NextEntry;
 
         Char = WStringFindChar(PathPtr, L'\\');
