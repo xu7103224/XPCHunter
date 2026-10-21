@@ -31,20 +31,32 @@
 #define IDC_TABS        1011
 #define IDC_DETAIL      1012
 #define IDC_KILL        1013
-/* Kernel 页（独立窗口） */
+/* Kernel 页（现已收进主 Tab 容器） */
 #define IDC_KERNEL      1014
 #define IDC_KM_REFRESH  1020
 #define IDC_KM_TABS     1021
 #define IDC_KM_LIST     1022
 #define IDC_KM_STATUS   1023
+/* 14 个主 Tab 容器 */
+#define IDC_MAINTABS    1030
+#define IDC_PAGEHINT    1031
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
 static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
-static HWND g_hKernel, g_hKmTabs, g_hKmList, g_hKmStatus;
+static HWND g_hKmTabs, g_hKmList, g_hKmStatus;
+static HWND g_hMainTabs, g_hPageHint;
+static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
-static int  g_StartTab = 0;   /* --tab N：启动时预选子视图页 */
+static int  g_StartTab = 0;   /* --tab N：启动时预选 Process 的子视图页 */
+
+/* 原版 PCHunter 的 14 个主 Tab，顺序与 docs/reversing/原版前端功能地图.md 一致 */
+static const char *g_MainTabNames[14] = {
+    "Process", "Kernel", "Ring0 Hooks", "Ring3 Hooks", "Network",
+    "Registry", "Startup Info", "Services", "File", "Examination",
+    "Setting", "Fireeye", "Trojan Detection", "Other"
+};
 
 /* Names for the commands we know (index = cmd - 0x20). Others show "-". */
 static const char *CmdName(ULONG cmd)
@@ -658,14 +670,65 @@ static void DoRefreshProcs(void)
 }
 
 /* ==========================================================================
- * Kernel 页（对应原版 PCHunter 的第 2 个主 Tab，先落两个子页）
+ * 主 Tab 容器（M1）
+ *
+ * 原版是单窗口 + 14 个主 Tab。这里：
+ *   顶部工具条（连接/刷新/命令测试器）   10..38
+ *   主 Tab 栏                            44..68
+ *   页面区（各页控件都建在主窗口里，按选中页显示/隐藏）
+ *
+ * 已实现的页：0 Process、1 Kernel。其余 12 页显示"未实现"提示，
+ * 不伪造功能。
+ * ========================================================================== */
+
+static void ShowPage(HWND hWnd, int page)
+{
+    int isProc = (page == 0);
+    int isKernel = (page == 1);
+    char hint[512];
+    HWND hKill, hRef;
+
+    if (g_hProc)       ShowWindow(g_hProc,       isProc ? SW_SHOW : SW_HIDE);
+    if (g_hProcStatus) ShowWindow(g_hProcStatus, isProc ? SW_SHOW : SW_HIDE);
+    if (g_hTabs)       ShowWindow(g_hTabs,       isProc ? SW_SHOW : SW_HIDE);
+    if (g_hDetail)     ShowWindow(g_hDetail,     isProc ? SW_SHOW : SW_HIDE);
+    if (g_hList)       ShowWindow(g_hList,       isProc ? SW_SHOW : SW_HIDE);
+    hKill = GetDlgItem(hWnd, IDC_KILL);
+    if (hKill) ShowWindow(hKill, isProc ? SW_SHOW : SW_HIDE);
+
+    if (g_hKmTabs)   ShowWindow(g_hKmTabs,   isKernel ? SW_SHOW : SW_HIDE);
+    if (g_hKmList)   ShowWindow(g_hKmList,   isKernel ? SW_SHOW : SW_HIDE);
+    if (g_hKmStatus) ShowWindow(g_hKmStatus, isKernel ? SW_SHOW : SW_HIDE);
+    hRef = GetDlgItem(hWnd, IDC_KM_REFRESH);
+    if (hRef) ShowWindow(hRef, isKernel ? SW_SHOW : SW_HIDE);
+
+    if (g_hPageHint) {
+        if (isProc || isKernel) {
+            ShowWindow(g_hPageHint, SW_HIDE);
+        } else {
+            sprintf_s(hint, sizeof(hint),
+                      "%s  -  not implemented yet.\r\n\r\n"
+                      "See docs/reversing for the planned data source.",
+                      g_MainTabNames[page < 14 ? page : 0]);
+            SetWindowTextA(g_hPageHint, hint);
+            ShowWindow(g_hPageHint, SW_SHOW);
+        }
+    }
+
+    g_MainTab = page;
+    if (isProc) {
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        SendMessageA(hWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(rc.right, rc.bottom));
+    }
+}
+
+
+/* ==========================================================================
+ * Kernel 页（原版第 2 个主 Tab，现已是主 Tab 容器里的一页）
  *
  *   Kernel Module : EnumDeviceDrivers + GetDeviceDriverBaseNameW/FileNameW
  *   Driver        : SCM 的 SERVICE_DRIVER 枚举 + QueryServiceConfig
- *
- * 做成独立窗口而不是主窗口内的分页，是为了不改动已实机验证过的 Process 页
- * 布局（Process 页的坐标与 WM_SIZE 都是硬编码的）。等其余页面补齐后，
- * 这些页会统一收进一个主 Tab 栏里。
  * ========================================================================== */
 static void CreateKmColumns(HWND hList, int tab)
 {
@@ -778,105 +841,6 @@ static void DoRefreshKernel(void)
     SetWindowTextA(g_hKmStatus, status);
 }
 
-static LRESULT CALLBACK KernelWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    switch (msg) {
-    case WM_CREATE: {
-        HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
-        TCITEMA t;
-        int k;
-
-        CreateWindowA("BUTTON", "Refresh", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                      10, 10, 90, 28, hWnd, (HMENU)IDC_KM_REFRESH, hInst, NULL);
-        g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                                    110, 16, 860, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
-
-        g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
-                                  10, 46, 960, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
-        for (k = 0; k < 2; k++) {
-            ZeroMemory(&t, sizeof(t));
-            t.mask = TCIF_TEXT;
-            t.pszText = (LPSTR)(k == 0 ? "Kernel Module" : "Driver");
-            SendMessageA(g_hKmTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
-        }
-        SendMessageA(g_hKmTabs, TCM_SETCURSEL, 0, 0);
-
-        g_hKmList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
-                                    WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
-                                    10, 76, 960, 500, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
-        ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
-        CreateKmColumns(g_hKmList, 0);
-        DoRefreshKernel();
-        SetWindowTextA(hWnd, "XPCHunter Frontend - Kernel");
-        return 0;
-    }
-
-    case WM_SIZE: {
-        RECT rc;
-        int w;
-        GetClientRect(hWnd, &rc);
-        w = rc.right - 20;
-        if (w < 300) w = 300;
-        if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, 46, w, 24, TRUE);
-        if (g_hKmList)   MoveWindow(g_hKmList, 10, 76, w, rc.bottom - 86, TRUE);
-        if (g_hKmStatus) MoveWindow(g_hKmStatus, 110, 16, w - 100, 20, TRUE);
-        return 0;
-    }
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDC_KM_REFRESH) {
-            DoRefreshKernel();
-            return 0;
-        }
-        return 0;
-
-    case WM_NOTIFY: {
-        NMHDR *nm = (NMHDR *)lParam;
-        if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
-            g_KmTab = (int)SendMessageA(g_hKmTabs, TCM_GETCURSEL, 0, 0);
-            DoRefreshKernel();
-        }
-        return 0;
-    }
-
-    case WM_CLOSE:
-        DestroyWindow(hWnd);
-        return 0;
-
-    case WM_DESTROY:
-        g_hKernel = NULL;
-        g_hKmTabs = g_hKmList = g_hKmStatus = NULL;
-        return 0;
-    }
-    return DefWindowProcA(hWnd, msg, wParam, lParam);
-}
-
-static void ShowKernelWindow(HINSTANCE hInst)
-{
-    static BOOL registered = FALSE;
-
-    if (g_hKernel) {
-        SetForegroundWindow(g_hKernel);
-        return;
-    }
-    if (!registered) {
-        WNDCLASSA wc;
-        ZeroMemory(&wc, sizeof(wc));
-        wc.lpfnWndProc = KernelWndProc;
-        wc.hInstance = hInst;
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-        wc.lpszClassName = "XPCHKernel";
-        if (!RegisterClassA(&wc))
-            return;
-        registered = TRUE;
-    }
-    g_hKernel = CreateWindowExA(0, "XPCHKernel", "XPCHunter Frontend - Kernel",
-                                WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                                CW_USEDEFAULT, CW_USEDEFAULT, 1000, 640,
-                                NULL, NULL, hInst, NULL);
-}
-
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
@@ -909,19 +873,37 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         g_hStatus = CreateWindowA("STATIC", "Disconnected", WS_CHILD | WS_VISIBLE | SS_LEFT,
                                   10, 46, 940, 20, hWnd, (HMENU)IDC_STATUS, hInst, NULL);
 
+        /* ---- 14 个主 Tab 容器（M1）---- */
+        g_hMainTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
+                                    10, 44, 940, 24, hWnd, (HMENU)IDC_MAINTABS, hInst, NULL);
+        {
+            TCITEMA t;
+            int k;
+            for (k = 0; k < 14; k++) {
+                ZeroMemory(&t, sizeof(t));
+                t.mask = TCIF_TEXT;
+                t.pszText = (LPSTR)g_MainTabNames[k];
+                SendMessageA(g_hMainTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
+            }
+        }
+
+        /* 未实现页的占位提示（不伪造功能，写清状态） */
+        g_hPageHint = CreateWindowA("STATIC", "", WS_CHILD | SS_LEFT,
+                                    20, 90, 900, 140, hWnd, (HMENU)IDC_PAGEHINT, hInst, NULL);
+
         /* Process 页主视图 */
         g_hProc = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
-                                  10, 70, 940, 300, hWnd, (HMENU)IDC_PROCLIST, hInst, NULL);
+                                  10, 76, 940, 300, hWnd, (HMENU)IDC_PROCLIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hProc, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         CreateProcColumns(g_hProc);
 
         g_hProcStatus = CreateWindowA("STATIC", "Not connected", WS_CHILD | WS_VISIBLE | SS_LEFT,
-                                      10, 376, 940, 20, hWnd, (HMENU)IDC_PROCSTATUS, hInst, NULL);
+                                      10, 380, 940, 20, hWnd, (HMENU)IDC_PROCSTATUS, hInst, NULL);
 
         /* 明细子视图：tab + 一个 ListView（列随 tab 切换） */
         g_hTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
-                                10, 400, 940, 24, hWnd, (HMENU)IDC_TABS, hInst, NULL);
+                                10, 402, 940, 24, hWnd, (HMENU)IDC_TABS, hInst, NULL);
         {
             TCITEMA t;
             int k;
@@ -935,8 +917,33 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         SendMessageA(g_hTabs, TCM_SETCURSEL, (WPARAM)g_StartTab, 0);
         g_hDetail = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
-                                    10, 424, 940, 190, hWnd, (HMENU)IDC_DETAIL, hInst, NULL);
+                                    10, 426, 940, 190, hWnd, (HMENU)IDC_DETAIL, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hDetail, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+
+        /* ---- Kernel 页（主 Tab 1）：刷新 + 子页 Tab + 列表 + 状态 ---- */
+        CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 90, 28, hWnd, (HMENU)IDC_KM_REFRESH, hInst, NULL);
+        g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    110, 82, 840, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
+        g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
+                                  10, 110, 940, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
+        {
+            TCITEMA t;
+            int k;
+            static const char *kmNames[2] = { "Kernel Module", "Driver" };
+            for (k = 0; k < 2; k++) {
+                ZeroMemory(&t, sizeof(t));
+                t.mask = TCIF_TEXT;
+                t.pszText = (LPSTR)kmNames[k];
+                SendMessageA(g_hKmTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
+            }
+        }
+        g_hKmList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 140, 940, 476, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        CreateKmColumns(g_hKmList, 0);
+        DoRefreshKernel();
 
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
@@ -945,35 +952,69 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         ListView_SetExtendedListViewStyle(g_hList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         CreateListColumns(g_hList);
 
-        SetWindowTextA(hWnd, "XPCHunter Frontend - Process");
-        /* --kernel-gui：启动即打开 Kernel 页（截图/取证用；两个子页的数据源
-           都是纯用户态 API，不依赖驱动，因此无驱动时也能正常显示） */
-        if (strstr(GetCommandLineA(), "--kernel-gui"))
-            ShowKernelWindow(hInst);
+        /* 初始页：--page N，或 --kernel-gui 等价于 --page 1 */
+        {
+            const char *cl = GetCommandLineA();
+            int page = 0;
+            const char *p = cl ? strstr(cl, "--page ") : NULL;
+            if (p) page = atoi(p + 7);
+            if (cl && strstr(cl, "--kernel-gui")) page = 1;
+            if (page < 0 || page > 13) page = 0;
+            SendMessageA(g_hMainTabs, TCM_SETCURSEL, (WPARAM)page, 0);
+            ShowPage(hWnd, page);
+        }
+
+        SetWindowTextA(hWnd, "PC Hunter Replica");
         return 0;
     }
 
     case WM_SIZE: {
         RECT rc;
-        int w, h;
+        int w, h, pageTop, pageBottom;
         GetClientRect(hWnd, &rc);
         w = rc.right - 20;
         h = rc.bottom;
-        if (w < 200) w = 200;
-        /* Process 列表占上方；底部固定给"命令测试器"留 170px */
-        /* 上：进程列表（70 .. h-500）
-           中：tab（h-496） + 明细列表（h-472 .. h-280）
-           下：状态栏（h-275） + 命令测试器（h-250 .. h-10） */
-        if (g_hProc)
-            MoveWindow(g_hProc, 10, 70, w, (h - 500) - 70, TRUE);
-        if (g_hTabs)
-            MoveWindow(g_hTabs, 10, h - 496, w, 24, TRUE);
-        if (g_hDetail)
-            MoveWindow(g_hDetail, 10, h - 472, w, 192, TRUE);
-        if (g_hProcStatus)
-            MoveWindow(g_hProcStatus, 10, h - 275, w, 20, TRUE);
-        if (g_hList)
-            MoveWindow(g_hList, 10, h - 250, w, 240, TRUE);
+        if (w < 400) w = 400;
+        pageTop = 76;                 /* 主 Tab 栏之下 */
+        pageBottom = h - 12;          /* 留一点下边距 */
+
+        if (g_hMainTabs)
+            MoveWindow(g_hMainTabs, 10, 44, w, 24, TRUE);
+        if (g_hPageHint)
+            MoveWindow(g_hPageHint, 20, pageTop + 20, w - 20, 160, TRUE);
+
+        if (g_MainTab == 0) {
+            /* Process 页：进程列表(上半) + 子视图 Tab + 明细列表(下半) + 命令测试器 */
+            int listH = (pageBottom - pageTop) / 2 - 40;
+            int midY, detailH;
+            if (listH < 100) listH = 100;
+            midY = pageTop + listH + 4;
+            detailH = pageBottom - (midY + 28) - 150;
+            if (detailH < 80) detailH = 80;
+            if (g_hProc)       MoveWindow(g_hProc, 10, pageTop, w, listH, TRUE);
+            if (g_hProcStatus) MoveWindow(g_hProcStatus, 10, midY, w, 20, TRUE);
+            if (g_hTabs)       MoveWindow(g_hTabs, 10, midY + 22, w, 24, TRUE);
+            if (g_hDetail)     MoveWindow(g_hDetail, 10, midY + 46, w, detailH, TRUE);
+            if (g_hList)       MoveWindow(g_hList, 10, h - 150, w, 132, TRUE);
+        } else if (g_MainTab == 1) {
+            /* Kernel 页：刷新 + 状态 + 子页 Tab + 列表 */
+            int listY = pageTop + 64;
+            int listH = pageBottom - listY;
+            if (listH < 100) listH = 100;
+            {
+                HWND hRef = GetDlgItem(hWnd, IDC_KM_REFRESH);
+                if (hRef) {
+                    MoveWindow(hRef, 10, pageTop, 90, 28, TRUE);
+                    ShowWindow(hRef, SW_SHOW);
+                }
+            }
+            if (g_hKmStatus) MoveWindow(g_hKmStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
+            if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
+            if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else {
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
+        }
         return 0;
     }
 
@@ -984,12 +1025,24 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SCAN:    DoScan();    return 0;
         case IDC_SEND:    DoSend();    return 0;
         case IDC_KILL:    DoKillSelected(); return 0;
-        case IDC_KERNEL:  ShowKernelWindow((HINSTANCE)GetWindowLongPtrA(hWnd, GWLP_HINSTANCE)); return 0;
+        case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
         }
         return 0;
 
     case WM_NOTIFY: {
         NMHDR *nm = (NMHDR *)lParam;
+        if (nm->idFrom == IDC_MAINTABS && nm->code == TCN_SELCHANGE) {
+            int page = (int)SendMessageA(g_hMainTabs, TCM_GETCURSEL, 0, 0);
+            ShowPage(hWnd, page);
+            if (page == 1)
+                DoRefreshKernel();
+            return 0;
+        }
+        if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
+            g_KmTab = (int)SendMessageA(g_hKmTabs, TCM_GETCURSEL, 0, 0);
+            DoRefreshKernel();
+            return 0;
+        }
         if (nm->idFrom == IDC_TABS && nm->code == TCN_SELCHANGE) {
             DoRefreshDetail();
         } else if (nm->idFrom == IDC_PROCLIST && nm->code == LVN_ITEMCHANGED) {
