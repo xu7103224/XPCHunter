@@ -66,6 +66,12 @@
 #define IDC_OT_PATH     1082
 #define IDC_OT_VERIFY   1083
 #define IDC_OT_QUERY    1084
+/* Examination 页 */
+#define IDC_EX_RUN      1090
+#define IDC_EX_CANCEL   1091
+#define IDC_EX_EXPORT   1092
+#define IDC_EX_LIST     1093
+#define IDC_EX_STATUS   1094
 
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
@@ -78,6 +84,9 @@ static HWND g_hRgTabs, g_hRgList, g_hRgStatus;
 static int  g_RgTab = 0;
 static HWND g_hFlDir, g_hFlList, g_hFlStatus;
 static HWND g_hOtList, g_hOtStatus, g_hOtPath;
+static HWND g_hExList, g_hExStatus;
+static FE_EXAM_RESULT g_ExamResult;
+static int g_ExamLoaded = 0;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_DetailTab = -1;
@@ -1096,6 +1105,83 @@ static void DoRefreshOther(void)
     SetWindowTextA(g_hOtStatus, buf);
 }
 
+/* ---- Examination 页（主 Tab 9）---- */
+static void ExSetText(HWND hList, int iItem, int iSub, const char *text)
+{
+    LVITEMA it;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iSubItem = iSub;
+    it.pszText = (LPSTR)text;
+    SendMessageA(hList, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+}
+
+static void DoRefreshExamination(void)
+{
+    LVCOLUMNA c;
+    char status[320];
+    ULONG i;
+
+    if (!g_hExList || !g_hExStatus)
+        return;
+    if (g_ExamLoaded) {
+        FeFreeExamination(&g_ExamResult);
+        g_ExamLoaded = 0;
+    }
+    SetWindowTextA(g_hExStatus, "Examining...");
+    if (!FeRunExamination(&g_ExamResult)) {
+        SetWindowTextA(g_hExStatus, "Examination failed");
+        return;
+    }
+    g_ExamLoaded = 1;
+
+    ListView_DeleteAllItems(g_hExList);
+    while (ListView_DeleteColumn(g_hExList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    c.pszText = "Severity"; c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(g_hExList, 0, &c);
+    c.pszText = "Item";     c.cx = 220; c.iSubItem = 1; ListView_InsertColumn(g_hExList, 1, &c);
+    c.pszText = "Detail";   c.cx = 620; c.iSubItem = 2; ListView_InsertColumn(g_hExList, 2, &c);
+
+    for (i = 0; i < g_ExamResult.Count; i++) {
+        LVITEMA it;
+        const char *sev = g_ExamResult.Items[i].Severity == 0 ? "INFO" :
+                          g_ExamResult.Items[i].Severity == 1 ? "WARN" : "RISK";
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)i;
+        it.pszText = (LPSTR)sev;
+        SendMessageA(g_hExList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        ExSetText(g_hExList, (int)i, 1, g_ExamResult.Items[i].Title);
+        ExSetText(g_hExList, (int)i, 2, g_ExamResult.Items[i].Detail);
+    }
+    sprintf_s(status, sizeof(status),
+              "%s | Items: %lu (risk %lu, warn %lu, info %lu)%s",
+              g_ExamResult.Date, g_ExamResult.Count,
+              g_ExamResult.RiskCount, g_ExamResult.WarnCount, g_ExamResult.InfoCount,
+              g_ExamResult.Cancelled ? "  [TERMINATED]" : "");
+    SetWindowTextA(g_hExStatus, status);
+}
+
+static void DoExportExamination(void)
+{
+    char path[MAX_PATH];
+    if (!g_ExamLoaded) {
+        SetWindowTextA(g_hExStatus, "Nothing to export - run examination first");
+        return;
+    }
+    GetTempPathA(MAX_PATH, path);
+    strcat_s(path, sizeof(path), "PCHunter_Examination.txt");
+    if (FeExportExamination(&g_ExamResult, path)) {
+        char msg[400];
+        sprintf_s(msg, sizeof(msg), "Report exported: %s", path);
+        SetWindowTextA(g_hExStatus, msg);
+    } else {
+        SetWindowTextA(g_hExStatus, "Export failed");
+    }
+}
+
 static void ShowPage(HWND hWnd, int page)
 {
     int isProc = (page == 0);
@@ -1105,6 +1191,7 @@ static void ShowPage(HWND hWnd, int page)
     int isRegistry = (page == 5);    /* 第 6 个 Tab = Registry */
     int isFile = (page == 8);        /* 第 9 个 Tab = File */
     int isOther = (page == 13);      /* 第 14 个 Tab = Other */
+    int isExam = (page == 9);        /* 第 10 个 Tab = Examination */
     char hint[512];
     HWND hKill, hRef;
 
@@ -1166,8 +1253,19 @@ static void ShowPage(HWND hWnd, int page)
         if (h2) ShowWindow(h2, isOther ? SW_SHOW : SW_HIDE);
     }
 
+    if (g_hExList)   ShowWindow(g_hExList,   isExam ? SW_SHOW : SW_HIDE);
+    if (g_hExStatus) ShowWindow(g_hExStatus, isExam ? SW_SHOW : SW_HIDE);
+    {
+        HWND h1 = GetDlgItem(hWnd, IDC_EX_RUN);
+        HWND h2 = GetDlgItem(hWnd, IDC_EX_CANCEL);
+        HWND h3 = GetDlgItem(hWnd, IDC_EX_EXPORT);
+        if (h1) ShowWindow(h1, isExam ? SW_SHOW : SW_HIDE);
+        if (h2) ShowWindow(h2, isExam ? SW_SHOW : SW_HIDE);
+        if (h3) ShowWindow(h3, isExam ? SW_SHOW : SW_HIDE);
+    }
+
     if (g_hPageHint) {
-        if (isProc || isKernel || isStartup || isServices || isRegistry || isFile || isOther) {
+        if (isProc || isKernel || isStartup || isServices || isRegistry || isFile || isOther || isExam) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
             sprintf_s(hint, sizeof(hint),
@@ -1493,6 +1591,20 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         ListView_SetExtendedListViewStyle(g_hOtList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         DoRefreshOther();
 
+        /* ---- Examination 页（主 Tab 9）---- */
+        CreateWindowA("BUTTON", "Computer Examination", WS_CHILD | BS_PUSHBUTTON,
+                      10, 76, 170, 28, hWnd, (HMENU)IDC_EX_RUN, hInst, NULL);
+        CreateWindowA("BUTTON", "Terminate", WS_CHILD | BS_PUSHBUTTON,
+                      188, 76, 90, 28, hWnd, (HMENU)IDC_EX_CANCEL, hInst, NULL);
+        CreateWindowA("BUTTON", "Export Report", WS_CHILD | BS_PUSHBUTTON,
+                      286, 76, 120, 28, hWnd, (HMENU)IDC_EX_EXPORT, hInst, NULL);
+        g_hExStatus = CreateWindowA("STATIC", "Not run", WS_CHILD | SS_LEFT,
+                                    416, 82, 540, 20, hWnd, (HMENU)IDC_EX_STATUS, hInst, NULL);
+        g_hExList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 110, 940, 500, hWnd, (HMENU)IDC_EX_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hExList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+
         /* 命令测试器（保留：逐条命令的结果与形状） */
         g_hList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
@@ -1560,6 +1672,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 9) {
+            int listY = pageTop + 34;
+            int listH = pageBottom - listY;
+            HWND h1 = GetDlgItem(hWnd, IDC_EX_RUN);
+            HWND h2 = GetDlgItem(hWnd, IDC_EX_CANCEL);
+            HWND h3 = GetDlgItem(hWnd, IDC_EX_EXPORT);
+            if (listH < 100) listH = 100;
+            if (h1) MoveWindow(h1, 10, pageTop, 170, 28, TRUE);
+            if (h2) MoveWindow(h2, 188, pageTop, 90, 28, TRUE);
+            if (h3) MoveWindow(h3, 286, pageTop, 120, 28, TRUE);
+            if (g_hExStatus) MoveWindow(g_hExStatus, 416, pageTop + 6, w - 410, 20, TRUE);
+            if (g_hExList)   MoveWindow(g_hExList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 13) {
             int listY = pageTop + 56;
             int listH = pageBottom - listY;
@@ -1635,6 +1760,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_RG_REFRESH: DoRefreshRegistry(); return 0;
         case IDC_FL_GO:      DoRefreshFiles(); return 0;
         case IDC_OT_VERIFY:  DoRefreshOther(); return 0;
+        case IDC_EX_RUN:     DoRefreshExamination(); return 0;
+        case IDC_EX_CANCEL:  FeExamCancel(); return 0;
+        case IDC_EX_EXPORT:  DoExportExamination(); return 0;
         }
         return 0;
 
@@ -1655,6 +1783,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DoRefreshFiles();
             if (page == 13)
                 DoRefreshOther();
+            if (page == 9)
+                DoRefreshExamination();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
@@ -1768,6 +1898,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))
         return FePrintKernelModules() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--exam-cli"))
+        return FePrintExamination() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--os-cli"))
         return FePrintOsInfo() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--filever-cli")) {

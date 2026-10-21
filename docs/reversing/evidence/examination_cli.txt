@@ -1,0 +1,12 @@
+PC Hunter Professional --- Computer Examination Report
+Examination Date: 2026-10-21 15:59:04
+Examination Items: 8 (risk: 1, warn: 2, info: 5)
+  [INFO] Operating system             Windows 10 1903
+  [RISK] Hidden registry keys         3 suspicious registry keys
+  [WARN] Services                     617 services, 19 hidden (registry keys: 689)
+  [WARN] Startup entries              39 startup entries, 29 CLSID overrides
+  [INFO] Kernel modules               197 kernel modules loaded
+  [INFO] Registry handles             4398 open Key handles system-wide
+  [INFO] File scan                    C:\Windows\System32: 4310 files, clean
+  [INFO] File scan                    C:\Windows\Temp: 153 files, clean
+EXIT=0 

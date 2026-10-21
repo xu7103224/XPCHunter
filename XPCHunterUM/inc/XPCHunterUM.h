@@ -494,6 +494,35 @@ BOOL FePrintFileVersion(const char *Path);
 BOOL FeBuildOnlineQueryUrl(const char *Query, int Target, char *Out, size_t OutChars);
 BOOL FeOpenUrl(const char *Url);
 
+/* ---- Examination 页（原版第 10 个主 Tab，7 项）----
+ * 体检报告：汇总各页检测结果，可中断、可导出。 */
+#define FE_EXAM_MAX_ITEMS 64u
+
+typedef struct _FE_EXAM_ITEM {
+    int  Severity;              /* 0=INFO 1=WARN 2=RISK */
+    char Title[96];
+    char Detail[320];
+} FE_EXAM_ITEM;
+
+typedef struct _FE_EXAM_RESULT {
+    ULONG          Count;
+    ULONG          Capacity;
+    FE_EXAM_ITEM  *Items;
+    ULONG          RiskCount;
+    ULONG          WarnCount;
+    ULONG          InfoCount;
+    int            Cancelled;
+    char           Date[32];
+} FE_EXAM_RESULT;
+
+BOOL FeRunExamination(FE_EXAM_RESULT *R);
+void FeFreeExamination(FE_EXAM_RESULT *R);
+BOOL FeExportExamination(const FE_EXAM_RESULT *R, const char *Path);
+BOOL FePrintExamination(void);
+void FeExamCancel(void);
+void FeExamResetCancel(void);
+int  FeExamIsCancelled(void);
+
 #ifdef __cplusplus
 }
 #endif
