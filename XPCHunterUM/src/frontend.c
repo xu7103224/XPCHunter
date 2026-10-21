@@ -1969,8 +1969,23 @@ static void CreateKmColumns(HWND hList, int tab)
         c.pszText = "State";     c.cx = 100; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Start";     c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "ImagePath"; c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else if (tab == 4) {
+        /* Device（0x056）：Type / DeviceObject / Driver / Device / Object / Path */
+        c.pszText = "Type";   c.cx = 50;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "DeviceObject"; c.cx = 150; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Driver"; c.cx = 130; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Device"; c.cx = 130; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+        c.pszText = "Object"; c.cx = 150; c.iSubItem = 4; ListView_InsertColumn(hList, 4, &c);
+        c.pszText = "Path";   c.cx = 330; c.iSubItem = 5; ListView_InsertColumn(hList, 5, &c);
+    } else if (tab == 5) {
+        /* Object（0x0D5） */
+        c.pszText = "Index"; c.cx = 60;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "ObjectHeader"; c.cx = 180; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Field1"; c.cx = 180; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Field2"; c.cx = 180; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+        c.pszText = "Note";   c.cx = 340; c.iSubItem = 4; ListView_InsertColumn(hList, 4, &c);
     } else {
-        /* SSDT / Shadow SSDT（0xAC / 0xAE，OutSize 必须为 1352） */
+        /* SSDT / Shadow SSDT（0x101 / 0x102） */
         c.pszText = "Index";     c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
         c.pszText = "Address";   c.cx = 190; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Original";  c.cx = 190; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
@@ -2064,6 +2079,79 @@ static void DoRefreshKernel(void)
         }
         sprintf_s(status, sizeof(status), "Driver: %lu kernel driver services", list.Count);
         FeFreeDrivers(&list);
+    } else if (g_KmTab == 4) {
+        /* Device 子页：0x056 CmdEnumObjectAllTypes（0x2000 起不再蓝屏） */
+        FE_DEVICE_LIST dev;
+        ULONG i;
+        if (!FeLoadDeviceObjects(&g_Client, &dev, 0x20000)) {
+            sprintf_s(status, sizeof(status), "Device: query failed (0x056)%s",
+                      g_Client.Opened ? "" : " - not connected");
+            SetWindowTextA(g_hKmStatus, status);
+            return;
+        }
+        if (dev.State != 1) {
+            sprintf_s(status, sizeof(status),
+                      "Device: driver rejected (0x056 result=%u)", dev.ResultByte);
+            SetWindowTextA(g_hKmStatus, status);
+            FeFreeDeviceList(&dev);
+            return;
+        }
+        for (i = 0; i < dev.Count; i++) {
+            LVITEMA it;
+            char t[16], d[32];
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            sprintf_s(t, sizeof(t), "%lu", (unsigned long)dev.Items[i].Type);
+            sprintf_s(d, sizeof(d), "%016I64X", dev.Items[i].DeviceObject);
+            it.pszText = t;
+            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            KmSetText(g_hKmList, (int)i, 1, d);
+            KmSetText(g_hKmList, (int)i, 2, dev.Items[i].DriverName);
+            KmSetText(g_hKmList, (int)i, 3, dev.Items[i].DeviceName);
+            KmSetText(g_hKmList, (int)i, 4, dev.Items[i].ObjectName);
+            KmSetText(g_hKmList, (int)i, 5, dev.Items[i].FilePath);
+        }
+        sprintf_s(status, sizeof(status),
+                  "Device: %lu objects (cmd 0x056, buffer 0x20000)", dev.Count);
+        FeFreeDeviceList(&dev);
+    } else if (g_KmTab == 5) {
+        /* Object 子页：0x0D5 CmdEnumKernelObjectTable */
+        FE_KOBJ_LIST obj;
+        ULONG i;
+        if (!FeLoadKernelObjectTable(&g_Client, &obj)) {
+            sprintf_s(status, sizeof(status), "Object: query failed (0x0D5)%s",
+                      g_Client.Opened ? "" : " - not connected");
+            SetWindowTextA(g_hKmStatus, status);
+            return;
+        }
+        if (obj.State != 1) {
+            sprintf_s(status, sizeof(status),
+                      "Object: driver rejected (0x0D5 result=%u)", obj.ResultByte);
+            SetWindowTextA(g_hKmStatus, status);
+            FeFreeKernelObjectList(&obj);
+            return;
+        }
+        for (i = 0; i < obj.Count; i++) {
+            LVITEMA it;
+            char idx[16], h[32], f1[32], f2[32];
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            sprintf_s(idx, sizeof(idx), "%lu", (unsigned long)i);
+            sprintf_s(h, sizeof(h), "%016I64X", obj.Items[i].ObjectHeader);
+            sprintf_s(f1, sizeof(f1), "%016I64X", obj.Items[i].Field1);
+            sprintf_s(f2, sizeof(f2), "%016I64X", obj.Items[i].Field2);
+            it.pszText = idx;
+            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            KmSetText(g_hKmList, (int)i, 1, h);
+            KmSetText(g_hKmList, (int)i, 2, f1);
+            KmSetText(g_hKmList, (int)i, 3, f2);
+            KmSetText(g_hKmList, (int)i, 4, "kernel object header");
+        }
+        sprintf_s(status, sizeof(status),
+                  "Object: %lu entries (build %lu, cmd 0x0D5)", obj.Count, obj.Build);
+        FeFreeKernelObjectList(&obj);
     } else {
         /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）
          *
@@ -2232,8 +2320,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            static const char *kmNames[4] = { "Kernel Module", "Driver", "SSDT", "Shadow SSDT" };
-            for (k = 0; k < 4; k++) {
+            static const char *kmNames[6] = { "Kernel Module", "Driver", "SSDT",
+                                              "Shadow SSDT", "Device", "Object" };
+            for (k = 0; k < 6; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)kmNames[k];
@@ -2441,7 +2530,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             pk = cl ? strstr(cl, "--kmtab ") : NULL;
             if (pk && g_hKmTabs) {
                 int kt = atoi(pk + 8);
-                if (kt >= 0 && kt <= 3) {
+                if (kt >= 0 && kt <= 5) {
                     g_KmTab = kt;
                     SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);
                     DoRefreshKernel();

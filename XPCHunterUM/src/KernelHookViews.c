@@ -367,3 +367,158 @@ const char *FeCbStateText(FE_CB_TABLE *T)
     default:                    return "unknown";
     }
 }
+
+/* ============================================================================
+ * Kernel 页 Device / Object 子页数据层
+ *
+ * Device → 0x056 CmdEnumObjectAllTypes
+ *   输出：条目不带头，按 0x838 字节步进，直到某条目的 type 与 device 都为空。
+ *   条目内（由 CopySectionString 写入，见驱动侧 QueryDriver.c）：
+ *     +0x000 DWORD  DeviceType（1=驱动对象设备 / 2=文件系统 / 3=其他路径）
+ *     +0x008 QWORD  保留
+ *     +0x010 QWORD  设备对象地址
+ *     +0x018 WCHAR  驱动名（最长 0x103 字符）
+ *     +0x220 WCHAR  设备名
+ *     +0x428 WCHAR  对象名
+ *     +0x630 WCHAR  文件路径
+ *   缓冲：驱动按 OutSize/0x838 决定最多几条，给 0x20000 可得全部（实测 6 条）。
+ *
+ * Object → 0x0D5 CmdEnumKernelObjectTable
+ *   输出：+0x00 DWORD build、+0x04 DWORD 条数、+0x08 起每项 0xC8 字节，
+ *         条目首字段是对象头指针。实测 build 18362、14 条。
+ * ========================================================================== */
+
+static void FeWideToAnsi(const WCHAR *Src, char *Dst, int DstChars)
+{
+    int i = 0;
+    if (!Src || !Dst || DstChars <= 0)
+        return;
+    for (; i < DstChars - 1 && Src[i]; i++)
+        Dst[i] = (Src[i] < 0x80) ? (char)Src[i] : '?';
+    Dst[i] = 0;
+}
+
+BOOL FeLoadDeviceObjects(XPCH_CLIENT *Client, FE_DEVICE_LIST *Out, ULONG BufSize)
+{
+    BYTE *buf;
+    UCHAR res = 0;
+    BOOL ok;
+    ULONG off, idx;
+
+    if (!Out)
+        return FALSE;
+    ZeroMemory(Out, sizeof(*Out));
+    if (!Client || !Client->Opened) {
+        Out->State = 0;
+        return FALSE;
+    }
+    if (BufSize < 0x838)
+        BufSize = 0x20000;
+    buf = (BYTE *)calloc(1, BufSize);
+    if (!buf)
+        return FALSE;
+
+    ok = XpchInvoke(Client, 0x56, NULL, 0, buf, BufSize, &res);
+    Out->DriverOk = ok;
+    Out->ResultByte = res;
+    if (!ok) {
+        Out->State = 0;                 /* 驱动拒绝 */
+        free(buf);
+        return TRUE;
+    }
+    Out->Capacity = BufSize / 0x838;
+    Out->Items = (FE_DEVICE_ENTRY *)calloc(Out->Capacity ? Out->Capacity : 1,
+                                           sizeof(FE_DEVICE_ENTRY));
+    if (!Out->Items) {
+        free(buf);
+        return FALSE;
+    }
+    for (idx = 0, off = 0; idx < Out->Capacity; idx++, off += 0x838) {
+        ULONG type = *(const ULONG *)(buf + off + 0x000);
+        ULONG64 dev = *(const ULONG64 *)(buf + off + 0x010);
+        if (!type && !dev)
+            break;                      /* 驱动没写满：后面全零 */
+        Out->Items[Out->Count].Type = type;
+        Out->Items[Out->Count].DeviceObject = dev;
+        FeWideToAnsi((const WCHAR *)(buf + off + 0x018),
+                     Out->Items[Out->Count].DriverName,
+                     (int)sizeof(Out->Items[Out->Count].DriverName));
+        FeWideToAnsi((const WCHAR *)(buf + off + 0x220),
+                     Out->Items[Out->Count].DeviceName,
+                     (int)sizeof(Out->Items[Out->Count].DeviceName));
+        FeWideToAnsi((const WCHAR *)(buf + off + 0x428),
+                     Out->Items[Out->Count].ObjectName,
+                     (int)sizeof(Out->Items[Out->Count].ObjectName));
+        FeWideToAnsi((const WCHAR *)(buf + off + 0x630),
+                     Out->Items[Out->Count].FilePath,
+                     (int)sizeof(Out->Items[Out->Count].FilePath));
+        Out->Count++;
+    }
+    Out->State = 1;
+    free(buf);
+    return TRUE;
+}
+
+void FeFreeDeviceList(FE_DEVICE_LIST *List)
+{
+    if (!List)
+        return;
+    free(List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FeLoadKernelObjectTable(XPCH_CLIENT *Client, FE_KOBJ_LIST *Out)
+{
+    BYTE *buf;
+    UCHAR res = 0;
+    BOOL ok;
+    ULONG count, i, cap;
+
+    if (!Out)
+        return FALSE;
+    ZeroMemory(Out, sizeof(*Out));
+    if (!Client || !Client->Opened)
+        return FALSE;
+
+    buf = (BYTE *)calloc(1, 0x8000);
+    if (!buf)
+        return FALSE;
+    ok = XpchInvoke(Client, 0xD5, NULL, 0, buf, 0x8000, &res);
+    Out->DriverOk = ok;
+    Out->ResultByte = res;
+    if (!ok) {
+        free(buf);
+        return TRUE;
+    }
+    Out->Build = *(const ULONG *)(buf + 0x00);
+    count      = *(const ULONG *)(buf + 0x04);
+    cap = (0x8000 - 8) / 0xC8;
+    if (count > cap)
+        count = cap;
+    Out->Items = (FE_KOBJ_ENTRY *)calloc(count ? count : 1, sizeof(FE_KOBJ_ENTRY));
+    if (!Out->Items) {
+        free(buf);
+        return FALSE;
+    }
+    for (i = 0; i < count; i++) {
+        ULONG base = 8 + 0xC8 * i;
+        Out->Items[i].ObjectHeader = *(const ULONG64 *)(buf + base + 0x00);
+        Out->Items[i].Field1       = *(const ULONG64 *)(buf + base + 0x08);
+        Out->Items[i].Field2       = *(const ULONG64 *)(buf + base + 0x10);
+        Out->Count++;
+    }
+    Out->State = 1;
+    free(buf);
+    return TRUE;
+}
+
+void FeFreeKernelObjectList(FE_KOBJ_LIST *List)
+{
+    if (!List)
+        return;
+    free(List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+}

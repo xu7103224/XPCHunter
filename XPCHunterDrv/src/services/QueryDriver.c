@@ -271,14 +271,28 @@ __int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
     }
 
     // 从文件对象获取设备对象
-    /* IoStatusBlock 现在是真正的 IO_STATUS_BLOCK（16 字节），
-       取 Information 字段作为设备对象指针。 */
-    if (!GetDeviceObjectFromFileObject((__int64)IoStatusBlock.Information,
-                                       (ULONG64 *)&DeviceObjectPtr, NULL))
+    /* 【修正 2026-10-21】Information 可能是 0 或被内核写成非指针值
+       （create 返回成功后并不保证这里一定是一个可解引用的对象指针）。
+       原写法直接把它传给 GetDeviceObjectFromFileObject，后者第一条指令
+       `mov r9,[rcx+10h]` 就解引用 → 0xC0000005（KiPageFault 实证）。
+       这里先做区间与可读性双重校验，不合法就当作"枚举不到"，不再崩。 */
     {
-        CloseHandleFunc((__int64)IoStatusBlock.Information);
-        ExFreePoolFunc(FileHandle);
-        return 0;
+        __int64 ObjPtr = (__int64)IoStatusBlock.Information;
+        if (ObjPtr <= (__int64)MmSystemRangeStart ||
+            MmIsAddressValid((void *)ObjPtr) != 1 ||
+            MmIsAddressValid((void *)(ObjPtr + 0x10)) != 1)
+        {
+            if (ObjPtr && MmIsAddressValid((void *)ObjPtr) == 1)
+                CloseHandleFunc(ObjPtr);
+            ExFreePoolFunc(FileHandle);
+            return 0;
+        }
+        if (!GetDeviceObjectFromFileObject(ObjPtr, (ULONG64 *)&DeviceObjectPtr, NULL))
+        {
+            CloseHandleFunc(ObjPtr);
+            ExFreePoolFunc(FileHandle);
+            return 0;
+        }
     }
 
     // 遍历设备对象链
@@ -296,7 +310,7 @@ __int64 EnumDeviceObjects(__int64 OutputBuffer, int MaxCount)
         ++EntryCount;
     }
 
-    // 清理
+    // 清理（Information 已在上方校验过）
     CloseHandleFunc((__int64)IoStatusBlock.Information);
     ExFreePoolFunc(FileHandle);
     return EntryCount;

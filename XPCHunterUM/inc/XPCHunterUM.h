@@ -638,6 +638,46 @@ BOOL FeParseRing0Hooks(const BYTE *Buf, ULONG BufSize, FE_RING0_HOOK_LIST *List)
 void FeFreeRing0Hooks(FE_RING0_HOOK_LIST *List);
 BOOL FePrintRing0Hooks(XPCH_CLIENT *Client);
 
+/* ---- Kernel 页 Device / Object 子页 ---- */
+typedef struct _FE_DEVICE_ENTRY {
+    ULONG   Type;
+    ULONG64 DeviceObject;
+    char    DriverName[520];
+    char    DeviceName[520];
+    char    ObjectName[520];
+    char    FilePath[520];
+} FE_DEVICE_ENTRY;   /* 注意：结构体内字符串按 ANSI 存，长度取源宽字符上限/2 */
+
+typedef struct _FE_DEVICE_LIST {
+    int              State;        /* 1 = 已枚举 */
+    BOOL             DriverOk;
+    UCHAR            ResultByte;
+    ULONG            Count;
+    ULONG            Capacity;
+    FE_DEVICE_ENTRY *Items;
+} FE_DEVICE_LIST;
+
+BOOL FeLoadDeviceObjects(XPCH_CLIENT *Client, FE_DEVICE_LIST *Out, ULONG BufSize);
+void FeFreeDeviceList(FE_DEVICE_LIST *List);
+
+typedef struct _FE_KOBJ_ENTRY {
+    ULONG64 ObjectHeader;
+    ULONG64 Field1;
+    ULONG64 Field2;
+} FE_KOBJ_ENTRY;
+
+typedef struct _FE_KOBJ_LIST {
+    int             State;
+    BOOL            DriverOk;
+    UCHAR           ResultByte;
+    ULONG           Build;
+    ULONG           Count;
+    FE_KOBJ_ENTRY  *Items;
+} FE_KOBJ_LIST;
+
+BOOL FeLoadKernelObjectTable(XPCH_CLIENT *Client, FE_KOBJ_LIST *Out);
+void FeFreeKernelObjectList(FE_KOBJ_LIST *List);
+
 /* ---- Ring0 恢复操作（清单 Tab 3 的后两项）----
  * 1) Restore Over. Hooks/Patches  -> 0x118 CmdCheckBytePattern（入 8 字节）
  * 2) Restore KernelCallbackTable  -> 0x131 枚举 + 0x132 设置（入 48 字节）
