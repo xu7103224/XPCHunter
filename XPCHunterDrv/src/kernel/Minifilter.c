@@ -7305,20 +7305,47 @@ char CmdCollectGdtrEntries(int ProcessorNumber, unsigned int **ContextBuffer)
     char Result = 1;
     _DWORD *EntryPtr;
     __int64 EntryIndex;
+    unsigned int BufferSize;
+    unsigned int Base;
     _OWORD GdtrValue;
+    unsigned short GdtrLimit;
+    ULONG64 GdtrBase;
 
     ReadGdtr(&GdtrValue);
 
-    EntryPtr = (_DWORD *)*ContextBuffer;
-    EntryIndex = 16389LL * **ContextBuffer;
-    if ((unsigned __int64)(EntryIndex * 4 + 65560) > (unsigned __int64)*((unsigned int *)ContextBuffer + 2))
+    /* 上下文布局（与 CmdCollectAllCpuGdtEntries 的结构体一致）：
+         +0  _DWORD *OutputBuffer   输出缓冲（其 +0 是已写条目数）
+         +8  unsigned Capacity      输出缓冲字节数 */
+    EntryPtr   = (_DWORD *)*ContextBuffer;
+    BufferSize = *(unsigned int *)((char *)ContextBuffer + 8);
+    Base       = *EntryPtr;
+
+    /* 条目步长 16389 个 DWORD（= 65556 字节） */
+    EntryIndex = 16389LL * Base;
+    if ((unsigned __int64)(EntryIndex * 4 + 65560) > (unsigned __int64)BufferSize)
         return 0;
 
-    EntryPtr[EntryIndex + 1] = ProcessorNumber;
-    *(_OWORD *)&EntryPtr[16389 * *EntryPtr + 2] = GdtrValue;
-    EntryPtr[16389 * *EntryPtr + 5] = (unsigned __int64)(*(unsigned short *)&GdtrValue) >> 3;
-    memmove(&EntryPtr[16389 * *EntryPtr + 6], *(const void **)((char *)&GdtrValue + 2),
-            (unsigned int)(*(unsigned short *)&GdtrValue));
+    GdtrLimit = *(unsigned short *)&GdtrValue;
+    GdtrBase  = *(ULONG64 *)((char *)&GdtrValue + 2);
+    if (GdtrLimit > 0xFFF0)
+        GdtrLimit = 0xFFF0;                       /* 最多 256 个描述符 */
+
+    /* 【修正 2026-10-22】原实现混用两个索引基数，且 memmove 的源写成
+       `*(void **)((char*)&GdtrValue + 2)` —— 把 GDTR 里的基址当"指针的指针"，
+       读到的第一条指令字节被当成地址，于是 +24/+32 全零、第二处理器串位。
+       按原版语义逐字段写： */
+    EntryPtr[EntryIndex + 1] = (unsigned int)ProcessorNumber;      /* +0x04 处理器号 */
+    EntryPtr[EntryIndex + 2] = (unsigned int)GdtrLimit;            /* +0x08 limit */
+    EntryPtr[EntryIndex + 3] = 0;
+    *(__int64 *)(&EntryPtr[EntryIndex + 4]) = (__int64)GdtrBase;   /* +0x10 GDT 基址 */
+    EntryPtr[EntryIndex + 6] = (unsigned int)(GdtrLimit >> 3);     /* +0x18 描述符数 */
+    EntryPtr[EntryIndex + 7] = 0;
+
+    /* GDT 内容从 +0x20 开始，拷 limit+1 字节（limit 是最后一字节的偏移） */
+    if (GdtrBase && MmIsAddressValid((void *)GdtrBase))
+        memmove(&EntryPtr[EntryIndex + 8], (const void *)GdtrBase,
+                (unsigned int)GdtrLimit + 1);
+
     ++*EntryPtr;
     return Result;
 }

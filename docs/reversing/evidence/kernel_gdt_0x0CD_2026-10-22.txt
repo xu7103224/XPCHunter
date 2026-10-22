@@ -1,0 +1,42 @@
+# GDT（0x0CD）实机证据 — 2026-10-22, Win10 18362, 测试模式
+
+## 修掉的字段错位
+
+`CmdCollectGdtrEntries` 原实现有三处问题：
+
+1. 索引基数混用：边界检查与 ProcessorNumber 用局部 `Base = *ContextBuffer`，
+   GDTR/选择子/GDT 数据却用 `*EntryPtr`（写完 ProcessorNumber 后含义已变）。
+2. `memmove` 的源写成 `*(void **)((char *)&GdtrValue + 2)` —— 把 GDTR 里的
+   基址再当"指针的指针"解一次，读到的 GDT 首字节被当作地址。
+3. 写 GDTR 用 `*(_OWORD *)&EntryPtr[... + 2]`，把 16 字节直接覆盖到 +8，
+   与后续 limit/基址字段重叠。
+
+改为逐字段写：
+  +0x00 DWORD 已写条目数
+  +0x04 DWORD 处理器号
+  +0x08 DWORD limit
+  +0x10 QWORD GDT 基址
+  +0x18 DWORD 描述符数（limit >> 3）
+  +0x20 起  GDT 原始字节（拷 limit+1 字节，源为 GDTR 里的基址本身）
+
+## 实机输出
+
+    C:\Users\Public\xpch_frontend.exe --gdt-cli
+    GDT (0x0CD) -> OK result=1 entries=1
+      cpu0 limit=0x57 base=FFFFF8024488DFB0 descriptors=10
+        gdt[0]=0000000000000000 gdt[1]=0000000000000000 gdt[2]=00209B0000000000
+
+gdt[2] = 0x00209B0000000000：Present=1 / DPL=0 / 代码段 / 64 位 L 位 —— 正是
+内核代码段描述符，字段解析正确（此前 +24/+32 全零、第二处理器条目为空）。
+
+## WinDbg 交叉验证
+
+    0: kd> r gdtr
+    gdtr=fffff8024488dfb0
+
+与工具输出的 base 完全一致。limit=0x57 对应 11 个槽位（config 里配 2 个 vCPU
+但当前只起了 1 个处理器，所以 entries=1，没有第二处理器条目）。
+
+## 截图
+
+- kernel_gdt_tab_2026-10-22.png  Kernel → GDT 子页

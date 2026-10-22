@@ -2107,6 +2107,14 @@ static void CreateKmColumns(HWND hList, int tab)
         c.pszText = "State";     c.cx = 100; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Start";     c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "ImagePath"; c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else if (tab == 10) {
+        /* GDT：Selector / Base / Limit / Access / Flags / Descriptor */
+        c.pszText = "Sel";        c.cx = 60;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Base";       c.cx = 160; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Limit";      c.cx = 100; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Access";     c.cx = 80;  c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+        c.pszText = "Flags";      c.cx = 80;  c.iSubItem = 4; ListView_InsertColumn(hList, 4, &c);
+        c.pszText = "Descriptor"; c.cx = 400; c.iSubItem = 5; ListView_InsertColumn(hList, 5, &c);
     } else if (tab == 8) {
         /* IDT：Vector / Handler RVA / State */
         c.pszText = "Vector";      c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
@@ -2443,6 +2451,73 @@ static void DoRefreshKernel(void)
         }
         SetWindowTextA(g_hKmStatus, status);
         FeFreeIdt(&idt);
+    } else if (g_KmTab == 10) {
+        /* GDT（0x0CD）：逐描述符展示。条目布局 64KB 步长：
+             +0x00 已写条目数  +0x04 处理器号  +0x08 limit
+             +0x10 GDT 基址    +0x18 描述符数   +0x20 起 GDT 原始字节 */
+        BYTE *out = (BYTE *)calloc(1, 0x10018);
+        UCHAR res = 0;
+        BOOL ok;
+        ULONG entries;
+
+        if (!out) {
+            SetWindowTextA(g_hKmStatus, "GDT: out of memory");
+            return;
+        }
+        ok = XpchInvoke(&g_Client, 0xCD, NULL, 0, out, 0x10018, &res);
+        entries = *(ULONG *)out;
+        if (!ok || entries == 0) {
+            sprintf_s(status, sizeof(status),
+                      "GDT: 0x0CD %s result=%u entries=%lu",
+                      ok ? "ok" : "rejected", res, entries);
+            SetWindowTextA(g_hKmStatus, status);
+            free(out);
+            return;
+        }
+        {
+            BYTE *e = out + 8;
+            ULONG limit = *(ULONG *)(e + 0);
+            ULONG64 base = *(ULONG64 *)(e + 8);
+            ULONG dcount = *(ULONG *)(e + 0x10);
+            BYTE *gdt = e + 0x18;
+            ULONG cpu = *(ULONG *)(e - 4);
+            ULONG k;
+
+            for (k = 0; k < dcount; k++) {
+                ULONG64 d = *(ULONG64 *)(gdt + k * 8);
+                LVITEMA it;
+                char sel[16], baseText[32], limText[16], accText[16];
+                char flagText[16], desc[64];
+                ULONG access = (ULONG)((d >> 40) & 0xFF);
+                ULONG flags = (ULONG)((d >> 52) & 0xF);
+                ULONG64 dbase = ((d >> 16) & 0xFFFFFF) | (((d >> 56) & 0xFF) << 24);
+                ULONG dlim = (ULONG)(d & 0xFFFF) | (ULONG)(((d >> 48) & 0xF) << 16);
+
+                ZeroMemory(&it, sizeof(it));
+                it.mask = LVIF_TEXT;
+                it.iItem = (int)k;
+                sprintf_s(sel, sizeof(sel), "%04lX", (unsigned long)(k * 8));
+                it.pszText = sel;
+                SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+                sprintf_s(baseText, sizeof(baseText), "%08I64X", dbase);
+                sprintf_s(limText, sizeof(limText), "%05lX", (unsigned long)dlim);
+                sprintf_s(accText, sizeof(accText), "%02lX", (unsigned long)access);
+                sprintf_s(flagText, sizeof(flagText), "%lX", (unsigned long)flags);
+                sprintf_s(desc, sizeof(desc), "%016I64X", d);
+                KmSetText(g_hKmList, (int)k, 1, baseText);
+                KmSetText(g_hKmList, (int)k, 2, limText);
+                KmSetText(g_hKmList, (int)k, 3, accText);
+                KmSetText(g_hKmList, (int)k, 4, flagText);
+                KmSetText(g_hKmList, (int)k, 5, desc);
+            }
+            sprintf_s(status, sizeof(status),
+                      "GDT: cpu%lu base=%016I64X limit=0x%lX descriptors=%lu "
+                      "(0x0CD, %lu context(s))",
+                      (unsigned long)cpu, base, (unsigned long)limit,
+                      (unsigned long)dcount, entries);
+        }
+        SetWindowTextA(g_hKmStatus, status);
+        free(out);
     } else {
         /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）
          *
@@ -3214,11 +3289,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            static const char *kmNames[10] = { "Kernel Module", "Driver", "SSDT",
+            static const char *kmNames[11] = { "Kernel Module", "Driver", "SSDT",
                                                "Shadow SSDT", "Device", "Object",
                                                "Hidden Drivers", "Suspicious DriverObj",
-                                               "IDT", "I/O Port" };
-            for (k = 0; k < 10; k++) {
+                                               "IDT", "I/O Port", "GDT" };
+            for (k = 0; k < 11; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)kmNames[k];
@@ -3436,7 +3511,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             pk = cl ? strstr(cl, "--kmtab ") : NULL;
             if (pk && g_hKmTabs) {
                 int kt = atoi(pk + 8);
-                if (kt >= 0 && kt <= 9) {
+                if (kt >= 0 && kt <= 10) {
                     HWND b;
                     g_KmTab = kt;
                     SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);
@@ -4137,6 +4212,50 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         FePrintIdt(&g_Client);
         XpchClose(&g_Client);
         return 0;
+    }
+    /* GDT（0x0CD，OutSize >= 0x10018）。每个条目 64KB 步长：
+         +0x00 DWORD 已写条目数
+         +0x04 DWORD 处理器号
+         +0x08 DWORD limit
+         +0x10 QWORD GDT 基址
+         +0x18 DWORD 描述符数
+         +0x20 起  GDT 原始字节 */
+    if (lpCmdLine && strstr(lpCmdLine, "--gdt-cli")) {
+        BYTE *out = NULL;
+        UCHAR res = 0;
+        BOOL ok;
+        ULONG n, i;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        out = (BYTE *)calloc(1, 0x10018);
+        if (!out) {
+            XpchClose(&g_Client);
+            return 1;
+        }
+        ok = XpchInvoke(&g_Client, 0xCD, NULL, 0, out, 0x10018, &res);
+        n = *(ULONG *)out;
+        printf("GDT (0x0CD) -> %s result=%u entries=%lu\n",
+               ok ? "OK" : "REJECTED", res, n);
+        for (i = 0; i < n && i < 8; i++) {
+            BYTE *e = out + 8 + (ULONG64)i * 65556ULL;
+            ULONG limit = *(ULONG *)(e + 0);
+            ULONG64 base = *(ULONG64 *)(e + 8);
+            ULONG count = *(ULONG *)(e + 0x10);
+            BYTE *gdt = e + 0x18;
+            printf("  cpu%lu limit=0x%lX base=%016I64X descriptors=%lu\n",
+                   (unsigned long)*(ULONG *)(e - 4), (unsigned long)limit, base,
+                   (unsigned long)count);
+            printf("    gdt[0]=%016I64X gdt[1]=%016I64X gdt[2]=%016I64X\n",
+                   *(ULONG64 *)(gdt + 0), *(ULONG64 *)(gdt + 8),
+                   *(ULONG64 *)(gdt + 16));
+        }
+        free(out);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
     }
     /* IDT / I/O Port（0x046）的无 UI 入口。
  * 驱动侧的调用约定是 Handler(InPtr, OutSize, OutPtr, InSize)，
