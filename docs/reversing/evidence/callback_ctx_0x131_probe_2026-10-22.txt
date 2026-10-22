@@ -1,0 +1,40 @@
+# 0x131 CmdEnumCallbackContext 调试记录 — 2026-10-22
+
+## 已确认
+
+- 命令号正确：`Table[273]` → 命令 `0x131`（`0x20 + 273`）
+- 包装函数存在且转调 `EnumCallbackContextOperation`
+- 该处理器要求 `OutputSize == 1352`（0x548），并在
+  `GT[2308]`（= `0x904`）为 0 时调用 `BuildCallbackContextHookTargets()`
+- `BuildCallbackContextHookTargets` 的前置 `GT[0x902]` 实测非零：
+  `GT[0x902] = FFFFF80538150000`（volmgr 导出目录基址）
+- `GT[0x904]` 实测为 0（回调上下文表未建立）
+- 0x131 实测 result=0，输出全 0
+
+## 未解决：处理器未被调用
+
+在 `EnumCallbackContextOperation` 入口加了无条件标记
+`g_DiagCbCtxStage = 0xE1`，并通过 0x13A 的 env+0x348 导出。
+实测该位置始终为 0，说明函数体压根没执行。
+
+分派器诊断（0x13A）显示 `HANDLED=3`（0x22/0x24/0x13A 自己），
+但 0x131 既不在 HANDLED 也不在 REJECTED 列表里 ——
+说明请求在**协议层**就被丢弃，没进到命令表查找。
+
+## 已知的调用约定（重要）
+
+驱动的调用约定是 `Handler(InPtr, OutSize, OutPtr, InSize)`：
+处理器形参里的 `OutputSize` 实际来自客户端的 **InSize**，
+`pOutputBuffer` 来自客户端的 **OutPtr**。
+所以 0x131 的 `OutputSize == 1352` 校验，等价于要求
+**客户端 InSize == 1352**。
+
+已用 `--raw 0x131 1352 --rawin 1352 0` 试过，仍是 result=0，
+且入口标记仍为 0 —— 需要继续确认 probe 的 rawin 是否真的把
+InSize 传到了驱动（`XpchInvoke(..., inBuf, n, ...)` 的 n）。
+
+## 结论
+
+本项**保持未勾选**。已确认的不是环境问题（GT[0x902] 有值），
+而是命令从未被调用到。下一步应从 probe 侧打卡 InSize/OutPtr 实际值，
+或直接在 WinDbg 里对 `DispatchDeviceControl` 下断点核对。

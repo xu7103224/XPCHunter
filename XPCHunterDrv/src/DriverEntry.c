@@ -134,6 +134,10 @@ ULONG64 g_DiagIoPortIdtGt;
 ULONG64 g_DiagIoPortIdtBase;
 ULONG g_DiagIoPortIdtValid;
 
+/* 【诊断 2026-10-22】回调上下文表构建链。 */
+ULONG g_DiagCbCtxStage;
+ULONG g_DiagCbCtxFileSize;
+
 ULONG64 g_DiagKillEp;
 ULONG64 g_DiagKillDirectFn;
 ULONG64 g_DiagKillCheckFn;

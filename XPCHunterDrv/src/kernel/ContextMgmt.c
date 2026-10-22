@@ -24,11 +24,24 @@ void BuildCallbackContextHookTargets(void)
 
     pTargetTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3FE6);
     SectionBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x902);
-    if (SectionBase && ReadNtoskrnlForCallbackCtx((_QWORD *)&pFileBuffer, &FileSize))
+    /* 【诊断 2026-10-22】逐级记下停在哪儿：
+       1=SectionBase 为 0  2=读文件失败  3=Sections 解析失败
+       4=ExportDir 解析失败  5=全部通过 */
+    g_DiagCbCtxStage = 1;
+    g_DiagCbCtxFileSize = 0;
+    if (SectionBase)
     {
-        if (ParseNtExportSectionsV3((__int64)pFileBuffer, FileSize, (__int64)pTargetTable) == 1 &&
-            ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, SectionBase, 0) == 1)
+        g_DiagCbCtxStage = 2;
+        if (ReadNtoskrnlForCallbackCtx((_QWORD *)&pFileBuffer, &FileSize))
         {
+            g_DiagCbCtxFileSize = FileSize;
+            g_DiagCbCtxStage = 3;
+            if (ParseNtExportSectionsV3((__int64)pFileBuffer, FileSize, (__int64)pTargetTable) == 1)
+            {
+                g_DiagCbCtxStage = 4;
+        if (ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, SectionBase, 0) == 1)
+        {
+            g_DiagCbCtxStage = 5;
             pRvaEntry = (unsigned int *)pTargetTable + 1;
             EntryCount = 28;
             do
@@ -46,9 +59,11 @@ void BuildCallbackContextHookTargets(void)
             Result = 1;
             GtWrite((GLOBAL_TABLE_INDEX)0x904, 1);
         }
+        }
         ExFree(pFileBuffer);
         if (Result == 1)
             FillExportEntrySlot((__int64)pTargetTable);
+        }
     }
 }
 

@@ -2962,6 +2962,15 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG64 *)(Out + 0x2F8) = g_DiagOpenHandle;       /* IoCreateFile 写回的句柄 */
 
     /* 【诊断 2026-10-22】IDT / I/O Port（0x046）链条。 */
+    /* 【诊断 2026-10-22】回调上下文表（0x131）链条的关键槽：
+       0x330 GT[0x902] volmgr/ftdisk 导出目录基址
+       0x338 GT[0x904] 回调上下文表就绪标志
+       0x340 GT[0x3FE6] 目标表指针 */
+    *(ULONG64 *)(Out + 0x330) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x902);
+    *(ULONG *)(Out + 0x338) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x904);
+    *(ULONG64 *)(Out + 0x340) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x3FE6);
+    *(ULONG *)(Out + 0x348) = g_DiagCbCtxStage;
+    *(ULONG *)(Out + 0x34C) = g_DiagCbCtxFileSize;
     *(ULONG *)(Out + 0x300) = g_DiagIoPortStage;
     *(ULONG *)(Out + 0x304) = g_DiagIoPortIdtValid;
     *(ULONG64 *)(Out + 0x308) = g_DiagIoPortIdtGt;

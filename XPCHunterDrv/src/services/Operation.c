@@ -508,10 +508,13 @@ __int64 EnumCallbackContextOperation(__int64 InputBuffer, __int64 InputSize, _WO
     int TableReady;
 
     Result = 0;
+    /* 【诊断 2026-10-22】进入标记：0xE1=函数被调用，0xE2=参数校验通过 */
+    g_DiagCbCtxStage = 0xE1;
     if (pOutputBuffer && OutputSize == 1352 &&
         (unsigned __int64)pOutputBuffer < MmUserProbeAddress &&
         (unsigned __int64)(pOutputBuffer + 676) < MmUserProbeAddress)
     {
+        g_DiagCbCtxStage = 0xE2;
         ProbeForWrite(pOutputBuffer, 0x548, 1);
         memset(pOutputBuffer, 0, 0x548);
         TableReady = (int)GtRead((enum _GLOBAL_TABLE_INDEX)2308);
