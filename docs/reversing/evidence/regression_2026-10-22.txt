@@ -1,0 +1,33 @@
+# 2026-10-22 回归验证（本轮改动后）
+
+驱动：VPChainZ.sys（含 0x046 参数修复、0x0CD 字段错位修复、0x131 诊断字段）
+
+## 全量命令扫描（G2）
+
+    xpch_probe.exe --live --scan
+    accepted 23, rejected 255, skipped 5
+    === done ===
+
+与改动前基线一致（accepted 23 / rejected 255 / skipped 5），
+说明 0x046 / 0x0CD 的修复没有引入新的崩溃或挂死。
+
+## 三轮装卸（G3）
+
+    for i in 1..3:
+        sc stop VPCHZ
+        reg query HKLM\...\Run      （注册表活动）
+        dir C:\Users\Public          （文件活动）
+        sc start VPCHZ
+
+    三轮后：sc query VPCHZ -> STATE 4 RUNNING，系统存活
+
+## 本轮功能回归
+
+- 0x046 IDT：256 个向量全部有处理函数，vec0/1/2 RVA 与 WinDbg
+  `r idtr` + `dq` 的门描述符逐字节一致
+- 0x0CD GDT：base=FFFFF8024488DFB0 与 `r gdtr` 一致，10 个描述符，
+  gdt[2]=00209B0000000000（内核代码段）
+- 0x056 Device：29 条，连续 3 次调用无崩溃
+- 0xA2 Force Kill：terminated，目标进程消失
+- 五项 Forbid：0x79 全部 result=1
+- 五项模块搜索 / 两项 Startup 操作：全部实测通过
