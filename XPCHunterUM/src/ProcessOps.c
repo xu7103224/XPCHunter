@@ -353,3 +353,146 @@ BOOL FeDumpMemoryToFile(ULONG Pid, ULONG64 Base, ULONG64 Size,
     if (pWritten) *pWritten = done;
     return done > 0;
 }
+
+/* ---------------------------------------------------------------------------
+ * Process 页状态栏与 Ring3 可达性
+ *
+ * 原版状态栏：`Processes: %d, Hidden Processes: %d, Ring3 Inaccessible Processes: %d`
+ *   Processes              驱动 EPROCESS 链表里的进程数（0xE4）
+ *   Hidden Processes       在驱动链表里、但用户态 Toolhelp32 快照里没有的进程
+ *   Ring3 Inaccessible     OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION) 失败的进程
+ * 两个后者都是"用户态看不见"的度量，正好对应原版的这两个计数。
+ * ------------------------------------------------------------------------- */
+
+BOOL FeIsProcessRing3Accessible(ULONG Pid)
+{
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, Pid);
+    if (h) {
+        CloseHandle(h);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/* 用 Toolhelp32 快照建一个 PID 集合，供 Hidden 判定使用。 */
+typedef struct _FE_PIDSET {
+    ULONG *Items;
+    ULONG  Count;
+    ULONG  Capacity;
+} FE_PIDSET;
+
+static BOOL FePidSetHas(const FE_PIDSET *Set, ULONG Pid)
+{
+    ULONG i;
+    for (i = 0; i < Set->Count; i++)
+        if (Set->Items[i] == Pid)
+            return TRUE;
+    return FALSE;
+}
+
+static BOOL FePidSetAdd(FE_PIDSET *Set, ULONG Pid)
+{
+    if (Set->Count == Set->Capacity) {
+        ULONG cap = Set->Capacity ? Set->Capacity * 2 : 256;
+        ULONG *p = (ULONG *)realloc(Set->Items, cap * sizeof(ULONG));
+        if (!p)
+            return FALSE;
+        Set->Items = p;
+        Set->Capacity = cap;
+    }
+    Set->Items[Set->Count++] = Pid;
+    return TRUE;
+}
+
+static void FeBuildUserPidSet(FE_PIDSET *Set)
+{
+    HANDLE snap;
+    PROCESSENTRY32W pe;
+
+    ZeroMemory(Set, sizeof(*Set));
+    snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE)
+        return;
+    ZeroMemory(&pe, sizeof(pe));
+    pe.dwSize = sizeof(pe);
+    if (Process32FirstW(snap, &pe)) {
+        do {
+            if (!FePidSetAdd(Set, pe.th32ProcessID))
+                break;
+            ZeroMemory(&pe, sizeof(pe));
+            pe.dwSize = sizeof(pe);
+        } while (Process32NextW(snap, &pe));
+    }
+    CloseHandle(snap);
+}
+
+/* 统计三个数。Inaccessible[i] 与 List->Items[i] 一一对应（可选输出）。 */
+BOOL FeComputeProcessStatus(const FE_PROCESS_LIST *List,
+                            ULONG *pHidden, ULONG *pInaccessible,
+                            BOOL *pInaccessibleFlags)
+{
+    FE_PIDSET users;
+    ULONG i, hidden = 0, inaccessible = 0;
+
+    if (!List)
+        return FALSE;
+    FeBuildUserPidSet(&users);
+    for (i = 0; i < List->Count; i++) {
+        BOOL inUser = FePidSetHas(&users, List->Items[i].Pid);
+        BOOL accessible = FeIsProcessRing3Accessible(List->Items[i].Pid);
+        if (!inUser)
+            hidden++;
+        if (!accessible)
+            inaccessible++;
+        if (pInaccessibleFlags)
+            pInaccessibleFlags[i] = accessible;
+    }
+    free(users.Items);
+    if (pHidden) *pHidden = hidden;
+    if (pInaccessible) *pInaccessible = inaccessible;
+    return TRUE;
+}
+
+/* ---------------------------------------------------------------------------
+ * View Timer / View HotKey
+ *
+ * 原版这两页展示进程的定时器与热键。它们在内核里没有对应命令
+ * （命令表里没有 Timer/HotKey 项），但两者的用户态句柄都可枚举：
+ *   Timer   类型名为 "Timer" 的句柄（NtQuerySystemInformation 全系统句柄表）
+ *   HotKey  进程注册的热键（RegisterHotKey 产生 USER32 侧对象，用户态
+ *           可通过按线程窗口的热键列表枚举；这里用 GetGUIThreadInfo 拿
+ *           前台/该进程线程的 hwndActive，再用 WM_GETDLGCODE 不可行 ——
+ *           真实的表在 win32k，只能从驱动取。为不伪造数据，HotKey 页在
+ *           取不到时明确显示 "no data source"，不编造条目。）
+ *
+ * Timer 是有真实数据源的，这里实现它；HotKey 保持未实现并如实标注。
+ * ------------------------------------------------------------------------- */
+
+BOOL FeLoadProcessTimers(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List)
+{
+    FE_HANDLE_LIST all;
+    ULONG i;
+
+    if (!List)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+    if (!MaxCount)
+        MaxCount = 512;
+    if (!FeLoadProcessHandles(Pid, 8192, &all))
+        return FALSE;
+
+    List->Items = (FE_HANDLE_ENTRY *)calloc(MaxCount, sizeof(FE_HANDLE_ENTRY));
+    if (!List->Items) {
+        FeFreeProcessHandles(&all);
+        return FALSE;
+    }
+    List->Capacity = MaxCount;
+
+    for (i = 0; i < all.Count && List->Count < List->Capacity; i++) {
+        if (_stricmp(all.Items[i].TypeName, "Timer") != 0)
+            continue;
+        List->Items[List->Count++] = all.Items[i];
+    }
+    FeFreeProcessHandles(&all);
+    return TRUE;
+}

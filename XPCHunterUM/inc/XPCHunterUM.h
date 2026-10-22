@@ -409,6 +409,16 @@ BOOL FeKillAndDeleteProcessFile(XPCH_CLIENT *Client, ULONG Pid,
 BOOL FeDumpMemoryToFile(ULONG Pid, ULONG64 Base, ULONG64 Size,
                         const char *OutPath, ULONG64 *pWritten);
 
+/* ---- Process 页状态栏：Processes / Hidden / Ring3 Inaccessible ---- */
+BOOL FeIsProcessRing3Accessible(ULONG Pid);
+BOOL FeComputeProcessStatus(const FE_PROCESS_LIST *List,
+                            ULONG *pHidden, ULONG *pInaccessible,
+                            BOOL *pInaccessibleFlags);
+
+/* View Timer：按句柄类型名 "Timer" 过滤（用户态全系统句柄表）。
+ * View HotKey 在内核里没有数据源，见 ProcessOps.c 的说明。 */
+BOOL FeLoadProcessTimers(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List);
+
 /* ---- Services 页（原版第 8 个主 Tab，9 项）----
  * 数据源：SCM 枚举 + 注册表 Services 子树（取原始 ImagePath / ServiceDll）
  * 隐藏服务判定：注册表 Services 下有子键、但 SCM 清单里没有。 */

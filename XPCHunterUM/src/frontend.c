@@ -450,12 +450,12 @@ static void CreateListColumns(HWND h)
    尚未在本移植里正确初始化（实测会 BSOD），因此暂不提供 Path 列。 */
 static void CreateProcColumns(HWND h)
 {
-    static const char *titles[] = { "PID", "Name", "Path", "EPROCESS" };
-    static const int widths[] = { 60, 150, 400, 160 };
+    static const char *titles[] = { "PID", "Name", "Path", "EPROCESS", "Ring3 Access State" };
+    static const int widths[] = { 55, 130, 340, 150, 130 };
     LVCOLUMNA col;
     int i;
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < 5; i++) {
         ZeroMemory(&col, sizeof(col));
         col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
         col.iSubItem = i;
@@ -467,7 +467,8 @@ static void CreateProcColumns(HWND h)
 
 /* ---- 明细子视图（Modules / Threads / Windows）--------------------------- */
 
-static const char *g_TabNames[5] = { "Modules", "Threads", "Windows", "Handles", "Memory" };
+static const char *g_TabNames[7] = { "Modules", "Threads", "Windows", "Handles",
+                                     "Memory", "Timer", "HotKey" };
 
 static ULONG GetSelectedPid(void)
 {
@@ -514,22 +515,28 @@ static void DetailAddRow(const char *c0, const char *c1, const char *c2, const c
 
 static void SetupDetailColumns(int tab)
 {
-    static const char *cols[5][5] = {
+    /* 7 个子视图：0 Modules / 1 Threads / 2 Windows / 3 Handles / 4 Memory
+       / 5 Timer / 6 HotKey */
+    static const char *cols[7][5] = {
         { "Base", "Size", "Name", "Path", "" },
         { "TID", "Prio", "Start", "", "" },
         { "HWND", "TID", "Class", "Title", "" },
         { "Handle", "Type", "Access", "Object", "" },
         { "Base", "Size", "Protect", "Type", "Name" },
+        { "Handle", "Object", "Access", "", "" },
+        { "Handle", "Type", "Detail", "", "" },
     };
-    static const int widths[5][5] = {
+    static const int widths[7][5] = {
         { 130, 90, 160, 380, 0 },
         { 70, 60, 150, 0, 0 },
         { 110, 60, 170, 340, 0 },
         { 90, 180, 100, 260, 0 },
         { 130, 100, 80, 70, 360 },
+        { 100, 190, 110, 0, 0 },
+        { 100, 180, 400, 0, 0 },
     };
     LVCOLUMNA col;
-    int i, n = (tab == 1) ? 3 : ((tab == 4) ? 5 : 4);
+    int i, n = (tab == 1) ? 3 : ((tab == 4) ? 5 : ((tab == 5) ? 3 : 4));
 
     while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
         ;
@@ -550,7 +557,7 @@ static void DoRefreshDetail(void)
     ULONG pid = GetSelectedPid();
     char a[64], b[64], c[64], d[600];
 
-    if (tab < 0 || tab > 4)
+    if (tab < 0 || tab > 6)
         tab = 0;
     if (tab != g_DetailTab) {
         g_DetailTab = tab;
@@ -632,6 +639,29 @@ static void DoRefreshDetail(void)
             FeFreeProcessHandles(&list);
         }
         sprintf_s(d, sizeof(d), "PID %lu handles: %lu", pid, n);
+    } else if (tab == 5) {
+        /* View Timer：句柄类型为 Timer 的项 */
+        FE_HANDLE_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessTimers(pid, 1024, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                sprintf_s(a, sizeof(a), "0x%I64X", list.Items[i].Handle);
+                sprintf_s(b, sizeof(b), "%016I64X", list.Items[i].Object);
+                sprintf_s(c, sizeof(c), "0x%lX", list.Items[i].Access);
+                DetailAddRow(a, b, c, NULL);
+            }
+            FeFreeProcessHandles(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu timers: %lu", pid, n);
+    } else if (tab == 6) {
+        /* View HotKey：热键表在 win32k，用户态与当前驱动都取不到。
+           这里明确说明没有数据源，不编造条目。 */
+        sprintf_s(d, sizeof(d),
+                  "PID %lu hotkeys: no data source "
+                  "(the hotkey list lives in win32k and no driver command exposes it)",
+                  pid);
     } else {
         FE_WINDOW_LIST list;
         ULONG i, n = 0;
@@ -703,7 +733,7 @@ static void DoRefreshProcs(void)
 {
     FE_PROCESS_LIST list;
     ULONG i, count;
-    char buf[64];
+    char buf[256];
 
     if (!g_Client.Opened) {
         SetWindowTextA(g_hProcStatus, "Not connected - click Connect first (it performs the handshake)");
@@ -752,6 +782,26 @@ static void DoRefreshProcs(void)
         item.iSubItem = 3;
         item.pszText = buf;
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+
+        /* Ring3 Access State：用户态能否打开这个进程 */
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 4;
+        item.pszText = FeIsProcessRing3Accessible(list.Items[i].Pid)
+                       ? (LPSTR)"accessible" : (LPSTR)"INACCESSIBLE";
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+    }
+
+    {
+        ULONG hidden = 0, inaccessible = 0;
+        if (FeComputeProcessStatus(&list, &hidden, &inaccessible, NULL)) {
+            FeFreeProcessList(&list);
+            sprintf_s(buf, sizeof(buf),
+                      "Processes: %lu, Hidden Processes: %lu, "
+                      "Ring3 Inaccessible Processes: %lu",
+                      count, hidden, inaccessible);
+            SetWindowTextA(g_hProcStatus, buf);
+            return;
+        }
     }
 
     FeFreeProcessList(&list);
@@ -3033,7 +3083,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            for (k = 0; k < 5; k++) {
+            for (k = 0; k < 7; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)g_TabNames[k];
