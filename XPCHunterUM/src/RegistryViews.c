@@ -6,10 +6,17 @@
 //                             （NtQuerySystemInformation(SystemExtendedHandleInformation)
 //                               + ObjectTypesInformation 取类型名 → 只挑 "Key"）
 //   View CmpNotifyChange      原版列出已注册的 CmRegisterCallback /
-//                             CmRegisterCallbackEx 回调链。用户态拿不到这条链，
-//                             要用驱动命令 0x127（CmdEnumRegistryContext），
-//                             该命令尚未验证出数据，所以本项**未实现**，
-//                             也不拿 Hidden Item 子页冒充（见验收清单 Tab 6）。
+//                             CmRegisterCallbackEx 回调链（该子页名已由
+//                             PCHunter64.exe 0x45D99A 起的字符串组确认）。
+//                             该链在 nt!CmpCallbackListHead，需要任意内核
+//                             内存读取能力。
+//                             【2026-10-23 更正】不要用 0x127 冒充：
+//                             kd `lm a` 证实 0x127 的输出地址落在 Npfs，
+//                             且其数据源 BuildRegistryDriverPath() 的编码
+//                             路径解码后是 `\FileSystem\Npfs`（读该驱动
+//                             PE 节区 +0x70 的 28 个函数指针）——
+//                             那是驱动分发表 hook 检测，与注册表回调无关。
+//                             本项保持**未实现**，页内如实标注。
 //   Key                       按路径打开一个键并列出它的值（只读），
 //                             Kernel 页的 "Locate in Registry Tab" 落到这里
 //   Copy Key Name / RegPath / RegValue / RegData

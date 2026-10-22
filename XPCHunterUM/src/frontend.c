@@ -1614,67 +1614,28 @@ static void DoRefreshRegistry(void)
         SetWindowTextA(g_hRgStatus, status);
         FeFreeRegistryHandles(&list);
     } else if (g_RgTab == 2) {
-        /* CmpNotifyChange：命令 0x127 CmdEnumRegistryContext。
-           实测（2026-10-23）：出参缓冲必须**恰好 1800 字节**
-           （驱动里是 `BufferSize == 1800` 硬判断）。
-           驱动把记录数组写在 pOutputBuffer + 8 处
-           （对应 `EnumerateRegistryContextTable(pOutputBuffer + 8)`），
-           每条记录 0x30 字节：
-             +0x00 DWORD 序号（0,1,2,...）
-             +0x10 QWORD 回调函数地址
-           实测样本（0x18 = 8 + 0x10 即第 0 条的函数）：
-             0xFFFFF80539B7B670 / 0xFFFFF80539B7B270 / 0xFFFFF80539B7EAF0 ...
-           注意首 DWORD（valid flag）只有在 CopyRegistryContextEntryArray
-           与 ValidateCallbackContextTable 都成功时才置 1；即便为 0，
-           上面这批函数地址仍是真实枚举结果，照实展示。 */
-        UCHAR *ctx = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 1800);
-        UCHAR r127 = 0;
-        int shown2 = 0;
-        ULONG n;
-
-        if (!ctx) {
-            SetWindowTextA(g_hRgStatus, "CmpNotifyChange: out of memory");
-            return;
-        }
-        if (!XpchInvoke(&g_Client, 0x127, NULL, 0, ctx, 1800, &r127)) {
-            sprintf_s(status, sizeof(status),
-                      "CmpNotifyChange: 0x127 rejected (result=%u)", r127);
-            SetWindowTextA(g_hRgStatus, status);
-            HeapFree(GetProcessHeap(), 0, ctx);
-            return;
-        }
-        {
-            const UCHAR *recs = ctx + 8;
-            ULONG maxrec = (1800 - 8) / 0x30;
-            for (n = 0; n < maxrec; n++) {
-                const UCHAR *rec = recs + n * 0x30;
-                ULONG idx = *(const ULONG *)(const void *)(rec + 0x00);
-                ULONG64 fn = *(const ULONG64 *)(const void *)(rec + 0x10);
-                LVITEMA it;
-                char sx[24], fs[32], slot[48];
-
-                if (!fn)
-                    continue;
-                ZeroMemory(&it, sizeof(it));
-                it.mask = LVIF_TEXT;
-                it.iItem = shown2;
-                sprintf_s(sx, sizeof(sx), "%lu", idx);
-                it.pszText = sx;
-                SendMessageA(g_hRgList, LVM_INSERTITEMA, 0, (LPARAM)&it);
-                sprintf_s(fs, sizeof(fs), "0x%016llX", (unsigned long long)fn);
-                RgSetText(g_hRgList, shown2, 1, fs);
-                sprintf_s(slot, sizeof(slot), "record %lu (+0x%lX)",
-                          n, (unsigned long)(n * 0x30 + 0x10));
-                RgSetText(g_hRgList, shown2, 3, slot);
-                shown2++;
-            }
-        }
+        /* 【2026-10-23 更正，撤回上一版错误实现】
+           上一版把 0x127 的输出当成 CmRegisterCallback 回调链渲染，
+           那是**错的**。三条独立证据：
+             1. kd `lm a` 核对：输出里的地址全部落在 Npfs
+                （0xFFFFF80539B7B670 / B270 / EAF0 → Npfs 段），
+                另有 0xFFFFF80534525D40 → nt。
+             2. 驱动源码：EnumerateRegistryContextTable 的数据源是
+                BuildRegistryDriverPath() 打开的驱动，而该函数里的
+                编码路径解码后是 `\FileSystem\Npfs`；它读该驱动 PE 节区
+                +0x70（+112）处的 28 个函数指针（0..0x1B）。
+             3. 记录布局确为 0x30 步长、+0x00 序号、+0x10 函数指针，
+                但这只是"Npfs 分发表的函数指针"，与注册表无关。
+           即：0x127 属于「驱动分发表 hook 检测」这一类，
+           **不是** CmRegisterCallback 的注册表回调链（那需要读
+           nt!CmpCallbackListHead，我们没有任意内核内存读取能力）。
+           因此本子页如实标注没有数据源，不拿 Npfs 指针冒充。 */
         sprintf_s(status, sizeof(status),
-                  "CmpNotifyChange: %d registered callback(s)   "
-                  "(0x127 CmdEnumRegistryContext, buffer=1800, valid=%lu)",
-                  shown2, (unsigned long)*(ULONG *)ctx);
+                  "CmpNotifyChange: no data source. The registry callback "
+                  "chain lives in nt!CmpCallbackListHead and no command "
+                  "exposes it (0x127 enumerates Npfs dispatch-table "
+                  "pointers, not CmRegisterCallback entries).");
         SetWindowTextA(g_hRgStatus, status);
-        HeapFree(GetProcessHeap(), 0, ctx);
     } else {
         FE_REG_HIDDEN_LIST list;
         ULONG i;
@@ -5292,9 +5253,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintHiddenDrivers() ? 0 : 1;
     /* --network-cli：无界面打印 Network 页的实际数据行。
        用途同 --g4-status-cli：截图不可靠时直接输出程序生成的内容。 */
-    /* --reg-cli：无界面打印 Registry 页 CmpNotifyChange 子页的实际数据。
-       命令 0x127 CmdEnumRegistryContext，出参缓冲必须**恰好 1800 字节**
-       （驱动里是 `BufferSize == 1800` 硬判断）。 */
+    /* --reg-cli：打印 0x127 的真实语义（Npfs 分发表指针），
+       用于说明它**不是** CmpNotifyChange 的数据源。 */
     if (lpCmdLine && strstr(lpCmdLine, "--reg-cli")) {
         UCHAR *ctx;
         UCHAR r127 = 0;
@@ -5310,16 +5270,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             XpchClose(&g_Client);
             return 1;
         }
-        /* 与 probe --raw 保持一致：握手后再发一次 0x24 建立普通命令通路，
-           否则紧接着的 0x127 拿到的 valid flag 恒为 0（实测差异）。 */
-        {
-            ULONG build = 0;
-            UCHAR r24 = 0;
-            XpchInvoke(&g_Client, XPCH_CMD_GET_MODULE_COUNT,
-                       NULL, 0, &build, sizeof(build), &r24);
-            printf("  probe path: 0x24 -> result=%u build=%lu (0x%lX)\n",
-                   r24, build, build);
-        }
         ctx = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 1800);
         if (!ctx) {
             printf("out of memory\n");
@@ -5332,11 +5282,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             XpchClose(&g_Client);
             return 1;
         }
-        printf("CmpNotifyChange (0x127 CmdEnumRegistryContext, buffer=1800)\n");
-        printf("  valid flag = %lu   (1 = Copy+Validate also succeeded)\n",
-               *(ULONG *)ctx);
+        printf("0x127 CmdEnumRegistryContext (buffer must be exactly 1800)\n");
+        printf("  NOTE: this enumerates Npfs dispatch-table pointers, NOT\n");
+        printf("        the CmRegisterCallback chain (see kd lm a output).\n");
         {
-            /* 记录数组从 ctx+8 开始，每条 0x30 字节，+0x10 是回调函数 */
             const UCHAR *recs = ctx + 8;
             ULONG maxrec = (1800 - 8) / 0x30;
             for (n = 0; n < maxrec; n++) {
@@ -5345,13 +5294,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
                 ULONG64 fn = *(const ULONG64 *)(const void *)(rec + 0x10);
                 if (!fn)
                     continue;
-                printf("  [%lu] function = 0x%016llX   (record %lu, +0x%lX)\n",
+                printf("  [%lu] 0x%016llX   (record %lu, +0x%lX)\n",
                        idx, (unsigned long long)fn,
                        n, (unsigned long)(n * 0x30 + 0x10));
                 shown++;
             }
         }
-        printf("  total %d registered callback(s)\n", shown);
+        printf("  total %d pointer(s); verify with: lm a <addr>\n", shown);
         HeapFree(GetProcessHeap(), 0, ctx);
         XpchClose(&g_Client);
         return 0;
