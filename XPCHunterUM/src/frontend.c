@@ -3161,6 +3161,15 @@ static void DoProcessContextMenu(HWND hWnd, int X, int Y)
 
     if (!hMenu)
         return;
+    /* 原版 Process 右键菜单的 View 组：切到对应子视图 */
+    AppendMenuA(hMenu, MF_STRING, 5010, "View Modules");
+    AppendMenuA(hMenu, MF_STRING, 5011, "View Threads");
+    AppendMenuA(hMenu, MF_STRING, 5012, "View Handles");
+    AppendMenuA(hMenu, MF_STRING, 5013, "View Windows");
+    AppendMenuA(hMenu, MF_STRING, 5014, "View Memory");
+    AppendMenuA(hMenu, MF_STRING, 5015, "View Timer");
+    AppendMenuA(hMenu, MF_STRING, 5016, "View HotKey");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuA(hMenu, MF_STRING, 5001, "Kill");
     AppendMenuA(hMenu, MF_STRING, 5002, "Force Kill");
     AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
@@ -3182,6 +3191,14 @@ static void DoProcessContextMenu(HWND hWnd, int X, int Y)
     DestroyMenu(hMenu);
     if (cmd >= 5001 && cmd <= 5007)
         DoProcessOp(cmd - 5001);
+    else if (cmd >= 5010 && cmd <= 5016) {
+        /* View 子页切换：5010→Modules(0) ... 5016→HotKey(6) */
+        int tab = cmd - 5010;
+        if (g_hTabs)
+            SendMessageA(g_hTabs, TCM_SETCURSEL, (WPARAM)tab, 0);
+        g_DetailTab = -1;
+        DoRefreshDetail();
+    }
 }
 
 /* ---- 模块右键操作：Copy Module Path / Dump Module Memory / Locate in File Tab ---- */
