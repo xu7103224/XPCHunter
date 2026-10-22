@@ -9,6 +9,19 @@
 // 前向声明 — 定义在 Protocol.c 中
 extern NTSTATUS IrpReadCompletionRoutine(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
+/* 【诊断 2026-10-23】ParseNtExportSectionsV3 逐级计数，用于定位 0x131 返回 0。
+   字段含义见 XPCHunterDrv.h 的同名 extern 声明。 */
+ULONG g_DiagPeL1;
+ULONG g_DiagPeL2;
+ULONG g_DiagPe1294;
+ULONG g_DiagPeCond;
+ULONG g_DiagPeDst;
+ULONG g_DiagPeRva;
+ULONG g_DiagPeImgSize;
+ULONG g_DiagPeLoop1Exit;
+ULONG g_DiagPeEntryRva;
+ULONG g_DiagPeType1294;
+
 // 前向声明 — 内部辅助函数
 extern char OpenDeviceTarget(__int64 EncodedPath, __int64 *pDeviceHandle, __int64 *pDeviceObjectHandle);
 extern __int64 GetDeviceObjectFromContext(__int64 DeviceHandle);
@@ -1520,12 +1533,20 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
     _DWORD Dst[16];
     ULONG TargetRva;
 
+    /* 【诊断 2026-10-23】逐级计数，定位 0x131 为何返回 0 */
+    UNREFERENCED_PARAMETER(ContextOffset);
+    g_DiagPeL1 = 0; g_DiagPeL2 = 0; g_DiagPe1294 = 0;
+    g_DiagPeCond = 0; g_DiagPeDst = 0; g_DiagPeImgSize = ImageSize;
+    g_DiagPeEntryRva = 0; g_DiagPeType1294 = 0;
+
     PeOffset = *(int *)(ImageBase + 60);
     SectionBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x902);
+    g_DiagPeRva = (ULONG)PeOffset;
     if (!SectionBase)
         return Result;
 
     InitSectionRva = *(ULONG *)(PeOffset + ImageBase + 40);
+    g_DiagPeLoop1Exit = InitSectionRva;
     if (InitSectionRva >= ImageSize)
         return Result;
     if ((unsigned int)(InitSectionRva + 4096) >= ImageSize)
@@ -1533,11 +1554,27 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
 
     InitPESectionReadContext(ImageBase + InitSectionRva, 4096, 2, 0, -1, 0, 0, (__int64)&PESectionContext);
     ScanCount = 0;
-    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (ULONG *)SectionEntry))
     {
-        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
-        ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        /* 【2026-10-23 关键修正】推进读指针，并以**推进后的读指针**参与 RVA 计算。
+           依据原版 0x140035BB0..0x140035BF0 的汇编：
+               140035BB0 lea  rcx,[rsp+50h]        ; ctx
+               140035BB5 call ReadPESectionEntry
+               140035BBE mov  eax,[rsp+190h]       ; entry+0xF0 消耗字节数
+               140035BC4 mov  rcx,[rsp+58h]        ; ← ctx+0x08，就是读指针本身
+               140035BC9 add  rcx, rax             ; 读指针 += 消耗量
+               140035BD3 mov  [rsp+58h], rcx       ; 写回
+               140035BEA mov  eax,[rsp+0D8h]       ; entry+0x38（RIP 相对位移）
+               140035BED sub  eax, r15d            ; - ImageBase
+               140035BF0 add  eax, ecx             ; + 读指针
+           即 TargetRva = ReadPtr(推进后) - ImageBase + entry[0x38]。
+           反编译里那个独立的 `ContextOffset` 变量位于 rsp+0x58 —— 与 ctx+0x08
+           是同一个栈槽，所以它**就是读指针**，不是从 0 起的累计计数器。
+           此前把它实现成从 0 累加，漏掉了基址 ImageBase+InitSectionRva，
+           所有 TargetRva 全错，于是 0x131 恒返回 0。 */
+        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+        ULONG CurrentRva = (ULONG)(*(ULONG64 *)((PUCHAR)&PESectionContext + 0x08));
+        g_DiagPeEntryRva = CurrentRva;
         __int16 TypeValue = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
 
         if (TypeValue == 1369)
@@ -1567,7 +1604,9 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
         }
         if ((unsigned int)++ScanCount >= 0x14)
             break;
+        g_DiagPeL1++;
     }
+    g_DiagPeLoop1Exit = InitSectionRva;
 
     if (InitSectionRva >= ImageSize || (unsigned int)(InitSectionRva + 4096) >= ImageSize)
         return Result;
@@ -1576,13 +1615,20 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
     memset(Dst, 0, sizeof(Dst));
     for (ULONG LoopIndex = 0; LoopIndex < 0xC8; LoopIndex++)
     {
-            *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-        if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (ULONG *)SectionEntry))
             break;
 
-        ULONG EntryRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)ContextOffset;
-        ContextOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        /* 与第一段一致：先推进读指针，再用推进后的读指针算 RVA。
+           （第二段的 InitPESectionReadContext 已把读指针重置为
+             ImageBase + 新的 InitSectionRva，所以基址自动正确。） */
+        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+
+        ULONG EntryRva = (ULONG)(*(ULONG64 *)((PUCHAR)&PESectionContext + 0x08));
         __int16 TypeValue2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        g_DiagPeL2++;
+        if (TypeValue2 == 1294)
+            g_DiagPe1294++;
+        g_DiagPeType1294 = (ULONG)(ULONG_PTR)TypeValue2;
 
         if (TypeValue2 == 1349)
             break;
@@ -1610,9 +1656,12 @@ char ParseNtExportSectionsV3(__int64 ImageBase, unsigned int ImageSize, __int64 
                 (EntryOffsetVal - 112) <= 0xD8 && (EntryOffsetVal & 7) == 0)
             {
                 ULONG SlotIndex = (EntryOffsetVal - 112) >> 3;
+                g_DiagPeCond++;
                 if (SlotIndex <= 0x1B)
                 {
                     ULONG DstRva = Dst[*(ULONG *)((char *)SectionEntry + 0x90)];
+                    if (DstRva)
+                        g_DiagPeDst++;
                     if (DstRva && !*(_DWORD *)(pTargetTable + 48 * SlotIndex + 4))
                     {
                         Result = 1;

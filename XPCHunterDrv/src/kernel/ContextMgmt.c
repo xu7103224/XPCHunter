@@ -886,11 +886,22 @@ __int64 EnumerateSyscallContextVector(__int64 pOutputTable)
 // GetCallbackContextBase — 获取回调上下文基址
 // 对应原始驱动 sub_140035E50
 // 通过编码后的名称字符串调用 OpenFileSection 打开文件节区
+//
+// 【2026-10-23 修正】原版把名字拆成 `_DWORD EncodedName[4]` + 3 个独立后缀变量
+//   + 终止符，靠**栈上连续布局**拼成一整条宽字符串再交给 OpenFileSection：
+//     EncodedName[0..3] @ rbp-0x30，Suffix1 @ -0x20，Suffix2 @ -0x1C，
+//     Suffix3 @ -0x18，Terminator @ -0x14
+//   共 8 个 DWORD = 32 字节 = 16 个 WCHAR：
+//     build >= 0x1770 → "\Driver\Volmgr"
+//     build <  0x1770 → "\Driver\Ftdisk"
+//   我方照抄成独立局部变量时，编译器不保证它们紧跟数组 —— 与 DriverSection.c
+//   里 netio/usbport 等路径被截断属同一类缺陷。名字一旦截断，OpenFileSection
+//   必然失败，于是 EnumCallbackContextTable 返回 0、命令 0x131 恒返回 result=0
+//   （实测原版同命令 result=1 并有 28 条真实数据）。改用单个显式数组，
+//   布局由语言保证，不依赖编译器。
 __int64 GetCallbackContextBase(void)
 {
-    _DWORD EncodedName[4];
-    int SuffixEncoded1, SuffixEncoded2, SuffixEncoded3;
-    int Terminator = 0;
+    _DWORD EncodedName[8];
 
     EncodedName[0] = 4456540;
     EncodedName[1] = 6881394;
@@ -899,16 +910,17 @@ __int64 GetCallbackContextBase(void)
 
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
     {
-        SuffixEncoded1 = 7274582;
-        SuffixEncoded2 = 7143532;
-        SuffixEncoded3 = 7471207;
+        EncodedName[4] = 7274582;
+        EncodedName[5] = 7143532;
+        EncodedName[6] = 7471207;
     }
     else
     {
-        SuffixEncoded1 = 7602246;
-        SuffixEncoded2 = 6881380;
-        SuffixEncoded3 = 7012467;
+        EncodedName[4] = 7602246;
+        EncodedName[5] = 6881380;
+        EncodedName[6] = 7012467;
     }
+    EncodedName[7] = 0;
 
     return OpenFileSection((__int64)EncodedName);
 }

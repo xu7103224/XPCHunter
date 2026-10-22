@@ -715,6 +715,18 @@ extern ULONG g_DiagAesMd5Expect;
 /* 【诊断 2026-10-22】InitKernelMemoryContext（命令 0xF8）阶段与文件大小 */
 extern ULONG g_DiagKmCtxStage;
 extern ULONG g_DiagKmCtxFileSize;
+
+/* 【诊断 2026-10-23】ParseNtExportSectionsV3（0x131 的核心）逐级计数 */
+extern ULONG g_DiagPeL1;        /* 第一段扫描的解码条目数 */
+extern ULONG g_DiagPeL2;        /* 第二段扫描的解码条目数 */
+extern ULONG g_DiagPe1294;      /* 第二段里类型码 1294 的条目数 */
+extern ULONG g_DiagPeCond;      /* 1294 且全部条件通过的条目数 */
+extern ULONG g_DiagPeDst;       /* 其中 Dst[..] 非零的条目数 */
+extern ULONG g_DiagPeRva;       /* e_lfanew */
+extern ULONG g_DiagPeImgSize;   /* 传入的 ImageSize */
+extern ULONG g_DiagPeLoop1Exit; /* 第一段结束后选定的 InitSectionRva */
+extern ULONG g_DiagPeEntryRva;  /* 最近一条的 EntryRva */
+extern ULONG g_DiagPeType1294;  /* 最近一条的类型码（便于看实际值域） */
 extern ULONG g_DiagNetioFileSize;
 extern ULONG g_DiagNetioCopyOk;
 

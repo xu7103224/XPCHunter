@@ -3014,6 +3014,18 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x3B0) = g_DiagKmCtxStage;
     *(ULONG *)(Out + 0x3B4) = g_DiagKmCtxFileSize;
 
+    /* ParseNtExportSectionsV3 逐级计数（0x131 为何返回 0） */
+    *(ULONG *)(Out + 0x3B8) = g_DiagPeL1;
+    *(ULONG *)(Out + 0x3BC) = g_DiagPeL2;
+    *(ULONG *)(Out + 0x3C0) = g_DiagPe1294;
+    *(ULONG *)(Out + 0x3C4) = g_DiagPeCond;
+    *(ULONG *)(Out + 0x3C8) = g_DiagPeDst;
+    *(ULONG *)(Out + 0x3CC) = g_DiagPeRva;
+    *(ULONG *)(Out + 0x3D0) = g_DiagPeImgSize;
+    *(ULONG *)(Out + 0x3D4) = g_DiagPeLoop1Exit;
+    *(ULONG *)(Out + 0x3D8) = g_DiagPeEntryRva;
+    *(ULONG *)(Out + 0x3DC) = g_DiagPeType1294;
+
     /* 【2026-10-22】Network 页数据源：0xF8 InitKernelMemoryContext 的
        26 组 WFP/KFD/NSI 解析结果。每组在 GT 里成对出现
        （RVA 与解析出的绝对地址），这里导出各组的第一个槽。
