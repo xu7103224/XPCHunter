@@ -461,11 +461,17 @@ int main(int argc, char **argv)
                            *(ULONG *)(env + 0x2F4));
                     printf("    openHandle                  =%p\n",
                            (void *)*(ULONG64 *)(env + 0x2F8));
+                    printf("    --- 0x046 IDT/IOPort chain ---\n");
+                    printf("    ioPortStage=%lu  idtValid=%lu\n",
+                           *(ULONG *)(env + 0x300), *(ULONG *)(env + 0x304));
+                    printf("    idtGtSlot=%p  idtBase=%p\n",
+                           (void *)*(ULONG64 *)(env + 0x308),
+                           (void *)*(ULONG64 *)(env + 0x310));
                     {
                         int off2;
                         /* 只转储环境块本体（0x300）；再往后是分派器诊断表 */
                         printf("    raw env:");
-                        for (off2 = 0; off2 < 0x300; off2++) {
+                        for (off2 = 0; off2 < 0x320; off2++) {
                             if ((off2 & 15) == 0) printf("\n      %04X:", off2);
                             printf(" %02X", env[off2]);
                         }

@@ -1,0 +1,54 @@
+# IDT / I/O Port（0x046）实机证据 — 2026-10-22, Win10 18362, 测试模式
+
+## 修掉的三处驱动缺陷
+
+1) **参数错位**：`CmdIoPortOperation` 原来转调
+   `IoPortOperationDispatch(InputBuffer, InputSize, pOutputBuffer, OutputSize)`，
+   而后者只有 `(void *, int)` 两个参数 —— 参数整体左移，
+   `OutBufferSize >= 0x3808` 恒不成立。按 IDA 伪代码（原版 0x14003888C）
+   改为在本函数内自己校验与处理。
+
+2) **GtCurrentEprocess 为 0**：原版只测该槽非零；本复刻的 InitGtCore
+   因 GT 描述表未初始化而没写它，0x046 因此停在第一步。
+   按 0x20 的写法（`GtWrite(0x185, IoGetCurrentProcess())`）补一次。
+
+3) **上下文布局错**：`ReadIoPortDataForProcess` 从上下文 +0x10 读输出缓冲
+   大小。原版把三个字段排在连续栈位置，我方声明成独立局部变量后编译器
+   换了偏移，+0x10 读到栈垃圾 → 越界检查失效 → `movups [rax-170h]` 写飞
+   → 0x3B（WinDbg 实测 RIP = VPChainW+0xb27f）。改为显式结构体。
+
+## IDT 数据来源
+
+GT[0x1E3] 保存的是 ntoskrnl 里指向 IDT 基址的那个指针槽，由
+`ParseNtExportSectionsV4` 产出；本复刻该槽为 0（实测 idtGtSlot=0），
+因此在同一条链失败时改用 `sidt`（ReadIdtr）直接读 IDTR —— 拿到的是
+同一个值，后续条目遍历逻辑不变。
+
+## 实机输出
+
+    C:\Users\Public\xpch_frontend.exe --idt-cli
+    IDT (0x046): contexts=1 entries=256
+      vec 0   handler RVA 000000000034D100
+      vec 1   handler RVA 000000000034D180
+      vec 2   handler RVA 000000000034D200
+      ...
+      vec 15  handler RVA 000000000034E2F8
+      vec 22  handler RVA 000000000034E330
+      vec 23  handler RVA 000000000034E338
+      non-empty gates: 256
+
+## WinDbg 交叉验证
+
+    0: kd> r idtr
+    idtr=fffff8024488b000
+    0: kd> dq fffff8024488b000 L6
+    fffff802`4488b000  41348e00`0010d100 00000000`fffff802
+    fffff802`4488b010  41348e04`0010d180 00000000`fffff802
+    fffff802`4488b020  41348e03`0010d200 00000000`fffff802
+
+门描述符偏移 0x10D100 → RVA 0x34D100（ntoskrnl base 0xFFFFF80241000000），
+与工具输出的 vec0 / vec1 / vec2 完全一致。
+
+## 截图
+
+- kernel_idt_tab_2026-10-22.png   Kernel → IDT 子页（256 个向量）

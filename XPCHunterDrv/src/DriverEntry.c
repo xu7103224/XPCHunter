@@ -128,6 +128,12 @@ ULONG g_DiagOpenStage;
 LONG  g_DiagOpenStatus;
 ULONG64 g_DiagOpenHandle;
 
+/* 【诊断 2026-10-22】0x046（IDT / I/O Port）链条逐级 trace。 */
+ULONG g_DiagIoPortStage;
+ULONG64 g_DiagIoPortIdtGt;
+ULONG64 g_DiagIoPortIdtBase;
+ULONG g_DiagIoPortIdtValid;
+
 ULONG64 g_DiagKillEp;
 ULONG64 g_DiagKillDirectFn;
 ULONG64 g_DiagKillCheckFn;

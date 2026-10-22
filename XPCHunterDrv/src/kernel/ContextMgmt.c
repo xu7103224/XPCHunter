@@ -3481,18 +3481,32 @@ char ReadIoPortDataForProcess(__int64 DeviceObject, __int64 *pIoPortContext)
     if (TargetProcess)
     {
         KeStackAttachProcess(TargetProcess, &ApcState);
-        if (ReadIoPortDescriptorTable((_DWORD *)*pIoPortContext) == 1
-            && ParseIoPortDescriptorTable(*pIoPortContext) == 1
-            && TranslateIoPortAddresses(*pIoPortContext) == 1)
+        g_DiagIoPortStage = 1;
+        if (ReadIoPortDescriptorTable((_DWORD *)*pIoPortContext) == 1)
         {
-            IsContextResolved = ResolveIoPortContext(*pIoPortContext) == 1;
+            g_DiagIoPortStage = 2;
+            if (ParseIoPortDescriptorTable(*pIoPortContext) == 1)
+            {
+                g_DiagIoPortStage = 3;
+                if (TranslateIoPortAddresses(*pIoPortContext) == 1)
+                {
+                    g_DiagIoPortStage = 4;
+                    IsContextResolved = ResolveIoPortContext(*pIoPortContext) == 1;
+                    if (IsContextResolved)
+                        g_DiagIoPortStage = 5;
+                }
+            }
         }
         KeUnstackDetachProcess(&ApcState);
     }
     if (IsContextResolved)
     {
+        /* 上下文布局：+0x00 缓冲指针 / +0x08 输出缓冲 / +0x10 输出缓冲大小。
+           三个字段必须连续（见 CmdIoPortOperation 里的说明）。 */
+        unsigned int OutputBufferSize = *(unsigned int *)((PUCHAR)pIoPortContext + 0x10);
+
         pOutputCounter = (_DWORD *)pIoPortContext[1];
-        if (14336 * (unsigned __int64)(unsigned int)*pOutputCounter + 14344 > *((unsigned int *)pIoPortContext + 4))
+        if (14336 * (unsigned __int64)(unsigned int)*pOutputCounter + 14344 > OutputBufferSize)
             return 0;
         pDestBuffer = (_OWORD *)&pOutputCounter[3584 * *pOutputCounter + 2];
         pSrcBuffer = (_OWORD *)*pIoPortContext;
@@ -3539,9 +3553,41 @@ char ReadIoPortDescriptorTable(_DWORD *pOutputTable)
         ParseNtExportSectionsV4();
         pIdtEntryArray = (void **)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField153 | 0x100));
     }
+    g_DiagIoPortIdtGt = (ULONG64)pIdtEntryArray;
 
     NtoskrnlBase = GtRead(GtNtoskrnlModuleBase);
     NtoskrnlSize = (unsigned int)GtRead(GtEprocessField23);
+
+    /* 【2026-10-22】原版从 PE 节区里找出保存 IDT 基址的那个指针槽
+       （GT[0x1E3]），再取 *pIdtEntryArray。本复刻的 ParseNtExportSectionsV4
+       没有产出该槽（实测 idtGtSlot=0），整条 0x046 链停在第一步。
+       这里在同一条链失败时用 `sidt` 直接读 IDTR —— 两种做法拿到的是同一个
+       值（IDT 基址），后面的条目遍历逻辑完全不变。 */
+    if (!pIdtEntryArray)
+    {
+        char IdtrValue[10];
+        ReadIdtr(IdtrValue);
+        g_DiagIoPortIdtBase = *(ULONG64 *)(IdtrValue + 2);
+        pIdtBase = (unsigned __int16 *)g_DiagIoPortIdtBase;
+        g_DiagIoPortIdtValid = (MmIsAddressValid(pIdtBase) == 1) ? 1 : 0;
+        if (g_DiagIoPortIdtValid == 1)
+        {
+            pIdtEntry = pIdtBase + 3;
+            do
+            {
+                pOutputTable[0] = EntryIndex;
+                pOutputTable += 14;
+                OffsetLow = *(pIdtEntry - 3);
+                OffsetHigh = *pIdtEntry + ((unsigned __int64)*(unsigned int *)(pIdtEntry + 1) << 16);
+                pIdtEntry += 8;
+                *((_QWORD *)pOutputTable - 6) =
+                    OffsetLow + (OffsetHigh << 16) - GtRead(GtNtoskrnlModuleBase);
+                EntryIndex++;
+            } while (EntryIndex < 0x100);
+            return 1;
+        }
+        return 0;
+    }
 
     if (pIdtEntryArray
         && NtoskrnlBase
@@ -3550,6 +3596,7 @@ char ReadIoPortDescriptorTable(_DWORD *pOutputTable)
         && (ULONG)((ULONG_PTR)pIdtEntryArray - (ULONG)NtoskrnlBase) < NtoskrnlSize)
     {
         pIdtBase = (unsigned __int16 *)*pIdtEntryArray;
+        g_DiagIoPortIdtBase = (ULONG64)pIdtBase;
         if (!MmIsAddressValid(pIdtBase))
         {
             pFiberData = (_QWORD *)GetCurrentFiber();
@@ -3557,7 +3604,9 @@ char ReadIoPortDescriptorTable(_DWORD *pOutputTable)
                 pIdtBase = (unsigned __int16 *)pFiberData[45];
             else
                 pIdtBase = (unsigned __int16 *)pFiberData[21];
+            g_DiagIoPortIdtBase = (ULONG64)pIdtBase;
         }
+        g_DiagIoPortIdtValid = (MmIsAddressValid(pIdtBase) == 1) ? 1 : 0;
 
         if (MmIsAddressValid(pIdtBase) == 1)
         {

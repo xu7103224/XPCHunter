@@ -522,3 +522,106 @@ void FeFreeKernelObjectList(FE_KOBJ_LIST *List)
     List->Items = NULL;
     List->Count = 0;
 }
+
+/* ------------------------------------------------------- IDT（0x046）
+ * 驱动侧的调用约定是 Handler(InPtr, OutSize, OutPtr, InSize)，而 0x046
+ * 的实现把第 2 个参数当"输出缓冲大小"用 —— 也就是客户端的 InSize。
+ * 所以必须同时给 InSize >= 0x3808 和足够大的输出缓冲，否则它直接返回 0。
+ *
+ * 输出布局：
+ *   +0x00 DWORD 上下文数 n（= 处理器数），0 表示链条没解析出来
+ *   +0x08 起     n 个 0x3800 字节上下文
+ * 每个上下文第 i 条（56 字节）：
+ *   +0  DWORD 中断向量号
+ *   +4  DWORD 段选择器
+ *   +8  QWORD 处理函数地址 - ntoskrnlBase（0 = 空门）
+ *   +16 BYTE  异常标志（RPL != 0 / 选择器 != 2 / 选择器越界 时置 1）
+ */
+BOOL FeLoadIdt(XPCH_CLIENT *Client, FE_IDT_LIST *List)
+{
+    BYTE *in = NULL, *out = NULL;
+    UCHAR res = 0;
+    BOOL ok;
+    ULONG i, count;
+
+    if (!List)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+    if (!Client || !Client->Opened)
+        return FALSE;
+
+    in = (BYTE *)calloc(1, 0x3808);
+    out = (BYTE *)calloc(1, 0x3808);
+    if (!in || !out) {
+        free(in);
+        free(out);
+        return FALSE;
+    }
+    ok = XpchInvoke(Client, 0x46, in, 0x3808, out, 0x3808, &res);
+    List->DriverOk = ok;
+    List->ResultByte = res;
+    if (!ok) {
+        free(in);
+        free(out);
+        return FALSE;
+    }
+
+    count = *(ULONG *)out;
+    List->ContextCount = count;
+    if (count == 0) {
+        free(in);
+        free(out);
+        return TRUE;       /* 参数通过但链条没解析出来，如实返回空表 */
+    }
+    List->Items = (FE_IDT_ENTRY *)calloc(FE_IDT_MAX, sizeof(FE_IDT_ENTRY));
+    if (!List->Items) {
+        free(in);
+        free(out);
+        return FALSE;
+    }
+    for (i = 0; i < FE_IDT_MAX; i++) {
+        BYTE *slot = out + 8 + (ULONG64)i * 56;
+        List->Items[i].Vector = *(ULONG *)slot;
+        List->Items[i].HandlerRva = *(ULONG64 *)(slot + 8);
+        List->Count++;
+    }
+    free(in);
+    free(out);
+    return TRUE;
+}
+
+void FeFreeIdt(FE_IDT_LIST *List)
+{
+    if (!List)
+        return;
+    free(List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->ContextCount = 0;
+}
+
+BOOL FePrintIdt(XPCH_CLIENT *Client)
+{
+    FE_IDT_LIST list;
+    ULONG i, shown = 0, nonEmpty = 0;
+
+    if (!FeLoadIdt(Client, &list)) {
+        printf("IDT (0x046): query failed\n");
+        return FALSE;
+    }
+    printf("IDT (0x046): contexts=%lu entries=%lu\n",
+           list.ContextCount, list.Count);
+    for (i = 0; i < list.Count; i++) {
+        if (!list.Items[i].HandlerRva)
+            continue;
+        nonEmpty++;
+        if (shown < 24) {
+            printf("  vec %-3lu handler RVA %016I64X\n",
+                   (unsigned long)list.Items[i].Vector, list.Items[i].HandlerRva);
+            shown++;
+        }
+    }
+    printf("  non-empty gates: %lu\n", nonEmpty);
+    FeFreeIdt(&list);
+    return TRUE;
+}

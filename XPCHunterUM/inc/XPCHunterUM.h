@@ -271,6 +271,29 @@ BOOL FeLoadHiddenDrivers(FE_HDRV_LIST *Hidden, FE_HDRV_LIST *Suspicious);
 void FeFreeHiddenDrivers(FE_HDRV_LIST *List);
 BOOL FePrintHiddenDrivers(void);
 
+/* ---- IDT / I/O Port（0x046，输出 >= 0x3808）----
+ * 输出：+0x00 DWORD 已写上下文数 n，+0x08 起 n 个 0x3800 字节上下文。
+ * 每个上下文里第 i 条 56 字节：+0 DWORD 向量号，+8 QWORD 处理函数 RVA
+ * （驱动写的是 handler - ntoskrnlBase；0 表示空门）。 */
+#define FE_IDT_MAX 256
+
+typedef struct _FE_IDT_ENTRY {
+    ULONG   Vector;
+    ULONG64 HandlerRva;
+} FE_IDT_ENTRY;
+
+typedef struct _FE_IDT_LIST {
+    ULONG         ContextCount;
+    ULONG         Count;        /* 第一个上下文的条目数 */
+    FE_IDT_ENTRY *Items;
+    BOOL          DriverOk;
+    UCHAR         ResultByte;
+} FE_IDT_LIST;
+
+BOOL FeLoadIdt(XPCH_CLIENT *Client, FE_IDT_LIST *List);
+void FeFreeIdt(FE_IDT_LIST *List);
+BOOL FePrintIdt(XPCH_CLIENT *Client);
+
 /* ---- SSDT 恢复（原版 SSDT 页状态栏 Restore / Restore All）----
  * 0xE7 全量恢复服务表描述符；0xEB 按选择子 0..6 恢复单个表项/计数。 */
 BOOL FeRestoreSsdtAll(XPCH_CLIENT *Client, BYTE *pResult);

@@ -2107,6 +2107,17 @@ static void CreateKmColumns(HWND hList, int tab)
         c.pszText = "State";     c.cx = 100; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
         c.pszText = "Start";     c.cx = 80;  c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "ImagePath"; c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
+    } else if (tab == 8) {
+        /* IDT：Vector / Handler RVA / State */
+        c.pszText = "Vector";      c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Handler RVA"; c.cx = 200; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "State";       c.cx = 200; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+    } else if (tab == 9) {
+        /* I/O Port：与 IDT 同源（0x046），按上下文汇总 */
+        c.pszText = "Context";     c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Entries";     c.cx = 120; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Non-empty";   c.cx = 120; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Note";        c.cx = 550; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
     } else if (tab == 6 || tab == 7) {
         /* Hidden Drivers / Suspicious DriverObject */
         c.pszText = "Name";   c.cx = 200; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
@@ -2351,6 +2362,87 @@ static void DoRefreshKernel(void)
                   hidden.Count, susp.Count);
         FeFreeHiddenDrivers(&hidden);
         FeFreeHiddenDrivers(&susp);
+    } else if (g_KmTab == 8) {
+        /* IDT（0x046）：每个中断向量的处理函数 RVA */
+        FE_IDT_LIST idt;
+        ULONG i;
+        if (!FeLoadIdt(&g_Client, &idt)) {
+            SetWindowTextA(g_hKmStatus, "IDT: query failed (0x046, not connected?)");
+            return;
+        }
+        if (idt.ContextCount == 0) {
+            SetWindowTextA(g_hKmStatus,
+                           "IDT: 0x046 returned no context (chain did not resolve)");
+            FeFreeIdt(&idt);
+            return;
+        }
+        {
+            ULONG nonEmpty = 0;
+            for (i = 0; i < idt.Count; i++) {
+                LVITEMA it;
+                char vec[16], rva[32];
+                ZeroMemory(&it, sizeof(it));
+                it.mask = LVIF_TEXT;
+                it.iItem = (int)i;
+                sprintf_s(vec, sizeof(vec), "%lu", (unsigned long)idt.Items[i].Vector);
+                sprintf_s(rva, sizeof(rva), "%016I64X", idt.Items[i].HandlerRva);
+                it.pszText = vec;
+                SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+                KmSetText(g_hKmList, (int)i, 1, rva);
+                if (idt.Items[i].HandlerRva) {
+                    nonEmpty++;
+                    KmSetText(g_hKmList, (int)i, 2, "present");
+                } else {
+                    KmSetText(g_hKmList, (int)i, 2, "(empty gate)");
+                }
+            }
+            sprintf_s(status, sizeof(status),
+                      "IDT: %lu vectors, %lu non-empty (0x046, %lu context(s))",
+                      idt.Count, nonEmpty, idt.ContextCount);
+        }
+        SetWindowTextA(g_hKmStatus, status);
+        FeFreeIdt(&idt);
+    } else if (g_KmTab == 9) {
+        /* I/O Port：同一命令的上下文视图（每处理器一个上下文） */
+        FE_IDT_LIST idt;
+        ULONG i;
+        if (!FeLoadIdt(&g_Client, &idt)) {
+            SetWindowTextA(g_hKmStatus, "I/O Port: query failed (0x046)");
+            return;
+        }
+        if (idt.ContextCount == 0) {
+            SetWindowTextA(g_hKmStatus,
+                           "I/O Port: 0x046 returned no context (chain did not resolve)");
+            FeFreeIdt(&idt);
+            return;
+        }
+        {
+            ULONG nonEmpty = 0;
+            char ctx[16], ent[16], ne[16];
+            for (i = 0; i < idt.Count; i++)
+                if (idt.Items[i].HandlerRva)
+                    nonEmpty++;
+            sprintf_s(ctx, sizeof(ctx), "0");
+            sprintf_s(ent, sizeof(ent), "%lu", idt.Count);
+            sprintf_s(ne, sizeof(ne), "%lu", nonEmpty);
+            {
+                LVITEMA it;
+                ZeroMemory(&it, sizeof(it));
+                it.mask = LVIF_TEXT;
+                it.iItem = 0;
+                it.pszText = ctx;
+                SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+                KmSetText(g_hKmList, 0, 1, ent);
+                KmSetText(g_hKmList, 0, 2, ne);
+                KmSetText(g_hKmList, 0, 3,
+                          "IDT gate table for this processor (0x046)");
+            }
+            sprintf_s(status, sizeof(status),
+                      "I/O Port: %lu context(s), %lu IDT gates (%lu non-empty)",
+                      idt.ContextCount, idt.Count, nonEmpty);
+        }
+        SetWindowTextA(g_hKmStatus, status);
+        FeFreeIdt(&idt);
     } else {
         /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）
          *
@@ -3122,10 +3214,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            static const char *kmNames[8] = { "Kernel Module", "Driver", "SSDT",
-                                              "Shadow SSDT", "Device", "Object",
-                                              "Hidden Drivers", "Suspicious DriverObj" };
-            for (k = 0; k < 8; k++) {
+            static const char *kmNames[10] = { "Kernel Module", "Driver", "SSDT",
+                                               "Shadow SSDT", "Device", "Object",
+                                               "Hidden Drivers", "Suspicious DriverObj",
+                                               "IDT", "I/O Port" };
+            for (k = 0; k < 10; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)kmNames[k];
@@ -3343,7 +3436,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             pk = cl ? strstr(cl, "--kmtab ") : NULL;
             if (pk && g_hKmTabs) {
                 int kt = atoi(pk + 8);
-                if (kt >= 0 && kt <= 7) {
+                if (kt >= 0 && kt <= 9) {
                     HWND b;
                     g_KmTab = kt;
                     SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);
@@ -4035,6 +4128,66 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
         return FePrintHiddenDrivers() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--idt-cli")) {
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        FePrintIdt(&g_Client);
+        XpchClose(&g_Client);
+        return 0;
+    }
+    /* IDT / I/O Port（0x046）的无 UI 入口。
+ * 驱动侧的调用约定是 Handler(InPtr, OutSize, OutPtr, InSize)，
+ * 而 0x046 的实现把第 2 个参数当"输出缓冲大小"用 —— 也就是客户端的
+ * InSize。所以必须同时给 InSize >= 0x3808 和足够大的输出缓冲。 */
+    if (lpCmdLine && strstr(lpCmdLine, "--ioport-cli")) {
+        BYTE *in = NULL, *out = NULL;
+        UCHAR res = 0;
+        BOOL ok;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        in = (BYTE *)calloc(1, 0x3808);
+        out = (BYTE *)calloc(1, 0x3808);
+        if (!in || !out) {
+            printf("out of memory\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        ok = XpchInvoke(&g_Client, 0x46, in, 0x3808, out, 0x3808, &res);
+        printf("0x046 -> %s result=%u\n", ok ? "OK" : "REJECTED", res);
+        if (ok && *(ULONG *)out != 0) {
+            ULONG count = *(ULONG *)out, i;
+            printf("  io-port contexts: %lu\n", count);
+            /* 每个上下文 14336(0x3800) 字节，从 out+8 开始。
+               每条 56 字节：+0 = 中断向量号，+8 = 处理函数地址
+               （ReadIoPortDescriptorTable 写的是 addr - ntoskrnlBase 的 RVA，
+                 0 表示该向量为空）。 */
+            for (i = 0; i < count && i < 4; i++) {
+                BYTE *e = out + 8 + (ULONG64)i * 0x3800ULL;
+                ULONG k;
+                printf("   ctx%lu:\n", (unsigned long)i);
+                for (k = 0; k < 8; k++) {
+                    ULONG *slot = (ULONG *)(e + k * 56);
+                    ULONG64 rva = *(ULONG64 *)((BYTE *)slot + 8);
+                    printf("     vec %-3lu rva %08I64X%s\n",
+                           (unsigned long)*slot, rva,
+                           rva ? "" : "  (empty gate)");
+                }
+            }
+        } else {
+            printf("  output counter = 0 (chain did not resolve)\n");
+        }
+        free(in);
+        free(out);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+    }
     /* Dump Memory / Dump Module Memory 的无 UI 入口：
        --dumpmem-cli <pid> <basehex> <sizehex> [outPath] */
     if (lpCmdLine && strstr(lpCmdLine, "--dumpmem-cli")) {

@@ -1109,9 +1109,72 @@ __int64 CmdReadPhysicalMemory(__int64 InputBuffer, __int64 InputSize, _DWORD *pO
 
 // CmdIoPortOperation — IO 端口操作命令处理
 // 对应原始驱动 sub_14003888C
-__int64 CmdIoPortOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
+//
+// 【修正 2026-10-22】原版这个处理器**自己**校验并处理输出缓冲，签名是四参数
+// (DeviceObject, Irp, pOutputBuffer, OutputSize)。我方原来转调
+// `IoPortOperationDispatch(InputBuffer, InputSize, pOutputBuffer, OutputSize)`，
+// 而那个函数只有 (void *InputBuffer, int BufferSize) 两个参数 —— 参数整体
+// 左移，OutputSize 位置拿到的是 pOutputBuffer 的指针、BufferSize 拿到的是
+// OutputSize，于是 `OutBufferSize >= 0x3808` 恒不成立（实测 result=0、
+// 0x046 链条 stage 一直是 0）。这里按 IDA 伪代码逐行重写。
+__int64 CmdIoPortOperation(__int64 DeviceObject, __int64 Irp, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ((PCOMMAND_HANDLER)IoPortOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    /* 【修正 2026-10-22 之二】ReadIoPortDataForProcess 从上下文里读三样东西：
+         +0x00  上下文缓冲指针
+         +0x08  输出缓冲指针（用户缓冲，+0x00 处是条目计数）
+         +0x10  输出缓冲大小
+       原版把这 3 个字段排在同一个栈帧的连续位置（IoPortContext[2] + BufferSize），
+       所以用 `IoPortContext[2]` 的地址 +0x10 就能读到大小。我们照抄成两个独立
+       局部变量时，编译器把 BufferSize 放到了别的偏移，`+0x10` 读到的是栈垃圾
+       → 越界判断失效 → `movups [rax-170h]` 写飞 → 0x3B（实测 RIP 落在
+       VPChainW+0xb27f）。这里改成显式结构体，偏移与原版一致。 */
+    typedef struct _FE_IOPORT_CTX {
+        void    *ContextBuffer;   /* +0x00 */
+        ULONG   *OutputBuffer;    /* +0x08，+0x00 是已写条目数 */
+        unsigned OutputSize;      /* +0x10 */
+        unsigned Reserved;        /* +0x14，对齐 */
+    } FE_IOPORT_CTX;
+    bool Result = 0;
+    PVOID pIoPortContext;
+    FE_IOPORT_CTX Ctx;
+
+    UNREFERENCED_PARAMETER(DeviceObject);
+    UNREFERENCED_PARAMETER(Irp);
+
+    /* 【修正 2026-10-22】原版这里只测 GtCurrentEprocess 是否非零。该槽由
+       InitGtCore 与 0x20 写入；本复刻的 InitGtCore 因 GT 描述表未初始化而没写，
+       于是 0x046 永远停在第一步（实测 ioPortStage 恒 0）。0x20 的写法就是
+       `GtWrite(0x185, IoGetCurrentProcess())`，这里照同样语义补一次。 */
+    if (GtRead(GtCurrentEprocess) == 0)
+        GtWrite(GtCurrentEprocess, (__int64)IoGetCurrentProcess());
+
+    if (pOutputBuffer)
+    {
+        if ((unsigned int)OutputSize >= 0x3808
+            && (ULONG64)pOutputBuffer < MmUserProbeAddress
+            && (ULONG64)pOutputBuffer + (unsigned int)OutputSize < MmUserProbeAddress)
+        {
+            if (GtRead(GtCurrentEprocess))
+            {
+                pIoPortContext = ExAlloc(PagedPool, 0x3800u);
+                if (pIoPortContext)
+                {
+                    memset(pIoPortContext, 0, 0x3800u);
+                    ProbeForWrite(pOutputBuffer, (unsigned int)OutputSize, 1u);
+                    *pOutputBuffer = 0;
+                    Ctx.ContextBuffer = pIoPortContext;
+                    Ctx.OutputBuffer  = pOutputBuffer;
+                    Ctx.OutputSize    = (unsigned int)OutputSize;
+                    Ctx.Reserved      = 0;
+                    ForEachProcessor((__int64 (*)(__int64, __int64))ReadIoPortDataForProcess,
+                                     (__int64)&Ctx);
+                    Result = *pOutputBuffer != 0;
+                    ExFree(pIoPortContext);
+                }
+            }
+        }
+    }
+    return Result;
 }
 
 // CmdKernelMemoryOperation — 内核内存操作命令处理
@@ -2897,6 +2960,12 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x2F0) = g_DiagOpenStage;   /* OpenFileSection 走到第几步 */
     *(ULONG *)(Out + 0x2F4) = (ULONG)g_DiagOpenStatus;  /* IoCreateFile 的 NTSTATUS */
     *(ULONG64 *)(Out + 0x2F8) = g_DiagOpenHandle;       /* IoCreateFile 写回的句柄 */
+
+    /* 【诊断 2026-10-22】IDT / I/O Port（0x046）链条。 */
+    *(ULONG *)(Out + 0x300) = g_DiagIoPortStage;
+    *(ULONG *)(Out + 0x304) = g_DiagIoPortIdtValid;
+    *(ULONG64 *)(Out + 0x308) = g_DiagIoPortIdtGt;
+    *(ULONG64 *)(Out + 0x310) = g_DiagIoPortIdtBase;
 
     /* 【诊断 2026-10-21】按命令的分派器拒绝原因表 + 协议级拒绝计数表。
        用途：结果字节 0 无法区分"被拒"与"处理器执行完但设计上返回 0"，
