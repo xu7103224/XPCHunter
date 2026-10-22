@@ -51,7 +51,7 @@
  * "未定位对象类型"，不做假开关。 */
 typedef struct {
     const char *Label;
-    int         Which;           /* 0=File 1=Driver 2=Device */
+    int         Which;           /* 0=File 1=Driver 2=Device 3=Process 4=Thread */
     ULONG       OperationType;   /* 0..7 */
 } FE_FORBID_DEF;
 
@@ -59,6 +59,8 @@ static const FE_FORBID_DEF g_ForbidDefs[] = {
     { "Forbid Creating File",   0, 0 },
     { "Forbid Loading Driver",  1, 0 },
     { "Forbid Creating Device", 2, 0 },
+    { "Forbid Creating Process", 3, 0 },
+    { "Forbid Creating Thread",  4, 0 },
 };
 
 #define FE_FORBID_COUNT (sizeof(g_ForbidDefs) / sizeof(g_ForbidDefs[0]))
@@ -75,7 +77,9 @@ static const FE_FORBID_DEF g_ForbidDefs[] = {
  * 调用方应显示"未就绪"而不是发无效请求。 */
 BOOL FeSettingReadObjectTypes(XPCH_CLIENT *Client, FE_OBJ_TYPES *Out)
 {
-    enum { STAT_N = 283, OPEN_REC = 16, ENV = 0x240, DIAG = STAT_N * 4, REJ = 11 * 4 };
+    /* ENV 必须与实际 CMD_ENV_SIZE 一致（0x320）；写小了会导致 env 之后的
+       诊断表错位，也会让 +0x1D8 以外的候选槽读到垃圾。 */
+    enum { STAT_N = 283, OPEN_REC = 16, ENV = 0x320, DIAG = STAT_N * 4, REJ = 11 * 4 };
     enum { TOTAL = STAT_N * 16 + OPEN_REC + ENV + DIAG + REJ };
     PUCHAR buf;
     UCHAR res = 0;
@@ -100,6 +104,16 @@ BOOL FeSettingReadObjectTypes(XPCH_CLIENT *Client, FE_OBJ_TYPES *Out)
         Out->Device  = *(ULONG64 *)(env + 0x1D0);
         for (i = 0; i < 13; i++)
             Out->Extra[i] = *(ULONG64 *)(env + 0x1D8 + i * 8);
+        /* 【2026-10-22】对象类型在 extra[] 里成对出现：RVA 与运行期地址。
+           实测（--setting-cli）：
+             extra[3] = 0x0056F390          RVA
+             extra[4] = FFFFF8024156F390    运行期地址 = nt!PsProcessType（ln 确认）
+             extra[6] = 0x0056F3B8          RVA
+             extra[7] = FFFFF8024156F3B8    运行期地址 = nt!PsThreadType（ln 确认）
+           必须取**完整地址**那一项：0x79 的 TargetObject 会与驱动里解析出的
+           IoXxxObjectType 直接比对，传 RVA 永远不匹配。 */
+        Out->Process = Out->Extra[4];
+        Out->Thread  = Out->Extra[7];
     }
     free(buf);
     return (Out->File || Out->Driver || Out->Device) ? TRUE : FALSE;

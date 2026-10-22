@@ -1615,14 +1615,18 @@ static void DoRefreshSetting(void)
 
         ListView_InsertItem(g_hStList, NULL);
         StSetText(g_hStList, n, 0, "Forbid Creating Process");
-        StSetText(g_hStList, n, 1, "unavailable");
-        StSetText(g_hStList, n, 2, "IoProcessObjectType slot not yet located");
+        StSetText(g_hStList, n, 1, "ready");
+        StSetText(g_hStList, n, 2,
+                  g_StObjReady ? "PsProcessType (GT[0x4166]) resolved"
+                               : "needs driver connection");
         n++;
 
         ListView_InsertItem(g_hStList, NULL);
         StSetText(g_hStList, n, 0, "Forbid Creating Thread");
-        StSetText(g_hStList, n, 1, "unavailable");
-        StSetText(g_hStList, n, 2, "IoThreadObjectType slot not yet located");
+        StSetText(g_hStList, n, 1, "ready");
+        StSetText(g_hStList, n, 2,
+                  g_StObjReady ? "PsThreadType (GT[0x4169]) resolved"
+                               : "needs driver connection");
         n++;
 
         ListView_InsertItem(g_hStList, NULL);
@@ -1676,9 +1680,12 @@ static void DoApplyForbid(int Which)
         return;
     }
     switch (Which) {
-    case 0: target = g_StObjTypes.File;   break;
-    case 1: target = g_StObjTypes.Driver; break;
-    case 2: target = g_StObjTypes.Device; break;
+    case 0: target = g_StObjTypes.File;    break;
+    case 1: target = g_StObjTypes.Driver;  break;
+    case 2: target = g_StObjTypes.Device;  break;
+    case 3: target = g_StObjTypes.Process; break;   /* GT[0x4166] = PsProcessType */
+    case 4: target = g_StObjTypes.Thread;  break;   /* GT[0x4169] = PsThreadType */
+    default: break;
     }
     if (!target) {
         SetWindowTextA(g_hStStatus, "Object type address is zero");
@@ -3918,7 +3925,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_HK_REFRESH: DoRefreshHooks(); return 0;
         case IDC_HK_RESTORE: DoRestoreOverHooks(); return 0;
         case IDC_HK_CBTABLE: DoRestoreCallbackTable(); return 0;
-        case IDC_ST_APPLY:   DoApplyForbid(0); return 0;
+        case IDC_ST_APPLY: {
+            /* 按列表选中行决定对哪一项下 Forbid；未选中时默认第 1 项（File）。 */
+            int si = g_hStList
+                     ? ListView_GetNextItem(g_hStList, -1, LVNI_SELECTED) : -1;
+            if (si < 0 || si > 4) {
+                if (g_hStStatus)
+                    SetWindowTextA(g_hStStatus,
+                                   "Select one of the five Forbid rows first");
+                return 0;
+            }
+            DoApplyForbid(si);
+            return 0;
+        }
         case IDC_ST_PROT_SSDT:
             if (FeSettingSelfProtect(&g_Client, 1)) SetWindowTextA(g_hStStatus, "SSDT self-protection enabled");
             else SetWindowTextA(g_hStStatus, "SelfProtection rejected (needs 21712-byte output)");
@@ -4265,11 +4284,59 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         printf("  IoFileObjectType   = %p\n", (void *)(ULONG_PTR)ot.File);
         printf("  IoDriverObjectType = %p\n", (void *)(ULONG_PTR)ot.Driver);
         printf("  IoDeviceObjectType = %p\n", (void *)(ULONG_PTR)ot.Device);
+        printf("  PsProcessType      = %p  (GT[0x4166])\n", (void *)(ULONG_PTR)ot.Process);
+        printf("  PsThreadType       = %p  (GT[0x4169])\n", (void *)(ULONG_PTR)ot.Thread);
         for (i = 0; i < 13; i++)
             printf("  extra[%2d]          = %p\n", i, (void *)(ULONG_PTR)ot.Extra[i]);
         printf("  minimize-to-tray   = %d\n", FeSettingGetMinimizeToTray());
         XpchClose(&g_Client);
         return 0;
+    }
+    /* --forbid-cli <0..4> [enable]: send 0x79 to verify the object type address */
+    if (lpCmdLine && strstr(lpCmdLine, "--forbid-cli")) {
+        const char *p = strstr(lpCmdLine, "--forbid-cli") + 13;
+        FE_OBJ_TYPES ot;
+        int which;
+        BOOL enable = TRUE;
+        ULONG64 target = 0;
+        UCHAR res = 0;
+        BOOL ok;
+        while (*p == ' ') p++;
+        which = atoi(p);
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        if (*p == '0') enable = FALSE;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed\
+");
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (!FeSettingReadObjectTypes(&g_Client, &ot)) {
+            printf("object types not available\
+");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        switch (which) {
+        case 0: target = ot.File;    break;
+        case 1: target = ot.Driver;  break;
+        case 2: target = ot.Device;  break;
+        case 3: target = ot.Process; break;
+        case 4: target = ot.Thread;  break;
+        default:
+            printf("which must be 0..4\
+");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        ok = FeSettingSetForbid(&g_Client, target, 0, enable ? 1 : 0, &res);
+        printf("0x79 forbid which=%d target=%016I64X enable=%d -> %s result=%u\
+",
+               which, (unsigned __int64)target, enable ? 1 : 0,
+               ok ? "OK" : "REJECTED", res);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
     }
     if (lpCmdLine && strstr(lpCmdLine, "--fireeye-cli")) {
         const char *p = strstr(lpCmdLine, "--fireeye-cli") + 13;

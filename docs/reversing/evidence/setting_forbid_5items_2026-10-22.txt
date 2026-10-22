@@ -1,0 +1,44 @@
+# Setting 页 Forbid 五项实机证据 — 2026-10-22, Win10 18362
+
+## 对象类型地址（--setting-cli，运行期地址）
+
+    IoFileObjectType   = FFFFF8024156F3C8   (GT[0x422F])
+    IoDriverObjectType = FFFFF8024156F500   (GT[0x4160])
+    IoDeviceObjectType = FFFFF8024156F890   (GT[0x4163])
+    PsProcessType      = FFFFF8024156F390   extra[4]
+    PsThreadType       = FFFFF8024156F3B8   extra[7]
+
+WinDbg 交叉验证：
+
+    ln fffff8024156f890  -> nt!IoDeviceObjectType
+    ln fffff8024156f390  -> nt!PsProcessType
+    ln fffff8024156f3b8  -> nt!PsThreadType
+    ln fffff8024156f500  -> nt!IoDriverObjectType
+    ln fffff8024156f3c8  -> nt!IoFileObjectType
+
+## 关键修正：extra[] 是「RVA / 运行期地址」成对出现
+
+    extra[3] = 0x0056F390          <- RVA，不能用于 0x79
+    extra[4] = FFFFF8024156F390    <- 运行期地址，正确值
+    extra[6] = 0x0056F3B8          <- RVA
+    extra[7] = FFFFF8024156F3B8    <- 运行期地址，正确值
+
+之前记录"extra 里混有哈希值"其实是把 RVA 当成了哈希。
+0x79 的 TargetObject 会与驱动解析出的 IoXxxObjectType 直接比对，
+只有运行期地址才能匹配。
+
+## 0x79 实机结果（五项全部被接受）
+
+    --forbid-cli 0 1   target=FFFFF8024156F3C8 -> OK result=1
+    --forbid-cli 1 1   target=FFFFF8024156F500 -> OK result=1
+    --forbid-cli 2 1   target=FFFFF8024156F890 -> OK result=1
+    --forbid-cli 3 1   target=FFFFF8024156F390 -> OK result=1
+    --forbid-cli 4 1   target=FFFFF8024156F3B8 -> OK result=1
+
+## 仍然缺的两项
+
+Forbid Injecting Module 需要 MmSectionObjectType（WinDbg:
+`x nt!MmSectionObjectType` = fffff8024156f478），但该地址不在
+驱动导出的 16 个候选槽里，而 0x79 会逐项比对、不匹配就返回 0。
+Forbid Locking Work Station 的 IoDesktopObjectType 属于 win32k，
+同样不在候选槽里。两项保持 unavailable，不伪造开关。

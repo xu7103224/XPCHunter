@@ -682,6 +682,8 @@ typedef struct _FE_OBJ_TYPES {
     ULONG64 File;
     ULONG64 Driver;
     ULONG64 Device;
+    ULONG64 Process;    /* Extra[0] = GT[0x4166]，WinDbg `ln` 确认 = PsProcessType */
+    ULONG64 Thread;     /* Extra[3] = GT[0x4169]，WinDbg `ln` 确认 = PsThreadType */
     ULONG64 Extra[13];
 } FE_OBJ_TYPES;
 
