@@ -396,6 +396,19 @@ BOOL FePrintProcessMemory(ULONG Pid);
 /* ---- 进程操作（0x28 / 0xA2，破坏性）---- */
 BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEprocess);
 
+/* ---- Process 页进程操作（原版右键菜单）---- */
+BOOL FeForceKillProcess(XPCH_CLIENT *Client, ULONG Pid);
+BOOL FeSuspendResumeProcess(ULONG Pid, BOOL Suspend);
+ULONG FeCollectProcessTree(ULONG RootPid, ULONG *Pids, ULONG MaxPids);
+BOOL FeKillProcessTree(XPCH_CLIENT *Client, ULONG RootPid,
+                       ULONG *pKilled, ULONG *pFailed);
+BOOL FeGetProcessImagePath(ULONG Pid, char *Out, size_t OutChars);
+BOOL FeKillAndDeleteProcessFile(XPCH_CLIENT *Client, ULONG Pid,
+                                char *DeletedPath, size_t PathChars,
+                                DWORD *pError, BOOL *pRebootDelete);
+BOOL FeDumpMemoryToFile(ULONG Pid, ULONG64 Base, ULONG64 Size,
+                        const char *OutPath, ULONG64 *pWritten);
+
 /* ---- Services 页（原版第 8 个主 Tab，9 项）----
  * 数据源：SCM 枚举 + 注册表 Services 子树（取原始 ImagePath / ServiceDll）
  * 隐藏服务判定：注册表 Services 下有子键、但 SCM 清单里没有。 */

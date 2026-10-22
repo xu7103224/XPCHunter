@@ -654,6 +654,7 @@ static void DoRefreshDetail(void)
 
 /* ç»æéä¸­è¿ç¨ï¼ç ´åæ§æä½ï¼åäºæ¬¡ç¡®è®¤ã */
 static void DoRefreshProcs(void);
+static void DoRefreshFiles(void);
 
 static void DoKillSelected(void)
 {
@@ -2581,6 +2582,302 @@ static void DoDriverOp(int Op)
     }
 }
 
+/* 进程右键操作：Kill / Force Kill / Suspend / Resume / Kill By Process Tree /
+ * Kill And Delete File / Copy Image Path。 */
+static void DoProcessOp(int Op)
+{
+    ULONG pid = GetSelectedPid();
+    char msg[1024];
+    char path[1024];
+
+    if (!g_hProcStatus)
+        return;
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Select a process first");
+        return;
+    }
+    switch (Op) {
+    case 0:   /* Kill */
+        DoKillSelected();
+        return;
+    case 1:   /* Force Kill（0xA2，只给 EPROCESS） */
+        if (!g_Client.Opened) {
+            SetWindowTextA(g_hProcStatus, "Not connected");
+            return;
+        }
+        sprintf_s(msg, sizeof(msg),
+                  "Force kill PID %lu by EPROCESS?\n\nThis is destructive.", pid);
+        if (MessageBoxA(g_hMainWnd, msg, "Force Kill",
+                        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) != IDYES) {
+            SetWindowTextA(g_hProcStatus, "Force kill cancelled");
+            return;
+        }
+        if (FeForceKillProcess(&g_Client, pid)) {
+            sprintf_s(msg, sizeof(msg), "Force Kill: PID %lu terminated (EPROCESS)", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+            DoRefreshProcs();
+        } else {
+            sprintf_s(msg, sizeof(msg), "Force Kill: PID %lu failed", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+        }
+        return;
+    case 2:   /* Suspend */
+    case 3:   /* Resume */
+        if (FeSuspendResumeProcess(pid, Op == 2)) {
+            sprintf_s(msg, sizeof(msg), "%s: PID %lu", Op == 2 ? "Suspend" : "Resume", pid);
+        } else {
+            sprintf_s(msg, sizeof(msg), "%s: PID %lu failed, GetLastError=%lu",
+                      Op == 2 ? "Suspend" : "Resume", pid, GetLastError());
+        }
+        SetWindowTextA(g_hProcStatus, msg);
+        return;
+    case 4: { /* Kill By Process Tree */
+        ULONG killed = 0, failed = 0;
+        sprintf_s(msg, sizeof(msg),
+                  "Kill PID %lu and all of its children?\n\nThis is destructive.", pid);
+        if (MessageBoxA(g_hMainWnd, msg, "Kill By Process Tree",
+                        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) != IDYES) {
+            SetWindowTextA(g_hProcStatus, "Kill tree cancelled");
+            return;
+        }
+        FeKillProcessTree(&g_Client, pid, &killed, &failed);
+        sprintf_s(msg, sizeof(msg), "Kill By Process Tree: root %lu -> killed %lu, failed %lu",
+                  pid, killed, failed);
+        SetWindowTextA(g_hProcStatus, msg);
+        DoRefreshProcs();
+        return;
+    }
+    case 5: { /* Kill And Delete File */
+        BOOL rebootDel = FALSE;
+        DWORD err = 0;
+        sprintf_s(msg, sizeof(msg),
+                  "Kill PID %lu and delete its image file?\n\nThis cannot be undone.", pid);
+        if (MessageBoxA(g_hMainWnd, msg, "Kill And Delete File",
+                        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) != IDYES) {
+            SetWindowTextA(g_hProcStatus, "Kill and delete cancelled");
+            return;
+        }
+        {
+            char deleted[1024];
+            if (FeKillAndDeleteProcessFile(&g_Client, pid, deleted, sizeof(deleted),
+                                           &err, &rebootDel)) {
+                if (rebootDel)
+                    sprintf_s(msg, sizeof(msg),
+                              "Kill And Delete File: %s -> scheduled for delete on reboot", deleted);
+                else
+                    sprintf_s(msg, sizeof(msg),
+                              "Kill And Delete File: %s -> deleted", deleted);
+            } else {
+                sprintf_s(msg, sizeof(msg),
+                          "Kill And Delete File: PID %lu failed, GetLastError=%lu",
+                          pid, (unsigned long)err);
+            }
+        }
+        SetWindowTextA(g_hProcStatus, msg);
+        DoRefreshProcs();
+        return;
+    }
+    case 6: { /* Copy Image Path */
+        if (!FeGetProcessImagePath(pid, path, sizeof(path))) {
+            SetWindowTextA(g_hProcStatus, "Copy Image Path: cannot query the image path");
+            return;
+        }
+        if (!OpenClipboard(g_hProc))
+            return;
+        EmptyClipboard();
+        {
+            HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, strlen(path) + 1);
+            if (h) {
+                void *p = GlobalLock(h);
+                if (p) {
+                    memcpy(p, path, strlen(path) + 1);
+                    GlobalUnlock(h);
+                    SetClipboardData(CF_TEXT, h);
+                }
+            }
+        }
+        CloseClipboard();
+        sprintf_s(msg, sizeof(msg), "Image path copied: %s", path);
+        SetWindowTextA(g_hProcStatus, msg);
+        return;
+    }
+    default:
+        return;
+    }
+}
+
+static void DoProcessContextMenu(HWND hWnd, int X, int Y)
+{
+    HMENU hMenu = CreatePopupMenu();
+    int cmd;
+
+    if (!hMenu)
+        return;
+    AppendMenuA(hMenu, MF_STRING, 5001, "Kill");
+    AppendMenuA(hMenu, MF_STRING, 5002, "Force Kill");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 5003, "Suspend");
+    AppendMenuA(hMenu, MF_STRING, 5004, "Resume");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 5005, "Kill By Process Tree");
+    AppendMenuA(hMenu, MF_STRING, 5006, "Kill And Delete File");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 5007, "Copy Image Path");
+    if (X == -1 && Y == -1) {
+        RECT rc;
+        GetWindowRect(g_hProc, &rc);
+        X = rc.left + 40;
+        Y = rc.top + 40;
+    }
+    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
+                         X, Y, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
+    if (cmd >= 5001 && cmd <= 5007)
+        DoProcessOp(cmd - 5001);
+}
+
+/* ---- 模块右键操作：Copy Module Path / Dump Module Memory / Locate in File Tab ---- */
+static ULONG64 DetailColumnQword(int Sel, int Sub)
+{
+    LVITEMA it;
+    char text[64];
+
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = Sel;
+    it.iSubItem = Sub;
+    it.pszText = text;
+    it.cchTextMax = sizeof(text);
+    if (!SendMessageA(g_hDetail, LVM_GETITEMTEXTA, (WPARAM)Sel, (LPARAM)&it))
+        return 0;
+    return _strtoui64(text, NULL, 16);
+}
+
+static BOOL DetailColumnText(int Sel, int Sub, char *Out, int OutChars)
+{
+    LVITEMA it;
+
+    if (!Out || OutChars <= 0)
+        return FALSE;
+    Out[0] = 0;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = Sel;
+    it.iSubItem = Sub;
+    it.pszText = Out;
+    it.cchTextMax = OutChars;
+    return SendMessageA(g_hDetail, LVM_GETITEMTEXTA, (WPARAM)Sel, (LPARAM)&it) != 0;
+}
+
+static void DoModuleOp(int Op)
+{
+    int sel = ListView_GetNextItem(g_hDetail, -1, LVNI_SELECTED);
+    ULONG pid = GetSelectedPid();
+    char msg[1024];
+    char path[1024];
+    char baseText[64];
+
+    if (!g_hProcStatus)
+        return;
+    if (g_DetailTab != 0) {
+        SetWindowTextA(g_hProcStatus, "Switch to the Modules view first");
+        return;
+    }
+    if (sel < 0) {
+        SetWindowTextA(g_hProcStatus, "Select a module row first");
+        return;
+    }
+    switch (Op) {
+    case 0: /* Copy Module Path */
+        if (!DetailColumnText(sel, 3, path, sizeof(path))) {
+            SetWindowTextA(g_hProcStatus, "Selected module has no path");
+            return;
+        }
+        if (!OpenClipboard(g_hDetail))
+            return;
+        EmptyClipboard();
+        {
+            HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, strlen(path) + 1);
+            if (h) {
+                void *p = GlobalLock(h);
+                if (p) {
+                    memcpy(p, path, strlen(path) + 1);
+                    GlobalUnlock(h);
+                    SetClipboardData(CF_TEXT, h);
+                }
+            }
+        }
+        CloseClipboard();
+        sprintf_s(msg, sizeof(msg), "Module path copied: %s", path);
+        SetWindowTextA(g_hProcStatus, msg);
+        return;
+    case 1: { /* Dump Module Memory */
+        ULONG64 base = DetailColumnQword(sel, 0);
+        ULONG size = (ULONG)DetailColumnQword(sel, 1);
+        char name[128];
+        char outPath[600];
+        ULONG64 written = 0;
+
+        if (!DetailColumnText(sel, 2, name, sizeof(name)) || !name[0]) {
+            SetWindowTextA(g_hProcStatus, "Selected module has no name");
+            return;
+        }
+        DetailColumnText(sel, 0, baseText, sizeof(baseText));
+        sprintf_s(outPath, sizeof(outPath), "%s\\%s_%s_%lu.bin",
+                  "C:\\Users\\Public", name, baseText, pid);
+        if (FeDumpMemoryToFile(pid, base, size ? size : 0x1000, outPath, &written)) {
+            sprintf_s(msg, sizeof(msg), "Dump Module Memory: %s -> %s (%I64u bytes)",
+                      name, outPath, written);
+        } else {
+            sprintf_s(msg, sizeof(msg), "Dump Module Memory: %s failed (open/read)", name);
+        }
+        SetWindowTextA(g_hProcStatus, msg);
+        return;
+    }
+    case 2: /* Locate in File Tab */
+        if (!DetailColumnText(sel, 3, path, sizeof(path)) || !path[0]) {
+            SetWindowTextA(g_hProcStatus, "Selected module has no path");
+            return;
+        }
+        {
+            char *slash = strrchr(path, '\\');
+            if (slash)
+                *slash = 0;
+        }
+        if (g_hFlDir) {
+            SetWindowTextA(g_hFlDir, path);
+            g_MainTab = 8;
+            if (g_hMainTabs)
+                SendMessageA(g_hMainTabs, TCM_SETCURSEL, 8, 0);
+            if (g_hMainWnd)
+                ShowPage(g_hMainWnd, 8);
+            DoRefreshFiles();
+        }
+        sprintf_s(msg, sizeof(msg), "Locate in File Tab: %s", path);
+        SetWindowTextA(g_hProcStatus, msg);
+        return;
+    default:
+        return;
+    }
+}
+
+static void DoModuleContextMenu(HWND hWnd, int X, int Y)
+{
+    HMENU hMenu = CreatePopupMenu();
+    int cmd;
+
+    if (!hMenu)
+        return;
+    AppendMenuA(hMenu, MF_STRING, 6001, "Copy Module Path");
+    AppendMenuA(hMenu, MF_STRING, 6002, "Dump Module Memory");
+    AppendMenuA(hMenu, MF_STRING, 6003, "Locate in File Tab");
+    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
+                         X, Y, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
+    if (cmd >= 6001 && cmd <= 6003)
+        DoModuleOp(cmd - 6001);
+}
+
 /* 原版 Driver 页的 "Locate in Registry Tab"：跳到 Registry 页的 Key 子页，
  * 直接打开 HKLM\SYSTEM\CurrentControlSet\Services\<驱动名>。 */
 static void DoLocateDriverInRegistry(void)
@@ -3316,16 +3613,24 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
     case WM_CONTEXTMENU: {
         HWND from = (HWND)wParam;
+        int x = (short)LOWORD(lParam);
+        int y = (short)HIWORD(lParam);
+        if (x == -1 && y == -1) {
+            RECT rc;
+            GetWindowRect(from ? from : hWnd, &rc);
+            x = rc.left + 40;
+            y = rc.top + 40;
+        }
         if (from == g_hKmList) {
-            int x = (short)LOWORD(lParam);
-            int y = (short)HIWORD(lParam);
-            if (x == -1 && y == -1) {
-                RECT rc;
-                GetWindowRect(g_hKmList, &rc);
-                x = rc.left + 40;
-                y = rc.top + 40;
-            }
             DoDriverContextMenu(hWnd, x, y);
+            return 0;
+        }
+        if (from == g_hProc) {
+            DoProcessContextMenu(hWnd, x, y);
+            return 0;
+        }
+        if (from == g_hDetail && g_DetailTab == 0) {
+            DoModuleContextMenu(hWnd, x, y);
             return 0;
         }
         break;
@@ -3680,6 +3985,98 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
         return FePrintHiddenDrivers() ? 0 : 1;
+    /* Dump Memory / Dump Module Memory 的无 UI 入口：
+       --dumpmem-cli <pid> <basehex> <sizehex> [outPath] */
+    if (lpCmdLine && strstr(lpCmdLine, "--dumpmem-cli")) {
+        const char *p = strstr(lpCmdLine, "--dumpmem-cli") + 13;
+        unsigned long pid = 0;
+        unsigned __int64 base = 0, size = 0;
+        char outPath[512];
+        char arg[256];
+        int n;
+        ULONG64 written = 0;
+
+        while (*p == ' ')
+            p++;
+        n = sscanf_s(p, "%lu %llx %llx %511s", &pid, &base, &size,
+                     outPath, (unsigned)sizeof(outPath));
+        if (n < 3) {
+            printf("usage: --dumpmem-cli <pid> <base-hex> <size-hex> [outFile]\n");
+            return 1;
+        }
+        if (n < 4) {
+            sprintf_s(arg, sizeof(arg), "%lu", pid);
+            sprintf_s(outPath, sizeof(outPath),
+                      "C:\\Users\\Public\\dump_%lu_%I64X.bin", pid, base);
+        }
+        if (FeDumpMemoryToFile((ULONG)pid, (ULONG64)base, (ULONG64)size,
+                               outPath, &written)) {
+            printf("dump %lu [%I64X,+%I64X) -> %s (%I64u bytes)\n",
+                   pid, base, size, outPath, written);
+            return 0;
+        }
+        printf("dump %lu [%I64X,+%I64X) -> failed\n", pid, base, size);
+        return 1;
+    }
+    /* 进程右键操作的无 UI 入口：--proc-op-cli <op> <pid> */
+    if (lpCmdLine && strstr(lpCmdLine, "--proc-op-cli")) {
+        const char *p = strstr(lpCmdLine, "--proc-op-cli") + 14;
+        char op[32];
+        ULONG pid;
+        int n;
+        BOOL ok = FALSE;
+        while (*p == ' ')
+            p++;
+        n = sscanf_s(p, "%31s %lu", op, (unsigned)sizeof(op), &pid);
+        if (n < 2) {
+            printf("usage: --proc-op-cli forcekill|suspend|resume|killtree|killdel|imagepath <pid>\n");
+            return 1;
+        }
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (_stricmp(op, "forcekill") == 0) {
+            ok = FeForceKillProcess(&g_Client, pid);
+            printf("forcekill %lu -> %s\n", pid, ok ? "terminated" : "failed");
+        } else if (_stricmp(op, "killtree") == 0) {
+            ULONG k = 0, f = 0;
+            ULONG pids[512];
+            ULONG cnt = FeCollectProcessTree(pid, pids, 512), i;
+            printf("killtree %lu: tree =", pid);
+            for (i = 0; i < cnt; i++)
+                printf(" %lu", pids[i]);
+            printf("\n");
+            ok = FeKillProcessTree(&g_Client, pid, &k, &f);
+            printf("killtree %lu -> killed %lu, failed %lu\n", pid, k, f);
+            for (i = 0; i < cnt; i++) {
+                HANDLE hh = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pids[i]);
+                printf("   pid %-6lu %s\n", pids[i], hh ? "STILL ALIVE" : "gone");
+                if (hh) CloseHandle(hh);
+            }
+        } else if (_stricmp(op, "killdel") == 0) {
+            char deleted[1024];
+            DWORD err = 0;
+            BOOL rebootDel = FALSE;
+            ok = FeKillAndDeleteProcessFile(&g_Client, pid, deleted, sizeof(deleted),
+                                            &err, &rebootDel);
+            printf("killdel %lu -> %s%s%s (error %lu)\n", pid, ok ? deleted : "failed",
+                   rebootDel ? " (delete on reboot)" : "", ok ? "" : "", (unsigned long)err);
+        } else if (_stricmp(op, "suspend") == 0 || _stricmp(op, "resume") == 0) {
+            BOOL susp = (_stricmp(op, "suspend") == 0);
+            ok = FeSuspendResumeProcess(pid, susp);
+            printf("%s %lu -> %s\n", susp ? "suspend" : "resume", pid, ok ? "ok" : "failed");
+        } else if (_stricmp(op, "imagepath") == 0) {
+            char path[1024];
+            ok = FeGetProcessImagePath(pid, path, sizeof(path));
+            printf("imagepath %lu -> %s\n", pid, ok ? path : "(failed)");
+        } else {
+            printf("unknown op: %s\n", op);
+        }
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--ssdt-restore-cli")) {
         const char *p = strstr(lpCmdLine, "--ssdt-restore-cli") + 18;
         BYTE res = 0;
@@ -3731,7 +4128,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             }
             printf("kill pid %lu ep=%p via 0x%s -> %s\n", kpid, (void *)(ULONG_PTR)kep,
                    use28 ? "28" : "A2",
-                   FeKillProcess(&g_Client, kpid, use28 ? 0 : kep, !use28) ? "OK" : "FAILED");
+                   /* 0x28 也要带 EPROCESS：驱动在 ValidateProcessObject 不通过时
+                      会直接返回成功却不做事，FeKillProcess 需要它来回落 0xA2。 */
+                   FeKillProcess(&g_Client, kpid, kep, !use28) ? "OK" : "FAILED");
             XpchClose(&g_Client);
         } else {
             printf("open device failed\n");

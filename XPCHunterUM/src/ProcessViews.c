@@ -751,5 +751,18 @@ BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEpro
 
     /* 结果字节在 0x28 上按设计可能就是 0，不能作为成功判据；
        以"PID 是否已从进程列表消失"为准。 */
-    return FeProcessPidGone(Client, Pid);
+    if (FeProcessPidGone(Client, Pid))
+        return TRUE;
+
+    /* 【2026-10-22】0x28 的处理函数在 ValidateProcessObject 不通过时会
+       `return ValidateProcessObject(...) != 1`，即直接返回"成功"却什么都不做。
+       实测部分进程（timeout.exe 等）因此报成功但没死。这里回落到 0xA2 的
+       终止路径，仍以"进程是否消失"判定，避免 Kill 变成空操作。 */
+    if (!ByEprocess && Eprocess)
+    {
+        in[0] = Eprocess;
+        XpchInvoke(Client, 0xA2, in, 8, NULL, 0, &res);
+        return FeProcessPidGone(Client, Pid);
+    }
+    return FALSE;
 }

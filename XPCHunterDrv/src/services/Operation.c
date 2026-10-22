@@ -2453,16 +2453,47 @@ __int64 TerminateProcessByEProcessOperation(char *pInputBuffer, int InputSize, u
                 }
                 else
                 {
+                    /* PROCESS_TERMINATE 在本 TU 的包含顺序里没有可见定义，
+                       按 WDK 里的数值直接给（winnt.h: 0x0001）。 */
+                    const ACCESS_MASK TerminateAccess = 0x0001;
                     DirectTerminateFunc = (__int64 (__fastcall *)(__int64))GtRead(GtTerminateProcessByEprocess);
-                    g_DiagKillDirectFn = (ULONG64)DirectTerminateFunc;
-                    if (DirectTerminateFunc)
+                    /* 【修正 2026-10-22】实机核对 GT[0x42BC] 里存的是
+                       nt!KeCancelTimer（0xfffff805374168D0，WinDbg `u` 确认），
+                       不是 PsTerminateProcess —— 原版由 GT 描述表按导出名填写，
+                       复刻里这张表把错项写了进来，于是 0xA2 实际调的是
+                       KeCancelTimer，进程当然不死（g_DiagKillStage 却已经是 4）。
+                       MmGetSystemRoutineAddress 与 ntoskrnl 导出表按名查在本驱动
+                       里都返回 0（两个都试过），因此改走与 PsTerminateProcess(ep,0)
+                       等价的 documented 路径：
+                         PsLookupProcessByProcessId → ObOpenObjectByPointer
+                         (PROCESS_TERMINATE) → ZwTerminateProcess。
+                       效果与原版一致，且不依赖那张出错的描述表。 */
                     {
-                        __int64 DirectRet = DirectTerminateFunc(EprocessAddr);
-                        g_DiagKillStage = 4;    /* 直接终止路径已调用 */
-                        g_DiagKillDirectRet = (ULONG)DirectRet;
-                        return DirectRet;
+                        PEPROCESS TargetProcess = NULL;
+                        HANDLE ProcessHandle = NULL;
+                        NTSTATUS TermStatus;
+
+                        TermStatus = PsLookupProcessByProcessId(
+                            PsGetProcessId((PEPROCESS)EprocessAddr), &TargetProcess);
+                        g_DiagKillDirectFn = (ULONG64)DirectTerminateFunc;
+                        g_DiagKillStage = 4;    /* 直接终止路径 */
+                        if (NT_SUCCESS(TermStatus))
+                        {
+                            TermStatus = ObOpenObjectByPointer(
+                                TargetProcess, OBJ_KERNEL_HANDLE, NULL,
+                                TerminateAccess, NULL, KernelMode, &ProcessHandle);
+                            if (NT_SUCCESS(TermStatus))
+                            {
+                                TermStatus = ZwTerminateProcess(ProcessHandle, 0);
+                                ZwClose(ProcessHandle);
+                            }
+                            ObDereferenceObject(TargetProcess);
+                            g_DiagKillDirectRet = (ULONG)TermStatus;
+                            return TermStatus == STATUS_SUCCESS;
+                        }
+                        g_DiagKillDirectRet = (ULONG)TermStatus;
+                        return 0;
                     }
-                    g_DiagKillStage = 5;        /* GT[0x42BC] 为 0 */
                 }
             }
             else
