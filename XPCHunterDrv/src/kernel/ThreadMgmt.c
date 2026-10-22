@@ -569,7 +569,9 @@ __int64 CmdEnumThreads(char **InputBuffer, int InputSize, _DWORD *OutputBuffer, 
     int ThreadIndex;
     WORD Result[8];
 
-    if (InputSize != 8 || OutputSize != 520) return -1;
+    /* 【修正 2026-10-22】原版此处返回 0（bool char）；返回 -1 会让分派器把
+       结果字节写成 0xFF，前端看到的是"成功但结果码异常"。 */
+    if (InputSize != 8 || OutputSize != 520) return 0;
 
     ProbeForRead(InputBuffer, 8, 4);
     ProbeForWrite(OutputBuffer, 0x208, 1);

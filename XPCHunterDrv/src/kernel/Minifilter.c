@@ -418,15 +418,11 @@ __int64 MiniFilterNotifyRoutine(wchar_t *FileName, ULONG NameLength)
     return Result;
 }
 
-// MiniFilterPreCreate — 预处理创建
-// 对应原始驱动 sub_140014078
-// 【注意】0x140014078 在 IDA 中被命名为 MiniFilterPreCreate，但它**无参数**、
-//   实际是 PE 节区扫描器，已作为 FindKernelDataSectionForImageNotify 在下方实现
-//   （见「命名说明」）。本函数是真正的 FLT 回调占位，保持桩实现。
-NTSTATUS MiniFilterPreCreate(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext)
-{
-    return STATUS_SUCCESS;
-}
+// 【删除 2026-10-22 · G5】这里原有一个 MiniFilterPreCreate 桩，
+//   `return STATUS_SUCCESS;` 且全仓库无任何调用点。
+//   原版 0x140014078 的真实函数是 FindKernelDataSectionForImageNotify
+//   （无参数 PE 节区扫描器，已在本文件下方实现），并不是 FLT PreCreate 回调；
+//   保留一个没人调用的空壳属于清单 G5「无占位代码」不通过项，故删除。
 
 // 【命名依据 2026-09-21，方案 A（按消费者命名）】原 IDA 名 `MiniFilterPostCreate` 与实物不符：
 //   本函数无参数、是 PE 节区扫描器。据 GT 描述表（写者↔读者一一配对）确定其产出目标：GT 0x17C 生产者之一（类型序列 0x512/0x558）。

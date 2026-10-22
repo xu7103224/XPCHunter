@@ -966,7 +966,6 @@ __int64 MiniFilterPreClose(void);
 __int64 MiniFilterPreDirEnum(void);
 __int64 MiniFilterPreSetInfo(void);
 ULONG64 FindKernelObjectFieldOffsetsWin10(void);
-__declspec(noinline) NTSTATUS MiniFilterPreCreate(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID *CompletionContext);
 __int64 MiniFilterPreDelete(__int64 Unknown1, __int64 Unknown2, unsigned int *OutputBuffer, unsigned int OutputBufferSize);
 ULONG64 FindKernelObjectFieldOffsetsWin8(void);
 __int64 MiniFilterPreFlush(unsigned int *OutputBuffer, int BufferSize);

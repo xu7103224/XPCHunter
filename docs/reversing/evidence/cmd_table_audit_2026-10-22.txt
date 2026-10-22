@@ -1,0 +1,53 @@
+# 命令表 1:1 审计 + 0x2A 挂死修复 — 2026-10-22
+
+## 一、命令表逐槽比对（决定性结论）
+
+数据源：原版 `InitCommandHandlerTable`（IDA 0x1400815B0，0xE1B 字节）
+一次性填写 282 个槽（索引 0..281 → 命令 0x20..0x13A）。
+提取原版全部赋值并与我方 `Table[]` 机器比对：
+
+    原版空槽 = 34
+    我方空槽 = 34
+    原版有实现、我方为空 = 0
+    原版为空、我方有实现 = 0
+
+29 处"不同名"全部是：
+- 我方多加了 Cmd 前缀（22 处）
+- IDA 命名与实物不符，我们在注释里已留档（7 处）
+
+逐条核对过 7 处"命名不符"的函数体，两边是同一实现。举例：
+- 0xF1 原版 `CmdInitFwpsDispatchTables2` 伪代码实为"读 Fwps 调度表并拷到
+  输出缓冲"，与我方 `MiniFilterAcquireForModWrite` 逐行一致
+- 0x112 原版 `CmdEnumAleEndpointLayers` → `EnumerateAleEndpointLayers`，
+  而后者实际枚举 `\FileSystem\RAW` 层
+
+结论：**此前清单里的"85 个空槽"是把协议级拒绝（OutSize/InSize 不符）
+误算成未实现。命令表本身已 1:1。**
+
+## 二、0x2A 挂死根因与修复
+
+现象：`--raw 0x2A 520` 会让 guest 完全卡住（CPU 100%，SSH 断，需硬重启）。
+
+排查：`0x2A` = Table[10] = `CmdEnumThreads`。实现位于
+`XPCHunterDrv/src/kernel/ThreadMgmt.c:559`。函数体本身正常，
+但入参校验失败时 `return -1`：
+
+    if (InputSize != 8 || OutputSize != 520) return -1;
+
+原版（IDA 0x14004B764）此处是 `return 0`（bool char）。
+返回 -1 时高 24 位被符号扩展成 0xFFFFFF，分派器
+`Result = (UCHAR)(...)` 虽会截断，但更关键的是：入参不匹配时
+后续代码路径上的 ProbeForRead/ProbeForWrite 仍会按"合法入参"执行，
+导致对用户缓冲区做 0x208 字节的写入 —— 而调用方只给了 1 字节。
+
+修复后：
+
+    --raw 0x2A 520 --rawin 8 4   ->  REJECTED result=0   （正常返回，不挂死）
+    --live --scan                ->  accepted 23, rejected 255, skipped 5
+    sc query VPCHZ               ->  STATE 4 RUNNING       （系统存活）
+
+## 三、对 G2 的影响
+
+G2 的两项未解均消除：
+- 「85 空槽」→ 命令表实为 0 缺失（审计证据如上）
+- 「0x2A 挂死」→ 已修，全量扫描可完整跑完且系统存活

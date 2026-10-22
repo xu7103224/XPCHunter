@@ -575,10 +575,6 @@ __int64 CmdProcessOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOut
     return Result;
 }
 
-// CmdEnumThreads — 枚举线程命令处理
-// 对应原始驱动 sub_14004B764
-// 获取进程名写入输出缓冲区，特殊进程(MemCompression/Registry)使用编码后的进程名，输出格式 520 字节
-
 // CmdReadProcessMemoryBlock — 读取进程内存块
 // 对应原始驱动 sub_14004A0B0
 // 读取 16 字节输入(ProcessId + EPROCESS)，查找进程，验证后分配缓冲区并读取内存复制到用户缓冲区
