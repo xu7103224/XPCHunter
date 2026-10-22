@@ -4574,6 +4574,37 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             p++;
         return FePrintRegValues(*p ? p : "HKLM\\SYSTEM\\CurrentControlSet\\Services") ? 0 : 1;
     }
+    /* --regctx-cli：0x127 CmdEnumRegistryContext（输出必须恰好 1800 字节） */
+    if (lpCmdLine && strstr(lpCmdLine, "--regctx-cli")) {
+        BYTE *out = (BYTE *)calloc(1, 1800);
+        UCHAR res = 0;
+        BOOL ok;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed\n");
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (!out) { XpchClose(&g_Client); return 1; }
+        ok = XpchInvoke(&g_Client, 0x127, NULL, 0, out, 1800, &res);
+        printf("0x127 -> %s result=%u firstDword=%lu\n",
+               ok ? "OK" : "REJECTED", res, (unsigned long)*(ULONG *)out);
+        if (ok) {
+            ULONG i;
+            for (i = 0; i < 1800; i += 16) {
+                int nz = 0, k;
+                for (k = 0; k < 16 && i + k < 1800; k++)
+                    if (out[i + k]) nz++;
+                if (!nz) continue;
+                printf("  %04lX:", (unsigned long)i);
+                for (k = 0; k < 16 && i + k < 1800; k++)
+                    printf(" %02X", out[i + k]);
+                printf("\n");
+            }
+        }
+        free(out);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+    }
     /* --startup-op-cli repair | delfile <Name> ：Startup 两项验收用 */
     if (lpCmdLine && strstr(lpCmdLine, "--startup-op-cli")) {
         const char *p = strstr(lpCmdLine, "--startup-op-cli") + 17;
