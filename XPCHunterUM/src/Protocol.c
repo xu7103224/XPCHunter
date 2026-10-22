@@ -85,7 +85,10 @@ static void XpchMd5Transform(ULONG State[4], const UCHAR Block[64])
     MD5STEP(F2, b, c, d, a, in[12] + 0x8d2a4c8a, 20);
 
     MD5STEP(F3, a, b, c, d, in[5] + 0xfffa3942, 4);
-    MD5STEP(F3, d, a, b, c, in[8] + 0x8771f681, 11);
+    /* 【2026-10-23】0x8771f683（不是标准的 0x8771f681）—— 原版驱动的
+       常量表里这一项差 2，是原版自身的笔误。必须照抄，否则两侧协议不通。
+       定位依据见 XPCHunterDrv/src/framework/Crypto.c 的 Md5_K 注释。 */
+    MD5STEP(F3, d, a, b, c, in[8] + 0x8771f683, 11);
     MD5STEP(F3, c, d, a, b, in[11] + 0x6d9d6122, 16);
     MD5STEP(F3, b, c, d, a, in[14] + 0xfde5380c, 23);
     MD5STEP(F3, a, b, c, d, in[1] + 0xa4beea44, 4);

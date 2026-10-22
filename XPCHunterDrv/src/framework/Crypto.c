@@ -50,7 +50,16 @@ static const ULONG Md5_K[64] = {
     0xD62F105D, 0x02441453, 0xD8A1E681, 0xE7D3FBC8,
     0x21E1CDE6, 0xC33707D6, 0xF4D50D87, 0x455A14ED,
     0xA9E3E905, 0xFCEFA3F8, 0x676F02D9, 0x8D2A4C8A,
-    0xFFFA3942, 0x8771F681, 0x6D9D6122, 0xFDE5380C,
+    /* 【2026-10-23 实测修正】第 34 步的常量原版是 0x8771F683，不是标准 MD5
+       的 0x8771F681 —— 原版自身的一处笔误（差 2）。证据：
+         · kd 抓原版 DispatchDeviceControl 里 Md5Transform2 的输入
+           （标准 IV + 标准填充块），原版算出 0x2987975d，标准 MD5 是 0x13bdbaf5；
+         · 把 64 步逐句转写并与标准逐步对比，前 33 步完全一致，
+           第 34 步起分叉（0xE49086AD vs 0xE49076AD）；
+         · 穷举定位为常量差 +2，改这一个值后摘要逐字节吻合
+           （2987975d 6e2fa9ce 072d5992 dfd9d303）。
+       必须照抄这个笔误，否则我方驱动会拒绝原版前端、我方前端也驱动不了原版驱动。 */
+    0xFFFA3942, 0x8771F683, 0x6D9D6122, 0xFDE5380C,
     0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xBEBFBC70,
     0x289B7EC6, 0xEAA127FA, 0xD4EF3085, 0x04881D05,
     0xD9D4D039, 0xE6DB99E5, 0x1FA27CF8, 0xC4AC5665,
