@@ -2950,9 +2950,15 @@ char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize)
 {
     char Result = 0;
     __int64 Value = 0;
+    /* 【诊断 2026-10-22】GT[0x802] 是 TDI 导出所在的节基址，由
+       ParseKernelDataSectionRelocs 的早期阶段写入；为 0 时本函数直接返回 0，
+       于是 GT[0x80C]/[0x80D]（0xE7 SSDT Restore 的前置）永远是 0。 */
     __int64 SectionBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
+    g_DiagSsdtRestoreStage = 1;   /* 进入 FindTdiDeregisterPnpExport */
+    g_DiagSsdtSectionBase = (ULONG64)SectionBase;
     if (SectionBase)
     {
+        g_DiagSsdtRestoreStage = 2;
         WORD NameBuf[16];
         strcpy((char *)NameBuf, "TdiDeregisterPnPHandlers");
         *((UCHAR *)&NameBuf[12] + 1) = 0;
@@ -2962,6 +2968,7 @@ char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize)
         {
             GtWrite(GtEprocessField02 | 0x800, (unsigned int)Value);
             GtWrite(GtEprocessField03 | 0x800, SectionBase + (unsigned int)Value);
+            g_DiagSsdtRestoreStage = 3;   /* 两个槽都写成功 */
             return 1;
         }
     }

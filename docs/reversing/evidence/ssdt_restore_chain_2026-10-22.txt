@@ -1,0 +1,49 @@
+# SSDT Restore（0xE7 / 0xEB）链条定位 — 2026-10-22
+
+## 结论
+
+**0xE7 在 Win10 上不工作，是原版行为，不是移植缺陷。**
+
+## 证据链
+
+0xE7 `CmdRestoreSsdtTable` 的前置（IDA 0x140068054 逐行核对）：
+
+    TdiExportTable = GtRead(GtEprocessOffsetBase | 0x800)   -> GT[0x80A]
+    TdiRelocTable  = GtRead(GtEprocessField01 | 0x800)      -> GT[0x80B]
+    if (TdiExportTable && TdiRelocTable) { ...恢复... }
+
+两者都由 `InitTdiExportAndRelocTable` 产出：
+
+    if (!GtRead(0x807)) ParseKernelDataSectionRelocs(...)   // 写 0x80B
+    if (!GtRead(0x80C)) FindTdiDeregisterPnpExport(...)     // 写 0x80A
+
+`ParseKernelDataSectionRelocs` 的第一道门（IDA 0x140067984）：
+
+    v6 = GtRead(GtFwpsDispatchTableBase | GtNtoskrnlImageSize)   // = GT[0x802]
+    if (v6 && v4 && v4 < a2) { ...遍历 PE 节... }
+
+`GT[0x802]` 的唯一写入者是 `InitProcessNotify` 的模块名匹配：
+
+    0x0E L"tdx.sys"  -> 0x322 / 0x323
+    0x0E L"td.sys"   -> 0x802 / 0x803    <-- 就是这里
+
+## 实测（VPChainZ.sys，Win10 18362）
+
+    0x360: GT[0x804] = FFFFF80539BE0000     （FindDllInitExport 有值）
+    0x368: GT[0x802] = 0000000000000000     （td.sys 不存在）
+    0x380: GT[0x322] = FFFFF80539BB0000     （tdx.sys 命中，枚举正常）
+    0x388: GT[0x323] = 0x26000              （tdx.sys 大小，合理）
+    0x390: GT[0x803] = 0x10000              （td.sys 大小槽有残留值）
+
+同一套枚举里 tdx.sys 命中、td.sys 不命中 —— 说明遍历逻辑与字符串比较都正常，
+只是 Win10 没有 `td.sys`（它是 Windows XP/2003 的 TDI 驱动）。
+
+因此 0x802 为 0 → ParseKernelDataSectionRelocs 直接返回 →
+0x80A/0x80B 保持 0 → 0xE7 返回 0。**原版在 Win10 上走的是同一条路径。**
+
+## 为什么不改成匹配 tdx.sys
+
+原版把 tdx.sys 放在 0x322/0x323，td.sys 放在 0x802/0x803，两组用途不同。
+把 0x802 改指 tdx.sys 会让恢复逻辑去还原一个结构完全不同的表
+（tdx.sys 的导出布局 ≠ td.sys），属于猜实现，不符合"1:1 复刻"要求。
+本项保持未勾选，并把原因写清楚。

@@ -471,7 +471,7 @@ int main(int argc, char **argv)
                         int off2;
                         /* 只转储环境块本体（0x300）；再往后是分派器诊断表 */
                         printf("    raw env:");
-                        for (off2 = 0; off2 < 0x360; off2++) {
+                        for (off2 = 0; off2 < 0x3A0; off2++) {
                             if ((off2 & 15) == 0) printf("\n      %04X:", off2);
                             printf(" %02X", env[off2]);
                         }

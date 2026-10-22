@@ -2971,6 +2971,21 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG64 *)(Out + 0x340) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x3FE6);
     *(ULONG *)(Out + 0x348) = g_DiagCbCtxStage;
     *(ULONG *)(Out + 0x34C) = g_DiagCbCtxFileSize;
+    *(ULONG *)(Out + 0x350) = g_DiagSsdtRestoreStage;
+    *(ULONG64 *)(Out + 0x358) = g_DiagSsdtSectionBase;
+    /* 0x360 GT[0x804] FindDllInitExport 产出（relocs 解析第一步的入口） */
+    *(ULONG64 *)(Out + 0x360) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x804);
+    /* 0x368 GT[0x802] ntoskrnl 镜像大小（relocs 解析的第二入口） */
+    *(ULONG64 *)(Out + 0x368) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x802);
+    /* 0x380 GT[0x322]/0x323 tdx.sys 基址/大小（证明模块枚举本身在工作） */
+    *(ULONG64 *)(Out + 0x380) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x322);
+    *(ULONG64 *)(Out + 0x388) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x323);
+    /* 0x390 GT[0x803] td.sys 大小（与 0x802 配对） */
+    *(ULONG64 *)(Out + 0x390) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x803);
+    /* 0x370 GT[0x80B] TDI reloc 表（0xE7 的直接前置） */
+    *(ULONG64 *)(Out + 0x370) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x80B);
+    /* 0x378 GT[0x80C] TDI 导出 RVA */
+    *(ULONG64 *)(Out + 0x378) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x80C);
     *(ULONG *)(Out + 0x300) = g_DiagIoPortStage;
     *(ULONG *)(Out + 0x304) = g_DiagIoPortIdtValid;
     *(ULONG64 *)(Out + 0x308) = g_DiagIoPortIdtGt;

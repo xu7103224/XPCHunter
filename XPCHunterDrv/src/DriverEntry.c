@@ -138,6 +138,10 @@ ULONG g_DiagIoPortIdtValid;
 ULONG g_DiagCbCtxStage;
 ULONG g_DiagCbCtxFileSize;
 
+/* 【诊断 2026-10-22】SSDT Restore 前置槽。 */
+ULONG g_DiagSsdtRestoreStage;
+ULONG64 g_DiagSsdtSectionBase;
+
 ULONG64 g_DiagKillEp;
 ULONG64 g_DiagKillDirectFn;
 ULONG64 g_DiagKillCheckFn;
