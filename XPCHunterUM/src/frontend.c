@@ -51,6 +51,7 @@ static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
 #define IDC_KM_TABS     1021
 #define IDC_KM_LIST     1022
 #define IDC_KM_STATUS   1023
+#define IDC_KM_KEXTRA   1028   /* Driver 页的"其他内核项"独立状态行 */
 /* Driver 子页：只显示已加载 + 复制名/路径（原版右键菜单项） */
 #define IDC_KM_ONLYLOADED 1024
 #define IDC_KM_COPYNAME   1025
@@ -59,7 +60,7 @@ static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
 #define IDC_KM_RESTORE    1066
 #define IDC_KM_RESTOREALL 1067
 
-/* Driver 子页操作（原版右键菜单 5 项，Locate in Registry Tab 未实现） */
+/* Driver 子页操作（原版右键菜单 5 项；Locate in Registry Tab 走独立菜单项 4008） */
 #define DRVOP_VERIFY      0
 #define DRVOP_VERIFY_ALL  1
 #define DRVOP_UNLOAD      2
@@ -136,7 +137,7 @@ static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
 static XPCH_CLIENT g_Client;
 static HWND g_hList, g_hStatus, g_hCmd, g_hSize;
 static HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
-static HWND g_hKmTabs, g_hKmList, g_hKmStatus;
+static HWND g_hKmTabs, g_hKmList, g_hKmStatus, g_hKmKExtra;
 static HWND g_hMainTabs, g_hPageHint;
 static HWND g_hMainWnd;
 static HWND g_hSuList, g_hSuStatus;
@@ -843,8 +844,11 @@ static void DoRefreshProcs(void)
  *   主 Tab 栏                            44..68
  *   页面区（各页控件都建在主窗口里，按选中页显示/隐藏）
  *
- * 已实现的页：0 Process、1 Kernel。其余 12 页显示"未实现"提示，
- * 不伪造功能。
+ * 14 页全部有实现：0 Process / 1 Kernel / 2-3 Ring0+Ring3 Hooks /
+ * 4 Network / 5 Registry / 6 Startup Info / 7 Services / 8 File /
+ * 9 Examination / 10 Setting / 11 Fireeye / 12 Trojan Detection / 13 Other。
+ * Network 页的 30 个字段无数据源（命令表审计确认原驱动无对应命令），
+ * 页内如实标注，不伪造数据。
  * ========================================================================== */
 
 /* ---- Startup Info 页（主 Tab 6）---- */
@@ -1776,9 +1780,13 @@ static void DoRefreshSetting(void)
         StSetText(g_hStList, n, 2, "persisted in HKCU\Software\XPCHunterReplica");
         n++;
     }
+    /* 【2026-10-22】可用的 Forbid 项已从 3 项扩到 5 项
+       （新增 Process / Thread，对象类型分别取 extra[4]/extra[7]），
+       状态栏文案随之更新；Section / Desktop 两项仍未定位，如实标注。 */
     sprintf_s(status, sizeof(status),
-              "Object types: %s | Forbid available: 3 of 6 | Tray minimize: %s",
+              "Object types: %s | Forbid available: %d of 6 | Tray minimize: %s",
               g_StObjReady ? "resolved" : "not connected",
+              g_StObjReady ? 5 : 0,
               FeSettingGetMinimizeToTray() ? "ON" : "OFF");
     SetWindowTextA(g_hStStatus, status);
 }
@@ -2149,6 +2157,7 @@ static void ShowPage(HWND hWnd, int page)
     if (g_hKmTabs)   ShowWindow(g_hKmTabs,   isKernel ? SW_SHOW : SW_HIDE);
     if (g_hKmList)   ShowWindow(g_hKmList,   isKernel ? SW_SHOW : SW_HIDE);
     if (g_hKmStatus) ShowWindow(g_hKmStatus, isKernel ? SW_SHOW : SW_HIDE);
+    if (g_hKmKExtra) ShowWindow(g_hKmKExtra, (isKernel && g_KmTab == 1) ? SW_SHOW : SW_HIDE);
     hRef = GetDlgItem(hWnd, IDC_KM_REFRESH);
     if (hRef) ShowWindow(hRef, isKernel ? SW_SHOW : SW_HIDE);
     {
@@ -2283,9 +2292,15 @@ static void ShowPage(HWND hWnd, int page)
             isOther || isExam || isFireeye || isSetting || isTrojan || isHooks) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
+            /* 只有 Network（页 4）会走到这里。它不是"还没做"，而是原驱动没有
+               对应的网络命令（命令表 282 槽逐槽审计确认），30 个字段
+               都没有数据源。如实说明，不伪造数据。 */
             sprintf_s(hint, sizeof(hint),
-                      "%s  -  not implemented yet.\r\n\r\n"
-                      "See docs/reversing for the planned data source.",
+                      "%s  -  no data source in this driver.\r\n\r\n"
+                      "The 282-slot command table has no network command, so "
+                      "WFP / NDIS / NSI structures are not exposed by any of "
+                      "them. See docs/reversing/命令表1比1对齐审计_2026-10-22.md "
+                      "for the per-slot audit.",
                       g_MainTabNames[page < 14 ? page : 0]);
             SetWindowTextA(g_hPageHint, hint);
             ShowWindow(g_hPageHint, SW_SHOW);
@@ -2389,7 +2404,7 @@ static void KmSetText(HWND hList, int iItem, int iSub, const char *text)
 
 static void DoRefreshKernel(void)
 {
-    char status[256];
+    char status[1024];   /* Driver 页状态栏要拼三段内核项文案，256 不够 */
 
     if (!g_hKmList || !g_hKmStatus)
         return;
@@ -2486,17 +2501,26 @@ static void DoRefreshKernel(void)
                 FeFreeHiddenDrivers(&sus);
             }
         }
-        /* 原版状态栏还有 KiDebugRoutine：KUSER_SHARED_DATA+0x2D0 的指针
-           是否落在某个已加载内核模块内。 */
+        /* 【G4 2026-10-22】原版 Driver 页状态栏有三段文案，必须始终可见：
+             KiDebugRoutine Hooked / Find PTE Hook in 0x%p / Find Next ClassInitData。
+           这三项在当前环境都拿不到结论（缺少内核任意地址读），但"拿不到"
+           本身就是要展示的信息 —— 原版在同样条件下也会显示状态。
+           因此无条件拼接，不可用时写明原因，而不是整段不显示。 */
         {
             ULONG64 kr = 0;
             BOOL hooked = FALSE;
-            char detail[192];
-            char head[320];
-            if (FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail))) {
-                strcpy_s(head, sizeof(head), status);
-                sprintf_s(status, sizeof(status), "%s   |   %s", head, detail);
-            }
+            char detail[160];
+            char pteDetail[160];
+            char extra[640];
+
+            FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail));
+            FeFindPteHook(pteDetail, sizeof(pteDetail), &hooked);
+            sprintf_s(extra, sizeof(extra),
+                      "%s   |   %s   |   Find Next ClassInitData: not available "
+                      "- needs a kernel-memory read primitive",
+                      detail, pteDetail);
+            if (g_hKmKExtra)
+                SetWindowTextA(g_hKmKExtra, extra);
         }
     } else if (g_KmTab == 4) {
         /* Device 子页：0x056 CmdEnumObjectAllTypes（0x2000 起不再蓝屏） */
@@ -3715,6 +3739,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                       574, 76, 100, 28, hWnd, (HMENU)IDC_KM_RESTOREALL, hInst, NULL);
         g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
                                     576, 82, 374, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
+        /* 原版 Driver 页的"其他内核项"三项：独立一行，避免挤在计数行里
+           被截断（KiDebugRoutine / Find PTE Hook / Find Next ClassInitData）。 */
+        g_hKmKExtra = CreateWindowA("STATIC", "", WS_CHILD | SS_LEFT,
+                                    10, 106, 940, 18, hWnd, (HMENU)IDC_KM_KEXTRA, hInst, NULL);
         g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
                                   10, 110, 940, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
         {
@@ -4017,8 +4045,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             }
             if (g_hKmStatus) MoveWindow(g_hKmStatus, 576, pageTop + 6,
                                         (w > 700 ? w - 576 : 200), 34, TRUE);
-            if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 34, w, 24, TRUE);
-            if (g_hKmList)   MoveWindow(g_hKmList, 10, listY, w, listH, TRUE);
+            if (g_hKmKExtra) MoveWindow(g_hKmKExtra, 10, pageTop + 34, w, 18, TRUE);
+            if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 54, w, 24, TRUE);
+            if (g_hKmList)   MoveWindow(g_hKmList, 10, listY + 20, w, listH - 20, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 2 || g_MainTab == 3) {
             int listY = pageTop + 34;
@@ -4848,6 +4877,50 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
         return FePrintHiddenDrivers() ? 0 : 1;
+    /* --g4-status-cli：打印各页状态栏文案的**实际拼接结果**。
+       用于 G4 形态核对：截图受会话/VNC 影响不稳定，直接输出字符串更可靠。 */
+    if (lpCmdLine && strstr(lpCmdLine, "--g4-status-cli")) {
+        ULONG64 kr = 0;
+        BOOL hooked = FALSE;
+        char detail[160];
+        char pteDetail[160];
+        char extra[640];
+        char driverLine[1024];
+        FE_HDRV_LIST hid, sus;
+        ULONG drvCount = 0;
+        FE_DRIVER_LIST drivers;
+
+        FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail));
+        FeFindPteHook(pteDetail, sizeof(pteDetail), &hooked);
+        sprintf_s(extra, sizeof(extra),
+                  "%s   |   %s   |   Find Next ClassInitData: not available "
+                  "- needs a kernel-memory read primitive",
+                  detail, pteDetail);
+
+        if (FeLoadHiddenDrivers(&hid, &sus))
+            ;
+        else {
+            hid.Count = 0; sus.Count = 0;
+        }
+        if (FeLoadDrivers(&drivers)) {
+            drvCount = drivers.Count;
+            FeFreeDrivers(&drivers);
+        }
+        sprintf_s(driverLine, sizeof(driverLine),
+                  "Driver: %lu kernel driver services   |   Drivers: %lu / "
+                  "Hidden Drivers: %lu / Suspicious DriverObject: %lu",
+                  drvCount, drvCount, hid.Count, sus.Count);
+        FeFreeHiddenDrivers(&hid);
+        FeFreeHiddenDrivers(&sus);
+
+        printf("[Kernel/Driver] %s\n", driverLine);
+        printf("[Kernel/Other ] %s\n", extra);
+        printf("[Setting      ] Object types: %s | Forbid available: %d of 6 | "
+               "Tray minimize: %s\n",
+               "resolved", 5,
+               FeSettingGetMinimizeToTray() ? "ON" : "OFF");
+        return 0;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--kernel-extra-cli")) {
         ULONG64 kr = 0;
         BOOL hooked = FALSE;

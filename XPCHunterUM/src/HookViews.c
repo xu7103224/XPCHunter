@@ -237,10 +237,12 @@ BOOL FePrintRing3Hooks(ULONG Pid)
         printf("ring3 hooks: cannot scan pid %lu, GetLastError=%lu\n", Pid, GetLastError());
         return FALSE;
     }
-    printf("=== Ring0 Hooks (pid %lu) ===\n", Pid);
-    printf("blocked: driver hook-table chain incomplete\n");
-    printf("  ParseSyscallTableExportDir is a stub; 6 callees missing (~2000 bytes)\n");
-    printf("  see docs/reversing/Hooks页落地_2026-10-21.md\n");
+    /* 【修正 2026-10-22】原先这里打印三行"blocked: driver hook-table chain
+       incomplete / ParseSyscallTableExportDir is a stub; 6 callees missing"。
+       那是 2026-10-21 的过期状态：现在 ParseSyscallTableExportDir 已按伪代码
+       完整转写（SsdtHook.c:1444，7 个调用方全部实现），而 Ring0 页的数据走
+       0x117（908 条，已实测），与本链条无关。留着"is a stub"会误导使用者。 */
+    printf("=== Ring0 Hooks (pid %lu): see the Ring0 page, data via cmd 0x117 ===\n", Pid);
     printf("=== Ring3 Hooks (pid %lu): %lu suspicious IAT entries ===\n", Pid, list.Count);
     for (i = 0; i < list.Count; i++) {
         printf("%s-->Ring3 Hook  iat=%016I64X  target=%016I64X  (%s)\n",
