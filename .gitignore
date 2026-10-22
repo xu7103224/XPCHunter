@@ -91,3 +91,17 @@ build/audit/nt/*.exe
 # 前端 IDB 有 134MB，且每次 IDA 会话都会重写（二进制无有效 diff）。
 # 项目规则只要求提交**驱动**的 IDB（View++_Driver64.sys.i64，47MB），前端 IDB 不入库。
 samples/PCHunter_2024.09.02/PCHunter64.exe.i64
+
+# 调试临时产物（guest 执行脚本、截图裁剪、诊断输出）
+build/g_run*.bat
+build/g_out.txt
+build/crop*
+build/*.bat.txt
+build/audit/c?.txt
+build/audit/g?.txt
+build/audit/fin*.txt
+build/audit/ok*.txt
+build/audit/k?.txt
+build/audit/r?.txt
+build/audit/v?.txt
+build/audit/o?.txt
