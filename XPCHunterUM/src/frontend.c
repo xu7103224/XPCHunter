@@ -3192,6 +3192,181 @@ static void DoModuleOp(int Op)
     }
 }
 
+/* 简易文本输入框：自建模态子窗口（EDIT + OK/Cancel），自带消息循环。
+ * 不用资源文件，也不依赖任何 shell 组件。 */
+static char  *g_PromptBuf;
+static size_t g_PromptChars;
+static BOOL   g_PromptOk;
+
+static LRESULT CALLBACK PromptProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg) {
+    case WM_CREATE:
+        CreateWindowA("STATIC", (const char *)((LPCREATESTRUCT)lParam)->lpCreateParams,
+                      WS_CHILD | WS_VISIBLE | SS_LEFT,
+                      12, 10, 416, 20, hWnd, NULL, NULL, NULL);
+        CreateWindowA("EDIT", "",
+                      WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+                      12, 34, 416, 24, hWnd, (HMENU)1, NULL, NULL);
+        CreateWindowA("BUTTON", "OK", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+                      286, 68, 68, 26, hWnd, (HMENU)IDOK, NULL, NULL);
+        CreateWindowA("BUTTON", "Cancel", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      360, 68, 68, 26, hWnd, (HMENU)IDCANCEL, NULL, NULL);
+        SetFocus(GetDlgItem(hWnd, 1));
+        return 0;
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK) {
+            if (g_PromptBuf && g_PromptChars)
+                GetDlgItemTextA(hWnd, 1, g_PromptBuf, (int)g_PromptChars);
+            g_PromptOk = TRUE;
+            DestroyWindow(hWnd);
+            return 0;
+        }
+        if (LOWORD(wParam) == IDCANCEL) {
+            g_PromptOk = FALSE;
+            DestroyWindow(hWnd);
+            return 0;
+        }
+        return 0;
+    case WM_CLOSE:
+        g_PromptOk = FALSE;
+        DestroyWindow(hWnd);
+        return 0;
+    }
+    return DefWindowProcA(hWnd, msg, wParam, lParam);
+}
+
+static BOOL DoPromptText(HWND Owner, const char *Title, const char *Prompt,
+                         char *Out, size_t OutChars)
+{
+    static BOOL registered;
+    WNDCLASSA wc;
+    HWND hWnd;
+    MSG msg;
+    RECT rc, orc;
+    BOOL wasEnabled;
+
+    if (!Out || !OutChars)
+        return FALSE;
+    Out[0] = 0;
+
+    if (!registered) {
+        ZeroMemory(&wc, sizeof(wc));
+        wc.lpfnWndProc = PromptProc;
+        wc.hInstance = GetModuleHandleA(NULL);
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+        wc.lpszClassName = "XPCHunterPrompt";
+        RegisterClassA(&wc);
+        registered = TRUE;
+    }
+
+    hWnd = CreateWindowA("XPCHunterPrompt", Title,
+                         WS_CAPTION | WS_SYSMENU | WS_POPUP,
+                         CW_USEDEFAULT, CW_USEDEFAULT, 456, 140,
+                         Owner, NULL, GetModuleHandleA(NULL), (LPVOID)Prompt);
+    if (!hWnd)
+        return FALSE;
+    GetWindowRect(hWnd, &rc);
+    if (Owner && GetWindowRect(Owner, &orc))
+        SetWindowPos(hWnd, NULL,
+                     orc.left + ((orc.right - orc.left) - (rc.right - rc.left)) / 2,
+                     orc.top + ((orc.bottom - orc.top) - (rc.bottom - rc.top)) / 2,
+                     0, 0, SWP_NOSIZE | SWP_NOZORDER);
+    ShowWindow(hWnd, SW_SHOW);
+    UpdateWindow(hWnd);
+
+    g_PromptBuf = Out;
+    g_PromptChars = OutChars;
+    g_PromptOk = FALSE;
+    wasEnabled = Owner ? IsWindowEnabled(Owner) : FALSE;
+    if (Owner)
+        EnableWindow(Owner, FALSE);
+    while (IsWindow(hWnd) && GetMessageA(&msg, NULL, 0, 0) > 0) {
+        if (!IsDialogMessageA(hWnd, &msg)) {
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }
+    }
+    if (Owner)
+        EnableWindow(Owner, wasEnabled);
+    g_PromptBuf = NULL;
+    g_PromptChars = 0;
+    return g_PromptOk && Out[0] != 0;
+}
+
+/* 模块搜索 5 项（76004..6008）。结果直接填进 Modules 视图的列表。 */
+static void DoModuleSearch(int Op)
+{
+    FE_MODSEARCH_LIST res;
+    ULONG pid = GetSelectedPid();
+    char needle[128];
+    char msg[512];
+    ULONG i;
+    BOOL ok = FALSE;
+
+    if (!g_hProcStatus || !g_hDetail)
+        return;
+    needle[0] = 0;
+
+    switch (Op) {
+    case 0:   /* Find Module：弹出输入框取关键字 */
+        if (!DoPromptText(GetActiveWindow(), "Find Module",
+                          "Module name (substring):", needle, sizeof(needle)))
+            return;
+        if (!needle[0]) {
+            SetWindowTextA(g_hProcStatus, "Find Module: empty keyword");
+            return;
+        }
+        ok = FeFindModulesByName(needle, &res);
+        break;
+    case 1: ok = FeFindUnsignedModules(0, &res); break;
+    case 2: ok = FeFindUnsignedModules(1, &res); break;
+    case 3:
+        if (!pid) {
+            SetWindowTextA(g_hProcStatus, "Select a process first (Find Target is per-process)");
+            return;
+        }
+        ok = FeFindTargetRegions(pid, &res);
+        break;
+    case 4: ok = FeFindHiddenModules(&res); break;
+    default: return;
+    }
+
+    if (!ok) {
+        SetWindowTextA(g_hProcStatus, "Module search failed");
+        return;
+    }
+    /* 结果写进 Modules 视图 */
+    g_DetailTab = 0;
+    SetupDetailColumns(0);
+    SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
+    for (i = 0; i < res.Count && i < 2000; i++) {
+        LVITEMA it;
+        char base[32], size[32], pidbuf[16];
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)i;
+        sprintf_s(pidbuf, sizeof(pidbuf), "%lu", res.Items[i].Pid);
+        it.pszText = pidbuf;
+        SendMessageA(g_hDetail, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        sprintf_s(base, sizeof(base), "%016I64X", res.Items[i].Base);
+        sprintf_s(size, sizeof(size), "0x%I64X", res.Items[i].Size);
+        DetailSetText((int)i, 1, base);
+        DetailSetText((int)i, 2, size);
+        {
+            char name[256];
+            sprintf_s(name, sizeof(name), "%s  [PID %lu]", res.Items[i].Name,
+                      (unsigned long)res.Items[i].Pid);
+            DetailSetText((int)i, 3, name);
+        }
+        DetailSetText((int)i, 4, res.Items[i].Detail);
+    }
+    sprintf_s(msg, sizeof(msg), "Module search #%d: %lu result(s)", Op, res.Count);
+    SetWindowTextA(g_hProcStatus, msg);
+    FeFreeModSearch(&res);
+}
+
 static void DoModuleContextMenu(HWND hWnd, int X, int Y)
 {
     HMENU hMenu = CreatePopupMenu();
@@ -3199,6 +3374,12 @@ static void DoModuleContextMenu(HWND hWnd, int X, int Y)
 
     if (!hMenu)
         return;
+    AppendMenuA(hMenu, MF_STRING, 6004, "Find Module");
+    AppendMenuA(hMenu, MF_STRING, 6005, "Find Unsigned Module");
+    AppendMenuA(hMenu, MF_STRING, 6006, "Find Not Signature Module");
+    AppendMenuA(hMenu, MF_STRING, 6007, "Find Target");
+    AppendMenuA(hMenu, MF_STRING, 6008, "Find Hidden Item");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuA(hMenu, MF_STRING, 6001, "Copy Module Path");
     AppendMenuA(hMenu, MF_STRING, 6002, "Dump Module Memory");
     AppendMenuA(hMenu, MF_STRING, 6003, "Locate in File Tab");
@@ -3207,6 +3388,8 @@ static void DoModuleContextMenu(HWND hWnd, int X, int Y)
     DestroyMenu(hMenu);
     if (cmd >= 6001 && cmd <= 6003)
         DoModuleOp(cmd - 6001);
+    else if (cmd >= 6004 && cmd <= 6008)
+        DoModuleSearch(cmd - 6004);
 }
 
 /* 原版 Driver 页的 "Locate in Registry Tab"：跳到 Registry 页的 Key 子页，
@@ -4270,6 +4453,55 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             p++;
         return FePrintRegValues(*p ? p : "HKLM\\SYSTEM\\CurrentControlSet\\Services") ? 0 : 1;
     }
+    /* Modules 视图五项搜索的无 UI 入口：
+       --modsearch-cli name <substring> | unsigned | nosig | target <pid> | hidden */
+    if (lpCmdLine && strstr(lpCmdLine, "--modsearch-cli")) {
+        const char *p = strstr(lpCmdLine, "--modsearch-cli") + 16;
+        FE_MODSEARCH_LIST res;
+        char op[32];
+        char arg[192];
+        int n;
+        ULONG i;
+        BOOL ok = FALSE;
+
+        while (*p == ' ') p++;
+        op[0] = 0; arg[0] = 0;
+        n = sscanf_s(p, "%31s %191s", op, (unsigned)sizeof(op),
+                     arg, (unsigned)sizeof(arg));
+        if (n < 1) {
+            printf("usage: --modsearch-cli name <substr> | unsigned | nosig | target <pid> | hidden\n");
+            return 1;
+        }
+        if (_stricmp(op, "name") == 0)
+            ok = FeFindModulesByName(n >= 2 ? arg : "", &res);
+        else if (_stricmp(op, "unsigned") == 0)
+            ok = FeFindUnsignedModules(0, &res);
+        else if (_stricmp(op, "nosig") == 0)
+            ok = FeFindUnsignedModules(1, &res);
+        else if (_stricmp(op, "target") == 0)
+            /* 不给 PID 时扫自己，便于验证扫描逻辑本身是否工作 */
+            ok = FeFindTargetRegions(n >= 2 ? (ULONG)strtoul(arg, NULL, 0)
+                                            : GetCurrentProcessId(), &res);
+        else if (_stricmp(op, "hidden") == 0)
+            ok = FeFindHiddenModules(&res);
+        else {
+            printf("unknown op: %s\n", op);
+            return 1;
+        }
+        if (!ok) {
+            printf("modsearch %s: failed\n", op);
+            return 1;
+        }
+        printf("modsearch %s: %lu result(s)\n", op, res.Count);
+        for (i = 0; i < res.Count && i < 40; i++)
+            printf("  pid=%-6lu base=%016I64X size=0x%-8I64X %-24s %s\n",
+                   res.Items[i].Pid, res.Items[i].Base, res.Items[i].Size,
+                   res.Items[i].Name, res.Items[i].Detail);
+        if (res.Count > 40)
+            printf("  ... (%lu more)\n", res.Count - 40);
+        FeFreeModSearch(&res);
+        return 0;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--setting-cli")) {
         FE_OBJ_TYPES ot;
         int ok;
@@ -4290,6 +4522,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             printf("  extra[%2d]          = %p\n", i, (void *)(ULONG_PTR)ot.Extra[i]);
         printf("  minimize-to-tray   = %d\n", FeSettingGetMinimizeToTray());
         XpchClose(&g_Client);
+        return 0;
+    }
+    if (lpCmdLine && strstr(lpCmdLine, "--filesig-cli")) {
+        const char *p = strstr(lpCmdLine, "--filesig-cli") + 13;
+        char path[MAX_PATH];
+        size_t n = 0;
+        while (*p == ' ') p++;
+        if (*p == '"') p++;
+        while (*p && *p != '"' && n + 1 < sizeof(path))
+            path[n++] = *p++;
+        path[n] = 0;
+        printf("%s -> %s\n", path, FeVerifyFileSignature(path)
+               ? "signature valid and trusted" : "no signature or not trusted");
+        printf("  WinVerifyTrust status = 0x%08lX\n", (unsigned long)g_LastTrustStatus);
         return 0;
     }
     /* --forbid-cli <0..4> [enable]: send 0x79 to verify the object type address */

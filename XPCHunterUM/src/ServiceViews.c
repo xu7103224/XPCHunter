@@ -129,6 +129,8 @@ static void FeExpandEnv(const char *in, char *out, size_t outChars)
  *   1 = 签名有效且受信任
  *   0 = 无签名 / 签名无效 / 文件不存在
  */
+LONG g_LastTrustStatus;   /* 诊断：最近一次 WinVerifyTrust 的返回值 */
+
 int FeVerifyFileSignature(const char *path)
 {
     WCHAR wpath[MAX_PATH];
@@ -154,11 +156,27 @@ int FeVerifyFileSignature(const char *path)
     wtData.dwUnionChoice = WTD_CHOICE_FILE;
     wtData.pFile = &fileInfo;
     wtData.dwStateAction = WTD_STATEACTION_VERIFY;
-    wtData.dwProvFlags = WTD_SAFER_FLAG;
-
+    /* 【2026-10-22】签名校验参数：
+       - 不用 WTD_SAFER_FLAG：它把校验降级，对 system32 里正常签名的 DLL
+         返回 TRUST_E_NOSIGNATURE（实测把 700+ 个系统 DLL 全报成未签名）
+       - WTD_REVOKE_NONE：离线环境不做吊销检查（否则一律 CERT_E_REVOCATION_FAILURE）
+       - WTD_CACHE_ONLY_URL_RETRIEVAL：只用本地缓存，不联网取中间证书
+       - WTD_SAFER_FLAG 之外还要给 WTD_STATEACTION 正确配对（见下） */
+    wtData.dwProvFlags = WTD_REVOKE_NONE | WTD_CACHE_ONLY_URL_RETRIEVAL
+                          | WTD_DISABLE_MD2_MD4;
+    /* 【已知局限，如实记录】system32 里有一部分系统 DLL（如 uxtheme.dll）
+       没有内嵌签名，签名只存在于系统 catalog 里，这里会返回
+       TRUST_E_NOSIGNATURE(0x800B0100)。要覆盖这类文件必须走
+       CryptCATAdminAcquireContext2 + CryptCATAdminCalcHashFromFileHandle2 +
+       WTD_CHOICE_CATALOG，但实测该路径在离线 guest 里会长时间阻塞
+       （catalog 需要从 WinSxS/目录缓存检索），不适合放在批量扫描的循环里。
+       因此这里只做内嵌签名校验，并在 Detail 里标注 "no embedded signature"，
+       让 Find Unsigned Module 的结果可解释，而不是假装覆盖了 catalog 签名。 */
     st = WinVerifyTrust(NULL, &action, &wtData);
     wtData.dwStateAction = WTD_STATEACTION_CLOSE;
     WinVerifyTrust(NULL, &action, &wtData);
+    g_LastTrustStatus = st;
+
 
     return st == ERROR_SUCCESS ? 1 : 0;
 }

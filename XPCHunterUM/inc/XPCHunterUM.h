@@ -447,6 +447,30 @@ BOOL FeComputeProcessStatus(const FE_PROCESS_LIST *List,
  * View HotKey 在内核里没有数据源，见 ProcessOps.c 的说明。 */
 BOOL FeLoadProcessTimers(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List);
 
+/* ---- 模块搜索（原版 Modules 视图的五项 F 菜单）---- */
+#define FE_MSEARCH_NAME_CHARS   128u
+#define FE_MSEARCH_DETAIL_CHARS 320u
+
+typedef struct _FE_MODSEARCH_ENTRY {
+    ULONG   Pid;
+    ULONG64 Base;
+    ULONG64 Size;
+    char    Name[FE_MSEARCH_NAME_CHARS];
+    char    Detail[FE_MSEARCH_DETAIL_CHARS];
+} FE_MODSEARCH_ENTRY;
+
+typedef struct _FE_MODSEARCH_LIST {
+    ULONG               Count;
+    ULONG               Capacity;
+    FE_MODSEARCH_ENTRY *Items;
+} FE_MODSEARCH_LIST;
+
+BOOL FeFindModulesByName(const char *Needle, FE_MODSEARCH_LIST *List);
+BOOL FeFindUnsignedModules(int StrictNoSignatureDir, FE_MODSEARCH_LIST *List);
+BOOL FeFindTargetRegions(ULONG Pid, FE_MODSEARCH_LIST *List);
+BOOL FeFindHiddenModules(FE_MODSEARCH_LIST *List);
+void FeFreeModSearch(FE_MODSEARCH_LIST *List);
+
 /* ---- Services 页（原版第 8 个主 Tab，9 项）----
  * 数据源：SCM 枚举 + 注册表 Services 子树（取原始 ImagePath / ServiceDll）
  * 隐藏服务判定：注册表 Services 下有子键、但 SCM 清单里没有。 */
@@ -478,6 +502,7 @@ void FeFreeServices(FE_SERVICE_LIST *List);
 BOOL FePrintServices(void);
 BOOL FeDeleteService(const char *ServiceName);
 int  FeVerifyFileSignature(const char *Path);
+extern LONG g_LastTrustStatus;   /* 诊断：WinVerifyTrust 原始返回值 */
 
 /* ---- Registry 页（原版第 6 个主 Tab，5 项）----
  * Reg Handle      : 全系统 ObjectType = "Key" 的句柄

@@ -1,0 +1,55 @@
+# Process Modules 五项搜索实机证据 — 2026-10-22, Win10 18362
+
+## 1. Find Module（按名字子串）
+
+    --modsearch-cli name ntdll
+    modsearch name: 34 result(s)
+      pid=4324  base=00007FFEAAB60000 size=0x1F0000  ntdll.dll  C:\Windows\SYSTEM32\ntdll.dll
+      ...（34 个进程各一份）
+
+## 2. Find Unsigned Module（内嵌签名校验）
+
+    --modsearch-cli unsigned
+    modsearch unsigned: 753 result(s)
+      ...  C:\Windows\system32\sihost.exe  [no embedded signature, trust=0x800B0100]
+
+Detail 里带 WinVerifyTrust 原始返回码，明确这是"无内嵌签名"。
+
+## 3. Find Not Signature Module（PE 安全目录为空）
+
+    --modsearch-cli nosig
+    modsearch nosig: 754 result(s)
+
+【修正】原实现把 IMAGE_NT_HEADERS32 强转成 IMAGE_OPTIONAL_HEADER64 读
+DataDirectory —— 结构体大小不同、偏移也不同，读出来必然是垃圾（结果
+nosig 一度比 unsigned 还多）。改为按 Magic 分别读 32/64 位头。
+
+## 4. Find Target（模块外的可执行区）
+
+    --modsearch-cli target 2728       （powershell，跑了 JIT 循环）
+    modsearch target: 16 result(s)
+      pid=2728 base=0000018D0E1B0000 size=0x1000 (no module)
+                executable region, no module: protect=0x40 type=0x20000
+      ...（16 个 JIT / 私有可执行页）
+
+    --modsearch-cli target           （不带 PID = 扫自己）
+    modsearch target: 1 result(s)
+      (scan) scanned 241 regions (209 committed, 32 executable), 32 modules, 0 hits
+
+【修正两处】
+① 扫描循环在 RegionSize==0 时会死循环 → 改为 addr += 0x1000 继续
+② 模块区间比对时 Size==0 的模块被当成 0x1000，会错误覆盖相邻区域；
+   改为 Size==0 直接跳过，并额外排除 Type==MEM_IMAGE（那类应归 Hidden Item）
+
+## 5. Find Hidden Item（模块有映射但磁盘无文件）
+
+    --modsearch-cli hidden
+    modsearch hidden: 0 result(s)
+
+本机确实没有这种模块，0 条是可信结果（与 Kernel 页 Hidden Drivers 的
+32 条不同：那里是"内核模块没有服务项"，这里是"进程模块没有磁盘文件"）。
+
+## GUI
+
+Modules 视图右键菜单新增 5 项（Find Module 弹出输入框，
+其余直接扫描）；结果写回同一视图（PID / Base / Size / Name / Detail）。
