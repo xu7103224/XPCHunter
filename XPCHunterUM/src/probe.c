@@ -78,7 +78,11 @@ static const CMD_SHAPE g_Shapes[] = {
        every handler starts with `if (OutSize != X || InSize != Y) return 0;`
        so a bare call with a 1-byte buffer only ever exercises the reject path. */
     { 0x20, 8,    0      },  /* CmdReadProcessMemory      in: ULONG64 addr            */
-    { 0x22, 0,    4      },  /* CmdQueryProcessInfo       out: DWORD (<=0xA -> SSDT)  */
+    /* 【2026-10-22】0x22 从 shape 表移除：以 InSize<=0xA 调用它会让驱动执行
+       AllocProcessInfoBuffer()，后者 memset 清空命令表的槽 198..224
+       （命令 0xE6..0x100），把 0xEF..0xF8 等 20 多个处理器一起抹掉。
+       握手已经用合法许可包调用过它，扫描阶段不能再碰。
+       0x22, 0, 4 */
     { 0x24, 0,    4      },  /* CmdGetModuleCount         out: DWORD build#           */
     { 0x25, 0,    0x1000 },  /* CmdEnumKernelDrivers  -- skipped, see g_SkipCommands */
     { 0x26, 0,    0x240  },  /* CmdEnumHandles             out: >=0x230               */
@@ -150,6 +154,12 @@ static const ULONG g_SkipCommands[] = {
 static int IsSkipped(ULONG Cmd)
 {
     size_t i;
+    /* 0x22 必须跳过：它已由握手用 0x100 合法许可包调用过。若扫描再以
+       InSize<=0xA 发一次，驱动会执行 AllocProcessInfoBuffer()，
+       其 memset 会清空命令表的槽 198..224（命令 0xE6..0x100），
+       把 0xEF..0xF8 等 20 多个处理器一起抹掉 —— 实测已复现。 */
+    if (Cmd == 0x22u)
+        return 1;
     for (i = 0; i < sizeof(g_SkipCommands) / sizeof(g_SkipCommands[0]); i++)
         if (g_SkipCommands[i] == Cmd)
             return 1;
@@ -213,6 +223,17 @@ int main(int argc, char **argv)
     BOOL Scan = FALSE;
     BOOL OpenOnly = FALSE;
     BOOL Stats = FALSE;
+    BOOL NoHandshake = FALSE;
+    BOOL LicenseOnly = FALSE;
+    /* 0x22 握手的入参。默认使用 XpchBuildLicensePacket 生成的
+       0x100 字节合法许可包（原版前端走的就是这条路径），
+       这样既置位 GT[0x304]，又不会触发 AllocProcessInfoBuffer
+       清空命令表 198..224。用 --hs-size 可强制指定其它长度做对照实验。 */
+    static UCHAR HsSeed[0x200];
+    ULONG HsSeedSize = 0;
+    UCHAR HsPacketBuf[0x100];
+    PVOID HsPacket = HsSeed;
+    ULONG HsPacketSize = 0;
     BOOL Dump = FALSE;
     ULONG DumpSize = 0x10000;
     ULONG Cmd = 0x24;
@@ -245,6 +266,12 @@ int main(int argc, char **argv)
             ScanLo = (ULONG)strtoul(argv[++i], NULL, 0);
         else if (_stricmp(argv[i], "--hi") == 0 && i + 1 < argc)
             ScanHi = (ULONG)strtoul(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--nohs") == 0) NoHandshake = TRUE;
+        else if (_stricmp(argv[i], "--license") == 0) LicenseOnly = TRUE;
+        else if (_stricmp(argv[i], "--hs-size") == 0 && i + 1 < argc) {
+            HsSeedSize = (ULONG)strtoul(argv[++i], NULL, 0);
+            if (HsSeedSize > sizeof(HsSeed)) HsSeedSize = sizeof(HsSeed);
+        }
         else if (_stricmp(argv[i], "--raw") == 0 && i + 1 < argc) {
             /* --raw <cmd> [outsize]：发送单条命令并把输出缓冲按 16 字节一行
                十六进制导出，用于离线推断尚未文档化的命令输出布局。 */
@@ -264,6 +291,15 @@ int main(int argc, char **argv)
     }
     if (ScanLo < XPCH_CMD_MIN) ScanLo = XPCH_CMD_MIN;
     if (ScanHi > XPCH_CMD_MAX) ScanHi = XPCH_CMD_MAX;
+
+    /* 握手入参：默认合法许可包（0x100）；--hs-size 给了就用裸缓冲做对照。 */
+    if (HsSeedSize != 0) {
+        HsPacket = HsSeed;
+        HsPacketSize = HsSeedSize;
+    } else if (XpchBuildLicensePacket(HsPacketBuf)) {
+        HsPacket = HsPacketBuf;
+        HsPacketSize = sizeof(HsPacketBuf);
+    }
 
     printf("=== Stage 1: offline self-test ===\n");
 
@@ -291,6 +327,39 @@ int main(int argc, char **argv)
         restored = memcmp(a, b, sizeof(a)) == 0;
         Check("crypt changes data", changed, NULL);
         Check("crypt is involutive", restored, NULL);
+    }
+
+    /* 2b) AES-128 单块加密：FIPS-197 附录 B 测试向量 */
+    {
+        static const UCHAR k[16] = {
+            0x2b,0x7e,0x15,0x16,0x28,0xae,0xd2,0xa6,
+            0xab,0xf7,0x15,0x88,0x09,0xcf,0x4f,0x3c
+        };
+        static const UCHAR p[16] = {
+            0x32,0x43,0xf6,0xa8,0x88,0x5a,0x30,0x8d,
+            0x31,0x31,0x98,0xa2,0xe0,0x37,0x07,0x34
+        };
+        static const UCHAR expect[16] = {
+            0x39,0x25,0x84,0x1d,0x02,0xdc,0x09,0xfb,
+            0xdc,0x11,0x85,0x97,0x19,0x6a,0x0b,0x32
+        };
+        UCHAR out[16];
+        XpchAes128EncryptBlock(k, p, out);
+        Check("AES-128 FIPS-197 vector", memcmp(out, expect, 16) == 0,
+              "3925841d02dc09fbdc118597196a0b32");
+    }
+
+    /* 2c) 许可包构造：长度 0x100，且全为合法十六进制字符 */
+    {
+        UCHAR pkt[0x100];
+        int ok = XpchBuildLicensePacket(pkt) ? 1 : 0;
+        int i, ishex = 1;
+        for (i = 0; i < 0x100; i++) {
+            UCHAR c = pkt[i];
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+                ishex = 0;
+        }
+        Check("license packet builds", ok && ishex, "0x100 hex chars");
     }
 
     /* 3) request layout */
@@ -331,6 +400,51 @@ int main(int argc, char **argv)
         if (OpenOnly) {
             XpchClose(&client);
             printf("\n=== done (open-only) ===\n");
+            return 0;
+        }
+
+        /* --license: 只发一次 0x100 字节许可包，报告结果字节。
+           用来判定驱动是否接受了我们构造的 AES 包（路径 C）。 */
+        if (LicenseOnly) {
+            UCHAR pkt[0x100];
+            UCHAR lr = 0;
+            ULONG ls = 0;
+            BOOL okp = XpchBuildLicensePacket(pkt);
+            BOOL lok = FALSE;
+
+            if (okp)
+                lok = XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
+                                 pkt, sizeof(pkt), &ls, sizeof(ls), &lr);
+            printf("  license 0x22 -> %s, result=%u, ssdt=%lu (packet=%s)\n",
+                   lok ? "OK" : "REJECTED", lr, ls, okp ? "built" : "FAILED");
+            printf("  packet[0..32] = ");
+            {
+                int q;
+                for (q = 0; q < 32; q++) printf("%02X", pkt[q]);
+                printf("\n");
+            }
+            /* 许可包被拒后 GT[0x304] 仍为 0，0x13A 也不可用，
+               所以直接借 --license 通道读驱动 env 块里的 AES 诊断：
+               先发一次 0x13A（可能被拒），再读返回缓冲的 0x3A4 处。
+               若 0x13A 被拒则无输出；因此改为发送后无条件解析。 */
+            {
+                UCHAR *st = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x3000);
+                UCHAR sr = 0;
+                if (st) {
+                    XpchInvoke(&client, 0x13A, NULL, 0, st, 0x3000, &sr);
+                    {
+                        const UCHAR *env = st + 283 * 16 + 16;
+                        printf("  after-license: 0x13A result=%u"
+                               "  aesStage=%lu md5Calc=%08lX md5Expect=%08lX\n",
+                               sr, *(const ULONG *)(env + 0x3A4),
+                               *(const ULONG *)(env + 0x3A8),
+                               *(const ULONG *)(env + 0x3AC));
+                    }
+                    HeapFree(GetProcessHeap(), 0, st);
+                }
+            }
+            XpchClose(&client);
+            printf("\n=== done (license) ===\n");
             return 0;
         }
 
@@ -392,8 +506,12 @@ int main(int argc, char **argv)
              * (the driver-ready flag) is still 0, so open it first. Without
              * this the 0x13A dump is refused before the handler is reached.
              */
-            XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
-                       NULL, 0, &ssdt, sizeof(ssdt), &r22);
+            /* 对照实验用：--nohs 跳过 0x22 握手，可以直接观察
+               InitCommandHandlerTable 填好、未被 AllocProcessInfoBuffer
+               清空时的命令表原文。 */
+            if (!NoHandshake)
+                XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
+                           HsPacket, HsPacketSize, &ssdt, sizeof(ssdt), &r22);
 
             recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, STATBUF);
             if (recs)
@@ -467,11 +585,19 @@ int main(int argc, char **argv)
                     printf("    idtGtSlot=%p  idtBase=%p\n",
                            (void *)*(ULONG64 *)(env + 0x308),
                            (void *)*(ULONG64 *)(env + 0x310));
+                    printf("    [0x22 license] aesStage=%lu  md5Calc=%08lX  md5Expect=%08lX\n",
+                           *(ULONG *)(env + 0x3A4),
+                           *(ULONG *)(env + 0x3A8),
+                           *(ULONG *)(env + 0x3AC));
+                    printf("    [0xF8 kmctx] stage=%lu (0=未进入 1=netio读失败 2=解析中 3=完成)"
+                           "  netioFileSize=0x%lX\n",
+                           *(ULONG *)(env + 0x3B0),
+                           *(ULONG *)(env + 0x3B4));
                     {
                         int off2;
                         /* 只转储环境块本体（0x300）；再往后是分派器诊断表 */
                         printf("    raw env:");
-                        for (off2 = 0; off2 < 0x3A0; off2++) {
+                        for (off2 = 0; off2 < 0x4A0; off2++) {
                             if ((off2 & 15) == 0) printf("\n      %04X:", off2);
                             printf(" %02X", env[off2]);
                         }
@@ -540,7 +666,9 @@ int main(int argc, char **argv)
                          count==0 && diag==0      → NOT-ATTEMPTED（本轮没试过）
                        diag 表位于 env + CMD_ENV_SIZE（见 XPCHunterDrv.h）。 */
                     {
-                        const ULONG *diag = (const ULONG *)(const void *)(env + 0x1C0);
+                        /* 2026-10-22: must track XPCHunterDrv.h CMD_ENV_SIZE. */
+                        enum { CMD_ENV_SIZE_LOCAL = 0x4A0 };
+                        const ULONG *diag = (const ULONG *)(const void *)(env + CMD_ENV_SIZE_LOCAL);
                         const ULONG *rej = diag + 283;
                         ULONG k, handled = 0, rejected = 0, unattempted = 0;
 
@@ -570,6 +698,53 @@ int main(int argc, char **argv)
                         for (k = 1; k < 11; k++)
                             printf(" %lu=%lu", k, rej[k]);
                         printf("\n");
+
+                        /* 命令表原文快照：判断槽位为 0 是"未写入"还是
+                           "被 AllocProcessInfoBuffer 的 memset 清掉"。
+                           布局见 XPCHunterDrv.h：
+                             CMD_STAT_TOTAL_SIZE | 快照 27*8 | allocProc 计数 4 */
+                        {
+                            enum {
+                                SNAP_OFF = 283 * 16 + 16 + 0x4A0 + 283 * 4 + 11 * 4
+                            };
+                            const ULONG64 *snap =
+                                (const ULONG64 *)(const void *)((const UCHAR *)recs + SNAP_OFF);
+                            const ULONG *allocCnt =
+                                (const ULONG *)(const void *)((const UCHAR *)recs + SNAP_OFF + 27 * 8);
+                            int nz = 0;
+                            /* 先用首尾两点确认这个偏移确实落在快照区：
+                               驱动把 GT[0x921+198] 写在快照[0]，GT[0x921+224] 在快照[26] */
+                            printf("    [debug] SNAP_OFF=%lu snap[0]=%016llX snap[26]=%016llX\n",
+                                   (unsigned long)SNAP_OFF,
+                                   (unsigned long long)snap[0],
+                                   (unsigned long long)snap[26]);
+                            printf("    命令表快照 GT[0x921+198..224]（索引 198..224）:\n     ");
+                            for (k = 0; k < 27; k++) {
+                                if (snap[k]) nz++;
+                                printf(" %lu:%s", 198 + k, snap[k] ? "SET" : "0");
+                            }
+                            printf("\n    非空槽数=%d/27   AllocProcessInfoBuffer 调用次数=%lu\n",
+                                   nz, *allocCnt);
+                            printf("    [debug] 驱动侧 27 个 QWORD 的导出偏移（相对缓冲首）= %lu\n",
+                                   (unsigned long)(283 * 16 + 16 + 0x4A0 + 283 * 4 + 11 * 4));
+
+                            {
+                                const ULONG64 *chk =
+                                    (const ULONG64 *)(const void *)((const UCHAR *)recs
+                                                     + SNAP_OFF + 27 * 8 + 8);
+                                printf("    InitCommandHandlerTable 收尾自检:"
+                                       " 写出Table[198]=%llX  回读槽198=%llX  回读槽207=%llX\n",
+                                       (unsigned long long)chk[0],
+                                       (unsigned long long)chk[1],
+                                       (unsigned long long)chk[2]);
+                                printf("    AllocProcessInfoBuffer GT 标记(0x4F90)=%llu\n",
+                                       (unsigned long long)chk[3]);
+                                printf("    导出通道自校验: 槽0=%llX  槽281=%llX"
+                                       "（都为 0 说明导出通道本身坏了）\n",
+                                       (unsigned long long)chk[4],
+                                       (unsigned long long)chk[5]);
+                            }
+                        }
                     }
                 }
             }
@@ -590,9 +765,9 @@ int main(int argc, char **argv)
             BOOL ok22;
 
             ok22 = XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
-                              NULL, 0, &ssdt, sizeof(ssdt), &r22);
-            printf("  handshake 0x22 -> %s, result=%u, ssdt=%lu\n",
-                   ok22 ? "OK" : "REJECTED", r22, ssdt);
+                              HsPacket, HsPacketSize, &ssdt, sizeof(ssdt), &r22);
+            printf("  handshake 0x22 (inSize=%lu) -> %s, result=%u, ssdt=%lu\n",
+                   HsPacketSize, ok22 ? "OK" : "REJECTED", r22, ssdt);
 
             ok = XpchInvoke(&client, XPCH_CMD_GET_MODULE_COUNT,
                             NULL, 0, &build, sizeof(build), &res);

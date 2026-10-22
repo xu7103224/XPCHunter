@@ -358,6 +358,16 @@ __int64 InitCommandHandlerTable(void)
        它不改变任何既有命令的语义。 */
     Table[282] = (PCOMMAND_HANDLER)CmdDumpCallStats;
 
+    /* 【诊断 2026-10-22】写完立即回读三个关键槽，判断"没写进去"还是
+       "写完后被别处清零"。诊断值随 0x13A 导出：
+         0x4F80 GT[写出值]  0x4F81 GT[回读198]  0x4F82 GT[回读207]
+       选用 0x4F80 是因为 CMD_STAT_PID(0x4C00..0x4D1B)、
+       CMD_STAT_DIAG(0x4E60..0x4F7B) 都不覆盖它。 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4F80, (__int64)Table[198]);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4F81, GtRead((GLOBAL_TABLE_INDEX)(0x921 + 198)));
+    GtWrite((GLOBAL_TABLE_INDEX)0x4F82, GtRead((GLOBAL_TABLE_INDEX)(0x921 + 207)));
+    GtWrite((GLOBAL_TABLE_INDEX)0x4F83, GtRead((GLOBAL_TABLE_INDEX)(0x921 + 216)));
+
     return (__int64)CmdRestoreDriverDispatch;
 }
 
@@ -2216,6 +2226,8 @@ __int64 CmdReadKernelMemoryToUserBuffer(__int64 InputBuffer, __int64 InputSize, 
 // 对应原始驱动 sub_1400681DC
 __int64 CmdInitKernelMemoryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
+    /* diag 2026-10-22: force a run so the netio read chain is exercised */
+    InitKernelMemoryContext();
     return ((PCOMMAND_HANDLER)InitKernelMemoryContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
@@ -2723,7 +2735,8 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
 {
     ULONG Index;
     PUCHAR Out;
-    ULONG Need = CMD_STAT_N * 16 + CMD_OPEN_REC_SIZE + CMD_ENV_SIZE;
+    /* 末尾追加的表快照与诊断计数，见 XPCHunterDrv.h 的 CMD_STAT_EXT_TOTAL_SIZE */
+    ULONG Need = CMD_STAT_EXT_TOTAL_SIZE;
 
     UNREFERENCED_PARAMETER(InputBuffer);
     UNREFERENCED_PARAMETER(InputSize);
@@ -2978,6 +2991,10 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG64 *)(Out + 0x388) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x323);
     /* 0x390 GT[0x803] td.sys 大小（与 0x802 配对） */
     *(ULONG64 *)(Out + 0x390) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x803);
+    /* diag 2026-10-22: netio read chain (env+0x398/0x39C/0x3A0) */
+    *(ULONG *)(Out + 0x398) = g_DiagNetioReadStatus;
+    *(ULONG *)(Out + 0x39C) = g_DiagNetioFileSize;
+    *(ULONG *)(Out + 0x3A0) = g_DiagNetioCopyOk;
     /* 0x370 GT[0x80B] TDI reloc 表（0xE7 的直接前置） */
     *(ULONG64 *)(Out + 0x370) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x80B);
     /* 0x378 GT[0x80C] TDI 导出 RVA */
@@ -2986,6 +3003,59 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x304) = g_DiagIoPortIdtValid;
     *(ULONG64 *)(Out + 0x308) = g_DiagIoPortIdtGt;
     *(ULONG64 *)(Out + 0x310) = g_DiagIoPortIdtBase;
+
+    /* 【诊断 2026-10-22】DecryptAesHexString 阶段与中间值。
+       0x3A4 阶段码, 0x3A8 MD5(计算), 0x3AC MD5(预期) */
+    *(ULONG *)(Out + 0x3A4) = g_DiagAesStage;
+    *(ULONG *)(Out + 0x3A8) = g_DiagAesMd5Calc;
+    *(ULONG *)(Out + 0x3AC) = g_DiagAesMd5Expect;
+    /* 0xF8 InitKernelMemoryContext 阶段与 netio.sys 大小
+       （CMD_ENV_SIZE 已从 0x3B0 扩到 0x3C0，这两项占用原末尾空位） */
+    *(ULONG *)(Out + 0x3B0) = g_DiagKmCtxStage;
+    *(ULONG *)(Out + 0x3B4) = g_DiagKmCtxFileSize;
+
+    /* 【2026-10-22】Network 页数据源：0xF8 InitKernelMemoryContext 的
+       26 组 WFP/KFD/NSI 解析结果。每组在 GT 里成对出现
+       （RVA 与解析出的绝对地址），这里导出各组的第一个槽。
+       布局：0x400 起，共 20 个 QWORD。 */
+    {
+        static const ULONG KmSlots[] = {
+            0x7B2, 0x7B4, 0x7B8, 0x7BB, 0x7BC, 0x7BE, 0x7C0, 0x7C1,
+            0x7C3, 0x7C7, 0x7C8, 0x7CA, 0x7CD, 0x7CE, 0x7D0, 0x7D1,
+            0x7D3, 0x7D4, 0x7D6, 0x7D7
+        };
+        ULONG n;
+        for (n = 0; n < sizeof(KmSlots) / sizeof(KmSlots[0]); n++)
+            *(ULONG64 *)(Out + 0x400 + n * 8) =
+                (ULONG64)GtRead((GLOBAL_TABLE_INDEX)KmSlots[n]);
+    }
+
+    /* 【诊断 2026-10-22】命令表原文快照 GT[0x921+198 .. 0x921+224]。
+       用途：判定 0xEF–0xF8 等槽位"处理器为 0"到底是
+         (a) InitCommandHandlerTable 从未写入，还是
+         (b) 写入后被 AllocProcessInfoBuffer 的 memset 清掉
+           —— 该函数 memset(GtAlloc(GtCommandHandlerBase)+198, 0xD8)，
+              范围正是 198..224，由 CmdQueryProcessInfo(0x22) 在
+              InSize <= 0xA 时调用。
+       必须写在 diag / reject 两张表之后，否则会被它们覆盖。
+       偏移 = 表尾 CMD_STAT_TOTAL_SIZE，27 个 QWORD。 */
+    for (Index = 0; Index < 27; Index++)
+        *(ULONG64 *)(Out + CMD_STAT_TBLSNAP_INENV + Index * 8) =
+            (ULONG64)GtRead((GLOBAL_TABLE_INDEX)(0x921 + 198 + Index));
+
+    /* 以下偏移都相对 Out（env 块起点），见 XPCHunterDrv.h 的说明。 */
+    *(ULONG *)(Out + CMD_STAT_ALLOCPROC_INENV) = g_DiagAllocProcBufCalls;
+    *(ULONG64 *)(Out + CMD_STAT_ALLOCPROC_INENV + 8) =
+        (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4F80);
+    *(ULONG64 *)(Out + CMD_STAT_ALLOCPROC_INENV + 16) =
+        (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4F82);
+    *(ULONG64 *)(Out + CMD_STAT_ALLOCPROC_INENV + 24) =
+        (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4F90);
+    /* 导出通道自校验：槽 0 与槽 281 在正常运行下必然非 0 */
+    *(ULONG64 *)(Out + CMD_STAT_ALLOCPROC_INENV + 32) =
+        (ULONG64)GtRead((GLOBAL_TABLE_INDEX)(0x921 + 0));
+    *(ULONG64 *)(Out + CMD_STAT_ALLOCPROC_INENV + 40) =
+        (ULONG64)GtRead((GLOBAL_TABLE_INDEX)(0x921 + 281));
 
     /* 【诊断 2026-10-21】按命令的分派器拒绝原因表 + 协议级拒绝计数表。
        用途：结果字节 0 无法区分"被拒"与"处理器执行完但设计上返回 0"，

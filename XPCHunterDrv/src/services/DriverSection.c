@@ -383,7 +383,9 @@ bool ReadWin32kDriverFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
     EncodedPath[14] = 7602268; EncodedPath[15] = 7864420;
     EncodedPath[16] = 7536686;
-    v9 = 7536761;
+    EncodedPath[19] = 7536761;   /* 路径尾部 "ys" 的补齐项 */
+
+    EncodedPath[20] = 0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
         Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pFileBuffer, pFileSize) == 1;
@@ -427,8 +429,9 @@ bool ReadDiskPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     bool Result = 0;
     size_t MaxCount;
     void *Src;
-    int EncodedPath[15];
-    int v9, v10, v11, v12, v13, v14;
+    /* correction 2026-10-22: v9..v14 are the path tail (storport.sys /
+       scsiport.sys remainder) and must follow the encoded array. */
+    int EncodedPath[21];
 
     EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
     EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
@@ -438,14 +441,17 @@ bool ReadDiskPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     EncodedPath[10] = 6553692; EncodedPath[11] = 6881394;
     EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
     EncodedPath[14] = 7536732;
-    v11 = 7471215; v12 = 3014772; v13 = 7929971; v14 = 115;
+    EncodedPath[17] = 7471215;
+    EncodedPath[18] = 3014772;
+    EncodedPath[19] = 7929971;
+    EncodedPath[20] = 115;    /* trailing NUL */
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1770)
     {
-        v9 = 7274612; v10 = 7340146;
+        EncodedPath[15] = 7274612; EncodedPath[16] = 7340146;  /* storport */
     }
     else
     {
-        v9 = 7536739; v10 = 7340137;
+        EncodedPath[15] = 7536739; EncodedPath[16] = 7340137;  /* scsiport */
     }
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
@@ -490,8 +496,10 @@ bool ReadIpsecSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     bool Result = 0;
     size_t RawDataSize;
     void *pRawData;
-    int EncodedPath[18];
-    __int64 ExtraValue;
+    /* correction 2026-10-22: ExtraValue = 7536761 is the trailing "ys";
+       it must sit right after the encoded array, otherwise the path
+       is truncated to ipsec.s. */
+    int EncodedPath[20];
 
     EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
     EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
@@ -502,7 +510,8 @@ bool ReadIpsecSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
     EncodedPath[14] = 6881372; EncodedPath[15] = 7536752;
     EncodedPath[16] = 6488165; EncodedPath[17] = 7536686;
-    ExtraValue = 7536761;
+    EncodedPath[18] = 7536761;   /* trailing ys */
+    EncodedPath[19] = 0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &pRawData, (ULONG *)&RawDataSize, 1))
     {
         Result = ReadNtFileToBuffer((PUCHAR)pRawData, (unsigned int)RawDataSize, (PUCHAR *)pFileBuffer, pFileSize) == 1;
@@ -518,8 +527,14 @@ bool ReadNetioDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     bool Result = 0;
     size_t MaxCount;
     void *Src;
-    int EncodedPath[18];
-    __int64 v9;
+    /* 【修正 2026-10-22】原版把路径编码成 v8[18] + v9 的连续栈布局：
+       v9 = 7536761 作为 QWORD 写出的低 4 字节是 "ys"，正好补齐
+       netio.sys 的结尾。原实现把 v9 声明成独立局部变量，编译器
+       不保证它紧跟在数组后面，于是路径被截断成 "...netio.s"。
+       结果 ReadFileRawData 找不到文件 → InitKernelMemoryContext 第一步
+       就返回 0 → Network 页的 NDIS/WFP 数据源全空。
+       改成显式 +4 槽位的数组，最后一项就是这个 "ys"。 */
+    int EncodedPath[20];
 
     EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
     EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
@@ -530,11 +545,19 @@ bool ReadNetioDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     EncodedPath[12] = 6619254; EncodedPath[13] = 7536754;
     EncodedPath[14] = 7209052; EncodedPath[15] = 7602277;
     EncodedPath[16] = 7274601; EncodedPath[17] = 7536686;
-    v9 = 7536761;
-    if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
+    EncodedPath[18] = 7536761;   /* "ys  " —— netio.sys 的结尾 */
+    EncodedPath[19] = 0;
     {
-        Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
-        ExFree(Src);
+        ULONG RawStat = (ULONG)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1);
+        /* diag: 0 = opened ok, else NTSTATUS */
+        g_DiagNetioReadStatus = RawStat;
+        g_DiagNetioFileSize = (ULONG)MaxCount;
+        if (!RawStat)
+        {
+            Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
+            g_DiagNetioCopyOk = Result ? 1u : 0u;
+            ExFree(Src);
+        }
     }
     return Result;
 }
@@ -546,8 +569,7 @@ bool ReadUSBPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     bool Result = 0;
     size_t MaxCount;
     void *Src;
-    int EncodedPath[19];
-    __int64 v9;
+    int EncodedPath[21];
 
     EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
     EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
@@ -559,7 +581,9 @@ bool ReadUSBPortDriverFile(_QWORD *OutBuffer, unsigned int *OutSize)
     EncodedPath[14] = 7667804; EncodedPath[15] = 6422643;
     EncodedPath[16] = 7274608; EncodedPath[17] = 7602290;
     EncodedPath[18] = 7536686;
-    v9 = 7536761;
+    EncodedPath[19] = 7536761;   /* 路径尾部 "ys" 的补齐项 */
+
+    EncodedPath[20] = 0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
         Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)OutBuffer, OutSize) == 1;
@@ -575,8 +599,7 @@ bool ReadVolumeSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     bool Result = 0;
     size_t MaxCount;
     void *Src;
-    int EncodedPath[19];
-    __int64 v9;
+    int EncodedPath[21];
 
     EncodedPath[0] = 5439580; EncodedPath[1] = 7536761;
     EncodedPath[2] = 6619252; EncodedPath[3] = 5374061;
@@ -588,7 +611,9 @@ bool ReadVolumeSysFile(_QWORD *pFileBuffer, unsigned int *pFileSize)
     EncodedPath[14] = 7733340; EncodedPath[15] = 7077999;
     EncodedPath[16] = 7209075; EncodedPath[17] = 7340129;
     EncodedPath[18] = 7536686;
-    v9 = 7536761;
+    EncodedPath[19] = 7536761;   /* 路径尾部 "ys" 的补齐项 */
+
+    EncodedPath[20] = 0;
     if (!(unsigned int)ReadFileRawData((__int16 *)EncodedPath, &Src, (ULONG *)&MaxCount, 1))
     {
         Result = ReadNtFileToBuffer((PUCHAR)Src, (unsigned int)MaxCount, (PUCHAR *)pFileBuffer, pFileSize) == 1;

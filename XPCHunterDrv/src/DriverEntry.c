@@ -142,6 +142,16 @@ ULONG g_DiagCbCtxFileSize;
 ULONG g_DiagSsdtRestoreStage;
 ULONG64 g_DiagSsdtSectionBase;
 
+/* diag 2026-10-22: netio.sys read chain */
+ULONG g_DiagNetioReadStatus;
+ULONG g_DiagNetioFileSize;
+ULONG g_DiagNetioCopyOk;
+
+/* diag 2026-10-22: InitKernelMemoryContext 阶段
+   0=未进入 1=netio.sys 读取失败 2=读取成功/解析中 3=全部完成 */
+ULONG g_DiagKmCtxStage;
+ULONG g_DiagKmCtxFileSize;
+
 ULONG64 g_DiagKillEp;
 ULONG64 g_DiagKillDirectFn;
 ULONG64 g_DiagKillCheckFn;
@@ -1412,7 +1422,12 @@ __int64 InitKernelMemoryContext(void)
 
     /* ① 读 netio.sys 到缓冲；失败即返回 */
     if ((char)ReadNetioDriverFile(&FileBuffer, &FileSize) != 1)   // 0x14006BF46（call 0x14006C22C）
+    {
+        g_DiagKmCtxStage = 1;      /* netio.sys 读取失败 */
         return 0;
+    }
+    g_DiagKmCtxStage = 2;          /* 读取成功，进入 26 组解析 */
+    g_DiagKmCtxFileSize = FileSize;
 
     /* ② 26 组"槽空才调用"的分派 */
     if (!GtRead((GLOBAL_TABLE_INDEX)0x7B2))                       // 0x14006BF58
@@ -1476,6 +1491,7 @@ __int64 InitKernelMemoryContext(void)
 
     /* ③ 释放缓冲 */
     ExFree((void *)FileBuffer);                                    // 0x14006C217
+    g_DiagKmCtxStage = 3;          /* 全部完成 */
     return 0;
 }
 

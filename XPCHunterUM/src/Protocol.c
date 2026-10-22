@@ -256,6 +256,117 @@ void XpchCryptBuffer(PUCHAR Buffer, ULONG Size, UCHAR KeyByte)
         Buffer[i] = (UCHAR)~(Buffer[i] ^ KeyByte);
 }
 
+/* ---------------------------------------------------------------------------
+ * AES-128-ECB 加密（构造 0x22 的许可包用）
+ *
+ * 驱动机 Crypto.c 的 DecryptAesHexString(0x140002F4C) 解密流程：
+ *   1) 输入 0x100 字节十六进制字符串 → 解成 0x80 字节二进制
+ *   2) 用密钥 "ShouJiErShiSiShi"(16 字节) 做 AES-128 解密
+ *   3) 对明文前 0x64 字节做 MD5，与明文 [0x64..0x74) 比对
+ *   4) 明文 [0x50..0x58) 与 [0x58..0x60) 是允许的系统时间窗（FILETIME 风格）
+ *   5) 全部通过才返回 0（即"合法包"）
+ * 所以用户态必须做一次等价的 AES-128 **加密** 来生成这个包。
+ *
+ * 本实现的正确性用 FIPS-197 附录 B 向量自测：
+ *   key=2b7e151628aed2a6abf7158809cf4f3c
+ *   pt =3243f6a8885a308d313198a2e0370734
+ *   ct =3925841d02dc09fbdc118597196a0b32
+ * ------------------------------------------------------------------------- */
+
+static const UCHAR g_AesSbox[256] = {
+    0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,
+    0xca,0x82,0xc9,0x7d,0xfa,0x59,0x47,0xf0,0xad,0xd4,0xa2,0xaf,0x9c,0xa4,0x72,0xc0,
+    0xb7,0xfd,0x93,0x26,0x36,0x3f,0xf7,0xcc,0x34,0xa5,0xe5,0xf1,0x71,0xd8,0x31,0x15,
+    0x04,0xc7,0x23,0xc3,0x18,0x96,0x05,0x9a,0x07,0x12,0x80,0xe2,0xeb,0x27,0xb2,0x75,
+    0x09,0x83,0x2c,0x1a,0x1b,0x6e,0x5a,0xa0,0x52,0x3b,0xd6,0xb3,0x29,0xe3,0x2f,0x84,
+    0x53,0xd1,0x00,0xed,0x20,0xfc,0xb1,0x5b,0x6a,0xcb,0xbe,0x39,0x4a,0x4c,0x58,0xcf,
+    0xd0,0xef,0xaa,0xfb,0x43,0x4d,0x33,0x85,0x45,0xf9,0x02,0x7f,0x50,0x3c,0x9f,0xa8,
+    0x51,0xa3,0x40,0x8f,0x92,0x9d,0x38,0xf5,0xbc,0xb6,0xda,0x21,0x10,0xff,0xf3,0xd2,
+    0xcd,0x0c,0x13,0xec,0x5f,0x97,0x44,0x17,0xc4,0xa7,0x7e,0x3d,0x64,0x5d,0x19,0x73,
+    0x60,0x81,0x4f,0xdc,0x22,0x2a,0x90,0x88,0x46,0xee,0xb8,0x14,0xde,0x5e,0x0b,0xdb,
+    0xe0,0x32,0x3a,0x0a,0x49,0x06,0x24,0x5c,0xc2,0xd3,0xac,0x62,0x91,0x95,0xe4,0x79,
+    0xe7,0xc8,0x37,0x6d,0x8d,0xd5,0x4e,0xa9,0x6c,0x56,0xf4,0xea,0x65,0x7a,0xae,0x08,
+    0xba,0x78,0x25,0x2e,0x1c,0xa6,0xb4,0xc6,0xe8,0xdd,0x74,0x1f,0x4b,0xbd,0x8b,0x8a,
+    0x70,0x3e,0xb5,0x66,0x48,0x03,0xf6,0x0e,0x61,0x35,0x57,0xb9,0x86,0xc1,0x1d,0x9e,
+    0xe1,0xf8,0x98,0x11,0x69,0xd9,0x8e,0x94,0x9b,0x1e,0x87,0xe9,0xce,0x55,0x28,0xdf,
+    0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16
+};
+
+static UCHAR AesXtime(UCHAR a)
+{
+    return (UCHAR)((a << 1) ^ ((a & 0x80) ? 0x1B : 0));
+}
+
+/* 密钥扩展：把 16 字节密钥展开成 11 组轮密钥（每组 16 字节） */
+static void Aes128ExpandKey(const UCHAR Key[16], UCHAR RoundKeys[176])
+{
+    static const UCHAR Rcon[10] = {1,2,4,8,0x10,0x20,0x40,0x80,0x1B,0x36};
+    ULONG i;
+    UCHAR Tmp[4];
+
+    CopyMemory(RoundKeys, Key, 16);
+    for (i = 16; i < 176; i += 4) {
+        CopyMemory(Tmp, &RoundKeys[i - 4], 4);
+        if ((i % 16) == 0) {
+            /* RotWord + SubWord + Rcon */
+            UCHAR t = Tmp[0];
+            Tmp[0] = (UCHAR)(g_AesSbox[Tmp[1]] ^ Rcon[i / 16 - 1]);
+            Tmp[1] = g_AesSbox[Tmp[2]];
+            Tmp[2] = g_AesSbox[Tmp[3]];
+            Tmp[3] = g_AesSbox[t];
+        }
+        RoundKeys[i + 0] = (UCHAR)(RoundKeys[i - 16 + 0] ^ Tmp[0]);
+        RoundKeys[i + 1] = (UCHAR)(RoundKeys[i - 16 + 1] ^ Tmp[1]);
+        RoundKeys[i + 2] = (UCHAR)(RoundKeys[i - 16 + 2] ^ Tmp[2]);
+        RoundKeys[i + 3] = (UCHAR)(RoundKeys[i - 16 + 3] ^ Tmp[3]);
+    }
+}
+
+/* 加密一个 16 字节块（状态按列主序：s[c*4+r]） */
+void XpchAes128EncryptBlock(const UCHAR Key[16], const UCHAR In[16], UCHAR Out[16])
+{
+    UCHAR RK[176];
+    UCHAR S[16];
+    UCHAR T[16];
+    ULONG Round, c, r, k;
+
+    Aes128ExpandKey(Key, RK);
+    for (k = 0; k < 16; k++)
+        S[k] = (UCHAR)(In[k] ^ RK[k]);
+
+    for (Round = 1; Round <= 10; Round++) {
+        /* SubBytes */
+        for (k = 0; k < 16; k++)
+            S[k] = g_AesSbox[S[k]];
+
+        /* ShiftRows：第 r 行左移 r 列 */
+        for (c = 0; c < 4; c++)
+            for (r = 0; r < 4; r++)
+                T[c * 4 + r] = S[((c + r) & 3) * 4 + r];
+
+        /* MixColumns（最后一轮不做） */
+        if (Round != 10) {
+            for (c = 0; c < 4; c++) {
+                UCHAR a0 = T[c * 4 + 0], a1 = T[c * 4 + 1];
+                UCHAR a2 = T[c * 4 + 2], a3 = T[c * 4 + 3];
+                S[c * 4 + 0] = (UCHAR)(AesXtime(a0) ^ (AesXtime(a1) ^ a1) ^ a2 ^ a3);
+                S[c * 4 + 1] = (UCHAR)(a0 ^ AesXtime(a1) ^ (AesXtime(a2) ^ a2) ^ a3);
+                S[c * 4 + 2] = (UCHAR)(a0 ^ a1 ^ AesXtime(a2) ^ (AesXtime(a3) ^ a3));
+                S[c * 4 + 3] = (UCHAR)((AesXtime(a0) ^ a0) ^ a1 ^ a2 ^ AesXtime(a3));
+            }
+        } else {
+            for (k = 0; k < 16; k++)
+                S[k] = T[k];
+        }
+
+        /* AddRoundKey */
+        for (k = 0; k < 16; k++)
+            S[k] = (UCHAR)(S[k] ^ RK[Round * 16 + k]);
+    }
+
+    CopyMemory(Out, S, 16);
+}
+
 BOOL XpchOpen(PXPCH_CLIENT Client)
 {
     if (!Client)
@@ -365,33 +476,121 @@ BOOL XpchInvoke(PXPCH_CLIENT Client,
     return Stored != 0;
 }
 
+/* 构造 0x22 用的许可包（0x100 字节十六进制字符串，解出 0x80 字节）。
+ *
+ * 明文布局（与驱动 DecryptAesHexString 的校验一一对应）：
+ *   [0x00..0x50)  任意数据（驱动不检查）
+ *   [0x50..0x58)  时间窗下界（QWORD，小端）
+ *   [0x58..0x60)  时间窗上界（QWORD，小端）
+ *   [0x64..0x74)  明文 [0x00..0x64) 的 MD5
+ *   [0x74..0x80)  任意填充
+ * 明文整体再做 AES-128-ECB 加密 → 0x80 字节密文 → 转成 0x100 字节 HEX。
+ *
+ * 时间基准：驱动读 SharedUserData+0x14（KUSER_SHARED_DATA.SystemTime，
+ * 即当前系统时间，FILETIME 单位）。用户态 GetSystemTimeAsFileTime 等价。
+ * 这里给 [now-1 天, now+1 天] 的宽窗口。 */
+BOOL XpchBuildLicensePacket(UCHAR OutHex[0x100])
+{
+    /* 【2026-10-22 修正】密钥必须与驱动 Crypto.c 的 DecryptAesHexString 完全一致。
+       驱动侧是 4 个 DWORD：0x756F6853 "Shou" / 0x7245694A "JiEr" /
+       0x53696853 "ShiS" / 0x69685369 "iShi"，
+       拼起来正是 "ShouJiErShiSiShi"（16 字节，无 NUL）。
+       此前误写成 "ShouJiErShiShi"(14 字节 + 2 个 NUL)，导致 AES 解密全部失败。 */
+    static const UCHAR Key[16] = {
+        'S','h','o','u','J','i','E','r','S','h','i','S','i','S','h','i'
+    };
+    UCHAR Plain[0x80];
+    UCHAR Cipher[0x80];
+    XPCH_MD5_CTX Md5;
+    UCHAR Digest[16];
+    ULONG i;
+    ULONG64 Now, Lo, Hi;
+    FILETIME Ft;
+
+    if (!OutHex)
+        return FALSE;
+
+    ZeroMemory(Plain, sizeof(Plain));
+
+    /* 时间窗：驱动比较的是 SharedUserData+0x14，与 GetSystemTimeAsFileTime
+       同源（都是 100ns 单位）。留一天余量吸收时钟抖动。 */
+    GetSystemTimeAsFileTime(&Ft);
+    Now = ((ULONG64)Ft.dwHighDateTime << 32) | Ft.dwLowDateTime;
+    Lo = (Now > (ULONG64)864000000000LL) ? Now - (ULONG64)864000000000LL : 1;
+    Hi = Now + (ULONG64)864000000000LL;
+
+    CopyMemory(&Plain[0x50], &Lo, 8);
+    CopyMemory(&Plain[0x58], &Hi, 8);
+
+    /* 前 0x64 字节的 MD5 放在 0x64 */
+    XpchMd5Init(&Md5);
+    XpchMd5Update(&Md5, Plain, 0x64);
+    XpchMd5Final(&Md5, Digest);
+    CopyMemory(&Plain[0x64], Digest, 16);
+
+    /* AES-128-ECB 加密 0x80 字节（8 个块） */
+    for (i = 0; i < sizeof(Plain); i += 16)
+        XpchAes128EncryptBlock(Key, Plain + i, Cipher + i);
+
+    /* 转成大写十六进制字符串 */
+    {
+        static const char HexDigits[] = "0123456789ABCDEF";
+        for (i = 0; i < sizeof(Cipher); i++) {
+            OutHex[i * 2]     = (UCHAR)HexDigits[Cipher[i] >> 4];
+            OutHex[i * 2 + 1] = (UCHAR)HexDigits[Cipher[i] & 0x0F];
+        }
+    }
+    return TRUE;
+}
+
 /* Handshake.
  *
- * Two steps, and the order matters:
+ * 0x22 (CmdQueryProcessInfo) 是 GT[0x304]（驱动就绪标志）为 0 时唯一
+ * 被放行的命令（分派器 0x140082532 的守卫）。它调用 CheckSsdtHookIntegrity，
+ * 而后者是全驱动唯一把 GT[0x304] 置 1 的地方（0x1400051C4），所以必须先发它。
  *
- * 1) Command 0x22 (CmdQueryProcessInfo) is the ONLY command the dispatcher
- *    lets through while GT[0x304] (the driver-ready flag) is still 0 -- see
- *    the `GtRead(0x304) == 0 && Command != 0x22` guard at 0x140082532.
- *    With InSize <= 0xA its handler runs CheckSsdtHookIntegrity, which is
- *    the single place that sets GT[0x304] = 1 (SSDT.c). So 0x22 also acts
- *    as the driver's own "initialize the hook subsystem" trigger; without
- *    it every other command is rejected forever.
+ * 【2026-10-22 已确证的事实】0x22 有三条路径，副作用各不相同：
  *
- * 2) Command 0x24 (CmdGetModuleCount) then proves the ordinary dispatch
- *    path works and returns the Windows build number, which tells us which
- *    OS branch the driver picked.
+ *   路径 A  InSize <= 0xA
+ *       CmdQueryProcessInfo -> AllocProcessInfoBuffer() + CheckSsdtHookIntegrity
+ *       AllocProcessInfoBuffer(0x1400813F0) 会执行
+ *           memset(GtAlloc(GtCommandHandlerBase) + 198*8, 0, 0xD8)
+ *       把命令表的槽 198..224（命令 0xE6..0x100）清零，另清 273..276。
+ *       GT[0x1E0]（ioctl 码）不变。
+ *       【现状】我方一直走这条，代价是 0xEF..0xF8、0x131 的处理器被抹掉。
  *
- * 0x22 needs out != NULL with outSize == 4 (CheckSsdtHookIntegrity writes
- * a DWORD comparison result), and inSize <= 0xA to avoid the heavy
- * QuerySsdHookByProcessInfo path that has hung the guest before. */
+ *   路径 B  InSize ∈ (0xA, 0x12C] 且包不合法
+ *       QuerySsdHookByProcessInfo: GT[0x1E0] -= 1
+ *       DecryptAesHexString 失败: GT[0x1E0] += 1
+ *       CheckSsdtHookIntegrity(Dst=内核栈, ...): GT[0x1E0] += 2
+ *       净 +2 —— ioctl 码漂移，之后所有命令都被分派器拒绝。
+ *       **这条路不能走。**
+ *
+ *   路径 C  InSize == 0x100 且 AES 包完全合法（MD5 + 时间窗都对）
+ *       GT[0x1E0] 净变化 0，GT[0x304] 置 1，命令表不受影响。
+ *       这是原版前端走的路径。
+ *
+ * 实测对照（kd 读原版驱动运行时的 g_GlobalTable，基址 fffff805`31500000）：
+ *     槽 198 = CmdGetSsdtTableInfo、207 = CmdInitSsdtTable、
+ *     216 = CmdInitKernelMemoryContext —— 全部完好。
+ *
+ * TODO(下一步): 构造路径 C 的合法 AES 包，替换当前的路径 A 握手。
+ *   需要 UM 侧 AES-128-ECB 加密 + MD5 + 时间窗，且驱动侧
+ *   AesKeyExpansion 的 InvMixColumns 必须先还原为正确实现。
+ */
 BOOL XpchHandshake(PXPCH_CLIENT Client)
 {
     ULONG Build = 0;
     ULONG Ssdt = 0;
     UCHAR Result = 0;
+    UCHAR Packet[0x100];
 
-    XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO,
-               NULL, 0, &Ssdt, sizeof(Ssdt), &Result);
+    /* 走路径 C：0x100 字节合法许可包。
+       这样既能把 GT[0x304] 置 1，又不会触发 AllocProcessInfoBuffer
+       去清空命令表的槽 198..224，同时 GT[0x1E0]（ioctl 码）净变化为 0。 */
+    if (XpchBuildLicensePacket(Packet))
+        XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO,
+                   Packet, sizeof(Packet), &Ssdt, sizeof(Ssdt), &Result);
 
     if (XpchInvoke(Client, XPCH_CMD_GET_MODULE_COUNT,
                    NULL, 0, &Build, sizeof(Build), &Result))

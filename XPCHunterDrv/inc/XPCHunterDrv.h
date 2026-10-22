@@ -627,7 +627,10 @@ void InitCallbackContextHookTable(void);
    0x160..0x1BF：0xA2 终止路径逐级 trace。
    CMD_STAT_DIAG_OFFSET 随之右移，客户端（XPCHunterUM/src/probe.c）
    必须用同一个常量，不能再硬编码。 */
-#define CMD_ENV_SIZE     0x3A0
+/* 0x3B0..0x3B7：0xF8 InitKernelMemoryContext 阶段与 netio.sys 大小；
+   0x400..0x49F：Network 页数据源（20 个 WFP/KFD/NSI 解析槽）。
+   扩到 0x4A0 以避免与紧随其后的分派器诊断表重叠。 */
+#define CMD_ENV_SIZE     0x4A0
 
 /* 【诊断 2026-10-21】BuildHookTable 分步计数（定义在 DriverEntry.c）。
    0xA2 的三个前置槽 0x41DB/0x41C3/0x4334 都是 GT[0x4158+3k+2]，
@@ -694,6 +697,26 @@ extern ULONG g_DiagCbCtxFileSize;
 /* 【诊断 2026-10-22】SSDT Restore（0xE7）前置槽 GT[0x80A]/[0x80B] 的生产链。 */
 extern ULONG g_DiagSsdtRestoreStage;
 extern ULONG64 g_DiagSsdtSectionBase;
+extern ULONG g_DiagNetioReadStatus;
+/* 【诊断 2026-10-22】DecryptAesHexString 各阶段结果，用于判定 0x22 许可包
+   被拒的确切位置：
+     0 = 未进入
+     1 = 长度不对 (HexLength != 0x100)
+     2 = 十六进制解码失败
+     3 = MD5 不匹配
+     4 = 时间窗不符
+     5 = 全部通过
+   同时导出解密后明文前 0x80 字节。 */
+extern ULONG g_DiagAesStage;
+extern UCHAR g_DiagAesPlain[0x80];
+extern ULONG g_DiagAesMd5Calc;
+extern ULONG g_DiagAesMd5Expect;
+
+/* 【诊断 2026-10-22】InitKernelMemoryContext（命令 0xF8）阶段与文件大小 */
+extern ULONG g_DiagKmCtxStage;
+extern ULONG g_DiagKmCtxFileSize;
+extern ULONG g_DiagNetioFileSize;
+extern ULONG g_DiagNetioCopyOk;
 
 /* 【诊断 2026-10-21】结果字节无法区分"被拒"与"处理器执行后返回 0"：
    分派器在两条路径上都把输出首字节写成 0（见 DriverEntry.c 的说明），
@@ -717,6 +740,18 @@ extern ULONG64 g_DiagSsdtSectionBase;
 #define CMD_STAT_REJECT_OFFSET (CMD_STAT_DIAG_OFFSET + CMD_STAT_DIAG_SIZE)
 #define CMD_STAT_REJECT_SIZE   (CMD_STAT_REJECT_N * 4)
 #define CMD_STAT_TOTAL_SIZE    (CMD_STAT_REJECT_OFFSET + CMD_STAT_REJECT_SIZE)
+
+/* 【诊断 2026-10-22】命令表快照与调用计数。
+   注意：驱动里 Out 进入 env 块后，Out 已指向"用户缓冲 + 283*16 + 16"，
+   所以这些偏移必须写成 **相对 env 块** 的：
+       CMD_ENV_SIZE | DIAG 283*4 | REJ 11*4 | 快照 27*8 | 计数 4 | 4 个 QWORD
+   客户端读取时再用"绝对偏移 = 283*16 + 16 + 上述相对偏移"。 */
+#define CMD_STAT_TBLSNAP_INENV   (CMD_ENV_SIZE + CMD_STAT_DIAG_SIZE + CMD_STAT_REJECT_SIZE)
+#define CMD_STAT_TBLSNAP_SIZE    (27 * 8)
+#define CMD_STAT_ALLOCPROC_INENV (CMD_STAT_TBLSNAP_INENV + CMD_STAT_TBLSNAP_SIZE)
+#define CMD_STAT_EXT_TOTAL_SIZE  (CMD_STAT_ALLOCPROC_INENV + 48)
+
+extern ULONG g_DiagAllocProcBufCalls;
 
 __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
                          _DWORD *pOutputBuffer, int OutputSize);

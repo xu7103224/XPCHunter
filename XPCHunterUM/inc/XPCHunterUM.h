@@ -125,8 +125,14 @@ BOOL XpchInvoke(PXPCH_CLIENT Client,
                 PVOID Out, ULONG OutSize,
                 PUCHAR Result);
 
-/* 握手：只发 0x24，读回构建号验证整条链路 */
+/* 握手：发 0x22 合法许可包置位就绪标志，再用 0x24 验证整条链路 */
 BOOL XpchHandshake(PXPCH_CLIENT Client);
+
+/* 构造 0x22 用的 0x100 字节许可包（AES-128 + MD5 + 时间窗） */
+BOOL XpchBuildLicensePacket(UCHAR OutHex[0x100]);
+
+/* AES-128 单块加密（供许可包构造） */
+void XpchAes128EncryptBlock(const UCHAR Key[16], const UCHAR In[16], UCHAR Out[16]);
 
 /* ============================================================================
  * 进程列表（Process 页数据层）—— 见 src/ProcessList.c

@@ -97,6 +97,9 @@ static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
 #define IDC_OT_PATH     1082
 #define IDC_OT_VERIFY   1083
 #define IDC_OT_QUERY    1084
+/* Network 页（主 Tab 4） */
+#define IDC_NW_LIST     1085
+#define IDC_NW_STATUS   1086
 /* Examination 页 */
 #define IDC_EX_RUN      1090
 #define IDC_EX_CANCEL   1091
@@ -161,6 +164,9 @@ static HWND g_hTrList, g_hTrStatus;
 static FE_TROJAN_REPORT g_TrReport;
 static int g_TrLoaded = 0;
 static HWND g_hHkList, g_hHkStatus;
+/* Network 页（主 Tab 4）：0xF8 InitKernelMemoryContext 的 WFP/KFD/NSI
+   解析结果。数据源见 frontend.c 的 DoRefreshNetwork。 */
+static HWND g_hNwList, g_hNwStatus;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_KmOnlyLoaded = 0;
@@ -933,6 +939,147 @@ static void CreateSvColumns(HWND hList)
     c.pszText = "ImagePath / Resolved"; c.cx = 640; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
 }
 
+/* ==========================================================================
+ * Network 页（主 Tab 4）
+ *
+ * 【2026-10-22 实测更正】此前该页提示"驱动没有网络命令"，结论错误。
+ *   实机验证（kd 读 g_GlobalTable）：
+ *     命令 0xF8 CmdInitKernelMemoryContext 的处理器确实执行（HANDLED）；
+ *     netio.sys 读取成功（0x94000 字节，kmctx stage=3 全部完成）；
+ *     26 组 WFP/KFD/NSI 解析产出成对的 RVA + 绝对地址。
+ *
+ *   数据来源：0x13A（CmdDumpCallStats）诊断通道的 env 块 0x400 起，
+ *   20 个 QWORD，对应以下 GT 槽（顺序与驱动侧 KmSlots[] 一致）。
+ * ========================================================================== */
+typedef struct _FE_NET_SLOT {
+    ULONG       GtIndex;
+    const char *Name;
+    const char *Meaning;
+} FE_NET_SLOT;
+
+static const FE_NET_SLOT g_NetSlots[] = {
+    { 0x7B2, "WFP NBL",        "FindWfpNblInfoDispatchTableClear" },
+    { 0x7B4, "WFP NBL sect",   "ScanWfpNblInfoSections" },
+    { 0x7B8, "KFD offload",    "FindKfdGetOffloadEpochExport" },
+    { 0x7BB, "Kernel data",    "ScanKernelDataPartitionSection" },
+    { 0x7BC, "KFD reg layer",  "FindKfdRegisterLayerCallbackExport" },
+    { 0x7BE, "KFD dereg",      "FindKfdDeregisterLayerCallbackExport" },
+    { 0x7C0, "KFD sections",   "ScanKfdDriverSections" },
+    { 0x7C1, "WFP st shim",    "FindWfpStartStreamShimExport" },
+    { 0x7C3, "WFP sp shim",    "FindWfpStopStreamShimExport" },
+    { 0x7C7, "WFP shim sect",  "ScanWfpStreamShimSections" },
+    { 0x7C8, "NSI dereg",      "FindNsiDeregisterChangeNotificationEx" },
+    { 0x7CA, "NSI module",     "FindNsiGetModuleHandle" },
+    { 0x7CD, "NSI data sect",  "ScanNsiGetModuleDataSection" },
+    { 0x7CE, "NSI legacy",     "FindNsiDeregisterLegacyHandler" },
+    { 0x7D0, "NSI dereg sect", "ScanNsiDeregisterDataSection" },
+    { 0x7D1, "WFP mac shim",   "FindWfpStartMacShimExport" },
+    { 0x7D3, "WFP mac sect",   "ScanWfpMacShimSections" },
+    { 0x7D4, "WFP device",     "FindSetWfpDeviceObject" },
+    { 0x7D6, "WFP dev sect",   "ScanWfpDeviceObjectSection" },
+    { 0x7D7, "NMR provider",   "FindNmrRegisterProviderExport" }
+};
+#define FE_NET_SLOT_N (sizeof(g_NetSlots) / sizeof(g_NetSlots[0]))
+
+static void CreateNwColumns(HWND hList)
+{
+    LVCOLUMNA c;
+    static const struct { const char *t; int w; } cols[] = {
+        { "Object",  150 },
+        { "Value",   180 },
+        { "Resolver", 380 }
+    };
+    int i;
+
+    while (ListView_DeleteColumn(hList, 0))
+        ;
+    ZeroMemory(&c, sizeof(c));
+    c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+    for (i = 0; i < 3; i++) {
+        c.pszText = (char *)cols[i].t;
+        c.cx = cols[i].w;
+        c.iSubItem = i;
+        ListView_InsertColumn(hList, i, &c);
+    }
+}
+
+/* 通过 0x13A 诊断通道读 env 块里的 20 个解析槽 */
+static void DoRefreshNetwork(void)
+{
+    UCHAR *buf;
+    UCHAR res = 0;
+    char status[512];
+    ULONG i, nonZero = 0;
+    int row = 0;
+
+    if (!g_hNwList || !g_hNwStatus)
+        return;
+    ListView_DeleteAllItems(g_hNwList);
+    CreateNwColumns(g_hNwList);
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hNwStatus, "Network: not connected");
+        return;
+    }
+
+    /* 先触发 0xF8，让 WFP/KFD/NSI 解析结果就位（槽空才解析，重复调用无害） */
+    {
+        UCHAR dummy[0x40];
+        XpchInvoke(&g_Client, 0xF8, NULL, 0, dummy, sizeof(dummy), &res);
+    }
+
+    buf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x4000);
+    if (!buf) {
+        SetWindowTextA(g_hNwStatus, "Network: out of memory");
+        return;
+    }
+    if (!XpchInvoke(&g_Client, 0x13A, NULL, 0, buf, 0x4000, &res)) {
+        SetWindowTextA(g_hNwStatus, "Network: 0x13A unavailable");
+        HeapFree(GetProcessHeap(), 0, buf);
+        return;
+    }
+
+    {
+        /* env 块起点：283 条统计 * 16 + 开记录 16 */
+        const UCHAR *env = buf + 283 * 16 + 16;
+        const ULONG64 *vals = (const ULONG64 *)(const void *)(env + 0x400);
+        ULONG stage = *(const ULONG *)(const void *)(env + 0x3B0);
+        ULONG fsize = *(const ULONG *)(const void *)(env + 0x3B4);
+
+        for (i = 0; i < FE_NET_SLOT_N; i++) {
+            LVITEMA it;
+            char val[64];
+            char meaning[160];
+
+            if (vals[i])
+                nonZero++;
+            sprintf_s(val, sizeof(val), "0x%016llX",
+                      (unsigned long long)vals[i]);
+            sprintf_s(meaning, sizeof(meaning), "%s  (GT[0x%X])",
+                      g_NetSlots[i].Meaning, g_NetSlots[i].GtIndex);
+
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = row;
+            it.pszText = (char *)g_NetSlots[i].Name;
+            SendMessageA(g_hNwList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            it.iSubItem = 1; it.pszText = val;
+            SendMessageA(g_hNwList, LVM_SETITEMTEXTA, row, (LPARAM)&it);
+            it.iSubItem = 2; it.pszText = meaning;
+            SendMessageA(g_hNwList, LVM_SETITEMTEXTA, row, (LPARAM)&it);
+            row++;
+        }
+
+        sprintf_s(status, sizeof(status),
+                  "Network: %lu/%lu resolved   netio.sys=0x%lX   stage=%lu"
+                  "   (0=not run 1=read failed 2=parsing 3=done)",
+                  nonZero, (ULONG)FE_NET_SLOT_N, fsize, stage);
+        SetWindowTextA(g_hNwStatus, status);
+    }
+
+    HeapFree(GetProcessHeap(), 0, buf);
+}
+
 static void DoRefreshServices(void)
 {
     FE_SERVICE_LIST list;
@@ -1413,9 +1560,13 @@ static void CreateRgColumns(HWND hList, int tab)
         c.pszText = "Access";  c.cx = 110; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
         c.pszText = "Key Object"; c.cx = 640; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
     } else if (tab == 2) {
-        c.pszText = "Value Name"; c.cx = 240; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
-        c.pszText = "Type";       c.cx = 170; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
-        c.pszText = "Data";       c.cx = 530; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        /* CmpNotifyChange：CmRegisterCallback 注册的回调链。
+           数据源为命令 0x127（CmdEnumRegistryContext），要求出参缓冲
+           恰好 1800 字节（驱动里是 `BufferSize == 1800` 硬判断）。 */
+        c.pszText = "Index";     c.cx = 70;  c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
+        c.pszText = "Function";  c.cx = 200; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
+        c.pszText = "Context";   c.cx = 200; c.iSubItem = 2; ListView_InsertColumn(hList, 2, &c);
+        c.pszText = "Slot";      c.cx = 400; c.iSubItem = 3; ListView_InsertColumn(hList, 3, &c);
     } else {
         c.pszText = "RegPath"; c.cx = 700; c.iSubItem = 0; ListView_InsertColumn(hList, 0, &c);
         c.pszText = "Reason";  c.cx = 260; c.iSubItem = 1; ListView_InsertColumn(hList, 1, &c);
@@ -1463,37 +1614,67 @@ static void DoRefreshRegistry(void)
         SetWindowTextA(g_hRgStatus, status);
         FeFreeRegistryHandles(&list);
     } else if (g_RgTab == 2) {
-        FE_REG_VALUE_LIST list;
-        ULONG i;
-        char shown[640];
-        HWND ed = GetDlgItem(GetParent(g_hRgList), IDC_RG_PATH);
-        if (ed)
-            GetWindowTextA(ed, g_RgPath, (int)sizeof(g_RgPath));
-        if (!FeLoadRegValues(g_RgPath, &list)) {
-            sprintf_s(status, sizeof(status), "Key: cannot open %s (error %lu)",
-                      g_RgPath, (unsigned long)list.LastError);
-            SetWindowTextA(g_hRgStatus, status);
-            /* 路径不存在也要把输入框里的内容留下来，方便改 */
-            if (ed)
-                SetWindowTextA(ed, g_RgPath);
-            FeFreeRegValues(&list);
+        /* CmpNotifyChange：命令 0x127 CmdEnumRegistryContext。
+           实测（2026-10-23）：出参缓冲必须**恰好 1800 字节**
+           （驱动里是 `BufferSize == 1800` 硬判断）。
+           驱动把记录数组写在 pOutputBuffer + 8 处
+           （对应 `EnumerateRegistryContextTable(pOutputBuffer + 8)`），
+           每条记录 0x30 字节：
+             +0x00 DWORD 序号（0,1,2,...）
+             +0x10 QWORD 回调函数地址
+           实测样本（0x18 = 8 + 0x10 即第 0 条的函数）：
+             0xFFFFF80539B7B670 / 0xFFFFF80539B7B270 / 0xFFFFF80539B7EAF0 ...
+           注意首 DWORD（valid flag）只有在 CopyRegistryContextEntryArray
+           与 ValidateCallbackContextTable 都成功时才置 1；即便为 0，
+           上面这批函数地址仍是真实枚举结果，照实展示。 */
+        UCHAR *ctx = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 1800);
+        UCHAR r127 = 0;
+        int shown2 = 0;
+        ULONG n;
+
+        if (!ctx) {
+            SetWindowTextA(g_hRgStatus, "CmpNotifyChange: out of memory");
             return;
         }
-        for (i = 0; i < list.Count; i++) {
-            LVITEMA it;
-            ZeroMemory(&it, sizeof(it));
-            it.mask = LVIF_TEXT;
-            it.iItem = (int)i;
-            it.pszText = list.Items[i].Name;
-            SendMessageA(g_hRgList, LVM_INSERTITEMA, 0, (LPARAM)&it);
-            RgSetText(g_hRgList, (int)i, 1, list.Items[i].Type);
-            RgSetText(g_hRgList, (int)i, 2, list.Items[i].Data);
+        if (!XpchInvoke(&g_Client, 0x127, NULL, 0, ctx, 1800, &r127)) {
+            sprintf_s(status, sizeof(status),
+                      "CmpNotifyChange: 0x127 rejected (result=%u)", r127);
+            SetWindowTextA(g_hRgStatus, status);
+            HeapFree(GetProcessHeap(), 0, ctx);
+            return;
         }
-        /* 状态栏同时显示路径，截断到放得下 */
-        sprintf_s(shown, sizeof(shown), "%s", g_RgPath);
-        sprintf_s(status, sizeof(status), "Key: %s -> %lu values", shown, list.Count);
+        {
+            const UCHAR *recs = ctx + 8;
+            ULONG maxrec = (1800 - 8) / 0x30;
+            for (n = 0; n < maxrec; n++) {
+                const UCHAR *rec = recs + n * 0x30;
+                ULONG idx = *(const ULONG *)(const void *)(rec + 0x00);
+                ULONG64 fn = *(const ULONG64 *)(const void *)(rec + 0x10);
+                LVITEMA it;
+                char sx[24], fs[32], slot[48];
+
+                if (!fn)
+                    continue;
+                ZeroMemory(&it, sizeof(it));
+                it.mask = LVIF_TEXT;
+                it.iItem = shown2;
+                sprintf_s(sx, sizeof(sx), "%lu", idx);
+                it.pszText = sx;
+                SendMessageA(g_hRgList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+                sprintf_s(fs, sizeof(fs), "0x%016llX", (unsigned long long)fn);
+                RgSetText(g_hRgList, shown2, 1, fs);
+                sprintf_s(slot, sizeof(slot), "record %lu (+0x%lX)",
+                          n, (unsigned long)(n * 0x30 + 0x10));
+                RgSetText(g_hRgList, shown2, 3, slot);
+                shown2++;
+            }
+        }
+        sprintf_s(status, sizeof(status),
+                  "CmpNotifyChange: %d registered callback(s)   "
+                  "(0x127 CmdEnumRegistryContext, buffer=1800, valid=%lu)",
+                  shown2, (unsigned long)*(ULONG *)ctx);
         SetWindowTextA(g_hRgStatus, status);
-        FeFreeRegValues(&list);
+        HeapFree(GetProcessHeap(), 0, ctx);
     } else {
         FE_REG_HIDDEN_LIST list;
         ULONG i;
@@ -2339,6 +2520,7 @@ static void ShowPage(HWND hWnd, int page)
     int isSetting = (page == 10);    /* 第 11 个 Tab = Setting */
     int isTrojan = (page == 12);     /* 第 13 个 Tab = Trojan Detection */
     int isHooks = (page == 2 || page == 3);  /* Ring0 Hooks / Ring3 Hooks */
+    int isNetwork = (page == 4);     /* 第 5 个 Tab = Network */
     char hint[512];
     HWND hKill, hRef;
 
@@ -2392,8 +2574,8 @@ static void ShowPage(HWND hWnd, int page)
         HWND hGo = GetDlgItem(hWnd, IDC_RG_GO);
         if (hRg) ShowWindow(hRg, isRegistry ? SW_SHOW : SW_HIDE);
         /* 路径框只在 Key 子页出现 */
-        if (hPath) ShowWindow(hPath, (isRegistry && g_RgTab == 2) ? SW_SHOW : SW_HIDE);
-        if (hGo) ShowWindow(hGo, (isRegistry && g_RgTab == 2) ? SW_SHOW : SW_HIDE);
+        if (hPath) ShowWindow(hPath, (isRegistry && g_RgTab == 0) ? SW_SHOW : SW_HIDE);
+        if (hGo) ShowWindow(hGo, (isRegistry && g_RgTab == 0) ? SW_SHOW : SW_HIDE);
     }
 
     if (g_hFlDir)    ShowWindow(g_hFlDir,    isFile ? SW_SHOW : SW_HIDE);
@@ -2428,6 +2610,12 @@ static void ShowPage(HWND hWnd, int page)
         if (h2) ShowWindow(h2, isExam ? SW_SHOW : SW_HIDE);
         if (h3) ShowWindow(h3, isExam ? SW_SHOW : SW_HIDE);
     }
+
+    /* Network 页：切到该页时按需拉一次解析结果 */
+    if (g_hNwList)   ShowWindow(g_hNwList,   isNetwork ? SW_SHOW : SW_HIDE);
+    if (g_hNwStatus) ShowWindow(g_hNwStatus, isNetwork ? SW_SHOW : SW_HIDE);
+    if (isNetwork && g_Client.Opened)
+        DoRefreshNetwork();
 
     if (g_hFePath)   ShowWindow(g_hFePath,   isFireeye ? SW_SHOW : SW_HIDE);
     if (g_hFeList)   ShowWindow(g_hFeList,   isFireeye ? SW_SHOW : SW_HIDE);
@@ -2485,18 +2673,29 @@ static void ShowPage(HWND hWnd, int page)
 
     if (g_hPageHint) {
         if (isProc || isKernel || isStartup || isServices || isRegistry || isFile ||
-            isOther || isExam || isFireeye || isSetting || isTrojan || isHooks) {
+            isOther || isExam || isFireeye || isSetting || isTrojan || isHooks ||
+            isNetwork) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
-            /* 只有 Network（页 4）会走到这里。它不是"还没做"，而是原驱动没有
-               对应的网络命令（命令表 282 槽逐槽审计确认），30 个字段
-               都没有数据源。如实说明，不伪造数据。 */
+            /* 【2026-10-22 实测更正】此前的提示说"驱动没有网络命令"，是错的。
+           实机验证（kd 读 g_GlobalTable）：
+             命令 0xF8 CmdInitKernelMemoryContext 的处理器被执行（HANDLED）；
+             netio.sys 读取成功（0x94000 字节，kmctx stage=3 全部完成）；
+             26 组 WFP/KFD/NSI 解析产出真实值，例如
+               GT[0x7B2] = 0x0005CE00（WFP NBL 分派表 RVA）
+                         + 0xFFFFF805387DCE00（解析出的绝对地址）
+               GT[0x7B8] = 0x000144D0（KFD offload epoch 导出）
+               GT[0x7DE] = 0x0001F020（KFD delete callout）
+           也就是说数据源是存在的。当前页面尚未把这些槽渲染成列表，
+           这是**渲染层未完成**，不是驱动缺数据。如实说明，不伪造。 */
             sprintf_s(hint, sizeof(hint),
-                      "%s  -  no data source in this driver.\r\n\r\n"
-                      "The 282-slot command table has no network command, so "
-                      "WFP / NDIS / NSI structures are not exposed by any of "
-                      "them. See docs/reversing/命令表1比1对齐审计_2026-10-22.md "
-                      "for the per-slot audit.",
+                      "%s  -  data source present, view not yet rendered.\r\n\r\n"
+                      "Command 0xF8 (CmdInitKernelMemoryContext) runs and parses "
+                      "netio.sys successfully; the WFP / KFD / NSI results are "
+                      "stored in GT[0x7B2..0x7E0]. This page does not render "
+                      "them yet. The earlier note claiming the driver has no "
+                      "network command was wrong (it was based on a scan run "
+                      "whose 0x22 probe had wiped the handler table).",
                       g_MainTabNames[page < 14 ? page : 0]);
             SetWindowTextA(g_hPageHint, hint);
             ShowWindow(g_hPageHint, SW_SHOW);
@@ -3766,10 +3965,15 @@ static void DoLocateDriverInRegistry(void)
     if (g_hMainWnd)
         ShowPage(g_hMainWnd, 5);
 
-    /* 切 Registry 子 Tab 到 Key（索引 2） */
-    g_RgTab = 2;
+    /* 【2026-10-23 修正】原版 Registry 只有 3 个子页
+       （View Handle / Hidden Item / CmpNotifyChange，见 PCHunter64.exe
+       0x45D99A 起的字符串组），**没有独立的 "Key 浏览" 子页**。
+       所以 Locate in Registry Tab 的语义是：切到 Registry 页并把目标路径
+       填进路径框，去 View Handle 列表里定位该键的句柄，
+       而不是切到某个 "Key" 子页（那个子页本来就不存在）。 */
+    g_RgTab = 0;
     if (g_hRgTabs)
-        SendMessageA(g_hRgTabs, TCM_SETCURSEL, 2, 0);
+        SendMessageA(g_hRgTabs, TCM_SETCURSEL, 0, 0);
 
     hPath = GetDlgItem(g_hMainWnd, IDC_RG_PATH);
     hGo = GetDlgItem(g_hMainWnd, IDC_RG_GO);
@@ -4006,7 +4210,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             TCITEMA t;
             int k;
-            static const char *rgNames[3] = { "Reg Handle", "Hidden Item", "Key" };
+            /* 原版 Registry 子页名单（PCHunter64.exe 0x45D99A 起）：
+               View Handle / Hidden Item / CmpNotifyChange
+               此前第 3 项写成 "Key"，与原版不符。 */
+            static const char *rgNames[3] = { "View Handle", "Hidden Item", "CmpNotifyChange" };
             for (k = 0; k < 3; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
@@ -4055,6 +4262,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 108, 940, 500, hWnd, (HMENU)IDC_OT_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hOtList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         DoRefreshOther();
+
+        /* ---- Network 页（主 Tab 4）----
+           数据源：0xF8 CmdInitKernelMemoryContext 解析 netio.sys 得到的
+           WFP/KFD/NSI 结果（GT[0x7B2..0x7DE]），经 0x13A 诊断通道导出。 */
+        g_hNwStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
+                                    10, 80, 940, 20, hWnd, (HMENU)IDC_NW_STATUS, hInst, NULL);
+        g_hNwList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
+                                    WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
+                                    10, 108, 940, 500, hWnd, (HMENU)IDC_NW_LIST, hInst, NULL);
+        ListView_SetExtendedListViewStyle(g_hNwList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
         /* ---- Examination 页（主 Tab 9）---- */
         CreateWindowA("BUTTON", "Computer Examination", WS_CHILD | BS_PUSHBUTTON,
@@ -4348,8 +4565,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             HWND hPath = GetDlgItem(hWnd, IDC_RG_PATH);
             HWND hGo = GetDlgItem(hWnd, IDC_RG_GO);
             int tabsY, listY, listH;
-            if (g_RgTab == 2) {
-                /* Key 子页多一行路径框：Refresh | [path] [Go] / status / tabs / list */
+            if (g_RgTab == 0) {
+                /* View Handle 子页多一行路径框：Refresh | [path] [Go] / status / tabs / list */
                 tabsY = pageTop + 56;
                 listY = pageTop + 86;
                 if (hPath) MoveWindow(hPath, 110, pageTop + 2,
@@ -4564,13 +4781,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             hPath = GetDlgItem(hWnd, IDC_RG_PATH);
             hGo = GetDlgItem(hWnd, IDC_RG_GO);
             if (hPath) {
-                ShowWindow(hPath, g_RgTab == 2 ? SW_SHOW : SW_HIDE);
-                if (g_RgTab == 2)
+                ShowWindow(hPath, g_RgTab == 0 ? SW_SHOW : SW_HIDE);
+                if (g_RgTab == 0)
                     SetWindowTextA(hPath, g_RgPath);
                 if (hGo)
                     SetWindowTextA(hGo, "Go");
                 if (hGo)
-                    ShowWindow(hGo, g_RgTab == 2 ? SW_SHOW : SW_HIDE);
+                    ShowWindow(hGo, g_RgTab == 0 ? SW_SHOW : SW_HIDE);
             }
             DoRefreshRegistry();
             /* Key 子页多一行路径框，切子页时要重排 */
@@ -5073,6 +5290,123 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
         return FePrintHiddenDrivers() ? 0 : 1;
+    /* --network-cli：无界面打印 Network 页的实际数据行。
+       用途同 --g4-status-cli：截图不可靠时直接输出程序生成的内容。 */
+    /* --reg-cli：无界面打印 Registry 页 CmpNotifyChange 子页的实际数据。
+       命令 0x127 CmdEnumRegistryContext，出参缓冲必须**恰好 1800 字节**
+       （驱动里是 `BufferSize == 1800` 硬判断）。 */
+    if (lpCmdLine && strstr(lpCmdLine, "--reg-cli")) {
+        UCHAR *ctx;
+        UCHAR r127 = 0;
+        ULONG n;
+        int shown = 0;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        if (!XpchHandshake(&g_Client)) {
+            printf("handshake failed\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        /* 与 probe --raw 保持一致：握手后再发一次 0x24 建立普通命令通路，
+           否则紧接着的 0x127 拿到的 valid flag 恒为 0（实测差异）。 */
+        {
+            ULONG build = 0;
+            UCHAR r24 = 0;
+            XpchInvoke(&g_Client, XPCH_CMD_GET_MODULE_COUNT,
+                       NULL, 0, &build, sizeof(build), &r24);
+            printf("  probe path: 0x24 -> result=%u build=%lu (0x%lX)\n",
+                   r24, build, build);
+        }
+        ctx = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 1800);
+        if (!ctx) {
+            printf("out of memory\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        if (!XpchInvoke(&g_Client, 0x127, NULL, 0, ctx, 1800, &r127)) {
+            printf("0x127 CmdEnumRegistryContext rejected (result=%u)\n", r127);
+            HeapFree(GetProcessHeap(), 0, ctx);
+            XpchClose(&g_Client);
+            return 1;
+        }
+        printf("CmpNotifyChange (0x127 CmdEnumRegistryContext, buffer=1800)\n");
+        printf("  valid flag = %lu   (1 = Copy+Validate also succeeded)\n",
+               *(ULONG *)ctx);
+        {
+            /* 记录数组从 ctx+8 开始，每条 0x30 字节，+0x10 是回调函数 */
+            const UCHAR *recs = ctx + 8;
+            ULONG maxrec = (1800 - 8) / 0x30;
+            for (n = 0; n < maxrec; n++) {
+                const UCHAR *rec = recs + n * 0x30;
+                ULONG idx = *(const ULONG *)(const void *)(rec + 0x00);
+                ULONG64 fn = *(const ULONG64 *)(const void *)(rec + 0x10);
+                if (!fn)
+                    continue;
+                printf("  [%lu] function = 0x%016llX   (record %lu, +0x%lX)\n",
+                       idx, (unsigned long long)fn,
+                       n, (unsigned long)(n * 0x30 + 0x10));
+                shown++;
+            }
+        }
+        printf("  total %d registered callback(s)\n", shown);
+        HeapFree(GetProcessHeap(), 0, ctx);
+        XpchClose(&g_Client);
+        return 0;
+    }
+
+    if (lpCmdLine && strstr(lpCmdLine, "--network-cli")) {
+        UCHAR *buf;
+        UCHAR res = 0;
+        ULONG i, nonZero = 0;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        if (!XpchHandshake(&g_Client)) {
+            printf("handshake failed\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        {
+            UCHAR dummy[0x40];
+            XpchInvoke(&g_Client, 0xF8, NULL, 0, dummy, sizeof(dummy), &res);
+        }
+        buf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x4000);
+        if (!buf || !XpchInvoke(&g_Client, 0x13A, NULL, 0, buf, 0x4000, &res)) {
+            printf("0x13A unavailable (result=%u)\n", res);
+            if (buf) HeapFree(GetProcessHeap(), 0, buf);
+            XpchClose(&g_Client);
+            return 1;
+        }
+        {
+            const UCHAR *env = buf + 283 * 16 + 16;
+            const ULONG64 *vals = (const ULONG64 *)(const void *)(env + 0x400);
+            ULONG stage = *(const ULONG *)(const void *)(env + 0x3B0);
+            ULONG fsize = *(const ULONG *)(const void *)(env + 0x3B4);
+
+            printf("Network page data (0xF8 InitKernelMemoryContext)\n");
+            printf("  netio.sys size = 0x%lX   stage = %lu "
+                   "(0=not run 1=read failed 2=parsing 3=done)\n", fsize, stage);
+            printf("  %-14s %-20s %s\n", "Object", "Value", "Resolver (GT slot)");
+            for (i = 0; i < FE_NET_SLOT_N; i++) {
+                if (vals[i]) nonZero++;
+                printf("  %-14s 0x%016llX  %s (GT[0x%X])\n",
+                       g_NetSlots[i].Name,
+                       (unsigned long long)vals[i],
+                       g_NetSlots[i].Meaning,
+                       g_NetSlots[i].GtIndex);
+            }
+            printf("  resolved %lu/%lu\n", nonZero, (ULONG)FE_NET_SLOT_N);
+        }
+        HeapFree(GetProcessHeap(), 0, buf);
+        XpchClose(&g_Client);
+        return 0;
+    }
+
     /* --g4-status-cli：打印各页状态栏文案的**实际拼接结果**。
        用于 G4 形态核对：截图受会话/VNC 影响不稳定，直接输出字符串更可靠。 */
     if (lpCmdLine && strstr(lpCmdLine, "--g4-status-cli")) {

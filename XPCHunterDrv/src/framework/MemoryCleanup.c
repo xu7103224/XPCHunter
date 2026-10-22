@@ -5,9 +5,20 @@
 // AllocProcessInfoBuffer — 分配进程信息缓冲区
 // 对应原始驱动 sub_1400813F0
 // 从全局表分配结构体，返回指针指向缓冲区中的子结构
+//
+// 【2026-10-22 诊断】memset(Buffer+198, 0, 0xD8) 会清掉命令表槽 198..224
+//   （命令 0xE6..0x100），包括 0xEF..0xF8。原版在 CmdQueryProcessInfo
+//   的 InSize<=0xA 分支上调用它，所以只要前端不走那条分支，命令表就完好。
+//   g_DiagAllocProcBufCalls 用来确认它到底被调用了几次。
+ULONG g_DiagAllocProcBufCalls = 0;
+
 void *AllocProcessInfoBuffer(void)
 {
     __int64 *Buffer = GtAlloc(GtCommandHandlerBase);
+    g_DiagAllocProcBufCalls++;
+    /* 同时写一个 GT 槽，避免全局变量被优化或读取时机不同导致误判 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4F90,
+            GtRead((GLOBAL_TABLE_INDEX)0x4F90) + 1);
     Buffer[158] = 0;
     Buffer[159] = 0;
     memset(Buffer + 198, 0, 0xD8);

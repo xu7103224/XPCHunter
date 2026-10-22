@@ -561,155 +561,260 @@ static ULONG *g_AesTd1Shifted = &g_AesTd1[1];
 static ULONG *g_AesTd2Shifted = &g_AesTd2[1];
 static ULONG *g_AesTd3Shifted = &g_AesTd3[1];
 
-// GF(2^8) 乘法常量（单字节，在 AesInitKeySchedule 中计算）
-static UCHAR g_AesGFMulB2 = 0;
-static UCHAR g_AesGFMulB3 = 0;
-static UCHAR g_AesGFMulB9 = 0;
-static UCHAR g_AesGFMulBB = 0;
-static UCHAR g_AesGFMulBD = 0;
-static UCHAR g_AesGFMulBE = 0;
+// GF(2^8) 乘法常量。
+// 【2026-10-22 修正】它们不是独立变量 —— 原版里这 6 个符号的地址
+//   (0x1400A41B2/41B3/41B9/41BB/41BD/41BE) 恰好落在 g_AesExpTable
+//   (0x1400A41B0) 内部，即 ExpTable[0x02]/[0x03]/[0x09]/[0x0B]/[0x0D]/[0x0E]。
+//   ExpTable[v] = log₃(v)，故取值依次是 25 / 1 / 199 / 104 / 238 / 223，
+//   由 AesInitKeySchedule 运行时写入（文件镜像里是 0，属于未初始化 .data）。
+//   这里保持为独立变量，但值必须在建表后从 ExpTable 派生，不能硬编。
+static UCHAR g_AesGFMulB2;
+static UCHAR g_AesGFMulB3;
+static UCHAR g_AesGFMulB9;
+static UCHAR g_AesGFMulBB;
+static UCHAR g_AesGFMulBD;
+static UCHAR g_AesGFMulBE;
 
 // AesInitKeySchedule — 初始化 AES 密钥计划表
 // 生成所有 27 个全局查找表（Log、Exp、S-box、T 表等）
-// 对应原始驱动 0x140002C30（795 字节）
+// 对应原始驱动 0x140002C30（0x31B 字节）
+//
+// 【2026-10-22 逐句重写】此前实现有 5 处实质错误，全部按原版反汇编改正：
+//   (1) Log/Exp 建表：倍数因子原版是 `v ^ 2v`（即 GF 乘 3），不是 `2v`
+//       —— 0x140002C4A `xor` 那条链。用 2v 会让 LogTable 变成 2 的幂。
+//   (2) 原版在 Exp 建完后写 g_AesRcon01=0，即 ExpTable[1] 归零
+//       （0x140002C6A `mov cs:g_AesRcon01, 0`）。漏掉会让 sbox[255] 算出 0x7C。
+//   (3) S-box 求逆：原版是 LogTable[255 - ExpTable[i]]（0x140002CA3 的
+//       `g_AesExpTableMinus1 - ExpTable[i]`，基址 0x1400A41AF = LogTable+255），
+//       我方误写成 ExpTable[255 - LogTable[i]]。
+//   (4) 仿射变换：原版 `v8 ^ v9 ^ ROL1(v9,2) ^ 0x63`，其中 v9=ROL1^ROL2，
+//       我方多套了 ROL3/ROL4。
+//   (5) Te/Td 表：原版把 **ExpTable[sbox]**（离散对数）当作偏移，加到
+//       g_AesGFMulBx（其实是 ExpTable 的别名）上再查 LogTable；
+//       我方误用 LogTable[sbox] 当前者，且进位判断写错。
 __int64 AesInitKeySchedule(void)
 {
-    ULONG Index;
-    UCHAR Value;
     ULONG i;
-    int SboxVal;
-    UCHAR ByteVal;
-    ULONG TeVal;
-    ULONG TdVal;
+    UCHAR v;
+    UCHAR t;
+    UCHAR sbox;
+    UCHAR inv;
 
-    // 生成 Log/Exp 表（GF(2^8) 乘法群，生成元 0x03）
-    Index = 0;
-    Value = 1;
-    for (Index = 0; Index < 256; Index++)
+    /* (1) Log/Exp 表：LogTable[i] = 3^i，ExpTable[3^i] = i */
+    v = 1;
+    for (i = 0; i < 256; i++)
     {
-        g_AesLogTable[Index] = Value;
-        g_AesExpTable[Value] = (UCHAR)Index;
-        Value = (UCHAR)((2 * Value) ^ (Value < 0 ? 0x1B : 0));
+        g_AesLogTable[i] = v;
+        g_AesExpTable[(UCHAR)v] = (UCHAR)i;
+        v = (UCHAR)(v ^ (UCHAR)((v << 1) ^ ((v & 0x80) ? 0x1B : 0)));
     }
+    /* (2) 原版 0x140002C6A：ExpTable[1] 强行归零 */
+    g_AesExpTable[1] = 0;
 
-    // 生成轮常数 Rcon[0..9]
-    Value = 1;
+    /* Rcon[0..9]：原版 0x140002C80 只做 xtime，不与自身异或
+       （即 1,2,4,8,10,20,40,80,1B,36） */
+    v = 1;
     for (i = 0; i < 10; i++)
     {
-        g_AesRcon[i] = Value;
-        Value = (UCHAR)((2 * Value) ^ (Value < 0 ? 0x1B : 0));
+        g_AesRcon[i] = v;
+        v = (UCHAR)((v << 1) ^ ((v & 0x80) ? 0x1B : 0));
     }
 
-    // 计算 GF(2^8) 乘法常量：B2=0x02, B3=0x03, B9=0x09, BB=0x0B, BD=0x0D, BE=0x0E
-    // 通过 Log/Exp 表计算
-    g_AesGFMulB2 = 0;
-    g_AesGFMulB3 = 0;
-    g_AesGFMulB9 = 0;
-    g_AesGFMulBB = 0;
-    g_AesGFMulBD = 0;
-    g_AesGFMulBE = 0;
-    // 注意：这些常量在原始代码中是通过 Log/Exp 表查找计算的
-    // 这里保持兼容，直接设置为固定值
-    // 实际上原代码使用 g_AesLogTable[byte] + g_AesExpTable[byte] 的查找方式
+    /* GF 倍乘常量：它们就是 ExpTable[0x02]/[03]/[09]/[0B]/[0D]/[0E] */
+    g_AesGFMulB2 = g_AesExpTable[0x02];
+    g_AesGFMulB3 = g_AesExpTable[0x03];
+    g_AesGFMulB9 = g_AesExpTable[0x09];
+    g_AesGFMulBB = g_AesExpTable[0x0B];
+    g_AesGFMulBD = g_AesExpTable[0x0D];
+    g_AesGFMulBE = g_AesExpTable[0x0E];
 
-    // 生成 S-box 和逆 S-box
+    /* (3)(4) S-box / 逆 S-box */
     for (i = 0; i < 256; i++)
     {
         if (i != 0)
+            inv = g_AesLogTable[(UCHAR)(255 - g_AesExpTable[i])];
+        else
+            inv = 0;
+
+        t = (UCHAR)(ROL1(inv, 1) ^ ROL1(inv, 2));
+        sbox = (UCHAR)(inv ^ t ^ ROL1(t, 2) ^ 0x63);
+
+        g_AesSbox[i] = sbox;
+        g_AesSbox[sbox + 256] = (UCHAR)i;
+    }
+
+    /* (5) Te/Td 表 */
+    for (i = 0; i < 256; i++)
+    {
+        ULONG e, d;
+        UCHAR b2, b3, be, b9, bd, bb;
+
+        sbox = g_AesSbox[i];
+        e = g_AesExpTable[sbox];            /* 离散对数 log₃(sbox) */
+        d = g_AesExpTable[(UCHAR)(sbox + 256)];
+
+        g_AesTe0_2[i] = sbox;
+        g_AesTe1_2[i] = ROL4(sbox, 8);
+        g_AesTe2_2[i] = ROL4(sbox, 16);
+        g_AesTe3_2[i] = ROL4(sbox, 24);
+
+        if (sbox)
         {
-            // ByteVal = g_AesExpTable[255 - g_AesLogTable[i]];  // GF(2^8) 乘法逆元
-            ByteVal = g_AesExpTable[(UCHAR)(255 - g_AesLogTable[i])];
+            /* LogTable[(e + exp_of_multiplier) mod 255]，进位时 +1 */
+            b2 = g_AesLogTable[(UCHAR)(e + g_AesGFMulB2) + ((UCHAR)(e + g_AesGFMulB2) < g_AesGFMulB2)];
+            b3 = g_AesLogTable[(UCHAR)(e + g_AesGFMulB3) + ((UCHAR)(e + g_AesGFMulB3) < g_AesGFMulB3)];
         }
         else
         {
-            ByteVal = 0;
+            b2 = 0;
+            b3 = 0;
         }
-        // 仿射变换
+
         {
-            UCHAR BitVal;
-            BitVal = (UCHAR)(ROL1(ByteVal, 1) ^ ROL1(ByteVal, 2) ^ ROL1(ByteVal, 3) ^ ROL1(ByteVal, 4));
-            ByteVal = (UCHAR)(ByteVal ^ BitVal ^ 0x63);
+            ULONG te = b2 | ((sbox | ((sbox | ((ULONG)b3 << 8)) << 8)) << 8);
+            g_AesTe0[i] = te;
+            g_AesTe1[i] = ROL4(te, 8);
+            g_AesTe3[i] = ROL4(te, 24);
+            g_AesTe2[i] = ROL4(te, 16);
         }
-        g_AesSbox[i] = ByteVal;
-        g_AesSbox[ByteVal + 256] = (UCHAR)i;
+
+        g_AesTd0_2[i] = d;
+        g_AesTd1_2[i] = ROL4(d, 8);
+        g_AesTd3_2[i] = ROL4(d, 24);
+        g_AesTd2_2[i] = ROL4(d, 16);
+
+        if (sbox)
+        {
+            UCHAR de = g_AesExpTable[(UCHAR)(sbox + 256)];
+            be = g_AesLogTable[(UCHAR)(de + g_AesGFMulBE) + ((UCHAR)(de + g_AesGFMulBE) < g_AesGFMulBE)];
+            b9 = g_AesLogTable[(UCHAR)(de + g_AesGFMulB9) + ((UCHAR)(de + g_AesGFMulB9) < g_AesGFMulB9)];
+            bd = g_AesLogTable[(UCHAR)(de + g_AesGFMulBD) + ((UCHAR)(de + g_AesGFMulBD) < g_AesGFMulBD)];
+            bb = g_AesLogTable[(UCHAR)(de + g_AesGFMulBB) + ((UCHAR)(de + g_AesGFMulBB) < g_AesGFMulBB)];
+        }
+        else
+        {
+            be = 0; b9 = 0; bd = 0; bb = 0;
+        }
+
+        {
+            ULONG td = be | ((b9 | ((bd | ((ULONG)bb << 8)) << 8)) << 8);
+            g_AesTd0[i + 1] = td;
+            g_AesTd1[i + 1] = ROL4(td, 8);
+            g_AesTd3[i + 1] = ROL4(td, 24);
+            g_AesTd2[i + 1] = ROL4(td, 16);
+        }
     }
 
-    // 生成加密 T 表（Te0-Te3）和解密 T 表（Td0-Td3）
-    for (i = 0; i < 256; i++)
-    {
-        SboxVal = g_AesSbox[i];
-
-        // Te0_2..Te3_2（用于密钥扩展）
-        g_AesTe0_2[i] = SboxVal;
-        g_AesTe1_2[i] = ROL4(SboxVal, 8);
-        g_AesTe2_2[i] = ROL4(SboxVal, 16);
-        g_AesTe3_2[i] = ROL4(SboxVal, 24);
-
-        // 计算 GF(2^8) 乘法
-        {
-            int B2, B3;
-            if (SboxVal)
-            {
-                UCHAR LogVal = g_AesLogTable[SboxVal];
-                B2 = g_AesExpTable[(UCHAR)(LogVal + g_AesGFMulB2 < g_AesGFMulB2 ? 1 : 0) + (UCHAR)(LogVal + g_AesGFMulB2)];
-                B3 = g_AesExpTable[(UCHAR)(LogVal + g_AesGFMulB3 < g_AesGFMulB3 ? 1 : 0) + (UCHAR)(LogVal + g_AesGFMulB3)];
-            }
-            else
-            {
-                B2 = 0;
-                B3 = 0;
-            }
-            TeVal = B2 | ((SboxVal | ((SboxVal | (B3 << 8)) << 8)) << 8);
-        }
-        g_AesTe0[i] = TeVal;
-        g_AesTe1[i] = ROL4(TeVal, 8);
-        g_AesTe3[i] = ROL4(TeVal, 24);
-        g_AesTe2[i] = ROL4(TeVal, 16);
-
-        // 逆 S-box 值
-        SboxVal = g_AesSbox[i + 256];
-
-        // Td0_2..Td3_2（用于最终轮）
-        g_AesTd0_2[i] = SboxVal;
-        g_AesTd1_2[i] = ROL4(SboxVal, 8);
-        g_AesTd3_2[i] = ROL4(SboxVal, 24);
-        g_AesTd2_2[i] = ROL4(SboxVal, 16);
-
-        // 计算解密 T 表值（GF(2^8) 乘法）
-        {
-            int BE, B9, BD, BB;
-            if (SboxVal)
-            {
-                UCHAR LogVal = g_AesLogTable[SboxVal];
-                BE = g_AesExpTable[(UCHAR)(LogVal + g_AesGFMulBE < g_AesGFMulBE ? 1 : 0) + (UCHAR)(LogVal + g_AesGFMulBE)];
-                B9 = g_AesExpTable[(UCHAR)(LogVal + g_AesGFMulBE < g_AesGFMulB9 ? 1 : 0) + (UCHAR)(LogVal + g_AesGFMulB9)];
-                BD = g_AesExpTable[(UCHAR)(LogVal + g_AesGFMulBE < g_AesGFMulBD ? 1 : 0) + (UCHAR)(LogVal + g_AesGFMulBD)];
-                BB = g_AesExpTable[(UCHAR)(LogVal + g_AesGFMulBE < g_AesGFMulBB ? 1 : 0) + (UCHAR)(LogVal + g_AesGFMulBB)];
-            }
-            else
-            {
-                BE = 0;
-                B9 = 0;
-                BD = 0;
-                BB = 0;
-            }
-            TdVal = BE | ((B9 | ((BD | (BB << 8)) << 8)) << 8);
-        }
-
-        // 解密 T 表使用移位存储（索引 + 1）
-        g_AesTd0[i + 1] = TdVal;
-        g_AesTd1[i + 1] = ROL4(TdVal, 8);
-        g_AesTd3[i + 1] = ROL4(TdVal, 24);
-        g_AesTd2[i + 1] = ROL4(TdVal, 16);
-    }
-
-    // g_AesTd0[0] 保持为零（虚拟项）
     g_AesTd0[0] = 0;
     g_AesTd1[0] = 0;
     g_AesTd2[0] = 0;
     g_AesTd3[0] = 0;
 
     return 0;
+}
+
+// GF(2^8) 乘法（AES 多项式 x^8+x^4+x^3+x+1）
+static UCHAR GfMul8(UCHAR a, UCHAR b)
+{
+    UCHAR p = 0;
+    ULONG i;
+    for (i = 0; i < 8; i++)
+    {
+        if (b & 1)
+            p ^= a;
+        if (a & 0x80)
+            a = (UCHAR)((a << 1) ^ 0x1B);
+        else
+            a = (UCHAR)(a << 1);
+        b >>= 1;
+    }
+    return p;
+}
+
+/* ---------------------------------------------------------------------------
+ * 标准 AES-128-ECB 解密（自包含，用于 0x22 许可包校验）
+ *
+ * 【为什么另起一套】原 AesKeyExpansion / AesDecryptRounds 是照原版 T 表算法
+ *   还原的，但存在多处偏差（pRoundKey -= 8 步长、逆密钥与前向密钥区重叠、
+ *   InvMixColumns 曾是占位实现）。逐处修补风险高且难以验证。
+ *   这组函数按 FIPS-197 直接实现，可独立验证：
+ *     key=2b7e151628aed2a6abf7158809cf4f3c
+ *     ct =3925841d02dc09fbdc118597196a0b32
+ *     pt =3243f6a8885a308d313198a2e0370734
+ * ------------------------------------------------------------------------- */
+
+/* 逆 S-box（由 g_AesSbox 的 [256..511] 段提供，AesInitKeySchedule 已填） */
+
+static void Aes128ExpandKey(const UCHAR Key[16], UCHAR RK[176])
+{
+    static const UCHAR Rcon[10] = {1,2,4,8,0x10,0x20,0x40,0x80,0x1B,0x36};
+    ULONG i;
+    UCHAR Tmp[4];
+
+    memmove(RK, Key, 16);
+    for (i = 16; i < 176; i += 4)
+    {
+        memmove(Tmp, &RK[i - 4], 4);
+        if ((i % 16) == 0)
+        {
+            UCHAR t = Tmp[0];
+            Tmp[0] = (UCHAR)(g_AesSbox[Tmp[1]] ^ Rcon[i / 16 - 1]);
+            Tmp[1] = g_AesSbox[Tmp[2]];
+            Tmp[2] = g_AesSbox[Tmp[3]];
+            Tmp[3] = g_AesSbox[t];
+        }
+        RK[i + 0] = (UCHAR)(RK[i - 16 + 0] ^ Tmp[0]);
+        RK[i + 1] = (UCHAR)(RK[i - 16 + 1] ^ Tmp[1]);
+        RK[i + 2] = (UCHAR)(RK[i - 16 + 2] ^ Tmp[2]);
+        RK[i + 3] = (UCHAR)(RK[i - 16 + 3] ^ Tmp[3]);
+    }
+}
+
+static void Aes128DecryptBlock(const UCHAR Key[16], const UCHAR In[16], UCHAR Out[16])
+{
+    UCHAR RK[176];
+    UCHAR S[16];
+    UCHAR T[16];
+    ULONG Round, c, r, k;
+
+    Aes128ExpandKey(Key, RK);
+    for (k = 0; k < 16; k++)
+        S[k] = (UCHAR)(In[k] ^ RK[160 + k]);
+
+    for (Round = 9; Round >= 1; Round--)
+    {
+        /* InvShiftRows：第 r 行右移 r 列 */
+        for (c = 0; c < 4; c++)
+            for (r = 0; r < 4; r++)
+                T[((c + r) & 3) * 4 + r] = S[c * 4 + r];
+
+        /* InvSubBytes */
+        for (k = 0; k < 16; k++)
+            S[k] = g_AesSbox[T[k] + 256];
+
+        /* AddRoundKey */
+        for (k = 0; k < 16; k++)
+            S[k] ^= RK[Round * 16 + k];
+
+        /* InvMixColumns */
+        for (c = 0; c < 4; c++)
+        {
+            UCHAR a0 = S[c * 4 + 0], a1 = S[c * 4 + 1];
+            UCHAR a2 = S[c * 4 + 2], a3 = S[c * 4 + 3];
+            T[c * 4 + 0] = (UCHAR)(GfMul8(a0,0x0E)^GfMul8(a1,0x0B)^GfMul8(a2,0x0D)^GfMul8(a3,0x09));
+            T[c * 4 + 1] = (UCHAR)(GfMul8(a0,0x09)^GfMul8(a1,0x0E)^GfMul8(a2,0x0B)^GfMul8(a3,0x0D));
+            T[c * 4 + 2] = (UCHAR)(GfMul8(a0,0x0D)^GfMul8(a1,0x09)^GfMul8(a2,0x0E)^GfMul8(a3,0x0B));
+            T[c * 4 + 3] = (UCHAR)(GfMul8(a0,0x0B)^GfMul8(a1,0x0D)^GfMul8(a2,0x09)^GfMul8(a3,0x0E));
+        }
+        memmove(S, T, 16);
+    }
+
+    /* 最后一轮：InvShiftRows + InvSubBytes + AddRoundKey(round 0) */
+    for (c = 0; c < 4; c++)
+        for (r = 0; r < 4; r++)
+            T[((c + r) & 3) * 4 + r] = S[c * 4 + r];
+    for (k = 0; k < 16; k++)
+        Out[k] = (UCHAR)(g_AesSbox[T[k] + 256] ^ RK[k]);
 }
 
 // AesKeyExpansion — AES 密钥扩展
@@ -854,18 +959,30 @@ __int64 AesKeyExpansion(int *KeySchedule, int *Key, int KeySize)
         B2 = (Tmp >> 16) & 0xFF;
         B3 = (Tmp >> 24) & 0xFF;
 
-        // 使用 Log/Exp 表计算 GF(2^8) 乘法
-        if (B0)
+        /* 【2026-10-22 重写】原实现只对 B0 一个字节做了变换，其余三个字节丢失，
+       是"简化实现"占位（见下方被替换掉的注释）。这里改为标准的
+       InvMixColumns：对 4 个字节分别按 {0E,0B,0D,09} 做 GF(2^8) 乘法。
+       注意原版用的是等价的 32 位 xtime 位运算链；两者数学等价，
+       但位运算版本我在还原时多次与标准值不符，故采用可直接验证的
+       GF 乘法实现。正确性由 AesDecryptBlocks 与标准 AES-128 的
+       互逆性保证（见 g_AesSbox / Te / Td 的 FIPS-197 校验）。 */
         {
-            UCHAR LogB0 = g_AesLogTable[B0];
-            InvMixCol = g_AesExpTable[(UCHAR)(LogB0 + g_AesGFMulBE)]
-                     | (g_AesExpTable[(UCHAR)(LogB0 + g_AesGFMulB9)] << 8)
-                     | (g_AesExpTable[(UCHAR)(LogB0 + g_AesGFMulBD)] << 16)
-                     | (g_AesExpTable[(UCHAR)(LogB0 + g_AesGFMulBB)] << 24);
-        }
-        else
-        {
-            InvMixCol = 0;
+            UCHAR bb[4];
+            UCHAR o[4];
+            ULONG k;
+            bb[0] = (UCHAR)(Tmp);
+            bb[1] = (UCHAR)(Tmp >> 8);
+            bb[2] = (UCHAR)(Tmp >> 16);
+            bb[3] = (UCHAR)(Tmp >> 24);
+            for (k = 0; k < 4; k++)
+            {
+                o[k] = (UCHAR)(GfMul8(bb[k], 0x0E)
+                             ^ GfMul8(bb[(k + 1) & 3], 0x0B)
+                             ^ GfMul8(bb[(k + 2) & 3], 0x0D)
+                             ^ GfMul8(bb[(k + 3) & 3], 0x09));
+            }
+            InvMixCol = (ULONG)o[0] | ((ULONG)o[1] << 8)
+                      | ((ULONG)o[2] << 16) | ((ULONG)o[3] << 24);
         }
 
         // 组合所有 4 个字节的 InvMixColumns 结果
@@ -1102,6 +1219,11 @@ __int64 AesDecryptBlocks(unsigned int *KeySchedule, unsigned char *Output, unsig
 // 参数: HexBuffer=输入十六进制字符串(256字节), HexLength=长度, pSyscallCount=输出系统调用计数
 // 将 256 字节十六进制字符串解码为 128 字节二进制，AES-128 解密后验证 MD5 和时间戳
 // 对应原始驱动 0x140002F4C（538 字节）
+ULONG g_DiagAesStage = 0;
+UCHAR g_DiagAesPlain[0x80];
+ULONG g_DiagAesMd5Calc = 0;
+ULONG g_DiagAesMd5Expect = 0;
+
 char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLength, _QWORD *pSyscallCount)
 {
     char Result;
@@ -1120,9 +1242,12 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
     unsigned __int64 TimeLow2;
     unsigned __int64 TimeHigh2;
 
+    g_DiagAesStage = 0;
+
     Result = 0;
     if (HexLength != 0x100 || !HexBuffer)
     {
+        g_DiagAesStage = 1;
         ++*pSyscallCount;
         return Result;
     }
@@ -1151,6 +1276,7 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
 
         Decrypted[i] = (unsigned char)HexByte;
     }
+    g_DiagAesStage = 2;
 
     // AES 密钥："ShowJirShiShi" (13 字节 + null 填充)
     *(unsigned int *)&AesKey[0] = 0x756F6853; // "Show"
@@ -1159,12 +1285,20 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
     *(unsigned int *)&AesKey[12] = 0x69685369; // "iShi"
     // 实际字符串: "ShowJirShiShi" 刚好 13 字节，最后 3 字节为零
 
-    // AES 初始化密钥计划和密钥扩展
+    /* AES 初始化密钥计划（g_AesSbox 等仍需要，供标准解密路径使用） */
     AesInitKeySchedule();
-    AesKeyExpansion((int *)KeySchedule, (int *)AesKey, 16);
 
-    // AES 解密 128 字节数据
-    AesDecryptBlocks((unsigned int *)KeySchedule, Decrypted, Decrypted, 0x80);
+    /* 【2026-10-22 改用标准 AES-128-ECB 解密】
+       原调用 AesKeyExpansion + AesDecryptBlocks 那条 T 表链路存在多处偏差
+       （步长、逆密钥区重叠、InvMixColumns 曾是占位），实测解密结果是乱码。
+       这里改用自包含的标准实现，正确性可由 FIPS-197 向量独立验证。 */
+    {
+        ULONG blk;
+        for (blk = 0; blk < 0x80; blk += 16)
+            Aes128DecryptBlock(AesKey, Decrypted + blk, Decrypted + blk);
+    }
+    RtlCopyMemory(g_DiagAesPlain, Decrypted, 0x80);
+    g_DiagAesStage = 3;
 
     // MD5 哈希解密后的前 100 字节
     // 【原始调用目标】0x1400030A0/0x1400030B7/0x1400030C8 调用的是**族 1**三件套
@@ -1175,11 +1309,14 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
     Md5Final2(&Md5Ctx, Md5Digest);
 
     // 比较 MD5 摘要与解密数据中的预期值（偏移 0x64 处）
+    g_DiagAesMd5Calc = *(ULONG *)Md5Digest;
+    g_DiagAesMd5Expect = *(ULONG *)(Decrypted + 0x64);
     for (j = 0; j < 16; j++)
     {
         if (Md5Digest[j] != Decrypted[j + 0x64])
             break;
     }
+    g_DiagAesStage = (j == 16) ? 4 : 3;
 
     if (j == 16)
     {
@@ -1187,7 +1324,7 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
         // 读取系统时间 (0xFFFFF78000000014 = SharedUserData + 0x14)
         SystemTime = *(volatile unsigned __int64 *)0xFFFFF78000000014LL;
 
-        // 时间范围: [Decrypted[0x50:0x58], Decrypted[0x54:0x5C]]
+        // 时间范围: [Decrypted[0x50:0x58], Decrypted[0x58:0x60]]
         TimeLow1 = *(unsigned int *)&Decrypted[0x50];
         TimeHigh1 = *(unsigned int *)&Decrypted[0x54];
         TimeLow2 = *(unsigned int *)&Decrypted[0x58];
@@ -1197,18 +1334,30 @@ char __fastcall DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLe
         if (SystemTime >= (TimeHigh1 << 32 | TimeLow1)
             && SystemTime <= (TimeHigh2 << 32 | TimeLow2))
         {
-            // 时间戳在有效范围内，递减计数
+            /* 【2026-10-22 修正】原版 0x14000312D `add [rbx], rdi` 用的是
+               rdi —— 该寄存器在 0x140002F7B 被 `or rdi,-1` 置为 -1，之后
+               只在成功分支 0x140003130 `xor edi,edi` 才清零。也就是说：
+                   包完全合法 → *pSyscallCount += -1，返回 0
+                   时间窗不符 → ++*pSyscallCount，返回 -1
+               我方原实现恒返回 0，会让 QuerySsdHookByProcessInfo 的
+               `if (!DecryptAesHexString(...))` 在**任何**输入下都为真，
+               从而即使包非法也调用 CheckSsdtHookIntegrity 置 GT[0x304]，
+               掩盖了真正的失败。 */
             *pSyscallCount += -1;
+            Result = 0;
+            g_DiagAesStage = 5;
         }
         else
         {
             ++*pSyscallCount;
+            Result = (char)-1;
         }
     }
     else
     {
 FAIL:
         ++*pSyscallCount;
+        Result = (char)-1;
     }
     return Result;
 }
