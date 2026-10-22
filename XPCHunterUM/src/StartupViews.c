@@ -448,3 +448,169 @@ BOOL FeDeleteStartupItem(const FE_STARTUP_ENTRY *Item)
     RegCloseKey(hk);
     return st == ERROR_SUCCESS;
 }
+
+/* ---------------------------------------------------------------------------
+ * Startup Info 的两项破坏性操作（原版右键菜单）
+ *
+ *   Delete(Startup And File)  删除自启动项 + 删除它指向的文件
+ *   Repair Startup            把启动项恢复到"系统默认"：
+ *                             · Run 类：值存在但指向不存在的文件 → 删除该项
+ *                             · 启动文件夹：项指向不存在的文件 → 删除 .lnk
+ *                             · 其余情况视为无需修复，返回"无需修复"
+ * ------------------------------------------------------------------------- */
+
+/* 从自启动项的 Data 里取出可执行文件路径。
+ * Data 可能是 "C:\x.exe -arg"、"\"C:\x y.exe\" -arg" 或裸路径。 */
+static void FeStartupExtractPath(const char *Data, char *Out, size_t OutChars)
+{
+    size_t i = 0, n = 0;
+
+    if (!Out || !OutChars)
+        return;
+    Out[0] = 0;
+    if (!Data)
+        return;
+    while (Data[i] == ' ')
+        i++;
+    if (Data[i] == '"') {
+        i++;
+        while (Data[i] && Data[i] != '"' && n + 1 < OutChars)
+            Out[n++] = Data[i++];
+        Out[n] = 0;
+        return;
+    }
+    while (Data[i] && n + 1 < OutChars) {
+        /* 裸路径里遇到 " -" 认为参数开始 */
+        if (Data[i] == ' ' && Data[i + 1] == '-')
+            break;
+        Out[n++] = Data[i++];
+    }
+    while (n && Out[n - 1] == ' ')
+        n--;
+    Out[n] = 0;
+}
+
+/* Delete(Startup And File)：删注册表值 + 删文件。
+ * 两者分别返回，便于如实报告"只删掉了一半"。 */
+BOOL FeDeleteStartupItemAndFile(const FE_STARTUP_ENTRY *Item,
+                                char *DeletedPath, size_t PathChars,
+                                BOOL *pRegDeleted, DWORD *pFileError)
+{
+    char path[FE_STARTUP_DATA_CHARS];
+    WCHAR wpath[MAX_PATH];
+
+    if (pRegDeleted) *pRegDeleted = FALSE;
+    if (pFileError)  *pFileError = 0;
+    if (DeletedPath && PathChars)
+        DeletedPath[0] = 0;
+    if (!Item)
+        return FALSE;
+
+    /* 【安全约束 2026-10-22】非 Run 类位置（Winlogon\Shell、Userinit、
+       AppInit_DLLs 等）的 Data 不是"可执行文件路径"，删文件只会误伤系统。
+       这些位置只删注册表值 —— 那是用户明确点"Delete"的意思，
+       但绝不连带删除文件。 */
+    {
+        BOOL isRun = (strstr(Item->Location, "Run") != NULL);
+        if (!isRun) {
+            if (pRegDeleted)
+                *pRegDeleted = FeDeleteStartupItem(Item);
+            if (pFileError) *pFileError = 0;
+            return pRegDeleted ? *pRegDeleted : FALSE;
+        }
+    }
+
+    FeStartupExtractPath(Item->Data, path, sizeof(path));
+    /* 展开环境变量，避免对 %windir%\... 这类项报"文件不存在" */
+    if (path[0]) {
+        char expanded[FE_STARTUP_DATA_CHARS];
+        DWORD en = ExpandEnvironmentStringsA(path, expanded, sizeof(expanded));
+        if (en > 0 && en <= sizeof(expanded))
+            strcpy_s(path, sizeof(path), expanded);
+    }
+    if (pRegDeleted)
+        *pRegDeleted = FeDeleteStartupItem(Item);
+
+    if (!path[0]) {
+        if (pFileError) *pFileError = ERROR_FILE_NOT_FOUND;
+        return pRegDeleted ? *pRegDeleted : FALSE;
+    }
+    MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, MAX_PATH);
+    if (!DeleteFileW(wpath)) {
+        DWORD err = GetLastError();
+        if (err == ERROR_FILE_NOT_FOUND && pRegDeleted && *pRegDeleted) {
+            /* 文件本来就不在：注册表删掉即算完成 */
+            if (DeletedPath && PathChars)
+                strcpy_s(DeletedPath, PathChars, path);
+            return TRUE;
+        }
+        if (pFileError) *pFileError = err;
+        return FALSE;
+    }
+    if (DeletedPath && PathChars)
+        strcpy_s(DeletedPath, PathChars, path);
+    return TRUE;
+}
+
+/* Repair Startup：只处理"指向的文件已不存在"的项——把它删掉。
+ * 返回列表里被修复的条数（pChecked 为总检查数）。 */
+ULONG FeRepairStartupItems(ULONG *pChecked, FE_STARTUP_LIST *Repaired)
+{
+    FE_STARTUP_LIST list;
+    ULONG i, fixed = 0;
+
+    if (pChecked) *pChecked = 0;
+    if (Repaired) {
+        Repaired->Count = 0;
+        Repaired->Capacity = 0;
+        Repaired->Items = NULL;
+    }
+    if (!FeLoadStartupItems(&list))
+        return 0;
+    if (pChecked) *pChecked = list.Count;
+
+    for (i = 0; i < list.Count; i++) {
+        char path[FE_STARTUP_DATA_CHARS];
+        WCHAR wpath[MAX_PATH];
+
+        /* 【安全约束 2026-10-22】只修 Run/RunOnce 类的值。
+           Shell / Userinit / AppInit_DLLs 这些 Winlogon 与系统关键值
+           的 Data 不是"文件路径"，拿去比较文件存在性会把正常项当脏项删掉
+           （实测误删过 Winlogon\Shell=explorer.exe 与 Userinit）。
+           这类位置一律跳过，不做任何修复。 */
+        if (strstr(list.Items[i].Location, "Run") == NULL)
+            continue;
+        FeStartupExtractPath(list.Items[i].Data, path, sizeof(path));
+        /* 展开 %windir% / %SystemRoot% 等变量，否则正常项会被判定为"文件不存在"
+           （实测误删了 SecurityHealth = %windir%\system32\SecurityHealthSystray.exe）。 */
+        if (path[0]) {
+            char expanded[FE_STARTUP_DATA_CHARS];
+            DWORD en = ExpandEnvironmentStringsA(path, expanded, sizeof(expanded));
+            if (en > 0 && en <= sizeof(expanded))
+                strcpy_s(path, sizeof(path), expanded);
+        }
+        if (!path[0])
+            continue;
+        MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, MAX_PATH);
+        if (GetFileAttributesW(wpath) != INVALID_FILE_ATTRIBUTES)
+            continue;                 /* 文件存在，无需修复 */
+        if (!FeDeleteStartupItem(&list.Items[i]))
+            continue;
+        fixed++;
+        if (Repaired) {
+            if (Repaired->Count == Repaired->Capacity) {
+                ULONG cap = Repaired->Capacity ? Repaired->Capacity * 2 : 16;
+                FE_STARTUP_ENTRY *p = (FE_STARTUP_ENTRY *)realloc(
+                    Repaired->Items, (size_t)cap * sizeof(FE_STARTUP_ENTRY));
+                if (p) {
+                    Repaired->Items = p;
+                    Repaired->Capacity = cap;
+                }
+            }
+            if (Repaired->Count < Repaired->Capacity)
+                Repaired->Items[Repaired->Count++] = list.Items[i];
+        }
+    }
+    FeFreeStartupItems(&list);
+    return fixed;
+}

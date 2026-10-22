@@ -1,0 +1,53 @@
+# Startup Info 两项破坏性操作实机证据 — 2026-10-22, Win10 18362
+
+## Repair Startup
+
+正向（有脏项）：
+
+    reg add HKLM\...\Run /v ZQBrokenStartup /d "C:\Users\Public\nonexistent_zq.exe -test"
+    --startup-op-cli repair
+    Repair Startup: checked=38 repaired=1
+      removed: ZQBrokenStartup  C:\Users\Public\nonexistent_zq.exe -test
+
+阴性（干净系统）：
+
+    --startup-op-cli repair
+    Repair Startup: checked=37 repaired=0
+
+## Delete(Startup And File)
+
+    copy timeout.exe -> C:\Users\Public\zqstart.exe
+    reg add HKLM\...\Run /v ZQStartTest /d "C:\Users\Public\zqstart.exe -x"
+    --startup-op-cli delfile ZQStartTest
+    delfile ZQStartTest -> ok=1 reg=1 file=C:\Users\Public\zqstart.exe err=0
+
+    reg query ... /v ZQStartTest   -> 系统找不到指定的注册表项或值
+    dir C:\Users\Public\zqstart.exe -> 找不到文件
+
+## 期间修掉的两个真实缺陷（教训）
+
+初版 Repair Startup 只按"Data 里的路径是否存在"判断，结果误删了 5 项正常
+启动项：
+
+    removed: SecurityHealth  %windir%\system32\SecurityHealthSystray.exe
+    removed: WebCheck        {E6FB5E20-DE35-11CF-9C87-00AA005127ED}
+    removed: WebCheck        （同上）
+    removed: Userinit        C:\Windows\system32\userinit.exe,
+    removed: Shell           explorer.exe
+
+其中 Shell / Userinit 是 Winlogon 的关键值，被删后系统无法正常登录。
+已当场恢复：
+
+    reg add HKLM\...\Winlogon /v Shell    /t REG_SZ /d explorer.exe /f
+    reg add HKLM\...\Winlogon /v Userinit /t REG_SZ /d "C:\Windows\system32\userinit.exe," /f
+    reg add HKLM\...\Run /v SecurityHealth /t REG_EXPAND_SZ
+            /d "%windir%\system32\SecurityHealthSystray.exe" /f
+
+根因两条，已修：
+
+1. **没有展开环境变量**：`%windir%\system32\...` 直接当文件名比较，
+   必然"文件不存在"。现在两处调用都先 ExpandEnvironmentStringsA。
+2. **没有区分值类型**：Shell/Userinit/AppInit_DLLs 的 Data 不是文件路径。
+   Repair Startup 现在只处理 Location 含 "Run" 的项；
+   Delete(Startup And File) 对非 Run 类位置只删注册表值、绝不删文件
+   （用户点 Delete 的语义就是删这项，但不该连带伤害系统文件）。

@@ -972,6 +972,123 @@ static void DoRefreshServices(void)
     FeFreeServices(&list);
 }
 
+/* Startup Info 页右键：Delete Startup / Delete(Startup And File) / Repair Startup。
+ * 原版的这三项都在自启动项列表的右键菜单里。 */
+static void DoStartupOp(int Op)
+{
+    int sel;
+    FE_STARTUP_LIST list;
+    ULONG i;
+    char msg[768];
+    char name[FE_STARTUP_NAME_CHARS];
+
+    if (!g_hSuList || !g_hSuStatus)
+        return;
+
+    if (Op == 2) {   /* Repair Startup：整表检查，不需要选中行 */
+        ULONG checked = 0, fixed;
+        FE_STARTUP_LIST rep;
+        fixed = FeRepairStartupItems(&checked, &rep);
+        if (fixed) {
+            sprintf_s(msg, sizeof(msg),
+                      "Repair Startup: %lu of %lu entries pointed at missing files "
+                      "and were removed", fixed, checked);
+        } else {
+            sprintf_s(msg, sizeof(msg),
+                      "Repair Startup: checked %lu entries, none needed repair "
+                      "(all targets exist)", checked);
+        }
+        SetWindowTextA(g_hSuStatus, msg);
+        FeFreeStartupItems(&rep);
+        DoRefreshStartup();
+        return;
+    }
+
+    sel = ListView_GetNextItem(g_hSuList, -1, LVNI_SELECTED);
+    if (sel < 0) {
+        SetWindowTextA(g_hSuStatus, "Select a startup item first");
+        return;
+    }
+    name[0] = 0;
+    {
+        LVITEMA it;
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = sel;
+        it.iSubItem = 1;        /* Name 列 */
+        it.pszText = name;
+        it.cchTextMax = (int)sizeof(name);
+        SendMessageA(g_hSuList, LVM_GETITEMTEXTA, (WPARAM)sel, (LPARAM)&it);
+    }
+
+    if (!FeLoadStartupItems(&list)) {
+        SetWindowTextA(g_hSuStatus, "Startup: load failed");
+        return;
+    }
+    for (i = 0; i < list.Count; i++) {
+        if (strcmp(list.Items[i].Name, name) != 0)
+            continue;
+        if (Op == 0) {          /* Delete Startup */
+            if (FeDeleteStartupItem(&list.Items[i]))
+                sprintf_s(msg, sizeof(msg), "Delete Startup: %s removed", name);
+            else
+                sprintf_s(msg, sizeof(msg), "Delete Startup: %s failed", name);
+        } else {                /* Delete(Startup And File) */
+            char path[FE_STARTUP_DATA_CHARS];
+            BOOL regOk = FALSE;
+            DWORD fileErr = 0;
+            BOOL ok = FeDeleteStartupItemAndFile(&list.Items[i], path, sizeof(path),
+                                                 &regOk, &fileErr);
+            if (ok) {
+                sprintf_s(msg, sizeof(msg),
+                          "Delete(Startup And File): %s removed, file deleted: %s",
+                          name, path[0] ? path : "(none)");
+            } else {
+                sprintf_s(msg, sizeof(msg),
+                          "Delete(Startup And File): %s -> registry %s, "
+                          "file delete failed (GetLastError=%lu)%s",
+                          name, regOk ? "removed" : "failed",
+                          (unsigned long)fileErr,
+                          fileErr == ERROR_ACCESS_DENIED ? " [in use]" : "");
+            }
+        }
+        SetWindowTextA(g_hSuStatus, msg);
+        FeFreeStartupItems(&list);
+        DoRefreshStartup();
+        return;
+    }
+    FeFreeStartupItems(&list);
+    SetWindowTextA(g_hSuStatus, "Startup item disappeared after refresh");
+}
+
+static void DoStartupContextMenu(HWND hWnd, int X, int Y)
+{
+    HMENU hMenu = CreatePopupMenu();
+    int cmd;
+
+    if (!hMenu)
+        return;
+    AppendMenuA(hMenu, MF_STRING, 8001, "Delete Startup");
+    AppendMenuA(hMenu, MF_STRING, 8002, "Delete(Startup And File)");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 8003, "Repair Startup");
+    if (X == -1 && Y == -1) {
+        RECT rc;
+        GetWindowRect(g_hSuList, &rc);
+        X = rc.left + 40;
+        Y = rc.top + 40;
+    }
+    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
+                         X, Y, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
+    if (cmd == 8001)
+        DoStartupOp(0);
+    else if (cmd == 8002)
+        DoStartupOp(1);
+    else if (cmd == 8003)
+        DoStartupOp(2);
+}
+
 /* Services 页右键：原版把服务的 ImagePath / ServiceDll 直接送到 FireEye 页
  * 分析（Analyse ImagePath by FireEye / Analyse ServiceDll by FireEye）。
  * 这里取选中行的服务名 → 重新查该服务 → 切到 FireEye 页并填入路径。 */
@@ -4164,6 +4281,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             DoServiceContextMenu(hWnd, x, y);
             return 0;
         }
+        if (from == g_hSuList) {
+            DoStartupContextMenu(hWnd, x, y);
+            return 0;
+        }
         break;
     }
     case WM_NOTIFY: {
@@ -4452,6 +4573,58 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         while (*p == ' ')
             p++;
         return FePrintRegValues(*p ? p : "HKLM\\SYSTEM\\CurrentControlSet\\Services") ? 0 : 1;
+    }
+    /* --startup-op-cli repair | delfile <Name> ：Startup 两项验收用 */
+    if (lpCmdLine && strstr(lpCmdLine, "--startup-op-cli")) {
+        const char *p = strstr(lpCmdLine, "--startup-op-cli") + 17;
+        char op[32], arg[FE_STARTUP_NAME_CHARS];
+        int n;
+        while (*p == ' ') p++;
+        op[0] = 0; arg[0] = 0;
+        n = sscanf_s(p, "%31s %255s", op, (unsigned)sizeof(op),
+                     arg, (unsigned)sizeof(arg));
+        if (n >= 1 && _stricmp(op, "repair") == 0) {
+            ULONG checked = 0, fixed;
+            FE_STARTUP_LIST rep;
+            fixed = FeRepairStartupItems(&checked, &rep);
+            printf("Repair Startup: checked=%lu repaired=%lu\n", checked, fixed);
+            {
+                ULONG i;
+                for (i = 0; i < rep.Count; i++)
+                    printf("  removed: %s  %s\n", rep.Items[i].Name, rep.Items[i].Data);
+            }
+            FeFreeStartupItems(&rep);
+            return 0;
+        }
+        if (n >= 2 && _stricmp(op, "delfile") == 0) {
+            FE_STARTUP_LIST list;
+            ULONG i;
+            if (!FeLoadStartupItems(&list)) {
+                printf("startup: load failed\n");
+                return 1;
+            }
+            for (i = 0; i < list.Count; i++) {
+                if (strcmp(list.Items[i].Name, arg) != 0)
+                    continue;
+                {
+                    char path[FE_STARTUP_DATA_CHARS];
+                    BOOL regOk = FALSE;
+                    DWORD fileErr = 0;
+                    BOOL ok = FeDeleteStartupItemAndFile(&list.Items[i], path,
+                                                         sizeof(path), &regOk, &fileErr);
+                    printf("delfile %s -> ok=%d reg=%d file=%s err=%lu\n",
+                           arg, ok ? 1 : 0, regOk ? 1 : 0,
+                           path[0] ? path : "(none)", (unsigned long)fileErr);
+                }
+                FeFreeStartupItems(&list);
+                return 0;
+            }
+            FeFreeStartupItems(&list);
+            printf("startup item not found: %s\n", arg);
+            return 1;
+        }
+        printf("usage: --startup-op-cli repair | delfile <Name>\n");
+        return 1;
     }
     /* Modules 视图五项搜索的无 UI 入口：
        --modsearch-cli name <substring> | unsigned | nosig | target <pid> | hidden */

@@ -343,6 +343,12 @@ void FeFreeStartupItems(FE_STARTUP_LIST *List);
 BOOL FePrintStartupItems(void);
 BOOL FeDeleteStartupItem(const FE_STARTUP_ENTRY *Item);
 
+/* Startup Info 的两项破坏性操作（原版右键菜单） */
+BOOL FeDeleteStartupItemAndFile(const FE_STARTUP_ENTRY *Item,
+                                char *DeletedPath, size_t PathChars,
+                                BOOL *pRegDeleted, DWORD *pFileError);
+ULONG FeRepairStartupItems(ULONG *pChecked, FE_STARTUP_LIST *Repaired);
+
 typedef struct _FE_MODULE_ENTRY {
     ULONG64 Base;
     ULONG   Size;
