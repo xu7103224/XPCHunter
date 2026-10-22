@@ -972,6 +972,101 @@ static void DoRefreshServices(void)
     FeFreeServices(&list);
 }
 
+/* Services 页右键：原版把服务的 ImagePath / ServiceDll 直接送到 FireEye 页
+ * 分析（Analyse ImagePath by FireEye / Analyse ServiceDll by FireEye）。
+ * 这里取选中行的服务名 → 重新查该服务 → 切到 FireEye 页并填入路径。 */
+static void DoFireeyeAnalyse(void);
+static void ShowPage(HWND hWnd, int page);
+
+static void DoServiceFireeye(int UseServiceDll)
+{
+    int sel;
+    char name[FE_SVC_NAME_CHARS];
+    LVITEMA it;
+    FE_SERVICE_LIST list;
+    ULONG i;
+    const char *target = NULL;
+
+    if (!g_hSvList || !g_hSvStatus)
+        return;
+    sel = ListView_GetNextItem(g_hSvList, -1, LVNI_SELECTED);
+    if (sel < 0) {
+        SetWindowTextA(g_hSvStatus, "Select a service first");
+        return;
+    }
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = sel;
+    it.pszText = name;
+    it.cchTextMax = (int)sizeof(name);
+    if (!SendMessageA(g_hSvList, LVM_GETITEMTEXTA, (WPARAM)sel, (LPARAM)&it)) {
+        SetWindowTextA(g_hSvStatus, "Selected service has no name");
+        return;
+    }
+    if (!FeLoadServices(&list)) {
+        SetWindowTextA(g_hSvStatus, "Services: load failed");
+        return;
+    }
+    for (i = 0; i < list.Count; i++) {
+        if (strcmp(list.Items[i].Name, name) == 0) {
+            target = UseServiceDll
+                     ? (list.Items[i].ServiceDll[0] ? list.Items[i].ServiceDll
+                                                    : list.Items[i].ResolvedPath)
+                     : (list.Items[i].ResolvedPath[0] ? list.Items[i].ResolvedPath
+                                                      : list.Items[i].ImagePath);
+            break;
+        }
+    }
+    if (target && target[0] && g_hFePath) {
+        char pathCopy[FE_SVC_PATH_CHARS];
+        strcpy_s(pathCopy, sizeof(pathCopy), target);
+        FeFreeServices(&list);
+        SetWindowTextA(g_hFePath, pathCopy);
+        g_MainTab = 11;
+        if (g_hMainTabs)
+            SendMessageA(g_hMainTabs, TCM_SETCURSEL, 11, 0);
+        if (g_hMainWnd)
+            ShowPage(g_hMainWnd, 11);
+        DoFireeyeAnalyse();
+        sprintf_s(pathCopy, sizeof(pathCopy), "%s", target);
+        {
+            char msg[512];
+            sprintf_s(msg, sizeof(msg), "FireEye: %s -> %s",
+                      UseServiceDll ? "ServiceDll" : "ImagePath", pathCopy);
+            SetWindowTextA(g_hSvStatus, msg);
+        }
+        return;
+    }
+    FeFreeServices(&list);
+    SetWindowTextA(g_hSvStatus,
+                   UseServiceDll ? "Selected service has no ServiceDll"
+                                 : "Selected service has no ImagePath");
+}
+
+static void DoServiceContextMenu(HWND hWnd, int X, int Y)
+{
+    HMENU hMenu = CreatePopupMenu();
+    int cmd;
+
+    if (!hMenu)
+        return;
+    AppendMenuA(hMenu, MF_STRING, 7001, "Analyse ImagePath by FireEye");
+    AppendMenuA(hMenu, MF_STRING, 7002, "Analyse ServiceDll by FireEye");
+    if (X == -1 && Y == -1) {
+        RECT rc;
+        GetWindowRect(g_hSvList, &rc);
+        X = rc.left + 40;
+        Y = rc.top + 40;
+    }
+    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
+                         X, Y, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
+    if (cmd == 7001)
+        DoServiceFireeye(0);
+    else if (cmd == 7002)
+        DoServiceFireeye(1);
+}
+
 /* ---- Registry 页（主 Tab 5）----
  * 两个子页：
  *   Reg Handle     全系统 ObjectType="Key" 的句柄（pid / handle / access / object）
@@ -3861,6 +3956,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         if (from == g_hDetail && g_DetailTab == 0) {
             DoModuleContextMenu(hWnd, x, y);
+            return 0;
+        }
+        if (from == g_hSvList) {
+            DoServiceContextMenu(hWnd, x, y);
             return 0;
         }
         break;
