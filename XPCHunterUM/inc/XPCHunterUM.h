@@ -271,6 +271,11 @@ BOOL FeLoadHiddenDrivers(FE_HDRV_LIST *Hidden, FE_HDRV_LIST *Suspicious);
 void FeFreeHiddenDrivers(FE_HDRV_LIST *List);
 BOOL FePrintHiddenDrivers(void);
 
+/* ---- Kernel 页状态栏的其他内核项 ---- */
+BOOL FeCheckKiDebugRoutine(ULONG64 *pValue, BOOL *pHooked,
+                           char *Detail, size_t DetailChars);
+BOOL FeFindPteHook(char *Detail, size_t DetailChars, BOOL *pHooked);
+
 /* ---- IDT / I/O Port（0x046，输出 >= 0x3808）----
  * 输出：+0x00 DWORD 已写上下文数 n，+0x08 起 n 个 0x3800 字节上下文。
  * 每个上下文里第 i 条 56 字节：+0 DWORD 向量号，+8 QWORD 处理函数 RVA

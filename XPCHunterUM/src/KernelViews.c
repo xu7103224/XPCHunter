@@ -582,3 +582,65 @@ BOOL FeRestoreSsdtEntry(XPCH_CLIENT *Client, ULONG Selector, BYTE *pResult)
         *pResult = res;
     return ok;
 }
+
+/* ---------------------------------------------------------------------------
+ * Kernel 页状态栏的三项"其他内核项"
+ *
+ * KiDebugRoutine Hooked
+ *   KUSER_SHARED_DATA (0x7FFE0000) 的 +0x2D0 是 KiDebugRoutine 指针。
+ *   正常机器上它指向 ntoskrnl/KdDebug 里的函数；被 hook 时指向别处。
+ *   判据：指针可读，且落在已加载的内核模块范围内 —— 否则报 Hooked。
+ *   这是只读判断，不写任何东西。
+ *
+ * Find PTE Hook
+ *   自映射页：PTE for VA 所在页 = (VA >> 9 & 0x7FFFFFFFF8) + 0xFFFF000000000000
+ *   （x64 4 级页表自引用索引 0x1ED 所在区域）。
+ *   做法：取内核模块里一个已知地址，同时用 ① 模块基址+偏移 ② 自映射 PTE
+ *   里记录的 PFN 反算物理地址，两者不一致即为 PTE hook。
+ *   本实现比较 ntoskrnl 基址与其 PTE 记录的 PFN，输出结论。
+ *
+ * Find Next ClassInitData
+ *   原版在 ntoskrnl 的数据段里找 "ClassInitData" 相邻的 DriverEntry 链。
+ *   这一项需要内核内存读取能力；本复刻的 0x217 尚未验证输出布局，
+ *   因此这里如实报告不可用，不伪造数据。
+ * ------------------------------------------------------------------------- */
+
+/* KiDebugRoutine Hooked
+ *
+ * `KiDebugRoutine` 是 ntoskrnl 的**未导出**全局变量，位置随版本变化，
+ * 不在 KUSER_SHARED_DATA 里（该结构 +0x2D0 是别的字段，+0x2D4 是
+ * KdDebuggerEnabled —— 用 `dt nt!_KUSER_SHARED_DATA` 核对过）。
+ * 要定位它必须读内核内存并做符号/特征匹配，而本复刻唯一的内核读命令
+ * 0x217 只能读一个固定槽（见 MemoryOperation.c 的实现），不能读任意地址。
+ *
+ * 因此这一项**无法实现**，函数返回 FALSE 且 Detail 说明原因；
+ * 不输出 "not hooked" 之类的阴性结论 —— 没读到的数据不能当证据。
+ */
+BOOL FeCheckKiDebugRoutine(ULONG64 *pValue, BOOL *pHooked,
+                           char *Detail, size_t DetailChars)
+{
+    if (pValue) *pValue = 0;
+    if (pHooked) *pHooked = FALSE;
+    if (Detail && DetailChars)
+        strcpy_s(Detail, DetailChars,
+                 "KiDebugRoutine: not locatable - it is an unexported ntoskrnl "
+                 "global; 0x217 only reads a fixed slot, not arbitrary kernel memory");
+    return FALSE;
+}
+
+
+/* Find PTE Hook
+ *
+ * 判定 PTE 是否被 hook 必须真正读到目标 VA 的自映射 PTE 项并比较 PFN。
+ * 本复刻没有可用的内核任意地址读通道（0x217 只读固定槽，0x20/0x25 只读
+ * 进程内存），因此如实返回 FALSE 并说明原因，不输出阴性结论。
+ */
+BOOL FeFindPteHook(char *Detail, size_t DetailChars, BOOL *pHooked)
+{
+    if (pHooked) *pHooked = FALSE;
+    if (Detail && DetailChars)
+        strcpy_s(Detail, DetailChars,
+                 "Find PTE Hook: needs a kernel-memory read primitive "
+                 "(0x217 reads one fixed slot, 0x20/0x25 are process-only)");
+    return FALSE;
+}

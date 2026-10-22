@@ -2267,6 +2267,18 @@ static void DoRefreshKernel(void)
                 FeFreeHiddenDrivers(&sus);
             }
         }
+        /* 原版状态栏还有 KiDebugRoutine：KUSER_SHARED_DATA+0x2D0 的指针
+           是否落在某个已加载内核模块内。 */
+        {
+            ULONG64 kr = 0;
+            BOOL hooked = FALSE;
+            char detail[192];
+            char head[320];
+            if (FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail))) {
+                strcpy_s(head, sizeof(head), status);
+                sprintf_s(status, sizeof(status), "%s   |   %s", head, detail);
+            }
+        }
     } else if (g_KmTab == 4) {
         /* Device 子页：0x056 CmdEnumObjectAllTypes（0x2000 起不再蓝屏） */
         FE_DEVICE_LIST dev;
@@ -4203,6 +4215,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
         return FePrintHiddenDrivers() ? 0 : 1;
+    if (lpCmdLine && strstr(lpCmdLine, "--kernel-extra-cli")) {
+        ULONG64 kr = 0;
+        BOOL hooked = FALSE;
+        char detail[256];
+        BOOL okd;
+
+        okd = FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail));
+        printf("KiDebugRoutine: %s -> %s\n", okd ? "ok" : "unreadable", detail);
+        FeFindPteHook(detail, sizeof(detail), &hooked);
+        printf("Find PTE Hook: %s\n", detail);
+        printf("Find Next ClassInitData: not available - needs a verified "
+               "kernel-memory read primitive (0x217 layout unknown)\n");
+        return 0;
+    }
     if (lpCmdLine && strstr(lpCmdLine, "--idt-cli")) {
         if (!XpchOpen(&g_Client)) {
             printf("open device failed, GetLastError=%lu\n", GetLastError());
