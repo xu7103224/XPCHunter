@@ -607,14 +607,21 @@ BOOL FeRestoreSsdtEntry(XPCH_CLIENT *Client, ULONG Selector, BYTE *pResult)
 
 /* KiDebugRoutine Hooked
  *
- * `KiDebugRoutine` 是 ntoskrnl 的**未导出**全局变量，位置随版本变化，
- * 不在 KUSER_SHARED_DATA 里（该结构 +0x2D0 是别的字段，+0x2D4 是
- * KdDebuggerEnabled —— 用 `dt nt!_KUSER_SHARED_DATA` 核对过）。
- * 要定位它必须读内核内存并做符号/特征匹配，而本复刻唯一的内核读命令
- * 0x217 只能读一个固定槽（见 MemoryOperation.c 的实现），不能读任意地址。
+ * 【2026-10-23 订正】原来的理由写错了。用 kd 在目标机（Win10 18362）
+ * 实测：
+ *     x nt!KiDebugRoutine   → 无输出
+ *     x nt!KiDebug*         → 只有 KiDebuggerOwner / KiDebugTrapOrFault /
+ *                             KiDebugServiceTrap / KiDebugTrapIndex 等，
+ *                             没有 KiDebugRoutine
+ * `KiDebugRoutine` 是 Win7 及更早版本的 ntoskrnl 全局变量，Win8 起已删除
+ * （调试器挂钩点改成 PTE/中断路径，不再是这个函数指针）。
  *
- * 因此这一项**无法实现**，函数返回 FALSE 且 Detail 说明原因；
- * 不输出 "not hooked" 之类的阴性结论 —— 没读到的数据不能当证据。
+ * 所以这一项在 Win10 上**目标本身不存在**，不是「读不到」。
+ * 之前写「不在 KUSER_SHARED_DATA、要读任意内核地址」——
+ * 前提就错了：它根本不在任何位置，找什么都不对。
+ *
+ * 函数返回 FALSE 且 Detail 说明原因；不输出 "not hooked" 之类的阴性结论
+ * —— 目标不存在不等于"检查过、没发现 hook"。
  */
 BOOL FeCheckKiDebugRoutine(ULONG64 *pValue, BOOL *pHooked,
                            char *Detail, size_t DetailChars)
@@ -623,8 +630,9 @@ BOOL FeCheckKiDebugRoutine(ULONG64 *pValue, BOOL *pHooked,
     if (pHooked) *pHooked = FALSE;
     if (Detail && DetailChars)
         strcpy_s(Detail, DetailChars,
-                 "KiDebugRoutine: not locatable - it is an unexported ntoskrnl "
-                 "global; 0x217 only reads a fixed slot, not arbitrary kernel memory");
+                 "KiDebugRoutine: not present on this Windows version - "
+                 "the global was removed after Windows 7 (kd: x nt!KiDebugRoutine "
+                 "finds nothing; Win10 uses PTE/interrupt based debug hooks)");
     return FALSE;
 }
 
@@ -632,15 +640,20 @@ BOOL FeCheckKiDebugRoutine(ULONG64 *pValue, BOOL *pHooked,
 /* Find PTE Hook
  *
  * 判定 PTE 是否被 hook 必须真正读到目标 VA 的自映射 PTE 项并比较 PFN。
- * 本复刻没有可用的内核任意地址读通道（0x217 只读固定槽，0x20/0x25 只读
- * 进程内存），因此如实返回 FALSE 并说明原因，不输出阴性结论。
+ * 驱动里最接近的两条读命令是 0xF7（CmdReadKernelMemoryToUserBuffer）
+ * 与 0xF9（CmdReadKernelMemoryRange），但它们的实现都是
+ *     p = GtRead(<固定槽>); *out = *p;
+ * 即「读某个由 InitKernelMemoryContext 解析出来的固定指针」，不接收用户
+ * 指定的地址。0x20/0x25 只读进程内存。因此没有任意 VA 读通道，
+ * 如实返回 FALSE 并说明原因，不输出阴性结论。
  */
 BOOL FeFindPteHook(char *Detail, size_t DetailChars, BOOL *pHooked)
 {
     if (pHooked) *pHooked = FALSE;
     if (Detail && DetailChars)
         strcpy_s(Detail, DetailChars,
-                 "Find PTE Hook: needs a kernel-memory read primitive "
-                 "(0x217 reads one fixed slot, 0x20/0x25 are process-only)");
+                 "Find PTE Hook: needs an arbitrary kernel-address read; "
+                 "0xF7/0xF9 only read one fixed GT-resolved pointer, "
+                 "0x20/0x25 are process-only");
     return FALSE;
 }
