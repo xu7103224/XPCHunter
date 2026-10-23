@@ -2439,32 +2439,85 @@ static void DoRestoreCallbackTable(void)
         SetWindowTextA(g_hHkStatus, msg);
         return;
     }
-    /* 枚举成功：把回调槽追加到列表里，便于用户看到目标地址 */
+    /* 枚举成功：把 28 个回调槽追加到列表里。
+       每行显示「槽号 / 目标 RVA / 当前回调指针 / 原始代码前 8 字节」，
+       其中「当前回调指针」与「原始代码」的差异就是该槽是否被替换的判据。 */
     if (g_hHkList) {
         while (ListView_GetItemCount(g_hHkList) > 0)
-            n = 0, ListView_DeleteItem(g_hHkList, 0);
+            ListView_DeleteItem(g_hHkList, 0);
         for (i = 0; i < t.Count; i++) {
             LVITEMA it;
-            char off[32], val[32];
+            char idxbuf[32], off[32], val[64], note[96];
             ZeroMemory(&it, sizeof(it));
             it.mask = LVIF_TEXT;
             it.iItem = n;
-            sprintf_s(off, sizeof(off), "+0x%03lX", (unsigned long)t.Slot[i].Offset);
-            sprintf_s(val, sizeof(val), "%016I64X", t.Slot[i].Value);
+            sprintf_s(idxbuf, sizeof(idxbuf), "%lu", (unsigned long)t.Slot[i].Offset);
+            sprintf_s(off, sizeof(off), "+0x%03lX", (unsigned long)(8 + i * 0x30));
+            sprintf_s(val, sizeof(val), "%016I64X", t.Slot[i].Current);
+            /* 有原始快照且当前回调指针已被重定向（cur != va）时标出。
+               注意：orig 是目标地址上的机器码快照，cur 是回调函数指针，
+               二者不同类，不能互相比较。「va 处代码被就地改成跳板」这种情形
+               需要读内核内存才能判定，0x131 的输出里没有该字段。 */
+            if (t.Slot[i].HasOriginal) {
+                if (t.Slot[i].Current && t.Slot[i].Current != t.Slot[i].Va)
+                    sprintf_s(note, sizeof(note),
+                              "callback slot %lu (RVA 0x%lX) - pointer redirected",
+                              (unsigned long)t.Slot[i].Offset, (unsigned long)t.Slot[i].Rva);
+                else
+                    sprintf_s(note, sizeof(note),
+                              "callback slot %lu (RVA 0x%lX)",
+                              (unsigned long)t.Slot[i].Offset, (unsigned long)t.Slot[i].Rva);
+            } else {
+                sprintf_s(note, sizeof(note),
+                          "callback slot %lu (RVA 0x%lX) - no snapshot",
+                          (unsigned long)t.Slot[i].Offset, (unsigned long)t.Slot[i].Rva);
+            }
             it.pszText = (LPSTR)"Ring0";
             SendMessageA(g_hHkList, LVM_INSERTITEMA, 0, (LPARAM)&it);
             HkSetText(g_hHkList, n, 1, "KernelCallbackTable");
             HkSetText(g_hHkList, n, 2, off);
             HkSetText(g_hHkList, n, 3, val);
-            HkSetText(g_hHkList, n, 4, "callback context slot (0x131)");
+            HkSetText(g_hHkList, n, 4, note);
             n++;
         }
     }
-    sprintf_s(msg, sizeof(msg),
-              "Restore KernelCallbackTable: %lu callback slots, build %lu, "
-              "verify=%u (cmd 0x131)",
-              t.Count, t.Build, t.Ready);
-    SetWindowTextA(g_hHkStatus, msg);
+    /* 真正下发恢复（0x132）：对「回调指针已被重定向」的槽，
+       把 16 字节原始代码写回目标 VA。没有重定向项时如实报告「无需恢复」。 */
+    {
+        ULONG restored = 0, attempted = 0, rejected = 0, skipped = 0;
+        for (i = 0; i < t.Count; i++) {
+            FE_CB_RESTORE_RESULT rr;
+            if (!t.Slot[i].HasOriginal) { skipped++; continue; }
+            if (!t.Slot[i].Current || t.Slot[i].Current == t.Slot[i].Va) {
+                skipped++;
+                continue;
+            }
+            attempted++;
+            if (FeRestoreCallbackSlot(&g_Client, t.Slot[i].Va,
+                                      t.Slot[i].Original, &rr) &&
+                rr.State == FE_CB_RESTORE_OK)
+                restored++;
+            else
+                rejected++;
+        }
+        if (attempted == 0) {
+            sprintf_s(msg, sizeof(msg),
+                      "Restore KernelCallbackTable: %lu callback slots, build %lu, "
+                      "verify=%u - nothing to restore (%lu slots still point at "
+                      "their original targets)",
+                      t.Count, t.Build, t.Ready, (unsigned long)skipped);
+        } else {
+            sprintf_s(msg, sizeof(msg),
+                      "Restore KernelCallbackTable: %lu slots, build %lu, "
+                      "%lu restored / %lu redirected (%lu rejected, %lu clean)",
+                      t.Count, t.Build, (unsigned long)restored,
+                      (unsigned long)attempted, (unsigned long)rejected,
+                      (unsigned long)skipped);
+        }
+        SetWindowTextA(g_hHkStatus, msg);
+        DoRefreshHooks();
+        return;
+    }
 }
 
 static void ShowPage(HWND hWnd, int page)
@@ -4966,9 +5019,45 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         printf("driverOk   = %d  resultByte = %u\n", t.DriverOk, t.ResultByte);
         printf("ready      = %u  build = %lu\n", t.Ready, t.Build);
         printf("slots      = %lu\n", t.Count);
-        for (i = 0; i < t.Count; i++)
-            printf("  +0x%03lX = %016I64X\n",
-                   (unsigned long)t.Slot[i].Offset, t.Slot[i].Value);
+        for (i = 0; i < t.Count; i++) {
+            char orig[64] = {0};
+            int k;
+            for (k = 0; k < 16; k++)
+                sprintf_s(orig + k * 3, sizeof(orig) - (size_t)k * 3, "%02X ",
+                          t.Slot[i].Original[k]);
+            printf("  [%2lu] rva=%08lX va=%016I64X cur=%016I64X orig=%s\n",
+                   (unsigned long)t.Slot[i].Offset,
+                   (unsigned long)t.Slot[i].Rva,
+                   t.Slot[i].Va, t.Slot[i].Current, orig);
+        }
+        /* --cbtable-restore：对检测到差异的槽真正下发 0x132 写回 */
+        if (lpCmdLine && strstr(lpCmdLine, "--cbtable-restore")) {
+            ULONG attempted = 0, restored = 0, rejected = 0, skipped = 0;
+            printf("--- restore pass (0x132) ---\n");
+            for (i = 0; i < t.Count; i++) {
+                FE_CB_RESTORE_RESULT rr;
+                if (!t.Slot[i].HasOriginal) { skipped++; continue; }
+                if (!t.Slot[i].Current || t.Slot[i].Current == t.Slot[i].Va) {
+                    skipped++;
+                    continue;
+                }
+                attempted++;
+                if (FeRestoreCallbackSlot(&g_Client, t.Slot[i].Va,
+                                          t.Slot[i].Original, &rr) &&
+                    rr.State == FE_CB_RESTORE_OK) {
+                    restored++;
+                    printf("  slot %lu -> wrote 16 bytes at %016I64X\n",
+                           (unsigned long)t.Slot[i].Offset, t.Slot[i].Va);
+                } else {
+                    rejected++;
+                    printf("  slot %lu -> FAILED (state=%d resultByte=%u)\n",
+                           (unsigned long)t.Slot[i].Offset, rr.State, rr.ResultByte);
+                }
+            }
+            printf("restored=%lu attempted=%lu rejected=%lu skipped=%lu\n",
+                   (unsigned long)restored, (unsigned long)attempted,
+                   (unsigned long)rejected, (unsigned long)skipped);
+        }
         XpchClose(&g_Client);
         return (t.State == FE_CB_ENUMERATED) ? 0 : 2;
     }

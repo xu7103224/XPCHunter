@@ -279,17 +279,40 @@ BOOL FeLoadCallbackTable(XPCH_CLIENT *Client, FE_CB_TABLE *Out)
     Out->Ready      = buf[0];
     Out->Build      = *(const ULONG *)(buf + 8);
     if (ok && buf[0] == 1) {
-        /* 条目区：+4 起，每条 0x1A8（424）字节？
-           驱动把 EnumCallbackContextTable 写在 pOutputBuffer+4 处，
-           具体条目步长未在原始反汇编里显式给出，这里尽量稳妥：
-           只把前 1352-4 字节按 32 字节一组抽样展示，标注为 raw。 */
+        /* 【2026-10-23 修正】条目区布局是从原版输出实测出来的，此前按
+           「+4 起、步长 32、取首 8 字节」扫描是错的（既错位又读错字段）：
+             0x000  UCHAR  就绪标志（三项校验全过才为 1）
+             0x001  UCHAR  -
+             0x002  UCHAR  -
+             0x003  UCHAR  -
+             0x004  ULONG  保留（恒 0）
+             0x008  28 条 × 0x30 字节条目
+           条目内（对应驱动 pTargetTable 的 48 字节结构）：
+             +0x00 ULONG   索引 0..27
+             +0x04 ULONG   目标 RVA（ParseNtExportSectionsV3 命中项或 FillExportEntrySlot 默认值）
+             +0x08 ULONG64 目标 VA = ntoskrnl 基址 + RVA
+             +0x10 ULONG64 当前回调函数指针（EnumCallbackContextTable 从上下文 +0x70+8i 拷入）
+             +0x18 QWORD   原始代码前 8 字节
+             +0x20 QWORD   原始代码后 8 字节
+           依据：orig_131.txt 中 entry0 = idx 0 / rva 0x1450 / va 0xfffff80585ac1450 /
+                 +0x10 同 VA / +0x18 0xc93328ec83480000 / +0x20 "48 8b c2 89 4a 30..."
+           （原始代码在结构里是 +0x1A 起的连续 16 字节，只是前 8 字节落在 +0x18
+             这个 QWORD 的后 6 字节上 —— 这里按 16 字节整块读出，保持与原版一致。） */
+        static const ULONG EntryBase = 8;
+        static const ULONG EntryStride = 0x30;
+        static const ULONG EntryCount = 28;
         Out->Count = 0;
-        for (i = 4; i + 32 <= 1352 && Out->Count < 40; i += 32) {
-            ULONG64 v = *(const ULONG64 *)(buf + i);
-            if (!v)
-                continue;
-            Out->Slot[Out->Count].Offset = i;
-            Out->Slot[Out->Count].Value  = v;
+        for (i = 0; i < EntryCount; i++) {
+            const BYTE *e = buf + EntryBase + i * EntryStride;
+            if (EntryBase + (i + 1) * EntryStride > 1352)
+                break;
+            Out->Slot[i].Offset      = *(const ULONG *)(e + 0x00);
+            Out->Slot[i].Rva         = *(const ULONG *)(e + 0x04);
+            Out->Slot[i].Va          = *(const ULONG64 *)(e + 0x08);
+            Out->Slot[i].Current     = *(const ULONG64 *)(e + 0x10);
+            memcpy(Out->Slot[i].Original, e + 0x1A, 16);
+            /* 只有当 Va 有效时快照才有意义 */
+            Out->Slot[i].HasOriginal = (Out->Slot[i].Va != 0);
             Out->Count++;
         }
         Out->State = FE_CB_ENUMERATED;

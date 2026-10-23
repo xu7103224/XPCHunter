@@ -863,8 +863,12 @@ typedef enum _FE_CB_STATE {
 } FE_CB_STATE;
 
 typedef struct _FE_CB_SLOT {
-    ULONG   Offset;
-    ULONG64 Value;
+    ULONG   Offset;         /* 该槽在 28 项表中的下标（0..27） */
+    ULONG   Rva;            /* 条目 +0x04：目标函数在 ntoskrnl 里的 RVA */
+    ULONG64 Va;             /* 条目 +0x08：目标函数的内核虚拟地址 */
+    ULONG64 Current;        /* 条目 +0x10：当前回调函数指针（EnumCallbackContextTable 填入） */
+    BYTE    Original[16];   /* 条目 +0x1A：磁盘原始代码（Build 阶段从文件缓冲拷入） */
+    BOOL    HasOriginal;    /* Original 是否是有效快照（FillExportEntrySlot 填的默认槽也有效） */
 } FE_CB_SLOT;
 
 typedef struct _FE_CB_TABLE {

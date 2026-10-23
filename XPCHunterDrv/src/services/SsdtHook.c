@@ -1761,6 +1761,31 @@ __int64 BuildExportIndexTable(
     return EntryCount;
 }
 // 对应原始驱动 0x14007870C（513 字节）
+// 【逆向来源】0x14007870C 完整反汇编（0x14007873F..0x1400787FF 为读表与入口校验，
+//   0x140078804 起为两段扫描循环）。栈布局：ctx @ rsp+0x48，描述符 @ rsp+0x98
+//   （0x120 字节），ctx+0x08 即读指针。
+//   循环体逐条对齐的语义：
+//     ReadPESectionEntry → eax=[entry+0xF0] → rcx=[ctx+0x08] → rcx+=rax
+//                        → [ctx+0x08]=rcx          （**读完再推进**）
+//     段 1（0x100 次）：类型 0x558 且 ([entry+0x50] & 0x4000000)，
+//       且 [entry+0x38] != 0；目标值 = [entry+0x38] - ImageBase + 读指针，
+//       等于 GT[0x4444]（build >= 0x2800）或 GT[0x42C7]（更老）时进入段 2。
+//     段 2（0x50 次）：类型 0x512 且 [entry+0x88]==0x40000 且 [entry+0x78]!=0；
+//       目标值 = [entry+0x78] - ImageBase + 读指针，非 0 且 < ImageSize 时
+//       GtWrite(0x2A7, 值)、GtWrite(0x2A8, 值 + ntoskrnl基址) 并返回该值。
+//   段 1 用完 0x100 次仍未命中时（cmp ebx,100h; jnb exit）直接返回，**不进入段 2**。
+//
+// 【2026-10-23 修正：旧实现有 5 处实质错误，导致 GT[0x2A7] 恒为 0】
+//   1) 起始基址写成 (unsigned int)ImageBase + TargetOffset1，把 64 位基址截成 32 位；
+//      原版是 `mov ecx,ebx; add rcx,r14` 的 64 位加法，起点为 ImageBase+RVA。
+//      截断后起点是非法地址，ReadPESectionEntry 立刻报错，两段循环都在首轮退出。
+//   2) 读指针在解码**之前**推进，用的是上一条（首轮甚至未初始化）的消耗量。
+//   3) 用 [entry+0x00]/[entry+0x28]/[entry+0x24] 冒充字段。实际字段：
+//      消耗量 @ +0xF0、段 1 目标值 @ +0x38、段 2 目标值 @ +0x78。
+//   4) 段 1 的标志位读的是 [entry+0x80]，原版 test 的是 [entry+0x50]（qword）。
+//   5) 旧实现在段 1 未命中时仍继续段 2；原版直接返回。
+//   实测依据：修正前 GT[0x2A7]=0 → FillExportEntrySlot 无法补齐 28 项表的 17 个空槽，
+//   0x131 只出 11 条；原版该槽为 0x125D40。
 __int64 ScanKernelModulePESections(void)
 {
     __int64 ImageBase = GtRead(GtEprocessField22);
@@ -1769,66 +1794,69 @@ __int64 ScanKernelModulePESections(void)
     unsigned int TargetOffset1 = (unsigned int)GtRead(GtKernelDataSectionScanTarget1);
     unsigned int BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
     unsigned int TargetValue = 0;
+    unsigned int i;
 
     if (BuildNumber >= 0x2800)
         TargetValue = (unsigned int)GtRead(GtKernelDataSectionScanTarget3);
     else
         TargetValue = (unsigned int)GtRead(GtKernelDataSectionScanTarget2);
 
-    if (!ImageBase || !ImageSize || !TargetOffset1 || !TargetValue
-        || TargetOffset1 >= ImageSize || !NtoskrnlBase)
+    if (!ImageBase || !ImageSize || !TargetOffset1 || TargetOffset1 >= ImageSize
+        || !TargetValue || !NtoskrnlBase)
         return 0;
 
-    // 从 TargetOffset1 + ImageBase 开始扫描 ImageSize - TargetOffset1 字节
-    unsigned int ScanBase = (unsigned int)ImageBase + TargetOffset1;
-    unsigned int ScanSize = ImageSize - TargetOffset1;
-
-    __int64 Context[9];
-    _DWORD SectionEntry[72];
-    InitPESectionReadContext(ScanBase, ScanSize, 2, 0, -1, 0, 0, (__int64)&Context);
-
-    // 第一阶段：查找类型 0x558 节区，匹配目标偏移
-    unsigned int i;
-    for (i = 0; i < 0x100; i++)
     {
-            *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-        if (ReadPESectionEntry((PUCHAR)&Context, SectionEntry))
-            break;
-        unsigned int EntryBase = SectionEntry[0];
-        __int64 EntryTypePtr = Context[5];
-        unsigned int CurrentEnd = EntryBase + (unsigned int)SectionEntry[10];
-        Context[5] = EntryTypePtr + EntryBase;
+        PE_DECODE_CONTEXT Context;
+        _DWORD SectionEntry[0x120 / sizeof(_DWORD)];
 
-        if (*(unsigned __int16 *)(EntryTypePtr + 6) == 0x558
-            && (*(__int64 *)((char *)SectionEntry + 0x80) & 0x4000000) != 0
-            && SectionEntry[10])
+        InitPESectionReadContext(ImageBase + TargetOffset1, ImageSize - TargetOffset1,
+                                 2, 0, -1, 0, 0, (__int64)&Context);
+
+        /* 段 1：定位内核数据节区（类型 0x558 + 标志 0x4000000） */
+        for (i = 0; i < 0x100; i++)
         {
-            unsigned int Result = CurrentEnd - TargetOffset1;
-            if (Result == TargetValue)
-                break;
-        }
-    }
+            if (ReadPESectionEntry((PUCHAR)&Context, SectionEntry))
+                return 0;
+            *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
-    // 第二阶段：查找类型 0x512 节区，写入内核数据节区偏移
-    for (i = 0; i < 0x50; i++)
-    {
-        if (ReadPESectionEntry((PUCHAR)&Context, SectionEntry))
-            break;
-        unsigned int EntryBase = SectionEntry[0];
-        __int64 EntryTypePtr = Context[5];
-        unsigned int CurrentEnd = EntryBase + (unsigned int)SectionEntry[9];
-        Context[5] = EntryTypePtr + EntryBase;
-
-        if (*(unsigned __int16 *)(EntryTypePtr + 6) == 0x512
-            && *(unsigned __int64 *)((char *)SectionEntry + 0x80) == 0x40000
-            && SectionEntry[9])
-        {
-            unsigned int Result = CurrentEnd - TargetOffset1;
-            if (Result && Result < ImageSize)
+            if (*(unsigned __int16 *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 0x558
+                && (*(ULONG64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0)
             {
-                GtWrite(GtKernelDataField21, Result);
-                GtWrite(GtKernelDataField22, NtoskrnlBase + Result);
-                return 1;
+                ULONG Field = *(ULONG *)((char *)SectionEntry + 0x38);
+                if (Field)
+                {
+                    ULONG Rva = Field - (ULONG)ImageBase
+                              + (ULONG)(*(ULONG64 *)((PUCHAR)&Context + 0x08));
+                    if (Rva == TargetValue)
+                        break;
+                }
+            }
+        }
+        if (i >= 0x100)
+            return 0;
+
+        /* 段 2：解析内核数据节区偏移，写入 GT[0x2A7] / GT[0x2A8] */
+        for (i = 0; i < 0x50; i++)
+        {
+            if (ReadPESectionEntry((PUCHAR)&Context, SectionEntry))
+                return 0;
+            *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
+            if (*(unsigned __int16 *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 0x512
+                && *(ULONG64 *)((char *)SectionEntry + 0x88) == 0x40000)
+            {
+                ULONG Field = *(ULONG *)((char *)SectionEntry + 0x78);
+                if (Field)
+                {
+                    ULONG Rva = Field - (ULONG)ImageBase
+                              + (ULONG)(*(ULONG64 *)((PUCHAR)&Context + 0x08));
+                    if (Rva && Rva < ImageSize)
+                    {
+                        GtWrite(GtKernelDataField21, Rva);
+                        GtWrite(GtKernelDataField22, NtoskrnlBase + Rva);
+                        return Rva;
+                    }
+                }
             }
         }
     }

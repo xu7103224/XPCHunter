@@ -244,6 +244,10 @@ int main(int argc, char **argv)
     ULONG RawSize = 0x4000;
     ULONG RawInSize = 0;
     ULONG RawInValue = 0;
+    UCHAR InHexBuf[64];
+    ULONG InHexLen = 0;
+    BOOL CbTable = FALSE;
+    BOOL CbTableRestore = FALSE;
     int i;
 
     fopen_s(&g_Log, "C:\\Users\\Public\\probe_trace.txt", "w");
@@ -267,6 +271,11 @@ int main(int argc, char **argv)
         else if (_stricmp(argv[i], "--hi") == 0 && i + 1 < argc)
             ScanHi = (ULONG)strtoul(argv[++i], NULL, 0);
         else if (_stricmp(argv[i], "--nohs") == 0) NoHandshake = TRUE;
+        else if (_stricmp(argv[i], "--cbtable") == 0) CbTable = TRUE;
+        else if (_stricmp(argv[i], "--cbtable-restore") == 0) {
+            CbTable = TRUE;
+            CbTableRestore = TRUE;
+        }
         else if (_stricmp(argv[i], "--license") == 0) LicenseOnly = TRUE;
         else if (_stricmp(argv[i], "--hs-size") == 0 && i + 1 < argc) {
             HsSeedSize = (ULONG)strtoul(argv[++i], NULL, 0);
@@ -286,6 +295,18 @@ int main(int argc, char **argv)
             if (i + 2 < argc) {
                 RawInSize  = (ULONG)strtoul(argv[++i], NULL, 0);
                 RawInValue = (ULONG)strtoul(argv[++i], NULL, 0);
+            }
+        }
+        else if (_stricmp(argv[i], "--inhex") == 0 && i + 1 < argc) {
+            /* --inhex <hexstring>：逐字节入参，供 0x132（48 字节结构化输入）等
+               需要任意字节布局的命令做端到端验证。 */
+            const char *h = argv[++i];
+            InHexLen = 0;
+            while (h[0] && h[1] && InHexLen < sizeof(InHexBuf)) {
+                char two[3];
+                two[0] = h[0]; two[1] = h[1]; two[2] = 0;
+                InHexBuf[InHexLen++] = (UCHAR)strtoul(two, NULL, 16);
+                h += 2;
             }
         }
     }
@@ -775,6 +796,95 @@ int main(int argc, char **argv)
                    ok ? "OK" : "REJECTED", res, build, build);
         }
 
+        /* --cbtable：按原版输出布局解析 0x131 的 28 条回调表，并（可选）
+           --cbtable-restore 对检测到差异的槽真正下发 0x132 写回。
+           布局依据见 KernelHookViews.c FeLoadCallbackTable 的注释。 */
+        if (CbTable) {
+            enum { CB_SIZE = 1352, CB_BASE = 8, CB_STRIDE = 0x30, CB_N = 28 };
+            UCHAR *cb = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, CB_SIZE);
+            UCHAR rcb = 0;
+            BOOL cok;
+            ULONG pass, attempted = 0, restored = 0, rejected = 0, skipped = 0;
+
+            if (!cb) { printf("out of memory\n"); XpchClose(&client); return 1; }
+            cok = XpchInvoke(&client, 0x131, NULL, 0, cb, CB_SIZE, &rcb);
+            printf("\n=== 0x131 callback table -> %s result=%u ===\n",
+                   cok ? "OK" : "REJECTED", rcb);
+            printf("ready      = %u\n", cb[0]);
+            printf("build      = %lu\n", *(ULONG *)(cb + 8));
+            if (cok && cb[0] == 1) {
+                for (pass = 0; pass < CB_N; pass++) {
+                    UCHAR *e = cb + CB_BASE + pass * CB_STRIDE;
+                    ULONG idx = *(ULONG *)(e + 0x00);
+                    ULONG rva = *(ULONG *)(e + 0x04);
+                    ULONG64 va = *(ULONG64 *)(e + 0x08);
+                    ULONG64 cur = *(ULONG64 *)(e + 0x10);
+                    ULONG64 head = 0;
+                    char orig[64] = {0};
+                    int k;
+                    memcpy(&head, e + 0x1A, sizeof(head));
+                    (void)head;
+                    for (k = 0; k < 16; k++)
+                        sprintf_s(orig + k * 3, sizeof(orig) - (size_t)k * 3, "%02X ",
+                                  e[0x1A + k]);
+                    printf("  [%2lu] rva=%08lX va=%016I64X cur=%016I64X orig=%s\n",
+                           (unsigned long)idx, (unsigned long)rva, va, cur, orig);
+                    /* 【判据】orig 是目标地址上的原始机器码快照，cur 是系统当前
+                       调用的回调函数指针 —— 两者不是同类数据，不能直接比较。
+                       能被输出缓冲判定的「回调被替换」只有一种：cur 指向的地址
+                       与快照所属地址 va 不一致，即回调指针被重定向。
+                       至于「va 处代码被就地改写成跳板」（本驱动 InstallCallback-
+                       ContextHookEntry 的做法），需要读内核内存才能判定，输出里
+                       没有该字段，前端无法单凭 0x131 得出结论 —— 因此这里只做
+                       指针重定向这一项可判定的检查，不做任何猜测。 */
+                    if (!cur || !va || cur == va) { skipped++; continue; }
+                    attempted++;
+                    if (CbTableRestore) {
+                        /* 【2026-10-23 修正】恢复「被替换的回调」走的是原版
+                           InstallCallbackContextHookEntry（0x140036284）那条路：
+                             in+0x00 = 槽索引（<= 0x1B）
+                             in+0x08 = 要写回的原始函数地址（本表条目的 va）
+                             in+0x18 = 1  → 触发指针写回
+                           驱动执行 WritePhysicalMemoryQword(
+                               GetCallbackContextBase() + 112 + 8*index, in[8])
+                           即把回调上下文里那一项指针改回原始函数。
+                           此前用的 in+0x19=1 是「在目标地址上打 16 字节补丁」，
+                           属于另一条语义（恢复内联补丁），不是本项。 */
+                        UCHAR in[48];
+                        UCHAR rr = 0;
+                        BOOL rok;
+                        ZeroMemory(in, sizeof(in));
+                        *(ULONG *)(in + 0) = idx;
+                        *(ULONG64 *)(in + 8) = va;
+                        in[24] = 1;                 /* 指针写回路径 */
+                        rok = XpchInvoke(&client, 0x132, in, (ULONG)sizeof(in),
+                                         NULL, 0, &rr);
+                        if (rok && rr == 1) {
+                            restored++;
+                            printf("       -> restored: slot %lu pointer <- %016I64X\n",
+                                   (unsigned long)idx, va);
+                        } else {
+                            rejected++;
+                            printf("       -> FAILED (ok=%d result=%u)\n", rok, rr);
+                        }
+                    }
+                }
+                printf("  slots=%lu  redirected=%lu  original=%lu\n",
+                       (unsigned long)CB_N, (unsigned long)attempted,
+                       (unsigned long)skipped);
+                if (CbTableRestore)
+                    printf("  restored=%lu attempted=%lu rejected=%lu\n",
+                           (unsigned long)restored, (unsigned long)attempted,
+                           (unsigned long)rejected);
+                else if (attempted)
+                    printf("  (dry run; add --cbtable-restore to actually write back)\n");
+            }
+            HeapFree(GetProcessHeap(), 0, cb);
+            XpchClose(&client);
+            printf("=== done (cbtable) ===\n");
+            return 0;
+        }
+
         if (Raw) {
             UCHAR *outBuf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, RawSize);
             UCHAR rr = 0;
@@ -788,8 +898,13 @@ int main(int argc, char **argv)
             }
             /* 直接用 XpchInvoke：TryCommand 会给未知命令强制 1 字节输出，
                这里要的是按调用方指定的大小拿完整输出。
+               --inhex 给了逐字节入参（用于 0x132 这类 48 字节结构化输入）；
                RawInSize > 0 时先发一段入参（0x4C 等需要 8 字节输入的处理器）。 */
-            if (RawInSize)
+            if (InHexLen)
+            {
+                rok = XpchInvoke(&client, Cmd, InHexBuf, InHexLen, outBuf, RawSize, &rr);
+            }
+            else if (RawInSize)
             {
                 UCHAR inBuf[64];
                 ULONG n = RawInSize > sizeof(inBuf) ? (ULONG)sizeof(inBuf) : RawInSize;
