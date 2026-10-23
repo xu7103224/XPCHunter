@@ -3046,6 +3046,9 @@ char FindTdiDeregisterPnpExport(__int64 ImageBase, unsigned int ImageSize)
 // 注意伪代码里的 `v6`（= GT[0x802]，ntoskrnl 镜像大小）在原实现中
 // 被当作**基址**加到偏移上，这是原始行为，逐条保留。
 
+/* 【诊断 2026-10-23】ParseKernelDataSectionRelocs 的 1298(0x512) 分支命中计数。 */
+static ULONG g_DiagRelocHits = 0;
+
 #define RELOC_DESC_QWORD(d, off)  (*(__int64 *)((PUCHAR)(d) + (off)))
 #define RELOC_DESC_DWORD(d, off)  (*(int *)((PUCHAR)(d) + (off)))
 #define RELOC_DESC_TYPEID(d)      (*(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(d) + 6))
@@ -3120,13 +3123,40 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
            原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
         DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&Desc);
 
-        TargetRva = (int)(PE_DESC_SECTION_SIZE(&Desc) + CumulativeOffset);
+        /* 【2026-10-23 关键修正】TargetRva 必须是**推进后的绝对读指针**，
+           不是从 0 起的累计消耗量。
+
+           原版 0x140067B44（1298 且 var_108==2 分支）的汇编是：
+               140067B4A  mov  eax, ebx       ; ebx = desc+0x78
+               140067B4C  sub  eax, r12d      ; r12d = ImageBase 低 32 位
+               140067B4F  add  eax, ecx       ; ecx = 当前读指针（低 32 位）
+           即 Target = desc[0x78] - (ULONG)ImageBase + ReadPtr。
+
+           旧实现写成 `累计消耗量 + desc[0x78] - (ULONG)ImageBase`，
+           漏掉了读指针的基址部分（ImageBase + 0x2070 起）。
+           实测后果：ImageBase=0xFFFFC70B2E435000 时，
+               旧式 → 0x4D + 0x51C3 - 0x2E435000 = 0xD1BD0210（下溢）
+               新式 → 0x2E4370A0 + 0x51C3 - 0x2E435000 = 0x7263（正确）
+           下溢值恒 >= ImageSize，于是三条守卫虽然都通过，
+           InnerEnd 检查仍然失败、直接 goto MarkPhase1，
+           GT[0x807] 永远不写 → 命令 0xE8/0xE7 恒返回 0。
+           （kd 实测：诊断槽 0x4FE0 命中 3 次却从不写槽，正是此因。） */
+        TargetRva = (int)(ULONG)DecodeContext.ReadPtr;
         CumulativeOffset += PE_DESC_SECTION_SIZE(&Desc);
 
         if (!PE_DESC_SECTION_DATA(&Desc))
             return Result;
 
         TypeId = RELOC_DESC_TYPEID(&Desc);
+        /* 【诊断 2026-10-23】记录前 8 条的 (类型码, 消耗量)，判断扫描是否命中预期类型。
+           槽位：0x4FD0+i*2 = 类型码，0x4FD0+i*2+1 = 消耗量 */
+        if (LoopCount < 8)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)(0x4FD0 + LoopCount * 2), (__int64)TypeId);
+            GtWrite((GLOBAL_TABLE_INDEX)(0x4FD0 + LoopCount * 2 + 1),
+                    (__int64)PE_DESC_SECTION_SIZE(&Desc));
+        }
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FEF, (__int64)(LoopCount + 1));
         if (TypeId == 1349)
             return Result;
 
@@ -3171,6 +3201,20 @@ Check1298:
         {
             unsigned int InnerEnd;
 
+            /* 【诊断 2026-10-23】进入本分支就计数并记录四个字段，
+               用于判断是哪条守卫把原版能命中的条目挡掉了：
+                 0x4FE0 进入次数
+                 0x4FE9 desc+0x88   0x4FEA desc+0x78
+                 0x4FEB desc+0x50   0x4FEC TargetRva
+                 0x4FED ImageBase */
+            g_DiagRelocHits++;
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE0, (__int64)g_DiagRelocHits);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE9, RELOC_DESC_QWORD(&Desc, 0x88));
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FEA, (__int64)RELOC_DESC_DWORD(&Desc, 0x78));
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FEB, RELOC_DESC_QWORD(&Desc, 0x50));
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FEC, (__int64)TargetRva);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FED, ImageBase);
+
             if (RELOC_DESC_QWORD(&Desc, 0x88) != 0x40000 ||
                 !RELOC_DESC_DWORD(&Desc, 0x78) ||
                 RELOC_DESC_QWORD(&Desc, 0x50) != 64)
@@ -3179,6 +3223,25 @@ Check1298:
             InnerEnd = TargetRva + RELOC_DESC_DWORD(&Desc, 0x78) - (unsigned int)ImageBase;
             if (!InnerEnd || InnerEnd >= ImageSize)
                 goto MarkPhase1;
+
+            /* 【诊断 2026-10-23】记录本分支命中的完整字段，用于与原版比对：
+                 0x4FE0 命中次数
+                 0x4FE1 InnerEnd
+                 0x4FE2 NtoskrnlSize
+                 0x4FE3 Seen1069
+                 0x4FE4 desc+0x88
+                 0x4FE5 desc+0x78
+                 0x4FE6 desc+0x50
+                 0x4FE7 TargetRva */
+            g_DiagRelocHits++;
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE0, (__int64)g_DiagRelocHits);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE1, (__int64)InnerEnd);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE2, NtoskrnlSize);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE3, (__int64)Seen1069);
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE4, RELOC_DESC_QWORD(&Desc, 0x88));
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE5, (__int64)RELOC_DESC_DWORD(&Desc, 0x78));
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE6, RELOC_DESC_QWORD(&Desc, 0x50));
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FE7, (__int64)TargetRva);
 
             if (Seen1069 != 1 && (unsigned int)GtRead(GtWindowsBuildNumber) < 0x2580)
             {
