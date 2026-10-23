@@ -5002,6 +5002,7 @@ char __fastcall FindFwpsTcpIpDispatchTable(__int64 a1, unsigned int a2)
     __int64 CumulativeSize = 0;
     PE_DECODE_CONTEXT ReadContext;
     _DWORD SectionEntry[112];
+    unsigned int LoopIndex;
 
     TcpIpExportOffset = (unsigned int)GtRead(GtFwpsTcpIpOffset);
     if (!TcpIpExportOffset)
@@ -5015,15 +5016,23 @@ char __fastcall FindFwpsTcpIpDispatchTable(__int64 a1, unsigned int a2)
 
     InitPESectionReadContext(a1 + TcpIpExportOffset, a2 - TcpIpExportOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
+    /* 【2026-10-23 修正：读指针推进位置】原实现的 `ctx+0x08 += [entry+0xF0]`
+       写在 ReadPESectionEntry **之前**，首轮用的是未初始化的 SectionEntry，
+       之后每轮都用上一条的消耗量 —— 与 0x131 的
+       ParseNtExportSectionsV3 / ScanKernelModulePESections 是同一类缺陷，
+       累积偏移漂移后类型码全部错位，命中不了 0x50E/0x1296 分支，
+       于是 GT[0x7FC]（TcpIp 表）与 GT[0x800]（Win8 表）永远是 0，
+       命令 0xF2 恒返回 0，Network 页拿不到数据。
+       正确顺序：解码 → 用本条 +0xF0 推进 → 用推进后的读指针参与 RVA 计算。 */
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
     {
-        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
+        for (LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             ULONG MatchSize;
             __int16 SubType;
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                 break;
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
             MatchSize = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)CumulativeSize;
             CumulativeSize += *(ULONG *)((char *)SectionEntry + 0xF0);
             SubType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
@@ -7112,6 +7121,7 @@ char __fastcall FindFwpsDispatchTableWin8(__int64 a1, unsigned int a2)
     __int64 CumulativeSize = 0;
     PE_DECODE_CONTEXT ReadContext;
     _DWORD SectionEntry[112];
+    unsigned int LoopIndex;
 
     L2ExportOffset = (unsigned int)GtRead(GtFwpsL2Offset);
     if (!L2ExportOffset)
@@ -7125,15 +7135,17 @@ char __fastcall FindFwpsDispatchTableWin8(__int64 a1, unsigned int a2)
 
     InitPESectionReadContext(a1 + L2ExportOffset, a2 - L2ExportOffset, 2, 0, -1, 0, 0, (__int64)&ReadContext);
 
+    /* 【2026-10-23 修正：读指针推进位置】同 FindFwpsTcpIpDispatchTable ——
+       原实现在解码前推进，首轮用未初始化值、其后整体错位一条。 */
     if ((unsigned int)GtRead(GtWindowsBuildNumber) > 0x23F0)
     {
-        for (unsigned int LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
+        for (LoopIndex = 0; LoopIndex < 0x64; LoopIndex++)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             ULONG MatchSize;
             __int16 SubType;
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
                 break;
+            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
             MatchSize = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)CumulativeSize;
             CumulativeSize += *(ULONG *)((char *)SectionEntry + 0xF0);
             SubType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
