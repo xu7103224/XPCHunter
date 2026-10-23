@@ -248,6 +248,9 @@ int main(int argc, char **argv)
     ULONG InHexLen = 0;
     BOOL CbTable = FALSE;
     BOOL CbTableRestore = FALSE;
+    BOOL Matrix = FALSE;
+    ULONG MatrixLo = 0, MatrixHi = 0;
+    const char *MatrixOut = "C:\Users\Public\matrix_out.txt";
     BOOL DumpKmem = FALSE;
     int i;
 
@@ -278,6 +281,13 @@ int main(int argc, char **argv)
             CbTableRestore = TRUE;
         }
         else if (_stricmp(argv[i], "--dump-kmem") == 0) DumpKmem = TRUE;
+        else if (_stricmp(argv[i], "--matrix") == 0) Matrix = TRUE;
+        else if (_stricmp(argv[i], "--matrix-lo") == 0 && i + 1 < argc)
+            MatrixLo = (ULONG)strtoul(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--matrix-hi") == 0 && i + 1 < argc)
+            MatrixHi = (ULONG)strtoul(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--matrix-out") == 0 && i + 1 < argc)
+            MatrixOut = argv[++i];
         else if (_stricmp(argv[i], "--license") == 0) LicenseOnly = TRUE;
         else if (_stricmp(argv[i], "--hs-size") == 0 && i + 1 < argc) {
             HsSeedSize = (ULONG)strtoul(argv[++i], NULL, 0);
@@ -884,6 +894,76 @@ int main(int argc, char **argv)
             HeapFree(GetProcessHeap(), 0, cb);
             XpchClose(&client);
             printf("=== done (cbtable) ===\n");
+            return 0;
+        }
+
+        /* --matrix：全命令 I/O 差分矩阵。
+           按 g_Shapes 里每个命令自己的真实入参/出参形状调用一次，
+           把「结果字节 + 前 N 字节输出（hex）」写进文件。
+           同一份输出在原版驱动与我方驱动上各跑一次并逐字节 diff，
+           就能定位哪些命令的行为与原版不一致。
+           不在此做任何判断，只负责忠实采样。 */
+        if (Matrix) {
+            FILE *mf = NULL;
+            ULONG c;
+            ULONG nsent = 0, nrej = 0;
+            fopen_s(&mf, MatrixOut, "w");
+            if (!mf) {
+                printf("cannot open %s\n", MatrixOut);
+                XpchClose(&client);
+                return 1;
+            }
+            fprintf(mf, "# cmd insize outsize result hex\n");
+            for (c = MatrixLo ? MatrixLo : ScanLo;
+                 c <= (MatrixHi ? MatrixHi : ScanHi); c++) {
+                const CMD_SHAPE *sh = ShapeOf(c);
+                ULONG outSz = sh ? sh->OutSize : 0;
+                ULONG inSz = sh ? sh->InSize : 0;
+                UCHAR *ob = NULL;
+                UCHAR rr = 0;
+                BOOL ok;
+                ULONG oi;
+
+                if (IsSkipped(c))
+                    continue;
+                if (outSz > 0x4000) outSz = 0x4000;
+                ob = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, outSz ? outSz : 8);
+                if (!ob) continue;
+
+                if (inSz) {
+                    UCHAR inbuf[64];
+                    ZeroMemory(inbuf, sizeof(inbuf));
+                    ok = XpchInvoke(&client, c, inbuf,
+                                    inSz > sizeof(inbuf) ? (ULONG)sizeof(inbuf) : inSz,
+                                    ob, outSz, &rr);
+                } else {
+                    ok = XpchInvoke(&client, c, NULL, 0, ob, outSz, &rr);
+                }
+                if (ok) nsent++; else nrej++;
+
+                fprintf(mf, "0x%03lX %5lu %6lu %3u %s",
+                        (unsigned long)c, (unsigned long)inSz,
+                        (unsigned long)outSz, (unsigned)rr, ok ? "OK " : "REJ");
+                /* 只记录非零区间的起点，避免整块 0 也写出来占空间 */
+                for (oi = 0; oi < outSz; oi += 16) {
+                    int allz = 1, j;
+                    for (j = 0; j < 16 && oi + j < outSz; j++)
+                        if (ob[oi + j]) { allz = 0; break; }
+                    if (allz) continue;
+                    fprintf(mf, " %04lX:", (unsigned long)oi);
+                    for (j = 0; j < 16 && oi + j < outSz; j++)
+                        fprintf(mf, "%02X", ob[oi + j]);
+                }
+                fprintf(mf, "\n");
+                fflush(mf);
+                HeapFree(GetProcessHeap(), 0, ob);
+            }
+            fprintf(mf, "# sent=%lu rejected=%lu\n",
+                    (unsigned long)nsent, (unsigned long)nrej);
+            fclose(mf);
+            printf("matrix written to %s (sent=%lu rejected=%lu)\n",
+                   MatrixOut, (unsigned long)nsent, (unsigned long)nrej);
+            XpchClose(&client);
             return 0;
         }
 
