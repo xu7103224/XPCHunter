@@ -57,10 +57,23 @@ GT_NOINLINE __int64 GtRead(GLOBAL_TABLE_INDEX Index)
 
 // GtWrite — 写入 64 位值到全局表指定索引
 // 对应原始驱动 sub_140029FF4
+// 【2026-10-23 修正返回值】原版汇编总共三条指令：
+//     140029FF4  mov  eax, ecx          ; eax = Index（第 1 形参）
+//     140029FF6  lea  rcx, g_GlobalTable
+//     140029FFD  mov  [rcx+rax*8], rdx
+//     14002A001  retn                   ; 返回值 = Index
+// 即**返回索引，不返回值**。我方原实现写 `return Value`，是错的。
+//
+// 这不是无关紧要的细节：有些处理器直接把 GtWrite 的返回值当自己的返回值。
+// 例如 CmdResetProcessContext（命令 0x21）实现为
+//     GtWrite(0x185, 0);
+//     return GtWrite(GtEprocessModuleEntrySize | GtEprocessField22, 0);
+// 原版因此返回该索引的低字节 0x2E(46)，我方返回 Value(0)，
+// 于是 0x21 在 I/O 矩阵差分里表现为「原版 OK(46) / 我方 REJ」。
 GT_NOINLINE __int64 GtWrite(GLOBAL_TABLE_INDEX Index, __int64 Value)
 {
     g_GlobalTable[Index] = Value;
-    return Value;
+    return (__int64)(unsigned int)Index;
 }
 
 // InitGtCore — 初始化全局表核心条目
