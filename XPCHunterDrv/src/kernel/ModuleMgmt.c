@@ -4691,17 +4691,24 @@ char __fastcall ValidateWin32kBaseDriverImage(__int64 DiskBuffer, unsigned int D
     __int64 ImageBase;
     unsigned int ImageSize;
 
-    Result = (unsigned int)GtRead(GtFwpsDispatchTableBase);
+    /* 【2026-10-23】本函数把两个槽当「已校验标志 / 模块大小」用，
+       与 Fwps 分发表那组（0x800/0x801）语义无关。
+       原先它靠 xpc_gt_enum.h 里一条错误的
+       `#define GtFwpsDispatchTableBase 0x910` 意外指向 0x910/0x911；
+       那条 #define 已删除（它把枚举里的 0x800 覆盖掉，导致
+       ParseKernelDataSectionRelocs 读到构建号而整条链失效）。
+       这里按原意显式写 0x910 / 0x911，避免语义被改。 */
+    Result = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x910);
     if (!Result)
     {
         ImageBase = GtRead(GtHalModuleBase);
-        ImageSize = (unsigned int)GtRead(GtFwpsDispatchTableCount);
+        ImageSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x911);
 
         if (ImageBase && ImageSize && DiskBuffer && DiskSize && ImageSize > 0x1000)
         {
-            GtWrite(GtFwpsDispatchTableBase, 1);
+            GtWrite((GLOBAL_TABLE_INDEX)0x910, 1);
             if (ComparePeHeaders(ImageBase, ImageSize, DiskBuffer, DiskSize) == 1)
-                GtWrite(GtFwpsDispatchTableCount, 1);
+                GtWrite((GLOBAL_TABLE_INDEX)0x911, 1);
         }
 
         Result = ImageSize;

@@ -660,8 +660,27 @@ void InitTdiExportAndRelocTable(void)
 {
     unsigned int FileSize = 0;
     void *pFileBuffer = NULL;
+    char ReadOk;
 
-    if (ReadSystemDriverFile((_QWORD *)&pFileBuffer, &FileSize))
+    /* 【诊断 2026-10-23】0xE8/0xE7 的前提链断在这里：
+       需要确认 ReadSystemDriverFile 是否成功。诊断槽：
+         0x4FB0  1=已进入本函数
+         0x4FB1  ReadSystemDriverFile 返回值
+         0x4FB2  FileSize（成功时）
+         0x4FB3  pFileBuffer
+         0x4FB4  0x80B 守卫值（为 0 才调 ParseKernelDataSectionRelocs）
+         0x4FB5  0x80C 守卫值（为 0 才调 FindTdiDeregisterPnpExport）
+       */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB0, 1);
+
+    ReadOk = ReadSystemDriverFile((_QWORD *)&pFileBuffer, &FileSize);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB1, (__int64)ReadOk);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB2, (__int64)FileSize);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB3, (__int64)pFileBuffer);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB4, GtRead(GtEprocessField01 | 0x800));
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FB5, GtRead(GtEprocessField02 | 0x800));
+
+    if (ReadOk)
     {
         if (!GtRead(GtEprocessField01 | 0x800))
             ParseKernelDataSectionRelocs((__int64)pFileBuffer, FileSize);
@@ -3050,6 +3069,19 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
 
     memset(&Desc, 0, sizeof(Desc));
 
+    /* 【诊断 2026-10-23】0xE8/0xE7 链路追踪。GT[0x807] 恒为 0 说明
+       FindDllInitExport 没把 GT[0x804] 写出来。本组槽记录本函数的执行轨迹：
+         0x4FC0  1=进入本函数（此时已调用过 FindDllInitExport）
+         0x4FC1  FindDllInitExport 执行后 GT[0x804] 的值
+         0x4FC2  ImageBase（文件缓冲指针）
+         0x4FC3  ImageSize
+         0x4FC4  GT[0x802]（NtoskrnlSize 守卫）
+         0x4FC5  0=提前返回(守卫不满足) 1=进入节区扫描
+       */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FC0, 1);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FC2, ImageBase);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FC3, (__int64)ImageSize);
+
     Found = (unsigned int)GtRead(GtFwpsDispatchTableBase | GtPathBuffer00);   /* GT[0x804] */
     if (!Found)
     {
@@ -3058,9 +3090,15 @@ __int64 ParseKernelDataSectionRelocs(__int64 ImageBase, unsigned int ImageSize)
     }
 
     NtoskrnlSize = GtRead(GtFwpsDispatchTableBase | GtNtoskrnlImageSize);     /* GT[0x802] */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FC1, (__int64)Found);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FC4, NtoskrnlSize);
     Result = NtoskrnlSize;
     if (!NtoskrnlSize || !Found || Found >= ImageSize)
+    {
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FC5, 0);
         return Result;
+    }
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FC5, 1);
 
     InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
                              (__int64)&DecodeContext);
@@ -4326,23 +4364,51 @@ char __fastcall FindDllInitExport(__int64 ImageBase, unsigned int ImageSize)
     char Result = 0;
     __int64 Value = 0;
     __int64 ModuleLoadBase = GtRead((enum _GLOBAL_TABLE_INDEX)2050);
+    /* 【诊断 2026-10-23】0xE8 / 0xE7 在我的实现里拿不到数据，
+       链路追到 GT[0x804] 恒为 0（应为导出 RVA）。
+       本函数是这个槽的唯一写入者，因此把它的每一步实测值放进
+       GT 空闲区 0x4FA0 起，供 kd 直接读出：
+         0x4FA0 阶段码  1=ModuleLoadBase 为 0 就退出
+                        2=两名字都没查到
+                        3=查到但 Value 越界
+                        4=成功
+         0x4FA1 ImageBase（文件缓冲指针）
+         0x4FA2 ImageSize
+         0x4FA3 LookupExportByName 返回的 Value（"DllInitialize"）
+         0x4FA4 ModuleLoadBase
+       */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FA0, 1);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FA1, ImageBase);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FA2, (__int64)ImageSize);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FA4, ModuleLoadBase);
     if (ModuleLoadBase)
     {
         WORD FuncName[8];
+        char Found;
         strcpy((char *)FuncName, "DllInitialize");
         FuncName[7] = 0;
-        if (LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value) == 1
-            || (strcpy((char *)FuncName, "TdiInitialize"),
-                FuncName[7] = 0,
-                LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value) == 1))
+        Found = LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value);
+        if (!Found)
         {
-            if ((_DWORD)Value && (unsigned int)Value < ImageSize)
-            {
-                GtWrite((enum _GLOBAL_TABLE_INDEX)2052, (unsigned int)Value);
-                GtWrite((enum _GLOBAL_TABLE_INDEX)(GtPathBuffer01 | 0x800), ModuleLoadBase + (unsigned int)Value);
-                return 1;
-            }
+            strcpy((char *)FuncName, "TdiInitialize");
+            FuncName[7] = 0;
+            Found = LookupExportByName((PUCHAR)ImageBase, ImageSize, (PCHAR)FuncName, (PULONG)&Value);
         }
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FA3, Value);
+        if (!Found)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FA0, 2);
+            return Result;
+        }
+        if (!(_DWORD)Value || (unsigned int)Value >= ImageSize)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)0x4FA0, 3);
+            return Result;
+        }
+        GtWrite((enum _GLOBAL_TABLE_INDEX)2052, (unsigned int)Value);
+        GtWrite((enum _GLOBAL_TABLE_INDEX)(GtPathBuffer01 | 0x800), ModuleLoadBase + (unsigned int)Value);
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FA0, 4);
+        return 1;
     }
     return Result;
 }

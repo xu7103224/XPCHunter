@@ -1353,7 +1353,23 @@ typedef enum _GLOBAL_TABLE_INDEX {
 // 以下值从 IDA 反编译确认，部分与新枚举条目重叠，用宏定义兼容旧代码引用
 // SSDT 相关索引 (IDA 确认)
 #define GtSsdtTableOffset      0x90F           // 2319: SSDT 表偏移(EnumProcessModules)
-#define GtFwpsDispatchTableBase 0x910          // 2320: Fwps 调度表基址(EnumProcessModules)
+/* 【2026-10-23 修正 —— 严重 bug】此处原本有一行
+ *     #define GtFwpsDispatchTableBase 0x910
+ * 它把上面枚举里的 `GtFwpsDispatchTableBase = 0x800` **整个覆盖**掉了，
+ * 因为本 #define 位于枚举之后，所有使用点都被替换成 0x910。
+ * 后果是一整族槽位错位：
+ *     GtFwpsDispatchTableBase | GtPathBuffer00(4)  本应是 0x804，
+ *     实际算成 0x910|4 = 0x914 —— 正好落在 GtWindowsBuildNumber 上。
+ * 于是 ParseKernelDataSectionRelocs 里的 `Found` 读到构建号 18362，
+ * `Found >= ImageSize` 恒为真，函数在进入节区扫描前就返回，
+ * GT[0x807]（对象类型链）永远是 0 → 命令 0xE8 / 0xE7 恒返回 0。
+ * 实测证据（kd 读我方驱动）：
+ *     GT[0x804] = 0          应为 0x2070（DllInitialize 的 RVA）
+ *     GT[0x914] = 0x47BA     18362，构建号
+ *     诊断槽 0x4FC1(Found) = 0x47BA   ← 证明读到的就是 0x914
+ * 原版汇编证据：FindFwpsDispatchTableWin8 是 `mov ecx,800h; call GtWrite`，
+ * 且整族 0x7F8..0x801 都按 0x800 基准读写，故 0x800 才是正确值。
+ * 删除该 #define，让枚举值生效。 */
 #define GtPteBase              0x911           // 2321: PTE 基址(EnumProcessModules)
 #define GtSsdtServiceTable     0x8B3           // 2227: SSDT 服务表基址(EnumSsdtHooks)
 #define GtSsdtServiceCount     0x914           // 2324: SSDT 服务计数(EnumSsdtHooks, 同GtWindowsBuildNumber)
