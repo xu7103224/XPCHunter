@@ -2705,7 +2705,14 @@ __int64 MiniFilterPreAcquire(__int64 Unknown1, __int64 Unknown2, unsigned int *O
             {
                 for (NameIndex = 0; NameIndex < 0x1000; NameIndex++)
                 {
-                    if ((ULONG64)NameArray <= *(ULONG64 *)MmSystemRangeStart)
+                    /* 【2026-10-23 修复 BSOD 0x50】原版 0x1400180xx 是
+                       `mov rax, cs:MmSystemRangeStart; cmp rcx, [rax]` ——
+                       它先取**变量地址**再解引用。我方 `MmSystemRangeStart`
+                       由 WDK 声明为 extern PVOID，`MmSystemRangeStart` 本身就是
+                       变量的**值**（ffff8000`00000000）；再写 `*(ULONG64 *)x`
+                       等于去解引用 ffff8000`00000000，必然页错误。
+                       实测 BSOD 0x50 Arg1 = ffff8000`00000000 正是这里。 */
+                    if ((ULONG64)NameArray <= (ULONG64)MmSystemRangeStart)
                         break;
                     if (CheckMemoryValid(NameArray) != 1 ||
                         CheckMemoryValid((char *)NameArray + 31) != 1)
@@ -2889,7 +2896,7 @@ __int64 MiniFilterPreShutdown(_QWORD *ServicePtr, int InputSize)
     /* ⑦ 读取预期旧值 */
     ProbeForRead((PVOID)ServicePtr, 8, 8);                   // 0x140018A6F
     Expected = *(__int64 *)ServicePtr;                       // 0x140018A75
-    if ((ULONG64)Expected <= *(ULONG64 *)MmSystemRangeStart)  // 0x140018A7D/0A84/0A87
+    if ((ULONG64)Expected <= (ULONG64)MmSystemRangeStart)  // 0x140018A7D/0A84/0A87
         return Result;
 
     /* ⑧ 首槽特判 */
@@ -2899,7 +2906,7 @@ __int64 MiniFilterPreShutdown(_QWORD *ServicePtr, int InputSize)
         *(__int64 *)OldValue = Sect887;                      // 0x140018A98（xchg [r14], r13）
         return 1;
     }
-    if (!Cur || (ULONG64)Cur <= *(ULONG64 *)MmSystemRangeStart)  // 0x140018AA0 / AA9
+    if (!Cur || (ULONG64)Cur <= (ULONG64)MmSystemRangeStart)  // 0x140018AA0 / AA9
         return Result;
     if (((ULONG64)Cur & 7) != 0)                             // 0x140018AB2
         return Result;
@@ -3501,33 +3508,61 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
 
         for (SectionIndex = 0; SectionIndex < 0xC8; ++SectionIndex)
         {
+            ULONG NewReadPtr;
+
             result = ReadPESectionEntry((PUCHAR)&ReadContext, &Desc);
             if ((_DWORD)result)
                 break;
             /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
                原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
             ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(&Desc);
-
-            CalculatedSize = (int)(PE_DESC_SECTION_SIZE(&Desc) + CumulativeSize);
-            CumulativeSize += PE_DESC_SECTION_SIZE(&Desc);
+            NewReadPtr = (ULONG)ReadContext.ReadPtr;          // 0x14001738B 之后的 ecx
 
             SectionFlags = *(__int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&Desc) + 6);
-            if (SectionFlags == 1296 &&
-                PE_DESC_FIELD_VALUE2(&Desc) == 0x40000 &&
-                *(int *)((PUCHAR)&Desc + 0x40) &&
-                PE_DESC_FIELD_VALUE(&Desc) == 64)
+            /* 【诊断 2026-10-23】0x10B 的前置 GT[0x885] 需要本函数两阶段配对。
+               0x5300.. 记录前 12 条：(类型<<32)|字段+0x78，字段+0x88，字段+0x50
+               0x531E 迭代数 / 0x531F ExportBase 低32 / 0x5320 最终 RVA */
+            if (SectionIndex < 12)
             {
-                CurrentExecOffset = CalculatedSize + *(int *)((PUCHAR)&Desc + 0x40)
-                                    - (int)(ULONG_PTR)ExportBase;
+                GtWrite((GLOBAL_TABLE_INDEX)(0x5300 + SectionIndex * 3 + 0),
+                        ((__int64)SectionFlags << 32) |
+                        (__int64)*(ULONG *)((PUCHAR)&Desc + 0x78));
+                GtWrite((GLOBAL_TABLE_INDEX)(0x5300 + SectionIndex * 3 + 1),
+                        PE_DESC_FIELD_VALUE2(&Desc));
+                GtWrite((GLOBAL_TABLE_INDEX)(0x5300 + SectionIndex * 3 + 2),
+                        PE_DESC_FIELD_VALUE(&Desc));
+            }
+            GtWrite((GLOBAL_TABLE_INDEX)0x531E, (__int64)(SectionIndex + 1));
+            GtWrite((GLOBAL_TABLE_INDEX)0x531F, (__int64)(ULONG)(ULONG_PTR)ExportBase);
+
+            /* 【2026-10-23 偏移+RVA 双重修正】
+               (1) 偏移：描述符基址 var_148 = rsp+0x90，原版三处引用换算为
+                     0x140017394 mov eax,[rsp+1D8h+var_D0]   → desc+0x78
+                     0x1400173A1 cmp [rsp+1D8h+var_C0],40000h → desc+0x88
+                     0x1400173B3 cmp [rsp+1D8h+var_F8],40h    → desc+0x50
+                   旧代码把「字段+0x78」写成 +0x40，首阶段条件几乎恒不成立。
+               (2) RVA：原版 0x1400173C0 是
+                     mov ebx, eax(desc+0x78); sub ebx, esi(ExportBase 低32);
+                     add ebx, ecx(新读指针)
+                   即 RVA = 描述符字段 - ExportBase + 绝对读指针。
+                   旧代码用累计消耗量代替读指针、又额外减了 ExportBase，
+                   把 RVA 算成负数回绕，最终 GT[0x885] 被写成非法地址。 */
+            if (SectionFlags == 1296 &&
+                PE_DESC_FIELD_VALUE2(&Desc) == 0x40000 &&              // desc+0x88
+                *(int *)((PUCHAR)&Desc + 0x78) &&                     // desc+0x78
+                PE_DESC_FIELD_VALUE(&Desc) == 64)                     // desc+0x50
+            {
+                CurrentExecOffset = *(int *)((PUCHAR)&Desc + 0x78)
+                                    - (ULONG)(ULONG_PTR)ExportBase + NewReadPtr;
             }
             else if (SectionFlags == 1298 &&
-                     PE_DESC_FIELD_VALUE2(&Desc) == 0x40000)
+                     PE_DESC_FIELD_VALUE2(&Desc) == 0x40000)           // desc+0x88
             {
-                if (*(int *)((PUCHAR)&Desc + 0x40) &&
-                    PE_DESC_FIELD_VALUE(&Desc) == 64)
+                if (*(int *)((PUCHAR)&Desc + 0x78) &&                  // desc+0x78
+                    PE_DESC_FIELD_VALUE(&Desc) == 64)                  // desc+0x50
                 {
-                    result = CalculatedSize + *(int *)((PUCHAR)&Desc + 0x40)
-                             - (unsigned int)(ULONG_PTR)ExportBase;
+                    result = *(int *)((PUCHAR)&Desc + 0x78)
+                             - (ULONG)(ULONG_PTR)ExportBase + NewReadPtr;
                     if ((_DWORD)result && (_DWORD)result == CurrentExecOffset)
                         return GtWrite(GtFltEnumerateFilterDataSection,
                                        FltMgrBase + (unsigned int)result);
@@ -4876,7 +4911,7 @@ char CmdInitFwpsDispatchTables(__int64 Reserved1, __int64 Reserved2,
         return Result;
 
     /* ---- 段 2：校验 TablePtr 指向的结构 ---- */
-    RangeStart = *(ULONG64 *)MmSystemRangeStart;               // 0x14001BC67/6E
+    RangeStart = (ULONG64)MmSystemRangeStart;               // 0x14001BC67/6E
     if (TablePtr <= RangeStart                                 // 0x14001BC71
         || EntryCount >= 0x100)                                // 0x14001BC7A
         return Result;                                         // 0x14001BD28
@@ -5707,18 +5742,21 @@ char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize
         Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);   // 0x1400691A7
         /* 【诊断 2026-10-23】0x0F8 的前置 GT[0x7D0] 恒为 0，本函数执行了却没命中。
            记录前 16 条的类型码与关键字段，供 kd 读出定位：
-             0x4F60+i*3+0 类型码
-             0x4F60+i*3+1 消耗量
-             0x4F60+i*3+2 字段+0x88
-             0x4F9E 迭代计数 */
+             0x5100+i*3+0 (Type<<32)|字段+0x40
+             0x5100+i*3+1 字段+0x50
+             0x5100+i*3+2 字段+0x88
+             0x511E 迭代计数 */
         if (i < 16)
         {
-            GtWrite((GLOBAL_TABLE_INDEX)(0x4F60 + i * 3 + 0), (__int64)Type);
-            GtWrite((GLOBAL_TABLE_INDEX)(0x4F60 + i * 3 + 1), (__int64)Len);
-            GtWrite((GLOBAL_TABLE_INDEX)(0x4F60 + i * 3 + 2),
+            GtWrite((GLOBAL_TABLE_INDEX)(0x5100 + i * 3 + 0),
+                    ((__int64)Type << 32) |
+                    (__int64)*(ULONG *)((PUCHAR)Entry + 0x40));
+            GtWrite((GLOBAL_TABLE_INDEX)(0x5100 + i * 3 + 1),
+                    *(__int64 *)((PUCHAR)Entry + 0x50));
+            GtWrite((GLOBAL_TABLE_INDEX)(0x5100 + i * 3 + 2),
                     *(__int64 *)((PUCHAR)Entry + 0x88));
         }
-        GtWrite((GLOBAL_TABLE_INDEX)0x4F9E, (__int64)(i + 1));
+        GtWrite((GLOBAL_TABLE_INDEX)0x511E, (__int64)(i + 1));
 
         if (Type == 0x545)                                        // 0x1400691B3
             break;
@@ -5763,21 +5801,27 @@ char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize
 // 对应原始驱动 0x140069504（443 字节）
 // 【逆向来源】⚠ 可被 Hex-Rays 正常反编译，按伪代码 1:1 转写。
 // 【和同族 Scan*Section 的差异】本函数是**两阶段**匹配：
-//   阶段 1：类型 1296 且 字段+0x88 == 0x40000 且 字段+0x40 非零 且 字段+0x50 == 64
-//           → 记录候选 RVA(累计+字段+0x40-PeBase) 与 字段+0x8C（须尚未记录）；
-//   阶段 2：类型 1296 且 (字段+0x88 & 0x10000) 非零 且 (int)字段+0x40 > 0
-//           且 字段+0x50 == 32 且 已有候选 且 字段+0x8C == 阶段 1 记录的字段+0x8C
-//           → 写 GT 0x7BA = 字段+0x40、GT 0x7BB = 基址+候选RVA，返回 1。
-// 【注】`v14`（IDArbp-C0 处的 dword）在反汇编里于循环前取自描述符自身字段
-//   （0x1400695BB `mov r13d,[rsp+0x40]`），与后文 v19(字段+0x8C) 同一来源位置。
+//   阶段 1：类型 1296 且 字段+0x88 == 0x40000 且 字段+0x78 非零 且 字段+0x50 == 64
+//           → 记录候选 RVA(累计+字段+0x78-PeBase) 与 字段+0x58（须尚未记录）；
+//   阶段 2：类型 1296 且 (字段+0x88 & 0x10000) 非零 且 (int)字段+0x78 > 0
+//           且 字段+0x50 == 32 且 已有候选 且 字段+0x58 == 字段+0x90
+//           → 先写 GT 0x7BB = 字段+0x78，再写 GT 0x7BA = 基址+候选RVA，返回 1。
+//
+// 【2026-10-23 偏移修正】按本函数**自己的栈帧**逐条换算（描述符基址 var_160 = rbp-0x60）：
+//   `mov eax,[rbp+100h+Value]`    → Value   = desc+0x78（frame offset 0x118 − 基址 0xa0；
+//                                             旧代码先后误作 +0x40 与 +0x48）
+//   `mov r13d,[rbp+100h+var_108]` → var_108 = desc+0x58（offset 0xf8 − 0xa0；旧代码误作 +0x8C）
+//   `cmp r13d,[rbp+100h+var_D0]`  → var_D0  = desc+0x90（offset 0x130 − 0xa0；旧代码误作 +0x8C）
+//   三处错误让两阶段永远配不上对，GT[0x7BA] 恒为 0 → 命令 0x0FB 恒失败。
+//   var_110(desc+0x50)、var_D8(desc+0x88)、var_70(desc+0xF0)、var_48(desc+0x118) 原本正确。
 char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
     ULONG   Offset;
     __int64 ModuleBase;
     ULONG   i;
-    ULONG   SavedOfs = 0;         // v8：阶段 1 记录的候选 RVA
-    ULONG   SavedField = 0;       // v7：阶段 1 记录的 字段+0x8C
+    ULONG   SavedOfs = 0;         // edi：阶段 1 记录的候选 RVA
+    ULONG   SavedField = 0;       // r13d：阶段 1 记录的 字段+0x58
     PE_DECODE_CONTEXT Ctx;
     _DWORD  Entry[112];          // 描述符：原 [20] 仅 80 字节（ReadPESectionEntry 写 0x120）
 
@@ -5798,15 +5842,23 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
     SavedField = 0;                                               // 0x1400695BB（取自描述符字段区）
     SavedOfs = 0;
 
+    /* 【诊断 2026-10-23】命令 0x0FB 依赖本函数写 GT[0x7BA]。
+       0x5000..0x501F 逐条记录前 10 条描述符：类型与 5 个字段原值。
+       0x502E = 迭代数 / 0x502F = PeBase 低 32 位 / 0x502D = Offset。 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x502D, (__int64)Offset);
+    GtWrite((GLOBAL_TABLE_INDEX)0x502F, (__int64)(ULONG)(ULONG_PTR)PeBase);
+
     for (i = 0; i < 0x1E; ++i)                                    // 0x1400695C2
     {
         USHORT Type;
         ULONG  Len, Cumul;
-        ULONG  F40, F8C;
+        ULONG  F78, F58, F90;
         ULONG64 F50, F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x1400695CE
             break;
+
+        GtWrite((GLOBAL_TABLE_INDEX)0x502E, (__int64)(i + 1));
 
         Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
         Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x1400695E6
@@ -5816,28 +5868,39 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
         if (Type == 0x545)                                        // 0x140069601
             break;
 
-        F40 = *(ULONG *)((PUCHAR)Entry + 0x40);
-        F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);
-        F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
-        F8C = *(ULONG *)((PUCHAR)Entry + 0x8C);
+        F78 = *(ULONG *)((PUCHAR)Entry + 0x78);                   // [rbp+Value]（+0x78）
+        F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);                 // [rbp+var_110]
+        F58 = *(ULONG *)((PUCHAR)Entry + 0x58);                   // [rbp+var_108]
+        F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);                 // [rbp+var_D8]
+        F90 = *(ULONG *)((PUCHAR)Entry + 0x90);                   // [rbp+var_D0]
+
+        if (i < 10)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)(0x5000 + i * 3 + 0),
+                    ((__int64)Type << 32) | (__int64)F78);
+            GtWrite((GLOBAL_TABLE_INDEX)(0x5000 + i * 3 + 1),
+                    ((__int64)F50 << 32) | (__int64)F58);
+            GtWrite((GLOBAL_TABLE_INDEX)(0x5000 + i * 3 + 2),
+                    ((__int64)F88) | ((__int64)F90 << 40));
+        }
 
         if (Type == 0x510)                                        // 0x140069614（1296）
         {
-            if (F88 == 0x40000ULL && F40 != 0 && F50 == 64)        // 0x140069629
+            if (F88 == 0x40000ULL && F78 != 0 && F50 == 64)        // 0x140069629
             {
-                ULONG Rva = Cumul + F40 - (ULONG)(ULONG_PTR)PeBase;   // 0x14006962B
+                ULONG Rva = Cumul + F78 - (ULONG)(ULONG_PTR)PeBase;   // 0x14006962B
                 if (Rva && Rva < PeSize && !SavedOfs)              // 0x140069630/632/636
                 {
-                    SavedField = F8C;                              // 0x14006963A
+                    SavedField = F58;                              // 0x14006963A
                     SavedOfs = Rva;                                // 0x14006963E
                 }
             }
-            else if ((F88 & 0x10000ULL) != 0 && (int)F40 > 0       // 0x140069665
-                && F50 == 32 && SavedOfs && SavedField == F8C)
+            else if ((F88 & 0x10000ULL) != 0 && (int)F78 > 0       // 0x140069665
+                && F50 == 32 && SavedOfs && SavedField == F90)
             {
-                // 【顺序依据】原始 0x14006967D 先写 0x7BB（= F40），
+                // 【顺序依据】原始 0x14006967D 先写 0x7BB（= F78），
                 //   0x14006968C 后写 0x7BA（= 基址 + 候选 RVA）。逐条核对过调用序。
-                GtWrite((GLOBAL_TABLE_INDEX)0x7BB, (__int64)F40);          // 0x14006967D
+                GtWrite((GLOBAL_TABLE_INDEX)0x7BB, (__int64)F78);          // 0x14006967D
                 GtWrite((GLOBAL_TABLE_INDEX)0x7BA,
                         ModuleBase + (__int64)SavedOfs);                   // 0x14006968C
                 return 1;

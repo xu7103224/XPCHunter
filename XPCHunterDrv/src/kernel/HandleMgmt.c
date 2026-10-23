@@ -47,13 +47,29 @@ __int64 CmdEnumHandles(__int64 UnusedArg1, __int64 UnusedArg2, volatile void *Ou
 // 调用多个枚举函数填充进程上下文表
 char ValidateProcessContext(unsigned int *OutputBuffer, unsigned int BufferSize)
 {
+    /* 【诊断 2026-10-23】命令 0x026 恒返回 0，逐级记录 5 个子调用后 *OutputBuffer 的值：
+       0x5200=初始 0x5201=GetProcessVirtualizationContext 后
+       0x5202=DispatchProcessHandleTableEnum 后 0x5203=EnumerateProcessHandleTable 后
+       0x5204=EnumerateAllProcesses 后 0x5205=EnumerateSessionProcesses 后 */
     *OutputBuffer = 0;
+    GtWrite((GLOBAL_TABLE_INDEX)0x5200, 1);
+
     GetProcessVirtualizationContext(OutputBuffer, BufferSize);
+    GtWrite((GLOBAL_TABLE_INDEX)0x5201, (__int64)*OutputBuffer);
+
     DispatchProcessHandleTableEnum((__int64)OutputBuffer, BufferSize,
         (void (__fastcall *)(__int64, __int64, ULONG64, __int64))ValidateProcessObjectEx, 0);
+    GtWrite((GLOBAL_TABLE_INDEX)0x5202, (__int64)*OutputBuffer);
+
     EnumerateProcessHandleTable(OutputBuffer, BufferSize);
+    GtWrite((GLOBAL_TABLE_INDEX)0x5203, (__int64)*OutputBuffer);
+
     EnumerateAllProcesses(OutputBuffer, BufferSize);
+    GtWrite((GLOBAL_TABLE_INDEX)0x5204, (__int64)*OutputBuffer);
+
     EnumerateSessionProcesses(OutputBuffer, BufferSize);
+    GtWrite((GLOBAL_TABLE_INDEX)0x5205, (__int64)*OutputBuffer);
+
     return *OutputBuffer != 0;
 }
 
@@ -605,15 +621,32 @@ bool CompareInt16Equal(__int16 Value1, __int16 Value2)
 // 对应原始驱动 sub_14007A7F8
 // 分配缓冲区后调用 NtQuerySystemInformation，自动调整缓冲区大小直至成功
 
-// AllocateNtHandleEntry — 分配 NT 句柄条目
-// 对应原始驱动 sub_14006C34C
-// 通过加密字符串路径解码后打开对象，分配句柄条目
+// AllocateNtHandleEntry — 取 WFP 设备对象指针
+// 对应原始驱动 0x14006C34C（58 条指令，0xDF 字节）
+// 【重新逆向 2026-10-23】按 0x14006C34C..0x14006C42B 逐条转写：
+//   取 GT[0x421D]=RtlInitUnicodeString / GT[0x4256]=IoGetDeviceObjectPointer /
+//   GT[0x4223]=ObfDereferenceObject；栈上构造 L"\\Device\\wfp"，
+//   打开设备拿 FILE_OBJECT，取其 +0x08（DeviceObject）作返回值，再解引用 FILE_OBJECT。
+//
+//   0x14006C3B5..C3D8  栈上构造 L"\\Device\\wfp"（6 个 DWORD，末项 0x70='p'）
+//   0x14006C3DF       RtlInitUnicodeString(&us, path)
+//   0x14006C3EE       edx = 0x80（ACCESS_MASK = FILE_READ_ATTRIBUTES）
+//   0x14006C3E6/3E2   r8 = &var_40（FILE_OBJECT 出参） r9 = &var_38（DeviceObject 出参）
+//   0x14006C3F3       call IoGetDeviceObjectPointer
+//   0x14006C3F5       test eax,eax / js → 失败跳过
+//   0x14006C3F9       rcx = var_40（FILE_OBJECT）
+//   0x14006C3FD       rbx = [rcx+8]（FILE_OBJECT.DeviceObject @ +0x08）
+//   0x14006C401       call ObfDereferenceObject —— **实参仍是 rcx = FILE_OBJECT**
+//
+// 【修正记录 2026-10-23】旧实现把 `CloseHandleFunc()` 写成无参调用，rcx 是上一条
+//   指令残留的垃圾值，实测在 nt!ObfDereferenceObject+0x26 触发 0x3B(0xC0000005) 蓝屏。
+//   原版 rcx 恒为 Handle，必须显式传入。
 __int64 AllocateNtHandleEntry(void)
 {
     __int64 Result = 0;
     void (__fastcall *RtlInitUnicodeStringFunc)(_BYTE *, _DWORD *);
     int (__fastcall *CreateFileFunc)(_BYTE *, __int64, __int64 *, _BYTE *);
-    void (*CloseHandleFunc)(void);
+    void (__fastcall *CloseHandleFunc)(__int64);
     __int64 Handle;
     _BYTE ObjectNameBuffer[16];
     _BYTE ObjectAttributes[48];
@@ -621,7 +654,7 @@ __int64 AllocateNtHandleEntry(void)
 
     RtlInitUnicodeStringFunc = (void (__fastcall *)(_BYTE *, _DWORD *))GtRead(GtRtlInitUnicodeStringFunc);
     CreateFileFunc = (int (__fastcall *)(_BYTE *, __int64, __int64 *, _BYTE *))GtRead(GtCreateFileFunc2);
-    CloseHandleFunc = (void (*)(void))GtRead(GtCloseHandleFunc);
+    CloseHandleFunc = (void (__fastcall *)(__int64))GtRead(GtCloseHandleFunc);
 
     if (RtlInitUnicodeStringFunc && CreateFileFunc && CloseHandleFunc)
     {
@@ -633,10 +666,11 @@ __int64 AllocateNtHandleEntry(void)
         EncodedPath[5] = 112;
 
         RtlInitUnicodeStringFunc(ObjectNameBuffer, EncodedPath);
+        Handle = 0;
         if (CreateFileFunc(ObjectNameBuffer, 128, &Handle, ObjectAttributes) >= 0)
         {
             Result = *(_QWORD *)(Handle + 8);
-            CloseHandleFunc();
+            CloseHandleFunc(Handle);
         }
     }
     return Result;
@@ -1799,11 +1833,22 @@ char GetProcessVirtualizationContextFallback(_DWORD *OutputBuffer, unsigned int 
     __int64 FieldValue;
     unsigned int FieldOffset;
 
-    CurrentFiber = (_QWORD *)KeGetCurrentThread();
+    /* 【2026-10-23 修正】原版 0x140049CF3 调 j_GetCurrentFiber，其实现是
+       `mov rax, gs:[20h]`（0x140001584），即 **KPCR / KPRCB 基址**，
+       `mov rsi, [rax+18h]` 取的才是 PRCB->CurrentThread。
+       旧代码用 KeGetCurrentThread() 再取 [3]（ETHREAD+0x18），语义完全不同 ——
+       ETHREAD+0x18 不是线程对象，后续 CheckFunc 判定必然失败。 */
+    CurrentFiber = (_QWORD *)GetCurrentFiber();
     if (CurrentFiber)
     {
-        FiberValue = CurrentFiber[3];
-        VirtualAddr = (ULONG)GtRead(GtEprocessField132 | 0x100);
+        FiberValue = CurrentFiber[3];                             // PRCB->CurrentThread (PRCB+0x18)
+        /* 【2026-10-23 修正】原版 0x140049D05 `mov ecx, 18Eh` 读的是 **GT[0x18E]**。
+           旧代码写 `GtEprocessField132 | 0x100`，但 xpc_gt_enum.h 的兼容宏把
+           GtEprocessField132 覆盖成了 GtEprocessField122→GtEprocessField112→
+           GtPeDataSectionVa2(112)，于是 `112|0x100 = 0x170`，读错了槽。
+           0x170 为 0 → 本函数在第一步就返回，*OutputBuffer 永远是 0，
+           命令 0x026 因此恒返回 0（与 GtFwpsDispatchTableBase 那次同类缺陷）。 */
+        VirtualAddr = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x18E);   // 0x140049D05
         PageOffset = (ULONG)GtRead(GtEprocessField30);
         PageTable = (ULONG)GtRead(GtProcessOffset);
         CheckFunc = (unsigned __int8 (__fastcall *)(__int64))GtRead(GtObjectTypeCheckFlag);

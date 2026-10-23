@@ -524,8 +524,11 @@ __int64 CmdEnumKernelDrivers(__int64 InputBuffer, __int64 InputSize, _DWORD *Out
     return 0;
 }
 
-// CmdEnumHandles — 枚举句柄命令处理
-// 对应原始驱动 sub_14004ABB4
+// CmdEnumHandles — 枚举句柄（命令 0x026）
+// 对应原始驱动 0x14004ABB4。实现在 kernel/HandleMgmt.c（与本文件 Table[6] 对应）。
+// 【2026-10-23 备注】原版逻辑：OutputBuffer 非空 且 BufferSize > 0x230 且两者都
+// 在用户态范围内 → ProbeForWrite → ValidateProcessContext，返回其非零结果。
+// HandleMgmt.c 中的实现已逐条对齐，此处不再重复定义（曾因两处定义触发 LNK2005）。
 
 // CmdCheckProcessAccess — 检查进程访问权限
 // 对应原始驱动 sub_1400800C0
@@ -2222,13 +2225,53 @@ __int64 CmdReadKernelMemoryToUserBuffer(__int64 InputBuffer, __int64 InputSize, 
     return ((PCOMMAND_HANDLER)ReadKernelMemoryToUserBufferOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
 }
 
-// CmdInitKernelMemoryContext — 初始化内核内存上下文命令处理
-// 对应原始驱动 sub_1400681DC
+// CmdInitKernelMemoryContext — 初始化内核内存上下文（命令 0x0F8）
+// 对应原始驱动 0x1400681DC（42 条指令，0x83 字节）
+// 【重新逆向 2026-10-23】旧实现只有一句注释 + 直接转调别的函数，与原版无关。
+// 按 0x1400681DC..0x14006825F 逐条重写：
+//
+//   0x1400681F4  GT[0x7D0]（NsiDeregister 数据节地址）；为 0 才调 InitKernelMemoryContext
+//   0x140068205  rdi = GT[0x7D0]（重读，可能已被 InitKernelMemoryContext 填上）
+//   0x140068212  rsi = GT[0x7CF]（要调用的函数指针）
+//   0x14006821A  !rdi → 失败
+//   0x140068226  rdi <= MmSystemRangeStart → 失败（必须是内核地址）
+//   0x14006822B  !rsi → 失败
+//   0x140068235  CheckMemoryValid(rdi, 1) != 1 → 失败
+//   0x14006823E  rcx = *rdi；为 0 直接成功（bl=1）
+//   0x140068246  call rsi(rcx)；返回值 < 0 → 失败，否则成功
+//   返回 bl（1=成功 / 0=失败）
 __int64 CmdInitKernelMemoryContext(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    /* diag 2026-10-22: force a run so the netio read chain is exercised */
-    InitKernelMemoryContext();
-    return ((PCOMMAND_HANDLER)InitKernelMemoryContextOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    __int64 NsiAddr;
+    __int64 FnPtr;
+    char    ok = 0;
+
+    if (!GtRead((GLOBAL_TABLE_INDEX)0x7D0))                        // 0x1400681F4
+        InitKernelMemoryContext();                                 // 0x1400681FE
+
+    NsiAddr = GtRead((GLOBAL_TABLE_INDEX)0x7D0);                   // 0x140068205
+    FnPtr   = GtRead((GLOBAL_TABLE_INDEX)0x7CF);                   // 0x140068212
+
+    if (NsiAddr
+        && (ULONG64)NsiAddr > (ULONG64)MmSystemRangeStart          // 0x140068226
+        && FnPtr)                                                  // 0x14006822B
+    {
+        if (CheckMemoryValid((PVOID)NsiAddr, 1) == 1)              // 0x140068235
+        {
+            __int64 Arg = *(__int64 *)NsiAddr;                     // 0x14006823E
+            if (!Arg)                                              // 0x140068241
+            {
+                ok = 1;                                            // 0x14006824C
+            }
+            else
+            {
+                __int64 st = ((__int64 (__fastcall *)(__int64))FnPtr)(Arg);   // 0x140068246
+                if (st >= 0)                                       // 0x14006824A
+                    ok = 1;
+            }
+        }
+    }
+    return (__int64)ok;
 }
 
 // CmdReadKernelMemoryRange — 读取内核内存范围命令处理

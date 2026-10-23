@@ -2825,7 +2825,7 @@ L_OTHER_BUILDS:                                                             // 0
                     {
                         if (*(ULONG64 *)(p - 2) == 0 && *(ULONG64 *)(p - 3) == 0)  // 0x140089E64
                         {
-                            ULONG64 base = *(ULONG64 *)MmSystemRangeStart;  // v24 = *MmSystemRangeStart
+                            ULONG64 base = (ULONG64)MmSystemRangeStart;  // v24 = *MmSystemRangeStart
                             if (base < (ULONG64)p[1] && ObjectAddress == (ULONG64)p[2]
                                 && (ULONG64)p[3] > base && (ULONG64)p[4] > base)   // 0x140089E83
                             {
@@ -2843,7 +2843,7 @@ L_OTHER_BUILDS:                                                             // 0
                     }
                     if ((v23 & 0xFFFFFFFFFFFF00FFULL) == 0 && *(ULONG64 *)(p - 1) == 0)  // 0x140089ED1
                     {
-                        ULONG64 base = *(ULONG64 *)MmSystemRangeStart;
+                        ULONG64 base = (ULONG64)MmSystemRangeStart;
                         if (*(ULONG64 *)(p - 4) > base && *(ULONG64 *)(p - 3) > base
                             && (ULONG64)p[1] > base)                        // 0x140089EF6
                         {

@@ -2556,18 +2556,40 @@ __int64 FixProcessEProcessOperation(char *pInputBuffer, int InputSize, unsigned 
 
     Result = 0;
     pObjectTypeDirectory = QueryObjectTypeDirectoryPath();
+    /* 【诊断 2026-10-23】命令 0x0C4 恒返回 0（原版返回 1），逐级记录：
+         0x4FF0 阶段码 1=目录指针为 0  2=进入取值  3=MmIsAddressValid 失败
+                        4=Buffer[0] 已取到  5=WritePhysicalMemoryBuffer 非 1  6=成功
+         0x4FF1 pObjectTypeDirectory
+         0x4FF2 pTypeEntry1 (dir+64)
+         0x4FF3 pTypeEntry2 (dir+312)
+         0x4FF4 Buffer[0]   (typeEntry2+48) */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 1);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FF1, pObjectTypeDirectory);
     if (pObjectTypeDirectory)
     {
         pTypeEntry1 = *(__int64 *)(pObjectTypeDirectory + 64);
         pTypeEntry2 = *(__int64 *)(pObjectTypeDirectory + 312);
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FF2, pTypeEntry1);
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FF3, pTypeEntry2);
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 2);
         if (pTypeEntry1 && pTypeEntry2)
         {
             if (MmIsAddressValid((PVOID)(pObjectTypeDirectory + 312)) == 1
                 && MmIsAddressValid((PVOID)(pTypeEntry2 + 55)) == 1)
             {
                 Buffer[0] = *(__int64 *)(pTypeEntry2 + 48);
+                GtWrite((GLOBAL_TABLE_INDEX)0x4FF4, (__int64)Buffer[0]);
+                GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 4);
                 if (Buffer[0])
-                    return WritePhysicalMemoryBuffer(pTypeEntry1 + 16, Buffer, 8, 0, 0) == 1;
+                {
+                    Result = (WritePhysicalMemoryBuffer(pTypeEntry1 + 16, Buffer, 8, 0, 0) == 1);
+                    GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, Result ? 6 : 5);
+                    return Result;
+                }
+            }
+            else
+            {
+                GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 3);
             }
         }
     }
@@ -4765,9 +4787,14 @@ __int64 EnumProcessListExOperation(char *pInputBuffer, int InputSize, unsigned i
             {
                 if (pOutputBuffer)
                 {
-                    if ((unsigned int)RemainingSize >= 0x1E0
-                        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress
-                        && (unsigned __int64)&pOutputBuffer[(unsigned int)RemainingSize] < MmUserProbeAddress)
+                    /* 【2026-10-23 修正】原版 0x140062F63 `cmp esi, 3C0h / jb → 失败`
+                       的最小缓冲区阈值是 **0x3C0**；旧代码写成 0x1E0（单条记录长度，
+                       不是最小要求）。阈值写小会让 BufferSize 落在 [0x1E0, 0x3C0)
+                       的调用被错误放行 —— 实测就是命令 0x0E1 原版 REJ 而我方 OK
+                       的唯一原因。 */
+                    if ((unsigned int)RemainingSize >= 0x3C0                       // 0x140062F63
+                        && (unsigned __int64)pOutputBuffer < MmUserProbeAddress   // 0x140062F79
+                        && (unsigned __int64)&pOutputBuffer[(unsigned int)RemainingSize] < MmUserProbeAddress)  // 0x140062F86
                     {
                         ProbeForWrite(pOutputBuffer, RemainingSize, 4);
                         RtlFillMemory(pOutputBuffer, RemainingSize, 0);

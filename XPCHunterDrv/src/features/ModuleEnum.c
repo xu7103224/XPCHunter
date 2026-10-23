@@ -62,7 +62,7 @@ char RemoveFromModuleLinkedList(PVOID *pTargetEntry, char ListType)
     IterationCount = 0;
     while (pCurrentNode != (PVOID *)pListHead)                                         // 0x140045AB1
     {
-        if ((ULONG64)pCurrentNode <= *(ULONG64 *)MmSystemRangeStart)                   // 0x140045A8D
+        if ((ULONG64)pCurrentNode <= (ULONG64)MmSystemRangeStart)                   // 0x140045A8D
             return Result;
         if ((char)CheckMemoryValid(pCurrentNode) != 1)                                 // 0x140045A95
             return Result;
