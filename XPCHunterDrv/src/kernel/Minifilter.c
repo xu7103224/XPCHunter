@@ -5555,11 +5555,26 @@ char __fastcall ScanWfpDeviceObjectSection(__int64 PeBase, unsigned int PeSize)
         if (Type == 0x545)                                        // 0x140069848
             break;
 
+        /* 【2026-10-23 修正字段偏移】原版 0x140069854..876 的四处比较，
+           按描述符基址 rsp+0x90 换算相对偏移：
+
+               140069854  test [rsp+1C8h+var_E8], 10000h
+                          var_E8 在 rsp+0xE0 → 相对 **0x50**
+               140069862  cmp  dword ptr [rsp+1C8h+Value], ebx
+                          Value 在 rsp+0xD0  → 相对 **0x40**
+               14006986B  cmp  [rsp+1C8h+var_B0], 40h
+                          var_B0 在 rsp+0x118 → 相对 **0x88**
+               140069876  cmp  [rsp+1C8h+var_A8], 1
+                          var_A8 在 rsp+0x120 → 相对 **0x90**
+
+           此前写成 +0x88 / +0x40 / +0x50 / +0x8C：
+           后两个把 0x50↔0x88 写反、0x90 误作 0x8C，条件永不成立，
+           于是 GT[0x7D6] 恒为 0 → 命令 0x0FB 恒返回 0。 */
         if (Type == 0x50E                                          // 0x14006987E
-            && (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x10000ULL) != 0
+            && (*(ULONG64 *)((PUCHAR)Entry + 0x50) & 0x10000ULL) != 0
             && *(ULONG *)((PUCHAR)Entry + 0x40) != 0
-            && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 64
-            && *(ULONG *)((PUCHAR)Entry + 0x8C) == 1)
+            && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 64
+            && *(ULONG *)((PUCHAR)Entry + 0x90) == 1)
         {
             GtWrite((GLOBAL_TABLE_INDEX)0x7D6,                          // 0x140069895
                     *(__int64 *)((PUCHAR)Entry + 0x40));   // 注意：原为 (unsigned int)Value
