@@ -1712,7 +1712,7 @@ __int64 EnumObjectsOperation(char *pInputBuffer, int InputSize, _DWORD *pOutputB
     if (GtRead(GtWindowsBuildNumber) >= 0x585D)
         return CmdEnumObjectsLegacy((__int64)pInputBuffer, (unsigned int)InputSize, pOutputBuffer, OutputSize);
     else
-        return CmdEnumObjectsEx((__int64)pInputBuffer, (unsigned int)InputSize, pOutputBuffer, OutputSize);
+        return CmdEnumObjectsEx((__int64)pInputBuffer, (unsigned int)InputSize, (_QWORD *)pOutputBuffer, OutputSize);
 }
 __int64 EnumRegistryOperation(char *pInputBuffer, int InputSize, _WORD *pOutputBuffer, int OutputSize)
 {

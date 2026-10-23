@@ -766,3 +766,238 @@ BOOL FeKillProcess(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Eprocess, BOOL ByEpro
     }
     return FALSE;
 }
+
+
+// ---------------------------------------------------------------------------
+// View HotKey：命令 0x33 CmdEnumObjects（Win8 链表枚举路径）
+//
+// 原版 PCHunter64.exe 的对话框 CProcessHotkeyDialog::RefreshList（0x14015E0E0）
+// 通过 sub_14004D560 发 0x33，输出缓冲 0x200000 字节：
+//   +0x00 DWORD count
+//   +0x08 起每条 0x38 字节：
+//     +0x00 桶指针            （对话框列 1，0x%p）
+//     +0x08 桶[2]             （对话框未用）
+//     +0x10 桶[8]             （对话框列 2，0x%08X）
+//     +0x14 修饰键 WORD       （8=Win 2=Ctrl 1=Alt 4=Shift）
+//     +0x18 虚拟键码 DWORD
+//     +0x20 PID（QUAD 的低 32 位，对话框列 4，%d）
+//     +0x28 EPROCESS（QUAD，对话框列 7 及过滤依据）
+//     +0x30 TID（QUAD 的低 32 位，对话框列 5，%d）
+//   列 3 是热键名（对话框由修饰键+VK 在本机格式化，列 6 是进程名）。
+//
+// 驱动侧 WriteEnumObjectEntry 恒定写 8 字节，客户端 sub_14004D560 按 0x38 步长
+// 复制；此处按同样的 0x38 步长解析。
+// ---------------------------------------------------------------------------
+
+/* 虚拟键名表（对应原版 qword_140527800，0x80 项，覆盖 VK 0x00-0x7F）。
+ * 原表对未定义的 0x01-0x07/0x0A-0x0C 等使用 ASCII 控制符名（SOH…BEL/LF/VT/FF），
+ * 这里按提取结果复刻；0x5E 为空，0x70-0x7F 为 F1-F16。 */
+static const WCHAR * const g_HotkeyVkNames[0x80] = {
+    NULL,
+    L"SOH", L"STX", L"ETX", L"EOT", L"ENQ", L"ACK", L"BEL",
+    L"Backspace", L"Tab", L"LF", L"VT", L"FF", L"Enter", L"SO", L"SI",
+    L"Shift", L"Ctrl", L"Alt", L"Pause", L"Caps Lock", L"NAK", L"SYN", L"ETB",
+    L"CAN", L"EM", L"SUB", L"Esc", L"FS", L"GS", L"RS", L"US",
+    L"Space", L"PageUp", L"PageDown", L"End", L"Home", L"Left", L"Up", L"Right",
+    L"Down", L"Select", L"Print", L"Execute", L"Snapshot", L"Insert", L"Delete", L"Help",
+    L"0", L"1", L"2", L"3", L"4", L"5", L"6", L"7",
+    L"8", L"9", L":", L";", L"<", L"=", L">", L"?",
+    L"@", L"A", L"B", L"C", L"D", L"E", L"F", L"G",
+    L"H", L"I", L"J", L"K", L"L", L"M", L"N", L"O",
+    L"P", L"Q", L"R", L"S", L"T", L"U", L"V", L"W",
+    L"X", L"Y", L"Z", L"LWIN", L"RWIN", L"Apps", NULL, L"Sleep",
+    L"NumPad0", L"NumPad1", L"NumPad2", L"NumPad3", L"NumPad4", L"NumPad5", L"NumPad6", L"NumPad7",
+    L"NumPad8", L"NumPad9", L"*", L"+", L"Separator", L"-", L"Decimal", L"Divide",
+    L"F1", L"F2", L"F3", L"F4", L"F5", L"F6", L"F7", L"F8",
+    L"F9", L"F10", L"F11", L"F12", L"F13", L"F14", L"F15", L"F16"
+};
+
+/* 复刻原版 sub_14004D2F0：按修饰键拼 "Win + "/"Ctrl + "/"Alt + "/"Shift + "，
+ * 再拼 VK 名；末尾把空格和 '+' 截掉。修饰键无对应位时不加。 */
+void FeFormatHotkey(WCHAR *Out, size_t OutChars, ULONG Modifiers, ULONG VirtualKey)
+{
+    size_t len;
+
+    if (!Out || !OutChars)
+        return;
+    Out[0] = 0;
+
+    if (Modifiers & 8)
+        wcscat_s(Out, OutChars, L"Win + ");
+    if (Modifiers & 2)
+        wcscat_s(Out, OutChars, L"Ctrl + ");
+    if (Modifiers & 1)
+        wcscat_s(Out, OutChars, L"Alt + ");
+    if (Modifiers & 4)
+        wcscat_s(Out, OutChars, L"Shift + ");
+
+    if (VirtualKey < 0x80 && g_HotkeyVkNames[VirtualKey])
+        wcscat_s(Out, OutChars, g_HotkeyVkNames[VirtualKey]);
+
+    len = wcslen(Out);
+    while (len && (Out[len - 1] == L' ' || Out[len - 1] == L'+'))
+        Out[--len] = 0;
+}
+
+void FeFreeProcessHotkeys(FE_HOTKEY_LIST *List)
+{
+    if (!List)
+        return;
+    if (List->Items)
+        HeapFree(GetProcessHeap(), 0, List->Items);
+    List->Items = NULL;
+    List->Count = 0;
+    List->Capacity = 0;
+}
+
+BOOL FeLoadProcessHotkeys(XPCH_CLIENT *Client, ULONG64 Eprocess,
+                          ULONG MaxCount, FE_HOTKEY_LIST *List)
+{
+    const ULONG OutSize = 0x200000;
+    const ULONG EntrySize = 0x38;
+    UCHAR *buf;
+    UCHAR result = 0;
+    ULONG count, limit, i, kept = 0;
+
+    if (!List)
+    {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    ZeroMemory(List, sizeof(*List));
+
+    if (!Client || !Client->Opened)
+    {
+        SetLastError(ERROR_INVALID_HANDLE);
+        return FALSE;
+    }
+
+    buf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, OutSize);
+    if (!buf)
+    {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return FALSE;
+    }
+
+    /* 驱动要求 InputSize=0、OutputSize>=0x40；原版 sub_14004D560 也传 0x200000。 */
+    if (!XpchInvoke(Client, XPCH_CMD_ENUM_OBJECTS, NULL, 0, buf, OutSize, &result))
+    {
+        HeapFree(GetProcessHeap(), 0, buf);
+        SetLastError(ERROR_GEN_FAILURE);
+        return FALSE;
+    }
+
+    /* 驱动按 (OutSize-64)/0x38+1 限定条数，这里做同样的上界校验。 */
+    count = *(ULONG *)buf;
+    limit = (OutSize - 64) / EntrySize + 1;
+    if (count > limit)
+        count = limit;
+
+    if (count)
+    {
+        List->Items = (FE_HOTKEY_ENTRY *)HeapAlloc(
+            GetProcessHeap(), HEAP_ZERO_MEMORY,
+            (SIZE_T)count * sizeof(FE_HOTKEY_ENTRY));
+        if (!List->Items)
+        {
+            HeapFree(GetProcessHeap(), 0, buf);
+            SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+            return FALSE;
+        }
+        List->Capacity = count;
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        const UCHAR *p = buf + 8 + (SIZE_T)i * EntrySize;
+        ULONG64 entryEprocess = *(ULONG64 *)(p + 0x28);
+        FE_HOTKEY_ENTRY *e;
+
+        /* Eprocess=0 表示不过滤（原版对话框“全部进程”模式 flag=1）。 */
+        if (Eprocess && entryEprocess != Eprocess)
+            continue;
+        if (MaxCount && kept >= MaxCount)
+            break;
+
+        e = &List->Items[kept];
+        e->Bucket = *(ULONG64 *)(p + 0x00);
+        e->Flags = *(ULONG *)(p + 0x10);
+        e->Modifiers = *(USHORT *)(p + 0x14);
+        e->VirtualKey = *(ULONG *)(p + 0x18);
+        e->Pid = *(ULONG *)(p + 0x20);
+        e->Eprocess = entryEprocess;
+        e->Tid = *(ULONG *)(p + 0x30);
+        FeFormatHotkey(e->Hotkey, FE_HOTKEY_NAME_CHARS, e->Modifiers, e->VirtualKey);
+
+        /* 原版列 6 用 sub_14002AB70(pid) 取映像路径再取 basename；
+         * 用户态等价物是 QueryFullProcessImageName。取不到留空。 */
+        if (e->Pid)
+        {
+            char path[FE_HOTKEY_PROC_NAME_CHARS];
+            char *slash;
+
+            if (FeGetProcessImagePath(e->Pid, path, sizeof(path)))
+            {
+                slash = strrchr(path, '\\');
+                lstrcpynA(e->ProcessName, slash ? slash + 1 : path,
+                          sizeof(e->ProcessName));
+            }
+        }
+        kept++;
+    }
+
+    List->Count = kept;
+    HeapFree(GetProcessHeap(), 0, buf);
+    return TRUE;
+}
+
+BOOL FePrintProcessHotkeys(XPCH_CLIENT *Client, ULONG Pid)
+{
+    FE_PROCESS_LIST procs;
+    FE_HOTKEY_LIST list;
+    ULONG64 eprocess = 0;
+    ULONG i;
+
+    if (!Client || !Client->Opened || !Pid)
+    {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+
+    if (FeLoadProcessList(Client, FE_PROC_DEFAULT_MAX, &procs))
+    {
+        for (i = 0; i < procs.Count; i++)
+        {
+            if (procs.Items[i].Pid == Pid)
+            {
+                eprocess = procs.Items[i].Eprocess;
+                break;
+            }
+        }
+        FeFreeProcessList(&procs);
+    }
+    if (!eprocess)
+    {
+        printf("process %lu not found (cannot resolve EPROCESS)\n", Pid);
+        return FALSE;
+    }
+
+    if (!FeLoadProcessHotkeys(Client, eprocess, 0, &list))
+    {
+        printf("enum hotkeys failed, GetLastError=%lu\n", GetLastError());
+        return FALSE;
+    }
+    printf("hotkeys of pid %lu: %lu\n", Pid, list.Count);
+    for (i = 0; i < list.Count; i++)
+    {
+        FE_HOTKEY_ENTRY *e = &list.Items[i];
+        char name[FE_HOTKEY_PROC_NAME_CHARS];
+        FeWideToAnsi(e->Hotkey, name, sizeof(name));
+        printf("  vk=0x%02lX mod=0x%lX tid=%lu bucket=%p flags=0x%08lX %s\n",
+               e->VirtualKey, e->Modifiers, e->Tid,
+               (void *)(ULONG_PTR)e->Bucket, e->Flags, name);
+    }
+    FeFreeProcessHotkeys(&list);
+    return TRUE;
+}
+

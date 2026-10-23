@@ -2887,7 +2887,7 @@ __int64 GetKernelObjectTypeInfo(__int64 ObjectHeader)
 
 // CmdEnumObjectsEx — 枚举对象扩展命令处理
 // 对应原始驱动 0x140036D54（346 字节）
-__int64 CmdEnumObjectsEx(__int64 Context, unsigned int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize)
+__int64 CmdEnumObjectsEx(__int64 Context, unsigned int InputSize, _QWORD *pOutputBuffer, unsigned int OutputSize)
 {
     SIZE_T BufferSize;
     _QWORD *pObjectTable;
@@ -2911,12 +2911,12 @@ __int64 CmdEnumObjectsEx(__int64 Context, unsigned int InputSize, _DWORD *pOutpu
         if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0xECE)
         {
             if ((unsigned int)GtRead(GtWindowsBuildNumber) == 3790)
-                EnumObjectLinkedListWin7(pObjectTable, (_QWORD *)(pOutputBuffer + 1), (_DWORD *)pOutputBuffer, MaxEntries);
+                EnumObjectLinkedListWin7(pObjectTable, pOutputBuffer + 1, (_DWORD *)pOutputBuffer, MaxEntries);
             else if ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x585D)
-                EnumObjectLinkedListWin8(pObjectTable, (_QWORD *)(pOutputBuffer + 1), (_DWORD *)pOutputBuffer, MaxEntries);
+                EnumObjectLinkedListWin8(pObjectTable, pOutputBuffer + 1, (_DWORD *)pOutputBuffer, MaxEntries);
         }
         else
-            EnumObjectLinkedListSingle(pObjectTable, (_QWORD *)(pOutputBuffer + 1), (_DWORD *)pOutputBuffer, MaxEntries);
+            EnumObjectLinkedListSingle(pObjectTable, pOutputBuffer + 1, (_DWORD *)pOutputBuffer, MaxEntries);
         return *(_DWORD *)pOutputBuffer != 0;
     }
     return 0;

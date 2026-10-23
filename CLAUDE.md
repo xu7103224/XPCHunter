@@ -440,3 +440,18 @@ cmd /c "builduild.bat Clean" && cmd /c "buildudit\_sb.bat" > buildudit\_sb.lo
 - 自定义服务名统一用 `RTZ<n>`；测试完 `sc stop` + `sc delete` 清理；
 - 驱动自卸载若进了 `KeDelayExecutionThread` 轮询循环（见 `DriverUnload`），
   停止可能有延迟，属原始行为。
+
+### 8.5 工具链接入（2026-10-24 新增）
+
+上一分析者（zcode）的实操通道已接入 opencode，不要另起炉灶：
+
+- **MCP**：opencode 服务名 `ntdrive`（本地 stdio，`C:\Users\Administrator\.local\bin\ntdrive-mcp.exe`），
+  配置在 `C:\Users\Administrator\.config\opencode\opencode.jsonc` 的 `mcp.ntdrive`；
+  daemon 为 `ntdrived.exe`（`http://127.0.0.1:8765`，53 个工具），改配置后**必须重启 opencode**。
+- **Skill**：`C:\Users\Administrator\.config\opencode\skills\ntdrive-kd\SKILL.md`（工具速查 + 硬性纪律 + 本项目标准流程）。
+- **实测现状**：Guest SSH 22 不通，zcode 全程未用 `term_*`，而是用 `file_push`/`file_pull`
+  （SSH 不通时自动走 VMware Tools）与 `con_run`（session 1，需已登录桌面，可配合 `con_autologon`）。
+  宿主 KDNET 防火墙规则缺失（`sys_health` 报 `kdnet_firewall.ok=false`），
+  需要时可跑 `kd_setup_host`（一次 UAC）。
+- **证据来源**：`C:\Users\Administrator\.zcode\cli\log\zcode-2026-10-23.jsonl` 的工具调用统计
+  （kd_exec 411、kd_go 256、kd_break 142、vm_state 50、kd_log_tail 40、con_run 6、snap_* 12）。

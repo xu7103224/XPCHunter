@@ -524,26 +524,27 @@ static void SetupDetailColumns(int tab)
 {
     /* 7 个子视图：0 Modules / 1 Threads / 2 Windows / 3 Handles / 4 Memory
        / 5 Timer / 6 HotKey */
-    static const char *cols[7][5] = {
-        { "Base", "Size", "Name", "Path", "" },
-        { "TID", "Prio", "Start", "", "" },
-        { "HWND", "TID", "Class", "Title", "" },
-        { "Handle", "Type", "Access", "Object", "" },
-        { "Base", "Size", "Protect", "Type", "Name" },
-        { "Handle", "Object", "Access", "", "" },
-        { "Handle", "Type", "Detail", "", "" },
+    static const char *cols[7][7] = {
+        { "Base", "Size", "Name", "Path", "", "", "" },
+        { "TID", "Prio", "Start", "", "", "", "" },
+        { "HWND", "TID", "Class", "Title", "", "", "" },
+        { "Handle", "Type", "Access", "Object", "", "", "" },
+        { "Base", "Size", "Protect", "Type", "Name", "", "" },
+        { "Handle", "Object", "Access", "", "", "", "" },
+        { "Bucket", "Flags", "Hotkey", "PID", "TID", "Process", "EPROCESS" },
     };
-    static const int widths[7][5] = {
-        { 130, 90, 160, 380, 0 },
-        { 70, 60, 150, 0, 0 },
-        { 110, 60, 170, 340, 0 },
-        { 90, 180, 100, 260, 0 },
-        { 130, 100, 80, 70, 360 },
-        { 100, 190, 110, 0, 0 },
-        { 100, 180, 400, 0, 0 },
+    static const int widths[7][7] = {
+        { 130, 90, 160, 380, 0, 0, 0 },
+        { 70, 60, 150, 0, 0, 0, 0 },
+        { 110, 60, 170, 340, 0, 0, 0 },
+        { 90, 180, 100, 260, 0, 0, 0 },
+        { 130, 100, 80, 70, 360, 0, 0 },
+        { 100, 190, 110, 0, 0, 0, 0 },
+        { 120, 90, 220, 70, 70, 190, 140 },
     };
     LVCOLUMNA col;
-    int i, n = (tab == 1) ? 3 : ((tab == 4) ? 5 : ((tab == 5) ? 3 : 4));
+    int i;
+    int n = (tab == 1) ? 3 : ((tab == 4) ? 5 : ((tab == 5) ? 3 : ((tab == 6) ? 7 : 4)));
 
     while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
         ;
@@ -663,12 +664,48 @@ static void DoRefreshDetail(void)
         }
         sprintf_s(d, sizeof(d), "PID %lu timers: %lu", pid, n);
     } else if (tab == 6) {
-        /* View HotKey：热键表在 win32k，用户态与当前驱动都取不到。
-           这里明确说明没有数据源，不编造条目。 */
-        sprintf_s(d, sizeof(d),
-                  "PID %lu hotkeys: no data source "
-                  "(the hotkey list lives in win32k and no driver command exposes it)",
-                  pid);
+        /* View HotKey：0x33 CmdEnumObjects（Win8 链表枚举）取全系统热键表，
+           按选中进程的 EPROCESS 过滤，列布局与原版 CProcessHotkeyDialog 一致。 */
+        FE_PROCESS_LIST procs;
+        FE_HOTKEY_LIST list;
+        ULONG64 eprocess = 0;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &procs)) {
+            for (i = 0; i < procs.Count; i++) {
+                if (procs.Items[i].Pid == pid) { eprocess = procs.Items[i].Eprocess; break; }
+            }
+            FeFreeProcessList(&procs);
+        }
+        if (!eprocess) {
+            sprintf_s(d, sizeof(d), "PID %lu: cannot resolve EPROCESS", pid);
+            SetWindowTextA(g_hProcStatus, d);
+            return;
+        }
+
+        if (FeLoadProcessHotkeys(&g_Client, eprocess, 0, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                FE_HOTKEY_ENTRY *e = &list.Items[i];
+                char hk[FE_HOTKEY_NAME_CHARS];
+                char tid[32], ep[32];
+                int row;
+
+                FeWideToAnsi(e->Hotkey, hk, sizeof(hk));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)e->Bucket);
+                sprintf_s(b, sizeof(b), "0x%08lX", e->Flags);
+                sprintf_s(c, sizeof(c), "%lu", e->Pid);
+                DetailAddRow(a, b, hk, c);
+                row = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0) - 1;
+                sprintf_s(tid, sizeof(tid), "%lu", e->Tid);
+                sprintf_s(ep, sizeof(ep), "0x%I64X", e->Eprocess);
+                DetailSetText(row, 4, tid);
+                DetailSetText(row, 5, e->ProcessName[0] ? e->ProcessName : "(?)");
+                DetailSetText(row, 6, ep);
+            }
+            FeFreeProcessHotkeys(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu hotkeys: %lu", pid, n);
     } else {
         FE_WINDOW_LIST list;
         ULONG i, n = 0;
@@ -5774,7 +5811,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         char *pt = strstr(lpCmdLine, "--tab ");
         if (pt) {
             g_StartTab = atoi(pt + 6);
-            if (g_StartTab < 0 || g_StartTab > 4) g_StartTab = 0;
+            if (g_StartTab < 0 || g_StartTab > 6) g_StartTab = 0;
         }
     }
 
@@ -5802,6 +5839,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     if (lpCmdLine && strstr(lpCmdLine, "--windows-cli")) {
         ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--windows-cli") + 13, NULL, 0);
         FePrintProcessWindows(pid);
+        return 0;
+    }
+
+    /* 子视图调试入口：--hotkeys-cli <pid>（命令 0x33，按 EPROCESS 过滤） */
+    if (lpCmdLine && strstr(lpCmdLine, "--hotkeys-cli")) {
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--hotkeys-cli") + 13, NULL, 0);
+        FePrintProcessHotkeys(&g_Client, pid);
         return 0;
     }
 

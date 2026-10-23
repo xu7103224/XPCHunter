@@ -87,6 +87,7 @@ typedef struct _XPCH_REQUEST {
 #define XPCH_CMD_CHECK_PROCESS_ACCESS       0x27u  /* CmdCheckProcessAccess                                             */
 #define XPCH_CMD_PROCESS_OPERATION          0x28u  /* CmdProcessOperation                                               */
 #define XPCH_CMD_ENUM_THREADS               0x2Au  /* CmdEnumThreads            in: ULONG pid, inSize=8; out: WCHAR[260], outSize=520 */
+#define XPCH_CMD_ENUM_OBJECTS               0x33u  /* CmdEnumObjects → Ex/Win8  in: 无；out: 0x200000（count@+0，条目@+8/0x38） */
 #define XPCH_CMD_ENUM_KERNEL_MODULES        0x3Cu  /* CmdEnumKernelModules                                              */
 #define XPCH_CMD_THREAD_OPERATION           0x3Du  /* CmdThreadOperation                                                */
 #define XPCH_CMD_THREAD_MONITOR             0x3Eu  /* CmdThreadMonitor                                                  */
@@ -455,9 +456,46 @@ BOOL FeComputeProcessStatus(const FE_PROCESS_LIST *List,
                             ULONG *pHidden, ULONG *pInaccessible,
                             BOOL *pInaccessibleFlags);
 
-/* View Timer：按句柄类型名 "Timer" 过滤（用户态全系统句柄表）。
- * View HotKey 在内核里没有数据源，见 ProcessOps.c 的说明。 */
+/* View Timer：按句柄类型名 "Timer" 过滤（用户态全系统句柄表）。 */
 BOOL FeLoadProcessTimers(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List);
+
+/* ---- View HotKey（驱动 0x33 CmdEnumObjects，Win8 链表枚举）----
+ * 原版 PCHunter64.exe 的 CProcessHotkeyDialog 用 0x33 取热键表：
+ *   输出缓冲：+0x00 count，+0x08 起每条 0x38 字节
+ *   条目：+0x00 桶指针、+0x08 桶[2]、+0x10 桶[8]（0x%08X）、
+ *         +0x14 修饰键（word：8=Win 2=Ctrl 1=Alt 4=Shift）、+0x18 VK（dword）、
+ *         +0x20 PID（%d）、+0x28 EPROCESS（0x%p，对话框按它过滤）、+0x30 TID（%d）
+ * 条目基址在 +0x08（原驱动 CmdEnumObjectsEx 用 _QWORD* pOutputBuffer + 1）。 */
+#define FE_HOTKEY_NAME_CHARS      64u
+#define FE_HOTKEY_PROC_NAME_CHARS 128u
+
+typedef struct _FE_HOTKEY_ENTRY {
+    ULONG64 Bucket;      /* 热键链表桶指针（对话框第 1 列） */
+    ULONG   Flags;       /* 桶[8]（对话框第 2 列，0x%08X） */
+    ULONG   Modifiers;   /* 8=Win 2=Ctrl 1=Alt 4=Shift */
+    ULONG   VirtualKey;  /* 虚拟键码 */
+    ULONG   Pid;         /* 归属进程 */
+    ULONG   Tid;         /* 归属线程 */
+    ULONG64 Eprocess;    /* 归属进程对象（对话框过滤依据） */
+    WCHAR   Hotkey[FE_HOTKEY_NAME_CHARS]; /* 如 "Ctrl + Alt + A" */
+    char    ProcessName[FE_HOTKEY_PROC_NAME_CHARS];
+} FE_HOTKEY_ENTRY;
+
+typedef struct _FE_HOTKEY_LIST {
+    ULONG            Count;
+    ULONG            Capacity;
+    FE_HOTKEY_ENTRY *Items;
+} FE_HOTKEY_LIST;
+
+/* 按原版 sub_14004D2F0 拼 "Ctrl + Alt + A" 形式的热键名 */
+void FeFormatHotkey(WCHAR *Out, size_t OutChars, ULONG Modifiers, ULONG VirtualKey);
+
+/* 取全系统热键表并按 EPROCESS 过滤（Eprocess=0 表示不过滤，对应原版对话框
+ * 的“全部进程”模式）。调用者先打开设备（XpchOpen）。 */
+BOOL FeLoadProcessHotkeys(XPCH_CLIENT *Client, ULONG64 Eprocess,
+                          ULONG MaxCount, FE_HOTKEY_LIST *List);
+void FeFreeProcessHotkeys(FE_HOTKEY_LIST *List);
+BOOL FePrintProcessHotkeys(XPCH_CLIENT *Client, ULONG Pid);
 
 /* ---- 模块搜索（原版 Modules 视图的五项 F 菜单）---- */
 #define FE_MSEARCH_NAME_CHARS   128u

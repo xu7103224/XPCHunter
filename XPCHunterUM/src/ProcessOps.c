@@ -456,16 +456,13 @@ BOOL FeComputeProcessStatus(const FE_PROCESS_LIST *List,
 /* ---------------------------------------------------------------------------
  * View Timer / View HotKey
  *
- * 原版这两页展示进程的定时器与热键。它们在内核里没有对应命令
- * （命令表里没有 Timer/HotKey 项），但两者的用户态句柄都可枚举：
- *   Timer   类型名为 "Timer" 的句柄（NtQuerySystemInformation 全系统句柄表）
- *   HotKey  进程注册的热键（RegisterHotKey 产生 USER32 侧对象，用户态
- *           可通过按线程窗口的热键列表枚举；这里用 GetGUIThreadInfo 拿
- *           前台/该进程线程的 hwndActive，再用 WM_GETDLGCODE 不可行 ——
- *           真实的表在 win32k，只能从驱动取。为不伪造数据，HotKey 页在
- *           取不到时明确显示 "no data source"，不编造条目。）
+ *   Timer   类型名为 "Timer" 的句柄（NtQuerySystemInformation 全系统句柄表）。
  *
- * Timer 是有真实数据源的，这里实现它；HotKey 保持未实现并如实标注。
+ *   HotKey  【2026-10-24 修正】原版有内核数据源：命令 0x33 CmdEnumObjects。
+ *           前端 CProcessHotkeyDialog 的 sub_14004D560 用 0x200000 输出缓冲
+ *           接收 win32k 热键链表条目（0x38 步长，含桶指针/修饰键/VK/PID/
+ *           EPROCESS/TID）。实现在 ProcessViews.c 的 FeLoadProcessHotkeys，
+ *           按 EPROCESS 过滤；此处原先“没有对应命令”的判断已被反汇编推翻。
  * ------------------------------------------------------------------------- */
 
 BOOL FeLoadProcessTimers(ULONG Pid, ULONG MaxCount, FE_HANDLE_LIST *List)

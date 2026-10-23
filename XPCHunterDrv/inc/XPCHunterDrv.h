@@ -172,7 +172,7 @@ __int64 CmdEnumObjectTypeInfo(__int64 InputBuffer, __int64 InputSize, _DWORD *pO
 __int64 CmdEnumObjectTypeTable(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumObjectTypes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumObjects(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
-__int64 CmdEnumObjectsEx(__int64 InputBuffer, unsigned int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
+__int64 CmdEnumObjectsEx(__int64 InputBuffer, unsigned int InputSize, _QWORD *pOutputBuffer, unsigned int OutputSize);
 __int64 CmdEnumObjectsLegacy(__int64 InputBuffer, unsigned int InputSize, _DWORD *pOutputBuffer, unsigned int OutputSize);
 __int64 CmdEnumProcessContextWin10(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
 __int64 CmdEnumProcessContextWin7(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize);
