@@ -2556,40 +2556,18 @@ __int64 FixProcessEProcessOperation(char *pInputBuffer, int InputSize, unsigned 
 
     Result = 0;
     pObjectTypeDirectory = QueryObjectTypeDirectoryPath();
-    /* 【诊断 2026-10-23】命令 0x0C4 恒返回 0（原版返回 1），逐级记录：
-         0x4FF0 阶段码 1=目录指针为 0  2=进入取值  3=MmIsAddressValid 失败
-                        4=Buffer[0] 已取到  5=WritePhysicalMemoryBuffer 非 1  6=成功
-         0x4FF1 pObjectTypeDirectory
-         0x4FF2 pTypeEntry1 (dir+64)
-         0x4FF3 pTypeEntry2 (dir+312)
-         0x4FF4 Buffer[0]   (typeEntry2+48) */
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 1);
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FF1, pObjectTypeDirectory);
     if (pObjectTypeDirectory)
     {
         pTypeEntry1 = *(__int64 *)(pObjectTypeDirectory + 64);
         pTypeEntry2 = *(__int64 *)(pObjectTypeDirectory + 312);
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF2, pTypeEntry1);
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF3, pTypeEntry2);
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 2);
         if (pTypeEntry1 && pTypeEntry2)
         {
             if (MmIsAddressValid((PVOID)(pObjectTypeDirectory + 312)) == 1
                 && MmIsAddressValid((PVOID)(pTypeEntry2 + 55)) == 1)
             {
                 Buffer[0] = *(__int64 *)(pTypeEntry2 + 48);
-                GtWrite((GLOBAL_TABLE_INDEX)0x4FF4, (__int64)Buffer[0]);
-                GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 4);
                 if (Buffer[0])
-                {
-                    Result = (WritePhysicalMemoryBuffer(pTypeEntry1 + 16, Buffer, 8, 0, 0) == 1);
-                    GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, Result ? 6 : 5);
-                    return Result;
-                }
-            }
-            else
-            {
-                GtWrite((GLOBAL_TABLE_INDEX)0x4FF0, 3);
+                    return WritePhysicalMemoryBuffer(pTypeEntry1 + 16, Buffer, 8, 0, 0) == 1;
             }
         }
     }

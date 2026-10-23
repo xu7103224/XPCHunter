@@ -2385,12 +2385,6 @@ __int64 QueryObjectTypeDirectoryPath(void)
     PWCHAR  pLastSlash;
     __int64 Result;
 
-    /* 【诊断 2026-10-23】命令 0x0C4 恒返回 0，逐级记录：
-       0x4FF5 阶段码 / 0x4FF6 ObRefByName 状态 / 0x4FF7 DriverObject
-       0x4FF8 首个 DeviceObject / 0x4FF9 遍历数 / 0x4FFA 类型标志命中数
-       0x4FFB 末尾 ObQueryName 状态 / 0x4FFC ReturnLength / 0x4FFD 名字校验通过数 */
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FF5, 0);
-
     Result             = 0;
     RtlInitUs          = (PFN_RTL_INIT_UNICODE_STRING)GtRead((GLOBAL_TABLE_INDEX)0x421D);
     ObRefByName        = (PFN_OB_REF_BY_NAME)GtRead((GLOBAL_TABLE_INDEX)0x421A);
@@ -2399,58 +2393,33 @@ __int64 QueryObjectTypeDirectoryPath(void)
     IoDriverObjectType = (PVOID)GtRead((GLOBAL_TABLE_INDEX)0x4160);
 
     if (!RtlInitUs || !ObRefByName || !ObQueryName || !ObDeref || !IoDriverObjectType)
-    {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF5, 1);
         return 0;
-    }
 
     /* 0x14007973F `mov rax, [rbx]`：GT[0x4160] 存的是"对象类型指针的地址"，
        需要再解引用一次才拿到 IoDriverObjectType 本身。 */
     if (MmIsAddressValid(IoDriverObjectType) != 1)
-    {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF5, 2);
         return 0;
-    }
     IoDriverObjectType = *(PVOID *)IoDriverObjectType;
     if (!IoDriverObjectType)
-    {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF5, 3);
         return 0;
-    }
 
     RtlInitUs(&Name, DiskDriverPath);
 
     DriverObject = NULL;
-    {
-        NTSTATUS st = ObRefByName(&Name, OBJ_CASE_INSENSITIVE, NULL, 0,
-                                  IoDriverObjectType, KernelMode, NULL, &DriverObject);
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF6, (__int64)(int)st);
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF7, (__int64)(ULONG_PTR)DriverObject);
-        if (st < 0)
-        {
-            GtWrite((GLOBAL_TABLE_INDEX)0x4FF5, 4);
-            return 0;
-        }
-    }
-    if (!DriverObject)
-    {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF5, 5);
+    if (ObRefByName(&Name, OBJ_CASE_INSENSITIVE, NULL, 0,
+                    IoDriverObjectType, KernelMode, NULL, &DriverObject) < 0)
         return 0;
-    }
+    if (!DriverObject)
+        return 0;
 
     DeviceObject = *(PVOID *)((PUCHAR)DriverObject + 0x08);   /* DRIVER_OBJECT.DeviceObject */
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FF8, (__int64)(ULONG_PTR)DeviceObject);
     while (DeviceObject)
     {
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FF9,
-                GtRead((GLOBAL_TABLE_INDEX)0x4FF9) + 1);
         /* DEVICE_OBJECT.DeviceType(+0x48) == FILE_DEVICE_DISK(7)
            且 DEVICE_OBJECT.Flags(+0x30) & 0x40 */
         if (*(ULONG *)((PUCHAR)DeviceObject + 0x48) == 7 &&
             (*(ULONG *)((PUCHAR)DeviceObject + 0x30) & 0x40) != 0)
         {
-            GtWrite((GLOBAL_TABLE_INDEX)0x4FFA,
-                    GtRead((GLOBAL_TABLE_INDEX)0x4FFA) + 1);
             ReturnLength = 0;
             /* 0x1400797A7 `cmp eax, 0C0000004h`：原版比较的是 STATUS_INFO_LENGTH_MISMATCH，
                不是 STATUS_BUFFER_TOO_SMALL(0xC0000023)。ObQueryNameString 在缓冲区
@@ -2463,10 +2432,7 @@ __int64 QueryObjectTypeDirectoryPath(void)
                 QueryBuffer = (PUCHAR)ExAlloc(0, AllocSize);
                 if (QueryBuffer)
                 {
-                    NTSTATUS st2 = ObQueryName(DeviceObject, QueryBuffer, ReturnLength, &ReturnLength);
-                    GtWrite((GLOBAL_TABLE_INDEX)0x4FFB, (__int64)(int)st2);
-                    GtWrite((GLOBAL_TABLE_INDEX)0x4FFC, (__int64)ReturnLength);
-                    if (st2 >= 0)
+                    if (ObQueryName(DeviceObject, QueryBuffer, ReturnLength, &ReturnLength) >= 0)
                     {
                         /* OBJECT_NAME_INFORMATION：UNICODE_STRING 在 +0x00，
                            字符串缓冲内联在 +0x10。 */
@@ -2485,8 +2451,6 @@ __int64 QueryObjectTypeDirectoryPath(void)
                                         (pLastSlash[3] == L'0'))
                                     {
                                         Result = (__int64)DeviceObject;
-                                        GtWrite((GLOBAL_TABLE_INDEX)0x4FFD,
-                                                GtRead((GLOBAL_TABLE_INDEX)0x4FFD) + 1);
                                     }
                                 }
                             }
@@ -2501,7 +2465,6 @@ __int64 QueryObjectTypeDirectoryPath(void)
         DeviceObject = *(PVOID *)((PUCHAR)DeviceObject + 0x10);   /* DEVICE_OBJECT.NextDevice */
     }
 
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FF5, Result ? 9 : 6);
     ObDeref(DriverObject);
     return Result;
 }

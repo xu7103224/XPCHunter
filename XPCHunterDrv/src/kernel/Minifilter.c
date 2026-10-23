@@ -3519,21 +3519,6 @@ __int64 ScanFltMgrExportTable(PUCHAR ExportBase, ULONG ExportSize)
             NewReadPtr = (ULONG)ReadContext.ReadPtr;          // 0x14001738B 之后的 ecx
 
             SectionFlags = *(__int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&Desc) + 6);
-            /* 【诊断 2026-10-23】0x10B 的前置 GT[0x885] 需要本函数两阶段配对。
-               0x5300.. 记录前 12 条：(类型<<32)|字段+0x78，字段+0x88，字段+0x50
-               0x531E 迭代数 / 0x531F ExportBase 低32 / 0x5320 最终 RVA */
-            if (SectionIndex < 12)
-            {
-                GtWrite((GLOBAL_TABLE_INDEX)(0x5300 + SectionIndex * 3 + 0),
-                        ((__int64)SectionFlags << 32) |
-                        (__int64)*(ULONG *)((PUCHAR)&Desc + 0x78));
-                GtWrite((GLOBAL_TABLE_INDEX)(0x5300 + SectionIndex * 3 + 1),
-                        PE_DESC_FIELD_VALUE2(&Desc));
-                GtWrite((GLOBAL_TABLE_INDEX)(0x5300 + SectionIndex * 3 + 2),
-                        PE_DESC_FIELD_VALUE(&Desc));
-            }
-            GtWrite((GLOBAL_TABLE_INDEX)0x531E, (__int64)(SectionIndex + 1));
-            GtWrite((GLOBAL_TABLE_INDEX)0x531F, (__int64)(ULONG)(ULONG_PTR)ExportBase);
 
             /* 【2026-10-23 偏移+RVA 双重修正】
                (1) 偏移：描述符基址 var_148 = rsp+0x90，原版三处引用换算为
@@ -5740,23 +5725,6 @@ char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize
         Ctx.ReadPtr += Len;                                       // 0x1400691A2
 
         Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);   // 0x1400691A7
-        /* 【诊断 2026-10-23】0x0F8 的前置 GT[0x7D0] 恒为 0，本函数执行了却没命中。
-           记录前 16 条的类型码与关键字段，供 kd 读出定位：
-             0x5100+i*3+0 (Type<<32)|字段+0x40
-             0x5100+i*3+1 字段+0x50
-             0x5100+i*3+2 字段+0x88
-             0x511E 迭代计数 */
-        if (i < 16)
-        {
-            GtWrite((GLOBAL_TABLE_INDEX)(0x5100 + i * 3 + 0),
-                    ((__int64)Type << 32) |
-                    (__int64)*(ULONG *)((PUCHAR)Entry + 0x40));
-            GtWrite((GLOBAL_TABLE_INDEX)(0x5100 + i * 3 + 1),
-                    *(__int64 *)((PUCHAR)Entry + 0x50));
-            GtWrite((GLOBAL_TABLE_INDEX)(0x5100 + i * 3 + 2),
-                    *(__int64 *)((PUCHAR)Entry + 0x88));
-        }
-        GtWrite((GLOBAL_TABLE_INDEX)0x511E, (__int64)(i + 1));
 
         if (Type == 0x545)                                        // 0x1400691B3
             break;
@@ -5842,11 +5810,6 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
     SavedField = 0;                                               // 0x1400695BB（取自描述符字段区）
     SavedOfs = 0;
 
-    /* 【诊断 2026-10-23】命令 0x0FB 依赖本函数写 GT[0x7BA]。
-       0x5000..0x501F 逐条记录前 10 条描述符：类型与 5 个字段原值。
-       0x502E = 迭代数 / 0x502F = PeBase 低 32 位 / 0x502D = Offset。 */
-    GtWrite((GLOBAL_TABLE_INDEX)0x502D, (__int64)Offset);
-    GtWrite((GLOBAL_TABLE_INDEX)0x502F, (__int64)(ULONG)(ULONG_PTR)PeBase);
 
     for (i = 0; i < 0x1E; ++i)                                    // 0x1400695C2
     {
@@ -5858,7 +5821,6 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x1400695CE
             break;
 
-        GtWrite((GLOBAL_TABLE_INDEX)0x502E, (__int64)(i + 1));
 
         Len = *(ULONG *)((PUCHAR)Entry + 0xF0);
         Cumul = Len + (ULONG)Ctx.ReadPtr;                         // 0x1400695E6
@@ -5873,16 +5835,6 @@ char __fastcall ScanKernelDataPartitionSection(__int64 PeBase, unsigned int PeSi
         F58 = *(ULONG *)((PUCHAR)Entry + 0x58);                   // [rbp+var_108]
         F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);                 // [rbp+var_D8]
         F90 = *(ULONG *)((PUCHAR)Entry + 0x90);                   // [rbp+var_D0]
-
-        if (i < 10)
-        {
-            GtWrite((GLOBAL_TABLE_INDEX)(0x5000 + i * 3 + 0),
-                    ((__int64)Type << 32) | (__int64)F78);
-            GtWrite((GLOBAL_TABLE_INDEX)(0x5000 + i * 3 + 1),
-                    ((__int64)F50 << 32) | (__int64)F58);
-            GtWrite((GLOBAL_TABLE_INDEX)(0x5000 + i * 3 + 2),
-                    ((__int64)F88) | ((__int64)F90 << 40));
-        }
 
         if (Type == 0x510)                                        // 0x140069614（1296）
         {

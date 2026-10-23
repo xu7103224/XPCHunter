@@ -47,29 +47,13 @@ __int64 CmdEnumHandles(__int64 UnusedArg1, __int64 UnusedArg2, volatile void *Ou
 // 调用多个枚举函数填充进程上下文表
 char ValidateProcessContext(unsigned int *OutputBuffer, unsigned int BufferSize)
 {
-    /* 【诊断 2026-10-23】命令 0x026 恒返回 0，逐级记录 5 个子调用后 *OutputBuffer 的值：
-       0x5200=初始 0x5201=GetProcessVirtualizationContext 后
-       0x5202=DispatchProcessHandleTableEnum 后 0x5203=EnumerateProcessHandleTable 后
-       0x5204=EnumerateAllProcesses 后 0x5205=EnumerateSessionProcesses 后 */
     *OutputBuffer = 0;
-    GtWrite((GLOBAL_TABLE_INDEX)0x5200, 1);
-
     GetProcessVirtualizationContext(OutputBuffer, BufferSize);
-    GtWrite((GLOBAL_TABLE_INDEX)0x5201, (__int64)*OutputBuffer);
-
     DispatchProcessHandleTableEnum((__int64)OutputBuffer, BufferSize,
         (void (__fastcall *)(__int64, __int64, ULONG64, __int64))ValidateProcessObjectEx, 0);
-    GtWrite((GLOBAL_TABLE_INDEX)0x5202, (__int64)*OutputBuffer);
-
     EnumerateProcessHandleTable(OutputBuffer, BufferSize);
-    GtWrite((GLOBAL_TABLE_INDEX)0x5203, (__int64)*OutputBuffer);
-
     EnumerateAllProcesses(OutputBuffer, BufferSize);
-    GtWrite((GLOBAL_TABLE_INDEX)0x5204, (__int64)*OutputBuffer);
-
     EnumerateSessionProcesses(OutputBuffer, BufferSize);
-    GtWrite((GLOBAL_TABLE_INDEX)0x5205, (__int64)*OutputBuffer);
-
     return *OutputBuffer != 0;
 }
 
