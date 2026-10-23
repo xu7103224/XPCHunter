@@ -2926,7 +2926,8 @@ static void DoRefreshKernel(void)
             FeFindPteHook(pteDetail, sizeof(pteDetail), &hooked);
             sprintf_s(extra, sizeof(extra),
                       "%s   |   %s   |   Find Next ClassInitData: not available "
-                      "- needs a kernel-memory read primitive",
+                      "- the driver has no arbitrary kernel-VA read (0xF7/0xF9 read "
+                      "one fixed GT pointer; 0x3A needs GT[0x41E4]/GT[0x4189], both 0 here)",
                       detail, pteDetail);
             if (g_hKmKExtra)
                 SetWindowTextA(g_hKmKExtra, extra);
@@ -5462,7 +5463,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         FeFindPteHook(pteDetail, sizeof(pteDetail), &hooked);
         sprintf_s(extra, sizeof(extra),
                   "%s   |   %s   |   Find Next ClassInitData: not available "
-                  "- needs a kernel-memory read primitive",
+                  "- the driver has no arbitrary kernel-VA read (0xF7/0xF9 read "
+                  "one fixed GT pointer; 0x3A needs GT[0x41E4]/GT[0x4189], both 0 here)",
                   detail, pteDetail);
 
         if (FeLoadHiddenDrivers(&hid, &sus))
@@ -5499,8 +5501,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         printf("KiDebugRoutine: %s -> %s\n", okd ? "ok" : "unreadable", detail);
         FeFindPteHook(detail, sizeof(detail), &hooked);
         printf("Find PTE Hook: %s\n", detail);
-        printf("Find Next ClassInitData: not available - needs a verified "
-               "kernel-memory read primitive (0x217 layout unknown)\n");
+        printf("Find Next ClassInitData: not available - the driver has no "
+               "arbitrary kernel-VA read (0xF7/0xF9 read one fixed GT pointer; "
+               "0x3A needs GT[0x41E4]/GT[0x4189], both 0 on this machine)\n");
         return 0;
     }
     if (lpCmdLine && strstr(lpCmdLine, "--idt-cli")) {

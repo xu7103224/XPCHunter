@@ -600,9 +600,17 @@ BOOL FeRestoreSsdtEntry(XPCH_CLIENT *Client, ULONG Selector, BYTE *pResult)
  *   本实现比较 ntoskrnl 基址与其 PTE 记录的 PFN，输出结论。
  *
  * Find Next ClassInitData
- *   原版在 ntoskrnl 的数据段里找 "ClassInitData" 相邻的 DriverEntry 链。
- *   这一项需要内核内存读取能力；本复刻的 0x217 尚未验证输出布局，
- *   因此这里如实报告不可用，不伪造数据。
+ *   【2026-10-23 订正】原文写「0x217 尚未验证输出布局，因此如实报告不可用」——
+ *   说法过时且不准确。实测结论：
+ *     · 0xF9（Table[217] CmdReadKernelMemoryRange）与 0xF7（Table[215]）
+ *       都是「读 GT 里存的那个固定指针的 8 字节」，不接收调用方给的地址；
+ *     · 0x3A（ReadProcessMemoryString）确实在 InputBuffer+8 处接受任意地址，
+ *       但主路径依赖 GT[0x41E4]（语义是 MmGetPhysicalAddress，不是通用读），
+ *       回退路径依赖 GT[0x4189]；本机实测两槽都是 0，命令返回 0；
+ *     · 0x20/0x25 只做进程附加/进程内存，且 0x20 返回值恒为 0。
+ *   所以「任意内核 VA 读」在本驱动里确实不存在，本项无法实现。
+ *   同族的 FltMgr / 注册表回调可从 0x131 一类表取到（已实现），
+ *   但那是另一条链路，不能替代本项。
  * ------------------------------------------------------------------------- */
 
 /* KiDebugRoutine Hooked

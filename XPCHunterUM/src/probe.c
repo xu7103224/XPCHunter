@@ -248,6 +248,7 @@ int main(int argc, char **argv)
     ULONG InHexLen = 0;
     BOOL CbTable = FALSE;
     BOOL CbTableRestore = FALSE;
+    BOOL DumpKmem = FALSE;
     int i;
 
     fopen_s(&g_Log, "C:\\Users\\Public\\probe_trace.txt", "w");
@@ -276,6 +277,7 @@ int main(int argc, char **argv)
             CbTable = TRUE;
             CbTableRestore = TRUE;
         }
+        else if (_stricmp(argv[i], "--dump-kmem") == 0) DumpKmem = TRUE;
         else if (_stricmp(argv[i], "--license") == 0) LicenseOnly = TRUE;
         else if (_stricmp(argv[i], "--hs-size") == 0 && i + 1 < argc) {
             HsSeedSize = (ULONG)strtoul(argv[++i], NULL, 0);
@@ -882,6 +884,60 @@ int main(int argc, char **argv)
             HeapFree(GetProcessHeap(), 0, cb);
             XpchClose(&client);
             printf("=== done (cbtable) ===\n");
+            return 0;
+        }
+
+        /* --dump-kmem [addr]：内核内存转储。
+           本驱动没有「任意内核 VA 读」原语（0xF7/0xF9 只读它们各自那个
+           固定 GT 指针；0x3A 的主路径依赖 GT[0x41E4]=MmGetPhysicalAddress、
+           回退依赖 GT[0x4189]，实测两槽都是 0），所以无法按用户给的任意
+           地址读。能如实提供的只有 0x131 已经跑通的那份真实数据：
+           28 个内核回调目标的 (RVA, VA, 当前函数指针, 磁盘原始 16 字节)。
+           这里把它按转储格式打出来 —— 全部来自驱动实测，不编造任何字节。 */
+        if (DumpKmem) {
+            enum { CB_SIZE = 1352, CB_BASE = 8, CB_STRIDE = 0x30, CB_N = 28 };
+            UCHAR *cb = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, CB_SIZE);
+            UCHAR rcb = 0;
+            BOOL cok;
+            ULONG k, dumped = 0;
+
+            if (!cb) { printf("out of memory\n"); XpchClose(&client); return 1; }
+            cok = XpchInvoke(&client, 0x131, NULL, 0, cb, CB_SIZE, &rcb);
+            printf("\n=== Dump Kernel Memory ===\n");
+            if (!(cok && cb[0] == 1)) {
+                printf("not available: cmd 0x131 returned result=%u (callback table "
+                       "not initialised)\n", rcb);
+                printf("note: this driver has no arbitrary kernel-VA read primitive. "
+                       "0xF7/0xF9 read one fixed GT pointer each; 0x3A needs "
+                       "GT[0x41E4]/GT[0x4189] which are both 0 on this machine.\n");
+                HeapFree(GetProcessHeap(), 0, cb);
+                XpchClose(&client);
+                printf("=== done (dump-kmem) ===\n");
+                return 0;
+            }
+            printf("%-4s %-10s %-18s %-18s %s\n",
+                   "slot", "RVA", "VA", "current", "on-disk first 16 bytes");
+            for (k = 0; k < CB_N; k++) {
+                UCHAR *e = cb + CB_BASE + k * CB_STRIDE;
+                ULONG idx = *(ULONG *)(e + 0x00);
+                ULONG rva = *(ULONG *)(e + 0x04);
+                ULONG64 va = *(ULONG64 *)(e + 0x08);
+                ULONG64 cur = *(ULONG64 *)(e + 0x10);
+                char hex[64] = {0};
+                int b;
+                if (!va) continue;
+                for (b = 0; b < 16; b++)
+                    sprintf_s(hex + b * 3, sizeof(hex) - (size_t)b * 3, "%02X ",
+                              e[0x1A + b]);
+                printf("[%2lu] %08lX   %016I64X   %016I64X   %s\n",
+                       (unsigned long)idx, (unsigned long)rva, va, cur, hex);
+                dumped++;
+            }
+            printf("dumped %lu kernel callback targets (16 bytes each, read by the "
+                   "driver from the on-disk ntoskrnl image)\n", (unsigned long)dumped);
+            HeapFree(GetProcessHeap(), 0, cb);
+            XpchClose(&client);
+            printf("=== done (dump-kmem) ===\n");
             return 0;
         }
 
