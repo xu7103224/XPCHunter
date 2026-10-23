@@ -5690,14 +5690,45 @@ char __fastcall ScanNsiDeregisterDataSection(__int64 PeBase, unsigned int PeSize
         Ctx.ReadPtr += Len;                                       // 0x1400691A2
 
         Type = *(USHORT *)((*(ULONG64 *)((PUCHAR)Entry + 0x118)) + 6);   // 0x1400691A7
+        /* 【诊断 2026-10-23】0x0F8 的前置 GT[0x7D0] 恒为 0，本函数执行了却没命中。
+           记录前 16 条的类型码与关键字段，供 kd 读出定位：
+             0x4F60+i*3+0 类型码
+             0x4F60+i*3+1 消耗量
+             0x4F60+i*3+2 字段+0x88
+             0x4F9E 迭代计数 */
+        if (i < 16)
+        {
+            GtWrite((GLOBAL_TABLE_INDEX)(0x4F60 + i * 3 + 0), (__int64)Type);
+            GtWrite((GLOBAL_TABLE_INDEX)(0x4F60 + i * 3 + 1), (__int64)Len);
+            GtWrite((GLOBAL_TABLE_INDEX)(0x4F60 + i * 3 + 2),
+                    *(__int64 *)((PUCHAR)Entry + 0x88));
+        }
+        GtWrite((GLOBAL_TABLE_INDEX)0x4F9E, (__int64)(i + 1));
+
         if (Type == 0x545)                                        // 0x1400691B3
             break;
 
+        /* 【2026-10-23 修正字段偏移】原版 0x1400691BF..1E1 的三处比较用的
+           是描述符的三个**不同**偏移，此前把 +0x50 与 +0x88 写反了：
+
+               1400691BF  cmp [rsp+1D8h+var_F8], 40000h
+                          var_F8 在 rsp+0xE0，描述符基址 rsp+0x90
+                          → 相对偏移 0xE0-0x90 = **0x50**
+               1400691CD  mov eax, [rsp+1D8h+var_108]
+                          var_108 在 rsp+0xD0 → 相对 **0x40**
+               1400691D8  cmp [rsp+1D8h+var_C0], 40h
+                          var_C0 在 rsp+0x118 → 相对 **0x88**
+
+           实测证据（kd 读诊断槽 0x4F60 起的类型/消耗/+0x88 三元组）：
+           本函数跑满 0x1E 条，第 12 条正是类型 0x168(360)，
+           但其 +0x88 为 0x40、+0x50 才是 0x40000。
+           按旧代码判断 `Entry+0x88 == 0x40000` 永远不成立，
+           于是 GT[0x7D0] 恒为 0 → 命令 0x0F8 恒返回 0。 */
         if (Type == 360                                            // 0x1400691CB
-            && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000ULL)
+            && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40000ULL)
         {
             ULONG v15 = *(ULONG *)((PUCHAR)Entry + 0x40);
-            if (v15 && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 64)   // 0x1400691D6/1E1
+            if (v15 && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 64)   // 0x1400691D6/1E1
             {
                 ULONG Rva = Cumul + v15 - (ULONG)(ULONG_PTR)PeBase;    // 0x1400691E6
                 if (Rva && Rva < PeSize)                          // 0x1400691E8/1EC
