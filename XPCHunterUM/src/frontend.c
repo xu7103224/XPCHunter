@@ -6827,6 +6827,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             printf("open device failed, GetLastError=%lu\n", GetLastError());
             return 1;
         }
+        /* 【2026-10-25 修复】必须握手。驱动在 GT[0x304]==0 时除 0x22 外
+           拒绝一切命令；不握手则进程枚举（0xE4）直接失败，于是本命令
+           永远打印 "process N not found"，看起来像 PID 不存在，实际是
+           驱动还没就绪。RunProcListCli 早就这么做了，这里漏了。 */
+        XpchHandshake(&g_Client);
         FePrintProcessHotkeys(&g_Client, pid);
         XpchClose(&g_Client);
         return 0;
