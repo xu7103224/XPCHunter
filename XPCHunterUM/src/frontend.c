@@ -5882,6 +5882,28 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
 
     UNREFERENCED_PARAMETER(hPrev);
 
+    /* 【2026-10-25 新增】本程序是 GUI 子系统（PE Subsystem=2），而所有
+       --xxx-cli 入口都靠 printf 汇报。GUI 子系统进程默认**没有 stdout**：
+       从 cmd 直接运行时 printf 全部丢弃，重定向到文件也拿不到内容。
+       这曾让 --hotkeys-cli 表现为"完全无输出"，被误判成功能未实现。
+
+       注意必须**先探测** stdout 是否已可用 —— 调用方常用
+       `(prog) > file 2>&1` 由 cmd 先把句柄绑到文件，此时不能再用
+       CONOUT$ 覆盖，否则反而把输出抢走。只有原本拿不到句柄时才补。 */
+    if (lpCmdLine && strstr(lpCmdLine, "-cli")) {
+        HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hOut == NULL || hOut == INVALID_HANDLE_VALUE) {
+            if (!AttachConsole(ATTACH_PARENT_PROCESS))
+                AllocConsole();
+            {
+                FILE *fDummy;
+                freopen_s(&fDummy, "CONOUT$", "w", stdout);
+                freopen_s(&fDummy, "CONOUT$", "w", stderr);
+            }
+        }
+        setvbuf(stdout, NULL, _IONBF, 0);   /* CLI 模式不要缓冲，崩溃前也能拿到 */
+    }
+
     if (lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))
         return RunProcListCli();
 

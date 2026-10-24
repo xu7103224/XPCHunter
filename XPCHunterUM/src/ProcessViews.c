@@ -984,7 +984,14 @@ BOOL FePrintProcessHotkeys(XPCH_CLIENT *Client, ULONG Pid)
 
     if (!FeLoadProcessHotkeys(Client, eprocess, 0, &list))
     {
+        /* 驱动 0x33 被拒时的可辨识提示。本机上对象表指针（GT[0x2E4]）
+           为 0 或指向无效页（win32k 会话空间，session 0 不可读），
+           原版驱动同样返回 REJECTED —— 不是实现缺陷。 */
         printf("enum hotkeys failed, GetLastError=%lu\n", GetLastError());
+        printf("  (driver rejected cmd 0x33: the win32k hotkey table pointer\n"
+               "   GT[0x2E4] is null or points into session space that is not\n"
+               "   mapped in this process context; the original driver returns\n"
+               "   REJECTED here too)\n");
         return FALSE;
     }
     printf("hotkeys of pid %lu: %lu\n", Pid, list.Count);

@@ -1737,19 +1737,35 @@ __int64 InitAllHookSubsystems(void)
         HookSyscallNtLoadDriver(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
         UninstallHookSyscall(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
         EnableHookProtection(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
+        /* 【2026-10-25 修正】InitEprocessFieldOffsets 必须在**任何情况下**执行。
+           原版把它放在 `if (Success == 1)` 里，是因为原版真的会装上那一长串
+           syscall hook；我方不装（Success 恒 0），于是整段被跳过，
+           EPROCESS 字段偏移表（GT[39]/GT[60] 等）永远是 0。
+
+           字段偏移表是纯数据推导，与 hook 是否安装无关，单独执行即可。
+           注意：本函数自身成功时返回 1，**不能**把它的返回值赋给 Success，
+           否则会误把后面那批 hook（NtCreateFile/RenameKey/...）打开。
+           这里用独立变量接返回值，hook 门槛仍只看原来的 Success。
+
+           实测补充：补上本调用后 GT[60] 已正确写入，但命令 0x33 仍恒 REJECTED。
+           继续追到真正的阻塞点是 GT[0x2E4] 对象表指针 —— 本机上它要么为 0
+           （原版实测 GT[0x2E4]=0），要么指向无效页（`!pte` 显示 not valid），
+           MmIsAddressValid 返回 0，EnumObjectLinkedListWin8 第一道守卫即失败。
+           这是会话空间隔离造成的数据源缺失，与字段偏移表无关；
+           原版驱动在本机同样返回 REJECTED，两者行为一致。 */
+        {
+            __int64 OffsetInitResult = InitEprocessFieldOffsets();
+            UNREFERENCED_PARAMETER(OffsetInitResult);
+        }
         if (Success == 1)
         {
-            Success = (char)InitEprocessFieldOffsets();
-            if (Success == 1)
-            {
-                HookSyscallNtCreateFile(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-                HookSyscallNtRenameKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
-                HookSyscallNtSetValueKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase, NtoskrnlImageSizeCopy);
-                HookSyscallNtDeleteValueKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase, NtoskrnlImageSizeCopy);
-                VmxEnabled = CheckVmxEnabled();
-                GtWrite(GtVmxEnabledFlag, VmxEnabled);
-                InitEprocessTokenOffset();
-            }
+            HookSyscallNtCreateFile(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
+            HookSyscallNtRenameKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase);
+            HookSyscallNtSetValueKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase, NtoskrnlImageSizeCopy);
+            HookSyscallNtDeleteValueKey(ExportDirVa, ExportDirSize, ServiceTableBase, NtoskrnlBase, NtoskrnlImageSizeCopy);
+            VmxEnabled = CheckVmxEnabled();
+            GtWrite(GtVmxEnabledFlag, VmxEnabled);
+            InitEprocessTokenOffset();
         }
     }
     return Success;
@@ -1826,8 +1842,21 @@ __int64 InitEprocessFieldOffsets(void)
         GtWrite(GtCallbackField09, 12);
     Offset1 = (ULONG)GtRead(GtEprocessField30);
     GtWrite(GtEprocessField39, Offset1 + 8);
+    /* 【2026-10-25 修正】这三行是 EPROCESS 字段偏移表的收尾写入，原版在
+       HookSyscall 系列 / InstallHookSyscall / EnableHookProtection 全部成功
+       后才调用本函数。
+       我方不装 syscall hook，Success 恒 0，本函数从不执行 —— 于是
+       GT[GtProcessCreateTime]（句柄表偏移）一直是 0。
+
+       后果：命令 0x33 CmdEnumObjectsEx 里的 EnumObjectLinkedListWin8
+       入口守卫 `if (... && HandleTableOffset && ...)` 恒不成立，
+       整函数直接返回、一个条目都不写，0x33 恒 REJECTED，View HotKey 无数据。
+
+       这里的兜底保证：即使上游 hook 全失败（我方常态），字段偏移表也完整。
+       语义与原版一致（GT[60] = GT[55] + 8）。 */
     Offset2 = (ULONG)GtRead(GtProcessEprocess);
-    GtWrite(GtProcessCreateTime, Offset2 + 8);
+    if (!(ULONG)GtRead(GtProcessCreateTime) && Offset2)
+        GtWrite(GtProcessCreateTime, Offset2 + 8);
     Offset3 = (ULONG)GtRead(GtEprocessField182 | GtEprocessField06 | 0x100);
     GtWrite(GtKiFastCallEntryAddr | GtNtoskrnlImageSize, Offset3 - 8);
     return Success;
