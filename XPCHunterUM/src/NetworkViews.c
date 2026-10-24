@@ -356,6 +356,244 @@ BOOL FeLoadNdisOffloadHandlers(XPCH_CLIENT *Client, FE_NDIS_OFFLOAD_LIST *List)
     return TRUE;
 }
 
+
+// ---------------------------------------------------------------------------
+// Ndis Handler（0xE1）
+//   原版客户端 sub_14009B1E0 → sub_1400250D0（发 0xE1，OutSize=0x400000）
+//   驱动侧 CmdEnumProcessListEx（原 0x140062ED8）把 handler 指针数组放在
+//   输出缓冲 +0x58 起的 records 区（记录步长 0x1E0）。
+//   handler 名称**不由驱动返回**，是客户端按序套两张静态字符串表：
+//     off_1406D49F0 — 75 项（miniport / adapter 级，清单里的 22 项在此表前段）
+//     off_1406D5050 — 59 项（protocol / 结构内 handler）
+//   本机实测两表对应的槽全为 0（无 NDIS miniport 注册），原版同样如此。
+//   见 docs/reversing/全命令矩阵收敛实录_2026-10-25.md §3。
+// ---------------------------------------------------------------------------
+static const char *const s_NdisHandlerNamesA[75] = {
+    "OpenAdapterCompleteHandler",
+    "CloseAdapterCompleteHandler",
+    "(Wan)SendCompleteHandler",
+    "(Wan)TransferDataCompleteHandler",
+    "ResetCompleteHandler",
+    "RequestCompleteHandler",
+    "(Wan)ReceiveHandler",
+    "ReceiveCompleteHandler",
+    "StatusHandler",
+    "StatusCompleteHandler",
+    "ReceivePacketHandler",
+    "BindAdapterHandler",
+    "UnbindAdapterHandler",
+    "PnPEventHandler",
+    "UnloadHandler",
+    "ReservedHandlers[0]",
+    "ReservedHandlers[1]",
+    "ReservedHandlers[2]",
+    "ReservedHandlers[3]",
+    "CoSendCompleteHandler",
+    "CoStatusHandler",
+    "CoReceivePacketHandler",
+    "CoAfRegisterNotifyHandler",
+    "InitiateOffloadCompleteHandler",
+    "TerminateOffloadCompleteHandler",
+    "UpdateOffloadCompleteHandler",
+    "InvalidateOffloadCompleteHandler",
+    "QueryOffloadCompleteHandler",
+    "IndicateOffloadEventHandler",
+    "TcpOffloadSendCompleteHandler",
+    "TcpOffloadReceiveCompleteHandler",
+    "TcpOffloadDisconnectCompleteHandler",
+    "TcpOffloadForwardCompleteHandler",
+    "TcpOffloadEventHandler",
+    "TcpOffloadReceiveIndicateHandler",
+    "BindAdapterHandlerEx",
+    "UnbindAdapterHandlerEx",
+    "OpenAdapterCompleteHandlerEx",
+    "CloseAdapterCompleteHandlerEx",
+    "UninstallHandler",
+    "ReceiveNetBufferListsHandler",
+    "SendNetBufferListsCompleteHandler",
+    "CoReceiveNetBufferListsHandler",
+    "CoSendNetBufferListsCompleteHandler",
+    "OidRequestCompleteHandler",
+    "DirectOidRequestCompleteHandler",
+    "AllocateSharedMemoryHandler",
+    "FreeSharedMemoryHandler",
+    "FastIoCheckIfPossible",
+    "FastIoRead",
+    "FastIoWrite",
+    "FastIoQueryBasicInfo",
+    "FastIoQueryStandardInfo",
+    "FastIoLock",
+    "FastIoUnlockSingle",
+    "FastIoUnlockAll",
+    "FastIoUnlockAllByKey",
+    "FastIoDeviceControl",
+    "AcquireFileForNtCreateSection",
+    "ReleaseFileForNtCreateSection",
+    "FastIoDetachDevice",
+    "FastIoQueryNetworkOpenInfo",
+    "AcquireForModWrite",
+    "MdlRead",
+    "MdlReadComplete",
+    "PrepareMdlWrite",
+    "MdlWriteComplete",
+    "FastIoReadCompressed",
+    "FastIoWriteCompressed",
+    "MdlReadCompleteCompressed",
+    "MdlWriteCompleteCompressed",
+    "FastIoQueryOpen",
+    "ReleaseForModWrite",
+    "AcquireForCcFlush",
+    "ReleaseForCcFlush",
+};
+
+static const char *const s_NdisHandlerNamesB[59] = {
+    "(Wan)SendHandler",
+    "TransferDataHandler",
+    "SendCompleteHandler",
+    "TransferDataCompleteHandler",
+    "ReceiveHandler",
+    "ReceiveCompleteHandler",
+    "WanReceiveHandler",
+    "RequestCompleteHandler",
+    "ReceivePacketHandler",
+    "SendPacketsHandler",
+    "ResetHandler",
+    "RequestHandler",
+    "ResetCompleteHandler",
+    "StatusHandler",
+    "StatusCompleteHandler",
+    "WSendHandler",
+    "WTransferDataHandler",
+    "WSendPacketsHandler",
+    "CancelSendPacketsHandler",
+    "MiniportCoCreateVcHandler",
+    "MiniportCoRequestHandler",
+    "CoCreateVcHandler",
+    "CoDeleteVcHandler",
+    "CmActivateVcCompleteHandler",
+    "CmDeactivateVcCompleteHandler",
+    "CoRequestCompleteHandler",
+    "InitiateOffloadCompleteHandler",
+    "TerminateOffloadCompleteHandler",
+    "UpdateOffloadCompleteHandler",
+    "InvalidateOffloadCompleteHandler",
+    "QueryOffloadCompleteHandler",
+    "IndicateOffloadEventHandler",
+    "TcpOffloadSendCompleteHandler",
+    "TcpOffloadReceiveCompleteHandler",
+    "TcpOffloadDisconnectCompleteHandler",
+    "TcpOffloadForwardCompleteHandler",
+    "TcpOffloadEventHandler",
+    "TcpOffloadReceiveIndicateHandler",
+    "NextSendHandler",
+    "NextReturnNetBufferListsHandler",
+    "OidRequestHandler",
+    "ProtSendNetBufferListsComplete",
+    "NextSendNetBufferListsComplete",
+    "ReceiveNetBufferLists",
+    "SavedSendNBLHandler",
+    "SavedSendPacketsHandler",
+    "SavedCancelSendPacketsHandler",
+    "Saved(Wan)SendHandler",
+    "Ndis5WanSendHandler",
+    "ProtSendCompleteHandler",
+    "OidRequestCompleteHandler",
+    "CoRequestHandler",
+    "MiniportCoOidRequestHandler",
+    "CoOidRequestCompleteHandler",
+    "CoOidRequestHandler",
+    "DirectOidRequestCompleteHandler",
+    "DirectOidRequestHandler",
+    "AllocateSharedMemoryHandler",
+    "FreeSharedMemoryHandler",
+};
+
+BOOL FeLoadNdisHandlers(XPCH_CLIENT *Client, FE_NDIS_HANDLER_LIST *List)
+{
+    UCHAR *Buffer;
+    UCHAR Result = 0;
+    ULONG Total, i;
+
+    if (!List)
+        return FALSE;
+    ZeroMemory(List, sizeof(*List));
+
+    Buffer = (UCHAR *)calloc(1, FE_NDIS_HANDLER_OUT_SIZE);
+    if (!Buffer)
+        return FALSE;
+
+    /* 驱动要求 OutSize = 0x400000 */
+    if (!XpchInvoke(Client, XPCH_CMD_ENUM_PROCESS_LIST_EX,
+                    NULL, 0, Buffer, FE_NDIS_HANDLER_OUT_SIZE, &Result)
+        || Result != 1) {
+        free(Buffer);
+        return FALSE;
+    }
+
+    /* 两种表共用同一段槽区；A 在前、B 紧随其后（原版按同样顺序扫描）。
+       槽从 out+0x58 起，共 A_MAX + B_MAX 个 qword。 */
+    Total = FE_NDIS_HANDLER_TABLE_A_MAX + FE_NDIS_HANDLER_TABLE_B_MAX;
+    for (i = 0; i < Total; i++) {
+        ULONG64 Value = *(const ULONG64 *)(const void *)
+                        (Buffer + FE_NDIS_HANDLER_BASE_OFF + (size_t)i * 8);
+        ULONG TableIdx;
+        ULONG InTable;
+
+        List->Scanned++;
+        if (!Value)
+            continue;                 /* 本机未注册该 handler */
+
+        if (i < FE_NDIS_HANDLER_TABLE_A_MAX) {
+            TableIdx = 1;
+            InTable = i;
+        } else {
+            TableIdx = 2;
+            InTable = i - FE_NDIS_HANDLER_TABLE_A_MAX;
+        }
+
+        {
+            FE_NDIS_HANDLER_ENTRY *Item = &List->Items[List->Count];
+            const char *Name = (TableIdx == 1)
+                ? s_NdisHandlerNamesA[InTable]
+                : s_NdisHandlerNamesB[InTable];
+            strcpy_s(Item->Name, sizeof(Item->Name), Name);
+            Item->Table = TableIdx;
+            Item->Index = InTable;
+            Item->Value = Value;
+            List->Count++;
+        }
+    }
+
+    free(Buffer);
+    return TRUE;
+}
+
+void FePrintNdisHandlers(XPCH_CLIENT *Client)
+{
+    FE_NDIS_HANDLER_LIST List;
+    ULONG i;
+
+    if (!FeLoadNdisHandlers(Client, &List)) {
+        printf("NdisHandler: 0xE1 query failed (connected=%d)\n",
+               Client && Client->Opened);
+        return;
+    }
+    printf("NdisHandler (cmd 0xE1, %lu live / %lu scanned)\n",
+           List.Count, List.Scanned);
+    if (!List.Count) {
+        printf("  (all slots are 0 - no NDIS miniport/protocol handlers "
+               "registered on this machine)\n");
+        return;
+    }
+    printf("  %-4s %-5s %-38s %s\n", "Tbl", "Idx", "Fun Name", "Entry");
+    for (i = 0; i < List.Count; i++) {
+        printf("  %-4lu %-5lu %-38s 0x%016llX\n",
+               List.Items[i].Table, List.Items[i].Index,
+               List.Items[i].Name,
+               (unsigned long long)List.Items[i].Value);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // NdisOidTable（0xEC）
 //   原版客户端 sub_1400AAEB0 → sub_140025B50（发 0xEC，OutSize=2MB）

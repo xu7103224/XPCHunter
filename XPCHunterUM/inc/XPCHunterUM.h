@@ -1053,6 +1053,35 @@ typedef struct _FE_NDIS_OFFLOAD_LIST {
     FE_NDIS_OFFLOAD_ENTRY Items[FE_NDIS_OFFLOAD_MAX];
 } FE_NDIS_OFFLOAD_LIST;
 
+/* 0xE1：Ndis Handler（miniport / protocol / 结构内 handler 字段）
+   原版客户端 sub_14009B1E0 → sub_1400250D0（发 0xE1，OutSize=0x400000）
+   驱动侧 CmdEnumProcessListEx（FSFilter 表 / 原 0x140062ED8）：
+     输出缓冲结构：count 数组从 +0x58 起（0x9800 字节区），每条记录 0x1E0，
+     handler 指针数组紧跟其后。handler 名称**不由驱动返回**，而是客户端把
+     两张静态字符串表按序对上：
+       off_1406D49F0 — 75 项（miniport / adapter 级）
+       off_1406D5050 — 59 项（protocol / 结构内 handler）
+   本机实测该区为空（无 NDIS miniport 注册），两端返回一致。
+   见 docs/reversing/全命令矩阵收敛实录_2026-10-25.md §3。 */
+#define FE_NDIS_HANDLER_TABLE_A_MAX 75u
+#define FE_NDIS_HANDLER_TABLE_B_MAX 59u
+#define FE_NDIS_HANDLER_OUT_SIZE   0x400000u
+#define FE_NDIS_HANDLER_BASE_OFF   0x58u
+
+typedef struct _FE_NDIS_HANDLER_ENTRY {
+    char    Name[56];        /* 客户端静态名称表里的名字 */
+    ULONG   Table;           /* 1 = 表A(miniport) / 2 = 表B(protocol) */
+    ULONG   Index;           /* 表内下标 */
+    ULONG64 Value;           /* 从 0xE1 输出缓冲对应槽读到的指针 */
+} FE_NDIS_HANDLER_ENTRY;
+
+typedef struct _FE_NDIS_HANDLER_LIST {
+    ULONG Count;             /* 非零项数 */
+    ULONG Scanned;           /* 扫描的槽总数 */
+    FE_NDIS_HANDLER_ENTRY Items[FE_NDIS_HANDLER_TABLE_A_MAX +
+                                FE_NDIS_HANDLER_TABLE_B_MAX];
+} FE_NDIS_HANDLER_LIST;
+
 /* 0xEC：NdisOidTable（每项 {类型ID, PreFun, PostFun}，驱动同时给当前表与原始表）
    原版固定 2MB 输出：前半当前表、后半原始表（偏移 0x100000），记录步长 24，
    以全 0 记录作为结束标记。类型ID→名称用 inc/xpc_oid_names.h 的 738 项表。 */
@@ -1144,6 +1173,11 @@ typedef struct _FE_FWPS_TABLE {
 #define FE_NETIO_OUT_SIZE      0x100000u
 #define FE_NETIO_RECORD_SIZE   16u
 #define FE_NETIO_MAX_COUNT     5u
+
+/* 节点 NdisHandler（0xE1，原版 sub_14009B1E0 → sub_1400250D0）
+   Table[193] = CmdEnumProcessListEx；OutSize=0x400000。
+   handler 名称由客户端两张静态表按序对上，不在驱动返回值里。 */
+#define XPCH_CMD_ENUM_PROCESS_LIST_EX  0xE1u
 
 typedef struct _FE_NETIO_ENTRY {
     ULONG   Id;
@@ -1318,6 +1352,8 @@ BOOL FeRestoreTdiCallbacks(XPCH_CLIENT *Client, UCHAR *ResultByte);
 BOOL FeLoadTdiPnpClients(XPCH_CLIENT *Client, FE_TDI_PNP_LIST *List);
 void FeFreeTdiPnpClients(FE_TDI_PNP_LIST *List);
 BOOL FeLoadNdisOffloadHandlers(XPCH_CLIENT *Client, FE_NDIS_OFFLOAD_LIST *List);
+BOOL FeLoadNdisHandlers(XPCH_CLIENT *Client, FE_NDIS_HANDLER_LIST *List);
+void FePrintNdisHandlers(XPCH_CLIENT *Client);
 BOOL FeLoadNdisOidTable(XPCH_CLIENT *Client, FE_NDIS_OID_LIST *List);
 void FeFreeNdisOidTable(FE_NDIS_OID_LIST *List);
 BOOL FeLoadNdisInterfaces(XPCH_CLIENT *Client, FE_NDIS_IF_LIST *List);

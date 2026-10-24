@@ -6376,6 +6376,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         printf("[3] NdisOffload\n"); fflush(stdout);
         if (!FePrintNdisOffloadHandlers(&g_Client))
             ok = FALSE;
+        printf("[3b] NdisHandler (0xE1)\n"); fflush(stdout);
+        FePrintNdisHandlers(&g_Client);
         printf("[4] NdisOidTable\n"); fflush(stdout);
         if (!FePrintNdisOidTable(&g_Client))
             ok = FALSE;

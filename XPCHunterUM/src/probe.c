@@ -245,6 +245,7 @@ int main(int argc, char **argv)
     ULONG RawInSize = 0;
     ULONG RawInValue = 0;
     BOOL XDump = FALSE;
+    BOOL SddtInfo = FALSE;
     ULONG XDumpOff = 0;
     ULONG XDumpCount = 0;
     UCHAR InHexBuf[64];
@@ -330,6 +331,7 @@ int main(int argc, char **argv)
                 h += 2;
             }
         }
+        else if (_stricmp(argv[i], "--ssdtinfo") == 0) SddtInfo = TRUE;
         else if (_stricmp(argv[i], "--xdump") == 0 && i + 4 < argc) {
             /* --xdump <cmd> <outsize> <offset> <count>
                只导出输出缓冲中 [offset, offset+count) 的 qword 列表。
@@ -1070,6 +1072,52 @@ int main(int argc, char **argv)
             HeapFree(GetProcessHeap(), 0, outBuf);
             XpchClose(&client);
             printf("=== done (xdump) ===\n");
+            return 0;
+        }
+
+        if (SddtInfo) {
+            /* 0x42 CmdQuerySsdtInfo：入参必须 24 字节
+                 +0  BYTE Flags
+                 +4  (pad)
+                 +8  PVOID OutputBuffer（用户态）
+                 +16 ULONG BufferSize
+               驱动会 memset(OutputBuffer,0,BufferSize) 后调 CmdEnumDriverObjects。
+               这条路径此前在 EnumerateDriverFiles 里对 NULL 解引用崩掉
+               （BSOD 0x3B），用本模式做回归。 */
+            enum { SI_SIZE = 0x40000 };
+            UCHAR Arg[24];
+            UCHAR *Out = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, SI_SIZE);
+            UCHAR rr = 0;
+            BOOL rok;
+
+            if (!Out) {
+                printf("out of memory\n");
+                XpchClose(&client);
+                return 1;
+            }
+            ZeroMemory(Arg, sizeof(Arg));
+            Arg[0] = 0;                             /* Flags */
+            *(ULONG64 *)(void *)(Arg + 8) = (ULONG64)(ULONG_PTR)Out;
+            *(ULONG *)(void *)(Arg + 16) = SI_SIZE;
+
+            rok = XpchInvoke(&client, 0x42, Arg, sizeof(Arg), NULL, 0, &rr);
+            printf("=== 0x42 CmdQuerySsdtInfo -> %s result=%u ===\n",
+                   rok ? "OK" : "REJECTED", rr);
+            if (rok) {
+                printf("  entry count @+0 = %lu\n",
+                       *(const ULONG *)(const void *)Out);
+                {
+                    ULONG k;
+                    for (k = 0; k < 6; k++)
+                        printf("  [%lu] +0x%03lX = 0x%016llX\n", k,
+                               (unsigned long)(k * 8),
+                               (unsigned long long)
+                               *(const ULONG64 *)(const void *)(Out + k * 8));
+                }
+            }
+            HeapFree(GetProcessHeap(), 0, Out);
+            XpchClose(&client);
+            printf("=== done (ssdtinfo) ===\n");
             return 0;
         }
 

@@ -1408,8 +1408,19 @@ void EnumerateDriverFiles(_DWORD *pOutputBuffer)
                             pTempBuffer[255] = 0;
                             if (GetStringLength(pTempBuffer) < 0xFF)
                             {
+                                /* 【2026-10-25 修正】原写 `GtRead(GtPathBuffer00)` —— 那是
+                                   InitSdstTable 写入的**内联字符**（GT[4]=0x7300790053005C =
+                                   L"\Sys" 的 4 个 wchar），不是指针。当 GT[4] 被别的路径
+                                   改动后读到 0，WStringConcat 就会对 NULL 做
+                                   `cmp word ptr [r9],0` → BSOD 0x3B（实测崩在
+                                   EnumerateDriverFiles+0x4E6）。
+
+                                   原版 0x14003CAFF 用的是 `qword_14008CA70`，而
+                                   0x14008CA70 处就是 `5C 00 00 00` —— 一个双字节
+                                   字面量 L"\"，即"补一个反斜杠"。这里直接用字面量
+                                   即可，不再经过 GT。 */
                                 int StrLen2 = (int)GetStringLength(pTempBuffer);
-                                WStringConcat(pTempBuffer, (WORD *)GtRead(GtPathBuffer00), 255 - StrLen2);
+                                WStringConcat(pTempBuffer, (WORD *)L"\\", 255 - StrLen2);
                                 int StrLen3 = (int)GetStringLength(pTempBuffer);
                                 WStringConcat(pTempBuffer, pNameBuffer, 255 - StrLen3);
                                 pTempBuffer[255] = 0;
