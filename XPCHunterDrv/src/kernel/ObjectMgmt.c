@@ -3094,12 +3094,22 @@ __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, ULONG64 Ima
         if (TypeValue == 0x545)                            // 0x140036A0B
             break;
 
+        /* 【2026-10-24 偏移订正】按本函数自己的栈帧换算（描述符基址 rsp+0x90）：
+             0x140036A17  test [rsp+1E8h+var_108], 4000000h
+                          var_108 = rsp+0xE0 → **desc+0x50**（旧代码误作 +0x88）
+             0x140036A25  cmp  [rsp+1E8h+var_120], ebx
+                          var_120 = rsp+0xC8 → **desc+0x38**（旧代码误作 +0x78）
+           离线复现原版在 NtUserRegisterHotKey(0xDED60) 上的 55 条解码序列，
+           三条 0x558 的 (desc+0x38, desc+0x50) 分别是
+           (0xFFF68FAE,0x4000000) / (0x64,0x4000000) / (0xFFF68F98,0x4000000)，
+           全部满足条件；原版最终返回 0xDEE6C。旧偏移读的是无关字段，
+           所以一次都没进入该分支，返回 0。 */
         if (TypeValue == 0x558                             // 0x140036A15
-            && (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x4000000ULL) != 0
-            && *(ULONG *)((PUCHAR)Entry + 0x78) != 0)
+            && (*(ULONG64 *)((PUCHAR)Entry + 0x50) & 0x4000000ULL) != 0
+            && *(ULONG *)((PUCHAR)Entry + 0x38) != 0)
         {
             PrevOffset = CurOffset;                        // 0x140036A2E
-            CurOffset = *(ULONG *)((PUCHAR)Entry + 0x78)
+            CurOffset = *(ULONG *)((PUCHAR)Entry + 0x38)
                         - (ULONG)SectionBase + (ULONG)NewReadPtr;  // 0x140036A37/3A
         }
     }
@@ -3111,70 +3121,91 @@ __int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, ULONG64 Ima
 
 // FindObjectOperationBaseOffset — 查找对象操作基址偏移
 // 对应原始驱动 0x140036A78（351 字节）
+// 【2026-10-24 重写】旧实现有 3 个从未赋值的局部变量
+//   （EntrySize / RvaField / Flags2 / EntrySize2 未初始化即参与比较），
+//   且把可选头字段偏移写成了 desc+0x40/0x78/0x8C，条件恒不成立，
+//   函数恒返回 0 —— 命令 0x33 的第三环因此失败。
+// 【按 0x140036A78..0x140036BC4 逐条转写】描述符基址 var_158 = rsp+0x90：
+//   var_D0  = rsp+0x118 → desc+0x88
+//   var_E0  = rsp+0x108 → desc+0x78
+//   var_108 = rsp+0xE0  → desc+0x50
+//   var_68  = rsp+0x180 → desc+0xF0（消耗量）
+//   var_40  = rsp+0x1a8 → desc+0x118（SectionDataPtr）
+// 语义：
+//   build >= 0x2800 → 基址取 GT[0x8F6]、大小为 GT[0x8F7]
+//   否则            → 基址取 GT[0x50]、大小为 GT[0x51]
+//   基址或大小为 0 → 返回 0
+//   循环（最多 0x64 次）：
+//     ReadPESectionEntry；读指针 += desc+0xF0；ecx = 新读指针低 32 位
+//     TypeValue == 0x545 → 结束
+//     TypeValue == 0x512 && desc+0x88 == 0x40000 && desc+0x78 != 0
+//         && desc+0x50 == 0x40:
+//         rva = desc+0x78 - SectionBase + ecx
+//         if (rva && rva < MaxOffset) return 基址 + rva
+//   返回 0
 __int64 __fastcall FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSize, int SectionBase)
 {
-    __int64 FoundOffset;
+    ULONG64 ModuleBase;
+    ULONG   ModuleSize;
     unsigned int MaxOffset;
-    __int64 BaseOffset1;
-    enum _GLOBAL_TABLE_INDEX GtIndex2;
-    __int64 BaseOffset;
-    int BaseOffset2;
-    unsigned int LoopIndex;
-    int CurrentRva;
+    __int64 Found = 0;
+    int Iteration;
     __int16 TypeValue;
-    unsigned int TargetRva;
-    char PESectionContext[72];          // 0x48 字节解码上下文（原 [8] 仅 8 字节；保持数组形式以便裸名传参）
-    __int64 ContextOffset;
-    char SectionEntry[448];             // 描述符：原 [80] 仅 80 字节
-    __int64 EntrySize;
-    int RvaField;
-    __int64 Flags2;
-    unsigned int EntrySize2;
-    __int64 TypePtr;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD Entry[112];
 
-    FoundOffset = 0;
-    MaxOffset = ImageSize - SectionBase;
+    MaxOffset = (unsigned int)((ULONG)ImageSize - (ULONG)SectionBase);
+
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
     {
-        BaseOffset1 = GtRead(GtNtoskrnlFileBase);
-        GtIndex2 = (enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr1 | GtEprocessField182 | GtEprocessField22);
+        ModuleBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x8F6);      // 0x140036ACC
+        ModuleSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x8F7);        // 0x140036AD6
     }
     else
     {
-        BaseOffset1 = GtRead(GtKernelModuleBase);
-        GtIndex2 = GtEprocessField71;
+        ModuleBase = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x50);       // 0x140036ABF
+        ModuleSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x51);         // 0x140036AC7
     }
-    BaseOffset = BaseOffset1;
-    BaseOffset2 = (int)GtRead(GtIndex2);
-    if (BaseOffset && BaseOffset2)
+
+    if (!ModuleBase || !ModuleSize)                                    // 0x140036AE3/Ec
+        return Found;
+
+    InitPESectionReadContext(ImageBase,
+                             (ULONG)((ULONG)ImageSize - (ULONG)(ULONG_PTR)ImageBase),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+    for (Iteration = 0; Iteration < 0x64; ++Iteration)
     {
-        InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)PESectionContext);
-        for (LoopIndex = 0; LoopIndex < 0x64; ++LoopIndex)
+        ULONG NewReadPtr;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
+            break;
+
+        NewReadPtr = (ULONG)Ctx.ReadPtr + *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Ctx.ReadPtr += *(ULONG *)((PUCHAR)Entry + 0xF0);               // 0x140036B4F
+
+        TypeValue = *(__int16 *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+
+        if (TypeValue == 0x545)                                        // 0x140036B60
+            break;
+
+        if (TypeValue == 0x512                                        // 0x140036B6A
+            && *(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x40000ULL        // 0x140036B6C
+            && *(ULONG *)((PUCHAR)Entry + 0x78) != 0                   // 0x140036B81
+            && *(ULONG64 *)((PUCHAR)Entry + 0x50) == 0x40)             // 0x140036B85
         {
-            *(ULONG64 *)((PUCHAR)PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)PESectionContext, (PULONG)SectionEntry))
-                break;
-            CurrentRva = (int)(EntrySize2 + ContextOffset);
-            ContextOffset += EntrySize2;
-            TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (TypeValue == 1349)
-                break;
-            if (TypeValue == 1298 && Flags2 == 0x40000)
+            unsigned int Rva = *(ULONG *)((PUCHAR)Entry + 0x78)
+                               - (ULONG)SectionBase + NewReadPtr;      // 0x140036B90/93
+            if (Rva && Rva < MaxOffset)                                // 0x140036B95/97
             {
-                if (RvaField)
-                {
-                    if (EntrySize == 64)
-                    {
-                        TargetRva = CurrentRva + RvaField - SectionBase;
-                        if (TargetRva && TargetRva < MaxOffset)
-                            return BaseOffset + TargetRva;
-                    }
-                }
+                Found = (__int64)(ModuleBase + Rva);                   // 0x140036BAA
+                break;
             }
         }
     }
-    return FoundOffset;
+    return Found;
 }
+
 
 // QueryObjectOperationByVersion — 根据版本查询对象操作偏移
 // 对应原始驱动 0x140036554（78 字节）
@@ -3652,61 +3683,87 @@ __int64 FindObjectOperationOffset(__int64 ImageBase, int ImageSize, int SectionB
     return Result;
 }
 
-// FindObjectOperationSection — 查找对象操作节区（Win10+）：遍历 PE 节区条目，先扫描 Type 1340 标记 FoundFlag，然后扫描 Type 1368 获取目标 RVA 偏移
+// FindObjectOperationSection — 查找对象操作节区（Win10+）
 // 对应原始驱动 0x1400366E0（313 字节）
-__int64 FindObjectOperationSection(__int64 ImageBase, int ImageSize, int SectionBase)
+// 【2026-10-24 重写】旧实现用了 4 个从未赋值的局部变量
+//   （FlagsField / Flags2 / TypeField / EntryOffset），条件恒不成立，
+//   函数恒返回 0 —— 命令 0x33 的第二环因此失败（第一环
+//   FindObjectOperationDataSection 已返回正确值 0xDEE6C）。
+// 【按 0x1400366E0..0x140036818 逐条转写】描述符基址 var_148 = rsp+0x90：
+//   var_C0  = rsp+0x118 → desc+0x88
+//   var_D8  = rsp+0x100 → desc+0x70
+//   var_F8  = rsp+0xE0  → desc+0x50
+//   var_110 = rsp+0xC8  → desc+0x38
+//   var_58  = rsp+0x180 → desc+0xF0（消耗量）
+//   var_30  = rsp+0x1a8 → desc+0x118（SectionDataPtr）
+// 语义：
+//   ebp = ImageSize - SectionBase           → MaxOffset
+//   sil = 0                                 → FoundFlag
+//   edi = 0                                 → 循环计数
+//   循环（最多 0xC8 次）：
+//     ReadPESectionEntry 失败 → 结束
+//     读指针 += desc+0xF0；ecx = 新读指针（低 32 位）
+//     TypeValue = *(WORD*)(desc+0x118 + 6)
+//     if (USHORT)(TypeValue - 1340) <= 7:            // 1340..1347
+//         if (desc+0x88 == 0x800000 && desc+0x70 == 0x200) FoundFlag = 1
+//     else if (TypeValue == 0x558
+//              && (desc+0x50 & 0x4000000)
+//              && desc+0x38 != 0
+//              && FoundFlag == 1):
+//         rva = desc+0x38 - SectionBase + ecx
+//         if (rva && rva < MaxOffset) return rva
+//   返回 0
+__int64 __fastcall FindObjectOperationSection(__int64 ImageBase, int ImageSize, int SectionBase)
 {
-    unsigned int FoundOffset;
     unsigned int MaxOffset;
-    char FoundFlag;
-    int ScanCount;
-    int CurrentRva;
+    char FoundFlag = 0;
+    int Iteration;
+    unsigned int Found = 0;
     __int16 TypeValue;
-    unsigned int TargetRva;
-    PE_DECODE_CONTEXT PESectionContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 ContextOffset;
-    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-    int EntryOffset;
-    __int64 FlagsField;
-    int TypeField;
-    __int64 Flags2;
-    unsigned int EntrySize2;
-    __int64 TypePtr;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD Entry[112];
 
-    FoundOffset = 0;
-    MaxOffset = ImageSize - SectionBase;
-    FoundFlag = 0;
-    InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)&PESectionContext);
-    ScanCount = 0;
-    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+    MaxOffset = (unsigned int)((ULONG)ImageSize - (ULONG)SectionBase);
+
+    InitPESectionReadContext(ImageBase,
+                             (ULONG)((ULONG)ImageSize - (ULONG)(ULONG_PTR)ImageBase),
+                             2, 0, -1, 0, 0, (__int64)&Ctx);
+
+    for (Iteration = 0; Iteration < 0xC8; ++Iteration)
     {
-        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        CurrentRva = (int)(EntrySize2 + ContextOffset);
-        ContextOffset += EntrySize2;
-        TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-        if ((unsigned __int16)(TypeValue - 1340) > 7u)
+        ULONG NewReadPtr;
+
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
+            break;
+
+        NewReadPtr = (ULONG)Ctx.ReadPtr + *(ULONG *)((PUCHAR)Entry + 0xF0);
+        Ctx.ReadPtr += *(ULONG *)((PUCHAR)Entry + 0xF0);   // 0x140036774
+
+        TypeValue = *(__int16 *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+
+        if ((USHORT)(TypeValue - 1340) <= 7)               // 0x140036788
         {
-            if (TypeValue == 1368 && (FlagsField & 0x4000000) != 0)
+            if (*(ULONG64 *)((PUCHAR)Entry + 0x88) == 0x800000ULL   // 0x14003678A
+                && *(ULONG *)((PUCHAR)Entry + 0x70) == 0x200)       // 0x140036798
+                FoundFlag = 1;
+        }
+        else if (TypeValue == 0x558                        // 0x1400367B2
+            && (*(ULONG64 *)((PUCHAR)Entry + 0x50) & 0x4000000ULL) != 0   // 0x1400367B4
+            && *(ULONG *)((PUCHAR)Entry + 0x38) != 0)                   // 0x1400367C9
+        {
+            if (FoundFlag == 1)                            // 0x1400367CD
             {
-                if (EntryOffset)
+                unsigned int Rva = *(ULONG *)((PUCHAR)Entry + 0x38)
+                                   - (ULONG)SectionBase + NewReadPtr;   // 0x1400367D3/D6
+                if (Rva && Rva < MaxOffset)                // 0x1400367D8/DA
                 {
-                    if (FoundFlag == 1)
-                    {
-                        TargetRva = CurrentRva + EntryOffset - SectionBase;
-                        if (TargetRva && TargetRva < MaxOffset)
-                            return (unsigned int)(CurrentRva + EntryOffset - SectionBase);
-                    }
+                    Found = Rva;                           // 0x1400367ED
+                    break;
                 }
             }
         }
-        else if (Flags2 == 0x800000 && TypeField == 512)
-        {
-            FoundFlag = 1;
-        }
-        if ((unsigned int)++ScanCount >= 0xC8)
-            return FoundOffset;
     }
-    return FoundOffset;
+    return (__int64)Found;
 }
 
 // EnumObjectLinkedListWin8 — 枚举对象链表（Win8）：遍历 127 个桶，在每个桶中遍历链表条目，输出每个句柄的完整信息（7 个 QWORD）
