@@ -98,8 +98,9 @@ static int FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc)
 #define IDC_OT_VERIFY   1083
 #define IDC_OT_QUERY    1084
 /* Network 页（主 Tab 4） */
-#define IDC_NW_LIST     1085
-#define IDC_NW_STATUS   1086
+#define IDC_NW_TREE     1085
+#define IDC_NW_LIST     1086
+#define IDC_NW_STATUS   1087
 /* Examination 页 */
 #define IDC_EX_RUN      1090
 #define IDC_EX_CANCEL   1091
@@ -164,9 +165,14 @@ static HWND g_hTrList, g_hTrStatus;
 static FE_TROJAN_REPORT g_TrReport;
 static int g_TrLoaded = 0;
 static HWND g_hHkList, g_hHkStatus;
-/* Network 页（主 Tab 4）：0xF8 InitKernelMemoryContext 的 WFP/KFD/NSI
-   解析结果。数据源见 frontend.c 的 DoRefreshNetwork。 */
-static HWND g_hNwList, g_hNwStatus;
+/* Network 页（主 Tab 4）：原版为 "Network Callback" 树 + 右侧 6 列列表。
+   树由 sub_1400A78F0 按系统 build 构建，节点 lParam = formatter case 号；
+   选中节点由 sub_1400A70D0 调 sub_1400A7750(page, 1) 重建列并填表。
+   已解码数据源（见 src/NetworkViews.c）：
+     节点 1 NdisTdiCallback —— cmd 0xE6 / 恢复 0xE7
+     节点 2 TdiPnpClient     —— cmd 0xE8 */
+static HWND g_hNwTree, g_hNwList, g_hNwStatus;
+static int  g_NwNode = 1;
 static int  g_MainTab = 0;    /* 当前主 Tab（0 = Process） */
 static int  g_KmTab = 0;
 static int  g_KmOnlyLoaded = 0;
@@ -977,144 +983,1026 @@ static void CreateSvColumns(HWND hList)
 }
 
 /* ==========================================================================
- * Network 页（主 Tab 4）
+ * Network 页（主 Tab 4）—— 原版 Network Callback 树
  *
- * 【2026-10-22 实测更正】此前该页提示"驱动没有网络命令"，结论错误。
- *   实机验证（kd 读 g_GlobalTable）：
- *     命令 0xF8 CmdInitKernelMemoryContext 的处理器确实执行（HANDLED）；
- *     netio.sys 读取成功（0x94000 字节，kmctx stage=3 全部完成）；
- *     26 组 WFP/KFD/NSI 解析产出成对的 RVA + 绝对地址。
+ * 两节已完整解码并接入真实命令（详见 src/NetworkViews.c 文件头）：
  *
- *   数据来源：0x13A（CmdDumpCallStats）诊断通道的 env 块 0x400 起，
- *   20 个 QWORD，对应以下 GT 槽（顺序与驱动侧 KmSlots[] 一致）。
+ *   1) NdisTdiCallback  ← 0xE6 CmdGetSsdtTableInfo（实为 TDI 回调查询）
+ *      原版客户端 sub_1400ABA60 / sub_140025470。固定两行：
+ *        TdiRegisterDeviceObject ：当前 = out[4] / 原始 = out[2]
+ *        TdiPnPHandler          ：当前 = out[5] / 原始 = out[3]
+ *      当前值 != 原始值 → 列 "Hook" 显示 "Hook"，否则 "-"。
+ *      恢复：0xE7（原版同级菜单，恢复后两行都应变成非 Hook）。
+ *
+ *   2) TdiPnpClient     ← 0xE8 CmdEnumObjectTypeInfo（实为 TDI PnP 客户端）
+ *      原版客户端 sub_1400ADE50 / sub_140025570。每个客户端一条记录，
+ *      五个 handler 每个非 0 就展开一行；字段名表 off_1406D03E8。
+ *
+ * 模块/公司两列由 0x42（selector=0）的驱动对象列表解析，与原版
+ * sub_14001F980 / sub_14001F8B0 完全同源。
  * ========================================================================== */
-typedef struct _FE_NET_SLOT {
-    ULONG       GtIndex;
-    const char *Name;
-    const char *Meaning;
-} FE_NET_SLOT;
+/* 列规格：Percent=1 时按列表客户区宽度百分比（原版 formatter 的算法），
+   否则为固定像素（原版页初始化时的 100/100/60/100/240/100）。 */
+typedef struct _NW_COLUMN {
+    const char *Title;
+    int         Value;
+    int         Percent;
+} NW_COLUMN;
 
-static const FE_NET_SLOT g_NetSlots[] = {
-    { 0x7B2, "WFP NBL",        "FindWfpNblInfoDispatchTableClear" },
-    { 0x7B4, "WFP NBL sect",   "ScanWfpNblInfoSections" },
-    { 0x7B8, "KFD offload",    "FindKfdGetOffloadEpochExport" },
-    { 0x7BB, "Kernel data",    "ScanKernelDataPartitionSection" },
-    { 0x7BC, "KFD reg layer",  "FindKfdRegisterLayerCallbackExport" },
-    { 0x7BE, "KFD dereg",      "FindKfdDeregisterLayerCallbackExport" },
-    { 0x7C0, "KFD sections",   "ScanKfdDriverSections" },
-    { 0x7C1, "WFP st shim",    "FindWfpStartStreamShimExport" },
-    { 0x7C3, "WFP sp shim",    "FindWfpStopStreamShimExport" },
-    { 0x7C7, "WFP shim sect",  "ScanWfpStreamShimSections" },
-    { 0x7C8, "NSI dereg",      "FindNsiDeregisterChangeNotificationEx" },
-    { 0x7CA, "NSI module",     "FindNsiGetModuleHandle" },
-    { 0x7CD, "NSI data sect",  "ScanNsiGetModuleDataSection" },
-    { 0x7CE, "NSI legacy",     "FindNsiDeregisterLegacyHandler" },
-    { 0x7D0, "NSI dereg sect", "ScanNsiDeregisterDataSection" },
-    { 0x7D1, "WFP mac shim",   "FindWfpStartMacShimExport" },
-    { 0x7D3, "WFP mac sect",   "ScanWfpMacShimSections" },
-    { 0x7D4, "WFP device",     "FindSetWfpDeviceObject" },
-    { 0x7D6, "WFP dev sect",   "ScanWfpDeviceObjectSection" },
-    { 0x7D7, "NMR provider",   "FindNmrRegisterProviderExport" }
-};
-#define FE_NET_SLOT_N (sizeof(g_NetSlots) / sizeof(g_NetSlots[0]))
-
-static void CreateNwColumns(HWND hList)
+static void CreateNwColumns(HWND hList, int node)
 {
-    LVCOLUMNA c;
-    static const struct { const char *t; int w; } cols[] = {
-        { "Object",  150 },
-        { "Value",   180 },
-        { "Resolver", 380 }
+    static const NW_COLUMN Node1Cols[6] = {
+        { "Fun Name",         15, 1 },
+        { "Current Entry",    15, 1 },
+        { "Hook",             10, 1 },
+        { "Original Entry",   15, 1 },
+        { "Module",           30, 1 },
+        { "File Corporation", 15, 1 }
     };
-    int i;
+    static const NW_COLUMN Node2Cols[6] = {
+        { "Client Name",      15, 1 },
+        { "Client Object",    15, 1 },
+        { "Fun Name",         15, 1 },
+        { "Fun Entry",        15, 1 },
+        { "Module",           25, 1 },
+        { "File Corporation", 15, 1 }
+    };
+    static const NW_COLUMN NwFwpsCols[4] = {
+        { "Index",             10, 1 },
+        { "Fun Entry",         30, 1 },
+        { "Module",            35, 1 },
+        { "File Corporation",  25, 1 }
+    };
+    static const NW_COLUMN NwWfpDeviceCols[3] = {
+        { "Current Device Object",  40, 1 },
+        { "Hook",                   20, 1 },
+        { "Original Device Object", 40, 1 }
+    };
+    static const NW_COLUMN NwCalloutCols[4] = {
+        { "Fun Name",         25, 1 },
+        { "Fun Entry",        30, 1 },
+        { "Module",           30, 1 },
+        { "File Corporation", 15, 1 }
+    };
+    static const NW_COLUMN NwNsiCols[4] = {
+        { "Fun Name",         30, 1 },
+        { "Fun Entry",        25, 1 },
+        { "Module",           30, 1 },
+        { "File Corporation", 15, 1 }
+    };
+    static const NW_COLUMN NwDispatchCols[6] = {
+        { "Index",            1, 1 },
+        { "Fun Name",         2, 1 },
+        { "Current Entry",    2, 1 },
+        { "Hook",             1, 1 },
+        { "Original Entry",   2, 1 },
+        { "File Corporation", 3, 1 }
+    };
+    static const NW_COLUMN PageInitCols[6] = {
+        { "Fun Name",        100, 0 },
+        { "Current Entry",   100, 0 },
+        { "Hook",             60, 0 },
+        { "Original Entry",  100, 0 },
+        { "Module",          240, 0 },
+        { "File Corporation",100, 0 }
+    };
+    const NW_COLUMN *cols = PageInitCols;
+    LVCOLUMNA c;
+    RECT rc;
+    int i, cx;
+
+    if (!hList)
+        return;
+    if (node == 1 || node == 3 || node == 4)
+        cols = Node1Cols;
+    else if (node == 2)
+        cols = Node2Cols;
+    GetClientRect(hList, &rc);
+    cx = rc.right;
+    if (cx < 200)
+        cx = 940;
 
     while (ListView_DeleteColumn(hList, 0))
         ;
+    if (node == 5) {
+        /* 原版 sub_1400AAB70：单列 “Interface Information”，宽度=列表客户区 */
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        c.pszText = (char *)"Interface Information";
+        c.cx = cx;
+        c.iSubItem = 0;
+        ListView_InsertColumn(hList, 0, &c);
+        return;
+    }
+    if (node == 13) {
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        for (i = 0; i < 3; i++) {
+            c.pszText = (char *)NwWfpDeviceCols[i].Title;
+            c.cx = (cx * NwWfpDeviceCols[i].Value) / 100;
+            c.iSubItem = i;
+            ListView_InsertColumn(hList, i, &c);
+        }
+        return;
+    }
+    if (node == 18 || node == 19) {
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        for (i = 0; i < 6; i++) {
+            c.pszText = (char *)NwDispatchCols[i].Title;
+            c.cx = (cx * NwDispatchCols[i].Value) / 11;
+            c.iSubItem = i;
+            ListView_InsertColumn(hList, i, &c);
+        }
+        return;
+    }
+    if (node == 15 || node == 16 || node == 17) {
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        for (i = 0; i < 4; i++) {
+            c.pszText = (char *)NwNsiCols[i].Title;
+            c.cx = (cx * NwNsiCols[i].Value) / 100;
+            c.iSubItem = i;
+            ListView_InsertColumn(hList, i, &c);
+        }
+        return;
+    }
+    if (node == 14) {
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        for (i = 0; i < 4; i++) {
+            c.pszText = (char *)NwCalloutCols[i].Title;
+            c.cx = (cx * NwCalloutCols[i].Value) / 100;
+            c.iSubItem = i;
+            ListView_InsertColumn(hList, i, &c);
+        }
+        return;
+    }
+    if (node == 6 || node == 7 || node == 8 || node == 9 || node == 10 ||
+        node == 11 || node == 12) {
+        ZeroMemory(&c, sizeof(c));
+        c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        for (i = 0; i < 4; i++) {
+            c.pszText = (char *)NwFwpsCols[i].Title;
+            c.cx = (cx * NwFwpsCols[i].Value) / 100;
+            c.iSubItem = i;
+            ListView_InsertColumn(hList, i, &c);
+        }
+        return;
+    }
     ZeroMemory(&c, sizeof(c));
     c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
-    for (i = 0; i < 3; i++) {
-        c.pszText = (char *)cols[i].t;
-        c.cx = cols[i].w;
+    for (i = 0; i < 6; i++) {
+        c.pszText = (char *)cols[i].Title;
+        c.cx = cols[i].Percent ? (cx * cols[i].Value) / 100 : cols[i].Value;
         c.iSubItem = i;
         ListView_InsertColumn(hList, i, &c);
     }
 }
 
-/* 通过 0x13A 诊断通道读 env 块里的 20 个解析槽 */
+static void NwAddRow(HWND hList, int row, const char *s0, const char *s1,
+                     const char *s2, const char *s3, const char *s4,
+                     const char *s5)
+{
+    LVITEMA it;
+    const char *vals[6];
+    int i;
+
+    vals[0] = s0; vals[1] = s1; vals[2] = s2;
+    vals[3] = s3; vals[4] = s4; vals[5] = s5;
+
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = row;
+    it.pszText = (char *)vals[0];
+    SendMessageA(hList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+    it.mask = LVIF_TEXT;
+    it.iItem = row;
+    for (i = 1; i < 6; i++) {
+        it.iSubItem = i;
+        it.pszText = (char *)vals[i];
+        SendMessageA(hList, LVM_SETITEMTEXTA, row, (LPARAM)&it);
+    }
+}
+
+static HTREEITEM NwInsertNode(HTREEITEM Parent, const char *Name, LPARAM Node)
+{
+    TVINSERTSTRUCTA tv;
+
+    ZeroMemory(&tv, sizeof(tv));
+    tv.hParent = Parent;
+    tv.hInsertAfter = TVI_LAST;
+    tv.item.mask = TVIF_TEXT | TVIF_PARAM;
+    tv.item.pszText = (char *)Name;
+    tv.item.lParam = Node;
+    return (HTREEITEM)SendMessageA(g_hNwTree, TVM_INSERTITEMA, 0, (LPARAM)&tv);
+}
+
+static HTREEITEM NwFindNode(HTREEITEM Parent, LPARAM Node)
+{
+    HTREEITEM h = TreeView_GetChild(g_hNwTree, Parent);
+
+    while (h) {
+        TVITEMA it;
+        ZeroMemory(&it, sizeof(it));
+        it.mask = TVIF_PARAM;
+        it.hItem = h;
+        if (TreeView_GetItem(g_hNwTree, &it) && it.lParam == Node)
+            return h;
+        h = TreeView_GetNextSibling(g_hNwTree, h);
+    }
+    return NULL;
+}
+
+/* 原版 sub_1400A78F0：按 build 条件插入节点，节点 5 是根级兄弟节点。 */
+static void BuildNwTree(void)
+{
+    FE_OS_INFO Os;
+    ULONG Build = 0;
+    HTREEITEM Root;
+
+    if (!g_hNwTree)
+        return;
+    TreeView_DeleteAllItems(g_hNwTree);
+    if (FeLoadOsInfo(&Os))
+        Build = Os.Build;
+
+    Root = NwInsertNode(TVI_ROOT, "Network Callback", (LPARAM)(LONG_PTR)0xFFFF0000);
+    NwInsertNode(Root, "NdisTdiCallback", 1);
+    NwInsertNode(Root, "TdiPnpClient", 2);
+    NwInsertNode(Root, "Ipfltdrv Dispatch Fun", 19);
+    if (Build < 6000) {
+        NwInsertNode(Root, "Ipsec Dispatch Fun", 18);
+        NwInsertNode(Root, "IpFirewallHook", 21);
+        if (Build < 7600)
+            NwInsertNode(Root, "IpFilterHook", 20);
+    } else {
+        NwInsertNode(Root, "NdisTcpOffloadHandlers", 3);
+        NwInsertNode(Root, "NdisOidTable", 4);
+        NwInsertNode(Root, "FwpsTcpipDispatchTable", 6);
+        if (Build >= 9200)
+            NwInsertNode(Root, "FwpsL2DispatchTable", 7);
+        if (Build >= 7600)
+            NwInsertNode(Root, "WfpNblDispatchTable", 8);
+        NwInsertNode(Root, "WfpStreamShim", 9);
+        if (Build == 7600 || Build == 7601)
+            NwInsertNode(Root, "WfpMacShim", 10);
+        if (Build >= 7600)
+            NwInsertNode(Root, "NetioLayerCallback", 11);
+        NwInsertNode(Root, "NsiLegacyHandler", 12);
+        NwInsertNode(Root, "WfpDeviceObject", 13);
+        NwInsertNode(Root, "WfpCallout", 14);
+        NwInsertNode(Root, "NmrProvider(Client)", 15);
+        NwInsertNode(Root, "NsiChangeNotification", 16);
+        NwInsertNode(Root, "NsiChangeNotification_Monitor", 17);
+        NwInsertNode(Root, "Afd Dispatch Fun", 22);
+        NwInsertNode(TVI_ROOT, "Ndis Interface", 5);
+    }
+}
+
+static const char *NwNodeName(int node)
+{
+    switch (node) {
+    case 1:  return "NdisTdiCallback";
+    case 2:  return "TdiPnpClient";
+    case 3:  return "NdisTcpOffloadHandlers";
+    case 4:  return "NdisOidTable";
+    case 5:  return "Ndis Interface";
+    case 6:  return "FwpsTcpipDispatchTable";
+    case 7:  return "FwpsL2DispatchTable";
+    case 8:  return "WfpNblDispatchTable";
+    case 9:  return "WfpStreamShim";
+    case 10: return "WfpMacShim";
+    case 11: return "NetioLayerCallback";
+    case 12: return "NsiLegacyHandler";
+    case 13: return "WfpDeviceObject";
+    case 14: return "WfpCallout";
+    case 15: return "NmrProvider(Client)";
+    case 16: return "NsiChangeNotification";
+    case 17: return "NsiChangeNotification_Monitor";
+    case 18: return "Ipsec Dispatch Fun";
+    case 19: return "Ipfltdrv Dispatch Fun";
+    case 20: return "IpFilterHook";
+    case 21: return "IpFirewallHook";
+    case 22: return "Afd Dispatch Fun";
+    default: return "Network Callback";
+    }
+}
+
 static void DoRefreshNetwork(void)
 {
-    UCHAR *buf;
-    UCHAR res = 0;
     char status[512];
-    ULONG i, nonZero = 0;
-    int row = 0;
 
     if (!g_hNwList || !g_hNwStatus)
         return;
     ListView_DeleteAllItems(g_hNwList);
-    CreateNwColumns(g_hNwList);
+    CreateNwColumns(g_hNwList, g_NwNode);
+
+    if (g_NwNode != 1 && g_NwNode != 2 && g_NwNode != 3 && g_NwNode != 4 &&
+        g_NwNode != 5 && g_NwNode != 6 && g_NwNode != 7 && g_NwNode != 8 &&
+        g_NwNode != 9 && g_NwNode != 10 && g_NwNode != 11 && g_NwNode != 12 &&
+        g_NwNode != 13 && g_NwNode != 14 && g_NwNode != 15 &&
+        g_NwNode != 16 && g_NwNode != 17 && g_NwNode != 18 && g_NwNode != 19) {
+        sprintf_s(status, sizeof(status),
+                  "%s: formatter not implemented yet (node %d)",
+                  NwNodeName(g_NwNode), g_NwNode);
+        SetWindowTextA(g_hNwStatus, status);
+        return;
+    }
 
     if (!g_Client.Opened) {
         SetWindowTextA(g_hNwStatus, "Network: not connected");
         return;
     }
 
-    /* 先触发 0xF8，让 WFP/KFD/NSI 解析结果就位（槽空才解析，重复调用无害） */
-    {
-        UCHAR dummy[0x40];
-        XpchInvoke(&g_Client, 0xF8, NULL, 0, dummy, sizeof(dummy), &res);
-    }
+    if (g_NwNode == 1) {
+        FE_TDI_CALLBACK_LIST List;
+        ULONG i;
+        int row = 0;
 
-    buf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x4000);
-    if (!buf) {
-        SetWindowTextA(g_hNwStatus, "Network: out of memory");
-        return;
-    }
-    if (!XpchInvoke(&g_Client, 0x13A, NULL, 0, buf, 0x4000, &res)) {
-        SetWindowTextA(g_hNwStatus, "Network: 0x13A unavailable");
-        HeapFree(GetProcessHeap(), 0, buf);
-        return;
-    }
-
-    {
-        /* env 块起点：283 条统计 * 16 + 开记录 16 */
-        const UCHAR *env = buf + 283 * 16 + 16;
-        const ULONG64 *vals = (const ULONG64 *)(const void *)(env + 0x400);
-        ULONG stage = *(const ULONG *)(const void *)(env + 0x3B0);
-        ULONG fsize = *(const ULONG *)(const void *)(env + 0x3B4);
-
-        for (i = 0; i < FE_NET_SLOT_N; i++) {
-            LVITEMA it;
-            char val[64];
-            char meaning[160];
-
-            if (vals[i])
-                nonZero++;
-            sprintf_s(val, sizeof(val), "0x%016llX",
-                      (unsigned long long)vals[i]);
-            sprintf_s(meaning, sizeof(meaning), "%s  (GT[0x%X])",
-                      g_NetSlots[i].Meaning, g_NetSlots[i].GtIndex);
-
-            ZeroMemory(&it, sizeof(it));
-            it.mask = LVIF_TEXT;
-            it.iItem = row;
-            it.pszText = (char *)g_NetSlots[i].Name;
-            SendMessageA(g_hNwList, LVM_INSERTITEMA, 0, (LPARAM)&it);
-            it.iSubItem = 1; it.pszText = val;
-            SendMessageA(g_hNwList, LVM_SETITEMTEXTA, row, (LPARAM)&it);
-            it.iSubItem = 2; it.pszText = meaning;
-            SendMessageA(g_hNwList, LVM_SETITEMTEXTA, row, (LPARAM)&it);
-            row++;
+        if (!FeLoadTdiCallbacks(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus,
+                           "Network: 0xE6 rejected (not TDI-capable or not initialized)");
+            return;
         }
-
+        for (i = 0; i < List.Count; i++) {
+            char cur[32], orig[32];
+            sprintf_s(cur, sizeof(cur), "0x%016llX",
+                      (unsigned long long)List.Items[i].Current);
+            sprintf_s(orig, sizeof(orig), "0x%016llX",
+                      (unsigned long long)List.Items[i].Original);
+            NwAddRow(g_hNwList, row++,
+                     List.Items[i].Name,
+                     cur,
+                     List.Items[i].Hooked ? "Hook" : "-",
+                     orig,
+                     List.Items[i].Module[0] ? List.Items[i].Module : "-",
+                     List.Items[i].Company[0] ? List.Items[i].Company : "-");
+        }
         sprintf_s(status, sizeof(status),
-                  "Network: %lu/%lu resolved   netio.sys=0x%lX   stage=%lu"
-                  "   (0=not run 1=read failed 2=parsing 3=done)",
-                  nonZero, (ULONG)FE_NET_SLOT_N, fsize, stage);
+                  "NdisTdiCallback Fun Count: %lu", List.Count);
         SetWindowTextA(g_hNwStatus, status);
-    }
+    } else if (g_NwNode == 3) {
+        FE_NDIS_OFFLOAD_LIST List;
+        ULONG i;
+        int row = 0;
 
-    HeapFree(GetProcessHeap(), 0, buf);
+        if (!FeLoadNdisOffloadHandlers(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus,
+                           "NdisTcpOffloadHandlers: 0xEA rejected");
+            return;
+        }
+        for (i = 0; i < List.Count; i++) {
+            char cur[32], orig[32];
+            sprintf_s(cur, sizeof(cur), "0x%016llX",
+                      (unsigned long long)List.Items[i].Current);
+            sprintf_s(orig, sizeof(orig), "0x%016llX",
+                      (unsigned long long)List.Items[i].Original);
+            NwAddRow(g_hNwList, row++,
+                     List.Items[i].Name,
+                     cur,
+                     List.Items[i].Hooked ? "Hook" : "-",
+                     orig,
+                     List.Items[i].Module[0] ? List.Items[i].Module
+                                             : "unknown image",
+                     List.Items[i].Company[0] ? List.Items[i].Company
+                                              : "unknown");
+        }
+        sprintf_s(status, sizeof(status),
+                  "NdisTcpOffloadHandlers Fun Count: %lu", List.Count);
+        SetWindowTextA(g_hNwStatus, status);
+    } else if (g_NwNode == 4) {
+        FE_NDIS_OID_LIST List;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG i, rows = 0, hooks = 0;
+        int row = 0;
+
+        if (!FeLoadNdisOidTable(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus, "NdisOidTable: 0xEC rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (i = 0; i < List.Count; i++) {
+            const ULONG64 Current[2] = { List.Items[i].CurrentPre,
+                                         List.Items[i].CurrentPost };
+            const ULONG64 Original[2] = { List.Items[i].OriginalPre,
+                                          List.Items[i].OriginalPost };
+            const char *TypeName = FeOidName(List.Items[i].TypeId);
+            ULONG f;
+
+            for (f = 0; f < 2; f++) {
+                char Name[128];
+                char cur[32], orig[32];
+                char Module[FE_NET_PATH_CHARS];
+                char Company[FE_NET_COMPANY_CHARS];
+
+                if (!Current[f] && !Original[f])
+                    continue;
+                sprintf_s(Name, sizeof(Name), "%s %sFun",
+                          TypeName ? TypeName : "UnknowType",
+                          f ? "Post" : "Pre");
+                sprintf_s(cur, sizeof(cur), "0x%016llX",
+                          (unsigned long long)Current[f]);
+                sprintf_s(orig, sizeof(orig), "0x%016llX",
+                          (unsigned long long)Original[f]);
+                Module[0] = 0;
+                Company[0] = 0;
+                if (HaveSymbols)
+                    FeResolveSymbol(&Symbols, Current[f],
+                                    Module, sizeof(Module),
+                                    Company, sizeof(Company));
+                if (Current[f] != Original[f])
+                    hooks++;
+                NwAddRow(g_hNwList, row++,
+                         Name,
+                         cur,
+                         (Current[f] != Original[f]) ? "Hook" : "-",
+                         orig,
+                         Module[0] ? Module : "unknown image",
+                         Company[0] ? Company : "unknown");
+                rows++;
+            }
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status),
+                  "NdisOidTable Fun Count: %lu, Hook: %lu", rows, hooks);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeNdisOidTable(&List);
+    } else if (g_NwNode == 5) {
+        FE_NDIS_IF_LIST List;
+        ULONG i;
+        int row = 0;
+
+        if (!FeLoadNdisInterfaces(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus, "Ndis Interface: 0xF0 rejected");
+            return;
+        }
+        for (i = 0; i < List.Count; i++) {
+            char Header[64];
+            char Lines[FE_NDIS_IF_LINE_COUNT][FE_NET_PATH_CHARS];
+            ULONG Line;
+
+            sprintf_s(Header, sizeof(Header), "Interface[%lu]: 0x%p", i,
+                      (void *)(ULONG_PTR)List.Items[i].LoaderEntry);
+            NwAddRow(g_hNwList, row++, Header, "", "", "", "", "");
+            FeFormatNdisInterfaceLines(&List.Items[i], Lines);
+            for (Line = 0; Line < FE_NDIS_IF_LINE_COUNT; Line++)
+                NwAddRow(g_hNwList, row++, Lines[Line], "", "", "", "", "");
+            NwAddRow(g_hNwList, row++, "", "", "", "", "", "");
+        }
+        sprintf_s(status, sizeof(status), "Ndis Interface : %lu", List.Count);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeNdisInterfaces(&List);
+    } else if (g_NwNode == 6 || g_NwNode == 7 || g_NwNode == 8 ||
+               g_NwNode == 9 || g_NwNode == 10 || g_NwNode == 12) {
+        FE_FWPS_TABLE Table;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG i;
+        int row = 0;
+
+        if (!FeLoadFwpsTable(&g_Client,
+                             (g_NwNode == 6)  ? XPCH_CMD_FWPS_TCPIP_TABLE :
+                             (g_NwNode == 7)  ? XPCH_CMD_FWPS_L2_TABLE :
+                             (g_NwNode == 8)  ? XPCH_CMD_WFP_NBL_TABLE :
+                             (g_NwNode == 9)  ? XPCH_CMD_WFP_STREAM_SHIM :
+                             (g_NwNode == 10) ? XPCH_CMD_WFP_MAC_SHIM :
+                                                XPCH_CMD_NSI_LEGACY_HANDLER,
+                             (g_NwNode == 10 || g_NwNode == 12)
+                                 ? FE_FWPS_SINGLE_OUT_SIZE : FE_FWPS_LARGE_OUT_SIZE,
+                             (g_NwNode == 10 || g_NwNode == 12) ? 1 : 0,
+                             &Table)) {
+            sprintf_s(status, sizeof(status), "%s: command rejected",
+                      NwNodeName(g_NwNode));
+            SetWindowTextA(g_hNwStatus, status);
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (i = 0; i < Table.Count; i++) {
+            char Index[16], Entry[32];
+            char Module[FE_NET_PATH_CHARS];
+            char Company[FE_NET_COMPANY_CHARS];
+
+            sprintf_s(Index, sizeof(Index), "%lu", i);
+            sprintf_s(Entry, sizeof(Entry), "0x%p",
+                      (void *)(ULONG_PTR)Table.Entries[i]);
+            Module[0] = 0;
+            Company[0] = 0;
+            if (HaveSymbols)
+                FeResolveSymbol(&Symbols, Table.Entries[i],
+                                Module, sizeof(Module),
+                                Company, sizeof(Company));
+            NwAddRow(g_hNwList, row++,
+                     Index, Entry,
+                     Module[0] ? Module : "unknown image",
+                     Company[0] ? Company : "",
+                     "", "");
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status), "%s Fun Count: %lu",
+                  NwNodeName(g_NwNode), Table.Count);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeFwpsTable(&Table);
+    } else if (g_NwNode == 11) {
+        FE_NETIO_LIST List;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG i;
+        int row = 0;
+
+        if (!FeLoadNetioLayerCallbacks(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus, "NetioLayerCallback: 0xF4 rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (i = 0; i < List.Count; i++) {
+            char Index[16], Entry[32];
+            char Module[FE_NET_PATH_CHARS];
+            char Company[FE_NET_COMPANY_CHARS];
+
+            sprintf_s(Index, sizeof(Index), "%lu", List.Items[i].Id);
+            sprintf_s(Entry, sizeof(Entry), "0x%p",
+                      (void *)(ULONG_PTR)List.Items[i].Address);
+            Module[0] = 0;
+            Company[0] = 0;
+            if (HaveSymbols)
+                FeResolveSymbol(&Symbols, List.Items[i].Address,
+                                Module, sizeof(Module),
+                                Company, sizeof(Company));
+            NwAddRow(g_hNwList, row++,
+                     Index, Entry,
+                     Module[0] ? Module : "unknown image",
+                     Company[0] ? Company : "",
+                     "", "");
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status), "NetioLayerCallback Fun Count: %lu",
+                  List.Count);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeNetioLayerCallbacks(&List);
+    } else if (g_NwNode == 13) {
+        FE_WFP_DEVICE Device;
+
+        if (!FeLoadWfpDeviceObject(&g_Client, &Device)) {
+            SetWindowTextA(g_hNwStatus, "WfpDeviceObject: 0xFA rejected");
+            return;
+        }
+        {
+            char Current[32], Original[32];
+            sprintf_s(Current, sizeof(Current), "0x%p",
+                      (void *)(ULONG_PTR)Device.Current);
+            sprintf_s(Original, sizeof(Original), "0x%p",
+                      (void *)(ULONG_PTR)Device.Original);
+            NwAddRow(g_hNwList, 0, Current,
+                     (Device.Current == Device.Original) ? "-" : "Hook",
+                     Original, "", "", "");
+        }
+        SetWindowTextA(g_hNwStatus, (Device.Current == Device.Original)
+            ? "WfpDeviceObject is OK."
+            : "WfpDeviceObject been Replaced.");
+    } else if (g_NwNode == 14) {
+        FE_WFP_CALLOUT_LIST List;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG i, f;
+        int row = 0;
+
+        if (!FeLoadWfpCallouts(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus, "WfpCallout: 0xFC rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (i = 0; i < List.Count; i++) {
+            const ULONG64 Callbacks[3] = { List.Items[i].ClassifyCallback,
+                                           List.Items[i].NotifyCallback,
+                                           List.Items[i].FlowDeleteFunction };
+            static const char *Parts[3] = { "ClassifyCallback",
+                                            "NotifyCallback",
+                                            "FlowDeleteFunction" };
+            for (f = 0; f < 3; f++) {
+                char Name[64], Entry[32];
+                char Module[FE_NET_PATH_CHARS];
+                char Company[FE_NET_COMPANY_CHARS];
+
+                if (!Callbacks[f])
+                    continue;
+                sprintf_s(Name, sizeof(Name), "Callout[%lu].%s",
+                          List.Items[i].Index, Parts[f]);
+                sprintf_s(Entry, sizeof(Entry), "0x%p",
+                          (void *)(ULONG_PTR)Callbacks[f]);
+                Module[0] = 0;
+                Company[0] = 0;
+                if (HaveSymbols)
+                    FeResolveSymbol(&Symbols, Callbacks[f],
+                                    Module, sizeof(Module),
+                                    Company, sizeof(Company));
+                NwAddRow(g_hNwList, row++, Name, Entry,
+                         Module[0] ? Module : "unknown image",
+                         Company[0] ? Company : "", "", "");
+            }
+        }
+        if (List.HasFeCallout) {
+            const ULONG64 FeCallbacks[3] = { List.FeClassifyCallback,
+                                             List.FeNotifyCallback,
+                                             List.FeFlowDeleteFunction };
+            static const char *FeNames[3] = {
+                "FeCallout.ClassifyCallback",
+                "FeCallout.NotifyCallback",
+                "FeCallout.FlowDeleteFunction"
+            };
+            for (f = 0; f < 3; f++) {
+                char Entry[32];
+                char Module[FE_NET_PATH_CHARS];
+                char Company[FE_NET_COMPANY_CHARS];
+
+                if (!FeCallbacks[f])
+                    continue;
+                sprintf_s(Entry, sizeof(Entry), "0x%p",
+                          (void *)(ULONG_PTR)FeCallbacks[f]);
+                Module[0] = 0;
+                Company[0] = 0;
+                if (HaveSymbols)
+                    FeResolveSymbol(&Symbols, FeCallbacks[f],
+                                    Module, sizeof(Module),
+                                    Company, sizeof(Company));
+                NwAddRow(g_hNwList, row++, FeNames[f], Entry,
+                         Module[0] ? Module : "unknown image",
+                         Company[0] ? Company : "", "", "");
+            }
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status), "WfpCallout Fun Count: %d", row);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeWfpCallouts(&List);
+    } else if (g_NwNode == 15) {
+        static const char *NmrNames[3] = {
+            "ProviderAttachClient", "ProviderDetachClient",
+            "ProviderCleanupBindingContext"
+        };
+        FE_NMR_LIST List;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG g, k, f;
+        int row = 0;
+
+        if (!FeLoadNmrProviders(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus, "NmrProvider(Client): 0xFE rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (g = 0; g < List.GroupCount; g++) {
+            for (k = 0; k < List.Groups[g].Count; k++) {
+                const FE_NMR_ENTRY *Item = &List.Groups[g].Items[k];
+                const ULONG64 Callbacks[3] = { Item->AttachCallback,
+                                               Item->DetachCallback,
+                                               Item->CleanupCallback };
+
+                for (f = 0; f < 3; f++) {
+                    char Name[112], Entry[32];
+                    char Module[FE_NET_PATH_CHARS];
+                    char Company[FE_NET_COMPANY_CHARS];
+
+                    if (!Callbacks[f])
+                        continue;
+                    sprintf_s(Name, sizeof(Name),
+                              "Nmr(0x%p).%s(0x%p).%s",
+                              (void *)(ULONG_PTR)List.Groups[g].NmrObject,
+                              Item->IsClient ? "Client" : "Provider",
+                              (void *)(ULONG_PTR)Item->EntryPtr, NmrNames[f]);
+                    sprintf_s(Entry, sizeof(Entry), "0x%p",
+                              (void *)(ULONG_PTR)Callbacks[f]);
+                    Module[0] = 0;
+                    Company[0] = 0;
+                    if (HaveSymbols)
+                        FeResolveSymbol(&Symbols, Callbacks[f],
+                                        Module, sizeof(Module),
+                                        Company, sizeof(Company));
+                    NwAddRow(g_hNwList, row++, Name, Entry,
+                             Module[0] ? Module : "unknown image",
+                             Company[0] ? Company : "", "", "");
+                }
+            }
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status),
+                  "NmrProvider(Client) Fun Count: %d", row);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeNmrProviders(&List);
+    } else if (g_NwNode == 16) {
+        FE_NSI_NOTIFY_LIST List;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG g, k;
+        int row = 0;
+
+        if (!FeLoadNsiChangeNotifications(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus, "NsiChangeNotification: 0xFF rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (g = 0; g < List.GroupCount; g++) {
+            for (k = 0; k < List.Groups[g].Count; k++) {
+                const FE_NSI_NOTIFY_ENTRY *Item = &List.Groups[g].Items[k];
+                const ULONG64 Callbacks[2] = { Item->AttachCallback,
+                                               Item->DetachCallback };
+                static const char *Parts[2] = { "ChangeNotification_Attach",
+                                                "ChangeNotification_Detach" };
+                ULONG f;
+
+                for (f = 0; f < 2; f++) {
+                    char Name[80], Entry[32];
+                    char Module[FE_NET_PATH_CHARS];
+                    char Company[FE_NET_COMPANY_CHARS];
+
+                    if (!Callbacks[f])
+                        continue;
+                    sprintf_s(Name, sizeof(Name),
+                              "NsiChangeNotification(0x%p).%s",
+                              (void *)(ULONG_PTR)Item->Node, Parts[f]);
+                    sprintf_s(Entry, sizeof(Entry), "0x%p",
+                              (void *)(ULONG_PTR)Callbacks[f]);
+                    Module[0] = 0;
+                    Company[0] = 0;
+                    if (HaveSymbols)
+                        FeResolveSymbol(&Symbols, Callbacks[f],
+                                        Module, sizeof(Module),
+                                        Company, sizeof(Company));
+                    NwAddRow(g_hNwList, row++, Name, Entry,
+                             Module[0] ? Module : "unknown image",
+                             Company[0] ? Company : "", "", "");
+                }
+            }
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status),
+                  "NsiChangeNotification Fun Count: %d", row);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeNsiChangeNotifications(&List);
+    } else if (g_NwNode == 17) {
+        static const char *MonitorNames[7] = {
+            "UnknowNameCallback1", "UnknowNameCallback2",
+            "UnknowNameCallback3", "UnknowNameCallback4",
+            "UnknowNameCallback5", "AttachCallback", "DetchCallback"
+        };
+        FE_NSI_MONITOR_LIST List;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG i, f;
+        int row = 0;
+
+        if (!FeLoadNsiChangeMonitor(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus,
+                           "NsiChangeNotificationMonitor: 0x100 rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (i = 0; i < List.Count; i++) {
+            for (f = 0; f < 7; f++) {
+                char Name[96], Entry[32];
+                char Module[FE_NET_PATH_CHARS];
+                char Company[FE_NET_COMPANY_CHARS];
+
+                if (!List.Items[i].Callbacks[f])
+                    continue;
+                sprintf_s(Name, sizeof(Name),
+                          "NsiChangeNotificationMonitor(0x%p).%s",
+                          (void *)(ULONG_PTR)List.Items[i].Id,
+                          MonitorNames[f]);
+                sprintf_s(Entry, sizeof(Entry), "0x%p",
+                          (void *)(ULONG_PTR)List.Items[i].Callbacks[f]);
+                Module[0] = 0;
+                Company[0] = 0;
+                if (HaveSymbols)
+                    FeResolveSymbol(&Symbols, List.Items[i].Callbacks[f],
+                                    Module, sizeof(Module),
+                                    Company, sizeof(Company));
+                NwAddRow(g_hNwList, row++, Name, Entry,
+                         Module[0] ? Module : "unknown image",
+                         Company[0] ? Company : "", "", "");
+            }
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status),
+                  "NsiChangeNotificationMonitor Fun Count: %d", row);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeNsiChangeMonitor(&List);
+    } else if (g_NwNode == 18) {
+        FE_IPSEC_DISPATCH Dispatch;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG i;
+        int row = 0, hooks = 0;
+
+        if (!FeLoadIpsecDispatch(&g_Client, &Dispatch)) {
+            SetWindowTextA(g_hNwStatus, "Ipsec Dispatch: 0x11D rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (i = 0; i < Dispatch.Irp.Count; i++) {
+            const FE_DISPATCH_ENTRY *Item = &Dispatch.Irp.Entries[i];
+            char Name[80], Entry[32], Original[32];
+            char Module[FE_NET_PATH_CHARS];
+            char Company[FE_NET_COMPANY_CHARS];
+            const char *Type;
+
+            if (!Item->Primary && !Item->Inline)
+                continue;
+            hooks++;
+            if (Item->Primary && Item->Inline)
+                Type = "ipsec & inline";
+            else if (Item->Primary)
+                Type = "ipsec hook";
+            else
+                Type = "inline hook";
+            sprintf_s(Name, sizeof(Name), "%lu", i);
+            sprintf_s(Entry, sizeof(Entry), "0x%p", (void *)(ULONG_PTR)Item->Entry);
+            if (Dispatch.Irp.Valid)
+                sprintf_s(Original, sizeof(Original), "0x%p",
+                          (void *)(ULONG_PTR)Item->Original);
+            else
+                strcpy_s(Original, sizeof(Original), "S_MR");
+            Module[0] = 0;
+            Company[0] = 0;
+            if (HaveSymbols)
+                FeResolveSymbol(&Symbols, Item->Entry, Module, sizeof(Module),
+                                Company, sizeof(Company));
+            NwAddRow(g_hNwList, row++, Name, g_NvIrpNames[i], Entry,
+                     Type, Original, Company[0] ? Company : "");
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status), "Fun Count: %lu,  Hook: %d",
+                  Dispatch.Irp.Count, hooks);
+        SetWindowTextA(g_hNwStatus, status);
+    } else if (g_NwNode == 19) {
+        FE_IPF_DISPATCH Dispatch;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG Block, scanned = 0;
+        int row = 0, hooks = 0;
+
+        if (!FeLoadIpfDispatch(&g_Client, &Dispatch)) {
+            SetWindowTextA(g_hNwStatus, "Ipfltdrv Dispatch: 0x11F rejected");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (Block = 0; Block < 2; Block++) {
+            const FE_DISPATCH_BLOCK *Blk = Block ? &Dispatch.FastIo : &Dispatch.Irp;
+            const char **Names = Block ? g_NvFastIoNames : g_NvIrpNames;
+            ULONG i;
+
+            if (Block == 0 && !(Dispatch.Flags & 1))
+                continue;
+            if (Block == 1 && !(Dispatch.Flags & 2))
+                continue;
+            for (i = 0; i < Blk->Count; i++) {
+                const FE_DISPATCH_ENTRY *Item = &Blk->Entries[i];
+                char Name[80], Entry[32], Original[32];
+                char Module[FE_NET_PATH_CHARS];
+                char Company[FE_NET_COMPANY_CHARS];
+                const char *Type;
+
+                if (Block && !Item->Entry && !Item->Original)
+                    continue;
+                scanned++;
+                if (!Item->Primary && !Item->Inline)
+                    continue;
+                hooks++;
+                if (Item->Primary && Item->Inline)
+                    Type = "ipfltdrv & inline";
+                else if (Item->Primary)
+                    Type = "ipfltdrv hook";
+                else
+                    Type = "inline hook";
+                sprintf_s(Name, sizeof(Name), Block ? "%lu[FastIo]" : "%lu", i);
+                sprintf_s(Entry, sizeof(Entry), "0x%p",
+                          (void *)(ULONG_PTR)Item->Entry);
+                if (Blk->Valid)
+                    sprintf_s(Original, sizeof(Original), "0x%p",
+                              (void *)(ULONG_PTR)Item->Original);
+                else
+                    strcpy_s(Original, sizeof(Original), "S_MR");
+                Module[0] = 0;
+                Company[0] = 0;
+                if (HaveSymbols)
+                    FeResolveSymbol(&Symbols, Item->Entry, Module,
+                                    sizeof(Module), Company, sizeof(Company));
+                NwAddRow(g_hNwList, row++, Name, Names[i], Entry, Type,
+                         Original, Company[0] ? Company : "");
+            }
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        if (scanned)
+            sprintf_s(status, sizeof(status), "Fun Count: %lu,  Hook: %d",
+                      scanned, hooks);
+        else
+            sprintf_s(status, sizeof(status),
+                      "Fun Count: 0,  Hook: %d   <==>  IpFilterDriver maybe not load.",
+                      hooks);
+        SetWindowTextA(g_hNwStatus, status);
+    } else {
+        static const char *FieldNames[5] = {
+            "BindingHandler", "UnBindHandler", "AddAddressHandler",
+            "DelAddressHandler", "PnPPowerHandler"
+        };
+        FE_TDI_PNP_LIST List;
+        FE_SYMBOL_TABLE Symbols;
+        BOOL HaveSymbols;
+        ULONG i, rows = 0;
+        int row = 0;
+
+        if (!FeLoadTdiPnpClients(&g_Client, &List)) {
+            SetWindowTextA(g_hNwStatus,
+                           "Network: 0xE8 rejected (needs 4MB output)");
+            return;
+        }
+        HaveSymbols = FeOpenSymbolTable(&g_Client, &Symbols);
+        for (i = 0; i < List.Count; i++) {
+            ULONG64 Handlers[5];
+            ULONG f;
+
+            Handlers[0] = List.Items[i].BindingHandler;
+            Handlers[1] = List.Items[i].UnBindHandler;
+            Handlers[2] = List.Items[i].AddAddressHandler;
+            Handlers[3] = List.Items[i].DelAddressHandler;
+            Handlers[4] = List.Items[i].PnPPowerHandler;
+
+            for (f = 0; f < 5; f++) {
+                char entry[32];
+                char object[32];
+                char Module[FE_NET_PATH_CHARS];
+                char Company[FE_NET_COMPANY_CHARS];
+
+                if (!Handlers[f])
+                    continue;
+                Module[0] = 0;
+                Company[0] = 0;
+                if (HaveSymbols)
+                    FeResolveSymbol(&Symbols, Handlers[f],
+                                    Module, sizeof(Module),
+                                    Company, sizeof(Company));
+                sprintf_s(entry, sizeof(entry), "0x%016llX",
+                          (unsigned long long)Handlers[f]);
+                sprintf_s(object, sizeof(object), "0x%016llX",
+                          (unsigned long long)List.Items[i].ClientObject);
+                NwAddRow(g_hNwList, row++,
+                         List.Items[i].ClientName[0] ? List.Items[i].ClientName : "-",
+                         object,
+                         FieldNames[f],
+                         entry,
+                         Module[0] ? Module : "-",
+                         Company[0] ? Company : "-");
+                rows++;
+            }
+        }
+        if (HaveSymbols)
+            FeCloseSymbolTable(&Symbols);
+        sprintf_s(status, sizeof(status),
+                  "TdiPnpClient Fun Count: %lu", rows);
+        SetWindowTextA(g_hNwStatus, status);
+        FeFreeTdiPnpClients(&List);
+    }
+}
+
+/* 原版恢复入口：sub_1400A6840 -> sub_140025510（cmd 0xE7），无参数。 */
+static void NwRestoreTdi(void)
+{
+    UCHAR res = 0;
+    char msg[256];
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hNwStatus, "Restore TDI hooks: not connected");
+        return;
+    }
+    if (FeRestoreTdiCallbacks(&g_Client, &res))
+        sprintf_s(msg, sizeof(msg),
+                  "NdisTdiCallback: restore (0xE7) sent, result=%u", res);
+    else
+        sprintf_s(msg, sizeof(msg),
+                  "NdisTdiCallback: restore (0xE7) rejected (result=%u)", res);
+    DoRefreshNetwork();
+    SetWindowTextA(g_hNwStatus, msg);
+}
+
+static void NwSelectNode(int Node)
+{
+    HTREEITEM h = NwFindNode(TVI_ROOT, Node);
+
+    if (!h || !g_hNwTree)
+        return;
+    g_NwNode = Node;
+    /* TVM_SELECTITEM + TVGN_CARVE(9)：旧 SDK 未定义 TVGN_CARVE */
+    SendMessageA(g_hNwTree, TVM_SELECTITEM, (WPARAM)9, (LPARAM)h);
+    DoRefreshNetwork();
 }
 
 static void DoRefreshServices(void)
@@ -2662,7 +3550,8 @@ static void ShowPage(HWND hWnd, int page)
         if (h3) ShowWindow(h3, isExam ? SW_SHOW : SW_HIDE);
     }
 
-    /* Network 页：切到该页时按需拉一次解析结果 */
+    /* Network 页：切到该页时按需拉一次数据 */
+    if (g_hNwTree)   ShowWindow(g_hNwTree,   isNetwork ? SW_SHOW : SW_HIDE);
     if (g_hNwList)   ShowWindow(g_hNwList,   isNetwork ? SW_SHOW : SW_HIDE);
     if (g_hNwStatus) ShowWindow(g_hNwStatus, isNetwork ? SW_SHOW : SW_HIDE);
     if (isNetwork && g_Client.Opened)
@@ -2728,25 +3617,9 @@ static void ShowPage(HWND hWnd, int page)
             isNetwork) {
             ShowWindow(g_hPageHint, SW_HIDE);
         } else {
-            /* 【2026-10-22 实测更正】此前的提示说"驱动没有网络命令"，是错的。
-           实机验证（kd 读 g_GlobalTable）：
-             命令 0xF8 CmdInitKernelMemoryContext 的处理器被执行（HANDLED）；
-             netio.sys 读取成功（0x94000 字节，kmctx stage=3 全部完成）；
-             26 组 WFP/KFD/NSI 解析产出真实值，例如
-               GT[0x7B2] = 0x0005CE00（WFP NBL 分派表 RVA）
-                         + 0xFFFFF805387DCE00（解析出的绝对地址）
-               GT[0x7B8] = 0x000144D0（KFD offload epoch 导出）
-               GT[0x7DE] = 0x0001F020（KFD delete callout）
-           也就是说数据源是存在的。当前页面尚未把这些槽渲染成列表，
-           这是**渲染层未完成**，不是驱动缺数据。如实说明，不伪造。 */
+            /* 14 个主 Tab 均已有实现，此分支理论上不可达；保留仅为兜底。 */
             sprintf_s(hint, sizeof(hint),
-                      "%s  -  data source present, view not yet rendered.\r\n\r\n"
-                      "Command 0xF8 (CmdInitKernelMemoryContext) runs and parses "
-                      "netio.sys successfully; the WFP / KFD / NSI results are "
-                      "stored in GT[0x7B2..0x7E0]. This page does not render "
-                      "them yet. The earlier note claiming the driver has no "
-                      "network command was wrong (it was based on a scan run "
-                      "whose 0x22 probe had wiped the handler table).",
+                      "%s  -  this page has no view yet.",
                       g_MainTabNames[page < 14 ? page : 0]);
             SetWindowTextA(g_hPageHint, hint);
             ShowWindow(g_hPageHint, SW_SHOW);
@@ -4316,14 +5189,20 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         DoRefreshOther();
 
         /* ---- Network 页（主 Tab 4）----
-           数据源：0xF8 CmdInitKernelMemoryContext 解析 netio.sys 得到的
-           WFP/KFD/NSI 结果（GT[0x7B2..0x7DE]），经 0x13A 诊断通道导出。 */
+           原版布局：左侧 "Network Callback" 树 + 右侧 6 列列表，
+           节点 lParam = formatter case 号，数据层见 src/NetworkViews.c。 */
+        g_hNwTree = CreateWindowExA(WS_EX_CLIENTEDGE, WC_TREEVIEWA, "",
+                                    WS_CHILD | TVS_HASLINES | TVS_HASBUTTONS |
+                                    TVS_LINESATROOT | TVS_SHOWSELALWAYS,
+                                    10, 76, 260, 500, hWnd, (HMENU)IDC_NW_TREE, hInst, NULL);
         g_hNwStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
-                                    10, 80, 940, 20, hWnd, (HMENU)IDC_NW_STATUS, hInst, NULL);
+                                    10, 632, 940, 20, hWnd, (HMENU)IDC_NW_STATUS, hInst, NULL);
         g_hNwList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
-                                    10, 108, 940, 500, hWnd, (HMENU)IDC_NW_LIST, hInst, NULL);
+                                    280, 76, 670, 500, hWnd, (HMENU)IDC_NW_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hNwList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        BuildNwTree();
+        CreateNwColumns(g_hNwList, 1);
 
         /* ---- Examination 页（主 Tab 9）---- */
         CreateWindowA("BUTTON", "Computer Examination", WS_CHILD | BS_PUSHBUTTON,
@@ -4447,6 +5326,20 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                     b = GetDlgItem(hWnd, IDC_KM_DRVOP);
                     if (b) ShowWindow(b, (kt == 2 || kt == 3) ? SW_HIDE : SW_SHOW);
                 }
+            }
+            /* --nwtab N：兼容旧参数（0 -> 节点 1 NdisTdiCallback，1 -> 节点 2 TdiPnpClient） */
+            pk = cl ? strstr(cl, "--nwtab ") : NULL;
+            if (pk && g_hNwTree) {
+                int nt = atoi(pk + 8);
+                if (nt == 0 || nt == 1)
+                    NwSelectNode(nt + 1);
+            }
+            /* --nwnode N：预选 Network 页的树节点（1..22，对应 formatter case） */
+            pk = cl ? strstr(cl, "--nwnode ") : NULL;
+            if (pk && g_hNwTree) {
+                int nt = atoi(pk + 9);
+                if (nt > 0)
+                    NwSelectNode(nt);
             }
         }
 
@@ -4653,6 +5546,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (hSu) MoveWindow(hSu, 10, pageTop, 90, 28, TRUE);
             if (g_hSuStatus) MoveWindow(g_hSuStatus, 110, pageTop + 6, w - 100, 20, TRUE);
             if (g_hSuList)   MoveWindow(g_hSuList, 10, listY, w, listH, TRUE);
+            if (g_hList) ShowWindow(g_hList, SW_HIDE);
+        } else if (g_MainTab == 4) {
+            /* Network 页：左树 + 右列表 + 底部状态（与原版一致） */
+            int listY = pageTop;
+            int listH = pageBottom - listY - 26;
+            int treeW = 250;
+            if (listH < 100) listH = 100;
+            if (g_hNwTree)   MoveWindow(g_hNwTree, 10, listY, treeW, listH + 26, TRUE);
+            if (g_hNwList)   MoveWindow(g_hNwList, 10 + treeW + 8, listY,
+                                        w - treeW - 8, listH, TRUE);
+            if (g_hNwStatus) MoveWindow(g_hNwStatus, 10 + treeW + 8,
+                                        pageBottom - 22, w - treeW - 8, 20, TRUE);
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else {
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
@@ -4865,6 +5770,21 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 b = GetDlgItem(hWnd, IDC_KM_DRVOP);
                 if (b) ShowWindow(b, showSsdt ? SW_HIDE : SW_SHOW);
             }
+            return 0;
+        }
+        if (nm->idFrom == IDC_NW_TREE && nm->code == TVN_SELCHANGED) {
+            NMTREEVIEWA *tv = (NMTREEVIEWA *)lParam;
+            if (tv->itemNew.lParam != (LPARAM)g_NwNode) {
+                g_NwNode = (int)tv->itemNew.lParam;
+                DoRefreshNetwork();
+            }
+            return 0;
+        }
+        if (nm->idFrom == IDC_NW_LIST && nm->code == NM_DBLCLK) {
+            /* 原版 sub_1400A6840：仅节点 1 的恢复动作（cmd 0xE7） */
+            if (g_NwNode == 1 &&
+                ListView_GetNextItem(g_hNwList, -1, LVNI_SELECTED) >= 0)
+                NwRestoreTdi();
             return 0;
         }
         if (nm->idFrom == IDC_TABS && nm->code == TCN_SELCHANGE) {
@@ -5378,8 +6298,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         return FePrintStartupItems() ? 0 : 1;
     if (lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))
         return FePrintHiddenDrivers() ? 0 : 1;
-    /* --network-cli：无界面打印 Network 页的实际数据行。
-       用途同 --g4-status-cli：截图不可靠时直接输出程序生成的内容。 */
+    /* --network-cli：无界面打印 Network 页两节的实际数据行
+       （NdisTdiCallback 0xE6 / TdiPnpClient 0xE8，模块列走 0x42 解析）。 */
     /* --reg-cli：打印 0x127 的真实语义（Npfs 分发表指针），
        用于说明它**不是** CmpNotifyChange 的数据源。 */
     if (lpCmdLine && strstr(lpCmdLine, "--reg-cli")) {
@@ -5434,9 +6354,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     }
 
     if (lpCmdLine && strstr(lpCmdLine, "--network-cli")) {
-        UCHAR *buf;
-        UCHAR res = 0;
-        ULONG i, nonZero = 0;
+        BOOL ok;
 
         if (!XpchOpen(&g_Client)) {
             printf("open device failed, GetLastError=%lu\n", GetLastError());
@@ -5447,40 +6365,66 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             XpchClose(&g_Client);
             return 1;
         }
+        ok = FePrintTdiCallbacks(&g_Client);
+        printf("\n");
+        if (!FePrintTdiPnpClients(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNdisOffloadHandlers(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNdisOidTable(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNdisInterfaces(&g_Client))
+            ok = FALSE;
         {
-            UCHAR dummy[0x40];
-            XpchInvoke(&g_Client, 0xF8, NULL, 0, dummy, sizeof(dummy), &res);
-        }
-        buf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x4000);
-        if (!buf || !XpchInvoke(&g_Client, 0x13A, NULL, 0, buf, 0x4000, &res)) {
-            printf("0x13A unavailable (result=%u)\n", res);
-            if (buf) HeapFree(GetProcessHeap(), 0, buf);
-            XpchClose(&g_Client);
-            return 1;
-        }
-        {
-            const UCHAR *env = buf + 283 * 16 + 16;
-            const ULONG64 *vals = (const ULONG64 *)(const void *)(env + 0x400);
-            ULONG stage = *(const ULONG *)(const void *)(env + 0x3B0);
-            ULONG fsize = *(const ULONG *)(const void *)(env + 0x3B4);
-
-            printf("Network page data (0xF8 InitKernelMemoryContext)\n");
-            printf("  netio.sys size = 0x%lX   stage = %lu "
-                   "(0=not run 1=read failed 2=parsing 3=done)\n", fsize, stage);
-            printf("  %-14s %-20s %s\n", "Object", "Value", "Resolver (GT slot)");
-            for (i = 0; i < FE_NET_SLOT_N; i++) {
-                if (vals[i]) nonZero++;
-                printf("  %-14s 0x%016llX  %s (GT[0x%X])\n",
-                       g_NetSlots[i].Name,
-                       (unsigned long long)vals[i],
-                       g_NetSlots[i].Meaning,
-                       g_NetSlots[i].GtIndex);
+            static const ULONG FwpsNodes[6] = { 6, 7, 8, 9, 10, 12 };
+            int Node;
+            for (Node = 0; Node < 6; Node++) {
+                printf("\n");
+                if (!FePrintFwpsTable(&g_Client, FwpsNodes[Node]))
+                    ok = FALSE;
             }
-            printf("  resolved %lu/%lu\n", nonZero, (ULONG)FE_NET_SLOT_N);
         }
-        HeapFree(GetProcessHeap(), 0, buf);
+        printf("\n");
+        if (!FePrintNetioLayerCallbacks(&g_Client))
+            ok = FALSE;
+        {
+            FE_WFP_DEVICE Device;
+            printf("\n");
+            if (FeLoadWfpDeviceObject(&g_Client, &Device))
+                printf("WfpDeviceObject (cmd 0xFA) Current=0x%p Original=0x%p %s\n",
+                       (void *)(ULONG_PTR)Device.Current,
+                       (void *)(ULONG_PTR)Device.Original,
+                       Device.Current == Device.Original
+                           ? "WfpDeviceObject is OK."
+                           : "WfpDeviceObject been Replaced.");
+            else {
+                printf("WfpDeviceObject: 0xFA query failed\n");
+                ok = FALSE;
+            }
+        }
+        printf("\n");
+        if (!FePrintWfpCallouts(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNmrProviders(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNsiChangeNotifications(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNsiChangeMonitor(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintIpsecDispatch(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintIpfDispatch(&g_Client))
+            ok = FALSE;
         XpchClose(&g_Client);
-        return 0;
+        return ok ? 0 : 1;
     }
 
     /* --g4-status-cli：打印各页状态栏文案的**实际拼接结果**。
@@ -5845,7 +6789,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     /* 子视图调试入口：--hotkeys-cli <pid>（命令 0x33，按 EPROCESS 过滤） */
     if (lpCmdLine && strstr(lpCmdLine, "--hotkeys-cli")) {
         ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--hotkeys-cli") + 13, NULL, 0);
+        /* 【2026-10-24 修复】此分支原先直接调 FePrintProcessHotkeys，但那时
+           g_Client 还没打开（DoConnect 在后面的 GUI 路径里），函数第一句
+           `!Client->Opened` 就返回 FALSE —— CLI 因此永远静默无输出。
+           先打开设备。 */
+        if (!g_Client.Opened)
+            XpchOpen(&g_Client);
+        if (!g_Client.Opened) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
         FePrintProcessHotkeys(&g_Client, pid);
+        XpchClose(&g_Client);
         return 0;
     }
 

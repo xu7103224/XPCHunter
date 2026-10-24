@@ -610,7 +610,7 @@ char EnumerateDriverList(unsigned int *pOutputBuffer, unsigned int OutputSize)
 {
     char IsReady = 0;
     __int64 NtoskrnlBase;
-    unsigned __int8 (*pValidateFunc)(void);
+    unsigned __int8 (__fastcall *pValidateFunc)(__int64 Address);
     unsigned __int64 NtoskrnlImageBase;
     unsigned int NtoskrnlImageSize;
     unsigned __int64 pModuleList;
@@ -621,7 +621,7 @@ char EnumerateDriverList(unsigned int *pOutputBuffer, unsigned int OutputSize)
     unsigned int IterationCount = 0;
 
     NtoskrnlBase = GtRead(GtDriverObject);
-    pValidateFunc = (unsigned __int8 (*)(void))GtRead(GtObjectTypeCheckFlag);
+    pValidateFunc = (unsigned __int8 (__fastcall *)(__int64))GtRead(GtObjectTypeCheckFlag);
     NtoskrnlImageBase = GtRead(GtNtoskrnlModuleBase);
     NtoskrnlImageSize = (unsigned int)GtRead(GtNtoskrnlImageSize);
 
@@ -703,8 +703,16 @@ char EnumerateDriverList(unsigned int *pOutputBuffer, unsigned int OutputSize)
             if (NameLength > 0x1FE)
                 NameLength = 510;
 
-            if (*(_QWORD *)(pModuleList + 80) && pValidateFunc() == 1 &&
-                ((unsigned __int8 (__fastcall *)(__int64))pValidateFunc)(NameLength + *(_QWORD *)(pModuleList + 80) - 1) == 1)
+            /* 【2026-10-23 修复 BSOD 0x3B】原版 0x14003C184 `mov rcx,[rbx+50h]`
+               → 0x14003C19A `call rbp`，首次调用传的是 **名字指针本身**；
+               0x14003C1A0..A7 再算 `名字指针 + 长度 - 1` 传第二次。
+               旧代码写成 `pValidateFunc()` 无参调用，rcx 是上一条指令残留的
+               垃圾值，与上一轮 AllocateNtHandleEntry 的 CloseHandleFunc 同类；
+               实测在 CmdEnumDriverObjects → EnumerateDriverList 路径上触发
+               BSOD 0x3B(0xC0000005)，故障地址正是那次垃圾调用。 */
+            if (*(_QWORD *)(pModuleList + 80) &&
+                pValidateFunc(*(__int64 *)(pModuleList + 80)) == 1 &&
+                pValidateFunc(NameLength + *(_QWORD *)(pModuleList + 80) - 1) == 1)
             {
                 memmove((void *)(pOutputEntry + 36), *(const void **)(pModuleList + 80), NameLength);
                 *(WORD *)(pOutputEntry + 546) = 0;
@@ -724,9 +732,10 @@ char EnumerateDriverList(unsigned int *pOutputBuffer, unsigned int OutputSize)
                 if (NameLength2 > 0x1FE)
                     NameLength2 = 510;
 
-                if (*(_QWORD *)(pModuleList + 96) && pValidateFunc() == 1)
+                if (*(_QWORD *)(pModuleList + 96) &&
+                    pValidateFunc(*(__int64 *)(pModuleList + 96)) == 1)
                 {
-                    if (((unsigned __int8 (__fastcall *)(__int64))pValidateFunc)(NameLength2 + *(_QWORD *)(pModuleList + 96) - 1) == 1)
+                    if (pValidateFunc(NameLength2 + *(_QWORD *)(pModuleList + 96) - 1) == 1)
                     {
                         ULONG NameIndex = 0;
                         if (NameLength2)
@@ -764,8 +773,16 @@ char EnumerateDriverList(unsigned int *pOutputBuffer, unsigned int OutputSize)
             if (NameLength > 0x1FE)
                 NameLength = 510;
 
-            if (*(_QWORD *)(pModuleList + 80) && pValidateFunc() == 1 &&
-                ((unsigned __int8 (__fastcall *)(__int64))pValidateFunc)(NameLength + *(_QWORD *)(pModuleList + 80) - 1) == 1)
+            /* 【2026-10-23 修复 BSOD 0x3B】原版 0x14003C184 `mov rcx,[rbx+50h]`
+               → 0x14003C19A `call rbp`，首次调用传的是 **名字指针本身**；
+               0x14003C1A0..A7 再算 `名字指针 + 长度 - 1` 传第二次。
+               旧代码写成 `pValidateFunc()` 无参调用，rcx 是上一条指令残留的
+               垃圾值，与上一轮 AllocateNtHandleEntry 的 CloseHandleFunc 同类；
+               实测在 CmdEnumDriverObjects → EnumerateDriverList 路径上触发
+               BSOD 0x3B(0xC0000005)，故障地址正是那次垃圾调用。 */
+            if (*(_QWORD *)(pModuleList + 80) &&
+                pValidateFunc(*(__int64 *)(pModuleList + 80)) == 1 &&
+                pValidateFunc(NameLength + *(_QWORD *)(pModuleList + 80) - 1) == 1)
             {
                 memmove((void *)(pOutputEntry + 36), *(const void **)(pModuleList + 80), NameLength);
                 *(WORD *)(pOutputEntry + 546) = 0;
@@ -2466,9 +2483,23 @@ char LookupDriverObjectEntry(
     if (!EntrySize)
         SizeValue = pDriverEntry;
 
-    if (!GtRead(GtTotalSize | GtEprocessField104 | 0x100) ||
-        *(unsigned __int64 *)GtRead(GtTotalSize | GtEprocessField104 | 0x100) > TargetAddress)
-        return 0;
+    /* 【2026-10-23 修复 BSOD 0x3B】旧代码把同一个 GT 槽读了两次：
+       第一次判空、第二次直接解引用。两次读之间值可能变化，且编译器
+       允许把两次调用合并/重排，实测在
+       CmdEnumDriverObjects → EnumerateDriverList → LookupDriverObjectEntry
+       路径上第二次读到 0，紧接的 `cmp qword ptr [rax], rbx` 即页错误
+       （故障地址 fffff803`2f4d0aa0 就是这条指令）。改为只读一次。 */
+    {
+        /* 【2026-10-24 修复 BSOD 0x3B（根因）】原版 0x14003B000 是
+           `mov ecx, 4172h` / `call GtRead` —— 读的是 **GT[0x4172]**。
+           旧代码写成 `GtTotalSize | GtEprocessField104 | 0x100`，
+           索引取成了 104，而 0x4172 的低字节是 0x72 = **114** ——
+           差了 0xA。实算落成 0x4168，那里存的是本驱动自己的代码地址，
+           `cmp [rax], rbx` 于是去解引用代码段 → BSOD 0x3B。 */
+        ULONG64 MinAddrPtr = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4172);   // 0x14003B000
+        if (!MinAddrPtr || *(unsigned __int64 *)MinAddrPtr > TargetAddress)
+            return 0;
+    }
 
     Index = 0;
     pCurrent = pDriverArray + 2;
@@ -2686,12 +2717,12 @@ void __fastcall FindHalDllInDriverList(
 __int16 __fastcall BuildDriverImagePath(__int64 pNameString, unsigned int BufferSize, __int64 pOutputPath)
 {
     __int64 Result;
-    __int64 (*pValidateFunc)(void);
+    __int64 (__fastcall *pValidateFunc)(__int64 Address);
     unsigned int MaxLength;
     size_t SizeBytes;
 
     Result = GtRead(GtObjectTypeCheckFlag);
-    pValidateFunc = (__int64 (*)(void))Result;
+    pValidateFunc = (__int64 (__fastcall *)(__int64))Result;
     if (Result)
     {
         MaxLength = *(_WORD *)pNameString & 0xFFFE;
@@ -2699,10 +2730,15 @@ __int16 __fastcall BuildDriverImagePath(__int64 pNameString, unsigned int Buffer
             MaxLength = 510;
         if (*(_QWORD *)(pNameString + 8))
         {
-            if ((_BYTE)pValidateFunc() == 1)
+            /* 【2026-10-23 修复 BSOD 0x3B】原版 0x14003A7DB `test rcx,rcx` 后
+               0x14003A7E4 `call r14` —— rcx 就是 pNameString 的字符串指针
+               （调用方 0x14003C1F3 的 `lea rcx,[rbx+58h]`）。
+               0x14003A7EF..F8 再算 `指针 + 长度 - 1` 传第二次。
+               旧代码两处都写成无参调用，rcx 是垃圾值。 */
+            if ((_BYTE)pValidateFunc(*(__int64 *)(pNameString + 8)) == 1)
             {
                 SizeBytes = MaxLength;
-                if ((_BYTE)((__int64 (__fastcall *)(__int64))pValidateFunc)(MaxLength + *(_QWORD *)(pNameString + 8) - 1) == 1)
+                if ((_BYTE)pValidateFunc(MaxLength + *(_QWORD *)(pNameString + 8) - 1) == 1)
                 {
                     if (BufferSize >= 3
                         && MaxLength >= 0xA

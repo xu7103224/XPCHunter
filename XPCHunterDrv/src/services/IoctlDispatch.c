@@ -277,7 +277,7 @@ __int64 InitCommandHandlerTable(void)
     Table[205] = (PCOMMAND_HANDLER)CmdUpdateExportEntry;
     Table[206] = (PCOMMAND_HANDLER)CmdRestoreExportTable;
     Table[207] = (PCOMMAND_HANDLER)CmdInitSsdtTable;
-    Table[208] = (PCOMMAND_HANDLER)CmdEnumKernelModules;
+    Table[208] = (PCOMMAND_HANDLER)EnumKernelModules;   /* 原始 0x1400669B8（0xF0 Ndis Interface 前端实际使用） */
     Table[209] = (PCOMMAND_HANDLER)MiniFilterAcquireForModWrite;
     Table[210] = (PCOMMAND_HANDLER)CmdInitFwpsDispatchTables;
     Table[211] = (PCOMMAND_HANDLER)CmdCopyKernelArrayToUserBuffer;

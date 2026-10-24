@@ -92,6 +92,28 @@ typedef struct _XPCH_REQUEST {
 #define XPCH_CMD_THREAD_OPERATION           0x3Du  /* CmdThreadOperation                                                */
 #define XPCH_CMD_THREAD_MONITOR             0x3Eu  /* CmdThreadMonitor                                                  */
 #define XPCH_CMD_STUB_ALWAYS_TRUE           0x7Fu  /* CmdStubAlwaysTrue         (0x95 槽)                               */
+#define XPCH_CMD_QUERY_DRIVER_OBJECTS       0x42u  /* CmdQuerySsdtInfo（实为通用选择子枚举）
+                                                       in: 24 字节 {u8 selector; pad; u64 out; u32 outSize}
+                                                       → CmdEnumDriverObjects(out, outSize, 0, selector)
+                                                       selector=0 时输出驱动对象列表（count@+0，
+                                                       记录@+8，步长 0x228：基址@+24、大小@+32、
+                                                       名称@+36 UTF-16）；原版客户端用它做符号解析 */
+#define XPCH_CMD_GET_TDI_CALLBACKS          0xE6u  /* CmdGetSsdtTableInfo（实为 TDI 两处导出指针查询）
+                                                       out: 6 个 QWORD，OutSize=48；[2]/[3] 原始值，
+                                                       [4]/[5] 内核数据节区当前值（*GT884/*GT885） */
+#define XPCH_CMD_RESTORE_TDI_CALLBACKS      0xE7u  /* CmdRestoreSsdtTable（实为把 [2]/[3] 写回内核） */
+#define XPCH_CMD_ENUM_TDI_PNP_CLIENTS       0xE8u  /* CmdEnumObjectTypeInfo（实为 TDI PnP 客户端记录）
+                                                       out: 4MB；total@+0、count@+4；记录步长 0x238：
+                                                       类型@+8、对象@+16、名称@+24（UTF-16）、
+                                                       +536/+544/+552/+560/+568 五个 handler 槽 */
+#define XPCH_CMD_ENUM_NDIS_OFFLOAD          0xEAu  /* CmdQuerySsdtDetails（实为 NdisTcpOffloadHandlers 7 项）
+                                                       out: 176B；count@+0；记录@+8 步长 24：
+                                                       原始@+0、当前@+8、名称@+16（客户端本地补，
+                                                       见 off_1406D49B0 的 7 个名字） */
+#define XPCH_CMD_ENUM_NDIS_OID_TABLE        0xECu  /* CmdReadExportDirectory（实为 NdisOidTable 双表）
+                                                       out: 2MB；前半当前表、后半原始表（+0x100000），
+                                                       记录步长 24：类型ID@+0、PreFun@+8、PostFun@+16；
+                                                       类型ID→名称见 inc/xpc_oid_names.h (738 项) */
 
 typedef struct _XPCH_CLIENT {
     HANDLE          Device;
@@ -967,6 +989,374 @@ typedef struct _FE_HOOK_LIST {
 BOOL FeScanRing3Hooks(ULONG Pid, FE_HOOK_LIST *List);
 void FeFreeHooks(FE_HOOK_LIST *List);
 BOOL FePrintRing3Hooks(ULONG Pid);
+
+/* ---- Network 页（原版 Network Callback 树，src/NetworkViews.c）----
+ *
+ * 已解码的两节（与原版客户端 sub_1400ABA60 / sub_1400ADE50 一一对应）：
+ *   NdisTdiCallback : 0xE6 → 2 行；当前值 != 原始值 即 Hook（原版显示 "Hook"/"-"）
+ *   TdiPnpClient    : 0xE8 → 每个客户端最多 5 个 handler 各占一行
+ * 符号解析统一走 0x42（selector=0），与客户端 sub_14001F8B0 相同：
+ *   按记录 {base@+24, size@+32, name@+36} 找包含该地址的模块。
+ * 原版还会沿指针链最多 5 跳（sub_14001F850 → cmd 0x77），但 0x77 的处理器
+ * （EnableThreadProtect，0x140007AB4）无条件返回 0，循环永不前进，故此处不实现。
+ */
+#define FE_NET_NAME_CHARS   260u
+#define FE_NET_PATH_CHARS   520u
+#define FE_NET_COMPANY_CHARS 192u
+
+typedef struct _FE_TDI_CALLBACK_ENTRY {
+    char    Name[64];                     /* 客户端本地补的名称（非驱动返回） */
+    ULONG64 Current;                      /* 内核数据节区里的当前函数指针 */
+    ULONG64 Original;                     /* 磁盘映像中的原始函数地址 */
+    BOOL    Hooked;                       /* Current != Original */
+    char    Module[FE_NET_PATH_CHARS];    /* 0x42 解析出的模块路径 */
+    char    Company[FE_NET_COMPANY_CHARS];/* 该模块文件的 CompanyName */
+} FE_TDI_CALLBACK_ENTRY;
+
+typedef struct _FE_TDI_CALLBACK_LIST {
+    ULONG Count;
+    FE_TDI_CALLBACK_ENTRY Items[2];
+} FE_TDI_CALLBACK_LIST;
+
+typedef struct _FE_TDI_PNP_ENTRY {
+    char    ClientName[FE_NET_NAME_CHARS];
+    ULONG64 ClientObject;
+    ULONG64 BindingHandler;      /* +536：type==1（TDI_PNP_OPCODE_BIND） */
+    ULONG64 UnBindHandler;       /* +544：仅 type==1 */
+    ULONG64 AddAddressHandler;   /* +552 */
+    ULONG64 DelAddressHandler;   /* +560 */
+    ULONG64 PnPPowerHandler;     /* +568：仅 type!=1 */
+} FE_TDI_PNP_ENTRY;
+
+typedef struct _FE_TDI_PNP_LIST {
+    ULONG Count;                 /* 实际客户端数（驱动 header +4） */
+    ULONG Total;                 /* 遍历到的对象总数（驱动 header +0） */
+    FE_TDI_PNP_ENTRY *Items;
+} FE_TDI_PNP_LIST;
+
+/* 0xEA：NdisTcpOffloadHandlers 表（原版固定 7 项，名称是客户端本地字符串）
+   驱动返回 count@+0、记录@+8 步长 24：原始@+0、当前@+8；
+   名称槽 +16 由客户端按 off_1406D49B0 依次填入。 */
+#define FE_NDIS_OFFLOAD_MAX 7u
+
+typedef struct _FE_NDIS_OFFLOAD_ENTRY {
+    char    Name[48];            /* 客户端本地补的名称（非驱动返回） */
+    ULONG64 Current;             /* 当前生效的函数指针 */
+    ULONG64 Original;            /* 表内原始函数指针 */
+    BOOL    Hooked;              /* Current != Original */
+    char    Module[FE_NET_PATH_CHARS];     /* 0x42 解析出的模块路径 */
+    char    Company[FE_NET_COMPANY_CHARS]; /* 该模块文件的 CompanyName */
+} FE_NDIS_OFFLOAD_ENTRY;
+
+typedef struct _FE_NDIS_OFFLOAD_LIST {
+    ULONG Count;
+    FE_NDIS_OFFLOAD_ENTRY Items[FE_NDIS_OFFLOAD_MAX];
+} FE_NDIS_OFFLOAD_LIST;
+
+/* 0xEC：NdisOidTable（每项 {类型ID, PreFun, PostFun}，驱动同时给当前表与原始表）
+   原版固定 2MB 输出：前半当前表、后半原始表（偏移 0x100000），记录步长 24，
+   以全 0 记录作为结束标记。类型ID→名称用 inc/xpc_oid_names.h 的 738 项表。 */
+#define FE_OID_HALF_SIZE      0x100000u
+#define FE_OID_RECORD_SIZE    24u
+#define FE_OID_MAX_COUNT      (FE_OID_HALF_SIZE / FE_OID_RECORD_SIZE)
+
+typedef struct _FE_NDIS_OID_ENTRY {
+    ULONG64 TypeId;
+    ULONG64 CurrentPre;
+    ULONG64 CurrentPost;
+    ULONG64 OriginalPre;
+    ULONG64 OriginalPost;
+} FE_NDIS_OID_ENTRY;
+
+typedef struct _FE_NDIS_OID_LIST {
+    ULONG Count;
+    FE_NDIS_OID_ENTRY *Items;
+} FE_NDIS_OID_LIST;
+
+/* 0xF0：Ndis Interface（原版客户端 sub_1400AAB70 → sub_140026220）
+   输出 2MB：count@+0；记录@+8 步长 0x270。
+   注意：驱动侧原始处理函数为 EnumKernelModules（0x1400669B8，模块枚举，
+   输出 156 个 DWORD 的加载器记录）；原版前端直接把该记录按“接口信息”
+   字段偏移格式化显示，故这里按客户端语义逐字段复制，保持 1:1。 */
+#define XPCH_CMD_ENUM_NDIS_INTERFACES       0xF0u
+#define FE_NDIS_IF_RECORD_SIZE   0x270u
+#define FE_NDIS_IF_MAX_COUNT     0x1000u
+#define FE_NDIS_IF_DESCR_CHARS   256u   /* +88 起 512 字节，客户端在 +600 强置 0 */
+#define FE_NDIS_IF_LINE_COUNT    17u
+
+typedef struct _FE_NDIS_IF_ENTRY {
+    ULONG64 LoaderEntry;                 /* 记录 +0（客户端显示为 Interface 指针） */
+    ULONG   Flags;                       /* +8  */
+    ULONG   Mtu;                         /* +12 */
+    ULONG   PromiscuousMode;             /* +16 */
+    ULONG   AccessType;                  /* +20 */
+    ULONG   DirectionType;               /* +24 */
+    ULONG   ConnectionType;              /* +28 */
+    ULONG   MediaType;                   /* +32 */
+    ULONG   MediaConnectState;           /* +36 */
+    ULONG   MediaDuplexState;            /* +40 */
+    ULONG   AdminStatus;                 /* +44 */
+    ULONG   OperStatus;                  /* +48 */
+    ULONG   InterfaceGuidData1;          /* +52 */
+    USHORT  InterfaceGuidData2;          /* +56 */
+    USHORT  InterfaceGuidData3;          /* +58 */
+    UCHAR   InterfaceGuidData4[8];       /* +60 */
+    ULONG   NetworkGuidData1;            /* +68 */
+    USHORT  NetworkGuidData2;            /* +72 */
+    USHORT  NetworkGuidData3;            /* +74 */
+    UCHAR   NetworkGuidData4[8];         /* +76 */
+    ULONG   IfIndex;                     /* +84 */
+    WCHAR   IfDescr[FE_NDIS_IF_DESCR_CHARS]; /* +88，512 字节 */
+    ULONG64 ProviderIfContext;           /* +608 */
+    ULONG64 ProviderHandle;              /* +616 */
+} FE_NDIS_IF_ENTRY;
+
+typedef struct _FE_NDIS_IF_LIST {
+    ULONG Count;
+    FE_NDIS_IF_ENTRY *Items;
+} FE_NDIS_IF_LIST;
+
+/* ----------------------------------------------------------------------------
+ * 节点 6~10、12：通用 “指针表” 视图（原版 sub_1400A8FB0，一次反编译、六个入口）
+ *   列：Index / Fun Entry / Module / File Corporation
+ *   输出：ULONG Count@+0；QWORD 地址数组@+8（最多 287 项）
+ *   0xF7 / 0xF9 输出仅 8 字节单值，客户端固定按 1 项处理。
+ * -------------------------------------------------------------------------- */
+#define XPCH_CMD_FWPS_TCPIP_TABLE      0xF1u
+#define XPCH_CMD_FWPS_L2_TABLE         0xF2u
+#define XPCH_CMD_WFP_NBL_TABLE         0xF3u
+#define XPCH_CMD_WFP_STREAM_SHIM       0xF6u
+#define XPCH_CMD_NSI_LEGACY_HANDLER    0xF7u
+#define XPCH_CMD_WFP_MAC_SHIM          0xF9u
+
+#define FE_FWPS_TABLE_MAX_ENTRIES   287u
+#define FE_FWPS_LARGE_OUT_SIZE      2304u
+#define FE_FWPS_SINGLE_OUT_SIZE     8u
+
+typedef struct _FE_FWPS_TABLE {
+    ULONG   Count;
+    ULONG64 *Entries;
+} FE_FWPS_TABLE;
+
+/* 节点 11 NetioLayerCallback（0xF4，原版 sub_1400AC070 / 驱动 EnumKernelMemoryContext）
+   输出 1MB：Count@+0；记录@+8 步长 16：{ULONG Id@+0; ULONG pad; ULONG64 Address@+8} */
+#define XPCH_CMD_ENUM_KERNEL_MEMORY_CONTEXT 0xF4u
+#define FE_NETIO_OUT_SIZE      0x100000u
+#define FE_NETIO_RECORD_SIZE   16u
+#define FE_NETIO_MAX_COUNT     5u
+
+typedef struct _FE_NETIO_ENTRY {
+    ULONG   Id;
+    ULONG64 Address;
+} FE_NETIO_ENTRY;
+
+typedef struct _FE_NETIO_LIST {
+    ULONG Count;
+    FE_NETIO_ENTRY *Items;
+} FE_NETIO_LIST;
+
+/* 节点 13 WfpDeviceObject（0xFA，原版 sub_1400ADB40 / 驱动 CmdReadKernelMemoryRangeSize）
+   输出 16 字节：Current@+0、Original@+8（后者是新分配的 Nt 句柄条目） */
+#define XPCH_CMD_READ_KERNEL_MEMORY_RANGE_SIZE 0xFAu
+#define FE_WFP_DEVICE_OUT_SIZE 16u
+
+typedef struct _FE_WFP_DEVICE {
+    ULONG64 Current;
+    ULONG64 Original;
+} FE_WFP_DEVICE;
+
+/* 节点 14 WfpCallout（0xFC，原版 sub_1400AD4E0 / 驱动 CmdEnumKernelMemoryDetail）
+   输出 4MB：Count@+0；HasFeCallout(BYTE)@+8；FeCallout 三回调@+24/+32/+40；
+   Callout 记录@+48 步长 32：{Index@+0, pad, Classify@+8, Notify@+16, FlowDelete@+24} */
+#define XPCH_CMD_ENUM_KERNEL_MEMORY_DETAIL 0xFCu
+#define FE_WFP_CALLOUT_OUT_SIZE      0x400000u
+#define FE_WFP_CALLOUT_RECORD_BASE   48u
+#define FE_WFP_CALLOUT_RECORD_SIZE   32u
+#define FE_WFP_CALLOUT_MAX_COUNT     0x10000u
+
+typedef struct _FE_WFP_CALLOUT_ENTRY {
+    ULONG   Index;
+    ULONG64 ClassifyCallback;
+    ULONG64 NotifyCallback;
+    ULONG64 FlowDeleteFunction;
+} FE_WFP_CALLOUT_ENTRY;
+
+typedef struct _FE_WFP_CALLOUT_LIST {
+    ULONG   Count;
+    BOOL    HasFeCallout;
+    ULONG64 FeClassifyCallback;
+    ULONG64 FeNotifyCallback;
+    ULONG64 FeFlowDeleteFunction;
+    FE_WFP_CALLOUT_ENTRY *Items;
+} FE_WFP_CALLOUT_LIST;
+
+/* 节点 16 NsiChangeNotification（0xFF）
+   输出 4MB：GroupCount@+0；分组@+8：{Size@+0, Count@+4, 条目@+16 步长 24：
+   {Node@+0, Object@+8, Zero@+16}}；下一分组 = 本分组 + Size */
+#define XPCH_CMD_ENUM_NSI_CHANGE_NOTIFICATION 0xFFu
+#define FE_NSI_OUT_SIZE        0x400000u
+#define FE_NSI_ENTRY_SIZE      24u
+#define FE_NSI_GROUP_MAX       0x10000u
+
+typedef struct _FE_NSI_NOTIFY_ENTRY {
+    ULONG64 Node;
+    ULONG64 AttachCallback;
+    ULONG64 DetachCallback;
+} FE_NSI_NOTIFY_ENTRY;
+
+typedef struct _FE_NSI_NOTIFY_GROUP {
+    ULONG Count;
+    FE_NSI_NOTIFY_ENTRY *Items;
+} FE_NSI_NOTIFY_GROUP;
+
+typedef struct _FE_NSI_NOTIFY_LIST {
+    ULONG Count;
+    ULONG GroupCount;
+    FE_NSI_NOTIFY_GROUP *Groups;
+} FE_NSI_NOTIFY_LIST;
+
+/* 节点 15 NmrProvider(Client)（0xFE）
+   输出 4MB：GroupCount@+0；分组@+8：{Size@+0, Count@+4, NmrObject@+8,
+   条目@+16 步长 40：{EntryPtr@+0, IsClient@+8, Attach@+16,
+   Detach@+24, Cleanup@+32}}；下一分组 = 本分组 + Size */
+#define XPCH_CMD_ENUM_NMR_PROVIDERS 0xFEu
+#define FE_NMR_OUT_SIZE        0x400000u
+#define FE_NMR_ENTRY_SIZE      40u
+#define FE_NMR_GROUP_MAX       0x10000u
+
+typedef struct _FE_NMR_ENTRY {
+    ULONG64 EntryPtr;
+    BOOL    IsClient;
+    ULONG64 AttachCallback;
+    ULONG64 DetachCallback;
+    ULONG64 CleanupCallback;
+} FE_NMR_ENTRY;
+
+typedef struct _FE_NMR_GROUP {
+    ULONG Count;
+    ULONG64 NmrObject;
+    FE_NMR_ENTRY *Items;
+} FE_NMR_GROUP;
+
+typedef struct _FE_NMR_LIST {
+    ULONG Count;
+    ULONG GroupCount;
+    FE_NMR_GROUP *Groups;
+} FE_NMR_LIST;
+
+/* 节点 18 Ipsec Dispatch Fun（0x11D，OutSize=0x548）
+   节点 19 Ipfltdrv Dispatch Fun（0x11F，OutSize=0xA58）
+   共享块布局（块 A 在 +8，块 B 在 +1352）：
+   {BYTE Valid@+0; ...; 条目@+24 步长 48：
+   {QWORD Original@+8, QWORD Entry@+16, BYTE Primary@+24, BYTE Inline@+25}}
+   节点 19 头：BYTE Flags@+0（bit0=A, bit1=B），BYTE ValidA@+2，
+   BYTE ValidB@+3 */
+#define XPCH_CMD_ENUM_IPSEC_DISPATCH   0x11Du
+#define XPCH_CMD_ENUM_IPF_DISPATCH     0x11Fu
+#define FE_IPSEC_OUT_SIZE              0x548u
+#define FE_IPF_OUT_SIZE                0xA58u
+#define FE_IPF_BLOCK_B_OFFSET          1352u
+#define FE_DISPATCH_ENTRY_SIZE         48u
+#define FE_DISPATCH_MAX_IRP            28u
+#define FE_DISPATCH_MAX_FASTIO         27u
+
+typedef struct _FE_DISPATCH_ENTRY {
+    ULONG64 Original;
+    ULONG64 Entry;
+    BOOL    Primary;
+    BOOL    Inline;
+} FE_DISPATCH_ENTRY;
+
+typedef struct _FE_DISPATCH_BLOCK {
+    BOOL Valid;
+    ULONG Count;
+    FE_DISPATCH_ENTRY Entries[FE_DISPATCH_MAX_IRP];
+} FE_DISPATCH_BLOCK;
+
+typedef struct _FE_IPSEC_DISPATCH {
+    FE_DISPATCH_BLOCK Irp;
+} FE_IPSEC_DISPATCH;
+
+typedef struct _FE_IPF_DISPATCH {
+    ULONG Flags;
+    FE_DISPATCH_BLOCK Irp;
+    FE_DISPATCH_BLOCK FastIo;
+} FE_IPF_DISPATCH;
+
+/* 节点 17 NsiChangeNotification_Monitor（0x100）
+   输出 4MB：Count@+0；记录@+8 步长 64：{Id@+8, Callback1..7@+16..+64} */
+#define XPCH_CMD_ENUM_NSI_CHANGE_MONITOR 0x100u
+#define FE_NSI_MONITOR_STRIDE  64u
+#define FE_NSI_MONITOR_MAX     0x10000u
+
+typedef struct _FE_NSI_MONITOR_ENTRY {
+    ULONG64 Id;
+    ULONG64 Callbacks[7];
+} FE_NSI_MONITOR_ENTRY;
+
+typedef struct _FE_NSI_MONITOR_LIST {
+    ULONG Count;
+    FE_NSI_MONITOR_ENTRY *Items;
+} FE_NSI_MONITOR_LIST;
+
+/* 0x42 符号表：4MB 输出缓冲，查找期间复用 */
+typedef struct _FE_SYMBOL_TABLE {
+    ULONG Count;
+    UCHAR *Buffer;
+    char  LastModule[FE_NET_PATH_CHARS];
+    char  LastCompany[FE_NET_COMPANY_CHARS];
+} FE_SYMBOL_TABLE;
+
+BOOL FeOpenSymbolTable(XPCH_CLIENT *Client, FE_SYMBOL_TABLE *Table);
+void FeCloseSymbolTable(FE_SYMBOL_TABLE *Table);
+BOOL FeResolveSymbol(FE_SYMBOL_TABLE *Table, ULONG64 Address,
+                     char *Module, size_t ModuleChars,
+                     char *Company, size_t CompanyChars);
+
+BOOL FeLoadTdiCallbacks(XPCH_CLIENT *Client, FE_TDI_CALLBACK_LIST *List);
+BOOL FeRestoreTdiCallbacks(XPCH_CLIENT *Client, UCHAR *ResultByte);
+BOOL FeLoadTdiPnpClients(XPCH_CLIENT *Client, FE_TDI_PNP_LIST *List);
+void FeFreeTdiPnpClients(FE_TDI_PNP_LIST *List);
+BOOL FeLoadNdisOffloadHandlers(XPCH_CLIENT *Client, FE_NDIS_OFFLOAD_LIST *List);
+BOOL FeLoadNdisOidTable(XPCH_CLIENT *Client, FE_NDIS_OID_LIST *List);
+void FeFreeNdisOidTable(FE_NDIS_OID_LIST *List);
+BOOL FeLoadNdisInterfaces(XPCH_CLIENT *Client, FE_NDIS_IF_LIST *List);
+void FeFreeNdisInterfaces(FE_NDIS_IF_LIST *List);
+int  FeFormatNdisInterfaceLines(const FE_NDIS_IF_ENTRY *Entry,
+                                char Lines[FE_NDIS_IF_LINE_COUNT][FE_NET_PATH_CHARS]);
+const char *FeOidName(ULONG64 TypeId);
+const char *FeFwpsTableName(ULONG Node);
+BOOL FeLoadFwpsTable(XPCH_CLIENT *Client, ULONG Command, ULONG OutSize,
+                     ULONG FixedCount, FE_FWPS_TABLE *Table);
+void FeFreeFwpsTable(FE_FWPS_TABLE *Table);
+BOOL FePrintFwpsTable(XPCH_CLIENT *Client, ULONG Node);
+BOOL FeLoadNetioLayerCallbacks(XPCH_CLIENT *Client, FE_NETIO_LIST *List);
+void FeFreeNetioLayerCallbacks(FE_NETIO_LIST *List);
+BOOL FePrintNetioLayerCallbacks(XPCH_CLIENT *Client);
+BOOL FeLoadWfpDeviceObject(XPCH_CLIENT *Client, FE_WFP_DEVICE *Device);
+BOOL FeLoadWfpCallouts(XPCH_CLIENT *Client, FE_WFP_CALLOUT_LIST *List);
+void FeFreeWfpCallouts(FE_WFP_CALLOUT_LIST *List);
+BOOL FePrintWfpCallouts(XPCH_CLIENT *Client);
+BOOL FeLoadNsiChangeNotifications(XPCH_CLIENT *Client, FE_NSI_NOTIFY_LIST *List);
+void FeFreeNsiChangeNotifications(FE_NSI_NOTIFY_LIST *List);
+BOOL FePrintNsiChangeNotifications(XPCH_CLIENT *Client);
+BOOL FeLoadNsiChangeMonitor(XPCH_CLIENT *Client, FE_NSI_MONITOR_LIST *List);
+void FeFreeNsiChangeMonitor(FE_NSI_MONITOR_LIST *List);
+BOOL FePrintNsiChangeMonitor(XPCH_CLIENT *Client);
+BOOL FeLoadNmrProviders(XPCH_CLIENT *Client, FE_NMR_LIST *List);
+void FeFreeNmrProviders(FE_NMR_LIST *List);
+BOOL FePrintNmrProviders(XPCH_CLIENT *Client);
+extern const char *g_NvIrpNames[];
+extern const char *g_NvFastIoNames[];
+BOOL FeLoadIpsecDispatch(XPCH_CLIENT *Client, FE_IPSEC_DISPATCH *Dispatch);
+BOOL FePrintIpsecDispatch(XPCH_CLIENT *Client);
+BOOL FeLoadIpfDispatch(XPCH_CLIENT *Client, FE_IPF_DISPATCH *Dispatch);
+BOOL FePrintIpfDispatch(XPCH_CLIENT *Client);
+BOOL FePrintTdiCallbacks(XPCH_CLIENT *Client);
+BOOL FePrintTdiPnpClients(XPCH_CLIENT *Client);
+BOOL FePrintNdisOffloadHandlers(XPCH_CLIENT *Client);
+BOOL FePrintNdisOidTable(XPCH_CLIENT *Client);
+BOOL FePrintNdisInterfaces(XPCH_CLIENT *Client);
 
 #ifdef __cplusplus
 }
