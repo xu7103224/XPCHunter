@@ -2706,13 +2706,25 @@ __int64 CmdReadExportDirectory(__int64 InputBuffer, __int64 InputSize, char *Out
         memmove(OutputBuffer, ExportDirData, ExportDirSize);
         pEntry = &OutputBuffer[Size >> 1];
         memmove(pEntry, ExportDirData, ExportDirSize);
-        while ((unsigned __int64)pEntry <= (unsigned __int64)&pEntry[ExportDirSize - 24])
+        /* 【2026-10-24 修复 BSOD 0x3B（命令 0xEC）】旧写法
+              while ((ULONG64)pEntry <= (ULONG64)&pEntry[ExportDirSize - 24])
+           编译器把下标表达式算成 32 位（`lea eax,[rbp-0x18]`），再用
+           `add rax, rbx` 做 64 位相加 —— rax 的高 32 位是 lea 之后留下的
+           垃圾，上界被放大成巨值，循环越过用户缓冲区边界，读
+           `[rbx+0x10]` 时页错误（实测 fault = CmdReadExportDirectory+0x123）。
+           原版 0x1400609FB 是 `lea rcx,[rbx-0x18]; add rcx,r12` 全程 64 位。
+           这里改成显式 64 位算子上界。 */
         {
+            const unsigned __int64 EndLimit =
+                (unsigned __int64)pEntry + (unsigned __int64)ExportDirSize - 24u;
+            while ((unsigned __int64)pEntry <= EndLimit)
+            {
             if (*((_QWORD *)pEntry + 1))
                 *((_QWORD *)pEntry + 1) = KernelBase + *((unsigned int *)pEntry + 2);
             if (*((_QWORD *)pEntry + 2))
                 *((_QWORD *)pEntry + 2) = KernelBase + *((unsigned int *)pEntry + 4);
-            pEntry += 24;
+                pEntry += 24;
+            }
         }
         return 1;
     }

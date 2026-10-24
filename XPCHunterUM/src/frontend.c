@@ -6360,22 +6360,26 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
             printf("open device failed, GetLastError=%lu\n", GetLastError());
             return 1;
         }
+        printf("device opened, ioctl=0x%08X key=0x%02X\n",
+               g_Client.IoControlCode, g_Client.KeyByte);
         if (!XpchHandshake(&g_Client)) {
-            printf("handshake failed\n");
+            printf("handshake failed (ioctl=0x%08X key=0x%02X)\n",
+                   g_Client.IoControlCode, g_Client.KeyByte);
             XpchClose(&g_Client);
             return 1;
         }
+        printf("[1] TdiCallbacks\n"); fflush(stdout);
         ok = FePrintTdiCallbacks(&g_Client);
-        printf("\n");
+        printf("[2] TdiPnpClients\n"); fflush(stdout);
         if (!FePrintTdiPnpClients(&g_Client))
             ok = FALSE;
-        printf("\n");
+        printf("[3] NdisOffload\n"); fflush(stdout);
         if (!FePrintNdisOffloadHandlers(&g_Client))
             ok = FALSE;
-        printf("\n");
+        printf("[4] NdisOidTable\n"); fflush(stdout);
         if (!FePrintNdisOidTable(&g_Client))
             ok = FALSE;
-        printf("\n");
+        printf("[5] NdisInterfaces\n"); fflush(stdout);
         if (!FePrintNdisInterfaces(&g_Client))
             ok = FALSE;
         {
