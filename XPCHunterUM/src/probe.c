@@ -244,6 +244,9 @@ int main(int argc, char **argv)
     ULONG RawSize = 0x4000;
     ULONG RawInSize = 0;
     ULONG RawInValue = 0;
+    BOOL XDump = FALSE;
+    ULONG XDumpOff = 0;
+    ULONG XDumpCount = 0;
     UCHAR InHexBuf[64];
     ULONG InHexLen = 0;
     BOOL CbTable = FALSE;
@@ -256,6 +259,12 @@ int main(int argc, char **argv)
 
     fopen_s(&g_Log, "C:\\Users\\Public\\probe_trace.txt", "w");
     L("probe start\n");
+    {
+        int q;
+        L("argv[%d]:", argc);
+        for (q = 0; q < argc; q++) L(" [%s]", argv[q]);
+        L("\n");
+    }
 
     for (i = 1; i < argc; i++) {
         if (_stricmp(argv[i], "--live") == 0) Live = TRUE;
@@ -320,6 +329,18 @@ int main(int argc, char **argv)
                 InHexBuf[InHexLen++] = (UCHAR)strtoul(two, NULL, 16);
                 h += 2;
             }
+        }
+        else if (_stricmp(argv[i], "--xdump") == 0 && i + 4 < argc) {
+            /* --xdump <cmd> <outsize> <offset> <count>
+               只导出输出缓冲中 [offset, offset+count) 的 qword 列表。
+               0xE1 CmdEnumProcessListEx 要求 4MB 输出缓冲，整块按 16 字节
+               打印会有 26 万行；用本开关只取关心的区间（NDIS handler 表
+               在 +0x58 起的 48 个指针）。 */
+            XDump = TRUE;
+            Cmd = (ULONG)strtoul(argv[++i], NULL, 0);
+            RawSize = (ULONG)strtoul(argv[++i], NULL, 0);
+            XDumpOff = (ULONG)strtoul(argv[++i], NULL, 0);
+            XDumpCount = (ULONG)strtoul(argv[++i], NULL, 0);
         }
     }
     if (ScanLo < XPCH_CMD_MIN) ScanLo = XPCH_CMD_MIN;
@@ -1018,6 +1039,37 @@ int main(int argc, char **argv)
             HeapFree(GetProcessHeap(), 0, cb);
             XpchClose(&client);
             printf("=== done (dump-kmem) ===\n");
+            return 0;
+        }
+
+        if (XDump) {
+            UCHAR *outBuf = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, RawSize);
+            UCHAR rr = 0;
+            BOOL rok;
+
+            if (!outBuf) {
+                printf("out of memory\n");
+                XpchClose(&client);
+                return 1;
+            }
+            rok = XpchInvoke(&client, Cmd, NULL, 0, outBuf, RawSize, &rr);
+            printf("=== xdump 0x%02X outSize=0x%lX off=0x%lX count=%lu -> %s result=%u ===\n",
+                   Cmd, RawSize, XDumpOff, XDumpCount, rok ? "OK" : "REJECTED", rr);
+            if (rok) {
+                ULONG k;
+                for (k = 0; k < XDumpCount; k++) {
+                    ULONG o = XDumpOff + k * 8;
+                    ULONG64 v;
+                    if (o + 8 > RawSize)
+                        break;
+                    v = *(const ULONG64 *)(const void *)(outBuf + o);
+                    printf("  [%02lu] +0x%05lX = 0x%016llX\n",
+                           k, o, (unsigned long long)v);
+                }
+            }
+            HeapFree(GetProcessHeap(), 0, outBuf);
+            XpchClose(&client);
+            printf("=== done (xdump) ===\n");
             return 0;
         }
 

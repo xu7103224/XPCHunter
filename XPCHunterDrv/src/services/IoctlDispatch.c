@@ -531,10 +531,68 @@ __int64 CmdEnumKernelDrivers(__int64 InputBuffer, __int64 InputSize, _DWORD *Out
 // HandleMgmt.c 中的实现已逐条对齐，此处不再重复定义（曾因两处定义触发 LNK2005）。
 
 // CmdCheckProcessAccess — 检查进程访问权限
-// 对应原始驱动 sub_1400800C0
+// 对应原始驱动 sub_1400800C0（共 0x12C 字节，bool 返回）
+//
+// 【2026-10-24 修正】此前是 `return CheckProcessAccess();` —— 完全忽略入参。
+// CheckProcessAccess 是**无参**的分发器内部门禁（判"当前进程是否可以访问驱动"），
+// 与本命令的语义（"给定 PID/EPROCESS，该目标进程是否受保护"）不是一回事。
+// 实机差分：原版对 InSize=0 返回 REJ（result=0），我方返回 OK（result=1）。
+//
+// 原版流程（逐条对应 0x1400800C0）：
+//   InSize == 16 且入参指针与指针+16 都在用户态范围
+//   → ProbeForRead(0x10, 8)
+//   → ProcessId = Input[0]，TargetProcess = Input[1]
+//   → PsLookupProcessByProcessId(ProcessId, &Process)
+//   → TargetProcess 为 0 时用查到的 Process 回填（并写回输入副本 +8）
+//   → 目标 == GT[0x185]（驱动保护进程 / 当前进程）            → 1
+//   → 否则取 GT[GtObjectTypeInfoPtr] 解引用，等于目标          → 1
+//   → 否则 ValidateProcessObject(目标,0) != 1 || ProcessOperationWithAttach(目标)
+//   → Status >= 0 时 ObfDereferenceObject
 __int64 CmdCheckProcessAccess(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return CheckProcessAccess();
+    bool Result = 0;
+
+    if (InputSize == 16
+        && (ULONG64)InputBuffer < MmUserProbeAddress
+        && (ULONG64)(InputBuffer + 16) < MmUserProbeAddress)
+    {
+        _OWORD InputData;
+        PEPROCESS Process;
+        NTSTATUS Status;
+        struct _KPROCESS *TargetProcess;
+        struct _KPROCESS **pObjectTypeInfo;
+        bool IsProtected;
+
+        ProbeForRead((PVOID)InputBuffer, 0x10u, 8u);
+        InputData = *(_OWORD *)InputBuffer;
+
+        Status = PsLookupProcessByProcessId((HANDLE)InputData.qword[0], &Process);
+        TargetProcess = (struct _KPROCESS *)InputData.qword[1];
+        if (!TargetProcess)
+        {
+            if (Status >= 0)
+                TargetProcess = (struct _KPROCESS *)Process;
+        }
+
+        if ((struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x185) == TargetProcess)
+        {
+            Result = 1;
+        }
+        else
+        {
+            IsProtected = 0;
+            pObjectTypeInfo = (struct _KPROCESS **)GtRead(GtObjectTypeInfoPtr);
+            if (pObjectTypeInfo)
+                IsProtected = (*pObjectTypeInfo == TargetProcess);
+            if (!IsProtected)
+                Result = ValidateProcessObject(TargetProcess, 0) != 1
+                      || ProcessOperationWithAttach(TargetProcess);
+        }
+
+        if (Status >= 0)
+            ObfDereferenceObject(Process);
+    }
+    return Result;
 }
 
 // CmdProcessOperation — 进程操作命令处理

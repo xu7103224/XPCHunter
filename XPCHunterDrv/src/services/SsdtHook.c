@@ -2571,83 +2571,96 @@ char ParseNtKernelDataOffsets(__int64 ImageBase, unsigned int ImageSize)
         FindNdisMGetOffloadHandlersExport(ImageBase, ImageSize);
         Result = (unsigned int)GtRead(GtEprocessExtField44);
     }
-    __int64 OffloadOffset = GtRead(GtEprocessExtField11);
-    if (OffloadOffset && Result && Result < ImageSize)
+    __int64 SectionBase = GtRead(GtEprocessExtField11);
+    if (SectionBase && Result && Result < ImageSize)
     {
-        __int64 SectionBase = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
-        PE_DECODE_CONTEXT ReadContext; __int64 CumulativeSize = 0;   // 拆开：前者为 0x48 字节解码上下文
-        _DWORD SectionEntry[112];           // 描述符：原 [20] 仅 80 字节
-        __int64 SectionChar = 0, SectionAlignment = 0, EntryDataPtr = 0;
-        __int64 Value = 0;
+        __int64 ImageBaseVa = *(_QWORD *)(*(int *)(ImageBase + 60) + ImageBase + 48);
+        PE_DECODE_CONTEXT ReadContext;
+        PE_INSN_DESCRIPTOR SectionEntry;
         unsigned int EntryCumulSize = 0;
 
+        /* 【2026-10-24 修正】此前 SectionChar / SectionAlignment / Value(=EntrySize) /
+           EntryCumulSize 都是独立局部且从未赋值（恒 0），于是
+           `SectionOffset == 1298 && SectionAlignment == 0x40000` 恒不成立，
+           整个函数永远返回 0 → GT[0x384..0x38D] 全空 → 命令 0xEA 恒 REJ
+           （NdisTcpOffloadHandlers 无数据）。
+
+           原版 0x140061E08 里这几个"局部变量"实际是**描述符字段**：
+             rbp+0xE0+var_100 (desc+0x50)  → SectionChar     与 0x40 比较
+             rbp+0xE0+var_C8  (desc+0x88)  → SectionAlignment 与 0x40000 比较
+             rbp+0xE0+Value   (desc+0x78)  → EntrySize       写入 GT[0x386]
+             rbp+0x180+var_60 (desc+0xF0)  → 本轮消耗字节数，累加进 SectionOffset
+             rbp+0x1A8+var_38 (desc+0x118) → SectionDataPtr，+6 处是类型码
+           另外 GT[0x385..0x38D] 的基址是 **SectionBase**，不是 OffloadOffset；
+           旧实现六处全用 OffloadOffset，即使前置条件满足也会写错值。 */
         InitPESectionReadContext(ImageBase + Result, ImageSize - Result, 2, 0, -1, 0, 0, (__int64)&ReadContext);
         for (unsigned int i = 0; i < 0x1E; ++i)
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
+            int SectionOffset;
+            __int16 SectionType;
+            __int64 SectionChar;
+            int EntrySize;
+            __int64 SectionAlignment;
+            ULONG64 DataPtr;
+            unsigned int TargetRva;
+
+            /* 顺序与原版一致：先解码 → 用解码前读指针算 SectionOffset → 再推进。
+               原版把 CumulativeSize 直接放在 ctx+0x08（读指针本身），
+               所以"累计"其实就是读指针的推进；首轮推进量来自本轮描述符，
+               绝不能用上一轮（首轮时描述符尚未解码）的长度去推进。 */
+            if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)&SectionEntry) != 0)
                 break;
-            int SectionIndex = (int)(EntryCumulSize + CumulativeSize);
-            CumulativeSize += EntryCumulSize;
-            __int16 SectionOffset = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (SectionOffset == 1349)
+
+            EntryCumulSize = PE_DESC_SECTION_SIZE(&SectionEntry);
+            SectionOffset = (int)((ULONG)ReadContext.ReadPtr + EntryCumulSize);
+            ReadContext.ReadPtr += EntryCumulSize;
+
+            DataPtr = (ULONG64)PE_DESC_SECTION_DATA(&SectionEntry);
+            SectionType = *(__int16 *)(DataPtr + 6);
+            if (SectionType == 1349)
                 break;
-            if (SectionOffset == 1298 && SectionAlignment == 0x40000)
+
+            SectionChar = PE_DESC_FIELD_VALUE(&SectionEntry);        /* desc+0x50，qword 比 0x40 */
+            SectionAlignment = PE_DESC_FIELD_VALUE2(&SectionEntry);  /* desc+0x88，qword 比 0x40000 */
+            EntrySize = PE_DESC_FIELD_SIZE(&SectionEntry);           /* desc+0x78，dword */
+
+            if (SectionType != 1298 || SectionAlignment != 0x40000)
+                continue;
+            if (!EntrySize || SectionChar != 0x40)
+                continue;
+
+            TargetRva = (unsigned int)(SectionOffset + EntrySize - ImageBase);
+            if (!TargetRva || TargetRva >= ImageSize)
+                continue;
+
+            GtWrite(GtEprocessExtField46, TargetRva);
+            GtWrite(GtEprocessExtField47, (__int64)TargetRva + SectionBase);
+            GtWrite(GtEprocessExtField48, (unsigned int)EntrySize);
+            GtWrite(GtEprocessExtField49,
+                    SectionBase + (unsigned int)(ReadContext.ReadPtr - ImageBase - 4));
+
+            if ((ULONG64)TargetRva + 56 >= ImageSize)
+                return Size;
+
             {
-                if ((_DWORD)Value && SectionChar == 64)
+                static const int FieldPos[6] = { 8, 16, 24, 32, 40, 48 };
+                static const int FieldGt[6] = {
+                    GtEprocessExtField50, GtEprocessExtField51, GtEprocessExtField52,
+                    GtEprocessExtField53, GtEprocessExtField54, GtEprocessExtField55
+                };
+                int fi;
+                for (fi = 0; fi < 6; fi++)
                 {
-                    unsigned int SectionType = (unsigned int)(SectionIndex + (unsigned int)Value - ImageBase);
-                    if (SectionType && SectionType < ImageSize)
+                    ULONG64 FieldVa = *(ULONG64 *)(TargetRva + ImageBase + FieldPos[fi]);
+                    if (FieldVa > (ULONG64)ImageBaseVa)
                     {
-                        __int64 TargetRva = SectionType;
-                        GtWrite(GtEprocessExtField46, SectionType);
-                        GtWrite(GtEprocessExtField47, TargetRva + OffloadOffset);
-                        GtWrite(GtEprocessExtField48, (unsigned int)Value);
-                        GtWrite(GtEprocessExtField49, OffloadOffset + (unsigned int)(CumulativeSize - ImageBase - 4));
-                        if (TargetRva + 56 < ImageSize)
-                        {
-                            if (*(_QWORD *)(TargetRva + ImageBase + 8) > (unsigned __int64)SectionBase)
-                            {
-                                unsigned int TargetOffset = (unsigned int)(*(_DWORD *)(TargetRva + ImageBase + 8) - SectionBase);
-                                if (ImageSize > TargetOffset)
-                                    GtWrite(GtEprocessExtField50, OffloadOffset + TargetOffset);
-                            }
-                            if (*(_QWORD *)(TargetRva + ImageBase + 16) > (unsigned __int64)SectionBase)
-                            {
-                                unsigned int FieldOffset1 = (unsigned int)(*(_DWORD *)(TargetRva + ImageBase + 16) - SectionBase);
-                                if (ImageSize > FieldOffset1)
-                                    GtWrite(GtEprocessExtField51, OffloadOffset + FieldOffset1);
-                            }
-                            if (*(_QWORD *)(TargetRva + ImageBase + 24) > (unsigned __int64)SectionBase)
-                            {
-                                unsigned int FieldOffset2 = (unsigned int)(*(_DWORD *)(TargetRva + ImageBase + 24) - SectionBase);
-                                if (ImageSize > FieldOffset2)
-                                    GtWrite(GtEprocessExtField52, OffloadOffset + FieldOffset2);
-                            }
-                            if (*(_QWORD *)(TargetRva + ImageBase + 32) > (unsigned __int64)SectionBase)
-                            {
-                                unsigned int FieldOffset3 = (unsigned int)(*(_DWORD *)(TargetRva + ImageBase + 32) - SectionBase);
-                                if (ImageSize > FieldOffset3)
-                                    GtWrite(GtEprocessExtField53, OffloadOffset + FieldOffset3);
-                            }
-                            if (*(_QWORD *)(TargetRva + ImageBase + 40) > (unsigned __int64)SectionBase)
-                            {
-                                unsigned int FieldOffset4 = (unsigned int)(*(_DWORD *)(TargetRva + ImageBase + 40) - SectionBase);
-                                if (ImageSize > FieldOffset4)
-                                    GtWrite(GtEprocessExtField54, OffloadOffset + FieldOffset4);
-                            }
-                            if (*(_QWORD *)(TargetRva + ImageBase + 48) > (unsigned __int64)SectionBase)
-                            {
-                                unsigned int FieldOffset5 = (unsigned int)(*(_DWORD *)(TargetRva + ImageBase + 48) - SectionBase);
-                                if (ImageSize > FieldOffset5)
-                                    GtWrite(GtEprocessExtField55, OffloadOffset + FieldOffset5);
-                            }
-                            return 1;
-                        }
-                        return Size;
+                        unsigned int FieldOffset = (unsigned int)(FieldVa - ImageBaseVa);
+                        if (ImageSize > FieldOffset)
+                            GtWrite((GLOBAL_TABLE_INDEX)FieldGt[fi], SectionBase + FieldOffset);
                     }
                 }
             }
+            return 1;
         }
     }
     return Size;

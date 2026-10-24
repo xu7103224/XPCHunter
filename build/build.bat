@@ -46,7 +46,7 @@ for %%f in ("%WDK_DIR%") do set WDK_S=%%~sf
 
 REM Step 1: Use msbuild to compile only (the vcxproj has the right WDK config)
 echo Step 1: Compiling with msbuild...
-msbuild "%PROJ_DIR%\XPCHunterDrv.vcxproj" /p:Configuration=%BUILD_CFG% /p:Platform=%BUILD_ARCH% /t:ClCompile /p:CLToolPath="%VS2019_DIR%\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64" /v:m
+msbuild "%PROJ_DIR%\XPCHunterDrv.vcxproj" /p:Configuration=%BUILD_CFG% /p:Platform=%BUILD_ARCH% /t:ClCompile /p:CLToolPath="%VS2019_DIR%\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64" /m:1 /v:m
 
 if errorlevel 1 (
     echo ERROR: Compilation failed!

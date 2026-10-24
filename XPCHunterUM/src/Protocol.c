@@ -587,17 +587,27 @@ BOOL XpchHandshake(PXPCH_CLIENT Client)
     ULONG Ssdt = 0;
     UCHAR Result = 0;
     UCHAR Packet[0x100];
+    BOOL Built;
+    BOOL Ok22;
 
     /* 走路径 C：0x100 字节合法许可包。
        这样既能把 GT[0x304] 置 1，又不会触发 AllocProcessInfoBuffer
        去清空命令表的槽 198..224，同时 GT[0x1E0]（ioctl 码）净变化为 0。 */
-    if (XpchBuildLicensePacket(Packet))
-        XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO,
-                   Packet, sizeof(Packet), &Ssdt, sizeof(Ssdt), &Result);
+    Built = XpchBuildLicensePacket(Packet);
+    Ok22 = FALSE;
+    if (Built)
+        Ok22 = XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO,
+                          Packet, sizeof(Packet), &Ssdt, sizeof(Ssdt), &Result);
 
     if (XpchInvoke(Client, XPCH_CMD_GET_MODULE_COUNT,
-                   NULL, 0, &Build, sizeof(Build), &Result))
-        return Build != 0;
-
+                   NULL, 0, &Build, sizeof(Build), &Result)) {
+        if (Build != 0)
+            return TRUE;
+        printf("handshake: 0x24 returned 0 build (0x22: built=%d ok=%d ssdt=%lu)\n",
+               Built, Ok22, Ssdt);
+        return FALSE;
+    }
+    printf("handshake: 0x24 rejected (0x22: built=%d ok=%d ssdt=%lu result=%u)\n",
+           Built, Ok22, Ssdt, (unsigned)Result);
     return FALSE;
 }
