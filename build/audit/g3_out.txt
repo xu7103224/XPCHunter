@@ -1,0 +1,54 @@
+=== G3 unload/reload cycles (current build) ===
+
+--- round 1 ---
+        STATE              : 4  RUNNING 
+REG_ACTIVITY:
+  reg-ok 
+  reg-write-ok 
+FILE_ACTIVITY:
+  file-ok 
+CMD_ACTIVITY:
+argv[5]: [C:\Users\Public\xpch_probe.exe] [--live] [--handshake] [--cmd] [0x24]
+  [PASS] command in range                             
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x24 -> OK, result=1, GetLastError=0
+
+--- stop round 1 ---
+        STATE              : 1  STOPPED 
+        STATE              : 4  RUNNING 
+
+--- round 2 ---
+        STATE              : 4  RUNNING 
+REG_ACTIVITY:
+  reg-ok 
+  reg-write-ok 
+FILE_ACTIVITY:
+  file-ok 
+CMD_ACTIVITY:
+argv[5]: [C:\Users\Public\xpch_probe.exe] [--live] [--handshake] [--cmd] [0x24]
+  [PASS] command in range                             
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x24 -> OK, result=1, GetLastError=0
+
+--- stop round 2 ---
+        STATE              : 1  STOPPED 
+        STATE              : 4  RUNNING 
+
+--- round 3 ---
+        STATE              : 4  RUNNING 
+REG_ACTIVITY:
+  reg-ok 
+  reg-write-ok 
+FILE_ACTIVITY:
+  file-ok 
+CMD_ACTIVITY:
+argv[5]: [C:\Users\Public\xpch_probe.exe] [--live] [--handshake] [--cmd] [0x24]
+  [PASS] command in range                             
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x24 -> OK, result=1, GetLastError=0
+
+--- stop round 3 ---
+        STATE              : 1  STOPPED 
+        STATE              : 4  RUNNING 
+
+=== G3 done, guest still alive ===
