@@ -530,9 +530,14 @@ BOOL FeLoadNdisHandlers(XPCH_CLIENT *Client, FE_NDIS_HANDLER_LIST *List)
         return FALSE;
     }
 
-    /* 两种表共用同一段槽区；A 在前、B 紧随其后（原版按同样顺序扫描）。
-       槽从 out+0x58 起，共 A_MAX + B_MAX 个 qword。 */
-    Total = FE_NDIS_HANDLER_TABLE_A_MAX + FE_NDIS_HANDLER_TABLE_B_MAX;
+    /* 【2026-10-25 修正】只收"看起来是内核指针"的值。
+       实测 0xE1 的 +0x58 区间在本机是进程记录区
+       （形如 0x00000002_00000008 这类小整数对），不是 handler 函数指针；
+       原版与我方该区间逐字节一致。照单全收会把整数当函数地址展示 ——
+       那是伪造数据。真正的 NDIS handler 必然是内核地址。 */
+    /* 原版循环边界：lea rax,[r15+58h] 到 lea r12,[r15+1D8h] → 48 个槽。
+       名称表(A/B)只用于给这些槽命名，不代表槽的数量。 */
+    Total = FE_NDIS_HANDLER_SLOT_COUNT;
     for (i = 0; i < Total; i++) {
         ULONG64 Value = *(const ULONG64 *)(const void *)
                         (Buffer + FE_NDIS_HANDLER_BASE_OFF + (size_t)i * 8);
@@ -540,16 +545,11 @@ BOOL FeLoadNdisHandlers(XPCH_CLIENT *Client, FE_NDIS_HANDLER_LIST *List)
         ULONG InTable;
 
         List->Scanned++;
-        if (!Value)
-            continue;                 /* 本机未注册该 handler */
+        if (Value < 0xFFFF000000000000ULL)
+            continue;                 /* 非内核指针：不是 handler */
 
-        if (i < FE_NDIS_HANDLER_TABLE_A_MAX) {
-            TableIdx = 1;
-            InTable = i;
-        } else {
-            TableIdx = 2;
-            InTable = i - FE_NDIS_HANDLER_TABLE_A_MAX;
-        }
+        TableIdx = 1;
+        InTable = i;              /* 48 个槽全部落在表 A 的范围内 */
 
         {
             FE_NDIS_HANDLER_ENTRY *Item = &List->Items[List->Count];
@@ -580,11 +580,24 @@ void FePrintNdisHandlers(XPCH_CLIENT *Client)
     }
     printf("NdisHandler (cmd 0xE1, %lu live / %lu scanned)\n",
            List.Count, List.Scanned);
+    /* 【2026-10-25 定性】0xE1（CmdEnumProcessListEx）的输出是**进程记录区**
+       （每项 0x1E0，含 EPROCESS/标志/回调槽），不是 NDIS handler 表。
+       原版客户端把 handler 名称表（off_1406D49F0 / off_1406D5050）用在
+       另一条数据链上，而那条链的确切偏移在本机无法通过实测确证 ——
+       +0x58 区间取到的是 0x00000002_00000008 这类整数对。
+
+       因此这里**只展示能确认是内核指针的项**，并在条数可疑时明确说明
+       偏移未经确证；宁可为空，也不把整数或错位数据当成 handler 函数地址。 */
     if (!List.Count) {
-        printf("  (all slots are 0 - no NDIS miniport/protocol handlers "
-               "registered on this machine)\n");
+        printf("  (no kernel-pointer entries in this region. NOTE: the exact\n"
+               "   offset of the NDIS handler array inside 0xE1's output is\n"
+               "   not yet pinned down; on this machine +0x58 holds process\n"
+               "   records, not handler pointers. Nothing is fabricated.)\n");
         return;
     }
+    printf("  NOTE: offset is not yet confirmed - entries below are only the\n"
+           "        values that look like kernel pointers; do not assume the\n"
+           "        names line up with them.\n");
     printf("  %-4s %-5s %-38s %s\n", "Tbl", "Idx", "Fun Name", "Entry");
     for (i = 0; i < List.Count; i++) {
         printf("  %-4lu %-5lu %-38s 0x%016llX\n",

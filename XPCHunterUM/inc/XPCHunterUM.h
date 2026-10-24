@@ -1067,6 +1067,14 @@ typedef struct _FE_NDIS_OFFLOAD_LIST {
 #define FE_NDIS_HANDLER_TABLE_B_MAX 59u
 #define FE_NDIS_HANDLER_OUT_SIZE   0x400000u
 #define FE_NDIS_HANDLER_BASE_OFF   0x58u
+/* 原版 0x14009B422/0x14009B429 的循环边界是
+       lea r12, [r15+1D8h]      <- 上界
+       lea rax, [r15+58h]       <- 起点
+   即真正扫描的槽数是 (0x1D8-0x58)/8 = 48，不是 75+59。
+   而且 handler 指针实际来自步长 0x1E0 的**记录区**（0x14009B634
+   `imul r12, rax, 1E0h`），+0x58 这段是另一组 48 项。
+   在语义确证之前只按 48 个槽扫描，不臆测更多。 */
+#define FE_NDIS_HANDLER_SLOT_COUNT 48u
 
 typedef struct _FE_NDIS_HANDLER_ENTRY {
     char    Name[56];        /* 客户端静态名称表里的名字 */
