@@ -2724,11 +2724,16 @@ LABEL_10:
         if (SyscallOffset < FileSize)
         {
             FileOffset = SyscallOffset;
+            /* 【2026-10-24】三个参数都必须是完整 64 位指针 ——
+               原版 0x140036C8F/92 是 `add rbx, r8` / `add rcx, r8`（64 位）。
+               旧代码把 pEndPtr 截成 (_DWORD)、把 SectionBase 截成 (int)，
+               函数内部据此算出的读指针越界，ReadPESectionEntry 直接页错误。
+               pEndPtr 保留 32 位形态仅供后续 Compare 使用。 */
             pEndPtr = (_DWORD)(ULONG_PTR)pFileBuffer + FileSize;
             DataSectionOffset = (unsigned int)FindObjectOperationDataSection(
-                (__int64)pFileBuffer + FileOffset,
-                (unsigned int)(ULONG_PTR)pFileBuffer + FileSize,
-                (int)(ULONG_PTR)pFileBuffer);
+                (__int64)(ULONG_PTR)pFileBuffer + FileOffset,
+                (ULONG64)(ULONG_PTR)pFileBuffer + FileSize,
+                (ULONG64)(ULONG_PTR)pFileBuffer);
             if (DataSectionOffset)
             {
                 if (DataSectionOffset < FileSize)

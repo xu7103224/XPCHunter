@@ -3029,50 +3029,84 @@ char CompareKernelPageAttached(void *PageAddress, _DWORD *OutputBuffer, struct _
 
 // FindObjectOperationDataSection — 查找对象操作数据节区
 // 对应原始驱动 0x140036970（264 字节）
-__int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, int ImageSize, int SectionBase)
+// 【2026-10-24 重写】旧实现有两个未初始化变量（EntrySize2 / ContextOffset
+//   在赋值前就被用于 CurrentRva），且缺少原版的 1368(0x558) 分支语义，
+//   导致返回值恒为 0 —— 命令 0x33 因此永远拿不到对象表（GT[0x2E4]=0）。
+// 【按 0x140036970..0x140036A77 逐条转写】
+//   r14d = ImageSize - SectionBase            → MaxOffset
+//   esi = edi = 0                             → 候选偏移 / 上一轮偏移
+//   ebp = 0                                   → 循环计数
+//   循环最多 0x64 次：
+//     ReadPESectionEntry 失败 → 退出
+//     推进读指针：ctx+0x08 += desc+0xF0；ecx = 推进后的读指针（32 位）
+//     TypeValue = *(WORD*)(desc[0x118] + 6)
+//     TypeValue == 0x545 → 退出循环（转 0x140036A45）
+//     TypeValue == 0x558 && (desc+0x88 & 0x4000000) && desc+0x78 != 0:
+//         esi = edi
+//         edi = desc+0x78 - SectionBase + ecx
+//     继续
+//   0x140036A45: 若 esi != 0 且 esi < MaxOffset → ebx = esi
+//   返回 ebx
+__int64 __fastcall FindObjectOperationDataSection(__int64 ImageBase, ULONG64 ImageEnd, ULONG64 SectionBase)
 {
-    unsigned int FoundOffset;
-    unsigned int MaxOffset;
-    unsigned int PrevOffset;
-    unsigned int CurrentOffset;
-    int ScanCount;
-    int CurrentRva;
+    unsigned __int64 MaxOffset;
+    unsigned int PrevOffset = 0;      // esi
+    unsigned int CurOffset = 0;       // edi
+    unsigned int Found = 0;           // ebx
+    int Iteration = 0;                // ebp
     __int16 TypeValue;
-    PE_DECODE_CONTEXT PESectionContext; // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 ContextOffset;
-    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-    int EntryOffset;
-    __int64 FlagsField;
-    unsigned int EntrySize2;
-    __int64 TypePtr;
+    PE_DECODE_CONTEXT Ctx;
+    _DWORD Entry[112];                // 描述符 0x120 字节
 
-    FoundOffset = 0;
-    MaxOffset = ImageSize - SectionBase;
-    PrevOffset = 0;
-    CurrentOffset = 0;
-    InitPESectionReadContext(ImageBase, (ULONG)(ImageSize - ImageBase), 2, 0, -1, 0, 0, (__int64)&PESectionContext);
-    ScanCount = 0;
-    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&PESectionContext, (PULONG)SectionEntry))
+    /* 【2026-10-24】Size 必须按原版的 32 位减法算：
+       0x1400369B3 `sub edx, ecx` —— edx=ImageSize(已是 32 位截断的结束地址)、
+       ecx=ImageBase 低 32 位，结果即「从 ImageBase 到缓冲区末尾的字节数」。
+       若在 C 里用 64 位 ImageBase 去减，会把 64 位地址混进来得到巨值，
+       ReadPESectionEntry 随即越界（实测 BSOD 0x3B @ +0x79）。 */
     {
-        *(ULONG64 *)((PUCHAR)&PESectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        CurrentRva = (int)(EntrySize2 + ContextOffset);
-        ContextOffset += EntrySize2;
-        TypeValue = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-        if (TypeValue == 1349)
-        {
-            if (PrevOffset && PrevOffset < MaxOffset)
-                return PrevOffset;
-            return FoundOffset;
-        }
-        if (TypeValue == 1368 && (FlagsField & 0x4000000) != 0 && EntryOffset)
-        {
-            PrevOffset = CurrentOffset;
-            CurrentOffset = CurrentRva + EntryOffset - SectionBase;
-        }
-        if (++ScanCount >= 0x64)
-            return FoundOffset;
+        /* 原版 0x1400369A7 `sub r14d, r8d`：MaxOffset = 结束地址 - 基址（低 32 位）
+           0x1400369B3 `sub edx, ecx`：Size 同理，且同样只取低 32 位。
+           两边都是 64 位指针的低 32 位相减，这在同一 4GB 段内等价于真实长度。 */
+        ULONG Size32 = (ULONG)((ULONG)ImageEnd - (ULONG)(ULONG_PTR)ImageBase);
+        MaxOffset = (unsigned __int64)((ULONG)ImageEnd - (ULONG)SectionBase);
+        InitPESectionReadContext(ImageBase, Size32, 2, 0, -1, 0, 0, (__int64)&Ctx);
     }
-    return FoundOffset;
+
+    for (Iteration = 0; Iteration < 0x64; ++Iteration)
+    {
+        ULONG64 NewReadPtr;
+
+        /* 【顺序依据】原版 0x1400369DA `call ReadPESectionEntry` 先解码，
+           0x1400369E3 `mov eax,[var_68]` 取本轮消耗量、0x1400369EF 加到读指针
+           后回写（0x1400369FA）。即「先解码、再用本轮长度推进」。
+           与同族 FindObjectOperationBaseOffset 的「先推进、再解码」写法不同，
+           但两者首轮推进量都是 0，结果一致；这里严格照本函数的原始顺序。 */
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
+            break;
+
+        /* 【2026-10-24】原版 0x1400369EF 是 `add rcx, rax`（64 位加法）。
+           旧代码把读指针截成 ULONG 再加，高位被丢掉，内核池地址
+           （ffff8285_xxxxxxxx）会变成低位小整数，随后越界读即页错误。 */
+        NewReadPtr = Ctx.ReadPtr + (ULONG64)*(ULONG *)((PUCHAR)Entry + 0xF0);
+        Ctx.ReadPtr = NewReadPtr;                          // 0x1400369FA
+
+        TypeValue = *(__int16 *)(*(ULONG64 *)((PUCHAR)Entry + 0x118) + 6);
+        if (TypeValue == 0x545)                            // 0x140036A0B
+            break;
+
+        if (TypeValue == 0x558                             // 0x140036A15
+            && (*(ULONG64 *)((PUCHAR)Entry + 0x88) & 0x4000000ULL) != 0
+            && *(ULONG *)((PUCHAR)Entry + 0x78) != 0)
+        {
+            PrevOffset = CurOffset;                        // 0x140036A2E
+            CurOffset = *(ULONG *)((PUCHAR)Entry + 0x78)
+                        - (ULONG)SectionBase + (ULONG)NewReadPtr;  // 0x140036A37/3A
+        }
+    }
+
+    if (PrevOffset && (unsigned __int64)PrevOffset < MaxOffset)   // 0x140036A45..4C
+        Found = PrevOffset;
+    return (__int64)Found;
 }
 
 // FindObjectOperationBaseOffset — 查找对象操作基址偏移

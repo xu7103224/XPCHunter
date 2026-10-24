@@ -1448,7 +1448,10 @@ char VerifyServiceTableDriverFile(__int64 DiskBuffer, unsigned int DiskSize);
 void BuildProcessContextExportTable(void);
 __int64 QueryObjectOperationByVersion(__int64 ImageBase, int ImageSize, int SectionBase);
 __int64 FindObjectOperationBaseOffset(__int64 ImageBase, int ImageSize, int SectionBase);
-__int64 FindObjectOperationDataSection(__int64 ImageBase, int ImageSize, int SectionBase);
+/* 【2026-10-24】ImageSize 实为「缓冲区结束地址」（64 位），
+   SectionBase 也是完整指针。原版 0x140036C8F/92 是 64 位 add。
+   旧签名用 int 会把 64 位地址截断成 32 位，函数内算出的读指针越界。 */
+__int64 FindObjectOperationDataSection(__int64 ImageBase, ULONG64 ImageEnd, ULONG64 SectionBase);
 char CmdObjectOperationByHandle(__int64 *pInputBuffer, int InputSize);
 char CompareKernelPageAttached(void *PageAddress, _DWORD *OutputBuffer, struct _KPROCESS *TargetProcess, __int64 (*ReadMemoryCallback)(void *));
 char DecryptAesHexString(unsigned char *HexBuffer, unsigned int HexLength, _QWORD *pSyscallCount);
