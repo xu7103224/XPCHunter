@@ -6058,7 +6058,7 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
     {
         USHORT Type;
         ULONG  Len, Cumul;
-        ULONG  F40, F78, F8C; ULONG64 F50, F88;
+        ULONG  F58, F70, F78, F90; ULONG64 F50, F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x1400688A2
             return Result;
@@ -6071,18 +6071,29 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
         if (Type == 0x558 && (ULONG)(++Count558) > 1)             // 0x1400688DE
             return Result;
 
-        F40 = *(ULONG *)((PUCHAR)Entry + 0x40);
-        F50 = *(ULONG64 *)((PUCHAR)Entry + 0x50);
-        F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
-        F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
-        F8C = *(ULONG *)((PUCHAR)Entry + 0x8C);
+        /* 【2026-10-26 修正】原版 0x1400687D0 的字段映射（描述符基址 = rbp-0x60）：
+             v20 (rbp-0x10) → +0x50  （比较 64）
+             v21 (rbp-0x08) → +0x58  （存 v8，供后续比较）
+             Value(rbp+0x10)→ +0x70  （1049 分支的输出值）
+             v23 (rbp+0x18) → +0x78  （RVA 字段 / 输出值）
+             v24 (rbp+0x28) → +0x88  （比较 0x40000 / 0x10000 / 0x2000000）
+             v25 (rbp+0x30) → +0x90  （与 v8 比较）
+           我方此前用 +0x40 当"字段值"、+0x8C 当"SavedField"，
+           两处偏移都错，导致 1298/1049 分支的 SavedField 比对永不成立，
+           GT[0x7C0] 恒为 0 → 0x0F4 返回 0。 */
+        F50  = *(ULONG64 *)((PUCHAR)Entry + 0x50);    /* v20 */
+        F58  = *(ULONG   *)((PUCHAR)Entry + 0x58);    /* v21 */
+        F70  = *(ULONG   *)((PUCHAR)Entry + 0x70);    /* Value */
+        F78  = *(ULONG   *)((PUCHAR)Entry + 0x78);    /* v23 */
+        F88  = *(ULONG64 *)((PUCHAR)Entry + 0x88);    /* v24 */
+        F90  = *(ULONG   *)((PUCHAR)Entry + 0x90);    /* v25 */
 
         if (Type == 0x510 && F88 == 0x40000ULL && F78 != 0 && F50 == 64)   // 0x14006890C
         {
             ULONG Rva = Cumul + F78 - (ULONG)(ULONG_PTR)PeBase;   // 0x140068912
             if (Rva && Rva < PeSize && !SavedRva)                 // 0x140068924
             {
-                SavedField = F8C;                                 // 0x14006892A
+                SavedField = F58;                                 /* v21 → +0x58 */
                 SavedRva = Rva;                                   // 0x14006892E
             }
         }
@@ -6092,7 +6103,7 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
             if (SavedRva                                          // 0x14006896C
                 && (ULONG64)(ModuleBase + (__int64)SavedRva)
                        == (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x7BA)
-                && SavedField == (ULONG64)F78)
+                && SavedField == (ULONG64)F90)                    /* v25 → +0x90 */
             {
                 GtWrite((GLOBAL_TABLE_INDEX)0x7C0, (__int64)F78);      // LABEL_35
                 return 1;
@@ -6102,9 +6113,9 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
                  && SavedRva
                  && (ULONG64)(ModuleBase + (__int64)SavedRva)
                         == (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x7BA)
-                 && SavedField == (ULONG64)F40)
+                 && SavedField == (ULONG64)F58)                    /* v21 → +0x58 */
         {
-            GtWrite((GLOBAL_TABLE_INDEX)0x7C0, (__int64)F40);      // LABEL_35
+            GtWrite((GLOBAL_TABLE_INDEX)0x7C0, (__int64)F70);      /* Value → +0x70 */
             return 1;
         }
     }
