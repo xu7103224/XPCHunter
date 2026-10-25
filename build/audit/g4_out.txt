@@ -207,9 +207,9 @@ kernel modules: 195
   base=FFFFF803270F0000 size=0x40000     ndiswan.sys              \SystemRoot\System32\drivers\ndiswan.sys
   base=FFFFF80327130000 size=0x20000     condrv.sys               \SystemRoot\System32\drivers\condrv.sys
   base=FFFFF80327150000 size=0x20000     KslD.sys                 \SystemRoot\system32\drivers\wd\KslD.sys
-  base=FFFFF80327170000 size=0x30000     WdNisDrv.sys             \SystemRoot\system32\drivers\wd\WdNisDrv.sys
-  base=FFFFF803271A0000 size=0xE0000     XPCHunterDrv.sys         \??\C:\Windows\System32\drivers\XPCHunterDrv.sys
-  base=FFFFF80327280000 size=0x8A0000    ndisuio.sys              \SystemRoot\system32\drivers\ndisuio.sys
+  base=FFFFF80327170000 size=0x110000    WdNisDrv.sys             \SystemRoot\system32\drivers\wd\WdNisDrv.sys
+  base=FFFFF80327280000 size=0x100000    ndisuio.sys              \SystemRoot\system32\drivers\ndisuio.sys
+  base=FFFFF80327380000 size=0x7A0000    XPCHunterDrv.sys         \??\C:\Windows\System32\drivers\XPCHunterDrv.sys
   base=FFFFF80327B20000 size=0x0         srv2.sys                 \SystemRoot\System32\DRIVERS\srv2.sys
 
 ---------- "--kernel-extra-cli" ----------
@@ -1652,19 +1652,20 @@ object types: available
 0x79 forbid which=0 target=FFFFF8032016F3C8 enable=1 -> OK result=1
 ---------- "--exam-cli" ----------
 PC Hunter Professional --- Computer Examination Report
-Examination Date: 2026-10-25 14:00:24
+Examination Date: 2026-10-25 14:32:31
 Examination Items: 8 (risk: 1, warn: 2, info: 5)
   [INFO] Operating system             Windows 10 1903
   [RISK] Hidden registry keys         3 suspicious registry keys
   [WARN] Services                     630 services, 19 hidden (registry keys: 702)
   [WARN] Startup entries              38 startup entries, 30 CLSID overrides
   [INFO] Kernel modules               195 kernel modules loaded
-  [INFO] Registry handles             3857 open Key handles system-wide
+  [INFO] Registry handles             3635 open Key handles system-wide
   [INFO] File scan                    C:\Windows\System32: 4310 files, clean
   [INFO] File scan                    C:\Windows\Temp: 304 files, clean
 
 ---------- "--fireeye-cli" ----------
-fireeye: no path
+fireeye analysis for: Ð²ì ÿ
+  verdict : cannot analyse (cannot compute SHA-256)
 
 ---------- "--trojan-cli" ----------
 === Trojan Detection (PhysicalDrive0) ===
@@ -1704,7 +1705,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   Appinfo                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
   applockerfltr                    STOPPED   dll=-   system32\drivers\applockerfltr.sys
   AppReadiness                     STOPPED   dll=yes C:\Windows\System32\svchost.exe
-  AppXSvc                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  AppXSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
   arcsas                           STOPPED   dll=-   System32\drivers\arcsas.sys
   AskLinkService                   STOPPED   dll=-   C:\Program Files\AskLink\4.0.12.6\AskLink.exe
   AskLinkVGC                       RUNNING   dll=-   \SystemRoot\System32\drivers\AskLinkVGC.sys
@@ -1723,7 +1724,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   Beep                             RUNNING   dll=-   (?)
   BFE                              RUNNING   dll=yes C:\Windows\system32\svchost.exe
   bindflt                          STOPPED   dll=-   \SystemRoot\system32\drivers\bindflt.sys
-  BITS                             RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  BITS                             STOPPED   dll=yes C:\Windows\System32\svchost.exe
   bowser                           RUNNING   dll=-   system32\DRIVERS\bowser.sys
   BrokerInfrastructure             RUNNING   dll=yes C:\Windows\system32\svchost.exe
   Browser                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
@@ -1742,7 +1743,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   bttflt                           STOPPED   dll=-   System32\drivers\bttflt.sys
   buttonconverter                  STOPPED   dll=-   \SystemRoot\System32\drivers\buttonconverter.sys
   CAD                              STOPPED   dll=-   \SystemRoot\System32\drivers\CAD.sys
-  camsvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  camsvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
   cdfs                             STOPPED   dll=-   system32\DRIVERS\cdfs.sys
   CDPSvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
   cdrom                            RUNNING   dll=-   \SystemRoot\System32\drivers\cdrom.sys
@@ -1752,7 +1753,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   circlass                         STOPPED   dll=-   \SystemRoot\System32\drivers\circlass.sys
   CldFlt                           RUNNING   dll=-   system32\drivers\cldflt.sys
   CLFS                             RUNNING   dll=-   System32\drivers\CLFS.sys
-  ClipSVC                          RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  ClipSVC                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
   CmBatt                           RUNNING   dll=-   \SystemRoot\System32\drivers\CmBatt.sys
   CNG                              RUNNING   dll=-   System32\Drivers\cng.sys
   cnghwassist                      STOPPED   dll=-   System32\DRIVERS\cnghwassist.sys
@@ -1777,7 +1778,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   DisplayEnhancementService        STOPPED   dll=yes C:\Windows\system32\svchost.exe
   DmEnrollmentSvc                  STOPPED   dll=yes C:\Windows\system32\svchost.exe
   dmvsc                            STOPPED   dll=-   \SystemRoot\System32\drivers\dmvsc.sys
-  dmwappushservice                 RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  dmwappushservice                 STOPPED   dll=yes C:\Windows\system32\svchost.exe
   Dnscache                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
   DoSvc                            RUNNING   dll=-   C:\Windows\System32\svchost.exe
   dot3svc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
@@ -1817,7 +1818,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   gencounter                       RUNNING   dll=-   \SystemRoot\System32\drivers\vmgencounter.sys
   genericusbfn                     STOPPED   dll=-   \SystemRoot\System32\DriverStore\FileRepository\genericusbfn.inf_amd64_dbcdd1a51a139f61\genericusbfn.sys
   GPIOClx0101                      STOPPED   dll=-   System32\Drivers\msgpioclx.sys
-  gpsvc                            RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  gpsvc                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
   GpuEnergyDrv                     RUNNING   dll=-   System32\drivers\gpuenergydrv.sys
   GraphicsPerfSvc                  STOPPED   dll=yes C:\Windows\System32\svchost.exe
   HdAudAddService                  RUNNING   dll=-   \SystemRoot\System32\drivers\HdAudio.sys
@@ -1966,7 +1967,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   NetSetupSvc                      STOPPED   dll=yes C:\Windows\System32\svchost.exe
   NetTcpPortSharing                STOPPED   dll=-   C:\Windows\Microsoft.NET\Framework64\v4.0.30319\SMSvcHost.exe
   netvsc                           STOPPED   dll=-   \SystemRoot\System32\drivers\netvsc.sys
-  NgcCtnrSvc                       RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  NgcCtnrSvc                       STOPPED   dll=yes C:\Windows\system32\svchost.exe
   NgcSvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
   NlaSvc                           RUNNING   dll=yes C:\Windows\System32\svchost.exe
   Npfs                             RUNNING   dll=-   (?)
@@ -2075,7 +2076,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   SiSRaid4                         STOPPED   dll=-   System32\drivers\sisraid4.sys
   SmartSAMD                        STOPPED   dll=-   System32\drivers\SmartSAMD.sys
   smphost                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
-  SmsRouter                        RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  SmsRouter                        STOPPED   dll=yes C:\Windows\system32\svchost.exe
   SNMPTRAP                         STOPPED   dll=-   C:\Windows\System32\snmptrap.exe
   spaceport                        RUNNING   dll=-   System32\drivers\spaceport.sys
   SpatialGraphFilter               STOPPED   dll=-   System32\drivers\SpatialGraphFilter.sys
@@ -2254,11 +2255,11 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   WinVerbs                         STOPPED   dll=-   \SystemRoot\System32\drivers\winverbs.sys
   wisvc                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
   WlanSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
-  wlidsvc                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  wlidsvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
   wlpasvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
   WManSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
   WmiAcpi                          STOPPED   dll=-   \SystemRoot\System32\drivers\wmiacpi.sys
-  wmiApSrv                         RUNNING   dll=-   C:\Windows\system32\wbem\WmiApSrv.exe
+  wmiApSrv                         STOPPED   dll=-   C:\Windows\system32\wbem\WmiApSrv.exe
   WMPNetworkSvc                    STOPPED   dll=-   C:\Program Files\Windows Media Player\wmpnetwk.exe
   Wof                              RUNNING   dll=-   (?)
   workfolderssvc                   STOPPED   dll=yes C:\Windows\System32\svchost.exe
@@ -2269,7 +2270,7 @@ Services: 630 / Hidden Services: 19  (registry keys: 702)
   ws2ifsl                          RUNNING   dll=-   \SystemRoot\system32\drivers\ws2ifsl.sys
   wscsvc                           RUNNING   dll=yes C:\Windows\System32\svchost.exe
   WSearch                          RUNNING   dll=-   C:\Windows\system32\SearchIndexer.exe
-  wuauserv                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  wuauserv                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
   WudfPf                           STOPPED   dll=-   system32\drivers\WudfPf.sys
   WUDFRd                           RUNNING   dll=-   \SystemRoot\System32\drivers\WUDFRd.sys
   WwanSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
@@ -2471,7 +2472,7 @@ C:\Windows\System32\ntoskrnl.exe -> signature valid and trusted
   WinVerifyTrust status = 0x00000000
 
 ---------- "--reghandles-cli" ----------
-registry handles: 3856  (object type index for "Key" = 44)
+registry handles: 3632  (object type index for "Key" = 44)
   pid=4      handle=0x58       access=0x2001F    object=FFFFAD88184797B0
   pid=4      handle=0x60       access=0x0        object=FFFFAD88184114A0
   pid=4      handle=0x64       access=0x20019    object=FFFFAD88184798B0
@@ -2512,7 +2513,7 @@ registry handles: 3856  (object type index for "Key" = 44)
   pid=4      handle=0x1A0      access=0x8        object=FFFFAD88188DE570
   pid=4      handle=0x1A8      access=0x8        object=FFFFAD88188DEF70
   pid=4      handle=0x1B0      access=0xB        object=FFFFAD88188E0D70
-  ... (3816 more)
+  ... (3592 more)
 
 ---------- "--reghidden-cli" ----------
 hidden registry items: 3
@@ -2524,7 +2525,7 @@ hidden registry items: 3
       reason: key name has control chars or trailing space/dot
 
 ---------- "--regkey-cli HKLM\SOFTWARE\Microsoft" ----------
-reg key: HKLM\SOFTWARE\Microsoft"  (0 values)
+reg key: HKLM\SOFTWARE\Microsoft (0 values)
 
 ---------- "--hooks-cli 0" ----------
 ring3 hooks: cannot scan pid 0, GetLastError=87
