@@ -3572,43 +3572,268 @@ char __fastcall EnumProcessModules(ULONG64 InputBuffer, int InputSize, volatile 
     return Result;
 }
 
-// EnumSsdtHooks — 枚举 SSDT Hook
-// 从 GT 获取 SSDT 表，遍历所有服务表条目检查是否被 Hook（JMP 0xE9 / 间接 JMP 0xFF 0x25），写入输出缓冲区
-// 对应原始驱动 sub_140087884
+/* CopyUnicodeStringSafe 已在 Utility.c 实现（0x140087FA4），此处不重复定义。 */
+
+// EnumSsdtHooks — 枚举 SSDT Hook（驱动模块链表遍历版）
+// 对应原始驱动 0x140087884
+// 【2026-10-26 重写】此前实现是"扫 SSDT 条目找 0xE9/0xFF25"的小循环，与原版
+//   **算法完全不同**，且还会把外层写入的构建号（OutputBuffer[0]）覆盖成计数。
+//   原版结构（按伪代码逐条还原）：
+//     1) 若 GT[0x8B3]==0 → InitDriverModuleParsing()
+//     2) 若 GT[0x8B3] 非 0 且 outSize > 0x10E8：
+//          从 GT[0x8B3] 起遍历驱动模块双向链表；
+//          每模块在 out+8 写 **136 字节头**：
+//            +0x00 本模块占用字节数（无子项时 136，否则 4184*(n-1)+4320）
+//            +0x08 模块对象指针
+//            +0x10 模块名（宽字符，32 字节 = 16 wchar）
+//            +0x54 模块信息字段
+//            +0x58 分配基址
+//            +0x60/+0x68/+0x70/+0x78  四 QWORD（来自 [+0x60] 指向对象）
+//          子项区从 out+8+136 起，每项 **4184 字节**：
+//            +0x00 项对象指针 / +0x10 名字(32B) / +0x48 字段 / +0x50 字段
+//            +0x54 SSDT 数组字节数（≤0x200）
+//            +0x58 起 8*count 字节的地址数组（memmove）
+//          每处理一个模块 `++out[1]`（模块计数）。
+//     3) 返回 0（原版此函数恒返回 0，外层靠 out[1]!=0 判成功）
+//   outSize 的最小值 0x10E8 = 136 + 4184 的结构约束。
+//
+// 【构建号 0x1DB0 分叉】>= 0x1DB0 时模块对象按 v12 = v6-1 取址，名字取自
+//   (v12+6)（即 +0x30），字段取 v12[8]/[12]；否则 v11 = v6，名字取自 v11[5]
+//   （+0x28），字段取 v11[6]/[9]。本机 18362(0x47BA) >= 0x1DB0，走前者。
 __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
 {
-    __int64 Result = 0;
-    if (!OutputBuffer || (unsigned __int64)OutputBuffer < (unsigned __int64)MmUserProbeAddress || BufferSize < 8)
-        return Result;
-    if (MmIsAddressValid((void *)OutputBuffer) != 1)
-        return Result;
-    __int64 ServiceTableBase = GtRead(GtSsdtServiceTable);
-    unsigned int ServiceCount = (unsigned int)GtRead(GtSsdtServiceCount);
-    if (!ServiceTableBase || !ServiceCount || (unsigned __int64)ServiceTableBase < (unsigned __int64)MmSystemRangeStart)
-        return Result;
-    if (MmIsAddressValid((void *)ServiceTableBase) != 1)
-        return Result;
-    _QWORD *pTable = (_QWORD *)ServiceTableBase;
-    unsigned int HookCount = 0;
-    for (unsigned int i = 0; i < ServiceCount && i < BufferSize / 16; ++i)
+    const PVOID *ModuleListHead;   // v4 / v42
+    unsigned int BuildNumber;      // v5
+    _QWORD *pNode;                 // v6
+    unsigned int Remain;           // v7
+    unsigned int ModuleIndex;      // v8
+    unsigned int *pModuleHdr;      // v10
+    _QWORD *p11, *p12;
+    unsigned int *pChild;          // v19
+    const void ***pChildHead;      // v20
+    const void **pChildNode;       // v21
+    __int64 ChildCount;            // v22
+    unsigned int i;
+    unsigned int ChildLimit;       // v44
+    unsigned int j;
+
+    if (!OutputBuffer || BufferSize <= 0x10E8 ||
+        (ULONG64)OutputBuffer >= MmUserProbeAddress ||
+        (ULONG64)OutputBuffer + BufferSize >= MmUserProbeAddress)
+        return 0;
+
+    if (!GtRead(GtIoDeleteSymbolicLink))
+        InitDriverModuleParsing();
+
+    ModuleListHead = (const PVOID *)GtRead(GtIoDeleteSymbolicLink);
+    BuildNumber = (unsigned int)GtRead(GtWindowsBuildNumber);
+    if (!ModuleListHead || BufferSize <= 0x10E8)
+        return 0;
+
+    pNode = *(_QWORD **)ModuleListHead;            // v6 = *v4
+    Remain = BufferSize - 8;                       // v7
+    ModuleIndex = 0;
+    pModuleHdr = (unsigned int *)(OutputBuffer + 8); // v10
+
+    while (pNode > (_QWORD *)MmSystemRangeStart
+           && pNode != (_QWORD *)ModuleListHead
+           && Remain >= 0x10E0
+           && ModuleIndex <= 0x10000)
     {
-        __int64 FuncAddr = pTable[i];
-        if (!FuncAddr || (unsigned __int64)FuncAddr < (unsigned __int64)MmSystemRangeStart)
-            continue;
-        if (MmIsAddressValid((void *)FuncAddr) != 1)
-            continue;
-        UCHAR FirstByte = *(UCHAR *)FuncAddr;
-        if (FirstByte == 0xE9 || (FirstByte == 0xFF && *(UCHAR *)(FuncAddr + 1) == 0x25))
+        unsigned int SavedRemain = Remain;
+        _QWORD *Node = pNode;
+        _QWORD *NodeObj = 0;
+
+        if (BuildNumber >= 0x1DB0)
         {
-            *(_QWORD *)(OutputBuffer + 16 * HookCount) = FuncAddr;
-            *(_QWORD *)(OutputBuffer + 16 * HookCount + 8) = i;
-            ++HookCount;
+            NodeObj = pNode - 1;                   // v12 = v6 - 1
+            if (CheckMemoryValid(NodeObj) != 1)
+                return 0;
+            if (CheckMemoryValid((PUCHAR)NodeObj + 255) != 1)
+                break;
         }
+        else
+        {
+            if (CheckMemoryValid(Node) != 1)
+                return 0;
+            if (CheckMemoryValid((PUCHAR)Node + 135) != 1)
+                break;
+        }
+
+        pModuleHdr[0] = 0;
+
+        /* ---- 136 字节模块头 ---- */
+        if (BuildNumber >= 0x1DB0)
+        {
+            *(_QWORD *)(pModuleHdr + 2) = (ULONG64)NodeObj;                 // +0x08
+            CopyUnicodeStringSafe((const void **)NodeObj + 6,
+                                  (_WORD *)(pModuleHdr + 4), 32);           // +0x10 名字
+            *(_QWORD *)(pModuleHdr + 20) = NodeObj[8];                      // +0x50
+            pModuleHdr[32] = 0;                                             // +0x80 子项计数
+            pModuleHdr[22] = *((_DWORD *)NodeObj + 18);                     // +0x58
+            {
+                _QWORD *Extra = (_QWORD *)NodeObj[12];                      // +0x60
+                if (Extra > (_QWORD *)MmSystemRangeStart
+                    && CheckMemoryValid(Extra) == 1
+                    && CheckMemoryValid((PUCHAR)Extra + 55) == 1)
+                {
+                    *(_QWORD *)(pModuleHdr + 24) = Extra[1];                // +0x60
+                    *(_QWORD *)(pModuleHdr + 26) = Extra[2];                // +0x68
+                    *(_QWORD *)(pModuleHdr + 28) = Extra[3];                // +0x70
+                    *(_QWORD *)(pModuleHdr + 30) = Extra[4];                // +0x78
+                }
+            }
+        }
+        else
+        {
+            p11 = Node;
+            *(_QWORD *)(pModuleHdr + 2) = (ULONG64)p11;
+            CopyUnicodeStringSafe((const void **)p11[5],
+                                  (_WORD *)(pModuleHdr + 4), 32);
+            *(_QWORD *)(pModuleHdr + 20) = p11[6];
+            pModuleHdr[32] = 0;
+            pModuleHdr[22] = *((_DWORD *)p11 + 14);
+            {
+                _QWORD *Extra = (_QWORD *)p11[9];
+                if (Extra > (_QWORD *)MmSystemRangeStart
+                    && CheckMemoryValid(Extra) == 1
+                    && CheckMemoryValid((PUCHAR)Extra + 55) == 1)
+                {
+                    *(_QWORD *)(pModuleHdr + 24) = Extra[1];
+                    *(_QWORD *)(pModuleHdr + 26) = Extra[2];
+                    *(_QWORD *)(pModuleHdr + 28) = Extra[3];
+                    *(_QWORD *)(pModuleHdr + 30) = Extra[4];
+                }
+            }
+        }
+
+        Remain -= 136;
+        ChildLimit = Remain;
+        pChild = pModuleHdr + 34;                  // 子项区起点 = 头之后
+        pChildHead = (const void ***)((BuildNumber >= 0x1DB0) ? (NodeObj + 13) : (Node + 10));
+        pChildNode = *pChildHead;                  // v21
+        ChildCount = 0;
+
+        for (i = 0; pChildNode > (const void **)MmSystemRangeStart; ++i)
+        {
+            if (pChildNode == (const void **)pChildHead
+                || Remain < 0x1058
+                || ChildCount > 0x10000)
+                break;
+
+            {
+                const void **ChildObj = 0;
+                if (BuildNumber >= 0x1DB0)
+                {
+                    ChildObj = pChildNode;
+                    if (CheckMemoryValid(pChildNode) != 1) { Remain = ChildLimit; break; }
+                    if (CheckMemoryValid((PUCHAR)pChildNode + 87) != 1) { Remain = ChildLimit; break; }
+                }
+                else
+                {
+                    ChildObj = pChildNode;
+                    if (CheckMemoryValid(pChildNode) != 1) { Remain = ChildLimit; break; }
+                    if (CheckMemoryValid((PUCHAR)pChildNode + 55) != 1) { Remain = ChildLimit; break; }
+                }
+
+                {
+                    __int64 ChildField = (__int64)pChildNode[3];   // v26
+                    unsigned __int64 pSsdt = 0;                    // v29
+                    unsigned int Count30;
+
+                    if (BuildNumber >= 0x1DB0)
+                    {
+                        *(_QWORD *)pChild = (ULONG64)ChildObj;
+                        CopyUnicodeStringSafe(ChildObj + 6, (_WORD *)pChild + 2, 32);
+                        *((_QWORD *)pChild + 9) = ChildObj[4];
+                        pChild[21] = 0;
+                        pChild[20] = *((_DWORD *)ChildObj + 10);
+                        pSsdt = (unsigned __int64)ChildObj[8];
+                    }
+                    else
+                    {
+                        *(_QWORD *)pChild = (ULONG64)ChildObj;
+                        CopyUnicodeStringSafe((const void **)ChildObj[6], (_WORD *)pChild + 2, 32);
+                        *((_QWORD *)pChild + 9) = ChildObj[4];
+                        pChild[21] = 0;
+                        pChild[20] = *((_DWORD *)ChildObj + 10);
+                        if (ChildField > (__int64)MmSystemRangeStart
+                            && CheckMemoryValid((void *)ChildField) == 1
+                            && CheckMemoryValid((PUCHAR)ChildField + 143) == 1)
+                            pSsdt = *(unsigned __int64 *)(ChildField + 17 * 8);
+                    }
+
+                    if (pSsdt > (unsigned __int64)MmSystemRangeStart
+                        && CheckMemoryValid((void *)pSsdt) == 1
+                        && CheckMemoryValid((void *)(pSsdt + 47)) == 1)
+                    {
+                        const void *Src = 0;
+                        SIZE_T Bytes;
+
+                        Count30 = *(unsigned int *)(pSsdt + 28);
+                        if (Count30 > 0x200)
+                            Count30 = 512;
+
+                        {
+                            int Ver16 = *(int *)(pSsdt + 16);
+                            int DirectPath =
+                                ((unsigned int)GtRead(GtWindowsBuildNumber) < 0x2800)
+                                || (Ver16 == 0)
+                                || (Ver16 == 1 && *(unsigned int *)(pSsdt + 20) < 0xF);
+
+                            if (DirectPath)
+                            {
+                                PVOID pArr = *(PVOID *)(pSsdt + 32);
+                                if ((ULONG64)pArr <= (ULONG64)MmSystemRangeStart) goto LABEL64;
+                                if (CheckMemoryValid(pArr) != 1) goto LABEL64;
+                                Bytes = 8ull * Count30;
+                                if (CheckMemoryValid((PUCHAR)pArr + Bytes - 1) != 1) goto LABEL64;
+                                Src = pArr;
+                            }
+                            else
+                            {
+                                PVOID pArr = *(PVOID *)(pSsdt + 32);
+                                char *pDeref;
+                                if ((ULONG64)pArr <= (ULONG64)MmSystemRangeStart) goto LABEL64;
+                                if (CheckMemoryValid(pArr) != 1) goto LABEL64;
+                                if (CheckMemoryValid((PUCHAR)pArr + 7) != 1) goto LABEL64;
+                                pDeref = *(char **)pArr;
+                                if ((ULONG64)pDeref <= (ULONG64)MmSystemRangeStart) goto LABEL64;
+                                if (CheckMemoryValid(pDeref) != 1) goto LABEL64;
+                                Bytes = 8ull * Count30;
+                                if (CheckMemoryValid((PUCHAR)pDeref + Bytes - 1) != 1) goto LABEL64;
+                                Src = pDeref;
+                            }
+                        }
+
+                        memmove(pChild + 22, Src, Bytes);
+                        pChild[21] = Count30;
+                    }
+LABEL64:
+                    ++pModuleHdr[32];
+                    pChildNode = (const void **)*pChildNode;
+                    Remain = ChildLimit - 4184;
+                    ChildCount = (__int64)(i + 1);
+                    pChild += 1046;               // 4184 / 4
+                    ChildLimit -= 4184;
+                }
+            }
+        }
+
+        {
+            unsigned int nChild = pModuleHdr[32];
+            if (nChild)
+                pModuleHdr[0] = 4184 * (nChild - 1) + 4320;
+            else
+                pModuleHdr[0] = 136;
+        }
+        pModuleHdr = (unsigned int *)((PUCHAR)pModuleHdr + pModuleHdr[0]);
+        ++*(_DWORD *)(OutputBuffer + 4);          // out[1] 模块计数
+        pNode = (_QWORD *)*pNode;
+        ModuleIndex = ModuleIndex + 1;
+        Remain = SavedRemain;                     /* 原版 v7 每轮在进入时按 v44 恢复 */
     }
-    *(_DWORD *)OutputBuffer = HookCount;
-    *(_DWORD *)(OutputBuffer + 4) = ServiceCount;
-    Result = 1;
-    return Result;
+    return 0;
 }
 
 // MiniFilterStreamHandleEx — 微过滤器流句柄处理（扩展）

@@ -1371,8 +1371,20 @@ typedef enum _GLOBAL_TABLE_INDEX {
  * 且整族 0x7F8..0x801 都按 0x800 基准读写，故 0x800 才是正确值。
  * 删除该 #define，让枚举值生效。 */
 #define GtPteBase              0x911           // 2321: PTE 基址(EnumProcessModules)
-#define GtSsdtServiceTable     0x8B3           // 2227: SSDT 服务表基址(EnumSsdtHooks)
-#define GtSsdtServiceCount     0x914           // 2324: SSDT 服务计数(EnumSsdtHooks, 同GtWindowsBuildNumber)
+/* 【2026-10-26 纠正】0x8B2/0x8B3 不是"SSDT 服务表/计数"，而是
+   **驱动模块解析的结果对**（ParseDriverInitSection 写入、EnumSsdtHooks 读取）：
+     0x8B2 = 候选 RVA（原版记为 GtIoCreateSymbolicLink）
+     0x8B3 = 该 RVA + 载入基址 = 驱动模块链表头（GtIoDeleteSymbolicLink）
+   证据：原版 ParseDriverInitSection 0x140087580 末尾
+   `GtWrite(GtIoCreateSymbolicLink, v18)` 与
+   `GtWrite(GtIoDeleteSymbolicLink, v20 + RelocBase)`；原版 EnumSsdtHooks
+   0x1400878A0 是 `mov edi,8B3h` 后 `GtRead(GtIoDeleteSymbolicLink)`。
+   此前把 0x8B3 当成 SSDT 服务表、让 EnumSsdtHooks 去扫 SSDT 条目，
+   与原版算法（遍历驱动模块链表，每模块 136 字节头 + 每项 4184 字节）完全不同。 */
+#define GtIoCreateSymbolicLink 0x8B2           // 2226: 驱动模块解析-候选 RVA
+#define GtIoDeleteSymbolicLink 0x8B3           // 2227: 驱动模块解析-链表头(基址+RVA)
+#define GtSsdtServiceTable     0x8B2           // 旧别名（保留以免破坏其它调用点）
+#define GtSsdtServiceCount     0x914           // 2324: SSDT 服务计数(同GtWindowsBuildNumber)
 // 从 r15-0x14=0x90F-0x14=0x8FB 的别名
 #define Gt87B                  0x8FB           // 2299: 别名(EnumProcessModules)
 // mov ecx, 8F7h 的直接值

@@ -2634,7 +2634,6 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
     int ScanCount;
     int ScanCount2;
     PE_DECODE_CONTEXT Context;
-    __int64 Accumulated = 0;
     _DWORD SectionEntry[112];
 
     PeOffset = *(int *)(a1 + 60);
@@ -2647,20 +2646,29 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
         return Result;
 
     // ---- 段 1：定位目标节（上限 0x14）----
+    /* 【2026-10-26 修正】原版用 `v11 = Len + v21` 作位置量，而 v21 就是
+       PE_DECODE_CONTEXT.ReadPtr（v20 在 rsp+0x50、v21 在 rsp+0x58 = v20+8），
+       其初值是 InitPESectionReadContext 写入的 **Base**（段1 = v7 + a1）。
+       所以 `v13 = v11 + f38 - a1` 实际等于 `v7 + 累计Len + f38`，
+       即"PE 里 AddressOfEntryPoint 起算的偏移"。
+       我方此前用 `Accumulated`（从 0 起）代替 ReadPtr，少了 Base，算出的
+       候选值恒偏小、永远过不了 `NewRva < a2` 之外的有效性校验，
+       两段扫描从不命中 → GT[0x8B4]/[0x8B5]/[0x8B6] 恒为 0 → 0x119 返回 0。
+       这里改成直接用 Context.ReadPtr（它就是 v21）。 */
     FoundFlag = 0;
     InitPESectionReadContext(TargetRva + a1, 4096, 2, 0, -1, 0, 0, (__int64)&Context);
     ScanCount = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
     {
-        *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
-        Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
-        __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+        ULONG Len = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        ULONG CurrentPos = Len + (ULONG)Context.ReadPtr;      /* v11 = v28 + v21 */
+        Context.ReadPtr += Len;                                /* v21 += v28 */
+        __int16 SectionType = *(WORD *)(*(__int64 *)((PUCHAR)SectionEntry + 0x118) + 6);
         ULONG NewRva;
 
         if (SectionType == 1369)
         {
-            NewRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)a1;
+            NewRva = CurrentPos + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)a1;
             if (NewRva && NewRva < a2)
             {
                 TargetRva = NewRva;
@@ -2677,7 +2685,7 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
         {
             if (FoundFlag == 1)
             {
-                NewRva = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)a1;
+                NewRva = CurrentPos + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)a1;
                 if (NewRva && NewRva < a2)
                 {
                     TargetRva = NewRva;
@@ -2694,13 +2702,15 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
         return Result;
 
     // ---- 段 2：找并验证描述符（上限 0x12C）----
+    /* 同段 1：位置量必须用 Context.ReadPtr（= 原版 v21），它在
+       InitPESectionReadContext 里被重置为 a1 + TargetRva。 */
     InitPESectionReadContext(a1 + TargetRva, 4096, 2, 0, -1, 0, 0, (__int64)&Context);
     ScanCount2 = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&Context, (PULONG)SectionEntry))
     {
-        *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        ULONG CurrentRva = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)Accumulated;
-        Accumulated += *(ULONG *)((char *)SectionEntry + 0xF0);
+        ULONG Len = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        ULONG CurrentPos = Len + (ULONG)Context.ReadPtr;      /* v15 = v28 + v21 */
+        Context.ReadPtr += Len;                                /* v21 += v28 */
 
         if (*(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 1298 &&
             *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000 &&
@@ -2708,12 +2718,12 @@ char __fastcall FindSyscallTableDescriptor(__int64 a1, unsigned int a2, __int64 
             *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
             *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
         {
-            ULONG Candidate = CurrentRva + *(ULONG *)((char *)SectionEntry + 0x78) - (ULONG)a1;
+            ULONG Candidate = CurrentPos + *(ULONG *)((char *)SectionEntry + 0x78) - (ULONG)a1;
             if (Candidate &&
                 Candidate < a2 &&
                 Candidate + 56 < a2 &&
                 *(_DWORD *)(Candidate + a1) == 56 &&
-                *(unsigned int *)(Candidate + a1 + 8) > (unsigned int)SectionDataSize &&
+                *(unsigned __int64 *)(Candidate + a1 + 8) > (unsigned __int64)SectionDataSize &&
                 a2 > (unsigned int)(*(_DWORD *)(Candidate + a1 + 8) - (int)SectionDataSize))
             {
                 GtWrite(GtKeGetCurrentIrql, Candidate);            // GT 0x8B4: RVA

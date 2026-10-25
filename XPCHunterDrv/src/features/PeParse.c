@@ -1250,27 +1250,42 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
     unsigned int EntryIndex;
     int SectionEnd4;
     __int64 BaseOffset;
-    PE_DECODE_CONTEXT ReadContext;      // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 CumulativeSize;
-    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-    int FieldValue;
-    int FieldValue2;
-    __int64 SectionCharacteristics;
-    int FieldValue3;
-    int FieldValue4;
-    __int64 SectionFlags;
-    unsigned int EntryCount;
-    unsigned int SectionSize;
-    __int64 SectionDataPtr;
+    PE_DECODE_CONTEXT ReadContext;
+    _DWORD SectionEntry[112];           // 0x120 字节描述符
     _QWORD FuncNameBuffer[2];
     _DWORD Dst[16];
 
     if (!RelocBase)
         return;
 
+    /* 【2026-10-26 重写】此前有 9 个描述符字段（FieldValue / SectionFlags /
+       SectionCharacteristics / FieldValue2/3/4 / EntryCount）**从未赋值**，
+       判据恒为假；累计量也用了本地 CumulativeSize 而非 Context.ReadPtr，
+       与 InitPESectionReadContext 写入的 Base 不符。
+       现按原版 0x140087580 的栈偏移逐条还原（描述符基址 = rbp-0x70）：
+         v24 (rbp-0x38) → +0x38
+         v25 (rbp-0x30) → +0x40
+         v26 (rbp-0x20) → +0x50
+         v27 (rbp-0x18) → +0x58
+         v28 (rbp+0x08) → +0x78
+         v29 (rbp+0x18) → +0x88
+         v30 (rbp+0x20) → +0x90
+         v31 (rbp+0x80) → +0xF0   （本指令消耗字节数）
+         v32 (rbp+0xA8) → +0x118  （解码表条目指针）
+       位置量统一用 `Len + ReadContext.ReadPtr`（= 原版 v31 + v22）。 */
     LoopIndex = 0;
-    strcpy((char *)FuncNameBuffer, "DllInitialize");
-    FuncNameBuffer[1] = 0;
+    /* 【2026-10-26 修正】原版把 "DllInitialize" 当作 **16 字节常量块** 一次 movsd 拷到栈上
+       （0x140087580 起始：`movsd xmm0,[常量]; movsd [rsp+40h],xmm0`），
+       随后 `HIWORD(v33[1]) = 0` 只清字节 14..15 的栈残留。
+       我方用 strcpy 时被编译器优化成 8 字节拷贝，名字被截成 "DllIniti" ——
+       kd 实测 `da @r8` 连续两次都显示 "DllIniti"。
+       改为显式 16 字节常量拷贝，与原件逐字节一致。 */
+    {
+        ULONG charIdx;
+        for (charIdx = 0; charIdx < 16; charIdx++)
+            ((char *)FuncNameBuffer)[charIdx] =
+                (charIdx < 14) ? "DllInitialize"[charIdx] : 0;
+    }
     ExportByNameInPeBody = (unsigned int)FindExportByNameInPeBody((PUCHAR)PeBuffer, PeSize, (char *)FuncNameBuffer, 0);
     ExportOffset = ExportByNameInPeBody;
     if (!ExportByNameInPeBody)
@@ -1291,19 +1306,20 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
         return;
 
     InitPESectionReadContext((__int64)(PeBuffer + ExportOffset), 4096, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    LoopIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
     {
-        *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        /* 【修正 2026-10-19】绑定 SectionSize = 描述符 +0xF0（原为从不赋值的局部） */
-        SectionSize = *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
-        SectionEnd2 = SectionSize + (int)CumulativeSize;
-        CumulativeSize += SectionSize;
+        ULONG Len = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+        ULONG CurrentPos = Len + (ULONG)ReadContext.ReadPtr;   /* v12 = v31 + v22 */
+        ReadContext.ReadPtr += Len;                             /* v22 += v31 */
+        TargetRva = CurrentPos + *(ULONG *)((PUCHAR)SectionEntry + 0x38) - (ULONG)(ULONG_PTR)PeBuffer;
+
         if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 1u)
         {
-            if (FieldValue)
+            if (*(ULONG *)((PUCHAR)SectionEntry + 0x38))
             {
-                TargetRva = (unsigned int)(SectionEnd2 + FieldValue - PeBuffer);
-                if (TargetRva && TargetRva < PeSize && (PESectionByName > TargetRva || TargetRva >= SectionEnd))
+                if (TargetRva && TargetRva < PeSize
+                    && (PESectionByName > TargetRva || TargetRva >= SectionEnd))
                 {
                     ExportOffset = TargetRva;
                     break;
@@ -1321,32 +1337,38 @@ void ParseDriverInitSection(__int64 PeBuffer, unsigned int PeSize, __int64 Reloc
         LoopIndex2 = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, SectionEntry))
         {
-            *(ULONG64 *)((PUCHAR)&ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-            SectionEnd3 = SectionSize + (int)CumulativeSize;
-            CumulativeSize += SectionSize;
+            ULONG Len = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            ULONG CurrentPos = Len + (ULONG)ReadContext.ReadPtr;   /* v15 = v31 + v22 */
+            ReadContext.ReadPtr += Len;
             SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if (SectionType == 1298 && SectionFlags == 0x40000)
+
+            /* 类型 1298：记录候选 RVA 到 Dst[+0x58] 为索引 */
+            if (SectionType == 1298 && *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000ULL)
             {
-                if (FieldValue4 && SectionCharacteristics == 64)
+                ULONG F78 = *(ULONG *)((PUCHAR)SectionEntry + 0x78);      /* v28 */
+                if (F78 && *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 64)   /* v26 */
                 {
-                    RelocRva = (unsigned int)(SectionEnd3 + FieldValue4 - PeBuffer);
-                    if (RelocRva && RelocRva < PeSize)
-                        Dst[FieldValue3] = RelocRva;
+                    ULONG r = CurrentPos + F78 - (ULONG)(ULONG_PTR)PeBuffer;  /* v17 */
+                    if (r && r < PeSize)
+                        Dst[*(ULONG *)((PUCHAR)SectionEntry + 0x58)] = r;      /* v27 */
                 }
             }
-            if (SectionType == 1294 && SectionCharacteristics == 0x40000)
+            /* 类型 1294：与 Dst[+0x90] 比对，命中则写 GT 0x8B2 / 0x8B3 */
+            if (SectionType == 1294 && *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40000ULL)  /* v26 */
             {
-                if (FieldValue2 && SectionFlags == 64 && EntryCount < 0x10)
+                ULONG F40 = *(ULONG *)((PUCHAR)SectionEntry + 0x40);      /* v25 */
+                if (F40
+                    && *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 64   /* v29 */
+                    && *(ULONG *)((PUCHAR)SectionEntry + 0x90) < 0x10)   /* v30 */
                 {
-                    EntryIndex = (unsigned int)(SectionEnd3 + FieldValue2 - PeBuffer);
-                    if (EntryIndex && EntryIndex < PeSize)
+                    ULONG r = CurrentPos + F40 - (ULONG)(ULONG_PTR)PeBuffer;  /* v18 */
+                    if (r && r < PeSize)
                     {
-                        SectionEnd4 = Dst[EntryCount];
-                        if (SectionEnd4 && EntryIndex == (unsigned int)SectionEnd4)
+                        ULONG Saved = Dst[*(ULONG *)((PUCHAR)SectionEntry + 0x90)];
+                        if (Saved && r == Saved)
                         {
-                            BaseOffset = EntryIndex;
-                            GtWrite(GtFltPeSectionOfs6 | GtEprocessField22, EntryIndex);
-                            GtWrite((enum _GLOBAL_TABLE_INDEX)(GtFltPeSectionAddr6 | GtEprocessField22), BaseOffset + RelocBase);
+                            GtWrite(GtIoCreateSymbolicLink, (__int64)r);       /* GT 0x8B2 */
+                            GtWrite(GtIoDeleteSymbolicLink, (__int64)r + RelocBase); /* GT 0x8B3 */
                             return;
                         }
                     }

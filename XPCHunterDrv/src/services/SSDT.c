@@ -1643,17 +1643,28 @@ __int64 FindExportByNameInPeBody(PUCHAR PeBase, ULONG PeSize, PCHAR FuncName, in
     if (PeSize < sizeof(IMAGE_DOS_HEADER))
         return 0;
 
-    if (Is64Bit == 1)
+    /* 【2026-10-26 修正】原版 0x140005484 的导出目录偏移是**硬编码的
+       `PeHeader[30]/[31]` 与 `PeHeader[34]/[35]`**（都按 PE32+ 可选头布局，
+       即 e_lfanew+0x78/0x7C 与 +0x88/0x8C），与 Is64Bit 参数无关：
+         if (Is64Bit == 1) { dir = PeHeader[30]/[31]; }
+         else              { dir = PeHeader[34]/[35]; }
+       我方此前在 Is64Bit != 1 时用 PIMAGE_NT_HEADERS32（PE32 可选头，
+       DataDirectory[0] 在 +0x80），读到的"导出目录 RVA/Size"完全错位，
+       FindExportByNameInPeBody 恒返回 0 → ParseDriverInitSection 提前退出 →
+       GT[0x8B2]/[0x8B3] 为 0 → 0x11B 失败。
+       现按原版改成裸 DWORD 偏移。 */
     {
-        NtHeaders = (PIMAGE_NT_HEADERS)(PeBase + DosHeader->e_lfanew);
-        ExportDirRva = NtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-        ExportDirSize = NtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-    }
-    else
-    {
-        NtHeaders32 = (PIMAGE_NT_HEADERS32)(PeBase + DosHeader->e_lfanew);
-        ExportDirRva = NtHeaders32->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-        ExportDirSize = NtHeaders32->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+        PUCHAR PeHeader = PeBase + *(int *)(PeBase + 60);
+        if (Is64Bit == 1)
+        {
+            ExportDirRva  = *(ULONG *)(PeHeader + 0x78);   /* PeHeader[30] */
+            ExportDirSize = *(ULONG *)(PeHeader + 0x7C);   /* PeHeader[31] */
+        }
+        else
+        {
+            ExportDirRva  = *(ULONG *)(PeHeader + 0x88);   /* PeHeader[34] */
+            ExportDirSize = *(ULONG *)(PeHeader + 0x8C);   /* PeHeader[35] */
+        }
     }
 
     EndRva = ExportDirRva + ExportDirSize;
