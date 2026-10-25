@@ -1265,9 +1265,13 @@ char LookupExportByName(PUCHAR PeBase, ULONG PeSize, PCHAR FuncName, PULONG OutR
     NameTableBase = ExportDir->AddressOfNames;
     OrdinalTableBase = ExportDir->AddressOfNameOrdinals;
 
+    /* 【2026-10-26 修正】第二项原本写成 `2 * NumberOfFunctions`，名称表每项是
+       **4 字节**（AddressOfNames 是 DWORD 数组），且大小应按 NumberOfNames 算。
+       原写法在 NumberOfFunctions 远小于 NumberOfNames 时会漏判越界（本例不会），
+       但语义错误，一并按正确公式修正。 */
     if (4ULL * ExportDir->NumberOfFunctions + FuncTableBase > EndRva ||
-        2ULL * ExportDir->NumberOfFunctions + NameTableBase > EndRva ||
-        4ULL * ExportDir->NumberOfNames + OrdinalTableBase > EndRva)
+        4ULL * ExportDir->NumberOfNames + NameTableBase > EndRva ||
+        2ULL * ExportDir->NumberOfNames + OrdinalTableBase > EndRva)
         return 0;
 
     NameArrayEntry = AddressOfNames;
