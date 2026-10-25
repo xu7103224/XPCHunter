@@ -6286,7 +6286,7 @@ char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize)
     {
         USHORT Type;
         ULONG  Len, Cumul;
-        ULONG  F70, F74, F78;
+        ULONG  F50, F58, F78;
         ULONG64 F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x14006A857
@@ -6302,18 +6302,26 @@ char __fastcall ScanWfpNblInfoSections(__int64 PeBase, unsigned int PeSize)
 
         if (Type == 0x512)                                        // 0x14006A89A
         {
-            F70 = *(ULONG *)((PUCHAR)Entry + 0x70);
-            F74 = *(ULONG *)((PUCHAR)Entry + 0x74);
+            /* 【2026-10-26 修正】描述符字段偏移此前写成 +0x70/+0x74，导致本函数
+               永不匹配 → GT[0x7B4]/[0x7B5]/[0x7B6] 恒为 0 → 0x0F3/0x0F4/0x0F6、
+               0x031/0x04D/0x0E5/0x0F0/0x119/0x11B 全线返回 0（真原版都返回 1 带数据）。
+               原版 0x14006A8A8..0x14006A8E8 的实参映射（描述符基址 = rsp+0x90）：
+                 var_108 (rsp+0xE0, QWORD) → 描述符 +0x50   （比较 0x20 / 0x40）
+                 var_100 (rsp+0xE8, DWORD) → 描述符 +0x58   （比较 8 / 1）
+                 var_D0  (rsp+0x118, QWORD) → 描述符 +0x88  （比较 0x40000）
+               "条目大小 > 0" 用的是 +0x78，两边一致。 */
+            F50 = *(ULONG *)((PUCHAR)Entry + 0x50);   /* 原版 var_108 */
+            F58 = *(ULONG *)((PUCHAR)Entry + 0x58);   /* 原版 var_100 */
             F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
             F88 = *(ULONG64 *)((PUCHAR)Entry + 0x88);
 
-            if (F70 == 32 && F74 == 8 && (int)F78 > 0)            // 0x14006A8BA
+            if (F50 == 32 && F58 == 8 && (int)F78 > 0)            // 0x14006A8BA
             {
                 Cnt = F78 >> 3;                                   // 0x14006A8BE
             }
             else if (F88 == 0x40000ULL)                           // 0x14006A8CF
             {
-                if (F78 != 0 && F70 == 64 && F74 == 1)            // 0x14006A8D3 / 8E8
+                if (F78 != 0 && F50 == 64 && F58 == 1)            // 0x14006A8D3 / 8E8
                 {
                     ULONG r = Cumul + F78 - (ULONG)(ULONG_PTR)PeBase;   // 0x14006A8ED
                     if (r && r < PeSize && !Rva)                  // 0x14006A8EF / 8F7

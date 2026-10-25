@@ -1330,11 +1330,31 @@ int main(int argc, char **argv)
                 return 1;
             }
             fprintf(abf, "# A/B collect  cmd insz outsz res status lasterr hdrlen\n");
+            /* 【2026-10-25 修正】此前这里直接发 0x24 就开扫，从未做 0x22 握手。
+               分发器 0x140082532 在 GT[0x304]==0 时只放行 0x22
+               （`cmp ebx,22h / jnz loc_1400825CB`），所以整轮扫描 126 条全是
+               REJ —— 那次采集结果不可用，不是驱动不对。
+               这里先走与 XpchHandshake 相同的路径 C（0x100 字节合法许可包）。 */
+            if (!NoHandshake) {
+                ULONG abSsdt = 0; UCHAR ar = 0;
+                BOOL aok = XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
+                                      HsPacket, HsPacketSize,
+                                      &abSsdt, sizeof(abSsdt), &ar);
+                fprintf(abf, "# handshake 0x22 insz=%lu %s res=%u ssdt=%lu\n",
+                        (unsigned long)HsPacketSize, aok ? "OK" : "REJ",
+                        (unsigned)ar, (unsigned long)abSsdt);
+                printf("  [ab] handshake 0x22 insz=%lu -> %s res=%u ssdt=%lu\n",
+                       (unsigned long)HsPacketSize, aok ? "OK" : "REJECTED",
+                       (unsigned)ar, (unsigned long)abSsdt);
+            }
             {
                 ULONG abBuild = 0; UCHAR br = 0;
                 if (XpchInvoke(&client, XPCH_CMD_GET_MODULE_COUNT,
                                NULL, 0, &abBuild, sizeof(abBuild), &br))
                     fprintf(abf, "# build=%lu\n", (unsigned long)abBuild);
+                else
+                    fprintf(abf, "# build=UNAVAILABLE(0x24 rej res=%u)\n",
+                            (unsigned)br);
             }
 
             for (c = AbLo ? AbLo : XPCH_CMD_MIN;

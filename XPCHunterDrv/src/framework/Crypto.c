@@ -41,7 +41,19 @@ typedef struct _AES_CONTEXT {
 #define MD5_S44 21
 
 // MD5 变换常量
-static const ULONG Md5_K[64] = {
+/* 【2026-10-25 重大修正】原版**有两族 MD5，且常量笔误位置不同**，不能共用一张表。
+   此前只用一张表（族 2 的值），导致 0x22 许可包（走族 1）永远算不对 ——
+   DecryptAesHexString 的 MD5 校验必然失败，CheckSsdtHookIntegrity 不被调用，
+   GT[0x304] 永远为 0，于是除 0x22 外的所有命令都被分发器拒绝。
+
+   证据（对 samples/PCHunter_2024.09.02/View++_Driver64.sys 做函数体字节 diff）：
+     · Md5Transform (RVA 0x3168, 0x81D 字节) — 族 1，许可包路径
+     · Md5Transform2(RVA 0x59CEC, 0x81D 字节) — 族 2，分发器请求校验
+   两者长度完全相同，**只差 2 个字节**：
+       函数内偏移 0x470:  族1=0x81  族2=0x83   →  K[33] 0x8771F681 vs 0x8771F683
+       函数内偏移 0x4DE:  族1=0xB5  族2=0xBE   →  K[39] 0xB5BFBC70 vs 0xBEBFBC70
+   即族 1 在第 34 步沿用标准值、第 40 步有笔误；族 2 反之。两处笔误都必须照抄。 */
+static const ULONG Md5_K_FAMILY1[64] = {   /* Md5Transform  — 许可包 / DecryptAesHexString */
     0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE,
     0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
     0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE,
@@ -50,17 +62,27 @@ static const ULONG Md5_K[64] = {
     0xD62F105D, 0x02441453, 0xD8A1E681, 0xE7D3FBC8,
     0x21E1CDE6, 0xC33707D6, 0xF4D50D87, 0x455A14ED,
     0xA9E3E905, 0xFCEFA3F8, 0x676F02D9, 0x8D2A4C8A,
-    /* 【2026-10-23 实测修正】第 34 步的常量原版是 0x8771F683，不是标准 MD5
-       的 0x8771F681 —— 原版自身的一处笔误（差 2）。证据：
-         · kd 抓原版 DispatchDeviceControl 里 Md5Transform2 的输入
-           （标准 IV + 标准填充块），原版算出 0x2987975d，标准 MD5 是 0x13bdbaf5；
-         · 把 64 步逐句转写并与标准逐步对比，前 33 步完全一致，
-           第 34 步起分叉（0xE49086AD vs 0xE49076AD）；
-         · 穷举定位为常量差 +2，改这一个值后摘要逐字节吻合
-           （2987975d 6e2fa9ce 072d5992 dfd9d303）。
-       必须照抄这个笔误，否则我方驱动会拒绝原版前端、我方前端也驱动不了原版驱动。 */
-    0xFFFA3942, 0x8771F683, 0x6D9D6122, 0xFDE5380C,
-    0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xBEBFBC70,
+    0xFFFA3942, 0x8771F681, 0x6D9D6122, 0xFDE5380C,   /* K[33] 标准值 */
+    0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xB5BFBC70,   /* K[39] 笔误 -0x90000 */
+    0x289B7EC6, 0xEAA127FA, 0xD4EF3085, 0x04881D05,
+    0xD9D4D039, 0xE6DB99E5, 0x1FA27CF8, 0xC4AC5665,
+    0xF4292244, 0x432AFF97, 0xAB9423A7, 0xFC93A039,
+    0x655B59C3, 0x8F0CCC92, 0xFFEFF47D, 0x85845DD1,
+    0x6FA87E4F, 0xFE2CE6E0, 0xA3014314, 0x4E0811A1,
+    0xF7537E82, 0xBD3AF235, 0x2AD7D2BB, 0xEB86D391
+};
+
+static const ULONG Md5_K_FAMILY2[64] = {   /* Md5Transform2 — 分发器请求校验和 */
+    0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE,
+    0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
+    0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE,
+    0x6B901122, 0xFD987193, 0xA679438E, 0x49B40821,
+    0xF61E2562, 0xC040B340, 0x265E5A51, 0xE9B6C7AA,
+    0xD62F105D, 0x02441453, 0xD8A1E681, 0xE7D3FBC8,
+    0x21E1CDE6, 0xC33707D6, 0xF4D50D87, 0x455A14ED,
+    0xA9E3E905, 0xFCEFA3F8, 0x676F02D9, 0x8D2A4C8A,
+    0xFFFA3942, 0x8771F683, 0x6D9D6122, 0xFDE5380C,   /* K[33] 笔误 +2 */
+    0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xBEBFBC70,   /* K[39] 标准值 */
     0x289B7EC6, 0xEAA127FA, 0xD4EF3085, 0x04881D05,
     0xD9D4D039, 0xE6DB99E5, 0x1FA27CF8, 0xC4AC5665,
     0xF4292244, 0x432AFF97, 0xAB9423A7, 0xFC93A039,
@@ -130,8 +152,8 @@ void InitMd5Context(PMD5_CONTEXT Context)
     Context->State[3] = 0x10325476;
 }
 
-// Md5Transform — MD5 变换核心（两族共用同一实现体，参数即当前状态与 64 字节块）
-// 对应原始驱动 0x140003168（族 1）与 0x140059CEC（族 2），二者指令逐条等价
+// Md5Transform — MD5 变换核心（族 1，许可包路径）
+// 对应原始驱动 0x140003168。与族 2 只差 K[33]/K[39] 两个常量。
 void Md5Transform(ULONG State[4], PUCHAR Block)
 {
     ULONG a = State[0], b = State[1], c = State[2], d = State[3];
@@ -157,7 +179,7 @@ void Md5Transform(ULONG State[4], PUCHAR Block)
         ULONG temp = d;
         d = c;
         c = b;
-        b = b + ROTL32(a + f + Md5_K[i] + x[g], Md5_S[i]);
+        b = b + ROTL32(a + f + Md5_K_FAMILY1[i] + x[g], Md5_S[i]);
         a = temp;
     }
 
@@ -167,11 +189,41 @@ void Md5Transform(ULONG State[4], PUCHAR Block)
     State[3] += d;
 }
 
-// Md5Transform2 — 族 2 入口（原始驱动为独立副本，此处共享同一实现体）
+// Md5Transform2 — 族 2 入口（原始驱动为独立副本，只差 K[33]/K[39]）
 // 对应原始驱动 sub_140059CEC
 void Md5Transform2(ULONG State[4], PUCHAR Block)
 {
-    Md5Transform(State, Block);
+    ULONG a = State[0], b = State[1], c = State[2], d = State[3];
+    ULONG x[16], i;
+
+    for (i = 0; i < 16; i++)
+        x[i] = ((ULONG)Block[i * 4]) | (((ULONG)Block[i * 4 + 1]) << 8) |
+               (((ULONG)Block[i * 4 + 2]) << 16) | (((ULONG)Block[i * 4 + 3]) << 24);
+
+    for (i = 0; i < 64; i++)
+    {
+        ULONG f, g;
+        if (i < 16) {
+            f = (b & c) | (~b & d);
+        } else if (i < 32) {
+            f = (d & b) | (~d & c);
+        } else if (i < 48) {
+            f = b ^ c ^ d;
+        } else {
+            f = c ^ (b | ~d);
+        }
+        g = Md5_Id[i];
+        ULONG temp = d;
+        d = c;
+        c = b;
+        b = b + ROTL32(a + f + Md5_K_FAMILY2[i] + x[g], Md5_S[i]);
+        a = temp;
+    }
+
+    State[0] += a;
+    State[1] += b;
+    State[2] += c;
+    State[3] += d;
 }
 
 // Md5Update — MD5 更新（族 2）
