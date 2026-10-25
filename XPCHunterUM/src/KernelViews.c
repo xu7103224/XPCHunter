@@ -636,11 +636,18 @@ BOOL FeCheckKiDebugRoutine(ULONG64 *pValue, BOOL *pHooked,
 {
     if (pValue) *pValue = 0;
     if (pHooked) *pHooked = FALSE;
+    /* 【2026-10-25 修正】必须用 _TRUNCATE。
+       这段说明有 176 个字符，而调用方 `--g4-status-cli` / GUI 状态栏
+       只给了 160 字节缓冲。strcpy_s 在超长时会触发
+       _invalid_parameter_handler → 默认中止进程，
+       表现为该 CLI 完全无输出，且调试器看到 STATUS_HEAP_CORRUPTION
+       （0xC0000374）。改成 _TRUNCATE 后按缓冲截断，绝不会中止。 */
     if (Detail && DetailChars)
-        strcpy_s(Detail, DetailChars,
-                 "KiDebugRoutine: not present on this Windows version - "
-                 "the global was removed after Windows 7 (kd: x nt!KiDebugRoutine "
-                 "finds nothing; Win10 uses PTE/interrupt based debug hooks)");
+        _snprintf_s(Detail, DetailChars, _TRUNCATE,
+                    "%s",
+                    "KiDebugRoutine: not present on this Windows version - "
+                    "the global was removed after Windows 7 (kd: x nt!KiDebugRoutine "
+                    "finds nothing; Win10 uses PTE/interrupt based debug hooks)");
     return FALSE;
 }
 
@@ -659,9 +666,10 @@ BOOL FeFindPteHook(char *Detail, size_t DetailChars, BOOL *pHooked)
 {
     if (pHooked) *pHooked = FALSE;
     if (Detail && DetailChars)
-        strcpy_s(Detail, DetailChars,
-                 "Find PTE Hook: needs an arbitrary kernel-address read; "
-                 "0xF7/0xF9 only read one fixed GT-resolved pointer, "
-                 "0x20/0x25 are process-only");
+        _snprintf_s(Detail, DetailChars, _TRUNCATE,
+                    "%s",
+                    "Find PTE Hook: needs an arbitrary kernel-address read; "
+                    "0xF7/0xF9 only read one fixed GT-resolved pointer, "
+                    "0x20/0x25 are process-only");
     return FALSE;
 }

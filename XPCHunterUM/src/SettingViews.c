@@ -77,10 +77,15 @@ static const FE_FORBID_DEF g_ForbidDefs[] = {
  * 调用方应显示"未就绪"而不是发无效请求。 */
 BOOL FeSettingReadObjectTypes(XPCH_CLIENT *Client, FE_OBJ_TYPES *Out)
 {
-    /* ENV 必须与实际 CMD_ENV_SIZE 一致（0x320）；写小了会导致 env 之后的
-       诊断表错位，也会让 +0x1D8 以外的候选槽读到垃圾。 */
-    enum { STAT_N = 283, OPEN_REC = 16, ENV = 0x320, DIAG = STAT_N * 4, REJ = 11 * 4 };
-    enum { TOTAL = STAT_N * 16 + OPEN_REC + ENV + DIAG + REJ };
+    /* 【2026-10-25 修正】ENV 必须与驱动 CMD_ENV_SIZE 完全一致（0x4A0）。
+       此前写 0x320，比驱动小 0x180；而驱动写入 env+0x340，
+       于是 env 尾部越界、后续诊断段整体错位，读取时拿到垃圾。
+       另外 TOTAL 还漏了驱动要求的表快照段（283*16 + 16）之外的
+       env 内诊断/拒绝/快照附加量 —— 统一按驱动 CMD_STAT_EXT_TOTAL_SIZE
+       = 283*16 + 16 + 0x4A0 + 283*4 + 11*4 + 27*8 + 48 计算。 */
+    enum { STAT_N = 283, OPEN_REC = 16, ENV = 0x4A0,
+           DIAG = STAT_N * 4, REJ = 11 * 4, SNAP = 27 * 8 };
+    enum { TOTAL = STAT_N * 16 + OPEN_REC + ENV + DIAG + REJ + SNAP + 48 };
     PUCHAR buf;
     UCHAR res = 0;
     BOOL ok;

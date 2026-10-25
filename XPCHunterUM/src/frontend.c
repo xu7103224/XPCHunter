@@ -3828,8 +3828,8 @@ static void DoRefreshKernel(void)
         {
             ULONG64 kr = 0;
             BOOL hooked = FALSE;
-            char detail[160];
-            char pteDetail[160];
+            char detail[512];
+            char pteDetail[512];
             char extra[640];
 
             FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail));
@@ -6059,9 +6059,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     }
     if (lpCmdLine && strstr(lpCmdLine, "--regkey-cli")) {
         const char *p = strstr(lpCmdLine, "--regkey-cli") + 12;
+        char keyPath[512];
+        size_t kn = 0;
         while (*p == ' ')
             p++;
-        return FePrintRegValues(*p ? p : "HKLM\\SYSTEM\\CurrentControlSet\\Services") ? 0 : 1;
+        if (*p == '"') p++;
+        while (*p && *p != '"' && kn + 1 < sizeof(keyPath))
+            keyPath[kn++] = *p++;
+        keyPath[kn] = 0;
+        /* 去掉行尾空白（批处理拼接时会带进来） */
+        while (kn && (keyPath[kn-1] == ' ' || keyPath[kn-1] == '\r' || keyPath[kn-1] == '\n'))
+            keyPath[--kn] = 0;
+        return FePrintRegValues(kn ? keyPath : "HKLM\\SYSTEM\\CurrentControlSet\\Services") ? 0 : 1;
     }
     /* --regctx-cli：0x127 CmdEnumRegistryContext（输出必须恰好 1800 字节） */
     if (lpCmdLine && strstr(lpCmdLine, "--regctx-cli")) {
@@ -6460,8 +6469,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     if (lpCmdLine && strstr(lpCmdLine, "--g4-status-cli")) {
         ULONG64 kr = 0;
         BOOL hooked = FALSE;
-        char detail[160];
-        char pteDetail[160];
+        char detail[512];
+        char pteDetail[512];
         char extra[640];
         char driverLine[1024];
         FE_HDRV_LIST hid, sus;
@@ -6476,9 +6485,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
                   "one fixed GT pointer; 0x3A needs GT[0x41E4]/GT[0x4189], both 0 here)",
                   detail, pteDetail);
 
-        if (FeLoadHiddenDrivers(&hid, &sus))
-            ;
-        else {
+        if (!FeLoadHiddenDrivers(&hid, &sus)) {
             hid.Count = 0; sus.Count = 0;
         }
         if (FeLoadDrivers(&drivers)) {

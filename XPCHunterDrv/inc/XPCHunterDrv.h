@@ -761,7 +761,20 @@ extern ULONG g_DiagNetioCopyOk;
 #define CMD_STAT_TBLSNAP_INENV   (CMD_ENV_SIZE + CMD_STAT_DIAG_SIZE + CMD_STAT_REJECT_SIZE)
 #define CMD_STAT_TBLSNAP_SIZE    (27 * 8)
 #define CMD_STAT_ALLOCPROC_INENV (CMD_STAT_TBLSNAP_INENV + CMD_STAT_TBLSNAP_SIZE)
-#define CMD_STAT_EXT_TOTAL_SIZE  (CMD_STAT_ALLOCPROC_INENV + 48)
+
+/* 【2026-10-25 修正：越界写导致 BSOD 0x3B】
+   原定义是 `CMD_STAT_ALLOCPROC_INENV + 48`，即只算了 **env 块及之后**的
+   相对长度，**漏掉了前面"表快照 283*16 字节 + 1 条打开记录 16 字节"**
+   （= 0x11C0）。于是 Need 只有 0xA40，而 CmdDumpCallStats 实际写到
+   0x11C0 + 0xA40 = 0x1C00 —— 缓冲区之后 0xBC0 字节全部越界。
+
+   实机表现：`--scan` 扫到 0x13A 时内核页错误 BSOD 0x3B，
+   崩溃指令 `mov qword ptr [rcx+rbx+948h], rax`
+   （rcx = 缓冲基址，rbx = 0x11B0 表快照末项）。
+
+   正确总量 = 表快照(283*16) + 打开记录(16) + env 及之后的相对长度。 */
+#define CMD_STAT_HEAD_SIZE       (CMD_STAT_N * 16 + CMD_OPEN_REC_SIZE)
+#define CMD_STAT_EXT_TOTAL_SIZE  (CMD_STAT_HEAD_SIZE + CMD_STAT_ALLOCPROC_INENV + 48)
 
 extern ULONG g_DiagAllocProcBufCalls;
 
