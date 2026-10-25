@@ -2980,8 +2980,48 @@ __int64 BuildServiceTableFromNtKernel(_QWORD KernelBase, _QWORD KernelSize)
     __int64 CumulativeSize = 0;
 
     TableSize = (unsigned int)GtRead(GtWindowsBuildNumber);
+
+    /* 【2026-10-26 修正】原版 0x140055F35 `cmp eax,2800h / jnb loc_140056103`
+       是"构建号 >= 0x2800 走 win32kbase 分支"，而我方此前写成了
+       `if (TableSize >= 0x2800) return 0;` —— 直接放弃。
+       本机 18362(0x47BA) > 0x2800，所以永远走不到下面的 ntoskrnl 分支，
+       GT[0x2DE] 恒为 0，`0x031`（CmdEnumServices）因此返回 0。
+       原版 >= 0x2800 分支（0x140056103..0x140056187）：
+           r14 = GtRead(0x8F4)                        ; win32kbase 基址
+           if (!r14) return;
+           if (ReadWin32kBaseDriverFile(&buf,&size) != 1) return;
+           name = "gtmrListHead"                      ; 三条 mov 立即数拼出
+           if (LookupExportByName(buf,size,name,&val) != 1
+               || val == 0 || val >= size) return;
+           GtWrite(0x2DE, r14 + val);                 ; 服务表 = 基址 + 导出偏移
+       即新系统上服务表就是 win32kbase 里的 gtmrListHead 链表头。 */
     if (TableSize >= 0x2800)
-        return 0;
+    {
+        static const char NameGtmrListHead[] = "gtmrListHead";
+        __int64 Win32kBasePtr;
+        __int64 W32kBuffer = 0;
+        unsigned int W32kSize = 0;
+        ULONG ExportOffset = 0;
+
+        Win32kBasePtr = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x8F4);
+        if (!Win32kBasePtr)
+            return 0;
+
+        if ((char)ReadWin32kBaseDriverFile(&W32kBuffer, &W32kSize) != 1)
+            return 0;
+
+        if (LookupExportByName((PUCHAR)W32kBuffer, W32kSize,
+                              (char *)NameGtmrListHead, &ExportOffset) != 1
+            || ExportOffset == 0 || ExportOffset >= W32kSize)
+        {
+            ExFree((void *)W32kBuffer);
+            return 0;
+        }
+
+        GtWrite((GLOBAL_TABLE_INDEX)0x2DE, Win32kBasePtr + (__int64)ExportOffset);
+        ExFree((void *)W32kBuffer);
+        return 1;
+    }
 
     BasePtr = GtRead(GtKernelModuleBase);
     if (!BasePtr)
