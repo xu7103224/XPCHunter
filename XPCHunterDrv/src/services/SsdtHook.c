@@ -2154,12 +2154,11 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &v20b))
                 return 0;
-            /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
-               原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+            /* 【2026-10-26 修正】原版位置量 = Len + ctx.ReadPtr（ReadPtr 初值 = Base），
+               此前用从 0 起的 v19b，少了 Base，算出的 RVA 恒偏小，
+               判据永不成立 → GT[0x37F] 恒为 0 → 0x0F0 返回 0。 */
+            int InnerEnd = (int)(PE_DESC_SECTION_SIZE(&v20b) + (ULONG)DecodeContext.ReadPtr);
             DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&v20b);
-
-            int InnerEnd = (int)(PE_DESC_SECTION_SIZE(&v20b) + v19b);
-            v19b += PE_DESC_SECTION_SIZE(&v20b);
 
             {
                 unsigned __int16 SectionType =
