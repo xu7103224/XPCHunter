@@ -7,7 +7,7 @@
 //   Unload Driver(Dangerous)     停止服务（真正卸载驱动）
 //   Verify Driver Signature      校验单个驱动文件签名
 //   Verify All Driver Signature  批量校验
-//   Locate in Registry Tab       跳到注册表页对应键（本页未实现，见清单）
+//   Locate in Registry Tab       跳到注册表页对应键（实现在 frontend.c 的 DoLocateDriverInRegistry）
 //
 // 全部走 SCM + WinVerifyTrust，不依赖驱动；路径解析要处理 ImagePath 的
 // 三种常见写法：`\SystemRoot\...`、`\??\C:\...`、`system32\drivers\...`。

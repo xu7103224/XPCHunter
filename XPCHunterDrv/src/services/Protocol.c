@@ -4834,7 +4834,7 @@ __int64 __fastcall SendIoControlWithQuotaBufferEx(
 //   （编译器保留的冗余判断），故实际只走 else 那条直调路径 —— 与
 //   SendIoControlWithQuotaBuffer 的情况相同（那边是外层 >= 时内层必然成立）。
 // 【⚠ 上层调用约定】调用方 SendWriteMemoryIoControl 按 8 实参调用，
-//   而本函数声明 9 个形参 —— 差异见该函数的【⚠ 未实现依赖】说明。
+//   而本函数声明 9 个形参 —— 差异见 SendWriteMemoryIoControl 的实参列表。
 // 对应原始驱动 0x140075D94（436 字节）
 __int64 __fastcall AllocBufferAndSendIoControl(
     __int64 (__fastcall *a1)(__int64, __int64, _QWORD, _QWORD, int, _BYTE *, _DWORD, size_t *, _QWORD),

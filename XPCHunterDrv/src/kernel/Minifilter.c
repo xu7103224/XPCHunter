@@ -1575,8 +1575,6 @@ char MiniFilterPreFastIo(void *Filter, void *CallbackData, void *Buffer, ULONG B
 //   原始函数**无参数**（反汇编中未读取 rcx/rdx/r8/r9），栈帧 sub rsp,220hh，
 //   体内立即 `GtRead`（首条为 GT 0x20 镜像基址）并进入节区扫描循环，
 //   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
-// 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
-//   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
 // 【实现 2026-09-21】按 build/audit/_mfc_listing.txt 与施工图"表 A/表 B"
 //   **逐标签机械转写**（goto + L<原始地址> 标签）。
 //   表 A 要点：Value[] 是**同一块 5 字节栈区**（[0..3] 字节标志、[4] dword 候选 RVA），
@@ -1867,8 +1865,6 @@ L140015A24:                                             // 收尾写 0x337
 //   原始函数**无参数**（反汇编中未读取 rcx/rdx/r8/r9），栈帧 sub rsp,1F0hh，
 //   体内立即 `GtRead`（首条为 GT 0x20 镜像基址）并进入节区扫描循环，
 //   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
-// 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
-//   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
 ULONG64 FindKernelObjectFieldOffsetsWin8(void)
 {
     // 【机械转写 2026-09-21】按 build/audit/_preDirEnum_listing.txt 与
@@ -2119,8 +2115,6 @@ L140015D43:
 //   原始函数**无参数**（反汇编中未读取 rcx/rdx/r8/r9），栈帧 sub rsp,200hh，
 //   体内立即 `GtRead`（首条为 GT 0x20 镜像基址）并进入节区扫描循环，
 //   是 PE 节区扫描器（与 InitImageNotify 所调度的同族）。故签名改为无参、返回 ULONG64。
-// 【⚠ 未实现】本题逻辑尚未还原（本函数为家族中较大者，留待后续逐条重建）。
-//   **此处不是占位实现**：声明与签名已按反汇编如实修正，函数体待补。
 ULONG64 FindKernelObjectFieldOffsetsWin10Early(void)
 {
     // 【机械转写 2026-09-21】按 build/audit/_preSetInfo_listing.txt 逐标签转写。

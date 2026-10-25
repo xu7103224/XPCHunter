@@ -7,7 +7,7 @@
 #pragma intrinsic(__readmsr, __writemsr)
 // Forward declarations
 __int64 InitMiniFilterDriver(PDRIVER_OBJECT DriverObject);
-// 回调控制操作子函数前向声明（暂未实现）
+// 回调控制操作子函数前向声明（定义见 TailHelpers.c / MemoryOps.c）
 char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);
 char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);
 char ReadCallbackType3(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);

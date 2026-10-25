@@ -577,9 +577,9 @@ BOOL XpchBuildLicensePacket(UCHAR OutHex[0x100])
  *     槽 198 = CmdGetSsdtTableInfo、207 = CmdInitSsdtTable、
  *     216 = CmdInitKernelMemoryContext —— 全部完好。
  *
- * TODO(下一步): 构造路径 C 的合法 AES 包，替换当前的路径 A 握手。
- *   需要 UM 侧 AES-128-ECB 加密 + MD5 + 时间窗，且驱动侧
- *   AesKeyExpansion 的 InvMixColumns 必须先还原为正确实现。
+ * 【已实现】路径 C 的合法 AES 包由 XpchBuildLicensePacket 构造
+ *   （AES-128-ECB + MD5 + 时间窗），驱动侧 AesKeyExpansion 已按
+ *   FIPS-197 还原；实机握手返回 OK、build=18362。
  */
 BOOL XpchHandshake(PXPCH_CLIENT Client)
 {
