@@ -14,6 +14,8 @@
 
 #include "XPCHunterUM.h"
 #include <stdio.h>
+#include <io.h>
+#include <fcntl.h>
 #include <string.h>
 #include <stdarg.h>
 
@@ -151,6 +153,162 @@ static const ULONG g_SkipCommands[] = {
     0x115,  /* CmdCallSystemRoutine -- see the long comment below. */
 };
 
+/* A/B 采集时额外跳过的命令。
+ *
+ * 与 g_SkipCommands 的区别：那一组的理由是"缺前置状态会崩"；
+ * 这一组是**操作类命令** —— 它们会创建/打开对象、装卸驱动、改内核内存、
+ * 装 hook。自动化盲目调用会：
+ *   · 在系统里留下垃圾对象 / 半装好的 hook（污染后续所有命令的结果）；
+ *   · 用零入参走到 ObOpenObjectByPointer / ObpCaptureObjectCreateInformation
+ *     这类路径，对 NULL 解引用 → 实测 BSOD 0x50；
+ *   · 某些直接改 EPROCESS / 内核页，把 guest 弄坏。
+ *
+ * 原版前端只在用户主动点击、且带着真实对象句柄时才发这些命令。
+ * 因此它们**不做自动化 A/B 比对**，改为逐条反汇编核对实现。
+ * 这个边界必须写清楚，不能装作"全量比对过"。 */
+static const ULONG g_AbDangerous[] = {
+    0x28,   /* CmdProcessOperation              改目标进程内存           */
+    0x2B,   /* CmdReadProcessMemoryBlock        需真实 EPROCESS          */
+    0x2D,   /* CmdModuleOperation               模块注/卸                */
+    0x2F,   /* CmdRegistryOperation             改注册表键               */
+    0x30,   /* CmdRegistryProtect               需真实键对象             */
+    0x34,   /* CmdObjectOperation               改对象                   */
+    0x38,   /* CmdDeviceIoControl               转发到其它设备           */
+    0x39,   /* CmdVirtualMemoryOp              改进程虚拟内存           */
+    0x3A,   /* CmdProcessMonitor               注册进程监控             */
+    0x3D,   /* CmdThreadOperation               改线程                   */
+    0x3E,   /* CmdThreadMonitor                 注册线程监控             */
+    0x3F,   /* CmdKernelObjectMonitor           注册内核对象监控         */
+    0x40,   /* CmdHandleMonitor                 注册句柄监控             */
+    0x44,   /* CmdDriverLoadUnload              装卸驱动                 */
+    0x45,   /* CmdReadPhysicalMemory            读物理内存               */
+    0x46,   /* CmdIoPortOperation               IN/OUT 端口（已实测可通过，但会动硬件）*/
+    0x48,   /* CmdProcessMemoryOperation        改进程内存               */
+    0x49,   /* CmdEnumProcessModules            需真实进程               */
+    0x4A,   /* CmdKernelMemoryOpDispatch        内核内存写               */
+    0x4B,   /* CmdProcessMemoryOpDispatch       进程内存写               */
+    0x4C,   /* CmdMemoryQueryOp                 内存查询（需上下文）     */
+    0x4F,   /* CmdDriverProtectOp               改驱动保护               */
+    0x51,   /* InitRegFilter                    注册注册表过滤           */
+    0x52,   /* InitRegNotify                    注册注册表通知           */
+    0x53,   /* InitRegCallback                  注册注册表回调           */
+    0x55,   /* CmdQueryProcessInfoEx            需真实进程               */
+    0x57,   /* CmdObjectOperationDispatch       对象操作分发             */
+    0x58,   /* CmdDeviceIoControlEx             转发                     */
+    0x59,   /* CmdFsctlOperation                转发                     */
+    0x5A,   /* CmdReadProcessMemoryStr          需真实进程               */
+    0x5B,   /* CmdWriteProcessMemoryEx          写进程内存               */
+    0x5C,   /* CmdDeviceIoControlSimple         转发                     */
+    0x5D,   /* CmdDeviceIoControlWithBuffer     转发                     */
+    0x5E,   /* CmdDeviceIoControlWithString     转发                     */
+    0x5F,   /* CmdOpenSectionObject             创建/打开对象 → 0x50     */
+    0x60,   /* CmdCreateFile                    创建文件                 */
+    0x61,   /* CmdEnumHandlesByPid              需真实进程               */
+    0x62,   /* CmdCreateFileWithPath            创建文件                 */
+    0x63,   /* CmdCloseHandle                   关句柄（会关错东西）     */
+    0x64,   /* CmdQueryFileInfo                 需真实文件对象           */
+    0x65,   /* CmdOpenFileHandle                打开文件                 */
+    0x66,   /* CmdReadFileSize                  需真实文件对象           */
+    0x67,   /* CmdWriteFile                     写文件                   */
+    0x68,   /* CmdReadFile                      读文件                   */
+    0x69,   /* CmdReadDirectory                 遍历目录                 */
+    0x6A,   /* CmdEnumDirectory                 遍历目录                 */
+    0x6B,   /* EnableObjectCallback             注册对象回调             */
+    0x6C,   /* CmdRenameFile                    改文件名                 */
+    0x6D,   /* CmdCopyFile                      复制文件                 */
+    0x6E,   /* CmdOpenFileForEnum               打开文件                 */
+    0x6F,   /* CmdDeleteFile                    删文件                   */
+    0x70,   /* CmdSetFileAttributes             改文件属性               */
+    0x72,   /* PowerCallbackUnregister          注销回调                 */
+    0x73,   /* ShutdownCallbackUnregister       注销回调                 */
+    0x74,   /* PowerCallbackRoutine             注册电源回调             */
+    0x75,   /* RegNotifyCallback                注册注册表通知           */
+    0x76,   /* DisableThreadProtect             改线程保护               */
+    0x77,   /* EnableThreadProtect              改线程保护               */
+    0x78,   /* CmdQuerySystemInfoEx             实机证实：OutSize=8192 时
+               BSOD 0x50（nt!ObpCaptureObjectCreateInformation+0x141，
+               arg1=0xfffff80300000000）。**原版驱动同样崩，崩溃位置与
+               参数完全一致** —— 不是复刻偏差，是这条命令在缺少前置状态
+               （GT 里的对象/系统信息上下文）时用零入参走到对象创建路径。
+               前端只在真实调用场景下用它。禁止盲目调用。               */
+    0x79,   /* CmdCallbackControl               改回调                   */
+    0x7A,   /* CmdReadCpuMsr                    读 MSR                   */
+    0x7C,   /* CmdReadCpuBaseAddr               读 CPU 基址              */
+    0x83,   /* MiniFilterGenerateFileName       需真实文件上下文         */
+    0x84,   /* RegisterFormatNameCallback       注册回调                 */
+    0x86,   /* MiniFilterFormatFileNameWithContext 需真实上下文          */
+    0x87,   /* RegisterFormatPathCallback       注册回调                 */
+    0x88,   /* MiniFilterFormatFileNameWithPathEx 需真实上下文          */
+    0x89,   /* CmdEnumHookInfo                  见下（实测可通过但只读） */
+    0x8F,   /* MiniFilterCommPortSend           发通信端口               */
+    0x90,   /* MiniFilterCommPortRecv           收通信端口               */
+    0x91,   /* MiniFilterCommPortReply          回通信端口               */
+    0x9C,   /* MiniFilterCommPortConnect        连通信端口               */
+    0x9D,   /* MiniFilterCommPortDisconnect     断通信端口               */
+    0x9E,   /* MiniFilterCommPortCleanup        清理通信端口             */
+    0xA0,   /* CmdCloseProcessHandle            关进程句柄               */
+    0xA1,   /* CmdEnumObjectHandles             需真实进程               */
+    0xA2,   /* CmdTerminateProcessByEProcess    终止进程                 */
+    0xAD,   /* CmdInstallSystemHook             装 hook                  */
+    0xAF,   /* CmdInstallShadowHook             装 hook                  */
+    0xB1, 0xB3, 0xB5, 0xB7, 0xB9, 0xBB, 0xBD, 0xC1,  /* InstallSyscallHook2..9 */
+    0xC2,   /* CmdEnumGdiObjects                实机：OutSize=8192 时
+               BSOD 0x50，与 0x78 同址（原版同样崩）。需要 win32k 会话
+               上下文，盲扫必然走到对象创建路径。禁止盲目调用。       */
+    0xC4,   /* CmdFixProcessEProcess            改 EPROCESS              */
+    0xC7, 0xC8,  /* CmdSetCallbackFlagTrue/False 改回调标志              */
+    0xC9,   /* MiniFilterContextCleanup         清理上下文               */
+    0xCA, 0xCC,  /* CmdDiskReadSector / SectorReadWrite 直接读写磁盘扇区 */
+    0xCB,   /* CmdDiskOperationDispatch         转发                     */
+    0xCE,   /* CmdForEachCpuClearGdtBit         改 GDT                   */
+    0xCF,   /* RegisterFilterUnloadCallback     注册回调                 */
+    0xD1,   /* MiniFilterNotifyRoutineEx2       注册通知                 */
+    0xD2, 0xD3,  /* Enable/DisableProcessProtect 改进程保护              */
+    0xD6,   /* CmdWriteKernelObjectField        写内核对象               */
+    0xD7,   /* ProcessCallbackRoutine           注册进程回调             */
+    0xD8,   /* InitProcessCallback              注册进程回调             */
+    0xDF,   /* CmdOpenFilterVolumeFile          打开卷文件 → 对象创建    */
+    0xE0,   /* CmdRemoveFilterContextNode       改过滤上下文             */
+    0xE7,   /* CmdRestoreSsdtTable              改 SSDT                  */
+    0xEB,   /* CmdSetSsdtEntry                  改 SSDT                  */
+    0xEC,   /* CmdReadExportDirectory           实机：给足 2MB 仍崩 0x3B
+               （原版同样崩）。它需要 InitKernelDataSectionTable 已把
+               GT 里的导出目录上下文填好；盲扫时那条链没跑，于是
+               解引用空指针。与 0x78/0xC2 同类：缺前置状态。
+               前端只有在 Kernel 页打开时才用，不能自动化盲调。      */
+    0xED,   /* CmdUpdateExportEntry             改导出表                 */
+    0xEE,   /* CmdRestoreExportTable            改导出表                 */
+    0xEF,   /* CmdInitSsdtTable                 初始化 SSDT 表           */
+    0xF1, 0xF2,  /* CmdInitFwpsDispatchTables(2) 改 WFP 分发表           */
+    0xF5,   /* InvokeRegisteredCallbackWithUserData 调用注册回调       */
+    0xF8,   /* CmdInitKernelMemoryContext       改内核内存上下文       */
+    0xF9,   /* CmdReadKernelMemoryRange         读内核内存               */
+    0xFA,   /* CmdReadKernelMemoryRangeSize     读内核内存               */
+    0xFB,   /* CmdWriteKernelMemoryRange        写内核内存               */
+    0xFD,   /* CmdCallKernelMemoryFunction      调内核函数               */
+    0x101,  /* CmdReadSsdtEntryTable            读 SSDT 条目             */
+    0x102,  /* CmdReadSsdtEntryTableEx          读 Shadow SSDT           */
+    0x103,  /* CmdDispatchSsdtByVersion         分发表                  */
+    0x104,  /* CmdFixSsdtEntryAddress           改 SSDT                  */
+    0x105,  /* CmdEnumSsdtEntryTable            枚举 SSDT                */
+    0x107,  /* CmdWriteMsrValue                 写 MSR                   */
+    0x109,  /* CmdSetProcessorField             改处理器字段             */
+    0x10A,  /* InitFileSystemCallback           注册文件系统回调         */
+    0x10C, 0x10D, 0x10E, 0x10F, 0x110,  /* MiniFilterPre* 需真实上下文 */
+    0x111,  /* InitMiniFilterDriver             注册 minifilter          */
+    0x113,  /* InitFileSystemFilter             注册文件系统过滤         */
+    0x114,  /* FileSystemFilterCallback         回调处理                 */
+    0x115,  /* CmdCallSystemRoutine             调任意内核函数           */
+    0x116,  /* CmdResetDriverState              重置驱动状态             */
+    0x118,  /* CmdCheckBytePattern              见下                     */
+    0x11C,  /* InitObjectCallback               注册对象回调             */
+    0x11E, 0x120, 0x126, 0x128, 0x12A, 0x12E, 0x130, 0x132, 0x134,  /* Set*Context */
+    0x12C,  /* CmdInstallUSBPortSyscallHook     装 hook                  */
+    0x135, 0x136,  /* Disable/EnableObjectProtect 改对象保护               */
+    0x137, 0x138,  /* KernelNotifyRoutine(Ex) 注册内核通知                 */
+    0x139,  /* CmdRestoreDriverDispatch         改驱动分发表             */
+};
+
 static int IsSkipped(ULONG Cmd)
 {
     size_t i;
@@ -163,8 +321,12 @@ static int IsSkipped(ULONG Cmd)
     for (i = 0; i < sizeof(g_SkipCommands) / sizeof(g_SkipCommands[0]); i++)
         if (g_SkipCommands[i] == Cmd)
             return 1;
+    for (i = 0; i < sizeof(g_AbDangerous) / sizeof(g_AbDangerous[0]); i++)
+        if (g_AbDangerous[i] == Cmd)
+            return 1;
     return 0;
 }
+
 
 static const CMD_SHAPE *ShapeOf(ULONG Cmd)
 {
@@ -253,6 +415,10 @@ int main(int argc, char **argv)
     BOOL CbTable = FALSE;
     BOOL CbTableRestore = FALSE;
     BOOL Matrix = FALSE;
+    BOOL AbCollect = FALSE;
+    ULONG AbLo = 0, AbHi = 0, AbOnlyCount = 0;
+    ULONG64 AbInValue = 0;
+    const char *AbOut = "C:\Users\Public\ab.txt";
     ULONG MatrixLo = 0, MatrixHi = 0;
     const char *MatrixOut = "C:\Users\Public\matrix_out.txt";
     BOOL DumpKmem = FALSE;
@@ -291,6 +457,17 @@ int main(int argc, char **argv)
             CbTableRestore = TRUE;
         }
         else if (_stricmp(argv[i], "--dump-kmem") == 0) DumpKmem = TRUE;
+        else if (_stricmp(argv[i], "--ab") == 0) AbCollect = TRUE;
+        else if (_stricmp(argv[i], "--ab-lo") == 0 && i + 1 < argc)
+            AbLo = (ULONG)strtoul(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--ab-hi") == 0 && i + 1 < argc)
+            AbHi = (ULONG)strtoul(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--ab-count") == 0 && i + 1 < argc)
+            AbOnlyCount = (ULONG)strtoul(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--ab-in") == 0 && i + 1 < argc)
+            AbInValue = (ULONG64)_strtoui64(argv[++i], NULL, 0);
+        else if (_stricmp(argv[i], "--ab-out") == 0 && i + 1 < argc)
+            AbOut = argv[++i];
         else if (_stricmp(argv[i], "--matrix") == 0) Matrix = TRUE;
         else if (_stricmp(argv[i], "--matrix-lo") == 0 && i + 1 < argc)
             MatrixLo = (ULONG)strtoul(argv[++i], NULL, 0);
@@ -1118,6 +1295,161 @@ int main(int argc, char **argv)
             HeapFree(GetProcessHeap(), 0, Out);
             XpchClose(&client);
             printf("=== done (ssdtinfo) ===\n");
+            return 0;
+        }
+
+        if (AbCollect) {
+            /* ── A/B 全量采集 ──────────────────────────────────────────
+               目的：把每条命令的**完整输入与输出**原样落盘，供两条驱动
+               （原版 / 我方）各跑一次后做逐字节比对。
+
+               与 --matrix 的关键差别：
+                 · 输出缓冲按"该命令真实期望尺寸"给足，而不是 1 字节；
+                 · 分配时在实际尺寸之后额外留 256KB guard 区，
+                   只把真实尺寸传给驱动 —— 那些不校验 OutSize 的处理器
+                   即使越界写也只落进 guard，不会破坏堆（此前用 0x1000
+                   盲扫曾打爆内核栈导致 BSOD 0x139）；
+                 · 记录完整 hex（最多 4MB）、返回码、GetLastError；
+                 · 每条调用前把"正在调用哪条"写进 last.txt 并刷盘，
+                   万一 BSOD 能精确定位到命令号。
+
+               输出格式（每行一条，便于 diff）：
+                 CMD 0xNNN INSZ=n OUTSZ=n RES=n OK|REJ ERR=n HDRLEN=n
+                 IN  <hex>
+                 OUT <hex>                                        */
+            enum { AB_GUARD = 0x40000, AB_MAXOUT = 0x400000, AB_MAXIN = 256 };
+            FILE *abf = NULL;
+            FILE *abl = NULL;
+            ULONG c;
+            ULONG nok = 0, nrej = 0, nrec = 0;
+
+            fopen_s(&abf, AbOut, "w");
+            if (!abf) {
+                printf("cannot open %s\n", AbOut);
+                XpchClose(&client);
+                return 1;
+            }
+            fprintf(abf, "# A/B collect  cmd insz outsz res status lasterr hdrlen\n");
+            {
+                ULONG abBuild = 0; UCHAR br = 0;
+                if (XpchInvoke(&client, XPCH_CMD_GET_MODULE_COUNT,
+                               NULL, 0, &abBuild, sizeof(abBuild), &br))
+                    fprintf(abf, "# build=%lu\n", (unsigned long)abBuild);
+            }
+
+            for (c = AbLo ? AbLo : XPCH_CMD_MIN;
+                 c <= (AbHi ? AbHi : XPCH_CMD_MAX); c++) {
+                ULONG outSz, inSz;
+                UCHAR *raw = NULL, *outp = NULL;
+                UCHAR inbuf[AB_MAXIN];
+                UCHAR rr = 0;
+                BOOL ok;
+                DWORD gerr;
+                ULONG k;
+
+                if (IsSkipped(c))
+                    continue;
+                if (AbOnlyCount && nrec >= AbOnlyCount)
+                    break;
+
+                /* 每条命令的期望尺寸：优先用形状表，未知则给 0x2000
+                   （足够覆盖绝大多数固定结构，又不会大到无谓占用）。 */
+                {
+                    const CMD_SHAPE *sh = ShapeOf(c);
+                    outSz = sh ? sh->OutSize : 0x2000;
+                    inSz  = sh ? sh->InSize  : 0;
+                }
+                if (outSz > AB_MAXOUT) outSz = AB_MAXOUT;
+
+                /* last-attempt 标记：崩了就靠它定位。
+                   必须真正落到磁盘 —— 用 CreateFile 写 + FlushFileBuffers，
+                   不能只靠 CRT 的 fflush（它只刷到 OS 缓存，BSOD 时丢失）。 */
+                {
+                    HANDLE hL = CreateFileW(L"C:\\Users\\Public\\ab_last.txt",
+                                            GENERIC_WRITE, 0, NULL,
+                                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+                    if (hL != INVALID_HANDLE_VALUE) {
+                        char lb[96];
+                        int ln = _snprintf_s(lb, sizeof(lb), _TRUNCATE,
+                                             "0x%03lX insz=%lu outsz=%lu\r\n",
+                                             (unsigned long)c, (unsigned long)inSz,
+                                             (unsigned long)outSz);
+                        DWORD wrote = 0;
+                        if (ln > 0)
+                            WriteFile(hL, lb, (DWORD)ln, &wrote, NULL);
+                        FlushFileBuffers(hL);
+                        CloseHandle(hL);
+                    }
+                }
+
+                /* 主输出也立刻落盘，避免崩溃时丢掉已完成的历史记录 */
+                fflush(abf);
+                { HANDLE hF = (HANDLE)_get_osfhandle(_fileno(abf));
+                  if (hF != INVALID_HANDLE_VALUE) FlushFileBuffers(hF); }
+
+                if (outSz) {
+                    raw = (UCHAR *)HeapAlloc(GetProcessHeap(),
+                                             HEAP_ZERO_MEMORY,
+                                             (SIZE_T)outSz + AB_GUARD);
+                    if (!raw) continue;
+                    outp = raw;
+                }
+
+                ZeroMemory(inbuf, sizeof(inbuf));
+                if (inSz) {
+                    for (k = 0; k < inSz && k < AB_MAXIN && k < 8; k++)
+                        inbuf[k] = (UCHAR)((AbInValue >> (8 * k)) & 0xFF);
+                }
+
+                ok = XpchInvoke(&client, c,
+                                inSz ? inbuf : NULL,
+                                inSz > AB_MAXIN ? AB_MAXIN : inSz,
+                                outp, outSz, &rr);
+                gerr = GetLastError();
+                if (ok) nok++; else nrej++;
+                nrec++;
+
+                fprintf(abf, "CMD 0x%03lX INSZ=%lu OUTSZ=%lu RES=%u %s ERR=%lu HDRLEN=%lu\n",
+                        (unsigned long)c, (unsigned long)inSz,
+                        (unsigned long)outSz, (unsigned)rr,
+                        ok ? "OK" : "REJ", (unsigned long)gerr,
+                        (unsigned long)(outSz ? (nrec ? 0 : 0) : 0));
+
+                /* 输入：全部字节 */
+                if (inSz) {
+                    fprintf(abf, "IN  ");
+                    for (k = 0; k < inSz && k < AB_MAXIN; k++)
+                        fprintf(abf, "%02X", inbuf[k]);
+                    fprintf(abf, "\n");
+                } else {
+                    fprintf(abf, "IN  -\n");
+                }
+
+                /* 输出：只有返回 OK 才记录（REJ 时缓冲未被写，记了也没意义）；
+                   同时裁掉尾部全零，避免 4MB 全 0 撑爆文件。 */
+                if (ok && outSz) {
+                    ULONG tail = outSz;
+                    while (tail && raw[tail - 1] == 0) tail--;
+                    fprintf(abf, "OUT ");
+                    for (k = 0; k < tail; k++)
+                        fprintf(abf, "%02X", raw[k]);
+                    if (!tail) fprintf(abf, "-");
+                    fprintf(abf, "\n");
+                } else {
+                    fprintf(abf, "OUT -\n");
+                }
+                fflush(abf);
+
+                if (raw) HeapFree(GetProcessHeap(), 0, raw);
+            }
+
+            fprintf(abf, "# records=%lu ok=%lu rej=%lu\n",
+                    (unsigned long)nrec, (unsigned long)nok, (unsigned long)nrej);
+            fclose(abf);
+            printf("A/B collect -> %s  (records=%lu ok=%lu rej=%lu)\n",
+                   AbOut, (unsigned long)nrec, (unsigned long)nok,
+                   (unsigned long)nrej);
+            XpchClose(&client);
             return 0;
         }
 
