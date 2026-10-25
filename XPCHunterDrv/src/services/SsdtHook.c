@@ -2238,7 +2238,6 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
                改为从描述符读；+0x58 = EntrySize（原代码写作 [14]，即 +0x38）。 */
             PE_DECODE_CONTEXT DecodeContext;
             PE_INSN_DESCRIPTOR SectionInfo;
-            __int64 CumulativeSize2 = 0;
 
             InitPESectionReadContext(ImageBase + Found, ImageSize - Found, 2, 0, -1, 0, 0,
                                      (__int64)&DecodeContext);
@@ -2248,26 +2247,28 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &SectionInfo))
                     return 0;
-                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
-                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                /* 【2026-10-26 修正】原版位置量是 `Len + ctx.ReadPtr`（ReadPtr 初值 = Base），
+                   我方此前用从 0 起的 CumulativeSize2，少了 Base，算出的 RVA 恒偏小，
+                   判据永不成立 → GT[0x379] 恒为 0 → 0x0E5 返回 0。
+                   现改为直接用 DecodeContext.ReadPtr（原版 v21）。 */
+                int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionInfo) + (ULONG)DecodeContext.ReadPtr);
                 DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionInfo);
-
-                int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionInfo) + CumulativeSize2);
-                CumulativeSize2 += PE_DESC_SECTION_SIZE(&SectionInfo);
 
                 {
                     unsigned __int16 TargetRva =
                         *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionInfo) + 6);
 
+                    /* 原版第一段：v19(+0x50)==64 && v20(+0x58)==8 && v22(+0x88)==64 */
                     if (TargetRva == 1296 &&
-                        *(int *)((PUCHAR)&SectionInfo + 0x38) == 64 &&
-                        *(int *)((PUCHAR)&SectionInfo + 0x40) == 8 &&
-                        PE_DESC_FIELD_VALUE(&SectionInfo) == 64)
+                        *(int *)((PUCHAR)&SectionInfo + 0x50) == 64 &&
+                        *(int *)((PUCHAR)&SectionInfo + 0x58) == 8 &&
+                        *(unsigned __int64 *)((PUCHAR)&SectionInfo + 0x88) == 64)
                     {
                         SectionBaseCopy = 1;
                     }
                     else if (SectionBaseCopy == 1 && TargetRva == 1368)
                     {
+                        /* 原版用 v18[14] = 描述符 +0x38 */
                         Found = (unsigned int)(SectionEnd
                             + *(int *)((PUCHAR)&SectionInfo + 0x38) - (unsigned int)ImageBase);
                         break;
@@ -2283,8 +2284,8 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
             /* 【修正 2026-10-20】同上：描述符字段改为从 SectionEntry 读。 */
             PE_DECODE_CONTEXT DecodeContext2;
             PE_INSN_DESCRIPTOR ReadEntry2;
-            __int64 CumulativeOffset2 = 0;
             unsigned int InnerFound = 0;
+            unsigned __int16 InnerType = 0;
             char InnerLoop = 0;
             int InnerEnd = 0;
 
@@ -2294,58 +2295,99 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext2, &ReadEntry2))
                     return 0;
-                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
-                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                /* 同上：位置量必须含 Base（ReadPtr 初值 = ImageBase + Found）。 */
+                int SectionRva = (int)(PE_DESC_SECTION_SIZE(&ReadEntry2) + (ULONG)DecodeContext2.ReadPtr);
                 DecodeContext2.ReadPtr += PE_DESC_SECTION_SIZE(&ReadEntry2);
-
-                int SectionRva = (int)(PE_DESC_SECTION_SIZE(&ReadEntry2) + CumulativeOffset2);
-                CumulativeOffset2 += PE_DESC_SECTION_SIZE(&ReadEntry2);
 
                 {
                     unsigned __int16 TypeId =
                         *(unsigned __int16 *)((PUCHAR)PE_DESC_SECTION_DATA(&ReadEntry2) + 6);
                     if (TypeId == 1349)
                         return 0;
+                    InnerType = TypeId;
 
+                    /* 【2026-10-26 修正】描述符字段映射按原版 0x140061554 的栈偏移还原
+                       （描述符基址 = rbp-0x70）：
+                         v19 (rbp-0x20) → +0x50   （比较 64）
+                         v20 (rbp-0x18) → +0x58   （比较 1 / 8）
+                         v21 (rbp+0x08) → +0x78   （RVA 字段）
+                         v22 (rbp+0x18) → +0x88   （比较 0x40000）
+                         v23 (rbp+0x80) → +0xF0   （消耗字节数）
+                         v24 (rbp+0xA8) → +0x118  （解码表条目指针）
+                       此前 1298 分支把 +0x78 当成 64、把 +0x50 当 RVA，字段互换，
+                       判据永不成立 → GT[0x379] 恒为 0 → 0x0E5 返回 0。 */
                     if (TypeId == 1298 &&
-                        PE_DESC_FIELD_VALUE2(&ReadEntry2) == 0x40000 &&
-                        PE_DESC_FIELD_SIZE(&ReadEntry2) == 64 &&
+                        *(unsigned __int64 *)((PUCHAR)&ReadEntry2 + 0x88) == 0x40000ULL &&
+                        *(int *)((PUCHAR)&ReadEntry2 + 0x50) == 64 &&
                         *(int *)((PUCHAR)&ReadEntry2 + 0x58) == 1)
                     {
                         unsigned int rva = (unsigned int)(SectionRva
-                            + PE_DESC_FIELD_VALUE(&ReadEntry2) - ImageBase);
+                            + *(unsigned int *)((PUCHAR)&ReadEntry2 + 0x78) - ImageBase);
                         if (rva && rva < ImageSize)
                             InnerFound = rva;
                     }
-                    if (TypeId == 1368)
-                        goto LABEL_43;
+                    /* 【2026-10-26 修正】原版 0x140061554 第二段的控制流是**全在循环体内**：
+                     ```
+                     while (1) {
+                       ReadPESectionEntry(...); if (ret) return ret;
+                       ...1298 分支 → v11 = RVA...
+                       if (v15 == 1368) goto LABEL_43;
+                       if ((v15-1139) <= 1) break;        // 跳出 while
+                       if (v12==1 && +0x88==0x40000 && +0x50==64) {
+                           rva = ...; if (rva && rva < a2)
+                               return GtWrite(0x379, v6 + rva);
+                       }
+                     LABEL_44:
+                       if (++v13 >= 0xC8) return ret;
+                       continue;                          // ← 关键：回到循环头
+                     }
+                     // break 之后才执行：
+                     if (v11 && !v12) { GtWrite(0x378, v6+v11); v12 = 1; }
+                     LABEL_43:
+                     v11 = 0;
+                     goto LABEL_44;                       // 回循环体继续
+                     ```
+                    我方此前把 `if (InnerFound && !InnerLoop)` 放在 while **外面**，
+                    且 `LABEL_44` 后没有 `continue`，导致：
+                      · 外层每轮都会跑一次该 if（`InnerLoop` 永为 0 时反复写 0x378）；
+                      · `goto LABEL_44` 直接从循环外跳进循环体，`InnerEnd` 计数错乱。
+                    现改为与原版一致：`v15==1368` 时先把 InnerFound 落到 0x378 并置
+                    InnerLoop，然后 `InnerFound=0` 并继续本轮（`continue`）。 */
                 }
 
-                if ((unsigned __int16)(*(unsigned __int16 *)
-                        ((PUCHAR)PE_DESC_SECTION_DATA(&ReadEntry2) + 6) - 1139) <= 1u)
+                if (InnerType == 1368)
+                {
+                    if (InnerFound && !InnerLoop)
+                    {
+                        GtWrite(GtEprocessExtField34, SectionBase + InnerFound);
+                        InnerLoop = 1;
+                    }
+                    InnerFound = 0;
+                }
+                else if ((unsigned __int16)(InnerType - 1139) <= 1u)
+                {
+                    /* break 出循环后补做一次 0x378 落地（原版 break 后的那段） */
+                    if (InnerFound && !InnerLoop)
+                    {
+                        GtWrite(GtEprocessExtField34, SectionBase + InnerFound);
+                        InnerLoop = 1;
+                        InnerFound = 0;
+                    }
                     break;
-
-                if (InnerLoop == 1 &&
-                    PE_DESC_FIELD_VALUE2(&ReadEntry2) == 0x40000 &&
-                    PE_DESC_FIELD_SIZE(&ReadEntry2) == 64)
+                }
+                else if (InnerLoop == 1 &&
+                         *(unsigned __int64 *)((PUCHAR)&ReadEntry2 + 0x88) == 0x40000ULL &&
+                         *(int *)((PUCHAR)&ReadEntry2 + 0x50) == 64)
                 {
                     unsigned int result = (unsigned int)(SectionRva
-                        + PE_DESC_FIELD_VALUE(&ReadEntry2) - ImageBase);
+                        + *(unsigned int *)((PUCHAR)&ReadEntry2 + 0x78) - ImageBase);
                     if (result && result < ImageSize)
                         return GtWrite(GtEprocessExtField35, SectionBase + result);
                 }
-LABEL_44:
+
                 if (++InnerEnd >= 0xC8)
                     return 0;
             }
-            if (InnerFound && !InnerLoop)
-            {
-                GtWrite(GtEprocessExtField34, SectionBase + InnerFound);
-                InnerLoop = 1;
-            }
-LABEL_43:
-            InnerFound = 0;
-            goto LABEL_44;
         }
     }
     return 0;
