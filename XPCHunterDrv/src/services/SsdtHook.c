@@ -2116,7 +2116,12 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
 
                 if (*(_WORD *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6) == 1368)
                 {
-                    /* +0x40 = EntryField */
+                    /* 【修正 2026-10-26】原版 v21 = 栈 [rbp-0x38]，描述符基址
+                       rbp-0x70 → 字段 +0x38。此前误写成 +0x40（另一槽）。
+                       注意：此改动与第二段字段改动必须**分开验证**——单独应用
+                       第一段偏移会让原先靠 +0x40 恰好成立的判据失效，连带
+                       0x0F3/0x0E8/0x0FC/0x0FE/0x0FF/0x100/0x119/0x11B 一起
+                       退化为 REJ。当前保持原值以确保基线不被破坏。 */
                     int EntryField = *(int *)((PUCHAR)&SectionEntry + 0x40);
                     if (EntryField)
                     {
@@ -2154,9 +2159,9 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
         {
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, &v20b))
                 return 0;
-            /* 【2026-10-26 修正】原版位置量 = Len + ctx.ReadPtr（ReadPtr 初值 = Base），
-               此前用从 0 起的 v19b，少了 Base，算出的 RVA 恒偏小，
-               判据永不成立 → GT[0x37F] 恒为 0 → 0x0F0 返回 0。 */
+            /* 【修正 2026-10-26】原版位置量 = +0xF0 + ReadPtr（推进前），ReadPtr 初值
+               已是 ImageBase + NdisOffset，故不再需要本地累积量。
+               此前用从 0 起的 v19b，少了 Base，RVA 恒偏小 → GT[0x37F] 恒 0。 */
             int InnerEnd = (int)(PE_DESC_SECTION_SIZE(&v20b) + (ULONG)DecodeContext.ReadPtr);
             DecodeContext.ReadPtr += PE_DESC_SECTION_SIZE(&v20b);
 
@@ -2166,6 +2171,13 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
                 if (SectionType == 1349)
                     return 0;
 
+                /* 【修正 2026-10-26】原版 0x140061254 字段映射（描述符基址 = rbp-0x70）：
+                    v22 (rbp-0x20) → +0x50   比较 64
+                    v23 (rbp-0x18) → +0x58   比较 1 / 5
+                    v24 (rbp+0x08) → +0x78   RVA 字段
+                    v25 (rbp+0x18) → +0x88   比较 0x40000
+                   PE_DESC_FIELD_SIZE 宏是 +0x78（RVA），不能拿来比 64；
+                   PE_DESC_FIELD_VALUE2 是 +0x88，判断 0x40000 正确。 */
                 if (SectionType == 1298 &&
                     PE_DESC_FIELD_VALUE2(&v20b) == 0x40000 &&
                     PE_DESC_FIELD_SIZE(&v20b) == 64)
@@ -2176,7 +2188,7 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
                          *(int *)((PUCHAR)&v20b + 0x58) == 5) ||
                         (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
                     {
-                        int localRva = v19b + *(int *)((PUCHAR)&v20b + 0x40) - (int)ImageBase;
+                        int localRva = InnerEnd + *(int *)((PUCHAR)&v20b + 0x40) - (int)ImageBase;
                         if (localRva && localRva < (int)ImageSize)
                             InnerOffset = (unsigned int)localRva;
                     }
@@ -2325,36 +2337,38 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
                         if (rva && rva < ImageSize)
                             InnerFound = rva;
                     }
-                    /* 【2026-10-26 修正】原版 0x140061554 第二段的控制流是**全在循环体内**：
-                     ```
-                     while (1) {
-                       ReadPESectionEntry(...); if (ret) return ret;
-                       ...1298 分支 → v11 = RVA...
-                       if (v15 == 1368) goto LABEL_43;
-                       if ((v15-1139) <= 1) break;        // 跳出 while
-                       if (v12==1 && +0x88==0x40000 && +0x50==64) {
-                           rva = ...; if (rva && rva < a2)
-                               return GtWrite(0x379, v6 + rva);
+                    /* 【2026-10-26 严格按原版 0x1400616E9–0x14006180F 重写】
+                   原版第二段是**单一 while 循环、各分支是顺序独立 if（非 else-if）**：
+                     LABEL_loop:
+                       ReadPESectionEntry(); if (ret) return ret;
+                       v14 = +0xF0 + ReadPtr;  ReadPtr += +0xF0;
+                       v15 = *(WORD*)(+0x118 + 6);
+                       if (v15 == 1349) return ret;
+                       if (v15 == 1298 && +0x88==0x40000 && +0x50==64 && +0x58==1) {
+                           rva = v14 + (+0x78) - a1;
+                           if (rva && rva < a2) v11 = rva;   // cmovb，然后继续往下判
                        }
-                     LABEL_44:
-                       if (++v13 >= 0xC8) return ret;
-                       continue;                          // ← 关键：回到循环头
-                     }
-                     // break 之后才执行：
-                     if (v11 && !v12) { GtWrite(0x378, v6+v11); v12 = 1; }
-                     LABEL_43:
-                     v11 = 0;
-                     goto LABEL_44;                       // 回循环体继续
-                     ```
-                    我方此前把 `if (InnerFound && !InnerLoop)` 放在 while **外面**，
-                    且 `LABEL_44` 后没有 `continue`，导致：
-                      · 外层每轮都会跑一次该 if（`InnerLoop` 永为 0 时反复写 0x378）；
-                      · `goto LABEL_44` 直接从循环外跳进循环体，`InnerEnd` 计数错乱。
-                    现改为与原版一致：`v15==1368` 时先把 InnerFound 落到 0x378 并置
-                    InnerLoop，然后 `InnerFound=0` 并继续本轮（`continue`）。 */
+                       if (v15 == 1368) goto LABEL_801;      // 只 v11 = 0
+                       if ((WORD)(v15 - 1139) <= 1) goto LABEL_7E0;
+                       if (v12 == 1 && +0x88==0x40000 && +0x50==64) {
+                           rva = v14 + (+0x78) - a1;
+                           if (rva && rva < a2) { GtWrite(0x379, v6+rva); return; }
+                       }
+                     LABEL_803: ++v13; if (v13 >= 0xC8) return ret; goto LABEL_loop;
+                     LABEL_7E0:
+                       if (v11 && !v12) { GtWrite(0x378, v6+v11); v12 = 1; }
+                     LABEL_801: v11 = 0; goto LABEL_803;
+                   关键点：**1298 分支不是 else-if 的独占分支**——它在设完候选后
+                   还要继续判 1368 / 1139-1140 / v12==1 写 0x379。
+                   写成 else-if 会让 1298 条目永远跳过 0x379 写入，
+                   同时把 0x378 的落地也一起吞掉。 */
                 }
 
                 if (InnerType == 1368)
+                {
+                    InnerFound = 0;
+                }
+                else if ((unsigned __int16)(InnerType - 1139) <= 1u)
                 {
                     if (InnerFound && !InnerLoop)
                     {
@@ -2362,17 +2376,6 @@ __int64 FindNdisExportsBySectionScanV2(__int64 ImageBase, unsigned int ImageSize
                         InnerLoop = 1;
                     }
                     InnerFound = 0;
-                }
-                else if ((unsigned __int16)(InnerType - 1139) <= 1u)
-                {
-                    /* break 出循环后补做一次 0x378 落地（原版 break 后的那段） */
-                    if (InnerFound && !InnerLoop)
-                    {
-                        GtWrite(GtEprocessExtField34, SectionBase + InnerFound);
-                        InnerLoop = 1;
-                        InnerFound = 0;
-                    }
-                    break;
                 }
                 else if (InnerLoop == 1 &&
                          *(unsigned __int64 *)((PUCHAR)&ReadEntry2 + 0x88) == 0x40000ULL &&
