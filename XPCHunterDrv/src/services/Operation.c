@@ -3397,6 +3397,7 @@ __int64 EnumKernelObjectTableOperation(char *pInputBuffer, int InputSize, unsign
                     pOutputEntry[18] = pObjectHeader[5];
                     pOutputEntry[21] = pObjectHeader[6];
                     FieldValue = pObjectHeader[7];
+                    pOutputEntry[24] = FieldValue;
                 }
                 else if (BuildNumber < 0x23F0)
                 {
@@ -3408,6 +3409,7 @@ __int64 EnumKernelObjectTableOperation(char *pInputBuffer, int InputSize, unsign
                     pOutputEntry[18] = pObjectHeader[6];
                     pOutputEntry[21] = pObjectHeader[7];
                     FieldValue = pObjectHeader[8];
+                    pOutputEntry[24] = FieldValue;
                 }
                 else if (BuildNumber > 0x2580)
                 {
@@ -3433,7 +3435,6 @@ __int64 EnumKernelObjectTableOperation(char *pInputBuffer, int InputSize, unsign
                     pOutputEntry[21] = FieldValue2;
                     pOutputEntry[24] = 0;
                 }
-                pOutputEntry[24] = FieldValue;
                 pOutputEntry[5] = 0;
                 if ((unsigned int)BuildNumber >= 0x2800)
                 {

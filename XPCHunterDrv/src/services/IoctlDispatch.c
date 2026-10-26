@@ -2148,9 +2148,24 @@ __int64 CmdDiskSectorReadWrite(__int64 InputBuffer, __int64 InputSize, _DWORD *p
 }
 
 // CmdEnumObjectTypes — 枚举对象类型命令处理
-// 对应原始驱动 sub_140088A60（275 字节）
-// 【⚠ 更正 2026-10-08】原注释写 0x14007EDC8（那是 CmdEnumObjectTypeInfo 的地址），
-//   已按 IDA 函数表更正为本函数真实地址。
+// 对应原始驱动 0x140088A60（275 字节）
+// 【⚠ 已知缺陷 2026-10-26】原版本函数按构建号分三条路径：
+//   build > 0x2580  -> ScanProcessVadForObjectTypes(Out+2, Out, MaxEntries)
+//   build > 0x23F0  -> DispatchEnumObjectTypes(Out+2, Out, MaxEntries)
+//   否则            -> EnumProcessObjectTypes(GT[0x31A], 3, Out+2, Out, Max)
+//   共同前置：*OutputBuffer=0；MaxEntries=((BufferSize-40)>>5)+1（条目步长 0x20）
+//   返回 *OutputBuffer != 0
+// 我方的正确实现已写好并实测：本机 build 18362 走第一条路径，但
+// ScanProcessVadForObjectTypes 的前置槽 GT[0x41DB]（对象类型检查函数）
+// 在本机为 0，函数立即返回 → 计数 0 → 返回 REJ。
+// 该槽由 InitObjectCallbackEntries 填充，而它的唯一调用链是
+//   命令 0x6B (EnableObjectCallback) -> InitObjectCallbackFiles
+//     -> InitObjectCallbackEntries(文件句柄)
+// A/B 扫描把 0x6B 列为 g_AbDangerous 跳过，故扫描时该槽恒 0。
+// 但原版在同样跳过的前提下 0x0D4 仍返回 38 条 —— 说明原版还有一条
+// 尚未定位的填充路径。在该路径确认前，此处暂保持原转调以免引入
+// 未验证的状态回归；正确实现记录在
+// docs/reversing/六条命令逆向进度_2026-10-26.md。
 __int64 CmdEnumObjectTypes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
     return ((PCOMMAND_HANDLER)EnumObjectTypeInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
