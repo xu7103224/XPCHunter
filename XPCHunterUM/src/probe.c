@@ -645,9 +645,12 @@ int main(int argc, char **argv)
             BOOL okp = XpchBuildLicensePacket(pkt);
             BOOL lok = FALSE;
 
-            if (okp)
+            if (okp) {
+                ULONG LsBuf = 0;   /* OutSize 必须正好 4（路径 C 条件） */
                 lok = XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
-                                 pkt, sizeof(pkt), &ls, sizeof(ls), &lr);
+                                 pkt, sizeof(pkt), &LsBuf, sizeof(LsBuf), &lr);
+                ls = LsBuf;
+            }
             printf("  license 0x22 -> %s, result=%u, ssdt=%lu (packet=%s)\n",
                    lok ? "OK" : "REJECTED", lr, ls, okp ? "built" : "FAILED");
             printf("  packet[0..32] = ");
@@ -692,8 +695,26 @@ int main(int argc, char **argv)
             BOOL dok = FALSE;
             ULONG off;
 
-            XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
-                       NULL, 0, &(ULONG){0}, 4, NULL);   /* open ready flag */
+            /* 【2026-10-26 最终修正】分发器（DriverEntry.c:542-545,605）映射：
+                   OutSize = [buf+0x20] = 请求的 InSize
+                   CtxSize = [buf+0x24] = 请求的 OutSize
+                   Handler(rcx=CtxPtr, edx=OutSize, r8=ExtraPtr, r9=CtxSize)
+               CmdQueryProcessInfo(ProcessId, BufferSize, OutBuf, OutputSize)：
+                   BufferSize ← 请求的 InSize
+                   OutputSize ← 请求的 OutSize
+               走路径 A（InSize<=0xA）会置 GT[0x304]=1 但清空命令表
+               198..224；走路径 C（InSize=0x100 合法包 + OutSize==4）
+               由 QuerySsdHookByProcessInfo → DecryptAesHexString 成功后
+               调 CheckSsdtHookIntegrity，同样置 GT[0x304]=1 且不清表。
+               所以正确组合是 **InSize=0x100 许可包 + OutSize=4**。 */
+            {
+                UCHAR ReadyPkt[0x100];
+                ULONG ReadyOut = 0;
+                if (XpchBuildLicensePacket(ReadyPkt))
+                    XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
+                               ReadyPkt, sizeof(ReadyPkt),
+                               &ReadyOut, sizeof(ReadyOut), NULL);
+            }
 
             if (buf)
                 dok = XpchInvoke(&client, Cmd, NULL, 0, buf, DumpSize, &dres);
@@ -732,6 +753,7 @@ int main(int argc, char **argv)
             BOOL sok = FALSE;
             int used = 0;
             ULONG ssdt = 0;
+            ULONG SsdtBuf = 0;   /* OutSize 必须正好 4（路径 C 条件） */
             UCHAR r22 = 0;
 
             /*
@@ -744,7 +766,9 @@ int main(int argc, char **argv)
                清空时的命令表原文。 */
             if (!NoHandshake)
                 XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
-                           HsPacket, HsPacketSize, &ssdt, sizeof(ssdt), &r22);
+                           HsPacket, HsPacketSize,
+                           &SsdtBuf, sizeof(SsdtBuf), &r22);
+            ssdt = SsdtBuf;
 
             recs = (ULONG *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, STATBUF);
             if (recs)
@@ -994,11 +1018,14 @@ int main(int argc, char **argv)
         {
             ULONG build = 0;
             ULONG ssdt = 0;
+            ULONG SsdtBuf = 0;   /* OutSize 必须正好 4（路径 C 条件） */
             UCHAR r22 = 0;
             BOOL ok22;
 
             ok22 = XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
-                              HsPacket, HsPacketSize, &ssdt, sizeof(ssdt), &r22);
+                              HsPacket, HsPacketSize,
+                           &SsdtBuf, sizeof(SsdtBuf), &r22);
+            ssdt = SsdtBuf;
             printf("  handshake 0x22 (inSize=%lu) -> %s, result=%u, ssdt=%lu\n",
                    HsPacketSize, ok22 ? "OK" : "REJECTED", r22, ssdt);
 
@@ -1337,9 +1364,12 @@ int main(int argc, char **argv)
                这里先走与 XpchHandshake 相同的路径 C（0x100 字节合法许可包）。 */
             if (!NoHandshake) {
                 ULONG abSsdt = 0; UCHAR ar = 0;
-                BOOL aok = XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
-                                      HsPacket, HsPacketSize,
-                                      &abSsdt, sizeof(abSsdt), &ar);
+                ULONG AbSsdtBuf = 0;   /* OutSize 必须正好 4（路径 C 条件） */
+                BOOL aok;
+                aok = XpchInvoke(&client, XPCH_CMD_QUERY_PROCESS_INFO,
+                                 HsPacket, HsPacketSize,
+                                 &AbSsdtBuf, sizeof(AbSsdtBuf), &ar);
+                abSsdt = AbSsdtBuf;
                 fprintf(abf, "# handshake 0x22 insz=%lu %s res=%u ssdt=%lu\n",
                         (unsigned long)HsPacketSize, aok ? "OK" : "REJ",
                         (unsigned)ar, (unsigned long)abSsdt);

@@ -2107,22 +2107,22 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
             {
                 if ((unsigned int)ReadPESectionEntry((PUCHAR)&ReadContext, &SectionEntry))
                     break;
-                /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
-                   原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
+                /* 【修正 2026-10-26】四处偏差，必须同时改（单独改任一处都会破坏其它判据）：
+                   ① SectionEnd 必须由 ReadPtr 推出。原版 `v9 = v26 + v19` 在
+                      `v19 += v26` **之前**算，且 v19 初值就是 ImageBase+NdisOffset；
+                      此前用从 0 起的 CumulativeOffset，算出的是模块内偏移而非 VA，
+                      再减 ImageBase 就变成负数，判据恒假。
+                   ② 1368 的 RVA 字段是 v21 = [rbp-0x38] = +0x38（此前误用 +0x40）。
+                   ③ 1298 的条件是 v22(+0x50)==64，不是 +0x78。
+                   ④ 1296 的条件同上，且 RVA 用 v24(+0x78)。 */
+                int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionEntry)
+                                      + (ULONG)ReadContext.ReadPtr);
                 ReadContext.ReadPtr += PE_DESC_SECTION_SIZE(&SectionEntry);
-
-                int SectionEnd = (int)(PE_DESC_SECTION_SIZE(&SectionEntry) + CumulativeOffset);
                 CumulativeOffset += PE_DESC_SECTION_SIZE(&SectionEntry);
 
                 if (*(_WORD *)((PUCHAR)PE_DESC_SECTION_DATA(&SectionEntry) + 6) == 1368)
                 {
-                    /* 【修正 2026-10-26】原版 v21 = 栈 [rbp-0x38]，描述符基址
-                       rbp-0x70 → 字段 +0x38。此前误写成 +0x40（另一槽）。
-                       注意：此改动与第二段字段改动必须**分开验证**——单独应用
-                       第一段偏移会让原先靠 +0x40 恰好成立的判据失效，连带
-                       0x0F3/0x0E8/0x0FC/0x0FE/0x0FF/0x100/0x119/0x11B 一起
-                       退化为 REJ。当前保持原值以确保基线不被破坏。 */
-                    int EntryField = *(int *)((PUCHAR)&SectionEntry + 0x40);
+                    int EntryField = *(int *)((PUCHAR)&SectionEntry + 0x38);
                     if (EntryField)
                     {
                         unsigned int TargetRva = (unsigned int)(SectionEnd + EntryField - ImageBase);
@@ -2149,7 +2149,6 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
              v27b +0x118 类型指针      (= PE_DESC_SECTION_DATA) */
         PE_DECODE_CONTEXT DecodeContext;
         PE_INSN_DESCRIPTOR v20b;
-        __int64 v19b = 0;
         unsigned int InnerOffset = 0;
         int InnerLoop = 0;
 
@@ -2179,8 +2178,8 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
                    PE_DESC_FIELD_SIZE 宏是 +0x78（RVA），不能拿来比 64；
                    PE_DESC_FIELD_VALUE2 是 +0x88，判断 0x40000 正确。 */
                 if (SectionType == 1298 &&
-                    PE_DESC_FIELD_VALUE2(&v20b) == 0x40000 &&
-                    PE_DESC_FIELD_SIZE(&v20b) == 64)
+                    *(unsigned __int64 *)((PUCHAR)&v20b + 0x88) == 0x40000ULL &&
+                    *(int *)((PUCHAR)&v20b + 0x50) == 64)
                 {
                     if (((unsigned int)GtRead(GtWindowsBuildNumber) <= 0x23F0 &&
                          *(int *)((PUCHAR)&v20b + 0x58) == 1) ||
@@ -2188,7 +2187,7 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
                          *(int *)((PUCHAR)&v20b + 0x58) == 5) ||
                         (unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
                     {
-                        int localRva = InnerEnd + *(int *)((PUCHAR)&v20b + 0x40) - (int)ImageBase;
+                        int localRva = InnerEnd + *(int *)((PUCHAR)&v20b + 0x78) - (int)ImageBase;
                         if (localRva && localRva < (int)ImageSize)
                             InnerOffset = (unsigned int)localRva;
                     }
@@ -2202,10 +2201,10 @@ __int16 FindNdisExportsBySectionScan(__int64 ImageBase, unsigned int ImageSize)
                 if (Found == 1)
                 {
                     if (SectionType == 1296 &&
-                        PE_DESC_FIELD_VALUE2(&v20b) == 0x40000 &&
-                        PE_DESC_FIELD_SIZE(&v20b) == 64)
+                        *(unsigned __int64 *)((PUCHAR)&v20b + 0x88) == 0x40000ULL &&
+                        *(int *)((PUCHAR)&v20b + 0x50) == 64)
                     {
-                        int localRva = InnerEnd + *(int *)((PUCHAR)&v20b + 0x40) - (int)ImageBase;
+                        int localRva = InnerEnd + *(int *)((PUCHAR)&v20b + 0x78) - (int)ImageBase;
                         if (localRva && (unsigned int)localRva < ImageSize && !--VersionOffset)
                         {
                             GtWrite(GtEprocessExtField41, SectionBaseCopy + localRva);

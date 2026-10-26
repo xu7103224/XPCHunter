@@ -743,14 +743,33 @@ BOOL XpchHandshake(PXPCH_CLIENT Client)
     BOOL Built;
     BOOL Ok22;
 
-    /* 走路径 C：0x100 字节合法许可包。
-       这样既能把 GT[0x304] 置 1，又不会触发 AllocProcessInfoBuffer
-       去清空命令表的槽 198..224，同时 GT[0x1E0]（ioctl 码）净变化为 0。 */
-    Built = XpchBuildLicensePacket(Packet);
-    Ok22 = FALSE;
-    if (Built)
-        Ok22 = XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO,
-                          Packet, sizeof(Packet), &Ssdt, sizeof(Ssdt), &Result);
+    /* 走路径 C：0x100 字节合法许可包 + OutSize==4。
+       驱动侧分发器映射（DriverEntry.c:542-545,605）：
+           OutSize  = [buf+0x20] = 请求的 InSize
+           CtxSize  = [buf+0x24] = 请求的 OutSize
+           Handler(rcx=CtxPtr, edx=OutSize, r8=ExtraPtr, r9=CtxSize)
+       CmdQueryProcessInfo(ProcessId, BufferSize, OutBuf, OutputSize)：
+           BufferSize ← 请求 InSize（本处 0x100）
+           OutputSize ← 请求 OutSize（必须 == 4）
+
+       走路径 A（InSize<=0xA）会置 GT[0x304]=1，但 AllocProcessInfoBuffer
+       的 memset(GtAlloc(GtCommandHandlerBase)+198, 0, 0xD8) 会清空命令表
+       槽 198..224，把 0xF0/F4/F6 等 27 条命令的处理器指针抹成 0。
+
+       走路径 C（InSize=0x100 合法包 && OutSize==4）则由
+       QuerySsdHookByProcessInfo → DecryptAesHexString 成功 →
+       CheckSsdtHookIntegrity → 同样置 GT[0x304]=1，且不动命令表。
+       两个条件缺一不可：InSize 必须 0x100，OutSize 必须正好 4。 */
+    {
+        ULONG SsdtOut = 0;
+        Built = XpchBuildLicensePacket(Packet);
+        Ok22 = FALSE;
+        if (Built)
+            Ok22 = XpchInvoke(Client, XPCH_CMD_QUERY_PROCESS_INFO,
+                              Packet, sizeof(Packet),
+                              &SsdtOut, sizeof(SsdtOut), &Result);
+        Ssdt = SsdtOut;
+    }
 
     if (XpchInvoke(Client, XPCH_CMD_GET_MODULE_COUNT,
                    NULL, 0, &Build, sizeof(Build), &Result)) {

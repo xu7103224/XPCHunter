@@ -422,6 +422,12 @@ __int64 CmdResetProcessContext(__int64 InputBuffer, __int64 InputSize, _DWORD *p
 // 对应原始驱动 sub_14003105C
 __int64 CmdQueryProcessInfo(__int64 ProcessId, __int64 BufferSize, _DWORD *pOutputBuffer, int OutputSize)
 {
+    /* 【注意】第 2 参数是请求的 OutSize（+0x24），不是 InSize。
+       分发器 ABI：Handler(rcx=CtxPtr, edx=OutSize, r8=ExtraPtr, r9=CtxSize)。
+       BufferSize <= 0xA 会走 AllocProcessInfoBuffer，后者
+       memset(GtAlloc(GtCommandHandlerBase)+198, 0, 0xD8) 清空命令表
+       槽 198..224（命令 0xE6..0x100），包括 0xF0/0xF4/0xF6。
+       客户端调用 0x22 时必须让 OutSize > 0xA。 */
     if ((unsigned int)BufferSize > 0xA)
         return QuerySsdHookByProcessInfo((void *)ProcessId, BufferSize, pOutputBuffer, OutputSize);
     AllocProcessInfoBuffer();

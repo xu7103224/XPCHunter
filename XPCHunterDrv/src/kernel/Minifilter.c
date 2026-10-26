@@ -5134,7 +5134,7 @@ char __fastcall FindWfpStartStreamShimExport(__int64 PeBase, unsigned int PeSize
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5160,7 +5160,7 @@ char __fastcall FindWfpStopStreamShimExport(__int64 PeBase, unsigned int PeSize)
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5186,7 +5186,7 @@ char __fastcall FindWfpStartMacShimExport(__int64 PeBase, unsigned int PeSize)
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5212,7 +5212,7 @@ char __fastcall FindKfdGetOffloadEpochExport(__int64 PeBase, unsigned int PeSize
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5238,7 +5238,7 @@ char __fastcall FindKfdGetRefCalloutExport(__int64 PeBase, unsigned int PeSize)
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5264,7 +5264,7 @@ char __fastcall FindKfdDeleteCalloutEntryExport(__int64 PeBase, unsigned int PeS
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5290,7 +5290,7 @@ char __fastcall FindKfdUnregisterCalloutEntryExport(__int64 PeBase, unsigned int
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5316,18 +5316,28 @@ char __fastcall FindKfdDeregisterLayerCallbackExport(__int64 PeBase, unsigned in
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
         return Result;
 
-    strcpy(NameBuf, "KfdDeregisterLayerChangeCallback");
-    if (LookupExportByName((PUCHAR)PeBase, PeSize, NameBuf, &Value) != 1)
+    /* 【修正 2026-10-26】原版逐字串构造名字。此前用 `char NameBuf[32]` +
+       strcpy 存 32 字符的名字，缓冲区刚好差 1 字节放 '\0'（溢出），
+       且 MSVC 会把短 strcpy 优化成立即数存储，长度易被截断
+       （"DllInitialize" 就曾因此变成 "DllIniti"）。
+       改为 40 字节 + 显式逐字节填充，杜绝优化与越界。 */
     {
-        strcpy(NameBuf, "KfdDeregisterLayerEventNotify");
+        static const char N1[] = "KfdDeregisterLayerChangeCallback";
+        unsigned int k;
+        for (k = 0; k < sizeof(N1); ++k) NameBuf[k] = N1[k];
         if (LookupExportByName((PUCHAR)PeBase, PeSize, NameBuf, &Value) != 1)
-            return Result;
+        {
+            static const char N2[] = "KfdDeregisterLayerEventNotify";
+            for (k = 0; k < sizeof(N2); ++k) NameBuf[k] = N2[k];
+            if (LookupExportByName((PUCHAR)PeBase, PeSize, NameBuf, &Value) != 1)
+                return Result;
+        }
     }
 
     if (Value != 0 && Value < PeSize)
@@ -5338,16 +5348,13 @@ char __fastcall FindKfdDeregisterLayerCallbackExport(__int64 PeBase, unsigned in
     }
     return Result;
 }
-
-
-// FindKfdRegisterLayerCallbackExport — 按名查找 KfdRegisterLayerChangeCallback 导出并登记 (偏移, 地址) 到 GT 0x7bc/0x7bd
 // 对应原始驱动 0x1400685d8
 char __fastcall FindKfdRegisterLayerCallbackExport(__int64 PeBase, unsigned int PeSize)
 {
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5373,7 +5380,7 @@ char __fastcall FindNsiGetModuleHandle(__int64 PeBase, unsigned int PeSize)
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5399,7 +5406,7 @@ char __fastcall FindNmrRegisterProviderExport(__int64 PeBase, unsigned int PeSiz
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5425,7 +5432,7 @@ char __fastcall FindNsiDeregisterChangeNotificationEx(__int64 PeBase, unsigned i
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5451,7 +5458,7 @@ char __fastcall FindNsiDeregisterLegacyHandler(__int64 PeBase, unsigned int PeSi
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5477,7 +5484,7 @@ char __fastcall FindSetWfpDeviceObject(__int64 PeBase, unsigned int PeSize)
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -5504,7 +5511,7 @@ char __fastcall FindWfpNblInfoDispatchTableClear(__int64 PeBase, unsigned int Pe
     char    Result = 0;
     __int64 ModuleBase;
     ULONG   Value = 0;
-    char    NameBuf[32];
+    char    NameBuf[40];
 
     ModuleBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x1A1);      // GtEprocessField151|0x100
     if (!ModuleBase)
@@ -6058,7 +6065,7 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
     {
         USHORT Type;
         ULONG  Len, Cumul;
-        ULONG  F58, F70, F78, F90; ULONG64 F50, F88;
+        ULONG  F58, F70, F78, F80, F90; ULONG64 F50, F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))       // 0x1400688A2
             return Result;
@@ -6071,29 +6078,35 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
         if (Type == 0x558 && (ULONG)(++Count558) > 1)             // 0x1400688DE
             return Result;
 
-        /* 【2026-10-26 修正】原版 0x1400687D0 的字段映射（描述符基址 = rbp-0x60）：
-             v20 (rbp-0x10) → +0x50  （比较 64）
-             v21 (rbp-0x08) → +0x58  （存 v8，供后续比较）
-             Value(rbp+0x10)→ +0x70  （1049 分支的输出值）
-             v23 (rbp+0x18) → +0x78  （RVA 字段 / 输出值）
-             v24 (rbp+0x28) → +0x88  （比较 0x40000 / 0x10000 / 0x2000000）
-             v25 (rbp+0x30) → +0x90  （与 v8 比较）
-           我方此前用 +0x40 当"字段值"、+0x8C 当"SavedField"，
-           两处偏移都错，导致 1298/1049 分支的 SavedField 比对永不成立，
-           GT[0x7C0] 恒为 0 → 0x0F4 返回 0。 */
-        F50  = *(ULONG64 *)((PUCHAR)Entry + 0x50);    /* v20 */
-        F58  = *(ULONG   *)((PUCHAR)Entry + 0x58);    /* v21 */
-        F70  = *(ULONG   *)((PUCHAR)Entry + 0x70);    /* Value */
-        F78  = *(ULONG   *)((PUCHAR)Entry + 0x78);    /* v23 */
-        F88  = *(ULONG64 *)((PUCHAR)Entry + 0x88);    /* v24 */
-        F90  = *(ULONG   *)((PUCHAR)Entry + 0x90);    /* v25 */
+        /* 【2026-10-26 按反汇编逐条实测确认】原版 0x1400687D0 的字段偏移。
+           栈帧：`_DWORD v19[20]; // [rsp+A0h] [rbp-60h]` → 描述符基址 = rbp-0x60。
+           IDA 的局部量写作 `[rbp+100h+var_XXX]`，实际地址 = rbp+0x100-var_XXX：
+             var_110 → rbp-0x10 → desc+0x50   （1400688EB: mov r8,[var_110]; cmp r8,40h）
+             var_108 → rbp-0x08 → desc+0x58   （14006892A: mov r15d,[var_108] 存 SavedField；
+                                               1400689A7: cmp r15d,[var_108] 1049 比对）
+             var_E8  → rbp+0x18 → desc+0x78   （1400688E8: mov eax,[var_E8] RVA；
+                                               14006896E: mov edx,[var_E8] 1298 写值）
+             Value   → rbp+0x10 → desc+0x70   （1400689BB: mov edx,[Value] 1049 写值）
+             var_D8  → rbp+0x28 → desc+0x88   （1400688E4: mov r9,[var_D8]; cmp r9,40000h）
+             var_D0  → rbp+0x30 → desc+0x90   （140068968: cmp r15d,[var_D0] 1298 比对）
+           三段语义：
+             1296: F88==0x40000 && F78!=0 && F50==64 → SavedField=F58, SavedRva=Rva
+             1298: (F88&0x10000) && F78>0 && F50==64 && 匹配 → GtWrite(0x7C0, F78)
+             1049: F50==64 && F88==0x2000000 && 匹配       → GtWrite(0x7C0, F70) */
+        F50  = *(ULONG64 *)((PUCHAR)Entry + 0x50);    /* var_110：比较 64 */
+        F58  = *(ULONG   *)((PUCHAR)Entry + 0x58);    /* var_108：SavedField 源/比对 */
+        F70  = *(ULONG   *)((PUCHAR)Entry + 0x70);    /* Value  ：1049 的写出值 */
+        F78  = *(ULONG   *)((PUCHAR)Entry + 0x78);    /* var_E8 ：RVA / 1298 写出值 */
+        F88  = *(ULONG64 *)((PUCHAR)Entry + 0x88);    /* var_D8 ：比较 0x40000 等 */
+        F80  = *(ULONG   *)((PUCHAR)Entry + 0x80);    /* 1049 的 SavedField 比对目标 */
+        F90  = *(ULONG   *)((PUCHAR)Entry + 0x90);    /* var_D0 ：1298 的 SavedField 比对 */
 
         if (Type == 0x510 && F88 == 0x40000ULL && F78 != 0 && F50 == 64)   // 0x14006890C
         {
             ULONG Rva = Cumul + F78 - (ULONG)(ULONG_PTR)PeBase;   // 0x140068912
             if (Rva && Rva < PeSize && !SavedRva)                 // 0x140068924
             {
-                SavedField = F58;                                 /* v21 → +0x58 */
+                SavedField = F58;                                 /* 0x14006892A: mov r15d,[var_108] */
                 SavedRva = Rva;                                   // 0x14006892E
             }
         }
@@ -6103,9 +6116,9 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
             if (SavedRva                                          // 0x14006896C
                 && (ULONG64)(ModuleBase + (__int64)SavedRva)
                        == (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x7BA)
-                && SavedField == (ULONG64)F90)                    /* v25 → +0x90 */
+                && SavedField == (ULONG64)F90)                    /* 0x140068968: cmp r15d,[var_D0] */
             {
-                GtWrite((GLOBAL_TABLE_INDEX)0x7C0, (__int64)F78);      // LABEL_35
+                GtWrite((GLOBAL_TABLE_INDEX)0x7C0, (__int64)F78);      // 0x14006896E: mov edx,[var_E8]
                 return 1;
             }
         }
@@ -6113,9 +6126,9 @@ char __fastcall ScanKfdDriverSections(__int64 PeBase, unsigned int PeSize)
                  && SavedRva
                  && (ULONG64)(ModuleBase + (__int64)SavedRva)
                         == (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x7BA)
-                 && SavedField == (ULONG64)F58)                    /* v21 → +0x58 */
+                 && SavedField == (ULONG64)F80)                    /* 见下方交叉匹配说明 */
         {
-            GtWrite((GLOBAL_TABLE_INDEX)0x7C0, (__int64)F70);      /* Value → +0x70 */
+            GtWrite((GLOBAL_TABLE_INDEX)0x7C0, (__int64)F70);      /* 0x1400689BB: mov edx,[Value] */
             return 1;
         }
     }
@@ -6174,7 +6187,7 @@ char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize)
     {
         USHORT Type;
         ULONG  Len, Cumul;
-        ULONG  F40, F70, F78; ULONG64 F80;
+        ULONG  F40, F50, F70; ULONG64 F88;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&Ctx, Entry))
             break;
@@ -6199,10 +6212,19 @@ char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize)
             return Result;                                        // 0x14006A763
         }
 
-        F40 = *(ULONG *)((PUCHAR)Entry + 0x40);
-        F70 = *(ULONG *)((PUCHAR)Entry + 0x70);
-        F78 = *(ULONG *)((PUCHAR)Entry + 0x78);
-        F80 = *(ULONG64 *)((PUCHAR)Entry + 0x80);
+        /* 【修正 2026-10-26】字段映射按原版 0x14006A508 的栈帧还原。
+           描述符基址 = rbp-0x50（`int v21[16]; // [rsp+B0h] [rbp-50h]`），故：
+             v22 [rbp-0x10] → +0x40   RVA 字段（参与算地址）
+             v23 [rbp+0x00] → +0x50   比较 0x40000
+             v24 [rbp+0x20] → +0x70   1351 分支比较 1
+             v25 [rbp+0x38] → +0x88   1294 比较 64 / 1351 比较 0x800000
+           此前代码把 +0x70 当 0x40000、+0x78 当 1、+0x80 当 64，三处都错
+           （+0x40 当 RVA 反而是对的），所有判据永不成立
+           → GT[0x7C5..0x7C7] 恒 0 → 0x0F6 返回 0。 */
+        F40  = *(ULONG   *)((PUCHAR)Entry + 0x40);    /* v22：RVA 字段 */
+        F50  = *(ULONG   *)((PUCHAR)Entry + 0x50);    /* v23：比较 0x40000 */
+        F70  = *(ULONG   *)((PUCHAR)Entry + 0x70);    /* v24：1351 比较 1 */
+        F88  = *(ULONG64 *)((PUCHAR)Entry + 0x88);    /* v25：64 / 0x800000 */
 
         if ((USHORT)(Type - 1139) <= 1)                           // 0x14006A633
         {
@@ -6215,9 +6237,9 @@ char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize)
         }
         else if (Type == 0x50E)                                   // 0x14006A655
         {
-            if (Cnt558 == 1 && !BoundMark && F70 == 0x40000)      // 0x14006A673
+            if (Cnt558 == 1 && !BoundMark && F50 == 0x40000)      // 0x14006A673
             {
-                if (F40 != 0 && F80 == 64)                        // 0x14006A67E / 685
+                if (F40 != 0 && F88 == 64)                        // 0x14006A67E / 685
                 {
                     ULONG Rva = Cumul + F40 - (ULONG)(ULONG_PTR)PeBase;   // 0x14006A68A
                     if (Rva && Rva < PeSize)                      // 0x14006A68C / 690
@@ -6229,9 +6251,9 @@ char __fastcall ScanWfpStreamShimSections(__int64 PeBase, unsigned int PeSize)
                 }
             }
         }
-        else if (Type == 0x547 && BoundMark == 1 && F70 == 0x40000)   // 0x14006A6B6
+        else if (Type == 0x547 && BoundMark == 1 && F50 == 0x40000)   // 0x14006A6B6
         {
-            if (F40 != 0 && F80 == 0x800000ULL && F78 == 1)       // 0x14006A6BD / 6CD
+            if (F40 != 0 && F88 == 0x800000ULL && F70 == 1)       // 0x14006A6BD / 6CD
             {
                 ULONG Rva = Cumul + F40 - (ULONG)(ULONG_PTR)PeBase;   // 0x14006A6D2
                 if (Rva && Rva < PeSize                            // 0x14006A6D4 / 6F4
