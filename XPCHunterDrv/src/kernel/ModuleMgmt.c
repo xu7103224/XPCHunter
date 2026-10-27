@@ -4378,16 +4378,20 @@ char ScanKernelPeExportData()
         0,
         (__int64)&SectionContext);
 
-    SecondPassOffset = 0;
+    /* 【修正 2026-10-27 第三次】原版入口 0x14003F0A6 处 `mov rsi, rax`（rax=GT[0x435D]）就把
+       esi 装成第一遍基址；第一遍只在命中 0x559 时用 0x14003F18C `mov esi, eax` 覆盖它，
+       5 次未命中时 0x14003F188 `jnb loc_14003F18E` 直接带着原 esi 进入第二遍。
+       旧实现把 SecondPassOffset 初始化为 0，导致下方 `if (!SecondPassOffset) return`
+       把整个第二遍（唯一写 GT[0x33D] 的路径）短路掉 —— 0x047 块 11 因此恒为空。 */
+    SecondPassOffset = FirstPassOffset;
     SectionIndex = 0;
     while (SectionIndex < 5)
     {
-        /* 【修正 2026-10-27】原版 0x14003F141..F17F：先解码，成功后
-           ctx+0x08 += 本条长度。描述符基址 rsp+0x98，故偏移 = 栈帧offset - 0x98：
+        /* 原版 0x14003F141..F17F：先解码，成功后 ctx+0x08 += 本条长度。
+           描述符基址即 ReadPESectionEntry 的第二个参数，故偏移 = 栈帧offset - 0x98：
              var_50 (0x188) → +0xF0 长度
              var_28 (0x1b0) → +0x118 类型指针
-             var_108(0xd0)  → +0x38  RVA 基值
-           旧实现的 SectionAlignedSize/SectionFileOffset/SectionDataSize 全未赋值。 */
+             var_108(0xd0)  → +0x38  RVA 基值 */
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
 

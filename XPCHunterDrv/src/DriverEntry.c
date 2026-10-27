@@ -97,7 +97,6 @@ ULONG g_DiagPcFlagOff;
 ULONG g_DiagVadStage;
 ULONG g_DiagVadCount;
 ULONG g_DiagVadFound;
-ULONG64 g_DiagProbe[16];
 ULONG64 g_DiagSsdt[8];
 ULONG g_DiagVkStage;
 ULONG g_DiagEpiA;

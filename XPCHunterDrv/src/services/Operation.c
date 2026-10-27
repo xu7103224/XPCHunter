@@ -1081,23 +1081,6 @@ __int64 EnumObjectTypeTableOperation(char *pInputBuffer, int InputSize, unsigned
                             {
                                 if (pEntryArray > (_QWORD *)MmSystemRangeStart && CheckMemoryValid(pEntryArray) == 1)
                                 {
-                                    /* 【探针 2026-10-27】记录前 3 个块的
-                                       v18 / *v18 / (*v18)[3] / EntryCount / 所属节点 */
-                                    if (*pOutputBuffer < 3)
-                                    {
-                                        unsigned int pi = (*pOutputBuffer) * 5;
-                                        if (pi + 4 < 16)
-                                        {
-                                            g_DiagProbe[pi + 0] = (ULONG64)pEntryArray;
-                                            {
-                                                ULONG64 SubHead = *pEntryArray;
-                                                g_DiagProbe[pi + 1] = SubHead;
-                                                g_DiagProbe[pi + 2] = SubHead ? *(ULONG64 *)(SubHead + 0x18) : 0;
-                                            }
-                                            g_DiagProbe[pi + 3] = (ULONG64)EntryCount;
-                                            g_DiagProbe[pi + 4] = (ULONG64)pTypeNode;
-                                        }
-                                    }
                                     *((_QWORD *)pEntry + 1) = (_QWORD)pEntryArray;
                                     *(_QWORD *)pEntry = 0;
                                     Remaining = ((unsigned __int64)RemainingSize - 40) / 0x18 + 1;
@@ -3406,11 +3389,6 @@ __int64 EnumKernelObjectTableOperation(char *pInputBuffer, int InputSize, unsign
                     ResolveKernelObjectAddresses((__int64)pOutputBuffer);
                     return pOutputBuffer[1] != 0;
                 }
-                /* 【探针 2026-10-27】记录前 8 个链表节点 + 表头，用于和原版对照 */
-                if (pOutputBuffer[1] < 8)
-                    g_DiagProbe[pOutputBuffer[1]] = (ULONG64)pListEntry;
-                if (pOutputBuffer[1] == 0)
-                    g_DiagProbe[15] = (ULONG64)pObjectTypeList;
                 pObjectHeader = (_QWORD *)((char *)pListEntry - (unsigned int)GtRead(GtCallbackField101));
                 *(__int64 *)&pOutputBuffer[50 * pOutputBuffer[1] + 2] = (__int64)pObjectHeader;
                 pOutputEntry = (_QWORD *)&pOutputBuffer[50 * pOutputBuffer[1]];

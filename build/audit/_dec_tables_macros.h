@@ -13,8 +13,6 @@ extern const UCHAR g_PeDecodeTableSubGroup[];  /* RVA 0xA3790, 1600 字节 */
 #define g_PeDecodeTableMode0  (&g_PeDecodeTableRegion[0x03C20])   /* RVA 0x9A650, 5120 字节 */
 #define g_PeDecodeTableMode3  (&g_PeDecodeTableRegion[0x05020])   /* RVA 0x9BA50, 5120 字节 */
 #define g_PeDecodeTableMode4  (&g_PeDecodeTableRegion[0x06420])   /* RVA 0x9CE50, 5120 字节 */
-#define g_PeDecodeTablePrefixPtrA  (&g_PeDecodeTableRegion[0x07820])   /* RVA 0x9E250, 128 字节 */
-#define g_PeDecodeTablePrefixPtrB  (&g_PeDecodeTableRegion[0x078A0])   /* RVA 0x9E2D0, 128 字节 */
 #define g_PeDecodeTableGrp1  (&g_PeDecodeTableRegion[0x07BA0])   /* RVA 0x9E5D0, 960 字节 */
 #define g_PeDecodeTableGrp2  (&g_PeDecodeTableRegion[0x07F60])   /* RVA 0x9E990, 320 字节 */
 #define g_PeDecodeTableGrp3  (&g_PeDecodeTableRegion[0x080A0])   /* RVA 0x9EAD0, 320 字节 */
