@@ -590,7 +590,7 @@ __int64 ParseNtSectionsForProcessMemory(void)
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + BaseOffset),
-            NtImageSize - BaseOffset,
+            (ULONG)((ULONG)NtImageBase - (ULONG)(BaseOffset + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -682,7 +682,7 @@ __int64 ParseNtSectionsForModuleBase(void)
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + BaseOffset),
-            NtImageSize - BaseOffset,
+            (ULONG)((ULONG)NtImageBase - (ULONG)(BaseOffset + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -785,7 +785,7 @@ __int64 ParseNtSectionsForRelocBase(void)
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + BaseOffset),
-            NtImageSize - BaseOffset,
+            (ULONG)((ULONG)NtImageBase - (ULONG)(BaseOffset + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -894,7 +894,7 @@ __int64 ParseProcessMemSections(void)
     // 第一阶段：扫描最多 6 个节区，查找 Type 0x558(1368) 的有效偏移
     InitPESectionReadContext(
         (__int64)(NtImageBase + BaseOffset),
-        NtImageSize - BaseOffset,
+        (ULONG)((ULONG)NtImageBase - (ULONG)(BaseOffset + NtImageBase) + (ULONG)NtImageSize),
         2,
         0,
         -1,
@@ -1105,7 +1105,7 @@ __int64 FindKernelDataSectionOffsetEx(void)
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + BaseOffset),
-            NtImageSize - BaseOffset,
+            (ULONG)((ULONG)NtImageBase - (ULONG)(BaseOffset + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -1199,7 +1199,7 @@ __int64 FindKernelDataSectionOffsetV2(void)
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + BaseOffset),
-            NtImageSize - BaseOffset,
+            (ULONG)((ULONG)NtImageBase - (ULONG)(BaseOffset + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -1295,7 +1295,7 @@ __int64 FindKernelDataSectionOffsetV3(void)
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + BaseOffset),
-            NtImageSize - BaseOffset,
+            (ULONG)((ULONG)NtImageBase - (ULONG)(BaseOffset + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,

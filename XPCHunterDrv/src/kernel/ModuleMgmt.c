@@ -4367,7 +4367,7 @@ char ScanKernelPeExportData()
     // 第一轮扫描：最多 5 个条目，查找 Type 0x559
     InitPESectionReadContext(
         (__int64)(NtImageBase + FirstPassOffset),
-        (ULONG)(NtImageSize - FirstPassOffset),
+        (ULONG)((ULONG)((ULONG)NtImageBase - (ULONG)(FirstPassOffset + NtImageBase) + (ULONG)NtImageSize)),
         2,
         0,
         -1,
@@ -4406,7 +4406,7 @@ char ScanKernelPeExportData()
     // 第二轮扫描：最多 100 个条目，查找 Type 0x4DB
     InitPESectionReadContext(
         (__int64)(NtImageBase + SecondPassOffset),
-        (ULONG)(NtImageSize - SecondPassOffset),
+        (ULONG)((ULONG)((ULONG)NtImageBase - (ULONG)(SecondPassOffset + NtImageBase) + (ULONG)NtImageSize)),
         2,
         0,
         -1,
@@ -4491,7 +4491,7 @@ char EnumProcessPeExportData()
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + GtIndex41B0),
-            (ULONG)(NtImageSize - GtIndex41B0),
+            (ULONG)((ULONG)((ULONG)NtImageBase - (ULONG)(GtIndex41B0 + NtImageBase) + (ULONG)NtImageSize)),
             2,
             0,
             -1,
@@ -4581,9 +4581,14 @@ char EnumProcessPeExportDataByIndex()
         NtoskrnlModuleBase &&
         NtoskrnlImageSize)
     {
+        /* 【修正 2026-10-27】原版 0x14003F89B..8C7：
+             edx = (DWORD)GT[0x20]（窗口基址低 32）
+             ecx = GT[0x42DF] + GT[0x20]（Base）
+             Size = edx - ecx + (DWORD)GT[0x21]
+           旧实现写成 NtImageSize - GtIndex42DF，量纲不对（少了基址抵消项）。 */
         InitPESectionReadContext(
             (__int64)(NtImageBase + GtIndex42DF),
-            (ULONG)(NtImageSize - GtIndex42DF),
+            (ULONG)((ULONG)NtImageBase - (ULONG)(GtIndex42DF + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -4597,12 +4602,13 @@ char EnumProcessPeExportDataByIndex()
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
-            /* 【修正 2026-10-27】原版 0x14003F8E2..8FC：游标就是 ctx+0x08，
-               先读后推进；SectionAlignedSize/FieldFlags/FieldValueSize/
-               SectionDataSize/SectionFileOffset 旧版全是未赋值的空壳局部。 */
-            ComputedOffset = *(ULONG *)((PUCHAR)SectionEntry + 0x40)
-                           - (int)NtImageBase
-                           + (int)SectionContext.ReadPtr;
+            /* 【修正 2026-10-27】原版 0x14003F8E2..8F7：
+               eax = (+0x40) - GT[0x20] + (DWORD)ctx读指针   （全是 32 位运算）
+               再 +0xF0 推进 ctx+0x08。
+               旧版把 64 位 ReadPtr 直接参与 int 运算，高 32 位会污染结果。 */
+            ComputedOffset = (int)((ULONG)*(ULONG *)((PUCHAR)SectionEntry + 0x40)
+                                   - (ULONG)NtImageBase
+                                   + (ULONG)SectionContext.ReadPtr);
             SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
             SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
@@ -4685,7 +4691,7 @@ char EnumProcessPeExportDataEx()
 
     InitPESectionReadContext(
         (__int64)(NtImageBase + GtIndex43AB),
-        (ULONG)(NtImageSize - GtIndex43AB),
+        (ULONG)((ULONG)NtImageBase - (ULONG)(GtIndex43AB + NtImageBase) + (ULONG)NtImageSize),
         2,
         0,
         -1,
@@ -4697,19 +4703,29 @@ char EnumProcessPeExportDataEx()
     SectionIndex = 0;
     while (SectionIndex < 0x190)
     {
-            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
+        /* 【修正 2026-10-27】原版 0x14003F6E3..F714：先解码，成功后
+           ctx+0x08 += 本条长度（ReadPESectionEntry 内部不推进）。
+           描述符基址 rsp+0x98，故偏移 = 栈帧offset - 0x98：
+             var_80 (0x188) → +0xF0  长度
+             var_58 (0x1b0) → +0x118 类型指针
+             var_E8 (0x120) → +0x88  段标志
+             var_100(0x108) → +0x70  计数
+             var_120(0xe8)  → +0x50  段特性
+             var_F8 (0x110) → +0x78  RVA 基值
+           旧实现的 SectionAlignedSize / SectionFileOffset / FieldFlags /
+           FieldValueSize / FieldCount / SectionDataSize 全是未赋值空壳。 */
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
 
-        ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
-        SectionFileOffset += SectionAlignedSize;
+        SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
         SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
-        // 检查 Type 是否在 0x53C-0x543 范围内
-        if ((unsigned int)(SectionType - 0x53C) <= 7)
+        /* 0x14003F71D..F73B：第一级标记 Type ∈ [0x53C,0x543] */
+        if ((unsigned int)((USHORT)(SectionType - 0x53C)) <= 7)
         {
-            if (FieldFlags == 0x800000 &&
-                FieldCount == 0x4EC4EC4F)
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x800000 &&
+                *(ULONG *)((PUCHAR)SectionEntry + 0x70) == 0x4EC4EC4F)
             {
                 IsMarked = 1;
                 ++SectionIndex;
@@ -4717,17 +4733,21 @@ char EnumProcessPeExportDataEx()
             }
         }
 
-        // 检查 Type 0x512
+        /* 0x14003F742..F76F：第二级 Type 0x512 + 两个字段 + 已标记 */
         if (SectionType == 0x512 &&
-            FieldFlags == 0x40000 &&
-            FieldValueSize == 64 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40 &&
             IsMarked)
         {
-            ExportRva = (unsigned int)(SectionDataSize - NtImageBase + (ULONG)ComputedOffset);
+            /* 0x14003F763..F769：RVA = (+0x78) - (DWORD)GT[0x20] + (DWORD)ctx读指针 */
+            ExportRva = (ULONG)*(ULONG *)((PUCHAR)SectionEntry + 0x78)
+                      - (ULONG)NtImageBase
+                      + (ULONG)SectionContext.ReadPtr;
+
             if (ExportRva && ExportRva < NtImageSize)
             {
-                // 写入 GT 0x338 = GtCallbackField103
-                GtWrite(GtCallbackField103, NtoskrnlModuleBase + ExportRva);
+                /* 0x14003F782..F78A：写 GT[0x338] */
+                GtWrite(GtCallbackField103, (ULONG64)ExportRva + NtoskrnlModuleBase);
                 if (Process)
                     KeUnstackDetachProcess(&ApcState);
                 return 1;
