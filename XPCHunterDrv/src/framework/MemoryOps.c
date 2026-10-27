@@ -2330,9 +2330,15 @@ __int64 ReadWriteKernelMemory(void)
     RtlZeroMemory(SectionContext, sizeof(SectionContext));
     RtlZeroMemory(SectionEntry, sizeof(SectionEntry));
 
+    /* 【修正 2026-10-27】原版 0x14003FA66..FA92 的实参（寄存器映射已核对）：
+             rbx=GT[0x42E2] PeFileOffset, r12=GT[0x20] PeFileBase,
+             rsi=GT[0x21] PeFileSize,     r15=GT[3]    NtoskrnlBase
+             ecx = PeFileOffset + PeFileBase                ; Base
+             edx = (DWORD)PeFileBase - ecx + (DWORD)PeFileSize
+           注意 edx 初值是 **PeFileBase**（r12），不是 PeFileSize。 */
     InitPESectionReadContext(
         (__int64)(PeFileBase + (ULONG_PTR)PeFileOffset),
-        PeFileSize - PeFileOffset,
+        (ULONG)((ULONG)PeFileBase - (ULONG)(PeFileOffset + PeFileBase) + (ULONG)PeFileSize),
         2,              // Mode: 64-bit PE
         0,              // a4
         -1,             // a5
@@ -2340,22 +2346,36 @@ __int64 ReadWriteKernelMemory(void)
         0,              // a7
         (__int64)SectionContext);
 
+    /* 【修正 2026-10-27 第三次】公式 `字段 - PeFileOffset + 累积量` 里累积量必须是
+       **纯累计长度（从 0 起）**，不能是 ctx+0x08（绝对 VA）。
+       若带入绝对 VA，则 GT[0x20] 的低 32 位会进入结果（实测 0xa1e00000），
+       使 `RVA < PeFileSize` 永远不成立。读指针仍单独推进。 */
+    AccumulatedOffset = 0;
+
+
     // 遍历 PE 节区，最多 0xC8 个
     for (SectionIndex = 0; SectionIndex < 0xC8; SectionIndex++)
     {
-            *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         ULONG64 TypePtr;
         USHORT EntryType;
 
-        // 读取下一个节区条目，如果失败则退出循环
+        /* 【修正 2026-10-27】原版 0x14003FAA8..FAC0 的顺序是：
+             ReadPESectionEntry(...)  → 成功后才 add [ctx+0x08], [desc+0xF0]
+           旧实现把 += 放在解码**之前**，首轮用的是未初始化的描述符长度（栈垃圾），
+           之后每一轮都偏移一条，累积值与原始差一条。
+           这是块 6（GT[0x2BC]）命中不同函数的直接原因。 */
         if ((ULONG)ReadPESectionEntry(SectionContext, (PULONG)SectionEntry))
         {
             break;
         }
 
-        // SectionEntry + 0xF0: 偏移值，累加到累积偏移中
-        PeSectionOffset = *(ULONG *)(SectionEntry + 0xF0);
-        AccumulatedOffset += PeSectionOffset;
+        /* 【修正 2026-10-27】原版 0x14003FAC0 的 `add [rsp+220h+var_1C8], rax`：
+       var_1C8 = rsp+0x60，而解码上下文 var_1D0 = rsp+0x58 —— 两者相差 8，
+       所以 var_1C8 **就是 ctx+0x08（读指针）**。累加即推进读指针；
+       不写回会导致每轮重复解码同一条目。 */
+    PeSectionOffset = *(ULONG *)(SectionEntry + 0xF0);
+    AccumulatedOffset += PeSectionOffset;
+    *(ULONG64 *)((PUCHAR)SectionContext + 0x08) += PeSectionOffset;
 
         // SectionEntry + 0x118: 指向类型结构体的指针
         // 该指针指向的偏移 +6 处为 WORD 类型值
@@ -2432,8 +2452,7 @@ __int64 ReadWriteKernelMemory(void)
                 continue;
             }
 
-            // SectionEntry + 0x78: DWORD 偏移值
-            // 计算：值 - PeFileOffset + AccumulatedOffset
+            /* 原版 loc_14003FB2F → 0x14003FB5E：mov eax,[var_108] → +0x78 */
             PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
             PeSectionOffset -= PeFileOffset;
             PeSectionOffset += (ULONG)AccumulatedOffset;
@@ -2467,17 +2486,12 @@ __int64 ReadWriteKernelMemory(void)
 
             if (EntryType == 0x430)
             {
-                // SectionEntry + 0x88: 必须为 0x400000000
-                // SectionEntry + 0x70: 必须为 4
-                // SectionEntry + 0x50: 必须为 0x20
-                if (*(ULONG64 *)(SectionEntry + 0x88) == 0x400000000LL &&
-                    *(ULONG64 *)(SectionEntry + 0x70) == 4 &&
-                    *(ULONG64 *)(SectionEntry + 0x50) == 0x20)
+                /* 判据（描述符基址 rbp-0xa8，故偏移 = 栈帧offset - 0xa8）：
+                   +0x88 段标志、+0x70 计数、+0x50 段特性 */
+                if (*(ULONG64 *)(SectionEntry + 0x88) == 0x400000000LL
+                    && *(ULONG *)(SectionEntry + 0x70) == 4
+                    && *(ULONG64 *)(SectionEntry + 0x50) == 0x20)
                 {
-                    // 设置标志（一旦设置，跨迭代保持）
-                    // 原始代码使用 cmovz 保持已有值，等效于：
-                    // if (条件满足) Type430Matched = 1; else Type430Matched = Type430Matched;
-                    // 但由于 Type430Matched 初始为 0，这里直接设置
                     Type430Matched = 1;
                 }
             }
@@ -2492,7 +2506,7 @@ __int64 ReadWriteKernelMemory(void)
                     *(ULONG64 *)(SectionEntry + 0x50) == 0x40 &&
                     Type430Matched)
                 {
-                    // SectionEntry + 0x78: DWORD 偏移值
+                    /* 原版 0x14003FB5E / 0x14003FC7B：mov eax,[var_108]，描述符基址 rbp-0xa8 → +0x78 */
                     PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
                     PeSectionOffset -= PeFileOffset;
                     PeSectionOffset += (ULONG)AccumulatedOffset;
@@ -2538,7 +2552,7 @@ __int64 ReadWriteKernelMemory(void)
                     *(ULONG64 *)(SectionEntry + 0x50) == 0x40 &&
                     Type430Matched)
                 {
-                    // SectionEntry + 0x78: DWORD 偏移值
+                    /* 原版 0x14003FB5E / 0x14003FC7B：mov eax,[var_108]，描述符基址 rbp-0xa8 → +0x78 */
                     PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
                     PeSectionOffset -= PeFileOffset;
                     PeSectionOffset += (ULONG)AccumulatedOffset;
