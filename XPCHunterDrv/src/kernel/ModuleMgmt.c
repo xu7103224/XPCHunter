@@ -4242,23 +4242,20 @@ char ScanKernelPeExportSection()
     __int64 NtoskrnlModuleBase;
     int NtoskrnlImageSize;
     unsigned int SectionIndex;
-    int ComputedOffset;
-    __int16 SectionType;
-    unsigned int ExportRva;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 SectionFileOffset;
-    ULONG SectionEntry[112];            // 描述符：原 [20] 仅 80 字节
-    __int64 FieldValueSize;
-    int FieldCount;
-    int SectionDataSize;
-    __int64 FieldFlags;
-    unsigned int SectionAlignedSize;
-    __int64 pSectionEntryBase;
+    PE_DECODE_CONTEXT SectionContext;
+    ULONG SectionEntry[112];
+    ULONG64 AccumulatedOffset;
 
     Result = 0;
 
-    // 读取：导出目录偏移(0x4228)、ntoskrnl基址(32)、ntoskrnl大小(33)、模块基址(3)、映像大小(2)
-    ExportDirOffset = (unsigned int)GtRead(GtUninstallHookSyscallPeOffset);
+    /* 【修正 2026-10-27】原版 0x14003F2A2 读的是 GT[0x42FA]，不是 GT[0x4228]；
+       窗口参数同样按 0x14003F30C..F332 换算：
+         Base = ExportDirOffset + NtImageBase
+         Size = (DWORD)NtImageBase - (DWORD)Base + (DWORD)NtImageSize
+       其余判据字段（描述符基址 rsp+0x90）：
+         +0xF0 长度、+0x118 类型指针、+0x88 段标志(0x40000)、
+         +0x78 RVA 基值、+0x50 段特性(0x40)、+0x58 计数(1) */
+    ExportDirOffset = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x42FA);
     NtImageBase = GtRead(GtEprocessField22);
     NtImageSize = (unsigned int)GtRead(GtEprocessField23);
     NtoskrnlModuleBase = GtRead(GtNtoskrnlModuleBase);
@@ -4273,7 +4270,7 @@ char ScanKernelPeExportSection()
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + ExportDirOffset),
-            (ULONG)(NtImageSize - ExportDirOffset),
+            (ULONG)((ULONG)NtImageBase - (ULONG)(ExportDirOffset + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -4281,34 +4278,41 @@ char ScanKernelPeExportSection()
             0,
             (__int64)&SectionContext);
 
+        AccumulatedOffset = 0;
+
         for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
         {
-            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
+            /* 原版 0x14003F34B..F36F：先解码，成功后 ctx+0x08 += 本条长度 */
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
-            ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
-            SectionFileOffset += SectionAlignedSize;
-            SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+            SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            AccumulatedOffset += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
-            if (SectionType == 1349)
+            if (*(unsigned __int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x545)
                 break;
 
-            if (SectionType == 1298 && FieldFlags == 0x40000)
+            if (*(unsigned __int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 0x512)
+                continue;
+
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) != 0x40000)
+                continue;
+
             {
-                if (SectionDataSize)
+                ULONG RvaBase = *(ULONG *)((PUCHAR)SectionEntry + 0x78);
+                if (!RvaBase)
+                    continue;
+                if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40)
+                    continue;
+                if (*(ULONG *)((PUCHAR)SectionEntry + 0x58) != 1)
+                    continue;
+
                 {
-                    if (FieldValueSize == 64 && FieldCount == 1)
+                    ULONG Rva = RvaBase - (ULONG)NtImageBase + (ULONG)AccumulatedOffset;
+                    if (Rva && Rva < NtImageSize)
                     {
-                        ExportRva = (unsigned int)(ComputedOffset + SectionDataSize - NtImageBase);
-                        if (ExportRva)
-                        {
-                            if (ExportRva < NtImageSize)
-                            {
-                                GtWrite(GtCallbackField04, NtoskrnlModuleBase + ExportRva);
-                                return 1;
-                            }
-                        }
+                        GtWrite(GtCallbackField04, (ULONG64)Rva + NtoskrnlModuleBase);
+                        return 1;
                     }
                 }
             }
