@@ -1,0 +1,1332 @@
+// ============================================================================
+// CliMain.c — 命令行（--xxx-cli）分发与处理
+//
+// 【2026-10-28 由 frontend.c 机械拆分】拆分规则与验收方式见
+//   docs/reversing/frontend拆分_2026-10-28.md。本文件全部处理函数的
+//   函数体逐字取自原 frontend.c WinMain 内的 CLI if 链，仅做三处机械变换：
+//     1) 每块包成独立函数，块首插入
+//          if (!(<原始条件>)) return FE_CLI_NEXT;
+//        块尾若无 return 补 return FE_CLI_NEXT（保持"继续匹配"语义）；
+//     2) FeCliDispatch 按【原源码顺序】走链，首个非 FE_CLI_NEXT 即返回
+//        —— strstr 首匹配语义是承重的（--restorehooks-cli 先于 --hooks-cli）；
+//     3) 原块内引用的静态变量改为 extern（g_Client / g_StartTab）。
+//   外观与行为不得有任何变化；验收 = 全部 CLI 输出与拆分前基线逐字节一致
+//   （build/cli_baseline/cli_base_t1.txt）。
+// ============================================================================
+#include "XPCHunterUM.h"
+#include "CliMain.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+extern XPCH_CLIENT g_Client;
+extern int g_StartTab;
+
+BOOL FeIsSkipped(ULONG cmd);
+BOOL SendOne(ULONG cmd, ULONG outSize, char *detail, size_t detailLen);
+
+static int RunHeadless(void)
+{
+    ULONG cmd;
+    int okCount = 0, failCount = 0, skipCount = 0;
+    char detail[128];
+    FILE *log = NULL;
+
+    fopen_s(&log, "C:\\Users\\Public\\frontend_scan.txt", "w");
+
+#define LOGF(...) do { printf(__VA_ARGS__); \
+        if (log) { fprintf(log, __VA_ARGS__); fflush(log); } } while (0)
+
+    if (!XpchOpen(&g_Client)) {
+        LOGF("open device failed, GetLastError=%lu\n", GetLastError());
+        if (log) fclose(log);
+        return 1;
+    }
+    LOGF("connected: ioctl=0x%08X key=0x%02X\n",
+        g_Client.IoControlCode, g_Client.KeyByte);
+
+    for (cmd = XPCH_CMD_MIN; cmd <= XPCH_CMD_MAX; cmd++) {
+        if (FeIsSkipped(cmd)) {
+            SendOne(cmd, 0, detail, sizeof(detail));
+            LOGF("0x%02X SKIP      %s\n", cmd, detail);
+            skipCount++;
+        } else if (SendOne(cmd, 256, detail, sizeof(detail))) {
+            LOGF("0x%02X OK        %s\n", cmd, detail);
+            okCount++;
+        } else {
+            LOGF("0x%02X REJECTED  %s\n", cmd, detail);
+            failCount++;
+        }
+    }
+
+    LOGF("summary: %d OK, %d REJECTED, %d SKIP (total %d)\n",
+        okCount, failCount, skipCount, okCount + failCount + skipCount);
+
+#undef LOGF
+    XpchClose(&g_Client);
+    if (log) fclose(log);
+    return 0;
+}
+
+/* 无头模式：打印进程列表（Process 页的数据来源验证）。
+   数据链：0xE4 取 EPROCESS 链表 → 条目 +0x108 取 PID → 0x2A 取映像路径。 */
+static int RunProcListCli(void)
+{
+    if (!XpchOpen(&g_Client)) {
+        printf("open device failed, GetLastError=%lu\n", GetLastError());
+        return 1;
+    }
+    printf("connected: ioctl=0x%08X key=0x%02X\n",
+           g_Client.IoControlCode, g_Client.KeyByte);
+
+    /* 先握手：驱动就绪标志 GT[0x304] 为 0 时，除 0x22 外的命令一律被拒
+       （DriverEntry.c 的 `GtRead(0x304) == 0 && Command != 0x22` 守卫）。 */
+    XpchHandshake(&g_Client);
+
+    FePrintProcessList(&g_Client);
+
+    XpchClose(&g_Client);
+    return 0;
+}
+
+static int CliProclistCli_01(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--proclist-cli"))))
+        return FE_CLI_NEXT;
+        return RunProcListCli();
+}
+
+
+    /* Kernel 页两个子页的无界面入口（用于实机取证与回归） */
+static int CliKernelCli_02(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--kernel-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintKernelModules() ? 0 : 1;
+}
+
+    /* Ring0 Hooks 页：0x117 的两张系统调用表 */
+static int CliRingCli_03(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--ring0-cli"))))
+        return FE_CLI_NEXT;
+        int rc;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        rc = FePrintRing0Hooks(&g_Client) ? 0 : 1;
+        XpchClose(&g_Client);
+        return rc;
+}
+
+    /* Kernel->SSDT / Shadow SSDT 子页：--ssdt-cli [1|2]
+     * 数据源 0x101（SSDT）/ 0x102（Shadow SSDT），与 GUI 子页同一命令。 */
+static int CliSsdtCli_04(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--ssdt-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--ssdt-cli") + 11;
+        int table = 1;
+        BYTE *buf;
+        UCHAR ready = 0;
+        BOOL ok;
+        ULONG cmd, i, count, build, shown = 0;
+        while (*p == ' ') p++;
+        if (*p >= '1' && *p <= '2')
+            table = *p - '0';
+        cmd = (table == 1) ? 0x101 : 0x102;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        buf = (BYTE *)calloc(1, 0x1000);
+        if (!buf) { XpchClose(&g_Client); return 1; }
+        ok = XpchInvoke(&g_Client, cmd, NULL, 0, buf, 0x1000, &ready);
+        printf("=== %s (cmd 0x%03X) -> %s result=%u ===\n",
+               table == 1 ? "SSDT" : "Shadow SSDT", cmd,
+               ok ? "OK" : "REJECTED", ready);
+        if (ok) {
+            build = *(ULONG *)(buf + 0);
+            count = *(ULONG *)(buf + 4);
+            printf("build=%lu count=%lu\n", build, count);
+            if (count <= 300) {
+                for (i = 0; i < count; i++) {
+                    ULONG64 addr = *(ULONG64 *)(buf + 8 + 8ULL * i);
+                    printf("  [%03lu] %016I64X\n", (unsigned long)i, addr);
+                    shown++;
+                }
+            }
+            printf("entries=%lu\n", shown);
+        }
+        free(buf);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+
+    /* Ring0 恢复两项的无界面入口（实机取证用） */
+static int CliRestorehooksCli_05(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--restorehooks-cli"))))
+        return FE_CLI_NEXT;
+        FE_HOOK_RESTORE_RESULT r;
+        int rc;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        rc = FeRestoreOverHooks(&g_Client, 1, &r) ? 0 : 1;
+        printf("=== Restore Over. Hooks/Patches (0x118) ===\n");
+        printf("state        = %s\n", FeHookRestoreStateText(&r));
+        printf("driverOk     = %d  resultByte = %u\n", r.DriverOk, r.ResultByte);
+        printf("totalEntries = %lu  modified = %lu\n", r.TotalEntries, r.ModifiedCount);
+        XpchClose(&g_Client);
+        return rc;
+}
+
+static int CliCbtableCli_06(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--cbtable-cli"))))
+        return FE_CLI_NEXT;
+        FE_CB_TABLE t;
+        ULONG i;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        printf("=== Restore KernelCallbackTable (0x131) ===\n");
+        if (!FeLoadCallbackTable(&g_Client, &t)) {
+            printf("query failed\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        printf("state      = %s\n", FeCbStateText(&t));
+        printf("driverOk   = %d  resultByte = %u\n", t.DriverOk, t.ResultByte);
+        printf("ready      = %u  build = %lu\n", t.Ready, t.Build);
+        printf("slots      = %lu\n", t.Count);
+        for (i = 0; i < t.Count; i++) {
+            char orig[64] = {0};
+            int k;
+            for (k = 0; k < 16; k++)
+                sprintf_s(orig + k * 3, sizeof(orig) - (size_t)k * 3, "%02X ",
+                          t.Slot[i].Original[k]);
+            printf("  [%2lu] rva=%08lX va=%016I64X cur=%016I64X orig=%s\n",
+                   (unsigned long)t.Slot[i].Offset,
+                   (unsigned long)t.Slot[i].Rva,
+                   t.Slot[i].Va, t.Slot[i].Current, orig);
+        }
+        /* --cbtable-restore：对检测到差异的槽真正下发 0x132 写回 */
+        if (lpCmdLine && strstr(lpCmdLine, "--cbtable-restore")) {
+            ULONG attempted = 0, restored = 0, rejected = 0, skipped = 0;
+            printf("--- restore pass (0x132) ---\n");
+            for (i = 0; i < t.Count; i++) {
+                FE_CB_RESTORE_RESULT rr;
+                if (!t.Slot[i].HasOriginal) { skipped++; continue; }
+                if (!t.Slot[i].Current || t.Slot[i].Current == t.Slot[i].Va) {
+                    skipped++;
+                    continue;
+                }
+                attempted++;
+                if (FeRestoreCallbackSlot(&g_Client, t.Slot[i].Va,
+                                          t.Slot[i].Original, &rr) &&
+                    rr.State == FE_CB_RESTORE_OK) {
+                    restored++;
+                    printf("  slot %lu -> wrote 16 bytes at %016I64X\n",
+                           (unsigned long)t.Slot[i].Offset, t.Slot[i].Va);
+                } else {
+                    rejected++;
+                    printf("  slot %lu -> FAILED (state=%d resultByte=%u)\n",
+                           (unsigned long)t.Slot[i].Offset, rr.State, rr.ResultByte);
+                }
+            }
+            printf("restored=%lu attempted=%lu rejected=%lu skipped=%lu\n",
+                   (unsigned long)restored, (unsigned long)attempted,
+                   (unsigned long)rejected, (unsigned long)skipped);
+        }
+        XpchClose(&g_Client);
+        return (t.State == FE_CB_ENUMERATED) ? 0 : 2;
+}
+
+
+static int CliHooksCli_07(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--hooks-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--hooks-cli") + 11;
+        ULONG pid = GetCurrentProcessId();
+        while (*p == ' ') p++;
+        if (*p >= '0' && *p <= '9')
+            pid = (ULONG)strtoul(p, NULL, 0);
+        return FePrintRing3Hooks(pid) ? 0 : 1;
+}
+
+static int CliTrojanCli_08(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--trojan-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintTrojanReport(0) ? 0 : 1;
+}
+
+    /* Driver 子页操作的无 UI 入口（取证/回归用，与右键菜单同一套实现） */
+static int CliDrvopCli_09(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--drvop-cli"))))
+        return FE_CLI_NEXT;
+        FeDriverOpsCli(lpCmdLine);
+        return 0;
+}
+
+static int CliRegkeyCli_10(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--regkey-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--regkey-cli") + 12;
+        char keyPath[512];
+        size_t kn = 0;
+        while (*p == ' ')
+            p++;
+        if (*p == '"') p++;
+        while (*p && *p != '"' && kn + 1 < sizeof(keyPath))
+            keyPath[kn++] = *p++;
+        keyPath[kn] = 0;
+        /* 去掉行尾空白（批处理拼接时会带进来） */
+        while (kn && (keyPath[kn-1] == ' ' || keyPath[kn-1] == '\r' || keyPath[kn-1] == '\n'))
+            keyPath[--kn] = 0;
+        return FePrintRegValues(kn ? keyPath : "HKLM\\SYSTEM\\CurrentControlSet\\Services") ? 0 : 1;
+}
+
+    /* --regctx-cli：0x127 CmdEnumRegistryContext（输出必须恰好 1800 字节） */
+static int CliRegctxCli_11(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--regctx-cli"))))
+        return FE_CLI_NEXT;
+        BYTE *out = (BYTE *)calloc(1, 1800);
+        UCHAR res = 0;
+        BOOL ok;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed\n");
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (!out) { XpchClose(&g_Client); return 1; }
+        ok = XpchInvoke(&g_Client, 0x127, NULL, 0, out, 1800, &res);
+        printf("0x127 -> %s result=%u firstDword=%lu\n",
+               ok ? "OK" : "REJECTED", res, (unsigned long)*(ULONG *)out);
+        if (ok) {
+            ULONG i;
+            for (i = 0; i < 1800; i += 16) {
+                int nz = 0, k;
+                for (k = 0; k < 16 && i + k < 1800; k++)
+                    if (out[i + k]) nz++;
+                if (!nz) continue;
+                printf("  %04lX:", (unsigned long)i);
+                for (k = 0; k < 16 && i + k < 1800; k++)
+                    printf(" %02X", out[i + k]);
+                printf("\n");
+            }
+        }
+        free(out);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+    /* --startup-op-cli repair | delfile <Name> ：Startup 两项验收用 */
+static int CliStartupOpCli_12(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--startup-op-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--startup-op-cli") + 17;
+        char op[32], arg[FE_STARTUP_NAME_CHARS];
+        int n;
+        while (*p == ' ') p++;
+        op[0] = 0; arg[0] = 0;
+        n = sscanf_s(p, "%31s %255s", op, (unsigned)sizeof(op),
+                     arg, (unsigned)sizeof(arg));
+        if (n >= 1 && _stricmp(op, "repair") == 0) {
+            ULONG checked = 0, fixed;
+            FE_STARTUP_LIST rep;
+            fixed = FeRepairStartupItems(&checked, &rep);
+            printf("Repair Startup: checked=%lu repaired=%lu\n", checked, fixed);
+            {
+                ULONG i;
+                for (i = 0; i < rep.Count; i++)
+                    printf("  removed: %s  %s\n", rep.Items[i].Name, rep.Items[i].Data);
+            }
+            FeFreeStartupItems(&rep);
+            return 0;
+        }
+        if (n >= 2 && _stricmp(op, "delfile") == 0) {
+            FE_STARTUP_LIST list;
+            ULONG i;
+            if (!FeLoadStartupItems(&list)) {
+                printf("startup: load failed\n");
+                return 1;
+            }
+            for (i = 0; i < list.Count; i++) {
+                if (strcmp(list.Items[i].Name, arg) != 0)
+                    continue;
+                {
+                    char path[FE_STARTUP_DATA_CHARS];
+                    BOOL regOk = FALSE;
+                    DWORD fileErr = 0;
+                    BOOL ok = FeDeleteStartupItemAndFile(&list.Items[i], path,
+                                                         sizeof(path), &regOk, &fileErr);
+                    printf("delfile %s -> ok=%d reg=%d file=%s err=%lu\n",
+                           arg, ok ? 1 : 0, regOk ? 1 : 0,
+                           path[0] ? path : "(none)", (unsigned long)fileErr);
+                }
+                FeFreeStartupItems(&list);
+                return 0;
+            }
+            FeFreeStartupItems(&list);
+            printf("startup item not found: %s\n", arg);
+            return 1;
+        }
+        printf("usage: --startup-op-cli repair | delfile <Name>\n");
+        return 1;
+}
+
+    /* Modules 视图五项搜索的无 UI 入口：
+       --modsearch-cli name <substring> | unsigned | nosig | target <pid> | hidden */
+static int CliModsearchCli_13(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--modsearch-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--modsearch-cli") + 16;
+        FE_MODSEARCH_LIST res;
+        char op[32];
+        char arg[192];
+        int n;
+        ULONG i;
+        BOOL ok = FALSE;
+
+        while (*p == ' ') p++;
+        op[0] = 0; arg[0] = 0;
+        n = sscanf_s(p, "%31s %191s", op, (unsigned)sizeof(op),
+                     arg, (unsigned)sizeof(arg));
+        if (n < 1) {
+            printf("usage: --modsearch-cli name <substr> | unsigned | nosig | target <pid> | hidden\n");
+            return 1;
+        }
+        if (_stricmp(op, "name") == 0)
+            ok = FeFindModulesByName(n >= 2 ? arg : "", &res);
+        else if (_stricmp(op, "unsigned") == 0)
+            ok = FeFindUnsignedModules(0, &res);
+        else if (_stricmp(op, "nosig") == 0)
+            ok = FeFindUnsignedModules(1, &res);
+        else if (_stricmp(op, "target") == 0)
+            /* 不给 PID 时扫自己，便于验证扫描逻辑本身是否工作 */
+            ok = FeFindTargetRegions(n >= 2 ? (ULONG)strtoul(arg, NULL, 0)
+                                            : GetCurrentProcessId(), &res);
+        else if (_stricmp(op, "hidden") == 0)
+            ok = FeFindHiddenModules(&res);
+        else {
+            printf("unknown op: %s\n", op);
+            return 1;
+        }
+        if (!ok) {
+            printf("modsearch %s: failed\n", op);
+            return 1;
+        }
+        printf("modsearch %s: %lu result(s)\n", op, res.Count);
+        for (i = 0; i < res.Count && i < 40; i++)
+            printf("  pid=%-6lu base=%016I64X size=0x%-8I64X %-24s %s\n",
+                   res.Items[i].Pid, res.Items[i].Base, res.Items[i].Size,
+                   res.Items[i].Name, res.Items[i].Detail);
+        if (res.Count > 40)
+            printf("  ... (%lu more)\n", res.Count - 40);
+        FeFreeModSearch(&res);
+        return 0;
+}
+
+static int CliSettingCli_14(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--setting-cli"))))
+        return FE_CLI_NEXT;
+        FE_OBJ_TYPES ot;
+        int ok;
+        int i;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed\n");
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        ok = FeSettingReadObjectTypes(&g_Client, &ot);
+        printf("object types: %s\n", ok ? "available" : "NOT READY (driver did not export)");
+        printf("  IoFileObjectType   = %p\n", (void *)(ULONG_PTR)ot.File);
+        printf("  IoDriverObjectType = %p\n", (void *)(ULONG_PTR)ot.Driver);
+        printf("  IoDeviceObjectType = %p\n", (void *)(ULONG_PTR)ot.Device);
+        printf("  PsProcessType      = %p  (GT[0x4166])\n", (void *)(ULONG_PTR)ot.Process);
+        printf("  PsThreadType       = %p  (GT[0x4169])\n", (void *)(ULONG_PTR)ot.Thread);
+        for (i = 0; i < 13; i++)
+            printf("  extra[%2d]          = %p\n", i, (void *)(ULONG_PTR)ot.Extra[i]);
+        printf("  minimize-to-tray   = %d\n", FeSettingGetMinimizeToTray());
+        XpchClose(&g_Client);
+        return 0;
+}
+
+static int CliFilesigCli_15(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--filesig-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--filesig-cli") + 13;
+        char path[MAX_PATH];
+        size_t n = 0;
+        while (*p == ' ') p++;
+        if (*p == '"') p++;
+        while (*p && *p != '"' && n + 1 < sizeof(path))
+            path[n++] = *p++;
+        path[n] = 0;
+        printf("%s -> %s\n", path, FeVerifyFileSignature(path)
+               ? "signature valid and trusted" : "no signature or not trusted");
+        printf("  WinVerifyTrust status = 0x%08lX\n", (unsigned long)g_LastTrustStatus);
+        return 0;
+}
+
+    /* --forbid-cli <0..4> [enable]: send 0x79 to verify the object type address */
+static int CliForbidCli_16(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--forbid-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--forbid-cli") + 13;
+        FE_OBJ_TYPES ot;
+        int which;
+        BOOL enable = TRUE;
+        ULONG64 target = 0;
+        UCHAR res = 0;
+        BOOL ok;
+        while (*p == ' ') p++;
+        which = atoi(p);
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        if (*p == '0') enable = FALSE;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed\
+");
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (!FeSettingReadObjectTypes(&g_Client, &ot)) {
+            printf("object types not available\
+");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        switch (which) {
+        case 0: target = ot.File;    break;
+        case 1: target = ot.Driver;  break;
+        case 2: target = ot.Device;  break;
+        case 3: target = ot.Process; break;
+        case 4: target = ot.Thread;  break;
+        default:
+            printf("which must be 0..4\
+");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        ok = FeSettingSetForbid(&g_Client, target, 0, enable ? 1 : 0, &res);
+        printf("0x79 forbid which=%d target=%016I64X enable=%d -> %s result=%u\
+",
+               which, (unsigned __int64)target, enable ? 1 : 0,
+               ok ? "OK" : "REJECTED", res);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+static int CliFireeyeCli_17(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--fireeye-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--fireeye-cli") + 13;
+        char path[MAX_PATH]; size_t n = 0;
+        while (*p == ' ' || *p == '"') p++;
+        while (*p && *p != '"' && n + 1 < sizeof(path)) path[n++] = *p++;
+        while (n && (path[n-1] == 32 || path[n-1] == 13 || path[n-1] == 10)) path[--n] = 0;
+        return FePrintFireeye(path) ? 0 : 1;
+}
+
+static int CliExamCli_18(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--exam-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintExamination() ? 0 : 1;
+}
+
+static int CliOsCli_19(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--os-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintOsInfo() ? 0 : 1;
+}
+
+static int CliFileverCli_20(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--filever-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--filever-cli") + 13;
+        char path[MAX_PATH]; size_t n = 0;
+        while (*p == ' ' || *p == '"') p++;
+        while (*p && *p != '"' && n + 1 < sizeof(path)) path[n++] = *p++;
+        while (n && (path[n - 1] == 32 || path[n - 1] == 13 || path[n - 1] == 10)) path[--n] = 0;
+        return FePrintFileVersion(path) ? 0 : 1;
+}
+
+static int CliFilesCli_21(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--files-cli"))))
+        return FE_CLI_NEXT;
+        const char *d = strstr(lpCmdLine, "--files-cli") + 12;
+        char dir[MAX_PATH];
+        size_t n = 0;
+        while (*d == ' ' || *d == '"') d++;
+        while (*d && *d != '"' && n + 1 < sizeof(dir))
+            dir[n++] = *d++;
+        dir[n] = 0;
+        /* 去掉尾部空白（cmd 重定向/引号容易带出来） */
+        while (n && (dir[n - 1] == ' ' || dir[n - 1] == 13 || dir[n - 1] == 10))
+            dir[--n] = 0;
+        return FePrintDirectory(n ? dir : "C:\Windows\System32") ? 0 : 1;
+}
+
+static int CliReghandlesCli_22(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--reghandles-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintRegistryHandles() ? 0 : 1;
+}
+
+static int CliReghiddenCli_23(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--reghidden-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintHiddenRegKeys() ? 0 : 1;
+}
+
+static int CliServicesCli_24(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--services-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintServices() ? 0 : 1;
+}
+
+static int CliStartupCli_25(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--startup-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintStartupItems() ? 0 : 1;
+}
+
+static int CliHiddendrvCli_26(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--hiddendrv-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintHiddenDrivers() ? 0 : 1;
+}
+
+    /* --network-cli：无界面打印 Network 页两节的实际数据行
+       （NdisTdiCallback 0xE6 / TdiPnpClient 0xE8，模块列走 0x42 解析）。 */
+    /* --reg-cli：打印 0x127 的真实语义（Npfs 分发表指针），
+       用于说明它**不是** CmpNotifyChange 的数据源。 */
+static int CliRegCli_27(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--reg-cli"))))
+        return FE_CLI_NEXT;
+        UCHAR *ctx;
+        UCHAR r127 = 0;
+        ULONG n;
+        int shown = 0;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        if (!XpchHandshake(&g_Client)) {
+            printf("handshake failed\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        ctx = (UCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 1800);
+        if (!ctx) {
+            printf("out of memory\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        if (!XpchInvoke(&g_Client, 0x127, NULL, 0, ctx, 1800, &r127)) {
+            printf("0x127 CmdEnumRegistryContext rejected (result=%u)\n", r127);
+            HeapFree(GetProcessHeap(), 0, ctx);
+            XpchClose(&g_Client);
+            return 1;
+        }
+        printf("0x127 CmdEnumRegistryContext (buffer must be exactly 1800)\n");
+        printf("  NOTE: this enumerates Npfs dispatch-table pointers, NOT\n");
+        printf("        the CmRegisterCallback chain (see kd lm a output).\n");
+        {
+            const UCHAR *recs = ctx + 8;
+            ULONG maxrec = (1800 - 8) / 0x30;
+            for (n = 0; n < maxrec; n++) {
+                const UCHAR *rec = recs + n * 0x30;
+                ULONG idx = *(const ULONG *)(const void *)(rec + 0x00);
+                ULONG64 fn = *(const ULONG64 *)(const void *)(rec + 0x10);
+                if (!fn)
+                    continue;
+                printf("  [%lu] 0x%016llX   (record %lu, +0x%lX)\n",
+                       idx, (unsigned long long)fn,
+                       n, (unsigned long)(n * 0x30 + 0x10));
+                shown++;
+            }
+        }
+        printf("  total %d pointer(s); verify with: lm a <addr>\n", shown);
+        HeapFree(GetProcessHeap(), 0, ctx);
+        XpchClose(&g_Client);
+        return 0;
+}
+
+
+static int CliNetworkCli_28(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--network-cli"))))
+        return FE_CLI_NEXT;
+        BOOL ok;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        printf("device opened, ioctl=0x%08X key=0x%02X\n",
+               g_Client.IoControlCode, g_Client.KeyByte);
+        if (!XpchHandshake(&g_Client)) {
+            printf("handshake failed (ioctl=0x%08X key=0x%02X)\n",
+                   g_Client.IoControlCode, g_Client.KeyByte);
+            XpchClose(&g_Client);
+            return 1;
+        }
+        printf("[1] TdiCallbacks\n"); fflush(stdout);
+        ok = FePrintTdiCallbacks(&g_Client);
+        printf("[2] TdiPnpClients\n"); fflush(stdout);
+        if (!FePrintTdiPnpClients(&g_Client))
+            ok = FALSE;
+        printf("[3] NdisOffload\n"); fflush(stdout);
+        if (!FePrintNdisOffloadHandlers(&g_Client))
+            ok = FALSE;
+        printf("[3b] NdisHandler (0xE1)\n"); fflush(stdout);
+        FePrintNdisHandlers(&g_Client);
+        printf("[4] NdisOidTable\n"); fflush(stdout);
+        if (!FePrintNdisOidTable(&g_Client))
+            ok = FALSE;
+        printf("[5] NdisInterfaces\n"); fflush(stdout);
+        if (!FePrintNdisInterfaces(&g_Client))
+            ok = FALSE;
+        {
+            static const ULONG FwpsNodes[6] = { 6, 7, 8, 9, 10, 12 };
+            int Node;
+            for (Node = 0; Node < 6; Node++) {
+                printf("\n");
+                if (!FePrintFwpsTable(&g_Client, FwpsNodes[Node]))
+                    ok = FALSE;
+            }
+        }
+        printf("\n");
+        if (!FePrintNetioLayerCallbacks(&g_Client))
+            ok = FALSE;
+        {
+            FE_WFP_DEVICE Device;
+            printf("\n");
+            if (FeLoadWfpDeviceObject(&g_Client, &Device))
+                printf("WfpDeviceObject (cmd 0xFA) Current=0x%p Original=0x%p %s\n",
+                       (void *)(ULONG_PTR)Device.Current,
+                       (void *)(ULONG_PTR)Device.Original,
+                       Device.Current == Device.Original
+                           ? "WfpDeviceObject is OK."
+                           : "WfpDeviceObject been Replaced.");
+            else {
+                printf("WfpDeviceObject: 0xFA query failed\n");
+                ok = FALSE;
+            }
+        }
+        printf("\n");
+        if (!FePrintWfpCallouts(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNmrProviders(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNsiChangeNotifications(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintNsiChangeMonitor(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintIpsecDispatch(&g_Client))
+            ok = FALSE;
+        printf("\n");
+        if (!FePrintIpfDispatch(&g_Client))
+            ok = FALSE;
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+
+    /* --g4-status-cli：打印各页状态栏文案的**实际拼接结果**。
+       用于 G4 形态核对：截图受会话/VNC 影响不稳定，直接输出字符串更可靠。 */
+static int CliGStatusCli_29(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--g4-status-cli"))))
+        return FE_CLI_NEXT;
+        ULONG64 kr = 0;
+        BOOL hooked = FALSE;
+        char detail[512];
+        char pteDetail[512];
+        char extra[640];
+        char driverLine[1024];
+        FE_HDRV_LIST hid, sus;
+        ULONG drvCount = 0;
+        FE_DRIVER_LIST drivers;
+
+        FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail));
+        FeFindPteHook(pteDetail, sizeof(pteDetail), &hooked);
+        sprintf_s(extra, sizeof(extra),
+                  "%s   |   %s   |   Find Next ClassInitData: not available "
+                  "- the driver has no arbitrary kernel-VA read (0xF7/0xF9 read "
+                  "one fixed GT pointer; 0x3A needs GT[0x41E4]/GT[0x4189], both 0 here)",
+                  detail, pteDetail);
+
+        if (!FeLoadHiddenDrivers(&hid, &sus)) {
+            hid.Count = 0; sus.Count = 0;
+        }
+        if (FeLoadDrivers(&drivers)) {
+            drvCount = drivers.Count;
+            FeFreeDrivers(&drivers);
+        }
+        sprintf_s(driverLine, sizeof(driverLine),
+                  "Driver: %lu kernel driver services   |   Drivers: %lu / "
+                  "Hidden Drivers: %lu / Suspicious DriverObject: %lu",
+                  drvCount, drvCount, hid.Count, sus.Count);
+        FeFreeHiddenDrivers(&hid);
+        FeFreeHiddenDrivers(&sus);
+
+        printf("[Kernel/Driver] %s\n", driverLine);
+        printf("[Kernel/Other ] %s\n", extra);
+        printf("[Setting      ] Object types: %s | Forbid available: %d of 6 | "
+               "Tray minimize: %s\n",
+               "resolved", 5,
+               FeSettingGetMinimizeToTray() ? "ON" : "OFF");
+        return 0;
+}
+
+static int CliKernelExtraCli_30(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--kernel-extra-cli"))))
+        return FE_CLI_NEXT;
+        ULONG64 kr = 0;
+        BOOL hooked = FALSE;
+        char detail[256];
+        BOOL okd;
+
+        okd = FeCheckKiDebugRoutine(&kr, &hooked, detail, sizeof(detail));
+        printf("KiDebugRoutine: %s -> %s\n", okd ? "ok" : "unreadable", detail);
+        FeFindPteHook(detail, sizeof(detail), &hooked);
+        printf("Find PTE Hook: %s\n", detail);
+        printf("Find Next ClassInitData: not available - the driver has no "
+               "arbitrary kernel-VA read (0xF7/0xF9 read one fixed GT pointer; "
+               "0x3A needs GT[0x41E4]/GT[0x4189], both 0 on this machine)\n");
+        return 0;
+}
+
+static int CliIdtCli_31(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--idt-cli"))))
+        return FE_CLI_NEXT;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        FePrintIdt(&g_Client);
+        XpchClose(&g_Client);
+        return 0;
+}
+
+    /* GDT（0x0CD，OutSize >= 0x10018）。每个条目 64KB 步长：
+         +0x00 DWORD 已写条目数
+         +0x04 DWORD 处理器号
+         +0x08 DWORD limit
+         +0x10 QWORD GDT 基址
+         +0x18 DWORD 描述符数
+         +0x20 起  GDT 原始字节 */
+static int CliGdtCli_32(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--gdt-cli"))))
+        return FE_CLI_NEXT;
+        BYTE *out = NULL;
+        UCHAR res = 0;
+        BOOL ok;
+        ULONG n, i;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        out = (BYTE *)calloc(1, 0x10018);
+        if (!out) {
+            XpchClose(&g_Client);
+            return 1;
+        }
+        ok = XpchInvoke(&g_Client, 0xCD, NULL, 0, out, 0x10018, &res);
+        n = *(ULONG *)out;
+        printf("GDT (0x0CD) -> %s result=%u entries=%lu\n",
+               ok ? "OK" : "REJECTED", res, n);
+        for (i = 0; i < n && i < 8; i++) {
+            BYTE *e = out + 8 + (ULONG64)i * 65556ULL;
+            ULONG limit = *(ULONG *)(e + 0);
+            ULONG64 base = *(ULONG64 *)(e + 8);
+            ULONG count = *(ULONG *)(e + 0x10);
+            BYTE *gdt = e + 0x18;
+            printf("  cpu%lu limit=0x%lX base=%016I64X descriptors=%lu\n",
+                   (unsigned long)*(ULONG *)(e - 4), (unsigned long)limit, base,
+                   (unsigned long)count);
+            printf("    gdt[0]=%016I64X gdt[1]=%016I64X gdt[2]=%016I64X\n",
+                   *(ULONG64 *)(gdt + 0), *(ULONG64 *)(gdt + 8),
+                   *(ULONG64 *)(gdt + 16));
+        }
+        free(out);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+    /* IDT / I/O Port（0x046）的无 UI 入口。
+ * 驱动侧的调用约定是 Handler(InPtr, OutSize, OutPtr, InSize)，
+ * 而 0x046 的实现把第 2 个参数当"输出缓冲大小"用 —— 也就是客户端的
+ * InSize。所以必须同时给 InSize >= 0x3808 和足够大的输出缓冲。 */
+static int CliIoportCli_33(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--ioport-cli"))))
+        return FE_CLI_NEXT;
+        BYTE *in = NULL, *out = NULL;
+        UCHAR res = 0;
+        BOOL ok;
+
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        in = (BYTE *)calloc(1, 0x3808);
+        out = (BYTE *)calloc(1, 0x3808);
+        if (!in || !out) {
+            printf("out of memory\n");
+            XpchClose(&g_Client);
+            return 1;
+        }
+        ok = XpchInvoke(&g_Client, 0x46, in, 0x3808, out, 0x3808, &res);
+        printf("0x046 -> %s result=%u\n", ok ? "OK" : "REJECTED", res);
+        if (ok && *(ULONG *)out != 0) {
+            ULONG count = *(ULONG *)out, i;
+            printf("  io-port contexts: %lu\n", count);
+            /* 每个上下文 14336(0x3800) 字节，从 out+8 开始。
+               每条 56 字节：+0 = 中断向量号，+8 = 处理函数地址
+               （ReadIoPortDescriptorTable 写的是 addr - ntoskrnlBase 的 RVA，
+                 0 表示该向量为空）。 */
+            for (i = 0; i < count && i < 4; i++) {
+                BYTE *e = out + 8 + (ULONG64)i * 0x3800ULL;
+                ULONG k;
+                printf("   ctx%lu:\n", (unsigned long)i);
+                for (k = 0; k < 8; k++) {
+                    ULONG *slot = (ULONG *)(e + k * 56);
+                    ULONG64 rva = *(ULONG64 *)((BYTE *)slot + 8);
+                    printf("     vec %-3lu rva %08I64X%s\n",
+                           (unsigned long)*slot, rva,
+                           rva ? "" : "  (empty gate)");
+                }
+            }
+        } else {
+            printf("  output counter = 0 (chain did not resolve)\n");
+        }
+        free(in);
+        free(out);
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+    /* Dump Memory / Dump Module Memory 的无 UI 入口：
+       --dumpmem-cli <pid> <basehex> <sizehex> [outPath] */
+static int CliDumpmemCli_34(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--dumpmem-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--dumpmem-cli") + 13;
+        unsigned long pid = 0;
+        unsigned __int64 base = 0, size = 0;
+        char outPath[512];
+        char arg[256];
+        int n;
+        ULONG64 written = 0;
+
+        while (*p == ' ')
+            p++;
+        n = sscanf_s(p, "%lu %llx %llx %511s", &pid, &base, &size,
+                     outPath, (unsigned)sizeof(outPath));
+        if (n < 3) {
+            printf("usage: --dumpmem-cli <pid> <base-hex> <size-hex> [outFile]\n");
+            return 1;
+        }
+        if (n < 4) {
+            sprintf_s(arg, sizeof(arg), "%lu", pid);
+            sprintf_s(outPath, sizeof(outPath),
+                      "C:\\Users\\Public\\dump_%lu_%I64X.bin", pid, base);
+        }
+        if (FeDumpMemoryToFile((ULONG)pid, (ULONG64)base, (ULONG64)size,
+                               outPath, &written)) {
+            printf("dump %lu [%I64X,+%I64X) -> %s (%I64u bytes)\n",
+                   pid, base, size, outPath, written);
+            return 0;
+        }
+        printf("dump %lu [%I64X,+%I64X) -> failed\n", pid, base, size);
+        return 1;
+}
+
+    /* 进程右键操作的无 UI 入口：--proc-op-cli <op> <pid> */
+static int CliProcOpCli_35(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--proc-op-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--proc-op-cli") + 14;
+        char op[32];
+        ULONG pid;
+        int n;
+        BOOL ok = FALSE;
+        while (*p == ' ')
+            p++;
+        n = sscanf_s(p, "%31s %lu", op, (unsigned)sizeof(op), &pid);
+        if (n < 2) {
+            printf("usage: --proc-op-cli forcekill|suspend|resume|killtree|killdel|imagepath <pid>\n");
+            return 1;
+        }
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (_stricmp(op, "forcekill") == 0) {
+            ok = FeForceKillProcess(&g_Client, pid);
+            printf("forcekill %lu -> %s\n", pid, ok ? "terminated" : "failed");
+        } else if (_stricmp(op, "killtree") == 0) {
+            ULONG k = 0, f = 0;
+            ULONG pids[512];
+            ULONG cnt = FeCollectProcessTree(pid, pids, 512), i;
+            printf("killtree %lu: tree =", pid);
+            for (i = 0; i < cnt; i++)
+                printf(" %lu", pids[i]);
+            printf("\n");
+            ok = FeKillProcessTree(&g_Client, pid, &k, &f);
+            printf("killtree %lu -> killed %lu, failed %lu\n", pid, k, f);
+            for (i = 0; i < cnt; i++) {
+                HANDLE hh = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pids[i]);
+                printf("   pid %-6lu %s\n", pids[i], hh ? "STILL ALIVE" : "gone");
+                if (hh) CloseHandle(hh);
+            }
+        } else if (_stricmp(op, "killdel") == 0) {
+            char deleted[1024];
+            DWORD err = 0;
+            BOOL rebootDel = FALSE;
+            ok = FeKillAndDeleteProcessFile(&g_Client, pid, deleted, sizeof(deleted),
+                                            &err, &rebootDel);
+            printf("killdel %lu -> %s%s%s (error %lu)\n", pid, ok ? deleted : "failed",
+                   rebootDel ? " (delete on reboot)" : "", ok ? "" : "", (unsigned long)err);
+        } else if (_stricmp(op, "suspend") == 0 || _stricmp(op, "resume") == 0) {
+            BOOL susp = (_stricmp(op, "suspend") == 0);
+            ok = FeSuspendResumeProcess(pid, susp);
+            printf("%s %lu -> %s\n", susp ? "suspend" : "resume", pid, ok ? "ok" : "failed");
+        } else if (_stricmp(op, "imagepath") == 0) {
+            char path[1024];
+            ok = FeGetProcessImagePath(pid, path, sizeof(path));
+            printf("imagepath %lu -> %s\n", pid, ok ? path : "(failed)");
+        } else {
+            printf("unknown op: %s\n", op);
+        }
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+static int CliSsdtRestoreCli_36(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--ssdt-restore-cli"))))
+        return FE_CLI_NEXT;
+        const char *p = strstr(lpCmdLine, "--ssdt-restore-cli") + 18;
+        BYTE res = 0;
+        BOOL ok;
+        while (*p == ' ')
+            p++;
+        if (!XpchOpen(&g_Client)) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        XpchHandshake(&g_Client);
+        if (p[0] == 'a' || p[0] == 'A') {
+            ok = FeRestoreSsdtAll(&g_Client, &res);
+            printf("Restore All (0xE7) -> %s result=%u\n", ok ? "OK" : "REJECTED", res);
+        } else {
+            ULONG sel = (ULONG)strtoul(p, NULL, 0);
+            ok = FeRestoreSsdtEntry(&g_Client, sel, &res);
+            printf("Restore entry %lu (0xEB) -> %s result=%u\n",
+                   (unsigned long)sel, ok ? "OK" : "REJECTED", res);
+        }
+        XpchClose(&g_Client);
+        return ok ? 0 : 1;
+}
+
+static int CliDriversCli_37(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--drivers-cli"))))
+        return FE_CLI_NEXT;
+        return FePrintDrivers() ? 0 : 1;
+}
+
+
+    /* 子视图调试入口：--memory-cli <pid>
+     *
+     * --kill-cli <pid>    走 0xA2（CmdTerminateProcessByEProcess）。
+     *   2026-10-21 实测结论：0xA2 在 Win10 上并不终止进程——驱动侧
+     *   build >= 0x1DB0 分支调用的是 GT[0x42BC]（18362 上解析为 KeCancelTimer），
+     *   原始驱动同样如此。保留该入口用于对照实验。
+     * --kill28-cli <pid>  走 0x28（CmdProcessOperation），内部
+     *   ZeroProcessMemoryPages 遍历目标用户空间逐页清零，这是真正终止的路径。 */
+static int CliKillCli_38(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && (strstr(lpCmdLine, "--kill-cli") || strstr(lpCmdLine, "--kill28-cli")))))
+        return FE_CLI_NEXT;
+        BOOL use28 = strstr(lpCmdLine, "--kill28-cli") != NULL;
+        const char *argp = use28 ? (strstr(lpCmdLine, "--kill28-cli") + 13)
+                                 : (strstr(lpCmdLine, "--kill-cli") + 11);
+        ULONG kpid = (ULONG)strtoul(argp, NULL, 0);
+        ULONG64 kep = 0;
+        if (XpchOpen(&g_Client)) {
+            FE_PROCESS_LIST list;
+            ULONG i;
+            XpchHandshake(&g_Client);
+            if (FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &list)) {
+                for (i = 0; i < list.Count; i++)
+                    if (list.Items[i].Pid == kpid) { kep = list.Items[i].Eprocess; break; }
+                FeFreeProcessList(&list);
+            }
+            printf("kill pid %lu ep=%p via 0x%s -> %s\n", kpid, (void *)(ULONG_PTR)kep,
+                   use28 ? "28" : "A2",
+                   /* 0x28 也要带 EPROCESS：驱动在 ValidateProcessObject 不通过时
+                      会直接返回成功却不做事，FeKillProcess 需要它来回落 0xA2。 */
+                   FeKillProcess(&g_Client, kpid, kep, !use28) ? "OK" : "FAILED");
+            XpchClose(&g_Client);
+        } else {
+            printf("open device failed\n");
+        }
+        return 0;
+}
+
+
+static int CliMemoryCli_39(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--memory-cli"))))
+        return FE_CLI_NEXT;
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--memory-cli") + 12, NULL, 0);
+        FePrintProcessMemory(pid);
+        return 0;
+}
+
+
+    /* 子视图调试入口：--handles-cli <pid> */
+static int CliMisc_40(const char *lpCmdLine)
+{
+    if (!((lpCmdLine)))
+        return FE_CLI_NEXT;
+        char *pt = strstr(lpCmdLine, "--tab ");
+        if (pt) {
+            g_StartTab = atoi(pt + 6);
+            if (g_StartTab < 0 || g_StartTab > 6) g_StartTab = 0;
+        }
+    return FE_CLI_NEXT;
+}
+
+
+static int CliHandlesCli_41(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--handles-cli"))))
+        return FE_CLI_NEXT;
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--handles-cli") + 13, NULL, 0);
+        FePrintProcessHandles(pid);
+        return 0;
+}
+
+
+    /* 子视图调试入口：--threads-cli <pid> */
+static int CliThreadsCli_42(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--threads-cli"))))
+        return FE_CLI_NEXT;
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--threads-cli") + 13, NULL, 0);
+        FePrintProcessThreads(pid);
+        return 0;
+}
+
+
+    /* 子视图调试入口：--modules-cli <pid> */
+static int CliModulesCli_43(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--modules-cli"))))
+        return FE_CLI_NEXT;
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--modules-cli") + 13, NULL, 0);
+        FePrintProcessModules(pid);
+        return 0;
+}
+
+
+    /* 子视图调试入口：--windows-cli <pid> */
+static int CliWindowsCli_44(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--windows-cli"))))
+        return FE_CLI_NEXT;
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--windows-cli") + 13, NULL, 0);
+        FePrintProcessWindows(pid);
+        return 0;
+}
+
+
+    /* 子视图调试入口：--hotkeys-cli <pid>（命令 0x33，按 EPROCESS 过滤） */
+static int CliHotkeysCli_45(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--hotkeys-cli"))))
+        return FE_CLI_NEXT;
+        ULONG pid = (ULONG)strtoul(strstr(lpCmdLine, "--hotkeys-cli") + 13, NULL, 0);
+        /* 【2026-10-24 修复】此分支原先直接调 FePrintProcessHotkeys，但那时
+           g_Client 还没打开（DoConnect 在后面的 GUI 路径里），函数第一句
+           `!Client->Opened` 就返回 FALSE —— CLI 因此永远静默无输出。
+           先打开设备。 */
+        if (!g_Client.Opened)
+            XpchOpen(&g_Client);
+        if (!g_Client.Opened) {
+            printf("open device failed, GetLastError=%lu\n", GetLastError());
+            return 1;
+        }
+        /* 【2026-10-25 修复】必须握手。驱动在 GT[0x304]==0 时除 0x22 外
+           拒绝一切命令；不握手则进程枚举（0xE4）直接失败，于是本命令
+           永远打印 "process N not found"，看起来像 PID 不存在，实际是
+           驱动还没就绪。RunProcListCli 早就这么做了，这里漏了。 */
+        XpchHandshake(&g_Client);
+        FePrintProcessHotkeys(&g_Client, pid);
+        XpchClose(&g_Client);
+        return 0;
+}
+
+
+static int CliScanCli_46(const char *lpCmdLine)
+{
+    if (!((lpCmdLine && strstr(lpCmdLine, "--scan-cli"))))
+        return FE_CLI_NEXT;
+        return RunHeadless();
+}
+
+// ============================================================================
+// 分发表：按原 frontend.c WinMain if 链的【源码顺序】排列。
+// 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
+// ——WinMain 据此落入 GUI 路径。
+// ============================================================================
+int FeCliDispatch(const char *lpCmdLine)
+{
+    int r;
+    if ((r = CliProclistCli_01(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliKernelCli_02(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliRingCli_03(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSsdtCli_04(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliRestorehooksCli_05(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliCbtableCli_06(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliHooksCli_07(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliTrojanCli_08(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliDrvopCli_09(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliRegkeyCli_10(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliRegctxCli_11(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliStartupOpCli_12(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliModsearchCli_13(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSettingCli_14(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliFilesigCli_15(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliForbidCli_16(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliFireeyeCli_17(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliExamCli_18(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliOsCli_19(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliFileverCli_20(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliFilesCli_21(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliReghandlesCli_22(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliReghiddenCli_23(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliServicesCli_24(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliStartupCli_25(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliHiddendrvCli_26(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliRegCli_27(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliNetworkCli_28(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliGStatusCli_29(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliKernelExtraCli_30(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliIdtCli_31(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliGdtCli_32(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliIoportCli_33(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliDumpmemCli_34(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliProcOpCli_35(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSsdtRestoreCli_36(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliDriversCli_37(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliKillCli_38(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliMemoryCli_39(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliMisc_40(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliHandlesCli_41(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliThreadsCli_42(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliModulesCli_43(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliWindowsCli_44(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliHotkeysCli_45(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliScanCli_46(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    return FE_CLI_NONE;
+}
