@@ -2346,11 +2346,12 @@ __int64 ReadWriteKernelMemory(void)
         0,              // a7
         (__int64)SectionContext);
 
-    /* 【修正 2026-10-27 第三次】公式 `字段 - PeFileOffset + 累积量` 里累积量必须是
-       **纯累计长度（从 0 起）**，不能是 ctx+0x08（绝对 VA）。
-       若带入绝对 VA，则 GT[0x20] 的低 32 位会进入结果（实测 0xa1e00000），
-       使 `RVA < PeFileSize` 永远不成立。读指针仍单独推进。 */
-    AccumulatedOffset = 0;
+    /* 【修正 2026-10-27 第四次】`ReadPESectionEntry` 内部**不写** ctx+0x08
+       （已反汇编 0x14008A54C..A7E4 全段确认无 `mov [rdi+8],..`），
+       所以推进责任在调用方；原版 `add [rsp+220h+var_1C8], rax` 的 var_1C8
+       就是 ctx+0x08（ctx 在 [rsp+0x58]，var_1C8 在 [rsp+0x60]）。
+       累积量因此含基址，与 `字段 - PeFileOffset` 相减后基址抵消。 */
+    AccumulatedOffset = *(ULONG64 *)((PUCHAR)SectionContext + 0x08);
 
 
     // 遍历 PE 节区，最多 0xC8 个
@@ -2418,7 +2419,7 @@ __int64 ReadWriteKernelMemory(void)
             // SectionEntry + 0x40: DWORD 偏移值
             // 计算：值 - PeFileOffset + AccumulatedOffset
             PeSectionOffset = *(ULONG *)(SectionEntry + 0x40);
-            PeSectionOffset -= PeFileOffset;
+            PeSectionOffset -= (ULONG)PeFileBase;   /* 原版 sub eax,r12d，r12=GT[0x20] */
             PeSectionOffset += (ULONG)AccumulatedOffset;
 
             if (!PeSectionOffset || PeSectionOffset >= PeFileSize)
@@ -2454,7 +2455,7 @@ __int64 ReadWriteKernelMemory(void)
 
             /* 原版 loc_14003FB2F → 0x14003FB5E：mov eax,[var_108] → +0x78 */
             PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
-            PeSectionOffset -= PeFileOffset;
+            PeSectionOffset -= (ULONG)PeFileBase;   /* 原版 sub eax,r12d，r12=GT[0x20] */
             PeSectionOffset += (ULONG)AccumulatedOffset;
 
             if (!PeSectionOffset || PeSectionOffset >= PeFileSize)
@@ -2508,7 +2509,7 @@ __int64 ReadWriteKernelMemory(void)
                 {
                     /* 原版 0x14003FB5E / 0x14003FC7B：mov eax,[var_108]，描述符基址 rbp-0xa8 → +0x78 */
                     PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
-                    PeSectionOffset -= PeFileOffset;
+                    PeSectionOffset -= (ULONG)PeFileBase;   /* 原版 sub eax,r12d，r12=GT[0x20] */
                     PeSectionOffset += (ULONG)AccumulatedOffset;
 
                     if (PeSectionOffset && PeSectionOffset < PeFileSize)
@@ -2554,7 +2555,7 @@ __int64 ReadWriteKernelMemory(void)
                 {
                     /* 原版 0x14003FB5E / 0x14003FC7B：mov eax,[var_108]，描述符基址 rbp-0xa8 → +0x78 */
                     PeSectionOffset = *(ULONG *)(SectionEntry + 0x78);
-                    PeSectionOffset -= PeFileOffset;
+                    PeSectionOffset -= (ULONG)PeFileBase;   /* 原版 sub eax,r12d，r12=GT[0x20] */
                     PeSectionOffset += (ULONG)AccumulatedOffset;
 
                     if (PeSectionOffset && PeSectionOffset < PeFileSize)
