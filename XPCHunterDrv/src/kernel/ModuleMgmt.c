@@ -4429,9 +4429,11 @@ char ScanKernelPeExportData()
     SectionIndex = 0;
     while (SectionIndex < 0x64)
     {
-        /* 【修正 2026-10-27】原版 0x14003F1DA..F225：
-             +0x88==0x40000、+0x50==0x40、RVA 基值在 +0x40。
-           旧实现的 FieldFlags/FieldValueSize/SectionDataSize 全是空壳。 */
+        /* 【修正 2026-10-27 第二次】描述符基址 rsp+0x98，故偏移 = 栈帧offset - 0x98：
+             var_F0 (0xe8)  → +0x50   段特性（必须 == 0x40000）
+             var_B8 (0x120) → +0x88   段标志（必须 == 0x40）
+             var_100(0xd8)  → +0x40   RVA 基值
+           旧实现把 +0x50 与 +0x88 的判据写反了（0x14003F208 判 [var_F0]、0x14003F212 判 [var_B8]）。 */
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
 
@@ -4440,8 +4442,8 @@ char ScanKernelPeExportData()
         SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         if (SectionType == 0x4DB &&
-            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
-            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40)
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40000 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40)
         {
             ExportRva = *(ULONG *)((PUCHAR)SectionEntry + 0x40)
                       - (ULONG)NtImageBase
