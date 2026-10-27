@@ -4367,7 +4367,7 @@ char ScanKernelPeExportData()
     // 第一轮扫描：最多 5 个条目，查找 Type 0x559
     InitPESectionReadContext(
         (__int64)(NtImageBase + FirstPassOffset),
-        (ULONG)((ULONG)((ULONG)NtImageBase - (ULONG)(FirstPassOffset + NtImageBase) + (ULONG)NtImageSize)),
+        (ULONG)((ULONG)NtImageBase - (ULONG)(FirstPassOffset + NtImageBase) + (ULONG)NtImageSize),
         2,
         0,
         -1,
@@ -4379,21 +4379,30 @@ char ScanKernelPeExportData()
     SectionIndex = 0;
     while (SectionIndex < 5)
     {
-            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
+        /* 【修正 2026-10-27】原版 0x14003F141..F17F：先解码，成功后
+           ctx+0x08 += 本条长度。描述符基址 rsp+0x98，故偏移 = 栈帧offset - 0x98：
+             var_50 (0x188) → +0xF0 长度
+             var_28 (0x1b0) → +0x118 类型指针
+             var_108(0xd0)  → +0x38  RVA 基值
+           旧实现的 SectionAlignedSize/SectionFileOffset/SectionDataSize 全未赋值。 */
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
 
-        ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
-        SectionFileOffset += SectionAlignedSize;
+        SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
         SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
-        if (SectionType == 0x559 && SectionDataSize)
+        if (SectionType == 0x559)
         {
-            unsigned int TempRva = (unsigned int)(SectionDataSize - NtImageBase + (ULONG)ComputedOffset);
-            if (TempRva && TempRva < NtImageSize)
+            ULONG RvaBase = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
+            if (RvaBase)
             {
-                SecondPassOffset = TempRva;
-                break;
+                unsigned int TempRva = RvaBase - (ULONG)NtImageBase + (ULONG)SectionContext.ReadPtr;
+                if (TempRva && TempRva < NtImageSize)
+                {
+                    SecondPassOffset = TempRva;
+                    break;
+                }
             }
         }
 
@@ -4406,7 +4415,7 @@ char ScanKernelPeExportData()
     // 第二轮扫描：最多 100 个条目，查找 Type 0x4DB
     InitPESectionReadContext(
         (__int64)(NtImageBase + SecondPassOffset),
-        (ULONG)((ULONG)((ULONG)NtImageBase - (ULONG)(SecondPassOffset + NtImageBase) + (ULONG)NtImageSize)),
+        (ULONG)((ULONG)NtImageBase - (ULONG)(SecondPassOffset + NtImageBase) + (ULONG)NtImageSize),
         2,
         0,
         -1,
@@ -4417,25 +4426,28 @@ char ScanKernelPeExportData()
     SectionIndex = 0;
     while (SectionIndex < 0x64)
     {
+        /* 【修正 2026-10-27】原版 0x14003F1DA..F225：
+             +0x88==0x40000、+0x50==0x40、RVA 基值在 +0x40。
+           旧实现的 FieldFlags/FieldValueSize/SectionDataSize 全是空壳。 */
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
-        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
-           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
-        SectionContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
 
-        ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
-        SectionFileOffset += SectionAlignedSize;
+        SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
         SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         if (SectionType == 0x4DB &&
-            FieldFlags == 0x40000 &&
-            FieldValueSize == 0x40)
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40)
         {
-            ExportRva = (unsigned int)(SectionDataSize - NtImageBase + (ULONG)ComputedOffset);
+            ExportRva = *(ULONG *)((PUCHAR)SectionEntry + 0x40)
+                      - (ULONG)NtImageBase
+                      + (ULONG)SectionContext.ReadPtr;
+
             if (ExportRva && ExportRva < NtImageSize)
             {
-                // 写入 GT 0x33D = GtCallbackField108
-                GtWrite(GtCallbackField108, NtoskrnlModuleBase + ExportRva);
+                /* 0x14003F232..F23A：写 GT[0x33D] */
+                GtWrite(GtCallbackField108, (ULONG64)ExportRva + NtoskrnlModuleBase);
                 return 1;
             }
         }
