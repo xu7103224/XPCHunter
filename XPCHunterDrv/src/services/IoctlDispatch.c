@@ -1262,7 +1262,24 @@ __int64 CmdKernelMemoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD 
        于是 `OutSize >= 0x50` 门限直接失败 → 输出 0 字节。 */
     UNREFERENCED_PARAMETER(InputBuffer);
     UNREFERENCED_PARAMETER(InputSize);
-    return KernelMemoryOperationDispatch((void *)pOutputBuffer, OutputSize);
+    {
+        __int64 r = KernelMemoryOperationDispatch((void *)pOutputBuffer, OutputSize);
+
+        /* 【临时诊断 2026-10-27】块 5/9/11 的前置槽，写到 0x1400 之后
+           （12 块全通时原版也只用到 0x12D0）。排查完即删。 */
+        if (pOutputBuffer && OutputSize >= 0x1460)
+        {
+            static const ULONG DSlots[] = {
+                0x2BB, 0x2BC, 0x2CF, 0x338, 0x33D, 0x5F,
+                0x42DF, 0x42E2, 0x435D, 0x43AB, 0x20, 0x21
+            };
+            ULONG i;
+            for (i = 0; i < sizeof(DSlots) / sizeof(DSlots[0]); i++)
+                *(ULONG64 *)((PUCHAR)pOutputBuffer + 0x1400 + i * 8) =
+                    (ULONG64)GtRead((GLOBAL_TABLE_INDEX)DSlots[i]);
+        }
+        return r;
+    }
 }
 
 // CmdProcessMemoryOperation — 进程内存操作命令处理

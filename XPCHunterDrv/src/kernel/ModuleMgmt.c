@@ -4503,7 +4503,7 @@ char EnumProcessPeExportData()
     {
         InitPESectionReadContext(
             (__int64)(NtImageBase + GtIndex41B0),
-            (ULONG)((ULONG)((ULONG)NtImageBase - (ULONG)(GtIndex41B0 + NtImageBase) + (ULONG)NtImageSize)),
+            (ULONG)((ULONG)NtImageBase - (ULONG)(GtIndex41B0 + NtImageBase) + (ULONG)NtImageSize),
             2,
             0,
             -1,
@@ -4514,28 +4514,40 @@ char EnumProcessPeExportData()
         SectionIndex = 0;
         while (SectionIndex < 0x64)
         {
-            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
+            /* 【修正 2026-10-27】原版 0x14003F514..F57F：先解码后推进 ctx+0x08。
+               描述符基址 rsp+0x98，故偏移 = 栈帧offset - 0x98：
+                 var_80 (0x188) → +0xF0 长度
+                 var_58 (0x1b0) → +0x118 类型指针
+                 var_E8 (0x120) → +0x88 段标志(0x40000)
+                 var_F8 (0x110) → +0x78 RVA 基值（须非零）
+                 var_120(0xe8)  → +0x50 段特性(0x40)
+                 var_118(0xf0)  → +0x58 计数(1)
+               旧实现的 SectionAlignedSize/SectionFileOffset/FieldFlags/
+               FieldValueSize/FieldCount/SectionDataSize 全是未赋值空壳。 */
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
-            ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
-            SectionFileOffset += SectionAlignedSize;
+            SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
             SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
             if (SectionType == 0x545)
                 break;
 
             if (SectionType == 0x512 &&
-                FieldFlags == 0x40000 &&
-                SectionDataSize &&
-                FieldValueSize == 64 &&
-                FieldCount == 1)
+                *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
+                *(ULONG *)((PUCHAR)SectionEntry + 0x78) != 0 &&
+                *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40 &&
+                *(ULONG *)((PUCHAR)SectionEntry + 0x58) == 1)
             {
-                ExportRva = (unsigned int)(SectionDataSize - NtImageBase + (ULONG)ComputedOffset);
+                ExportRva = *(ULONG *)((PUCHAR)SectionEntry + 0x78)
+                          - (ULONG)NtImageBase
+                          + (ULONG)SectionContext.ReadPtr;
+
                 if (ExportRva && ExportRva < NtImageSize)
                 {
-                    // 写入 GT 0x5F = GtEprocessField85
-                    GtWrite(GtEprocessField85, NtoskrnlModuleBase + ExportRva);
+                    /* 0x14003F58C..F594：写 GT[0x5F] */
+                    GtWrite(GtEprocessField85, (ULONG64)ExportRva + NtoskrnlModuleBase);
                     Result = 1;
                     break;
                 }
