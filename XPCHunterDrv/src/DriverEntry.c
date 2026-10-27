@@ -2686,8 +2686,8 @@ __int64 InitEprocessOffsetsWin7(void)
     GtWrite(GtObjectTypeCount, 644);
     GtWrite(GtEprocessField57, 772);
     GtWrite(GtEprocessField95, 128);
-    GtWrite(GtEprocessField131 | 0x100, 112);
-    GtWrite(GtEprocessField132 | 0x100, 56);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 112);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 56);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 300);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     GtWrite(GtKiFastCallEntryAddr | GtEprocessField08, 364);
@@ -2876,8 +2876,8 @@ __int64 InitEprocessOffsetsWin8(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 20608);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 20736);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 344);
@@ -3118,8 +3118,8 @@ __int64 InitEprocessOffsetsWin81(void)
     }
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, EprocessField130Val);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 347);
@@ -3356,8 +3356,8 @@ __int64 InitEprocessOffsetsWin81_Update(void)
     }
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, EprocessField130Val);
     GtWrite(GtEprocessField95, 452);
-    GtWrite(GtEprocessField131 | 0x100, 160);
-    GtWrite(GtEprocessField132 | 0x100, 80);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 160);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 80);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 324);
@@ -3555,8 +3555,8 @@ __int64 InitEprocessOffsetsWin10_10240(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22656);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22784);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     if (Is10240)
@@ -3766,8 +3766,8 @@ __int64 InitEprocessOffsetsWin10_14393(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22656);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22784);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 360);
@@ -3969,8 +3969,8 @@ __int64 InitEprocessOffsetsWin10_15063(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22784);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22912);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     if (Is15063)
@@ -4236,8 +4236,8 @@ __int64 InitEprocessOffsetsWin10_17134(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22784);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22912);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     if (Is17134)
@@ -4468,8 +4468,8 @@ __int64 InitEprocessOffsetsWin10_18362(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 22784);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 22912);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 373);
@@ -4562,15 +4562,9 @@ __int64 InitEprocessOffsetsWin10_18362(void)
     GtWrite((enum _GLOBAL_TABLE_INDEX)2312, FltPeSectionVal);
     GtWrite(GtEprocessField01 | 0x900, -64);
     GtWrite((enum _GLOBAL_TABLE_INDEX)2316, 456);
-    /* 【补 2026-10-19】原始 sub_140023C2C 的 0x140023F75..FB7 还写了五个槽。
-       rdi = 0x3F（0x140023F25 `mov edi,0x3f`），故 `lea ecx,[rdi+0x2a]` = GT[0x69]。
-       本机 GT[0x914] = 0x47BA = 18362 → 派发正落在这一族，
-       旧实现缺这五行 → GT[0x18B..0x18E] 恒 0（实机核对缺失）。 */
-    GtWrite((GLOBAL_TABLE_INDEX)0x18B, 0x5900);                 /* 0x140023F75 */
-    GtWrite((GLOBAL_TABLE_INDEX)0x18C, 0x5980);                 /* 0x140023F84 */
-    GtWrite((GLOBAL_TABLE_INDEX)0x69,  0x1E4);                  /* 0x140023F93 */
-    GtWrite((GLOBAL_TABLE_INDEX)(0x1E4 - 0x57), 0xD8);          /* 0x140023FA2 → 0x18D */
-    GtWrite((GLOBAL_TABLE_INDEX)(0x1E4 - 0x56), 0x98);          /* 0x140023FAF → 0x18E */
+    /* 【2026-10-27 修正】原版这五个槽（0x18B/0x18C/0x69/0x18D/0x18E）只在
+       前段的 0x140023F75 区域写一次；此前为补"GT[0x18B..0x18E] 恒 0"又在此处
+       重复追加了一遍，导致 0x047 之外的全表条目数比原版多 5。已删除重复块。 */
     return GtWrite(GtEprocessField03 | 0x900, 141);
 }
 
@@ -4677,8 +4671,8 @@ __int64 InitEprocessOffsetsWin10_19041(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 31744);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 31872);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     GtWrite(GtSubsystemConfigBase | GtEprocessField06 | 0x100, 379);
@@ -4908,8 +4902,8 @@ __int64 InitEprocessOffsetsWin11(void)
     GtWrite((GLOBAL_TABLE_INDEX)0x18B, 32448);
     GtWrite((GLOBAL_TABLE_INDEX)0x18C, 32576);
     GtWrite(GtEprocessField95, 484);
-    GtWrite(GtEprocessField131 | 0x100, 216);
-    GtWrite(GtEprocessField132 | 0x100, 152);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18D, 216);
+    GtWrite((GLOBAL_TABLE_INDEX)0x18E, 152);
     GtWrite(GtEprocessField184 | GtEprocessField06 | 0x100, 0);
     GtWrite(GtEprocessField185 | GtEprocessField06 | 0x100, 12);
     if (BuildNumber == 20348)
