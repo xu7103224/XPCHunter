@@ -649,6 +649,35 @@ extern ULONG g_DiagHookFirstIdxRva;
 extern ULONG g_DiagHookTargetHash;
 extern ULONG g_DiagHookPeLfanew;   /* GT[0x20] 的 e_lfanew（校验缓冲区确为 PE） */
 
+/* 【诊断 2026-10-26】0x108 CmdEnumProcessorInfo / 0x0D4 进程遍历逐级 trace
+   （定义在 DriverEntry.c，经 0x13A 的 env 块 0x160.. 导出）。 */
+extern ULONG g_DiagPcStage;     /* 1=进入 2=前置校验通过 3=List 成功 4=有进程 5=循环结束 */
+extern ULONG g_DiagPcListRet;   /* EnumerateProcessList 返回值 */
+extern ULONG g_DiagPcCount;     /* 进程条数 */
+extern ULONG g_DiagPcOk1;       /* 通过 CheckMemoryValid(proc) */
+extern ULONG g_DiagPcOk2;       /* 通过 CheckMemoryValid(proc+ObjectTypeId) */
+extern ULONG g_DiagPcOk3;       /* 通过 CheckProcessObjectFlag */
+extern ULONG g_DiagPcOk4;       /* 通过 ObjectTable > MmSystemRangeStart */
+extern ULONG g_DiagPcOk5;       /* 通过 pContextTable 三重检查 */
+extern ULONG g_DiagPcWritten;   /* 最终写入条目数 */
+extern ULONG g_DiagPcTypeId;    /* ObjectTypeId（MaxProcessCount-1） */
+extern ULONG g_DiagPcFlagOff;   /* GT[0x31C] 采样 */
+extern ULONG g_DiagVadStage;    /* 0x0D4 ScanProcessVadMemory 漏斗 */
+extern ULONG g_DiagVadCount;    /* 进入该函数的进程数 */
+extern ULONG g_DiagVadFound;    /* 找到 VAD 地址的次数 */
+extern ULONG64 g_DiagProbe[16]; /* 0x0FF 前 3 块探针：[v18,*v18,(*v18)[3],EntryCount,节点] */
+extern ULONG64 g_DiagSsdt[8];  /* 0x047 SSDT RVA 候选值：[readPtr,FieldA,新式RVA,旧式RVA,...] */
+extern ULONG g_DiagVkStage;     /* ValidateKernelObject 通过的最后一关（0=入口前） */
+extern ULONG g_DiagEpiA;        /* EnumerateProcessInformation：页通过 MmIsAddressValid */
+extern ULONG g_DiagEpiB;        /*   + CallRegisteredCallback(MmIsNonPagedSystemAddressValid) */
+extern ULONG g_DiagEpiC;        /*   + MmGetPhysicalAddress 落在范围内 */
+extern ULONG g_DiagEpiD;        /*   + ValidateEnumerationResult 通过 */
+extern ULONG g_DiagEpiE;        /* 内层匹配到的条目数（CheckObjectTypeFlag 命中） */
+extern ULONG g_DiagFilA;        /* FillProcessInformationEntry 进入次数 */
+extern ULONG g_DiagFilB;        /*   通过 ObjectTypeTable 非零 */
+extern ULONG g_DiagFilC;        /*   通过两处 MmIsAddressValid */
+extern ULONG g_DiagFilD;        /*   通过 IsProcessThreadInList */
+
 /* 【诊断 2026-10-21】 0xA2 终止路径逐级 trace（定义在 DriverEntry.c）。 */
 extern ULONG g_DiagKillStage;
 extern ULONG g_DiagKillBuild;

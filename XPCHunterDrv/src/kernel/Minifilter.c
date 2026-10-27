@@ -8298,165 +8298,191 @@ __int64 CopyFsFilterEntryTable(__int64 OutputBuffer, char Is64Bit)
 //
 //   0x14003EADF  GtRead(0x61)               ; 目标 EPROCESS，非 0 则 KeStackAttachProcess
 //   0x14003EB03  r14d = GtRead(0x42D0)      ; CurrentOffset
-//   0x14003EB0D  rbx  = GtRead(0x43A8)      ; SectionBase
-//   0x14003EB1A  r12  = GtRead(0x20)        ; SectionSize
-//   0x14003EB27  edi  = GtRead(0x21)        ; （低 32 位）
-//   0x14003EB34  r13  = GtRead(3)           ; NtoskrnlImageBase
+//   0x14003EB0D  ebx  = GtRead(0x43A8)      ; 仅用于两道守卫，不参与寻址
+//   0x14003EB1A  r12  = GtRead(0x20)        ; ntoskrnl.exe PE 文件映射缓冲区基址
+//   0x14003EB27  edi  = GtRead(0x21)        ; PE 文件映射大小（也是 RVA 上界）
+//   0x14003EB34  r13  = GtRead(3)           ; NtoskrnlModuleBase
 //   0x14003EB41  eax  = GtRead(2)           ; （低 32 位）
-//   0x14003EB4E..B8C  八个非零/边界守卫
-//   0x14003EBB3  InitPESectionReadContext(r14+rbx, r12-(r14+rbx)+edi, 2, 0, -1, 0, 0, ctx)
+//   0x14003EB4E..B8C  六个守卫（r14<edi、ebx!=0、ebx<edi、r12!=0、edi!=0、r13!=0、eax!=0）
+//   0x14003EBBA  add rcx, r12               ; Base = GT[0x42D0] + GT[0x20]
+//   0x14003EBB3  InitPESectionReadContext(Base, GT[0x21]-GT[0x42D0], 2, 0, -1, 0, 0, ctx)
 //
 //   第一段（最多 0xC8 轮，0x14003EBCE..CC7）：
-//     ReadPESectionEntry 失败 → 结束
-//     Cumul += Entry[0xF0]
-//     类型 == 0x545 → 结束
+//     ReadPESectionEntry 失败 → 返回
+//     Cumul += Entry[0xF0]（Cumul 就是 ctx+0x08，不是独立变量）
+//     类型 == 0x545 → 返回
 //     类型 == 0x512 且 +0x50==0x40 且 +0x58==2 且 +0x90==4
-//        → 再读下一个条目；若类型仍为 0x512 且 +0x50==0x40 且 +0x58==1 且
-//          +0x88==0x40000：Cand = (+0x78 - SectionSize + Cumul)；
-//                          Cand != 0 && Cand < edi → 写 GT[0x2B8] = Cand + ImageBase
+//        → 再读下一个条目；Cumul += 其 +0xF0
+//          若类型仍为 0x512 且 +0x50==0x40 且 +0x58==1 且 +0x88==0x40000：
+//            Cand = (+0x78 - GT[0x20] + Cumul)
+//            → 再读第三个条目；Cumul += 其 +0xF0
+//              若类型 == 0x558：0 < Cand < edi → 写 GT[0x2B8] = Cand + r13，转第二段
+//   第一段跑满 0xC8 轮未写出 GT[0x2B8] → 直接返回，**不进第二段**
 //   第二段（最多 0x12C 轮，0x14003ECE6..ED74）：
-//     ReadPESectionEntry 失败 → 结束
+//     ReadPESectionEntry 失败 → 返回
 //     Cumul += Entry[0xF0]
 //     Loaded = GtRead(0x914)
-//     若 Loaded < 0x55F0 且 类型 == 0x545 → 结束
-//     类型 ∈ {0x4B1, 0x175, 0x472} 且 (+0x28 & 4) 且 +0x50==0x40000
-//        Cand = (+0x70 - SectionSize + Cumul)
-//        Cand != 0 && Cand < edi → 写 GT[0x2BA] = Cand + ImageBase，Result = 1
+//     若 Loaded < 0x55F0 且 类型 == 0x545 → 返回
+//     类型 ∈ {0x4B1, 0x175, 0x472} 且 (+0x20 单字节 & 4) 且 +0x50==0x40000
+//        Cand = (+0x40 - GT[0x20] + Cumul)
+//        Cand != 0 && Cand < edi → 写 GT[0x2BA] = Cand + r13，Result = 1
 //   0x14003ED8D  有 APC 则 KeUnstackDetachProcess，返回 Result
 //
 // 描述符字段（0x120 字节）：+0xF0 消耗长度、+0x118 类型指针（+6 为类型号）、
-//   +0x28 标志位、+0x50 段特性、+0x58 段号、+0x70 / +0x78 RVA、+0x88 / +0x90 标志。
+//   +0x20 标志字节、+0x50 段特性、+0x58 段号、+0x40 / +0x78 RVA、+0x88 / +0x90 标志。
 char EnumerateProcessCallbackContext(void)
 {
     __int64 Result = 0;                 /* r15b */
     struct _KPROCESS *TargetProcess;    /* rsi  */
     ULONG   CurrentOffset;              /* r14d */
-    ULONG64 SectionBase;                /* rbx  */
-    ULONG   SectionSize;                /* r12d */
-    ULONG   ImageSizeLow;               /* edi  */
-    ULONG64 NtoskrnlImageBase;          /* r13  */
+    ULONG   SectionBaseLow;             /* ebx  */
+    ULONG64 PeFileBase;                 /* r12  */
+    ULONG   PeFileSize;                 /* edi  */
+    ULONG64 NtoskrnlModuleBase;         /* r13  */
     ULONG   Guard2;                     /* eax  */
     ULONG   LoopIndex;
-    ULONG   Cumul;                      /* [rsp+var_1C8] */
     ULONG   Cand;                       /* ebx  */
+    ULONG64 Cumul;                      /* [rsp+var_1C8] == ctx+0x08 */
     PE_DECODE_CONTEXT ReadContext;
     _DWORD SectionEntry[72];            /* 0x120 字节描述符 */
     struct _KAPC_STATE ApcState;
     USHORT  Type;
-    ULONG   EntrySize;
 
     TargetProcess = (struct _KPROCESS *)GtRead((GLOBAL_TABLE_INDEX)0x61);
     if (TargetProcess)
         KeStackAttachProcess(TargetProcess, &ApcState);
 
     CurrentOffset      = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x42D0);
-    SectionBase        = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x43A8);
-    SectionSize        = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x20);
-    ImageSizeLow       = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);
-    NtoskrnlImageBase  = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)3);
+    SectionBaseLow     = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x43A8);
+    PeFileBase         = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    PeFileSize         = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);
+    NtoskrnlModuleBase = GtRead((GLOBAL_TABLE_INDEX)3);
     Guard2             = (ULONG)GtRead((GLOBAL_TABLE_INDEX)2);
 
-    /* 0x14003EB4E..B8C：八道守卫 */
-    if (!CurrentOffset || CurrentOffset >= ImageSizeLow) goto Done;
-    if (!SectionSize   || SectionSize   >= ImageSizeLow) goto Done;
-    if (!(ULONG64)SectionBase) goto Done;
-    if (!ImageSizeLow) goto Done;
-    if (!NtoskrnlImageBase) goto Done;
+    /* 0x14003EB4E..B8C：八道守卫。注意第 3/4 道判的是 ebx = GT[0x43A8]
+       （不是 r12 = GT[0x20]），第 5 道判 r12 全 64 位非零。 */
+    if (!CurrentOffset || CurrentOffset >= PeFileSize) goto Done;
+    if (!SectionBaseLow || SectionBaseLow >= PeFileSize) goto Done;
+    if (!PeFileBase) goto Done;
+    if (!PeFileSize) goto Done;
+    if (!NtoskrnlModuleBase) goto Done;
     if (!Guard2) goto Done;
 
-    /* 0x14003EBB3：窗口 = SectionBase + CurrentOffset，长度 = SectionSize - 该值 + ImageSizeLow */
-    InitPESectionReadContext((__int64)(SectionBase + CurrentOffset),
-                             (ULONG)(SectionSize - (ULONG)(SectionBase + CurrentOffset) + ImageSizeLow),
-                             2, 0, -1, 0, 0, (__int64)&ReadContext);
+    /* 0x14003EB92..EBBD：
+         edx  = (ULONG)GT[0x20]
+         ecx  = (ULONG)GT[0x42D0] ; add rcx, r12   → Base = GT[0x42D0] + GT[0x20]（64 位）
+         edx -= ecx ; edx += edi                   → Size = 低32(GT[0x20]) - 低32(Base) + 低32(GT[0x21])
+       GT[0x43A8] 只出现在守卫里，从不参与寻址。 */
+    {
+        ULONG64 WindowBase = (ULONG64)CurrentOffset + PeFileBase;
+        ULONG   WindowSize = (ULONG)PeFileBase - (ULONG)WindowBase + PeFileSize;
 
-    Cumul = 0;
-    Cand  = 0x512;                       /* ebx 初值，仅用于第一段的类型比较 */
+        InitPESectionReadContext((__int64)WindowBase, WindowSize, 2, 0, -1, 0, 0, (__int64)&ReadContext);
+    }
 
-    /* ===== 第一段：0x14003EBCE..CC7，最多 0xC8 轮 ===== */
+    Cand = 0x512;                        /* ebx 初值，仅用于第一段的类型比较 */
+
+    /* ===== 第一段：0x14003EBCE..ECC7，最多 0xC8 轮 ===== */
     for (LoopIndex = 0; LoopIndex < 0xC8; LoopIndex++)
     {
         if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry) != 0)
-            break;
-        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
-           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
-        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
+            goto Done;
 
-        /* 0x14003EBE4..BEA：先累加消耗长度 */
-        EntrySize = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
-        Cumul += EntrySize;
+        /* 0x14003EBE4..BEA：累计量就是 ctx+0x08（同一个槽），不是独立变量 */
+        Cumul = ReadContext.ReadPtr + PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
+        ReadContext.ReadPtr = Cumul;
 
         Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         if (Type == 0x545)               /* 0x14003EBFA..C02：结束标记 */
-            break;
+            goto Done;
 
-        if (Cand != Type)                /* 0x14003EC08：只有 0x512 才深入 */
-            continue;
+        if ((USHORT)Cand != Type)        /* 0x14003EC08：cmp bx,cx，只比低 16 位 */
+            goto NextIter;
 
         if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40 ||   /* 0x14003EC11 */
             *(ULONG   *)((PUCHAR)SectionEntry + 0x58) != 2    ||   /* 0x14003EC1C */
             *(ULONG   *)((PUCHAR)SectionEntry + 0x90) != 4)        /* 0x14003EC26 */
-            continue;
+            goto NextIter;
 
         /* 0x14003EC30：再看紧邻的下一个条目 */
         if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry) != 0)
-            continue;
+            goto NextIter;
 
-        EntrySize = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
-        Cumul += EntrySize;
+        Cumul = ReadContext.ReadPtr + PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
+        ReadContext.ReadPtr = Cumul;
 
-        if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 0x512 ||
-            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40 ||
-            *(ULONG   *)((PUCHAR)SectionEntry + 0x58) != 1    ||
-            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) != 0x40000)
-            continue;
+        if ((USHORT)Cand != *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6))
+            goto NextIter;           /* 0x14003EC5C：cmp bx,[rax+6] */
 
-        /* 0x14003EC79：Cand = (+0x78 - SectionSize) + Cumul */
-        {
-            ULONG Raw = *(ULONG *)((PUCHAR)SectionEntry + 0x78) - (ULONG)SectionSize + Cumul;
-            Cand = Raw;
-            if (Raw == 0 || Raw >= ImageSizeLow)
-                goto NextIter;
-            GtWrite((GLOBAL_TABLE_INDEX)0x2B8, NtoskrnlImageBase + Raw);   /* 0x14003ECD4 */
-        }
-    NextIter:;
+        if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40 ||   /* 0x14003EC62 */
+            *(ULONG   *)((PUCHAR)SectionEntry + 0x58) != 1    ||   /* 0x14003EC69 */
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) != 0x40000)  /* 0x14003EC6F */
+            goto NextIter;
+
+        /* 0x14003EC79：Cand = (+0x78 - GT[0x20]) + Cumul */
+        Cand = *(ULONG *)((PUCHAR)SectionEntry + 0x78) - (ULONG)PeFileBase + (ULONG)Cumul;
+
+        /* 0x14003EC85：内层第三次读，**在边界判定之前**，且类型必须是 0x558 */
+        if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry) != 0)
+            goto NextIter;
+
+        Cumul = ReadContext.ReadPtr + PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
+        ReadContext.ReadPtr = Cumul;
+
+        if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 0x558)
+            goto NextIter;
+
+        /* 0x14003ECB0..ECD9：0 < Cand < PeFileSize 才写，写完直接进第二段 */
+        if (Cand == 0 || Cand >= PeFileSize)
+            goto NextIter;
+
+        GtWrite((GLOBAL_TABLE_INDEX)0x2B8, (ULONG64)Cand + NtoskrnlModuleBase);
+        Result = 0;
+        Cand   = 0;                      /* 原版 xor ebx,ebx，兼作第二段循环计数 */
+        goto Segment2;
+
+    NextIter:
+        Cand = 0x512;                    /* 原版 loc_14003ECB8: mov ebx,512h */
     }
 
+    /* 第一段耗尽 0xC8 轮仍未写出 GT[0x2B8] → 原版 jnb 直接返回，不进第二段 */
+    goto Done;
+
+Segment2:
     /* ===== 第二段：0x14003ECE6..ED74，最多 0x12C 轮 ===== */
     for (LoopIndex = 0; LoopIndex < 0x12C; LoopIndex++)
     {
         ULONG Loaded;
 
         if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry) != 0)
-            break;
-        /* 【修正 2026-10-21】推进读指针：ReadPESectionEntry 不回写 ctx+0x08，
-           原始为 mov rcx,[ctx+8]; add rcx,[desc+0xF0]; mov [ctx+8],rcx。 */
-        ReadContext.ReadPtr += PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
+            goto Done;
 
-        EntrySize = *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
-        Cumul += EntrySize;
+        Cumul = ReadContext.ReadPtr + PE_DESC_SECTION_SIZE((PULONG)SectionEntry);
+        ReadContext.ReadPtr = Cumul;
 
         Loaded = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x914);            /* 0x14003ED02 */
         Type = *(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
         /* 0x14003ED18..ED28：低于 0x55F0 时遇 0x545 即结束 */
         if (Loaded < 0x55F0 && Type == 0x545)
-            break;
+            goto Done;
 
         /* 0x14003ED2E..ED4A：类型 ∈ {0x4B1, 0x175, 0x472} */
         if (!(Type == 0x4B1 || Type == 0x175 || Type == 0x472))
             continue;
 
-        if ((*(ULONG *)((PUCHAR)SectionEntry + 0x28) & 4) == 0 ||      /* 0x14003ED4C */
-            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40000)      /* 0x14003ED52 */
+        /* 0x14003ED4C：+0x20 **单字节** 的 bit2；0x14003ED52：+0x50 的 64 位比较 */
+        if ((*(UCHAR *)((PUCHAR)SectionEntry + 0x20) & 4) == 0 ||
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40000)
             continue;
 
-        /* 0x14003ED5C：Cand = (+0x70 - SectionSize) + Cumul */
+        /* 0x14003ED5C：Cand = (+0x40 - GT[0x20]) + Cumul */
         {
-            ULONG Raw = *(ULONG *)((PUCHAR)SectionEntry + 0x70) - (ULONG)SectionSize + Cumul;
-            if (Raw == 0 || Raw >= ImageSizeLow)
+            ULONG Raw = *(ULONG *)((PUCHAR)SectionEntry + 0x40) - (ULONG)PeFileBase + (ULONG)Cumul;
+            if (Raw == 0 || Raw >= PeFileSize)
                 continue;
-            GtWrite((GLOBAL_TABLE_INDEX)0x2BA, NtoskrnlImageBase + Raw);  /* 0x14003ED7D */
+            GtWrite((GLOBAL_TABLE_INDEX)0x2BA, (ULONG64)Raw + NtoskrnlModuleBase);  /* 0x14003ED7D */
             Result = 1;
         }
     }
@@ -8518,6 +8544,11 @@ __int64 EnumFileSystemCallbackEntries(void)
     NtoskrnlBase      = GtRead((GLOBAL_TABLE_INDEX)0x21);
     NtoskrnlImageBase = GtRead((GLOBAL_TABLE_INDEX)GtNtoskrnlModuleBase);
 
+    /* [diag] 1=entered 2=guards passed 3=hit 0x512/+0x50==0x40/+0x58==2/+0x90==4
+       4=hit 2nd level (0x512/+0x50==0x40/+0x58==1/+0x88==0x40000)
+       5=wrote GT[0x2B8]  6=seg2 hit  7=wrote GT[0x2BA] */
+    g_DiagCbCtxStage = 1;
+    g_DiagCbCtxFileSize = (ULONG)CurrentOffset;
     if (CurrentOffset
         && CurrentOffset < (ULONG)NtoskrnlBase
         && SectionBase
@@ -8526,9 +8557,19 @@ __int64 EnumFileSystemCallbackEntries(void)
         && NtoskrnlBase
         && NtoskrnlImageBase)
     {
+        g_DiagCbCtxStage = 2;
+        /* [2026-10-27 按我方反汇编 0x3960cb56..0x3960cb92 逐条还原]
+             rcx = r8d + r9          ; Base = GT[0x42D0] + GT[0x43A8]
+             edx = r15d              ;       GT[0x21]
+             edx -= r9d              ;     - GT[0x43A8]
+             edx -= r8d              ;     - GT[0x42D0]
+             edx += r12d             ;     + GT[0x20]
+           即 Base = SectionBase + CurrentOffset，
+              Size = NtoskrnlBase - SectionBase - CurrentOffset + SectionSize。
+           上一轮误改成 (SectionSize + CurrentOffset) 是错的，已回滚。 */
         InitPESectionReadContext(
-            (__int64)(SectionBase + CurrentOffset),
-            (ULONG)NtoskrnlBase - CurrentOffset,
+            (__int64)(CurrentOffset + SectionBase),
+            (ULONG)((ULONG)NtoskrnlBase - SectionBase - CurrentOffset + SectionSize),
             2,
             0,
             -1,
@@ -8551,14 +8592,27 @@ __int64 EnumFileSystemCallbackEntries(void)
 
             if (Type == 0x545)                                    // 1349：结束
                 break;
+            /* [diag] 记录首批类型 0x512 条目的四个判据字段 */
+            if (Type == 0x512 && g_DiagCbCtxFileSize == 0)
+            {
+                g_DiagCbCtxFileSize = 0xCAFE0000u | (ULONG)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) & 0xFF);
+                g_DiagCbCtxStage    = (ULONG)(*(ULONG *)((PUCHAR)SectionEntry + 0x58) & 0xFFFF);
+                g_DiagOpenStage     = (ULONG)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) & 0xFFFF);
+                g_DiagOpenStatus    = (LONG)(*(ULONG *)((PUCHAR)SectionEntry + 0x90) & 0xFFFF);
+            }
             if (Type != 0x512)                                    // 非 1298：下一轮
                 continue;
-            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40)
+            /* [2026-10-27 按原版 0x14003EC11..0x14003EC2A 修正偏移]
+               原版比较的是 var_130(+0xE8)、var_128(+0xF0)、var_F0(+0x128)；
+               旧实现用 +0x50/+0x58/+0x90，是操作数记录区内的偏移，
+               与描述符顶层字段不是同一组，故条件永不成立。 */
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0xE8) != 0x40)
                 continue;
-            if (*(ULONG *)((PUCHAR)SectionEntry + 0x58) != 2)
+            if (*(ULONG *)((PUCHAR)SectionEntry + 0xF0) != 2)
                 continue;
-            if (*(ULONG *)((PUCHAR)SectionEntry + 0x90) != 4)
+            if (*(ULONG *)((PUCHAR)SectionEntry + 0x128) != 4)
                 continue;
+            if (g_DiagCbCtxStage < 3) g_DiagCbCtxStage = 3;
 
             // 第二层条目
             if ((ULONG)ReadPESectionEntry((PUCHAR)&ReadContext, (PULONG)SectionEntry))
@@ -8567,14 +8621,20 @@ __int64 EnumFileSystemCallbackEntries(void)
             TypePtr = *(ULONG64 *)((PUCHAR)SectionEntry + 0x118);
             if (*(USHORT *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 0x512)
                 continue;
-            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x50) != 0x40)
+            /* 第二层同源：原版 0x14003EC62..0x14003EC77 的
+               var_130(+0xE8)==0x40、var_128(+0xF0)==1、var_F8(+0x120)==0x40000 */
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0xE8) != 0x40)
                 continue;
-            if (*(ULONG *)((PUCHAR)SectionEntry + 0x58) != 1)
+            if (*(ULONG *)((PUCHAR)SectionEntry + 0xF0) != 1)
                 continue;
-            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) != 0x40000)
+            if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x120) != 0x40000)
                 continue;
+            if (g_DiagCbCtxStage < 4) g_DiagCbCtxStage = 4;
 
-            ComputedRva = *(ULONG *)((PUCHAR)SectionEntry + 0x78)
+            /* [2026-10-27 修正] 原版 0x14003EC79 `mov ebx,[rbp+110h+var_108]`
+               读的是描述符 +0x110（不是 +0x78）：
+                 ComputedRva = Entry[+0x110] - SectionSize + RootOffsetAccum */
+            ComputedRva = *(ULONG *)((PUCHAR)SectionEntry + 0x110)
                         - SectionSize + (ULONG)RootOffsetAccum;
 
             // 第三层条目：确认类型 0x558，之后才校验算出的 RVA
@@ -8586,6 +8646,7 @@ __int64 EnumFileSystemCallbackEntries(void)
             if (!ComputedRva || ComputedRva >= (ULONG)NtoskrnlBase)
                 continue;
 
+            g_DiagCbCtxStage = 5;
             GtWrite((GLOBAL_TABLE_INDEX)GtKernelDataField38, NtoskrnlImageBase + ComputedRva);
             Result = 0;
 

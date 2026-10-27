@@ -82,6 +82,34 @@ ULONG g_DiagHookFirstIdxRva;   /* 索引表第 0 条的 rva */
 ULONG g_DiagHookTargetHash;    /* GT[0x41D9]：0x41DB 那一组的哈希 */
 ULONG g_DiagHookPeLfanew;      /* GT[0x20] 的 e_lfanew（校验缓冲区确为 PE） */
 
+/* 【诊断 2026-10-26】0x108 / 0x0D4 的进程遍历逐级计数，经 0x13A env 块 0x160.. 导出。 */
+ULONG g_DiagPcStage;
+ULONG g_DiagPcListRet;
+ULONG g_DiagPcCount;
+ULONG g_DiagPcOk1;
+ULONG g_DiagPcOk2;
+ULONG g_DiagPcOk3;
+ULONG g_DiagPcOk4;
+ULONG g_DiagPcOk5;
+ULONG g_DiagPcWritten;
+ULONG g_DiagPcTypeId;
+ULONG g_DiagPcFlagOff;
+ULONG g_DiagVadStage;
+ULONG g_DiagVadCount;
+ULONG g_DiagVadFound;
+ULONG64 g_DiagProbe[16];
+ULONG64 g_DiagSsdt[8];
+ULONG g_DiagVkStage;
+ULONG g_DiagEpiA;
+ULONG g_DiagEpiB;
+ULONG g_DiagEpiC;
+ULONG g_DiagEpiD;
+ULONG g_DiagEpiE;
+ULONG g_DiagFilA;
+ULONG g_DiagFilB;
+ULONG g_DiagFilC;
+ULONG g_DiagFilD;
+
 /*
  * 0xA2 TerminateProcessByEProcessOperation 逐级 trace（2026-10-21）。
  * 实测返回 0 且进程存活。该函数的成功路径由

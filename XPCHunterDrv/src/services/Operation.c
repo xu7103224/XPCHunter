@@ -1081,6 +1081,23 @@ __int64 EnumObjectTypeTableOperation(char *pInputBuffer, int InputSize, unsigned
                             {
                                 if (pEntryArray > (_QWORD *)MmSystemRangeStart && CheckMemoryValid(pEntryArray) == 1)
                                 {
+                                    /* 【探针 2026-10-27】记录前 3 个块的
+                                       v18 / *v18 / (*v18)[3] / EntryCount / 所属节点 */
+                                    if (*pOutputBuffer < 3)
+                                    {
+                                        unsigned int pi = (*pOutputBuffer) * 5;
+                                        if (pi + 4 < 16)
+                                        {
+                                            g_DiagProbe[pi + 0] = (ULONG64)pEntryArray;
+                                            {
+                                                ULONG64 SubHead = *pEntryArray;
+                                                g_DiagProbe[pi + 1] = SubHead;
+                                                g_DiagProbe[pi + 2] = SubHead ? *(ULONG64 *)(SubHead + 0x18) : 0;
+                                            }
+                                            g_DiagProbe[pi + 3] = (ULONG64)EntryCount;
+                                            g_DiagProbe[pi + 4] = (ULONG64)pTypeNode;
+                                        }
+                                    }
                                     *((_QWORD *)pEntry + 1) = (_QWORD)pEntryArray;
                                     *(_QWORD *)pEntry = 0;
                                     Remaining = ((unsigned __int64)RemainingSize - 40) / 0x18 + 1;
@@ -1140,7 +1157,14 @@ __int64 EnumObjectTypeTableOperation(char *pInputBuffer, int InputSize, unsigned
                             RemainingSize -= *pEntry;
                             ++*pOutputBuffer;
                             pEntry = (unsigned int *)((char *)pEntry + *pEntry);
-                            EntryIndex = LoopCount2;
+                            /* 【2026-10-27 修正·0x0FF 根因】原版 LABEL_47 里是
+                               `v16 = v30;` 之后**继续落到** `v30 = ++v16;`，
+                               即先恢复再自增（净效果 EntryIndex+1）。
+                               旧实现 goto 到 LABEL_47 后直接回循环头，跳过了自增，
+                               于是同一个 v18 被无限重复处理（探针实测前 3 块
+                               v18/*v18/EntryCount/节点 完全相同），
+                               每块都收 2 个子条目 → 93 块填满缓冲，而原版是 136 块。 */
+                            EntryIndex = ++LoopCount2;
                         }
                     }
                 }
@@ -3382,6 +3406,11 @@ __int64 EnumKernelObjectTableOperation(char *pInputBuffer, int InputSize, unsign
                     ResolveKernelObjectAddresses((__int64)pOutputBuffer);
                     return pOutputBuffer[1] != 0;
                 }
+                /* 【探针 2026-10-27】记录前 8 个链表节点 + 表头，用于和原版对照 */
+                if (pOutputBuffer[1] < 8)
+                    g_DiagProbe[pOutputBuffer[1]] = (ULONG64)pListEntry;
+                if (pOutputBuffer[1] == 0)
+                    g_DiagProbe[15] = (ULONG64)pObjectTypeList;
                 pObjectHeader = (_QWORD *)((char *)pListEntry - (unsigned int)GtRead(GtCallbackField101));
                 *(__int64 *)&pOutputBuffer[50 * pOutputBuffer[1] + 2] = (__int64)pObjectHeader;
                 pOutputEntry = (_QWORD *)&pOutputBuffer[50 * pOutputBuffer[1]];
@@ -5542,6 +5571,71 @@ __int64 EnumProcessListWin10Operation(char *pInputBuffer, int InputSize, unsigne
     OutputPtr = (char *)pOutputBuffer;                   /* 0x14005e428 */
     if (Version <= 0x50000)                              /* 0x14005e42b */
         return 0;
+
+    /* ====================================================================
+     * 【2026-10-27 按原版 sub_14005E354 忠实实现】NDIS 版本 >= 0x60053 的分支。
+     *
+     * 此前本函数用 PsGetCurrentProcess 兜底（见下方旧路径的注释），并在条目
+     * +0x08 写入进程名 —— 两处都与原版不符，输出 420 B vs 原版 608 B。
+     *
+     * 实机核对（同一 guest、同一时刻）：
+     *   GT[0x363](NDIS 版本) = 0x00060053   GT[0x36C](链表头) = 同一地址
+     *   *GT[0x36C] = 0xFFFF888B9C16E1A0  ← 与原版输出条目 +0x00 完全一致
+     * 原版 v8 >= 0x60053 走最内层循环：条目 664 字节、后继取 v11[481]、
+     * "有后继"标记写在上一条 +656。字段表见下表（Dst=条目字节偏移，Src=v11 下标）。
+     *
+     * 其它 NDIS 版本仍走下方旧路径（未改动，避免未核对的行为回归）。 */
+    if (Version >= 0x60053)
+    {
+        static const struct { unsigned short Dst; unsigned short Src; } Fields[] =
+        {
+            {0x050, 54}, {0x058, 55}, {0x060, 56}, {0x068, 57},
+            {0x080, 76}, {0x088, 77}, {0x090, 78}, {0x098, 79}, {0x0A0, 80},
+            {0x0B8, 83},
+            {0x0D0, 86}, {0x0D8, 87}, {0x0E0, 88}, {0x0E8, 89},
+            {0x0F0, 90}, {0x0F8, 91}, {0x100, 92}, {0x108, 93},
+            {0x128, 226}, {0x130, 237}, {0x138, 23}, {0x140, 82}, {0x148, 85},
+            {0x158, 94},
+            {0x168, 253}, {0x170, 254}, {0x178, 258},
+            {0x180, 267}, {0x188, 268}, {0x190, 269}, {0x198, 270}, {0x1A0, 272},
+            {0x1D8, 303}, {0x1E0, 304}, {0x1E8, 305}, {0x1F0, 306},
+            {0x1F8, 307}, {0x200, 308},
+            {0x228, 326}, {0x230, 327}, {0x238, 328}, {0x240, 329},
+            {0x248, 330}, {0x250, 331},
+            {0x258, 424},
+            {0x268, 509},
+            {0x280, 450}, {0x288, 451},
+        };
+        _QWORD *Object = (_QWORD *)*ProcessListHead;     /* v11 = *v7 */
+        char  *Prev = 0;
+        ULONG  Index;
+        unsigned int Left = RemainingSize;
+
+        for (Index = 0;
+             Index < 0x1000
+             && (ULONG64)Object > (ULONG64)MmSystemRangeStart
+             && CheckMemoryValid((PVOID)Object) == 1
+             && Left >= PROC_ENTRY_SIZE;
+             ++Index)
+        {
+            unsigned int i;
+
+            if (Prev)
+                Prev[656] = 1;                           /* 上一条的"有后继"标记 */
+
+            *(ULONG64 *)OutputPtr = (ULONG64)Object;     /* +0x00 = 对象指针 */
+            for (i = 0; i < sizeof(Fields) / sizeof(Fields[0]); ++i)
+                *(ULONG64 *)(OutputPtr + Fields[i].Dst) = Object[Fields[i].Src];
+
+            Left    -= PROC_ENTRY_SIZE;
+            Prev     = OutputPtr;
+            OutputPtr = (char *)pOutputBuffer + (OutputSize - Left);
+            Result   = 1;
+            Object   = (_QWORD *)Object[481];            /* v11 = v11[481] */
+        }
+        return Result;
+    }
+
 
     /* 【兼容性兜底 2026-10-21】GT[0x36C] 在本移植里解析到了 ndis.sys 的数据段
        （实测 = ndis 基址 + 0xE6648），沿它的 +LinkOffset 走出来的"EPROCESS"不是活对象：

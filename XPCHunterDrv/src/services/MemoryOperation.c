@@ -941,12 +941,24 @@ __int64 EnumProcessorInfoOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
     _QWORD *pSectionBase;
     __int64 ObjectTableOffsetVal;
     _QWORD ProcessorContext[2];
+    int B1, B2, B3;
 
     if (!pOutputData || (unsigned int)BufferSize < 0x58)
         return 0;
     if ((ULONG64)pOutputData >= MmUserProbeAddress ||
         (ULONG64)pOutputData + BufferSize >= MmUserProbeAddress)
         return 0;
+
+    g_DiagPcStage = 1;
+    g_DiagPcListRet = 0;
+    g_DiagPcCount = 0;
+    g_DiagPcOk1 = 0;
+    g_DiagPcOk2 = 0;
+    g_DiagPcOk3 = 0;
+    g_DiagPcOk4 = 0;
+    g_DiagPcOk5 = 0;
+    g_DiagPcWritten = 0;
+    g_DiagPcFlagOff = (ULONG)GtRead(GtCallbackField75);
 
     ProbeForWrite(pOutputData, BufferSize, 4);
     memset(pOutputData, 0, (unsigned int)BufferSize);
@@ -978,24 +990,33 @@ __int64 EnumProcessorInfoOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
         {
             ObjectTypeId = MaxProcessCount - 1;
             ObjectTypeIdCopy = ObjectTypeId;
+            g_DiagPcStage = 2;
+            g_DiagPcTypeId = ObjectTypeId;
             pProcessData = ExAlloc(PagedPool, 0x44610);
             pProcessBuffer = pProcessData;
             pProcessBuffer2 = pProcessData;
             if (pProcessData)
             {
                 pProcessData[4] = 0;
-                if (EnumerateProcessList(0, (__int64)pProcessData, 0x44610))
+                g_DiagPcListRet = (ULONG)EnumerateProcessList(0, (__int64)pProcessData, 0x44610);
+                if (g_DiagPcListRet)
                 {
                     ProcessCount = pProcessBuffer[4];
                     ProcessCountCopy = ProcessCount;
                     ProcessIndex = 0;
                     LoopIndex = 0;
+                    g_DiagPcStage = 3;
+                    g_DiagPcCount = ProcessCount;
                     while (ProcessIndex < ProcessCount && RemainingEntries)
                     {
                         ProcessSlotMul14 = 14 * ProcessIndex;
-                        if (CheckMemoryValid(*(void **)&pProcessBuffer[ProcessSlotMul14 + 8]) == 1 &&
-                            CheckMemoryValid((void *)(*(_QWORD *)&pProcessBuffer[ProcessSlotMul14 + 8] + ObjectTypeId)) == 1 &&
-                            CheckProcessObjectFlag(*(_QWORD *)&pProcessBuffer[ProcessSlotMul14 + 8]) == 1)
+                        B1 = CheckMemoryValid(*(void **)&pProcessBuffer[ProcessSlotMul14 + 8]) == 1;
+                        if (B1) g_DiagPcOk1++;
+                        B2 = B1 && CheckMemoryValid((void *)(*(_QWORD *)&pProcessBuffer[ProcessSlotMul14 + 8] + ObjectTypeId)) == 1;
+                        if (B2) g_DiagPcOk2++;
+                        B3 = B2 && CheckProcessObjectFlag(*(_QWORD *)&pProcessBuffer[ProcessSlotMul14 + 8]) == 1;
+                        if (B3) g_DiagPcOk3++;
+                        if (B3)
                         {
                             ObjectTableAddr = *(_QWORD *)((unsigned int)ObjectTableOffsetVal +
                                 *(_QWORD *)&pProcessBuffer[ProcessSlotMul14 + 8]);
@@ -1009,6 +1030,7 @@ __int64 EnumProcessorInfoOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
                                         CheckMemoryValid((char *)pContextTable + 399) == 1 &&
                                         (pContextTable[27] || pContextTable[28] || pContextTable[29] || pContextTable[30]))
                                     {
+                                        g_DiagPcOk4++;
                                         if (!RemainingEntries)
                                             break;
                                         *((_BYTE *)&pOutputData[20 * *pOutputData + 2]) = 0;
@@ -1029,6 +1051,7 @@ __int64 EnumProcessorInfoOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
                                             *(_QWORD *)&pOutputData[20 * *pOutputData + 18] = pContextTable[31];
                                             *(_QWORD *)&pOutputData[20 * (*pOutputData)++ + 20] = pContextTable[32];
                                             --RemainingEntries;
+                                            g_DiagPcOk5++;
                                         }
                                     }
                                 }
@@ -1046,6 +1069,8 @@ __int64 EnumProcessorInfoOperation(__int64 InputBuffer, __int64 InputSize, _DWOR
         }
     }
     Returned = 1;
+    g_DiagPcStage = 5;
+    g_DiagPcWritten = *pOutputData;
     if (pProcessBuffer)
         ExFree(pProcessBuffer);
     return 1;

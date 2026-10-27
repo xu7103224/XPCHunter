@@ -1204,8 +1204,10 @@ char FindSsdtServiceTableV1(void)
     if (TargetProcess)
         KeStackAttachProcess(TargetProcess, &ApcState);
     ExportDirRva = (unsigned int)GtRead(GtNtDuplicateObjectPeSectionOffset | GtEprocessField26);
-    NtImageBase = GtRead(GtEprocessField22);
-    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    /* 【修正 2026-10-27】原版 0x1400409D5..9E1：r14=GT[0x20]=扫描窗口基址，
+       rdi/rbx 都被加到 r14 上；GT[0x21] 是窗口大小。 */
+    NtImageBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    NtImageSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x21);
     if (ExportDirRva && ExportDirRva < NtImageSize && NtImageBase && NtImageSize)
     {
         Value = 0;
@@ -1268,8 +1270,17 @@ char FindSsdtServiceTableV2(void)
     {
         Value = 0;
         SsdtOffsetOut = 0;
-        SectionEnd = NtImageBase + NtImageSize;
-        pScanPos = (unsigned __int8 *)(NtImageBase + ExportDirRva);
+        /* 【修正 2026-10-27】原版 0x140040B5E/B61：
+             rsi = 累加偏移(=0) + r15 ; rdi = (ULONG)GT[0x41A4] + r15
+           其中 r15 = GT[0x20]（PE 文件映射缓冲区基址，不是 GT[32] 的内核镜像基址）。
+           扫描窗口 [rdi, rsi + GT[0x21]) 是**绝对 VA**，因此端点是 GT[0x20]+GT[0x21]。 */
+        {
+            ULONG64 PeFileBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+            ULONG   PeFileSize = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x21);
+
+            pScanPos  = (unsigned __int8 *)(PeFileBase + ExportDirRva);
+            SectionEnd = PeFileBase + PeFileSize;
+        }
         if ((unsigned int)GtRead(GtEprocessField28) == 1)
             FindSsdtSignatureInNtFile(pScanPos, SectionEnd, &Value, &SsdtOffsetOut);
         else if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x2800)
@@ -1319,8 +1330,10 @@ char FindSsdtServiceTableV3(void)
         ExportDirRva = (unsigned int)GtRead(GtTotalSize | GtEprocessField88 | 0x400);
     else
         ExportDirRva = (unsigned int)GtRead(GtTotalSize | GtEprocessField160 | 0x100);
-    NtImageBase = GtRead(GtEprocessField22);
-    NtImageSize = (unsigned int)GtRead(GtEprocessField23);
+    /* 【修正 2026-10-27】原版 0x140040E46/E50：GT[0x20]=扫描窗口基址、GT[0x21]=窗口大小。
+       两者都是 PE 文件映射缓冲区量纲，不是 GT[32]/GT[33] 的内核镜像基址/大小。 */
+    NtImageBase = GtRead((GLOBAL_TABLE_INDEX)0x20);
+    NtImageSize = (unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x21);
     if (ExportDirRva && ExportDirRva < NtImageSize && NtImageBase && NtImageSize)
     {
         Value = 0;
@@ -1458,36 +1471,27 @@ __int64 ParseNtSectionsForShadowSsdt(void)
         SectionIndex = 0;
         while (SectionIndex < 0xA)
         {
-            *(ULONG64 *)((PUCHAR)&DecodeContext + 0x08) += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-            RtlZeroMemory(EntryBuffer, sizeof(EntryBuffer));
-
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&DecodeContext, (PULONG)EntryBuffer))
                 break;
 
-            SectionSize = *(unsigned int *)&EntryBuffer[0x38];
-            CumulativeSize = *(__int64 *)&EntryBuffer[0x40];
-            CumulativeSize += SectionSize;
-            pSectionEntryBase = *(__int64 *)&EntryBuffer[0x48];
-            *(__int64 *)&EntryBuffer[0x40] = CumulativeSize;
-            CumulativeOffset = (int)CumulativeSize;
-
-            FieldValueSize = *(__int64 *)&EntryBuffer[0x20];
-            FieldFlags = *(__int64 *)&EntryBuffer[0x28];
-            FieldCount = *(int *)&EntryBuffer[0x30];
-            SectionDataSize = *(int *)&EntryBuffer[0x38];
+            /* 0x140040D26..D40：推进读指针（累加器就是 ctx+0x08） */
+            DecodeContext.ReadPtr += *(unsigned int *)((PUCHAR)EntryBuffer + 0xF0);
 
             SectionType = *(unsigned short *)(*(ULONG64 *)((PUCHAR)EntryBuffer + 0x118) + 6);
 
+            /* 0x140040D45..D60：Type 0x50E 且 +0x50==0x40000 且 +0x90==1 且 +0x40==0x40 */
             if (SectionType == 0x50E &&
-                FieldFlags == 0x40000 &&
-                FieldCount == 1 &&
-                SectionDataSize &&
-                FieldValueSize == 0x40)
+                *(ULONG64 *)((PUCHAR)EntryBuffer + 0x50) == 0x40000 &&
+                *(ULONG   *)((PUCHAR)EntryBuffer + 0x90) == 1 &&
+                *(ULONG   *)((PUCHAR)EntryBuffer + 0x40) == 0x40)
             {
-                ValueField = CumulativeOffset + SectionDataSize - (unsigned int)NtImageBase;
+                /* 0x140040D62..D6E：RVA = (+0x40) - NtImageBase + 累加读指针 */
+                ValueField = *(ULONG *)((PUCHAR)EntryBuffer + 0x40)
+                           - (unsigned int)NtImageBase
+                           + (unsigned int)DecodeContext.ReadPtr;
                 if (ValueField && ValueField < NtImageSize)
                 {
-                    GtWrite((GLOBAL_TABLE_INDEX)0x5E, NtoskrnlModuleBase + ValueField);
+                    GtWrite((GLOBAL_TABLE_INDEX)0x5E, (ULONG64)ValueField + NtoskrnlModuleBase);
                     Result = 1;
                     break;
                 }
@@ -1711,6 +1715,7 @@ bool __fastcall FindSsdtTableAddresses(
     __int64 AlignmentValue;
     unsigned int EntryCumulativeSize;
     __int64 EntryDataPointer;
+    ULONG64 OuterReadPtr;          /* 内层 init 之前保存的外层运行读指针（= 原版 var_1B8） */
 
     Result = 0;
     NtImageBase = GtRead(GtEprocessField22);
@@ -1719,6 +1724,15 @@ bool __fastcall FindSsdtTableAddresses(
     ModuleInfo = (int)GtRead(GtNtoskrnlImageSize);
     *pSsdtTable = 0;
     *pSsdtOffset = 0;
+    /* 诊断计数（复用 0x108 的 Fil/Epi 变量，0x047 路径不会调用 EnumerateProcessList 重置） */
+    g_DiagFilA = 1;   /* 进入函数且门限通过 */
+    g_DiagFilB = 0;   /* 外层解码条目数 */
+    g_DiagFilC = 0;   /* 外层命中 1368..1370 且子节区 RVA 有效 */
+    g_DiagFilD = 0;   /* 内层解码条目数 */
+    g_DiagEpiA = 0;   /* 外层 1368..1370 类型命中次数（复用） */
+    g_DiagEpiB = 0;   /* 内层命中 1065/1201/1137（偏移） */
+    g_DiagEpiC = 0;   /* 内层命中 1324（确认偏移） */
+    g_DiagEpiE = 0;   /* 写入 *pSsdtTable 的次数 */
 
     if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
     {
@@ -1735,48 +1749,140 @@ bool __fastcall FindSsdtTableAddresses(
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionInfo))
         {
-            *(ULONG64 *)((PUCHAR)ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
+            /* 【2026-10-26 补全】原版 0x14003FEA1..0x14003FED5 在每次解码成功后
+               从条目里取字段；此前这 9 个局部变量从未赋值，所有节区判据恒假，
+               导致 Value/Offset 恒 0 → GT[0x5A]/[0x5B] 写不进去。
+               条目基址 = SectionInfo，偏移依据原版内层循环的寄存器取值：
+                 +0xF0 条目长度        ← mov eax,[var_80]
+                 +0x38 SubSectionAddress ← 0x14003FED5 mov eax,[var_138]
+                 +0x118 类型指针       ← 0x14003FF54 mov rax,[var_58] */
+            g_DiagFilB++;
+            EntryCumulativeSize = *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);
+            SubSectionAddress   = *(int *)((PUCHAR)SectionInfo + 0x38);
+            EntryDataPointer    = *(ULONG64 *)((PUCHAR)SectionInfo + 0x118);
+            *(ULONG64 *)((PUCHAR)ReadContext + 0x08) += EntryCumulativeSize;   /* 推进读指针（ReadPESectionEntry 不回写 ctx+0x08） */
             ComputedOffset = EntryCumulativeSize + (int)CumulativeOffset;
             CumulativeOffset += EntryCumulativeSize;
 
-            if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6) - 1368) <= 2u)
+            g_DiagEpiA += (unsigned int)((unsigned __int16)(*(_WORD *)(EntryDataPointer + 6) - 1368) <= 2u);   /* 诊断：类型命中次数 */
+            if (g_DiagFilB == 1)
             {
+                /* 【诊断 2026-10-27】第一条描述符：
+                   FilC = EntryDataPointer(+0x118) 指向结构里的 word[+6]（本应 1368..1370）
+                   FilD = 在 SectionInfo[0..0x1C0) 里找到 word[+6]==1368 的偏移（0xFFFF 表示没找到） */
+                ULONG q;
+                g_DiagFilC = *(unsigned __int16 *)(EntryDataPointer + 6);
+                g_DiagFilD = 0xFFFF;
+                for (q = 0; q < 0x1C0; q += 8)
+                {
+                    ULONG64 cand = *(ULONG64 *)((PUCHAR)SectionInfo + q);
+                    if (cand > (ULONG64)MmSystemRangeStart
+                        && MmIsAddressValid((PVOID)cand) == 1
+                        && *(unsigned __int16 *)(cand + 6) == 1368)
+                    { g_DiagFilD = q; break; }
+                }
+            }
+            if ((unsigned __int16)(*(_WORD *)(EntryDataPointer + 6) - 1368) <= 2u)
+            {
+                g_DiagVkStage = (ULONG)SubSectionAddress;   /* 诊断：命中 1368 时的原始 +0x38 值 */
                 if (SubSectionAddress)
                 {
-                    SubSectionRva = (unsigned int)(ComputedOffset + SubSectionAddress - (int)NtImageBase);
+                    /* 【2026-10-27 修正】原版 0x14003FED5 的 `add eax, edx` 中
+                       edx = 当前读指针(VA) = ReadContext+0x08（已按条目长度推进），
+                       不是相对累计偏移。用相对偏移会得到 0xF77Axxxx 这种越界值。 */
+                    SubSectionRva = (unsigned int)((unsigned int)SubSectionAddress
+                                        + *(ULONG64 *)((PUCHAR)ReadContext + 0x08)
+                                        - (unsigned int)NtImageBase);
+                    g_DiagEpiB = SubSectionRva;             /* 诊断：算出的子节区 RVA */
                     if (SubSectionRva && SubSectionRva < NtImageSize)
                     {
+                        g_DiagFilC++;
                         FieldIndex = 0;
                         FieldAddress = 0;
+                        /* 【2026-10-27 第三次修正·关键】原版内层 RVA 用的 `ecx` 是**外层
+                           运行指针**的局部副本（var_1B8，在 0x14003FF44 读入、0x14003FF51
+                           加上条目长度、0x14003FF5B 写回），**不是** ctx+0x08 ——
+                           因为内层 InitPESectionReadContext 会把 ctx+0x08 重置为子节区基址。
+                           前两次直接用 ctx+0x08 拿到的是内层基址，量纲完全不对。 */
+                        OuterReadPtr = *(ULONG64 *)((PUCHAR)ReadContext + 0x08);
+                        /* 内层 Base 必须与上面算出的 SubSectionRva 同源，
+                           长度也必须用 SectionEnd - Base；否则长度会变成巨大值，
+                           内层读指针越过镜像边界 → BSOD 0x50（上次即此因）。 */
                         InitPESectionReadContext(
-                            (__int64)(NtImageBase + (unsigned int)(ComputedOffset + SubSectionAddress - (int)NtImageBase)),
-                            SectionEnd - (ComputedOffset + SubSectionAddress),
+                            (__int64)(NtImageBase + SubSectionRva),
+                            (ULONG)(SectionEnd - (NtImageBase + SubSectionRva)),
                             2,
                             0,
                             -1,
                             0,
                             0,
                             (__int64)ReadContext);
+                        g_DiagSsdt[5] = (ULONG64)(ULONG)SubSectionRva;   /* 内层 Base 的 RVA */
+                        g_DiagSsdt[6] = *(ULONG64 *)((PUCHAR)ReadContext + 0x08);  /* init 后的读指针 */
 
                         FieldCount = 0;
                         while (!(unsigned int)ReadPESectionEntry((PUCHAR)ReadContext, SectionInfo))
                         {
-                            *(ULONG64 *)((PUCHAR)ReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
+                            /* 【2026-10-26 补全】原版 0x14003FF3E..0x14003FFB3 的字段读取：
+                                 +0xF0 条目长度       +0x50 SizeFieldValue(64/0x40000)
+                                 +0x88 AlignmentValue +0x78 AddressFieldValue
+                                 +0x20 DecodedFlags   +0x70 TypeFieldValue
+                                 +0x40 OffsetFieldValue +0x118 类型指针 */
+                            g_DiagFilD++;
+                            EntryCumulativeSize = *(unsigned int *)((PUCHAR)SectionInfo + 0xF0);
+                            SizeFieldValue      = *(__int64 *)((PUCHAR)SectionInfo + 0x50);
+                            AlignmentValue      = *(__int64 *)((PUCHAR)SectionInfo + 0x88);
+                            AddressFieldValue   = *(int *)((PUCHAR)SectionInfo + 0x78);
+                            DecodedFlags        = *(int *)((PUCHAR)SectionInfo + 0x20);
+                            TypeFieldValue      = *(int *)((PUCHAR)SectionInfo + 0x70);
+                            OffsetFieldValue    = *(int *)((PUCHAR)SectionInfo + 0x40);
+                            EntryDataPointer    = *(ULONG64 *)((PUCHAR)SectionInfo + 0x118);
+                            *(ULONG64 *)((PUCHAR)ReadContext + 0x08) += EntryCumulativeSize;   /* 推进读指针 */
                             ComputedOffset2 = EntryCumulativeSize + (int)CumulativeOffset;
                             CumulativeOffset += EntryCumulativeSize;
-                            SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionInfo + 0x118) + 6);
+                            SectionType2 = *(_WORD *)(EntryDataPointer + 6);
 
                             if (SectionType2 == 1298 && AlignmentValue == 0x40000 && AddressFieldValue && SizeFieldValue == 64)
                             {
-                                TableRva = (unsigned int)(ComputedOffset2 + AddressFieldValue - (int)NtImageBase);
+                                g_DiagEpiA++;
+                                if (!g_DiagSsdt[0])
+                                {
+                                    g_DiagSsdt[0] = *(ULONG64 *)((PUCHAR)ReadContext + 0x08);  /* 推进后的读指针 */
+                                    g_DiagSsdt[1] = (ULONG64)(ULONG)AddressFieldValue;
+                                    g_DiagSsdt[2] = (ULONG64)AlignmentValue;
+                                    g_DiagSsdt[3] = (ULONG64)SizeFieldValue;
+                                    g_DiagSsdt[4] = (ULONG64)EntryCumulativeSize;
+                                    g_DiagSsdt[7] = (ULONG64)EntryDataPointer;
+                                }
+                                /* 【2026-10-27 回滚】改用内层读指针后实测 BSOD 0x3B
+                                   (AV @ 驱动 RVA 0x818CA)，已回滚为相对偏移写法。
+                                   说明内层这里 edx/ecx 的来源与外层不同，
+                                   需重新核对 0x14003FF86 前后对 ecx 的赋值。 */
+                                /* 【2026-10-27 回滚（第二次）】改用 ReadContext+0x08 仍 BSOD 0x3B
+                                   （AV @ 驱动 RVA 0x81C4A）。说明 0x14003FF86 处 `add eax,ecx`
+                                   的 ecx 并不是 ctx+0x08 的读指针，需要另找来源。
+                                   回滚为相对偏移写法，保持不崩。 */
+                                /* 【2026-10-27 第三次回滚】改用保存的外层读指针后 guest 仍崩溃
+                                   （第三次）。在拿到真实崩溃现场（RIP 所属函数 + 调用栈）之前
+                                   不再改这条公式。保持相对偏移写法 → 265 B 不崩。 */
+                                /* 【2026-10-27 已验证】原版 0x14003FF86 `sub eax,r12d; add eax,ecx`，
+                                   ecx = 内层推进后的读指针（var_1B8 就是 ctx+0x08，内外共用）。
+                                   实测：AF=0xFFDB67D7、推进后读指针=镜像+0x74A589
+                                   → RVA=0x500D60，与原版 GT[0x5A]-GT[3] 完全一致。 */
+                                TableRva = (unsigned int)((unsigned int)AddressFieldValue
+                                            + *(ULONG64 *)((PUCHAR)ReadContext + 0x08)
+                                            - (unsigned int)NtImageBase);
                                 if ((_DWORD)TableRva && (unsigned int)TableRva < NtImageSize && !*pSsdtTable)
-                                    *pSsdtTable = NtoskrnlImageBase + TableRva;
+                                { *pSsdtTable = NtoskrnlImageBase + TableRva; g_DiagEpiE++; }
                             }
                             else if ((SectionType2 == 1065 && SizeFieldValue == 0x40000 && (DecodedFlags & 4) != 0 && AlignmentValue == 0x400000000LL && TypeFieldValue == -1)
                                   || (SectionType2 == 1201 && SizeFieldValue == 0x40000 && (DecodedFlags & 4) != 0 && AlignmentValue == 32)
                                   || (SectionType2 == 1137 && SizeFieldValue == 0x40000 && (DecodedFlags & 4) != 0))
                             {
-                                OffsetRva = (unsigned int)(ComputedOffset2 + OffsetFieldValue - (int)NtImageBase);
+                                g_DiagEpiB++;
+                                OffsetRva = (unsigned int)((unsigned int)OffsetFieldValue
+                                            + *(ULONG64 *)((PUCHAR)ReadContext + 0x08)
+                                            - (unsigned int)NtImageBase);
                                 if (OffsetRva && OffsetRva < NtImageSize)
                                 {
                                     FieldIndex = FieldCount;
@@ -1788,6 +1894,7 @@ bool __fastcall FindSsdtTableAddresses(
                                   && (unsigned int)(FieldCount - FieldIndex) <= 5
                                   && FieldAddress)
                             {
+                                g_DiagEpiC++;
                                 *pSsdtOffset = FieldAddress;
                                 return *pSsdtTable != 0;
                             }
@@ -1810,6 +1917,24 @@ bool __fastcall FindSsdtTableAddresses(
 
 
 // 对应原始驱动 0x1400401DC（471 字节）
+// 【重写 2026-10-27】旧实现在本函数里把 8 个判据字段（SectionEntrySize /
+//   RootTableOffsetAccum / TableFieldFlags / FieldFlags / FieldFileOffset /
+//   FieldCount / FieldValue / FieldFlagsByte）声明成独立局部且**从不赋值**，
+//   于是每条判据恒假，*pSsdtTable / *pSsdtOffset 永远不被写出 ——
+//   下游 FindSsdtServiceTableV2 因此写不进 GT[0x58]/[0x59]（SSDT2 表/末端），
+//   0x047 的块 2、3 恒为 0 条。现按反汇编直接读 0x120 字节描述符字段
+//   （描述符基址 rbp-0x60，字段即 [rbp+110h+var_*]）：
+//     var_80  → +0xF0  本条消耗长度
+//     var_58  → +0x118 类型结构体指针（+6 为类型号）
+//     var_48  → +0x108? 不使用
+//     var_E8  → +0x88  QWORD 段标志
+//     var_F8  → +0x78  ULONG 表 RVA 基值
+//     var_120 → +0x50  QWORD 段特性
+//     var_100 → +0x70  ULONG 计数
+//     var_130 → +0x40  ULONG 偏移 RVA 基值
+//     var_150 → +0x20  UCHAR 标志字节（bit2）
+//   控制流：0x1400402A2 起最多 0x64 轮；每轮先推进读指针（0x1400402B8..2D6），
+//   再依次判 Table / Offset 两支，末尾 0x14004036B inc edi 后回跳。
 char __fastcall ResolveSsdtTablePointer(
     __int64 pSectionData,
     int SectionEnd,
@@ -1822,22 +1947,10 @@ char __fastcall ResolveSsdtTablePointer(
     __int64 NtoskrnlImageBase;
     int ModuleInfo;
     int SectionIndex;
-    __int64 pSectionEntryBase;
-    __int64 SectionFileOffset;
-    int ComputedOffset;
-    __int64 TableRva;
-    __int16 SectionType2;
-    __int64 OffsetRva;
+    int SectionIndex2;
+    unsigned int Rva;
     PE_DECODE_CONTEXT SectionReadContext;
-    __int64 RootTableOffsetAccum;
     _DWORD SectionEntry[112];
-    char FieldFlagsByte;
-    int FieldValue;
-    __int64 FieldFileOffset;
-    int FieldCount;
-    int FieldFlags;
-    __int64 TableFieldFlags;
-    unsigned int SectionEntrySize;
 
     Result = 0;
     NtImageBase = GtRead(GtEprocessField22);
@@ -1847,65 +1960,65 @@ char __fastcall ResolveSsdtTablePointer(
     *pSsdtTable = 0;
     *pSsdtOffset = 0;
 
-    if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
+    if (!NtImageBase || !NtImageSize || !NtoskrnlImageBase || !ModuleInfo)
+        return Result;
+
+    InitPESectionReadContext(
+        (__int64)pSectionData,
+        SectionEnd - (int)pSectionData,
+        2,
+        0,
+        -1,
+        0,
+        0,
+        (__int64)&SectionReadContext);
+
+    SectionIndex = 0;
+    while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
     {
-        InitPESectionReadContext(
-            (__int64)pSectionData,
-            SectionEnd - (int)pSectionData,
-            2,
-            0,
-            -1,
-            0,
-            0,
-            (__int64)&SectionReadContext);
+        /* 0x1400402B8..2D6：读指针 += 本条消耗长度（原版在同一槽 self-add） */
+        SectionReadContext.ReadPtr += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
 
-        SectionIndex = 0;
-        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
+        /* ---- 支 A（0x1400402E1..310）：类型 0x512 → SSDT 表 RVA ---- */
+        if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x512 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40000 &&
+            *(ULONG *)((PUCHAR)SectionEntry + 0x78) != 0 &&
+            *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40)
         {
-            *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-            pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
-            SectionFileOffset = FieldFileOffset;
-            ComputedOffset = SectionEntrySize + (int)RootTableOffsetAccum;
-            RootTableOffsetAccum += SectionEntrySize;
-
-            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && TableFieldFlags == 0x40000)
-            {
-                if (FieldFlags)
-                {
-                    if (FieldFileOffset == 64)
-                    {
-                        TableRva = (unsigned int)(ComputedOffset + FieldFlags - (int)NtImageBase);
-                        if ((_DWORD)TableRva)
-                        {
-                            if ((unsigned int)TableRva < NtImageSize && !*pSsdtTable)
-                                *pSsdtTable = NtoskrnlImageBase + TableRva;
-                        }
-                    }
-                }
-            }
-
-            SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-            if ((SectionType2 == 1065
-                && SectionFileOffset == 0x40000
-                && (FieldFlagsByte & 4) != 0
-                && TableFieldFlags == 0x400000000LL
-                && FieldCount == 1)
-                || (SectionType2 == 1137 && SectionFileOffset == 0x40000 && (FieldFlagsByte & 4) != 0))
-            {
-                OffsetRva = (unsigned int)(ComputedOffset + FieldValue - (int)NtImageBase);
-                if (ComputedOffset + FieldValue - (int)NtImageBase)
-                {
-                    if ((unsigned int)OffsetRva < NtImageSize)
-                    {
-                        *pSsdtOffset = NtoskrnlImageBase + OffsetRva;
-                        return *pSsdtTable != 0;
-                    }
-                }
-            }
-
-            if ((unsigned int)++SectionIndex >= 0x64)
-                return Result;
+            Rva = *(ULONG *)((PUCHAR)SectionEntry + 0x78)
+                - (ULONG)NtImageBase
+                + (ULONG)SectionReadContext.ReadPtr;
+            if (Rva && Rva < NtImageSize && !*pSsdtTable)
+                *pSsdtTable = (ULONG64)Rva + NtoskrnlImageBase;
         }
+
+        /* ---- 支 B（0x140040314..35A）：类型 0x429（附三条件）或 0x471 → SSDT 偏移 RVA ---- */
+        if ((*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x429 &&
+             *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40000 &&
+             (*(UCHAR *)((PUCHAR)SectionEntry + 0x20) & 4) != 0 &&
+             *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x400000000LL &&
+             *(ULONG *)((PUCHAR)SectionEntry + 0x70) == 1)
+            ||
+            (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x471 &&
+             *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40000 &&
+             (*(UCHAR *)((PUCHAR)SectionEntry + 0x20) & 4) != 0))
+        {
+            Rva = *(ULONG *)((PUCHAR)SectionEntry + 0x40)
+                - (ULONG)NtImageBase
+                + (ULONG)SectionReadContext.ReadPtr;
+            if (Rva && Rva < NtImageSize)
+            {
+                *pSsdtOffset = (ULONG64)Rva + NtoskrnlImageBase;
+                /* 0x140040382..38C：表已找到则返回 1，否则继续扫描 */
+                return *pSsdtTable != 0;
+            }
+        }
+
+        /* 0x14004036B..370：inc edi; cmp edi,0x64; jnb 退出 */
+        SectionIndex2 = SectionIndex + 1;
+        SectionIndex = SectionIndex2;
+        if ((unsigned int)SectionIndex2 >= 0x64)
+            return Result;
     }
 
     return Result;
@@ -1956,6 +2069,8 @@ char __fastcall ResolveSsdtTablePointerEx(
 
     if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
     {
+        RootOffsetAccum = 0;
+
         InitPESectionReadContext(
             (__int64)pSectionData,
             SectionEnd - (int)pSectionData,
@@ -1969,21 +2084,25 @@ char __fastcall ResolveSsdtTablePointerEx(
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
         {
-            *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-            pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
-            ComputedOffset = SectionEntrySize + (int)RootOffsetAccum;
-            RootOffsetAccum += SectionEntrySize;
+            /* 0x14004049E..4A8：先算累加偏移，再把本条长度并入累加器 */
+            ComputedOffset = *(ULONG *)((PUCHAR)SectionEntry + 0xF0) + (int)RootOffsetAccum;
+            RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
+            /* 0x1400404BF：一级判据 类型 ∈ {1368,1369,1370} */
             if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 2u)
             {
-                if (SubSectionFieldCount)
+                /* 0x1400404C6：+0x38 子节区字段计数非零 */
+                int SubCount = *(ULONG *)((PUCHAR)SectionEntry + 0x38);
+                if (SubCount)
                 {
-                    SubSectionRva = (unsigned int)(ComputedOffset + SubSectionFieldCount - (int)NtImageBase);
+                    /* 0x1400404CB：子节区 RVA = 累加偏移 + 计数字段 - NtImageBase */
+                    SubSectionRva = (unsigned int)(ComputedOffset + SubCount - (int)NtImageBase);
                     if (SubSectionRva && SubSectionRva < NtImageSize)
                     {
+                        /* 0x140040506：窗口 = NtImageBase + 该 RVA；长度 = SectionEnd - (累加偏移 + 计数) */
                         InitPESectionReadContext(
-                            (__int64)(NtImageBase + (unsigned int)(ComputedOffset + SubSectionFieldCount - (int)NtImageBase)),
-                            SectionEnd - (ComputedOffset + SubSectionFieldCount),
+                            (__int64)(NtImageBase + SubSectionRva),
+                            SectionEnd - (ComputedOffset + SubCount),
                             2,
                             0,
                             -1,
@@ -1994,44 +2113,52 @@ char __fastcall ResolveSsdtTablePointerEx(
                         FieldIndex = 0;
                         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
                         {
-                            *(ULONG64 *)((PUCHAR)&SectionReadContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-                            pSectionEntryBase = *(__int64 *)&SectionEntry[0x48 / 4];
-                            SectionFileOffset = FieldFileOffset;
-                            ComputedOffset2 = SectionEntrySize + (int)RootOffsetAccum;
-                            RootOffsetAccum += SectionEntrySize;
+                            int   TableFlags;
+                            int   OffsetValue;
+                            int   OffsetCount;
+                            int   SubFlags;
+                            __int64 BigFlags;
 
-                            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 1298 && TableFieldFlags == 0x40000)
+                            /* 0x14004053E..546：二级条目同样累加 +0xF0 */
+                            BigFlags    = *(ULONG64 *)((PUCHAR)SectionEntry + 0x88);   /* TableFieldFlags */
+                            SubFlags    = *(ULONG   *)((PUCHAR)SectionEntry + 0x50);   /* FieldFileOffset/SectionFileOffset */
+                            TableFlags  = *(ULONG   *)((PUCHAR)SectionEntry + 0x78);   /* FieldFlags */
+                            OffsetCount = *(ULONG   *)((PUCHAR)SectionEntry + 0x70);   /* OffsetFieldCount */
+                            OffsetValue = *(ULONG   *)((PUCHAR)SectionEntry + 0x40);   /* OffsetFieldValue */
+
+                            ComputedOffset2 = *(ULONG *)((PUCHAR)SectionEntry + 0xF0) + (int)RootOffsetAccum;
+                            RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
+                            /* 0x140040556..57A：类型 0x512 → SSDT 表 */
+                            if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x512 &&
+                                BigFlags == 0x40000)
                             {
-                                if (FieldFlags)
+                                if (TableFlags && SubFlags == 64)
                                 {
-                                    if (FieldFileOffset == 64)
-                                    {
-                                        TableRva = (unsigned int)(ComputedOffset2 + FieldFlags - (int)NtImageBase);
-                                        if ((_DWORD)TableRva)
-                                        {
-                                            if ((unsigned int)TableRva < NtImageSize && !*pSsdtTable)
-                                                *pSsdtTable = NtoskrnlImageBase + TableRva;
-                                        }
-                                    }
+                                    unsigned int TableRva =
+                                        (unsigned int)(ComputedOffset2 + TableFlags - (int)NtImageBase);
+                                    if (TableRva && TableRva < NtImageSize && !*pSsdtTable)
+                                        *pSsdtTable = (ULONG64)TableRva + NtoskrnlImageBase;
                                 }
                             }
 
-                            SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-                            if ((SectionType2 == 1065
-                                && SectionFileOffset == 0x40000
-                                && (FieldFlagsByte & 4) != 0
-                                && TableFieldFlags == 0x400000000LL
-                                && OffsetFieldCount == 1)
-                                || (SectionType2 == 1137 && SectionFileOffset == 0x40000 && (FieldFlagsByte & 4) != 0))
+                            /* 0x14004057E..607：类型 0x429（附三条件）或 0x471 → SSDT 偏移 */
+                            if ((*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x429 &&
+                                 SubFlags == 0x40000 &&
+                                 (*(UCHAR *)((PUCHAR)SectionEntry + 0x20) & 4) != 0 &&
+                                 BigFlags == 0x400000000LL &&
+                                 OffsetCount == 1)
+                                ||
+                                (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x471 &&
+                                 SubFlags == 0x40000 &&
+                                 (*(UCHAR *)((PUCHAR)SectionEntry + 0x20) & 4) != 0))
                             {
-                                OffsetRva = (unsigned int)(ComputedOffset2 + OffsetFieldValue - (int)NtImageBase);
-                                if (ComputedOffset2 + OffsetFieldValue - (int)NtImageBase)
+                                unsigned int OffsetRva =
+                                    (unsigned int)(ComputedOffset2 + OffsetValue - (int)NtImageBase);
+                                if (OffsetRva && OffsetRva < NtImageSize)
                                 {
-                                    if ((unsigned int)OffsetRva < NtImageSize)
-                                    {
-                                        *pSsdtOffset = NtoskrnlImageBase + OffsetRva;
-                                        return *pSsdtTable != 0;
-                                    }
+                                    *pSsdtOffset = (ULONG64)OffsetRva + NtoskrnlImageBase;
+                                    return *pSsdtTable != 0;
                                 }
                             }
 

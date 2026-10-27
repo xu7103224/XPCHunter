@@ -250,6 +250,14 @@ typedef enum _GLOBAL_TABLE_INDEX {
     GtEprocessField191 = 201,
     GtEprocessField192 = 202,
     GtEprocessField193 = 203,
+    /* 【2026-10-26 新增·实机核对】VAD 扫描用的两个"EPROCESS 偏移槽"。
+       原版 ScanProcessVadMemory（0x140089861 / 0x14008986E）与
+       ScanProcessVadTree（0x140088BF6 / 0x140088C03）读的是 **0x1CF / 0x1D1**，
+       不是按序号递增的 201 / 203。此前按 GtEprocessField191/193 读到的是两个
+       恒为 0 的槽，函数第一道门即返回 → 0x0D4 计数恒 0（REJ）。
+       实机核对：原版与复刻均为 GT[0x1CF]=0x28、GT[0x1D1]=0x58。 */
+    GtVadRootOffset = 0x1CF,                // 463: EPROCESS VadRoot 偏移槽
+    GtVadTableOffset = 0x1D1,               // 465: EPROCESS VadTable 偏移槽
     GtEprocessField194 = 204,
     GtEprocessField195 = 205,
     GtEprocessField196 = 206,

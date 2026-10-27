@@ -1944,18 +1944,27 @@ void DecodeObjectPointerFromHandleEntry(
 
     if (BuildNumber >= 0x23F0)
     {
+        /* 【2026-10-26 修正·关键】原版 0x14007190A/0x140071910 用的是 **sar**（算术右移）：
+           句柄表条目只保存 48 位指针（bit16..63），必须靠 bit63 的符号位把
+           0xffff 前缀移回来。用无符号 >> 会得到 0x0000bc077f67e380 这种
+           低于 MmSystemRangeStart 的地址，回调把每个对象都判为无效 →
+           EnumerateProcessList 计数恒 0 → 0x108 输出为空。 */
         if (BuildNumber == 9200)
-            DecodedPtr = (HandleEntry[0] >> 19) & 0xFFFFFFFFFFFFFFF0ULL;
+            DecodedPtr = (unsigned __int64)(((__int64)HandleEntry[0]) >> 19) & 0xFFFFFFFFFFFFFFF0ULL;
         else
-            DecodedPtr = (HandleEntry[0] >> 16) & 0xFFFFFFFFFFFFFFF0ULL;
+            DecodedPtr = (unsigned __int64)(((__int64)HandleEntry[0]) >> 16) & 0xFFFFFFFFFFFFFFF0ULL;
     }
     else
     {
         DecodedPtr = HandleEntry[0] & 0xFFFFFFFFFFFFFFFEULL;
     }
 
+    g_DiagEpiA++;
     if (DecodedPtr)
+    {
+        g_DiagEpiB++;
         Callback(DecodedPtr, OutputBuffer, BufferSize, Context);
+    }
 }
 
 // ValidateHandleEntry — 验证句柄条目

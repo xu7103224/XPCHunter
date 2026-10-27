@@ -303,12 +303,20 @@ bool EnumerateProcessList(struct _KPROCESS *Process, __int64 OutputBuffer, unsig
 {
     char Result = 0;
     UCHAR ProcessRefed;
-    _BYTE ContextData[8];
+    /* 【2026-10-26 修正】原版这个上下文是 8 字节栈缓冲（`_BYTE Context[8]`），
+       但 ValidateAndEnumerateObject 会读 **+16**（`if (!*(QWORD*)(Context+16) ||
+       *(QWORD*)ProcessFieldPtr == *(QWORD*)(Context+16))`）。原版的栈布局让
+       +16 恰好是 0，于是"无过滤"；我方栈布局把 +16 放到了别的局部变量上，
+       读到非零垃圾 → 每个进程都被过滤掉 → 0x108 输出为空。
+       这里显式给出 24 字节全零上下文，语义与原版一致且不依赖栈布局。 */
+    __int64 ContextData[3] = { 0, 0, 0 };
     __int64 EntryCount;
     struct _KPROCESS *ProcessLocal;
 
     if (BufferSize <= 0x50) return Result;
 
+    g_DiagEpiA = 0; g_DiagEpiB = 0; g_DiagEpiC = 0; g_DiagEpiD = 0; g_DiagEpiE = 0;
+    g_DiagFilA = 0; g_DiagFilB = 0; g_DiagFilC = 0; g_DiagFilD = 0;
     ProcessLocal = Process;
     EntryCount = 0;
     *(__int64 *)OutputBuffer = 0;
@@ -485,6 +493,7 @@ Done:
 //   第二处 GtProcessOffset(=56=0x38) 经核对**正确**。
 char ValidateAndEnumerateObject(char *VirtualAddress, __int64 OutputBuffer, unsigned int BufferSize, __int64 Context)
 {
+    g_DiagEpiC++;   /* 诊断：回调被调用 */
     __int64 *ObjectTypeTable = (__int64 *)GtRead((GLOBAL_TABLE_INDEX)0x4169);
     int ProcessOffset = (int)GtRead(GtProcessOffset);
     char TypeFlagValue;
@@ -500,7 +509,11 @@ char ValidateAndEnumerateObject(char *VirtualAddress, __int64 OutputBuffer, unsi
     if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
     {
         TypeFlagValue = CheckObjectTypeFlagWrapper((__int64)(VirtualAddress - 48));
-        IsProcessMatch = ((UCHAR)GtRead(16960) == (UCHAR)TypeFlagValue);
+        /* 【2026-10-26 修正】原版 0x14005011D `mov ecx,81Ch` —— 是 GT[0x81C]，
+           不是 16960(0x4240)。此前读错槽导致每个候选进程对象的类型标志都对不上，
+           TraverseProcessHandleTableWin10 枚举出的对象被全部丢弃 →
+           EnumerateProcessList 计数恒 0 → 0x108 输出为空。 */
+        IsProcessMatch = ((UCHAR)GtRead((GLOBAL_TABLE_INDEX)0x81C) == (UCHAR)TypeFlagValue);
     }
     else
     {
@@ -509,9 +522,14 @@ char ValidateAndEnumerateObject(char *VirtualAddress, __int64 OutputBuffer, unsi
 
     if (IsProcessMatch)
     {
+        g_DiagEpiD++;   /* 诊断：类型标志匹配通过 */
         __int64 ctx_val = *(__int64 *)(Context + 16);
         if (!ctx_val || *(__int64 *)ProcessFieldPtr == ctx_val)
-            return FillProcessInformationEntry(VirtualAddress, VirtualAddress, OutputBuffer, BufferSize, 0, 0, 0);
+        {
+            char fr = FillProcessInformationEntry(VirtualAddress, VirtualAddress, OutputBuffer, BufferSize, 0, 0, 0);
+            if (fr) g_DiagEpiE++;
+            return fr;
+        }
     }
     return 0;
 }
@@ -610,15 +628,19 @@ char FillProcessInformationEntry(
     Field54 = (int)GtRead(GtEprocessField54);
     Field55 = (int)GtRead(GtEprocessField55);
     FlagsOffset = (int)GtRead(GtProcessFlagsOffset);
+    g_DiagFilA++;
     ObjectTypeTable = (_QWORD *)GtRead(16748);
     if (!ObjectTypeTable) return 0;
+    g_DiagFilB++;
 
     MaxIndex = (int)GtRead(GtObjectTypeCount) - 1;
     if (MmIsAddressValid(VirtualAddress) != 1 || MmIsAddressValid(&VirtualAddress[MaxIndex]) != 1) return 0;
+    g_DiagFilC++;
 
     EntryIndex = *(unsigned int *)(OutputBuffer + 16);
     if (56 * EntryIndex + 80 >= BufferSize) return 0;
     if (IsProcessThreadInList(OutputBuffer, (__int64)VirtualAddress, (__int64)TargetAddr, CheckFlag) != 1) return 0;
+    g_DiagFilD++;
     if (ValidateFlag && ValidateKernelObject((ULONG64)VirtualAddress, (ULONG64)TargetAddr, 0, 0) != 1) return 0;
 
     Offset = 56 * EntryIndex;
@@ -664,133 +686,150 @@ Done:
 // 全面检查对象结构完整性：对象类型标志、句柄表链表验证
 char ValidateKernelObject(ULONG64 ObjectAddr, ULONG64 AltAddr, _QWORD *OutContext, ULONG64 *OutProcess)
 {
-    char Result = 0;
-    ULONG64 TargetAddr = AltAddr ? AltAddr : ObjectAddr;
-    __int64 ObjectType;
-    ULONG64 ObjectHeader;
-    _QWORD *ObjectBody;
-    bool TypeIndex;
-    char TypeOffset;
-    ULONG TypeInfo, TypeName, TypeCount, TypeFlags, TypeField2, TypeField3, TypeField6, TypeField8, EprocessField30, TypeFlagCheck, BuildNumber;
-    ULONG64 TypeList, TypeEntry, TypeField4, ListFlink, ListFlink2;
-    __int64 TypeField, TypeField5, TypeField9, ProcessFlagsValue;
-    _QWORD *ListBlink, *ListBlink2, *ObjectTypeTable;
-    UCHAR Index16960 = (UCHAR)GtRead(16960);
-    ULONG Index16774 = (ULONG)GtRead(16774);
-    __int64 Index16748 = GtRead(16748);
+    /* 【2026-10-26 按原版 0x14004F600..0x14004F9F0 重写】
+       旧实现中段读的是 0x42C / 16774(0x4186)，与原版（0x1CF/0x1D0/0x1D1 与
+       0x37/0x3D/0x38/0x3F/0x3A/0x39）完全不同，导致对全部进程恒返回 0，
+       进而让 0x0D4 / 0x108 的进程枚举得不到任何条目。
+       本实现逐条对应原版指令，注释保留原始地址。
+       注意：原版把各槽值写入 32 位寄存器后再作偏移（`mov eax,ebx` / `mov edi,eax`），
+       所以所有"偏移槽"都按 32 位截断使用。 */
+    ULONG64 Range;                 /* *MmSystemRangeStart */
+    ULONG64 TargetAddr;            /* rbp = AltAddr ?: ObjectAddr */
+    ULONG64 ObjectType;            /* rbx = GT[0x4B] - 1 */
+    ULONG64 ObjectHeader;          /* r12 = ObjectType + TargetAddr */
+    ULONG64 SavedCtx;              /* [rsp+arg_0] = *(GT[0x37] + ObjectAddr) */
+    ULONG64 Probe;                 /* r15 = *(GT[0x38] + ObjectAddr) */
+    ULONG64 L1, L2, L3, L4;        /* 双向链表四个指针 */
+    ULONG64 Base8, Base9;          /* GT[0x3A] / GT[0x39] */
+    ULONG64 LinkA, LinkB;          /* P8+TargetAddr / P9+TargetAddr */
+    UCHAR   TypeFlag;
+    ULONG   Build;
 
-    if (ObjectAddr <= (ULONG64)MmSystemRangeStart) return Result;
+    g_DiagVkStage = 0;
+    Range = (ULONG64)MmSystemRangeStart;                        /* 0x14004F61E：取变量值，非解引用 */
+    TargetAddr = AltAddr ? AltAddr : ObjectAddr;                /* 0x14004F628 cmovz */
+    if (ObjectAddr <= Range) return 0;                          /* 0x14004F635 */
+    g_DiagVkStage = 1;
 
-    ObjectType = (int)GtRead(GtObjectTypeCount) - 1;
-    if (MmIsAddressValid((PVOID)(ObjectAddr - 48)) != 1 ||
-        MmIsAddressValid((PVOID)(ObjectType + ObjectAddr)) != 1 ||
-        ObjectAddr <= (ULONG64)MmSystemRangeStart)
-        return Result;
+    ObjectType = (ULONG)GtRead(GtObjectTypeCount) - 1;          /* 0x14004F63E..64B (0x4B) */
+    if (MmIsAddressValid((PVOID)(ObjectAddr - 48)) != 1) return 0;   /* 0x14004F64E */
+    if (MmIsAddressValid((PVOID)(ObjectAddr + ObjectType)) != 1) return 0; /* 0x14004F660 */
+    if (ObjectAddr <= Range) return 0;                          /* 0x14004F675 */
+    g_DiagVkStage = 2;
 
-    ObjectHeader = ObjectType + TargetAddr;
+    ObjectHeader = ObjectType + TargetAddr;                     /* 0x14004F683 */
 
-    if (BuildNumber >= 0x1DB0)
+    /* ---- 对象类型标志（0x14004F67E..0x14004F6CA） ---- */
+    Build = (ULONG)GtRead(GtWindowsBuildNumber);                /* 0x914 */
+    if (Build >= 0x1DB0)
     {
-        TypeOffset = CheckObjectTypeFlagWrapper((__int64)(ObjectAddr - 48));
-        TypeIndex = (Index16960 == (UCHAR)TypeOffset);
+        TypeFlag = (UCHAR)CheckObjectTypeFlagWrapper((__int64)(ObjectAddr - 48)); /* 0x14004F6B7 */
+        if ((UCHAR)GtRead((GLOBAL_TABLE_INDEX)0x81C) != TypeFlag) return 0;      /* 0x14004F6BC..C8 */
     }
     else
     {
-        ObjectBody = (_QWORD *)Index16748;
-        if (!ObjectBody) return Result;
-        TypeIndex = (*(_QWORD *)(ObjectAddr - 32) == *ObjectBody);
+        ULONG64 ThreadType = GtRead((GLOBAL_TABLE_INDEX)0x4169); /* 0x14004F693 */
+        if (!ThreadType) return 0;
+        if (*(ULONG64 *)(ObjectAddr - 32) != *(ULONG64 *)ThreadType) return 0;   /* 0x14004F6A9 */
     }
 
-    if (!TypeIndex) return Result;
+    g_DiagVkStage = 3;
 
-    TypeInfo = (ULONG)GtRead(0x42C);
-    TypeName = Index16774;
-    TypeCount = Index16774;
-    TypeList = *(_QWORD *)(TypeInfo + ObjectAddr);
-    TypeEntry = *(_QWORD *)(TypeName + ObjectAddr);
-    if (TypeList <= TypeEntry || TypeList <= (ULONG64)MmSystemRangeStart ||
-        TypeEntry <= (ULONG64)MmSystemRangeStart ||
-        *(_QWORD *)(TypeCount + ObjectAddr) <= (ULONG64)MmSystemRangeStart)
-        return Result;
-
-    TypeFlags = (ULONG)GtRead(GtProcessEprocess);
-    TypeField = (ULONG)GtRead(GtEprocessField51);
-    ProcessFlagsValue = *(_QWORD *)(TypeFlags + ObjectAddr);
-    if (*(_QWORD *)(TypeField + ObjectAddr) < (ULONG64)MmSystemRangeStart) return Result;
-    TypeField2 = (ULONG)GtRead(GtProcessOffset);
-    TypeField3 = (ULONG)GtRead(GtEprocessField53);
-    TypeField4 = *(_QWORD *)(TypeField2 + ObjectAddr);
-    if ((TypeField4 & 7) != 0 || TypeField4 <= (ULONG64)MmSystemRangeStart ||
-        MmIsAddressValid(*(PVOID *)(TypeField2 + ObjectAddr)) != 1 ||
-        *(UCHAR *)(TypeField3 + ObjectAddr) > 5)
-        return Result;
-
-    TypeField5 = (ULONG)GtRead(GtEprocessField48);
-    TypeField6 = (ULONG)GtRead(GtEprocessField47);
-    TypeField8 = TypeField6;
-    TypeField9 = TypeField5 + TargetAddr;
-
-    // Extensive pointer validation chain
-    PVOID ptr = *(PVOID *)(TypeField5 + ObjectAddr);
-    if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField5 + ObjectAddr) + 15)) != 1)
-        return Result;
-
-    ptr = *(PVOID *)(TypeField5 + ObjectAddr + 8);
-    if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField5 + ObjectAddr + 8) + 15)) != 1)
-        return Result;
-
-    ptr = *(PVOID *)(TypeField8 + ObjectAddr);
-    if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField8 + ObjectAddr) + 15)) != 1)
-        return Result;
-
-    ptr = *(PVOID *)(TypeField8 + ObjectAddr + 8);
-    if (ptr <= (PVOID)MmSystemRangeStart || MmIsAddressValid(ptr) != 1 ||
-        MmIsAddressValid((PVOID)(*(_QWORD *)(TypeField8 + ObjectAddr + 8) + 15)) != 1)
-        return Result;
-
-    // Verify linked list consistency
-    ListFlink = *(_QWORD *)(TypeField5 + ObjectAddr);
-    if (*(_QWORD *)(ListFlink + 8) != TypeField9) return Result;
-    ListBlink = *(_QWORD **)(TypeField5 + ObjectAddr + 8);
-    if (*ListBlink != TypeField9) return Result;
-    ListFlink2 = *(_QWORD *)(TypeField8 + ObjectAddr);
-    if (*(_QWORD *)(ListFlink2 + 8) != TypeField8 + TargetAddr) return Result;
-    ListBlink2 = *(_QWORD **)(TypeField8 + ObjectAddr + 8);
-    if (*ListBlink2 != TypeField8 + TargetAddr) return Result;
-
-    if (ListFlink < TargetAddr || ListFlink > ObjectHeader ||
-        (ULONG64)ListBlink < TargetAddr || (ULONG64)ListBlink > ObjectHeader ||
-        ListFlink2 < TargetAddr || ListFlink2 > ObjectHeader ||
-        (ULONG64)ListBlink2 < TargetAddr || (ULONG64)ListBlink2 > ObjectHeader)
-        return Result;
-
-    EprocessField30 = (ULONG)GtRead(GtEprocessField30);
-    if (MmIsAddressValid((PVOID)(TypeField4 + EprocessField30)) != 1) return Result;
-
-    if (BuildNumber >= 0x1DB0)
+    /* ---- VAD 三槽 0x1CF / 0x1D0 / 0x1D1（0x14004F6D0..0x14004F72F） ---- */
     {
-        if (MmIsAddressValid((PVOID)(TypeField4 - 24)) != 1) return Result;
-        TypeFlagCheck = (UCHAR)CheckObjectTypeFlagWrapper(TypeField4 - 48);
-        TypeIndex = ((ULONG)Index16960 == TypeFlagCheck);
+        ULONG A = (ULONG)GtRead(GtVadRootOffset);               /* 0x1CF */
+        ULONG B = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x1D0);
+        ULONG C = (ULONG)GtRead(GtVadTableOffset);              /* 0x1D1 */
+        ULONG64 V8 = *(ULONG64 *)((ULONG64)A + ObjectAddr);
+        ULONG64 V9 = *(ULONG64 *)((ULONG64)B + ObjectAddr);
+        if (V8 <= V9) return 0;                                 /* 0x14004F703 jbe */
+        if (V8 <= Range) return 0;                              /* 0x14004F716 */
+        if (V9 <= Range) return 0;                              /* 0x14004F71F */
+        if (*(ULONG64 *)((ULONG64)C + ObjectAddr) <= Range) return 0;  /* 0x14004F72B */
+    }
+
+    g_DiagVkStage = 4;
+
+    /* ---- 0x37 / 0x3D（0x14004F735..0x14004F767） ---- */
+    {
+        ULONG P4 = (ULONG)GtRead(GtProcessEprocess);            /* 0x37 */
+        ULONG P5 = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x3D);
+        SavedCtx = *(ULONG64 *)((ULONG64)P4 + ObjectAddr);      /* 0x14004F750 */
+        if (*(ULONG64 *)((ULONG64)P5 + ObjectAddr) >= Range) return 0; /* 0x14004F763 jnb=大于等于则失败 */
+    }
+
+    g_DiagVkStage = 5;
+
+    /* ---- 0x38 / 0x3F（0x14004F76D..0x14004F7BE） ---- */
+    {
+        ULONG P6 = (ULONG)GtRead(GtProcessOffset);              /* 0x38 */
+        ULONG P7 = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x3F);
+        Probe = *(ULONG64 *)((ULONG64)P6 + ObjectAddr);         /* 0x14004F789 */
+        if (Probe & 7) return 0;                                /* 0x14004F78D */
+        if (Probe <= Range) return 0;                           /* 0x14004F79E */
+        if (MmIsAddressValid((PVOID)Probe) != 1) return 0;      /* 0x14004F7AA */
+        if (*(UCHAR *)((ULONG64)P7 + ObjectAddr) > 5) return 0; /* 0x14004F7BA */
+    }
+
+    /* ---- 双向链表四指针 + 有效性（0x14004F7C4..0x14004F8BE） ---- */
+    g_DiagVkStage = 6;
+    Base8 = (ULONG64)(ULONG)GtRead((GLOBAL_TABLE_INDEX)0x3A);   /* 0x14004F7C9 */
+    Base9 = (ULONG64)(ULONG)GtRead((GLOBAL_TABLE_INDEX)0x39);   /* 0x14004F7D5 */
+    LinkA = Base8 + TargetAddr;                                 /* 0x14004F7E7 r13 */
+    LinkB = Base9 + TargetAddr;                                 /* 0x14004F8E4 r9  */
+
+    L1 = *(ULONG64 *)(Base8 + ObjectAddr);                      /* 0x14004F7DA */
+    if (L1 <= Range || MmIsAddressValid((PVOID)L1) != 1
+        || MmIsAddressValid((PVOID)(L1 + 15)) != 1) return 0;    /* 0x14004F7EB..812 */
+    L2 = *(ULONG64 *)(Base8 + ObjectAddr + 8);                  /* 0x14004F81F */
+    if (L2 <= Range || MmIsAddressValid((PVOID)L2) != 1
+        || MmIsAddressValid((PVOID)(L2 + 15)) != 1) return 0;    /* 0x14004F824..84C */
+    L3 = *(ULONG64 *)(Base9 + ObjectAddr);                      /* 0x14004F859 */
+    if (L3 <= Range || MmIsAddressValid((PVOID)L3) != 1
+        || MmIsAddressValid((PVOID)(L3 + 15)) != 1) return 0;    /* 0x14004F85D..884 */
+    L4 = *(ULONG64 *)(Base9 + ObjectAddr + 8);                  /* 0x14004F891 */
+    if (L4 <= Range || MmIsAddressValid((PVOID)L4) != 1
+        || MmIsAddressValid((PVOID)(L4 + 15)) != 1) return 0;    /* 0x14004F896..8BE */
+
+    g_DiagVkStage = 7;
+    if (*(ULONG64 *)(L1 + 8) != LinkA) return 0;                /* 0x14004F8C8 */
+    if (*(ULONG64 *)(L2 + 0) != LinkA) return 0;                /* 0x14004F8D7 */
+    if (*(ULONG64 *)(L3 + 8) != LinkB) return 0;                /* 0x14004F8E8 */
+    if (*(ULONG64 *)(L4 + 0) != LinkB) return 0;                /* 0x14004F8F7 */
+
+    g_DiagVkStage = 8;
+
+    /* 四个指针不得落在 [TargetAddr, ObjectHeader] 内（0x14004F900..0x14004F932） */
+    if (L1 >= TargetAddr && L1 <= ObjectHeader) return 0;
+    if (L2 >= TargetAddr && L2 <= ObjectHeader) return 0;
+    if (L3 >= TargetAddr && L3 <= ObjectHeader) return 0;
+    if (L4 >= TargetAddr && L4 <= ObjectHeader) return 0;
+
+    g_DiagVkStage = 9;
+
+    /* 0x14004F938：MmIsAddressValid(Probe + (ULONG)GT[0x28]) */
+    if (MmIsAddressValid((PVOID)(Probe + (ULONG)GtRead(GtEprocessField30))) != 1) return 0;
+
+    /* 0x14004F955：再按构建号二选一校验 Probe 的对象类型标志 */
+    Build = (ULONG)GtRead(GtWindowsBuildNumber);
+    if (Build >= 0x1DB0)
+    {
+        if (MmIsAddressValid((PVOID)(Probe - 0x18)) != 1) return 0;        /* 0x14004F993 */
+        TypeFlag = (UCHAR)CheckObjectTypeFlagWrapper((__int64)(Probe - 0x30)); /* 0x14004F9A1 */
+        if ((ULONG)GtRead((GLOBAL_TABLE_INDEX)0x81B) != (ULONG)TypeFlag) return 0; /* 0x14004F9AE */
     }
     else
     {
-        ObjectTypeTable = (_QWORD *)Index16748;
-        if (!ObjectTypeTable || MmIsAddressValid((PVOID)(TypeField4 - 32)) != 1) return Result;
-        TypeIndex = (*(_QWORD *)(TypeField4 - 32) == *ObjectTypeTable);
+        ULONG64 TypeObj = GtRead((GLOBAL_TABLE_INDEX)0x4166);              /* 0x14004F966 */
+        if (!TypeObj) return 0;
+        if (MmIsAddressValid((PVOID)(Probe - 0x20)) != 1) return 0;        /* 0x14004F97C */
+        if (*(ULONG64 *)(Probe - 0x20) != *(ULONG64 *)TypeObj) return 0;   /* 0x14004F989 */
     }
 
-    if (TypeIndex)
-    {
-        if (OutContext) *OutContext = ProcessFlagsValue;
-        if (OutProcess) *OutProcess = TypeField4;
-        return 1;
-    }
-
-    return Result;
+    g_DiagVkStage = 10;
+    if (OutContext) *OutContext = SavedCtx;                     /* 0x14004F9C6 */
+    if (OutProcess) *OutProcess = Probe;                        /* 0x14004F9D3 */
+    return 1;                                                   /* 0x14004F9D6 */
 }
 
 // EnumProcessInformationWorker — 进程信息枚举工作函数
@@ -1770,6 +1809,7 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
         return 0;
     }
 
+    g_DiagPcOk1 = 1;                       /* 诊断：前置校验通过 */
     // 初始化结构
     memset(&Dst, 0, 0x40);
 
@@ -1778,29 +1818,44 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
     SavedPrevMode = *(unsigned __int8 *)(pCurrentThread + EntryStrideVal);
     *(unsigned __int8 *)(pCurrentThread + EntryStrideVal) = 0;
 
-    // 调用查询函数，返回条目数
+    /* 【2026-10-26 修正】原版 0x14004FC13..0x14004FC29：
+         xor r9d,r9d / lea r8d,[r9+40h] / lea rdx,[rbp+Dst] / xor ecx,ecx / call r12
+       即 NtQuerySystemInformation(**Class=0**, Buffer=&Dst, Len=0x40, RetLen=NULL)。
+       此前把 &Dst 当成 Class 传入 → 恒返回 0xC0000003（无效信息类），
+       Dst 全 0 → pStepCount=0 → 主循环一个条目都匹配不到。 */
     pQueryFunc = (__int64 (__fastcall *)(__int64, __int64, __int64, __int64))ServiceTableFunc;
-    QueryCount = pQueryFunc((__int64)&Dst, 0, 0x40, 0);
+    QueryCount = pQueryFunc(0, (__int64)&Dst, 0x40, 0);
     *(unsigned __int8 *)(pCurrentThread + EntryStrideVal) = SavedPrevMode;
+    g_DiagPcOk1 = 2;
+    g_DiagPcOk2 = (ULONG)QueryCount;
 
-    // 计算步进范围：构建号 >= 0x4F7C 用 Dst[4]，否则取 Dst[2]/Dst[4] 较大者
+    /* 【2026-10-26 修正】原版 0x14004FC39..0x14004FC62：
+         rdi = (int)Dst[+0x08]                      ; PageSize
+         if (build >= 0x4F7C) rax = (int)Dst[+0x14] ; HighestPhysicalPageNumber
+         else { eax = Dst[+0x0C]; if (eax > Dst[+0x14]) eax = Dst[+0x14]; }  ; min(...)
+         pStepCount = rdi * rax                     ; PageSize * RangeValue
+       此前用 max、且偏移写成 [2]/[4]，乘数误用 QueryCount（NTSTATUS）。 */
     pDstInt = (int *)&Dst;
     if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x4F7C)
-        RangeValue = (int)pDstInt[4];
+        RangeValue = (int)pDstInt[5];                       /* Dst+0x14 */
     else
     {
-        int MaxVal = pDstInt[2];
-        if (pDstInt[4] > MaxVal)
-            MaxVal = pDstInt[4];
+        int MaxVal = pDstInt[3];                            /* Dst+0x0C */
+        if (MaxVal > pDstInt[5])                            /* cmova：取较小者 */
+            MaxVal = pDstInt[5];
         RangeValue = MaxVal;
     }
-    pStepCount = (__int64 *)(QueryCount * RangeValue);
+    pStepCount = (__int64 *)((__int64)pDstInt[2] * RangeValue);   /* PageSize(Dst+0x08) */
+    g_DiagPcOk1 = 3;
+    g_DiagPcOk3 = (ULONG)RangeValue;
+    g_DiagPcOk4 = (ULONG)(ULONG64)pStepCount;
 
     // 初始化剩余计数
     RemCounter2 = 0xFD0 - (int)EntryCount;
 
     // 获取内核地址扫描范围
     GetKernelVirtualAddressRange((__int64)&Dst, &ScanStart, (unsigned __int64 *)&ScanEnd);
+    g_DiagPcOk1 = 4;
 
     // 计算条目步进
     EntryStride = ((int)EntryCount + 0x30) & 0xFFFFFFF8;
@@ -1821,14 +1876,23 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
             FirstOk = 0;
             pCheckFunc = (__int64 (__fastcall *)(__int64))ProcessEntry;
             pGetOffsetFunc = (__int64 (__fastcall *)(__int64))ServiceTableSize;
-            if (pCheckFunc(ScanStart) == 1
-                && CallRegisteredCallback(ScanStart) == 1)
+            if (pCheckFunc(ScanStart) == 1)
             {
+                g_DiagEpiA++;
+            if (CallRegisteredCallback(ScanStart) == 1)
+            {
+                g_DiagEpiB++;
                 Offset = pGetOffsetFunc(ScanStart);
+                if (Offset != 0 && Offset < (__int64)pStepCount)
+                    g_DiagEpiC++;
+                if (Offset != 0 && Offset < (__int64)pStepCount
+                    && CmdStubAlwaysTrue(ProcessEntry, Offset, NULL, 0) == 1)
+                    g_DiagEpiD++;
                 if (Offset != 0 && Offset < (__int64)pStepCount
                     && CmdStubAlwaysTrue(ProcessEntry, Offset, NULL, 0) == 1
                     && ValidateEnumerationResult(KernelBase, ScanStart, Offset) == 1)
                     FirstOk = 1;
+            }
             }
             if (!FirstOk)
                 continue;  // 第一页不匹配，前进一步
@@ -1875,7 +1939,7 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
                 if ((unsigned int)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
                 {
                     if (CheckObjectTypeFlag(EntryPtr) == (char)GtRead((GLOBAL_TABLE_INDEX)0x81C))
-                        Match = 1;
+                    { Match = 1; g_DiagEpiE++; }
                 }
                 else
                 {
@@ -1893,6 +1957,7 @@ char EnumerateProcessInformation(__int64 Process, __int64 InfoBuffer, unsigned i
                         if (pCheckFunc(AltAddr) == 1
                             && (Process == 0 || ObjectContext == Process))
                         {
+                            g_DiagPcOk5++;
                             FillProcessInformationEntry(
                                 (char *)EntryObj, (char *)AltAddr, InfoBuffer, BufferSize, 1, 1, 0);
                             Result = 1;

@@ -1254,7 +1254,15 @@ __int64 CmdIoPortOperation(__int64 DeviceObject, __int64 Irp, _DWORD *pOutputBuf
 // 对应原始驱动 sub_140041094
 __int64 CmdKernelMemoryOperation(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ((PCOMMAND_HANDLER)KernelMemoryOperationDispatch)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    /* 【2026-10-26 修正·关键】原版 0x1400410AE/0x1400410B1：
+           mov r14d, r9d     ; 长度 = 第 4 个参数 OutSize
+           mov rbx,  r8      ; 缓冲 = 第 3 个参数 OutPtr
+       全部数据块都写进 OutPtr。此前把 (InputBuffer, InputSize) 当作
+       (缓冲, 长度) 传入，而 0x047 的调用方 InPtr=NULL / InSize=0，
+       于是 `OutSize >= 0x50` 门限直接失败 → 输出 0 字节。 */
+    UNREFERENCED_PARAMETER(InputBuffer);
+    UNREFERENCED_PARAMETER(InputSize);
+    return KernelMemoryOperationDispatch((void *)pOutputBuffer, OutputSize);
 }
 
 // CmdProcessMemoryOperation — 进程内存操作命令处理
@@ -2149,26 +2157,66 @@ __int64 CmdDiskSectorReadWrite(__int64 InputBuffer, __int64 InputSize, _DWORD *p
 
 // CmdEnumObjectTypes — 枚举对象类型命令处理
 // 对应原始驱动 0x140088A60（275 字节）
-// 【⚠ 已知缺陷 2026-10-26】原版本函数按构建号分三条路径：
-//   build > 0x2580  -> ScanProcessVadForObjectTypes(Out+2, Out, MaxEntries)
-//   build > 0x23F0  -> DispatchEnumObjectTypes(Out+2, Out, MaxEntries)
-//   否则            -> EnumProcessObjectTypes(GT[0x31A], 3, Out+2, Out, Max)
+// 【2026-10-26 恢复原版实现】此前本函数被错误转调到 EnumObjectTypeInfoOperation
+//   （那是槽 200 的另一条命令），导致 0x0D4 输出布局完全不同。
+//   原版按构建号分三条路径：
+//     build > 0x2580  -> ScanProcessVadForObjectTypes(Out+2, Out, MaxEntries)
+//     build > 0x23F0  -> DispatchEnumObjectTypes(Out+2, Out, MaxEntries)
+//     否则            -> EnumProcessObjectTypes(GT[0x31A], 3, Out+2, Out, Max)
 //   共同前置：*OutputBuffer=0；MaxEntries=((BufferSize-40)>>5)+1（条目步长 0x20）
 //   返回 *OutputBuffer != 0
-// 我方的正确实现已写好并实测：本机 build 18362 走第一条路径，但
-// ScanProcessVadForObjectTypes 的前置槽 GT[0x41DB]（对象类型检查函数）
-// 在本机为 0，函数立即返回 → 计数 0 → 返回 REJ。
-// 该槽由 InitObjectCallbackEntries 填充，而它的唯一调用链是
-//   命令 0x6B (EnableObjectCallback) -> InitObjectCallbackFiles
-//     -> InitObjectCallbackEntries(文件句柄)
-// A/B 扫描把 0x6B 列为 g_AbDangerous 跳过，故扫描时该槽恒 0。
-// 但原版在同样跳过的前提下 0x0D4 仍返回 38 条 —— 说明原版还有一条
-// 尚未定位的填充路径。在该路径确认前，此处暂保持原转调以免引入
-// 未验证的状态回归；正确实现记录在
-// docs/reversing/六条命令逆向进度_2026-10-26.md。
+// 【曾经阻塞的原因，已查明】ScanProcessVadForObjectTypes 的第一道门是
+//   GT[0x41DB]。该槽属于 GT[0x4158+3k+2] 三元组（hash/RVA/VA），由
+//   BuildHookTable 在 DriverEntry 里写入，与命令 0x6B 无关。
+//   在本机实测：GT[0x41DB]=0xfffff800288c22f0（nt!MmIsAddressValid）、
+//   GT[0x4265]=0xfffff80028b6f3a0，与原版逐值相同，故本路径可用。
 __int64 CmdEnumObjectTypes(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutputBuffer, int OutputSize)
 {
-    return ((PCOMMAND_HANDLER)EnumObjectTypeInfoOperation)(InputBuffer, InputSize, pOutputBuffer, OutputSize);
+    ULONG_PTR MaxEntries;
+    _QWORD *pObjectTypeTable;
+    ULONG BuildNumber;
+
+    UNREFERENCED_PARAMETER(InputBuffer);
+    UNREFERENCED_PARAMETER(InputSize);
+
+    if (!pOutputBuffer)
+        return 0;
+    if ((unsigned int)OutputSize < 0x28)
+        return 0;
+    if ((ULONG64)pOutputBuffer >= MmUserProbeAddress)
+        return 0;
+    if ((ULONG64)pOutputBuffer + (unsigned int)OutputSize >= MmUserProbeAddress)
+        return 0;
+
+    ProbeForWrite(pOutputBuffer, OutputSize, 1);
+
+    *pOutputBuffer = 0;
+    MaxEntries = (((ULONG_PTR)(unsigned int)OutputSize - 40) >> 5) + 1;
+
+    BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+    if (BuildNumber >= 0x23F0)
+    {
+        BuildNumber = (ULONG)GtRead(GtWindowsBuildNumber);
+        if (BuildNumber > 0x2580)
+            ScanProcessVadForObjectTypes((_OWORD *)(pOutputBuffer + 2),
+                                         (int *)pOutputBuffer, (int)MaxEntries);
+        else
+            DispatchEnumObjectTypes((__int64)(pOutputBuffer + 2),
+                                    (__int64)pOutputBuffer, (int)MaxEntries);
+    }
+    else
+    {
+        pObjectTypeTable = (_QWORD *)GtRead(GtCallbackField73);      // 0x31A
+        if (pObjectTypeTable
+            || (FindWin32kSectionByType(),
+                (pObjectTypeTable = (_QWORD *)GtRead(GtCallbackField73)) != NULL))
+        {
+            EnumProcessObjectTypes(pObjectTypeTable, 3u,
+                                   (_OWORD *)(pOutputBuffer + 2),
+                                   (int *)pOutputBuffer, (int)MaxEntries);
+        }
+    }
+    return *pOutputBuffer != 0;
 }
 
 // CmdEnumKernelObjectTable — 枚举内核对象表命令处理
@@ -3026,6 +3074,36 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
        注：槽 0x422F/0x4160/0x4163 已用 ntoskrnl 导出表反查确认为
            IoFileObjectType / IoDriverObjectType / IoDeviceObjectType。 */
     *(ULONG64 *)(Out + 0x1C0) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x422F); /* IoFileObjectType   */
+
+    /* 【诊断 2026-10-26】进程遍历漏斗，放在 env 块尾部 0x410..0x440
+       （0x1C0..0x1DF 是 16 个对象类型候选槽，0x240.. 是系统调用表链条槽）。
+       0x410 stage（1=进入 2=前置校验通过 3=EnumerateProcessList 成功
+                   4=有进程 5=循环结束）
+       0x414 ListRet / 0x418 Count / 0x41C Ok1 / 0x420 Ok2 / 0x424 Ok3
+       0x428 Ok4 / 0x42C Ok5 / 0x430 Written / 0x434 TypeId / 0x438 FlagOff
+       0x43C VadStage（0x0D4 用：1=门通过 2=ValidateKernelObject 3=对象标志
+                   4=VAD 区间有效 6=找到地址）
+       0x440 VadCount / 0x444 VadFound */
+    *(ULONG *)(Out + 0x410) = g_DiagPcStage;
+    *(ULONG *)(Out + 0x414) = g_DiagPcListRet;
+    *(ULONG *)(Out + 0x418) = g_DiagPcCount;
+    *(ULONG *)(Out + 0x41C) = g_DiagPcOk1;
+    *(ULONG *)(Out + 0x420) = g_DiagPcOk2;
+    *(ULONG *)(Out + 0x424) = g_DiagPcOk3;
+    *(ULONG *)(Out + 0x428) = g_DiagPcOk4;
+    *(ULONG *)(Out + 0x42C) = g_DiagPcOk5;
+    *(ULONG *)(Out + 0x430) = g_DiagPcWritten;
+    *(ULONG *)(Out + 0x434) = g_DiagPcTypeId;
+    *(ULONG *)(Out + 0x438) = g_DiagPcFlagOff;
+    *(ULONG *)(Out + 0x43C) = g_DiagVadStage;
+    *(ULONG *)(Out + 0x440) = g_DiagVadCount;
+    *(ULONG *)(Out + 0x444) = g_DiagVadFound;
+    *(ULONG *)(Out + 0x448) = g_DiagVkStage;
+    *(ULONG *)(Out + 0x44C) = g_DiagEpiA;
+    *(ULONG *)(Out + 0x450) = g_DiagEpiB;
+    *(ULONG *)(Out + 0x454) = g_DiagEpiC;
+    *(ULONG *)(Out + 0x458) = g_DiagEpiD;
+    *(ULONG *)(Out + 0x45C) = g_DiagEpiE;
 
     /* 【诊断 2026-10-21】系统调用表链条的关键槽位。
        0x117/0x42 等命令依赖它们；任一为 0 链条就断在对应环节。

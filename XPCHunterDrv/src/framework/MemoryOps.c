@@ -2610,10 +2610,10 @@ char __fastcall ScanProcessVadMemory(unsigned __int64 ObjectAddress,
     FnGetProcess        = (__int64 (__fastcall *)(unsigned __int64))GtRead((GLOBAL_TABLE_INDEX)0x4196);  // 0x140089826
     KernelBase          = (__int64)GtRead(GtNtoskrnlModuleBase);         // 0x140089835
     KernelSize          = (__int64)GtRead(GtNtoskrnlImageSize);          // 0x140089842
-    MinAddressPtr       = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x4168);   // 0x14008984F
+    MinAddressPtr       = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x4172);   // 0x14008984F（原版 mov ecx,4172h）
     ObjectTypeCheckBase = (__int64)GtRead(GtObjectTypeCheckFlag);        // 0x14008985E
-    VadRootOffset       = (ULONG)GtRead(GtEprocessField191);             // 0x14008986B (201)
-    VadTableOffset      = (ULONG)GtRead(GtEprocessField193);             // 0x140089878 (203)
+    VadRootOffset       = (ULONG)GtRead(GtVadRootOffset);                // 0x14008986B（原版 mov ecx,1CFh）
+    VadTableOffset      = (ULONG)GtRead(GtVadTableOffset);               // 0x140089878（原版 mov ecx,1D1h）
     CreateTimeOffset    = (ULONG)GtRead(GtProcessCreateTime);            // 0x140089885 (60)
 
     if (!FnGetProcess || !KernelBase || !KernelSize || !MinAddressPtr      // 0x1400898D1
@@ -2622,8 +2622,11 @@ char __fastcall ScanProcessVadMemory(unsigned __int64 ObjectAddress,
         return 0;
 
     Result = 1;
+    g_DiagVadCount++;
+    g_DiagVadStage = 1;
     if (!ObjectAddress || !ValidateKernelObject(ObjectAddress, 0, 0, 0))    // 0x1400898F4
         return Result;
+    g_DiagVadStage = 2;
 
     MinAddress = *(ULONG64 *)MinAddressPtr;                                 // [rbp-0xB8] 解引用
 
@@ -2639,12 +2642,14 @@ char __fastcall ScanProcessVadMemory(unsigned __int64 ObjectAddress,
 
     if ((UCHAR)CheckProcessObjectFlag(ObjectAddress) == 1)                  // 0x14008994C
     {
+        g_DiagVadStage = 3;
         VadEndAddress = *(ULONG64 *)(VadRootOffset + ObjectAddress);        // 0x140089954
         VadRoot = (__int64 *)(*(ULONG64 *)(VadTableOffset + ObjectAddress)); // 0x14008995B
 
         if (CheckMemoryValid((void *)(VadEndAddress - 1)) == 1              // 0x140089985
             && CheckMemoryValid(VadRoot) == 1)
         {
+            g_DiagVadStage = 4;
             Build = (ULONG)GtRead(GtWindowsBuildNumber);
 
             if (Build == 10240 || Build == 10586 || Build == 14393)          // 0x1400899C4
@@ -3042,7 +3047,11 @@ L_STORE_RESULT:
     Result = 1;                                                             // 0x14008A1E4
     if (FoundAddress < MinAddress)                                          // 0x14008A1F6
         FoundAddress = 0;
-    OutS2Hi = FoundAddress;                                                 // 0x14008A1FA
+    /* 【2026-10-26 修正】原版 0x14008A1FA 是 `*((_QWORD*)&ResultStruct + 1) = FoundAddress`，
+       即写进**第一个 16 字节结构的高位**（条目 +0x08），第二个结构的高位保持 0。
+       此前写到 OutS2Hi（条目 +0x18），与原版字段顺序不符。 */
+    OutS1Hi = FoundAddress;                                                 // 0x14008A1FA
+    if (FoundAddress) { g_DiagVadStage = 6; g_DiagVadFound++; }
 
 L_EPILOGUE:                                                                 // 0x14008A206
     KeUnstackDetachProcess(&ApcState);
@@ -3084,7 +3093,7 @@ void __fastcall ScanProcessVadForObjectTypes(_OWORD *OutputBuffer,
     ULONG   ProcessCount;
     ULONG   ProcessIndex;
     ULONG64 ProcAddr;
-    char    CtxByte[8];
+    ULONG64 CtxByte[3];
     __int64 v19, v20;
     _OWORD *OutputCursor;
     int    *pCount;
@@ -3117,9 +3126,16 @@ void __fastcall ScanProcessVadForObjectTypes(_OWORD *OutputBuffer,
 
     v20 = *pObjectTypeInfo;                                                 // 0x14008A320
     v19 = *(ULONG64 *)(EprocessField30 + v20);                              // 0x14008A32E
+    /* 【2026-10-26 修正】原版传给 EnumProcessInformationWorker 的是**24 字节上下文**：
+       rsp+0x28(v18[0])=1、rsp+0x30(v19)、rsp+0x38(v20) —— v19/v20 与 v18 在栈上紧邻，
+       被 worker 当成 +8 / +16 读取（+8 = 进程 PID，+16 = EPROCESS）。
+       此前只传 8 字节，+8/+16 落到其它局部变量上，worker 直接失败 → 进程数 0
+       → 0x0D4 恒 REJ。 */
     CtxByte[0] = 1;                                                          // 0x14008A336
+    CtxByte[1] = v19;
+    CtxByte[2] = v20;
 
-    if (EnumProcessInformationWorker(CtxByte, (__int64)ProcessInfoBuffer, 0x44610))  // 0x14008A33B
+    if (EnumProcessInformationWorker((char *)CtxByte, (__int64)ProcessInfoBuffer, 0x44610))  // 0x14008A33B
     {
         ProcessCount = *((ULONG *)ProcessInfoBuffer + 4);                    // 0x14008A348
         ProcessIndex = 0;
@@ -3203,10 +3219,10 @@ char __fastcall ScanProcessVadTree(unsigned __int64 ObjectAddress,
     pGetProcessFunc = (__int64 (__fastcall *)(unsigned __int64))GtRead((GLOBAL_TABLE_INDEX)0x4196);
     KernelBase      = (ULONG64)GtRead(GtNtoskrnlModuleBase);
     KernelSize      = (ULONG)GtRead(GtNtoskrnlImageSize);
-    pMinAddress     = (ULONG64 *)GtRead((GLOBAL_TABLE_INDEX)0x4168);
+    pMinAddress     = (ULONG64 *)GtRead((GLOBAL_TABLE_INDEX)0x4172);
     ObjectTypeCheckBase = (__int64)GtRead(GtObjectTypeCheckFlag);
-    VadRootOffset   = (ULONG)GtRead(GtEprocessField191);
-    VadTableOffset  = (ULONG)GtRead(GtEprocessField193);
+    VadRootOffset   = (ULONG)GtRead(GtVadRootOffset);            // 原版 mov ecx,1CFh
+    VadTableOffset  = (ULONG)GtRead(GtVadTableOffset);           // 原版 mov ecx,1D1h
     CreateTimeOffset= (ULONG)GtRead(GtProcessCreateTime);
 
     if (!pGetProcessFunc) return Result;
@@ -3646,7 +3662,7 @@ void __fastcall EnumProcessObjectTypes(_QWORD *pObjectTypeTable, unsigned int Ob
         ULONG64  Step      = CbF76;
         ULONG64 *ProcBuf;
         ULONG    ProcCount, ProcIdx;
-        char     Ctx[8];
+        ULONG64  Ctx[3];
 
         if (!pTypeInfo) return;                                              // 0x140089544
         if (EprocF30 == 0xFFFFFFFF) return;                                  // 0x14008954D
@@ -3655,8 +3671,13 @@ void __fastcall EnumProcessObjectTypes(_QWORD *pObjectTypeTable, unsigned int Ob
         ProcBuf = (ULONG64 *)ExAlloc(1 /*PagedPool*/, 0x44610);              // 0x140089569
         if (!ProcBuf) return;
 
+        /* 【2026-10-26 修正】同上：原版 0x14008957E..0x140089592 把
+           var_18(=Ctx+0)=1、var_10(=Ctx+8)=*(EprocF30 + *(QWORD*)pTypeInfo)、
+           var_8(=Ctx+16)=*(QWORD*)pTypeInfo 组成 24 字节上下文。 */
         Ctx[0] = 1;                                                          // 0x140089599
-        if (EnumProcessInformationWorker(Ctx, (__int64)ProcBuf, 0x44610))     // 0x14008959D
+        Ctx[2] = (ULONG64)(*pTypeInfo);
+        Ctx[1] = *(ULONG64 *)((ULONG64)EprocF30 + Ctx[2]);
+        if (EnumProcessInformationWorker((char *)Ctx, (__int64)ProcBuf, 0x44610))     // 0x14008959D
         {
             ProcCount = *((ULONG *)ProcBuf + 4);                              // 0x1400895AA
             ProcIdx = 0;
