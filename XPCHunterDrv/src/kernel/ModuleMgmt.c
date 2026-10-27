@@ -4629,14 +4629,14 @@ char EnumProcessPeExportDataByIndex()
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
-            /* 【修正 2026-10-27】原版 0x14003F8E2..8F7：
-               eax = (+0x40) - GT[0x20] + (DWORD)ctx读指针   （全是 32 位运算）
-               再 +0xF0 推进 ctx+0x08。
-               旧版把 64 位 ReadPtr 直接参与 int 运算，高 32 位会污染结果。 */
+            /* 【修正 2026-10-27】原版 0x14003F8E2..F925 的顺序：
+                 ctx+0x08 += [desc+0xF0]      （先把新值存回 var_1B8）
+                 eax = (+0x40) - GT[0x20] + (DWORD)新读指针
+               即公式用的是**推进后**的读指针。旧写法先算后推进，差一条。 */
+            SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
             ComputedOffset = (int)((ULONG)*(ULONG *)((PUCHAR)SectionEntry + 0x40)
                                    - (ULONG)NtImageBase
                                    + (ULONG)SectionContext.ReadPtr);
-            SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
             SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
