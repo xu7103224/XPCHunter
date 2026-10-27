@@ -4279,12 +4279,17 @@ char ScanKernelPeExportSection()
             (__int64)&SectionContext);
 
         AccumulatedOffset = 0;
+        g_DiagPeL1 = 0;   /* 诊断：解码成功条数 */
+        g_DiagPeL2 = 0;   /* 诊断：类型 0x512 条数 */
+        g_DiagPe1294 = 0; /* 诊断：0x512 且 +0x88==0x40000 */
+        g_DiagPeCond = 0; /* 诊断：全部判据通过 */
 
         for (SectionIndex = 0; SectionIndex < 0x64; ++SectionIndex)
         {
             /* 原版 0x14003F34B..F36F：先解码，成功后 ctx+0x08 += 本条长度 */
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
+            g_DiagPeL1++;
 
             SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
             AccumulatedOffset += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
@@ -4294,9 +4299,11 @@ char ScanKernelPeExportSection()
 
             if (*(unsigned __int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) != 0x512)
                 continue;
+            g_DiagPeL2++;
 
             if (*(ULONG64 *)((PUCHAR)SectionEntry + 0x88) != 0x40000)
                 continue;
+            g_DiagPe1294++;
 
             {
                 ULONG RvaBase = *(ULONG *)((PUCHAR)SectionEntry + 0x78);
@@ -4308,7 +4315,10 @@ char ScanKernelPeExportSection()
                     continue;
 
                 {
-                    ULONG Rva = RvaBase - (ULONG)NtImageBase + (ULONG)AccumulatedOffset;
+                    /* 【修正 2026-10-27】原版 0x14003F3BA 的 ecx 是 **ctx 读指针**
+                       （含 GT[0x20] 基址），不是从 0 起的 AccumulatedOffset。
+                       用后者会丢基址，算出巨大负数，`Rva < NtImageSize` 恒失败。 */
+                    ULONG Rva = RvaBase - (ULONG)NtImageBase + (ULONG)SectionContext.ReadPtr;
                     if (Rva && Rva < NtImageSize)
                     {
                         GtWrite(GtCallbackField04, (ULONG64)Rva + NtoskrnlModuleBase);
