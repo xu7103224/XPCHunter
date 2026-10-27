@@ -1003,8 +1003,11 @@ __int64 CheckWin2k3Sp2(void)
     CurrentProcess = IoGetCurrentProcess();
     if (CurrentProcess)
     {
+        /* 【修正 2026-10-27】原版 0x140021106 是 `cmp eax, 80000000h` + `ja`
+           （严格大于，无符号比较），不是相等判断。写成 == 只会在该 DWORD
+           恰好等于 0x80000000 时命中，0x80000001..0xFFFFFFFF 全部漏掉。 */
         unsigned int Value = *(unsigned int *)((char *)CurrentProcess + 0x98);
-        if (Value == 0x80000000)
+        if (Value > 0x80000000)
             Result = 1;
     }
     return Result;

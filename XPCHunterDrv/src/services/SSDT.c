@@ -1179,7 +1179,12 @@ __int64 InitSdstServiceCount(void)
     if (BuildNumber == 2600)
         return GtWrite(GtSdstServiceCount, 320);
     if (BuildNumber == 3790)
-        return GtWrite(GtSdstServiceCount, 277);
+    {
+        /* 【修正 2026-10-27】原版 0x140021063..0x14002107B：3790（Server 2003）
+           还要再按 SP2 细分 —— SP2 写 215，非 SP2 写 277。
+           旧实现直接写死 277，丢掉了 CheckWin2k3Sp2() 分支。 */
+        return GtWrite(GtSdstServiceCount, CheckWin2k3Sp2() ? 215 : 277);
+    }
     if (BuildNumber >= 0x1770 && BuildNumber <= 0x1772)
         return GtWrite(GtSdstServiceCount, 231);
     if (BuildNumber >= 0x1DB0 && BuildNumber <= 0x1DB1)
