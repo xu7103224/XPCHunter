@@ -2069,8 +2069,12 @@ char __fastcall ResolveSsdtTablePointerEx(
 
     if (NtImageBase && NtImageSize && NtoskrnlImageBase && ModuleInfo)
     {
-        RootOffsetAccum = 0;
-
+        /* 【修正 2026-10-27】原版栈布局：SectionReadContext 在 [rsp+50h] 8 字节，
+           RootOffsetAccum 在 [rsp+58h] —— 二者是**同一个槽**，即 ctx+0x08（读指针）。
+           InitPESectionReadContext 会把它置为 Base（绝对 VA），绝不是 0。
+           因为 NtImageBase 也取自 GT[0x20]（== Base 的来源），基址在
+           `ComputedOffset + SubCount - NtImageBase` 里正好抵消，
+           所以必须用解码上下文自己的读指针，不能另设从 0 起的累加器。 */
         InitPESectionReadContext(
             (__int64)pSectionData,
             SectionEnd - (int)pSectionData,
@@ -2084,9 +2088,9 @@ char __fastcall ResolveSsdtTablePointerEx(
         SectionIndex = 0;
         while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionReadContext, SectionEntry))
         {
-            /* 0x14004049E..4A8：先算累加偏移，再把本条长度并入累加器 */
-            ComputedOffset = *(ULONG *)((PUCHAR)SectionEntry + 0xF0) + (int)RootOffsetAccum;
-            RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            /* 0x14004049E..4A8：ComputedOffset 用的是**前一条**的读指针 */
+            ComputedOffset = *(ULONG *)((PUCHAR)SectionEntry + 0xF0) + (int)SectionReadContext.ReadPtr;
+            SectionReadContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
             /* 0x1400404BF：一级判据 类型 ∈ {1368,1369,1370} */
             if ((unsigned __int16)(*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) - 1368) <= 2u)
@@ -2119,15 +2123,15 @@ char __fastcall ResolveSsdtTablePointerEx(
                             int   SubFlags;
                             __int64 BigFlags;
 
-                            /* 0x14004053E..546：二级条目同样累加 +0xF0 */
+                            /* 二级条目同样用读指针（ctx+0x08），且由内层 init 重置 */
                             BigFlags    = *(ULONG64 *)((PUCHAR)SectionEntry + 0x88);   /* TableFieldFlags */
                             SubFlags    = *(ULONG   *)((PUCHAR)SectionEntry + 0x50);   /* FieldFileOffset/SectionFileOffset */
                             TableFlags  = *(ULONG   *)((PUCHAR)SectionEntry + 0x78);   /* FieldFlags */
                             OffsetCount = *(ULONG   *)((PUCHAR)SectionEntry + 0x70);   /* OffsetFieldCount */
                             OffsetValue = *(ULONG   *)((PUCHAR)SectionEntry + 0x40);   /* OffsetFieldValue */
 
-                            ComputedOffset2 = *(ULONG *)((PUCHAR)SectionEntry + 0xF0) + (int)RootOffsetAccum;
-                            RootOffsetAccum += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+                            ComputedOffset2 = *(ULONG *)((PUCHAR)SectionEntry + 0xF0) + (int)SectionReadContext.ReadPtr;
+                            SectionReadContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
 
                             /* 0x140040556..57A：类型 0x512 → SSDT 表 */
                             if (*(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6) == 0x512 &&

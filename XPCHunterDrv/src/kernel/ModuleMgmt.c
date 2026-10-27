@@ -4590,26 +4590,33 @@ char EnumProcessPeExportDataByIndex()
         SectionIndex = 0;
         while (SectionIndex < 0xC8)
         {
-            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
             if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
                 break;
 
-            ComputedOffset = SectionAlignedSize + (ULONG)SectionFileOffset;
-            SectionFileOffset += SectionAlignedSize;
+            /* 【修正 2026-10-27】原版 0x14003F8E2..8FC：游标就是 ctx+0x08，
+               先读后推进；SectionAlignedSize/FieldFlags/FieldValueSize/
+               SectionDataSize/SectionFileOffset 旧版全是未赋值的空壳局部。 */
+            ComputedOffset = *(ULONG *)((PUCHAR)SectionEntry + 0x40)
+                           - (int)NtImageBase
+                           + (int)SectionContext.ReadPtr;
+            SectionContext.ReadPtr += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+
             SectionType = *(__int16 *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
 
+            /* 0x14003F900..908：类型 0x545 直接结束 */
             if (SectionType == 0x545)
                 break;
 
+            /* 0x14003F90A..923：类型 0x50E 且 +0x50==0x40000 且 +0x88==0x40 */
             if (SectionType == 0x50E &&
-                FieldFlags == 0x40000 &&
-                FieldValueSize == 0x40)
+                *(ULONG64 *)((PUCHAR)SectionEntry + 0x50) == 0x40000 &&
+                *(ULONG64 *)((PUCHAR)SectionEntry + 0x88) == 0x40)
             {
-                ExportRva = (unsigned int)(SectionDataSize - NtImageBase + (ULONG)ComputedOffset);
-                if (ExportRva && ExportRva < NtImageSize)
+                /* 0x14003F925..931：RVA = (+0x40) - GT[0x20] + 游标；0 < RVA < 大小 */
+                if ((ULONG)ComputedOffset && (ULONG)ComputedOffset < NtImageSize)
                 {
-                    // 写入 GT 0x2BB = GtKernelDataField41
-                    GtWrite(GtKernelDataField41, NtoskrnlModuleBase + ExportRva);
+                    /* 0x14003F941..949：写 GT[0x2BB] */
+                    GtWrite(GtKernelDataField41, (ULONG64)(ULONG)ComputedOffset + NtoskrnlModuleBase);
                     Result = 1;
                     break;
                 }
