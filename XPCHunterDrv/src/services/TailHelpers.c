@@ -3757,7 +3757,11 @@ __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
                     if (BuildNumber >= 0x1DB0)
                     {
                         *(_QWORD *)pChild = (ULONG64)ChildObj;
-                        CopyUnicodeStringSafe(ChildObj + 6, (_WORD *)pChild + 2, 32);
+                        /* 【2026-10-27 修正】原版 0x140087AEB `lea rdx,[r15+8]`：
+                           名字写在子项 +8（紧随 8 字节指针）。此前写成 +4，
+                           名字会覆盖指针的高 4 字节（实测 "KslD.sys" 条目
+                           0xFFFFBD04E9067B40 只剩低 32 位）。 */
+                        CopyUnicodeStringSafe(ChildObj + 6, (_WORD *)pChild + 4, 32);
                         *((_QWORD *)pChild + 9) = ChildObj[4];
                         pChild[21] = 0;
                         pChild[20] = *((_DWORD *)ChildObj + 10);
@@ -3766,7 +3770,7 @@ __int64 EnumSsdtHooks(__int64 OutputBuffer, unsigned int BufferSize)
                     else
                     {
                         *(_QWORD *)pChild = (ULONG64)ChildObj;
-                        CopyUnicodeStringSafe((const void **)ChildObj[6], (_WORD *)pChild + 2, 32);
+                        CopyUnicodeStringSafe((const void **)ChildObj[6], (_WORD *)pChild + 4, 32);
                         *((_QWORD *)pChild + 9) = ChildObj[4];
                         pChild[21] = 0;
                         pChild[20] = *((_DWORD *)ChildObj + 10);

@@ -3166,14 +3166,19 @@ void __fastcall ScanProcessVadForObjectTypes(_OWORD *OutputBuffer,
                     && pCheckObjectTypeFunc(ProcAddr + Step + 7) == 1
                     && *(ULONG64 *)(ProcAddr + Step) != 0)
                 {
-                    ULONG64 *cur = (ULONG64 *)pOutputPos - 2;                // 0x14008A38F
+                    /* 【2026-10-27 修正】原版 0x14008A38F 是 `lea rax,[r15-20h]`、
+                       循环体 `sub rax,20h` —— 起点回退 0x20、步长 0x20（恰为一条
+                       0x20 字节条目）。此前用 (ULONG64*)-2 / -4 写成 -16/-32，
+                       起点落在上一条目的第二个 QWORD 上，首项比较必不中等，
+                       去重失效 → 0x0D4 条目数约为原版 2 倍。 */
+                    ULONG64 *cur = (ULONG64 *)((char *)pOutputPos - 0x20);   // 0x14008A38F
                     int cnt = *pCount;                                       // 0x14008A393
                     if (cnt)
                     {
-                        // 已在输出中的进程跳过（步长 4 qword 向前回扫）
+                        // 已在输出中的进程跳过（每次回退一条 0x20 条目）
                         while (*cur != ProcAddr)                             // 0x14008A39D
                         {
-                            cur -= 4;                                        // 0x14008A39F
+                            cur = (ULONG64 *)((char *)cur - 0x20);           // 0x14008A39F
                             if (--cnt == 0)                                  // 0x14008A3A5
                                 goto L_DO_SCAN;
                         }
