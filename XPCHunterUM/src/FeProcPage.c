@@ -1,0 +1,633 @@
+// ============================================================================
+// FeProcPage.c — Proc 页 UI（2026-10-28 由 frontend.c 机械拆分，函数体逐字保留）
+// 注册表：ShowPage（frontend.c）通过 FePages.h 的声明调用本文件的 PageShow。
+// ============================================================================
+#include "XPCHunterUM.h"
+#include "FePages.h"
+HWND g_hList;
+HWND g_hCmd;
+HWND g_hSize;
+
+HWND g_hList, g_hStatus, g_hCmd, g_hSize;
+HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
+int  g_DetailTab = -1;
+
+void CreateProcColumns(HWND h)
+{
+    static const char *titles[] = { "PID", "Name", "Path", "EPROCESS", "Ring3 Access State" };
+    static const int widths[] = { 55, 130, 340, 150, 130 };
+    LVCOLUMNA col;
+    int i;
+
+    for (i = 0; i < 5; i++) {
+        ZeroMemory(&col, sizeof(col));
+        col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        col.iSubItem = i;
+        col.pszText = (LPSTR)titles[i];
+        col.cx = widths[i];
+        SendMessageA(h, LVM_INSERTCOLUMNA, i, (LPARAM)&col);
+    }
+}
+
+void DetailSetText(int row, int sub, const char *text)
+{
+    LVITEMA item;
+    ZeroMemory(&item, sizeof(item));
+    item.iSubItem = sub;
+    item.pszText = (LPSTR)text;
+    SendMessageA(g_hDetail, LVM_SETITEMTEXTA, (WPARAM)row, (LPARAM)&item);
+}
+
+void DetailAddRow(const char *c0, const char *c1, const char *c2, const char *c3)
+{
+    LVITEMA item;
+    int row = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0);
+
+    ZeroMemory(&item, sizeof(item));
+    item.mask = LVIF_TEXT;
+    item.iItem = row;
+    item.pszText = (LPSTR)c0;
+    SendMessageA(g_hDetail, LVM_INSERTITEMA, 0, (LPARAM)&item);
+    if (c1) DetailSetText(row, 1, c1);
+    if (c2) DetailSetText(row, 2, c2);
+    if (c3) DetailSetText(row, 3, c3);
+}
+
+void SetupDetailColumns(int tab)
+{
+    /* 7 个子视图：0 Modules / 1 Threads / 2 Windows / 3 Handles / 4 Memory
+       / 5 Timer / 6 HotKey */
+    static const char *cols[7][7] = {
+        { "Base", "Size", "Name", "Path", "", "", "" },
+        { "TID", "Prio", "Start", "", "", "", "" },
+        { "HWND", "TID", "Class", "Title", "", "", "" },
+        { "Handle", "Type", "Access", "Object", "", "", "" },
+        { "Base", "Size", "Protect", "Type", "Name", "", "" },
+        { "Handle", "Object", "Access", "", "", "", "" },
+        { "Bucket", "Flags", "Hotkey", "PID", "TID", "Process", "EPROCESS" },
+    };
+    static const int widths[7][7] = {
+        { 130, 90, 160, 380, 0, 0, 0 },
+        { 70, 60, 150, 0, 0, 0, 0 },
+        { 110, 60, 170, 340, 0, 0, 0 },
+        { 90, 180, 100, 260, 0, 0, 0 },
+        { 130, 100, 80, 70, 360, 0, 0 },
+        { 100, 190, 110, 0, 0, 0, 0 },
+        { 120, 90, 220, 70, 70, 190, 140 },
+    };
+    LVCOLUMNA col;
+    int i;
+    int n = (tab == 1) ? 3 : ((tab == 4) ? 5 : ((tab == 5) ? 3 : ((tab == 6) ? 7 : 4)));
+
+    while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
+        ;
+    SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
+    for (i = 0; i < n; i++) {
+        ZeroMemory(&col, sizeof(col));
+        col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+        col.iSubItem = i;
+        col.pszText = (LPSTR)cols[tab][i];
+        col.cx = widths[tab][i];
+        SendMessageA(g_hDetail, LVM_INSERTCOLUMNA, i, (LPARAM)&col);
+    }
+}
+
+void DoRefreshDetail(void)
+{
+    int tab = (int)SendMessageA(g_hTabs, TCM_GETCURSEL, 0, 0);
+    ULONG pid = GetSelectedPid();
+    char a[64], b[64], c[64], d[600];
+
+    if (tab < 0 || tab > 6)
+        tab = 0;
+    if (tab != g_DetailTab) {
+        g_DetailTab = tab;
+        SetupDetailColumns(tab);
+    } else {
+        SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
+    }
+
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Select a process to populate this view");
+        return;
+    }
+
+    if (tab == 0) {
+        FE_MODULE_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessModules(pid, 1024, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                char name[128], path[FE_MODULE_PATH_CHARS * 2];
+                FeWideToAnsi(list.Items[i].Name, name, sizeof(name));
+                FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)list.Items[i].Base);
+                sprintf_s(b, sizeof(b), "0x%lX", list.Items[i].Size);
+                DetailAddRow(a, b, name, path);
+            }
+            FeFreeProcessModules(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu modules: %lu", pid, n);
+    } else if (tab == 1) {
+        FE_THREAD_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessThreads(pid, 2048, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                sprintf_s(a, sizeof(a), "%lu", list.Items[i].ThreadId);
+                sprintf_s(b, sizeof(b), "%ld", list.Items[i].BasePriority);
+                sprintf_s(c, sizeof(c), "%p", (void *)(ULONG_PTR)list.Items[i].StartAddress);
+                DetailAddRow(a, b, c, NULL);
+            }
+            FeFreeProcessThreads(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu threads: %lu", pid, n);
+    } else if (tab == 4) {
+        FE_MEMORY_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessMemory(pid, 16384, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                char nm[FE_MEMORY_NAME_CHARS];
+                FeWideToAnsi(list.Items[i].Name, nm, sizeof(nm));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)list.Items[i].Base);
+                sprintf_s(b, sizeof(b), "0x%I64X", list.Items[i].Size);
+                sprintf_s(c, sizeof(c), "0x%lX", list.Items[i].Protect);
+                DetailAddRow(a, b, c, NULL);
+                DetailSetText((int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0) - 1, 3,
+                              list.Items[i].Type == MEM_IMAGE ? "Image" :
+                              (list.Items[i].Type == MEM_MAPPED ? "Mapped" : "Private"));
+                DetailSetText((int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0) - 1, 4, nm);
+            }
+            FeFreeProcessMemory(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu regions: %lu", pid, n);
+    } else if (tab == 3) {
+        FE_HANDLE_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessHandles(pid, 8192, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                sprintf_s(a, sizeof(a), "0x%IX", list.Items[i].Handle);
+                sprintf_s(c, sizeof(c), "0x%lX", list.Items[i].Access);
+                sprintf_s(d, sizeof(d), "%p", (void *)(ULONG_PTR)list.Items[i].Object);
+                DetailAddRow(a, list.Items[i].TypeName[0] ? list.Items[i].TypeName : "(?)", c, d);
+            }
+            FeFreeProcessHandles(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu handles: %lu", pid, n);
+    } else if (tab == 5) {
+        /* View Timer：句柄类型为 Timer 的项 */
+        FE_HANDLE_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessTimers(pid, 1024, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                sprintf_s(a, sizeof(a), "0x%I64X", list.Items[i].Handle);
+                sprintf_s(b, sizeof(b), "%016I64X", list.Items[i].Object);
+                sprintf_s(c, sizeof(c), "0x%lX", list.Items[i].Access);
+                DetailAddRow(a, b, c, NULL);
+            }
+            FeFreeProcessHandles(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu timers: %lu", pid, n);
+    } else if (tab == 6) {
+        /* View HotKey：0x33 CmdEnumObjects（Win8 链表枚举）取全系统热键表，
+           按选中进程的 EPROCESS 过滤，列布局与原版 CProcessHotkeyDialog 一致。 */
+        FE_PROCESS_LIST procs;
+        FE_HOTKEY_LIST list;
+        ULONG64 eprocess = 0;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &procs)) {
+            for (i = 0; i < procs.Count; i++) {
+                if (procs.Items[i].Pid == pid) { eprocess = procs.Items[i].Eprocess; break; }
+            }
+            FeFreeProcessList(&procs);
+        }
+        if (!eprocess) {
+            sprintf_s(d, sizeof(d), "PID %lu: cannot resolve EPROCESS", pid);
+            SetWindowTextA(g_hProcStatus, d);
+            return;
+        }
+
+        if (FeLoadProcessHotkeys(&g_Client, eprocess, 0, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                FE_HOTKEY_ENTRY *e = &list.Items[i];
+                char hk[FE_HOTKEY_NAME_CHARS];
+                char tid[32], ep[32];
+                int row;
+
+                FeWideToAnsi(e->Hotkey, hk, sizeof(hk));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)e->Bucket);
+                sprintf_s(b, sizeof(b), "0x%08lX", e->Flags);
+                sprintf_s(c, sizeof(c), "%lu", e->Pid);
+                DetailAddRow(a, b, hk, c);
+                row = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0) - 1;
+                sprintf_s(tid, sizeof(tid), "%lu", e->Tid);
+                sprintf_s(ep, sizeof(ep), "0x%I64X", e->Eprocess);
+                DetailSetText(row, 4, tid);
+                DetailSetText(row, 5, e->ProcessName[0] ? e->ProcessName : "(?)");
+                DetailSetText(row, 6, ep);
+            }
+            FeFreeProcessHotkeys(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu hotkeys: %lu", pid, n);
+    } else {
+        FE_WINDOW_LIST list;
+        ULONG i, n = 0;
+
+        if (FeLoadProcessWindows(pid, 512, &list)) {
+            n = list.Count;
+            for (i = 0; i < n; i++) {
+                char title[FE_WINDOW_ENTRY_TITLE_CHARS * 2];
+                FeWideToAnsi(list.Items[i].Title, title, sizeof(title));
+                sprintf_s(a, sizeof(a), "%p", (void *)(ULONG_PTR)list.Items[i].Hwnd);
+                sprintf_s(b, sizeof(b), "%lu", list.Items[i].ThreadId);
+                DetailAddRow(a, b, list.Items[i].ClassName[0] ? list.Items[i].ClassName : "(?)", title);
+            }
+            FeFreeProcessWindows(&list);
+        }
+        sprintf_s(d, sizeof(d), "PID %lu windows: %lu", pid, n);
+    }
+    SetWindowTextA(g_hProcStatus, d);
+}
+
+void DoKillSelected(void)
+{
+    ULONG pid = GetSelectedPid();
+    char msg[256];
+
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Select a process first");
+        return;
+    }
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hProcStatus, "Not connected");
+        return;
+    }
+
+    sprintf_s(msg, sizeof(msg),
+              "Terminate PID %lu?\n\nThis is destructive and cannot be undone.", pid);
+    if (MessageBoxA(GetActiveWindow(), msg, "Confirm kill",
+                    MB_YESNO | MB_ICONWARNING) != IDYES) {
+        SetWindowTextA(g_hProcStatus, "Kill cancelled");
+        return;
+    }
+
+    {
+        FE_PROCESS_LIST list;
+        ULONG64 eprocess = 0;
+        ULONG i;
+
+        if (FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &list)) {
+            for (i = 0; i < list.Count; i++)
+                if (list.Items[i].Pid == pid) { eprocess = list.Items[i].Eprocess; break; }
+            FeFreeProcessList(&list);
+        }
+        if (FeKillProcess(&g_Client, pid, eprocess, FALSE)) {
+            sprintf_s(msg, sizeof(msg), "PID %lu terminated", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+            DoRefreshProcs();
+        } else {
+            sprintf_s(msg, sizeof(msg), "Kill PID %lu failed", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+        }
+    }
+}
+
+void DoRefreshProcs(void)
+{
+    FE_PROCESS_LIST list;
+    ULONG i, count;
+    char buf[256];
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hProcStatus, "Not connected - click Connect first (it performs the handshake)");
+        return;
+    }
+
+    SendMessageA(g_hProc, LVM_DELETEALLITEMS, 0, 0);
+
+    if (!FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &list)) {
+        SetWindowTextA(g_hProcStatus,
+                       "0xE4 returned 0 - driver not ready (handshake) or output < 0x298 bytes");
+        return;
+    }
+    count = list.Count;
+
+    for (i = 0; i < count; i++) {
+        LVITEMA item;
+
+        ZeroMemory(&item, sizeof(item));
+        item.mask = LVIF_TEXT;
+        item.iItem = (int)i;
+        sprintf_s(buf, sizeof(buf), "%lu", list.Items[i].Pid);
+        item.pszText = buf;
+        SendMessageA(g_hProc, LVM_INSERTITEMA, 0, (LPARAM)&item);
+
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 1;
+        item.pszText = list.Items[i].Name[0] ? list.Items[i].Name : (LPSTR)"(?)";
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+
+        /* 完整映像路径：QueryFullProcessImageNameW（不走驱动 0x2A —— 它的
+           KeStackAttachProcess 手工追链会让 guest 挂死，已记录待修）。 */
+        if (!FeLoadProcessPathWin32(list.Items[i].Pid, list.Items[i].Path, FE_PROC_PATH_CHARS))
+            list.Items[i].Path[0] = 0;
+        {
+            char path[FE_PROC_PATH_CHARS * 2];
+            FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
+            ZeroMemory(&item, sizeof(item));
+            item.iSubItem = 2;
+            item.pszText = path;
+            SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+        }
+
+        sprintf_s(buf, sizeof(buf), "%p", (void *)(ULONG_PTR)list.Items[i].Eprocess);
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 3;
+        item.pszText = buf;
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+
+        /* Ring3 Access State：用户态能否打开这个进程 */
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 4;
+        item.pszText = FeIsProcessRing3Accessible(list.Items[i].Pid)
+                       ? (LPSTR)"accessible" : (LPSTR)"INACCESSIBLE";
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+    }
+
+    {
+        ULONG hidden = 0, inaccessible = 0;
+        if (FeComputeProcessStatus(&list, &hidden, &inaccessible, NULL)) {
+            FeFreeProcessList(&list);
+            sprintf_s(buf, sizeof(buf),
+                      "Processes: %lu, Hidden Processes: %lu, "
+                      "Ring3 Inaccessible Processes: %lu",
+                      count, hidden, inaccessible);
+            SetWindowTextA(g_hProcStatus, buf);
+            return;
+        }
+    }
+
+    FeFreeProcessList(&list);
+
+    sprintf_s(buf, sizeof(buf), "Processes: %lu", count);
+    SetWindowTextA(g_hProcStatus, buf);
+
+    /* 自动选中一行，让子视图立即有内容：优先 explorer.exe（System/Registry
+       这类进程没有用户模块，选中它们子视图会是空的）。 */
+    if (count) {
+        int pick = 0;
+        ULONG k;
+        for (k = 0; k < count; k++) {
+            char nm[32];
+            LVITEMA gi;
+            ZeroMemory(&gi, sizeof(gi));
+            gi.iSubItem = 1;
+            gi.pszText = nm;
+            gi.cchTextMax = sizeof(nm);
+            nm[0] = 0;
+            SendMessageA(g_hProc, LVM_GETITEMTEXTA, (WPARAM)k, (LPARAM)&gi);
+            if (_stricmp(nm, "explorer.exe") == 0) { pick = (int)k; break; }
+        }
+        {
+            LVITEMA si;
+            ZeroMemory(&si, sizeof(si));
+            si.stateMask = LVIS_SELECTED | LVIS_FOCUSED;
+            si.state = LVIS_SELECTED | LVIS_FOCUSED;
+            SendMessageA(g_hProc, LVM_SETITEMSTATE, (WPARAM)pick, (LPARAM)&si);
+        }
+    }
+}
+
+/* 进程右键操作：Kill / Force Kill / Suspend / Resume / Kill By Process Tree /
+ * Kill And Delete File / Copy Image Path。 */
+void DoProcessOp(int Op)
+{
+    ULONG pid = GetSelectedPid();
+    char msg[1024];
+    char path[1024];
+
+    if (!g_hProcStatus)
+        return;
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Select a process first");
+        return;
+    }
+    switch (Op) {
+    case 0:   /* Kill */
+        DoKillSelected();
+        return;
+    case 1:   /* Force Kill（0xA2，只给 EPROCESS） */
+        if (!g_Client.Opened) {
+            SetWindowTextA(g_hProcStatus, "Not connected");
+            return;
+        }
+        sprintf_s(msg, sizeof(msg),
+                  "Force kill PID %lu by EPROCESS?\n\nThis is destructive.", pid);
+        if (MessageBoxA(g_hMainWnd, msg, "Force Kill",
+                        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) != IDYES) {
+            SetWindowTextA(g_hProcStatus, "Force kill cancelled");
+            return;
+        }
+        if (FeForceKillProcess(&g_Client, pid)) {
+            sprintf_s(msg, sizeof(msg), "Force Kill: PID %lu terminated (EPROCESS)", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+            DoRefreshProcs();
+        } else {
+            sprintf_s(msg, sizeof(msg), "Force Kill: PID %lu failed", pid);
+            SetWindowTextA(g_hProcStatus, msg);
+        }
+        return;
+    case 2:   /* Suspend */
+    case 3:   /* Resume */
+        if (FeSuspendResumeProcess(pid, Op == 2)) {
+            sprintf_s(msg, sizeof(msg), "%s: PID %lu", Op == 2 ? "Suspend" : "Resume", pid);
+        } else {
+            sprintf_s(msg, sizeof(msg), "%s: PID %lu failed, GetLastError=%lu",
+                      Op == 2 ? "Suspend" : "Resume", pid, GetLastError());
+        }
+        SetWindowTextA(g_hProcStatus, msg);
+        return;
+    case 4: { /* Kill By Process Tree */
+        ULONG killed = 0, failed = 0;
+        sprintf_s(msg, sizeof(msg),
+                  "Kill PID %lu and all of its children?\n\nThis is destructive.", pid);
+        if (MessageBoxA(g_hMainWnd, msg, "Kill By Process Tree",
+                        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) != IDYES) {
+            SetWindowTextA(g_hProcStatus, "Kill tree cancelled");
+            return;
+        }
+        FeKillProcessTree(&g_Client, pid, &killed, &failed);
+        sprintf_s(msg, sizeof(msg), "Kill By Process Tree: root %lu -> killed %lu, failed %lu",
+                  pid, killed, failed);
+        SetWindowTextA(g_hProcStatus, msg);
+        DoRefreshProcs();
+        return;
+    }
+    case 5: { /* Kill And Delete File */
+        BOOL rebootDel = FALSE;
+        DWORD err = 0;
+        sprintf_s(msg, sizeof(msg),
+                  "Kill PID %lu and delete its image file?\n\nThis cannot be undone.", pid);
+        if (MessageBoxA(g_hMainWnd, msg, "Kill And Delete File",
+                        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) != IDYES) {
+            SetWindowTextA(g_hProcStatus, "Kill and delete cancelled");
+            return;
+        }
+        {
+            char deleted[1024];
+            if (FeKillAndDeleteProcessFile(&g_Client, pid, deleted, sizeof(deleted),
+                                           &err, &rebootDel)) {
+                if (rebootDel)
+                    sprintf_s(msg, sizeof(msg),
+                              "Kill And Delete File: %s -> scheduled for delete on reboot", deleted);
+                else
+                    sprintf_s(msg, sizeof(msg),
+                              "Kill And Delete File: %s -> deleted", deleted);
+            } else {
+                sprintf_s(msg, sizeof(msg),
+                          "Kill And Delete File: PID %lu failed, GetLastError=%lu",
+                          pid, (unsigned long)err);
+            }
+        }
+        SetWindowTextA(g_hProcStatus, msg);
+        DoRefreshProcs();
+        return;
+    }
+    case 6: { /* Copy Image Path */
+        if (!FeGetProcessImagePath(pid, path, sizeof(path))) {
+            SetWindowTextA(g_hProcStatus, "Copy Image Path: cannot query the image path");
+            return;
+        }
+        if (!OpenClipboard(g_hProc))
+            return;
+        EmptyClipboard();
+        {
+            HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, strlen(path) + 1);
+            if (h) {
+                void *p = GlobalLock(h);
+                if (p) {
+                    memcpy(p, path, strlen(path) + 1);
+                    GlobalUnlock(h);
+                    SetClipboardData(CF_TEXT, h);
+                }
+            }
+        }
+        CloseClipboard();
+        sprintf_s(msg, sizeof(msg), "Image path copied: %s", path);
+        SetWindowTextA(g_hProcStatus, msg);
+        return;
+    }
+    default:
+        return;
+    }
+}
+
+void DoProcessContextMenu(HWND hWnd, int X, int Y)
+{
+    HMENU hMenu = CreatePopupMenu();
+    int cmd;
+
+    if (!hMenu)
+        return;
+    /* 原版 Process 右键菜单的 View 组：切到对应子视图 */
+    AppendMenuA(hMenu, MF_STRING, 5010, "View Modules");
+    AppendMenuA(hMenu, MF_STRING, 5011, "View Threads");
+    AppendMenuA(hMenu, MF_STRING, 5012, "View Handles");
+    AppendMenuA(hMenu, MF_STRING, 5013, "View Windows");
+    AppendMenuA(hMenu, MF_STRING, 5014, "View Memory");
+    AppendMenuA(hMenu, MF_STRING, 5015, "View Timer");
+    AppendMenuA(hMenu, MF_STRING, 5016, "View HotKey");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 5001, "Kill");
+    AppendMenuA(hMenu, MF_STRING, 5002, "Force Kill");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 5003, "Suspend");
+    AppendMenuA(hMenu, MF_STRING, 5004, "Resume");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 5005, "Kill By Process Tree");
+    AppendMenuA(hMenu, MF_STRING, 5006, "Kill And Delete File");
+    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hMenu, MF_STRING, 5007, "Copy Image Path");
+    if (X == -1 && Y == -1) {
+        RECT rc;
+        GetWindowRect(g_hProc, &rc);
+        X = rc.left + 40;
+        Y = rc.top + 40;
+    }
+    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
+                         X, Y, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
+    if (cmd >= 5001 && cmd <= 5007)
+        DoProcessOp(cmd - 5001);
+    else if (cmd >= 5010 && cmd <= 5016) {
+        /* View 子页切换：5010→Modules(0) ... 5016→HotKey(6) */
+        int tab = cmd - 5010;
+        if (g_hTabs)
+            SendMessageA(g_hTabs, TCM_SETCURSEL, (WPARAM)tab, 0);
+        g_DetailTab = -1;
+        DoRefreshDetail();
+    }
+}
+
+/* ---- 模块右键操作：Copy Module Path / Dump Module Memory / Locate in File Tab ---- */
+ULONG64 DetailColumnQword(int Sel, int Sub)
+{
+    LVITEMA it;
+    char text[64];
+
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = Sel;
+    it.iSubItem = Sub;
+    it.pszText = text;
+    it.cchTextMax = sizeof(text);
+    if (!SendMessageA(g_hDetail, LVM_GETITEMTEXTA, (WPARAM)Sel, (LPARAM)&it))
+        return 0;
+    return _strtoui64(text, NULL, 16);
+}
+
+BOOL DetailColumnText(int Sel, int Sub, char *Out, int OutChars)
+{
+    LVITEMA it;
+
+    if (!Out || OutChars <= 0)
+        return FALSE;
+    Out[0] = 0;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = Sel;
+    it.iSubItem = Sub;
+    it.pszText = Out;
+    it.cchTextMax = OutChars;
+    return SendMessageA(g_hDetail, LVM_GETITEMTEXTA, (WPARAM)Sel, (LPARAM)&it) != 0;
+}
+
+/* ---- PageShow：frontend.c 的页面注册表在每次切页时调用（原 ShowPage 的 Proc 页段，逐字保留） ---- */
+void FeProcPagePageShow(HWND hWnd, int page)
+{
+    HWND hKill, hRef;
+
+int isProc = (page == 0);
+    if (g_hProc)       ShowWindow(g_hProc,       isProc ? SW_SHOW : SW_HIDE);
+    if (g_hProcStatus) ShowWindow(g_hProcStatus, isProc ? SW_SHOW : SW_HIDE);
+    if (g_hTabs)       ShowWindow(g_hTabs,       isProc ? SW_SHOW : SW_HIDE);
+    if (g_hDetail)     ShowWindow(g_hDetail,     isProc ? SW_SHOW : SW_HIDE);
+    if (g_hList)       ShowWindow(g_hList,       isProc ? SW_SHOW : SW_HIDE);
+    hKill = GetDlgItem(hWnd, IDC_KILL);
+    if (hKill) ShowWindow(hKill, isProc ? SW_SHOW : SW_HIDE);
+    if (isProc) {
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        SendMessageA(hWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(rc.right, rc.bottom));
+    }
+}
