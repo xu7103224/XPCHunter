@@ -1340,6 +1340,89 @@ static int CliSelftestSort_47(const char *lpCmdLine)
 
 
 // ============================================================================
+// 自检入口 --selftest-filter-cli（第二步增量2 的过滤器验证）
+//
+// 与 --selftest-sort-cli 同理：过滤发生在缓存索引上，跨进程无法可靠取证。
+// 这里在进程内直接驱动 ProcFilterMatch，用合成样本验证
+// "任一拍中即保留 / 空串恒通过 / 大小写无关 / 五列都参与"。
+// ============================================================================
+static int CliSelftestFilter_48(const char *lpCmdLine)
+{
+    static FE_PROCESS items[4];
+    static const struct { const char *f; const char *want; } cases[] = {
+        { "",             "100,200,300,400" },  /* 空串恒通过 */
+        { "explorer",     "100" },
+        { "EXPLORER",     "100" },              /* 大小写无关 */
+        { "svchost",      "200" },
+        { "system32",     "200,300" },          /* Path 列命中 */
+        { "malware",      "400" },              /* Name 列大小写无关 */
+        { "abb",          "400" },              /* EPROCESS 十六进制 */
+        { "inaccessible", "200,300" },          /* Ring3 状态列 */
+        { "accessible",   "100,400" },
+        { "nomatch-xyz",  "" },
+    };
+    unsigned char acc[4];
+    size_t ci;
+    int fail = 0;
+
+    if (!strstr(lpCmdLine, "--selftest-filter-cli"))
+        return FE_CLI_NEXT;
+
+    ZeroMemory(items, sizeof(items));
+    items[0].Pid = 100; items[0].Eprocess = 0x1000;
+    strcpy_s(items[0].Name, sizeof(items[0].Name), "explorer.exe");
+    wcscpy_s(items[0].Path, FE_PROC_PATH_CHARS, L"C:\\Windows\\explorer.exe");
+    items[1].Pid = 200; items[1].Eprocess = 0x2000;
+    strcpy_s(items[1].Name, sizeof(items[1].Name), "svchost.exe");
+    wcscpy_s(items[1].Path, FE_PROC_PATH_CHARS, L"C:\\Windows\\System32\\svchost.exe");
+    items[2].Pid = 300; items[2].Eprocess = 0x3000;
+    strcpy_s(items[2].Name, sizeof(items[2].Name), "lsass.exe");
+    wcscpy_s(items[2].Path, FE_PROC_PATH_CHARS, L"C:\\Windows\\System32\\lsass.exe");
+    items[3].Pid = 400; items[3].Eprocess = 0xABB0000;
+    strcpy_s(items[3].Name, sizeof(items[3].Name), "MALWARE.EXE");
+    wcscpy_s(items[3].Path, FE_PROC_PATH_CHARS, L"D:\\temp\\payload.exe");
+    acc[0] = 1; acc[1] = 0; acc[2] = 0; acc[3] = 1;
+
+    g_ProcCache.Count = 4;
+    g_ProcCache.Capacity = 4;
+    g_ProcCache.Items = items;
+    g_ProcAcc = acc;
+    g_ProcCacheValid = TRUE;
+
+    printf("filter selftest: 4 rows, 5 columns\n");
+    for (ci = 0; ci < sizeof(cases) / sizeof(cases[0]); ci++) {
+        char got[128];
+        int i;
+
+        got[0] = 0;
+        for (i = 0; i < 4; i++) {
+            if (ProcFilterMatch(&items[i], acc[i], cases[ci].f)) {
+                sprintf_s(got + strlen(got), sizeof(got) - strlen(got),
+                          "%s%d", got[0] ? "," : "", items[i].Pid);
+            }
+        }
+        printf("  filter \"%-13s\" -> pids=%-16s %s\n",
+               cases[ci].f, got,
+               strcmp(got, cases[ci].want) == 0 ? "OK" : "FAIL");
+        if (strcmp(got, cases[ci].want) != 0) {
+            printf("      expected: %s\n", cases[ci].want);
+            fail = 1;
+        }
+    }
+
+    /* 复位，避免影响后续 GUI 路径 */
+    g_ProcCache.Items = NULL;
+    g_ProcCache.Count = 0;
+    g_ProcCache.Capacity = 0;
+    g_ProcAcc = NULL;
+    g_ProcCacheValid = FALSE;
+
+    printf("filter selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 1 : 0;
+}
+
+
+// ============================================================================
 // 分发表：按原 frontend.c WinMain if 链的【源码顺序】排列。
 // 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
 // ——WinMain 据此落入 GUI 路径。
@@ -1440,6 +1523,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliScanCli_46(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestSort_47(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestFilter_48(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }

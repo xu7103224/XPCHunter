@@ -120,6 +120,8 @@
 #define IDC_HK_CBTABLE  1134
 /* 第二步增量：Process 页的 Auto Refresh 开关（1032 未被占用） */
 #define IDC_PROC_AUTO   1032
+/* 第二步增量2：Process 页的列过滤输入框 */
+#define IDC_PROC_FILTER 1033
 
 /* ---- 统一刷新模型：auto-refresh 共享定时器（frontend.c WM_TIMER 驱动；
    页面模块把本页刷新函数挂到 g_AutoRefFn，开关按钮各自实现） ---- */
@@ -232,6 +234,11 @@ extern BOOL g_ProcCacheValid;
 extern int  g_ProcSortCol;
 extern int  g_ProcSortDesc;
 int ProcCmp(const void *pa, const void *pb);
+/* 第二步增量2：列过滤（空串 = 不过滤；任一拍中即保留） */
+extern ULONG g_ProcShown;
+extern char  g_ProcFilter[128];
+void FeProcPageSetFilter(const char *filter);
+BOOL ProcFilterMatch(const FE_PROCESS *it, unsigned char acc, const char *filter);
 
 /* ---- FeRegistryPage.c ---- */
 extern HWND g_hRgTabs, g_hRgList, g_hRgStatus;
@@ -279,6 +286,7 @@ extern FE_OBJ_TYPES g_StObjTypes;
 extern FE_TROJAN_REPORT g_TrReport;
 extern XPCH_CLIENT g_Client;
 extern HWND g_hMainWnd;
+extern HWND g_hProcFilter;   /* 第二步增量2：Process 页列过滤框 */
 
 /* 共享 UI 助手（frontend.c 实现，页面模块调用） */
 int    FeInsertColumnA(HWND h, int i, const LVCOLUMNA *pc);

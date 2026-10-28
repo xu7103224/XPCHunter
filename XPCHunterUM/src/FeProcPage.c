@@ -24,7 +24,64 @@ unsigned char  *g_ProcAcc = NULL;
 BOOL g_ProcCacheValid = FALSE;
 int  g_ProcSortCol = -1;     /* -1 = 按驱动枚举序 */
 int  g_ProcSortDesc = 0;
+ULONG g_ProcShown = 0;       /* 过滤后实际渲染的行数 */
+char g_ProcFilter[128] = ""; /* 列过滤串（空 = 不过滤） */
 static BOOL g_ProcAutoOn = FALSE;
+
+/* 大小写无关的子串查找（不用 StrStrIA，避免多引 shlwapi） */
+static const char *ProcStrIStr(const char *Hay, const char *Needle)
+{
+    size_t nl;
+
+    if (!Needle || !Needle[0])
+        return Hay;
+    nl = strlen(Needle);
+    for (; *Hay; Hay++) {
+        size_t k;
+        for (k = 0; k < nl; k++) {
+            unsigned char a = (unsigned char)Hay[k];
+            unsigned char b = (unsigned char)Needle[k];
+            if (!a)
+                return NULL;
+            if (a >= 'A' && a <= 'Z') a = (unsigned char)(a - 'A' + 'a');
+            if (b >= 'A' && b <= 'Z') b = (unsigned char)(b - 'A' + 'a');
+            if (a != b)
+                break;
+            if (k + 1 == nl)
+                return Hay;
+        }
+    }
+    return NULL;
+}
+
+/* 一行是否通过过滤：PID / Name / Path / EPROCESS / Ring3 状态 任一列命中即保留。
+   空过滤串恒通过。 */
+BOOL ProcFilterMatch(const FE_PROCESS *it, unsigned char acc, const char *filter)
+{
+    char pid[32], ep[32], path[FE_PROC_PATH_CHARS * 2];
+    const char *state;
+
+    if (!filter || !filter[0])
+        return TRUE;
+
+    sprintf_s(pid, sizeof(pid), "%lu", it->Pid);
+    if (ProcStrIStr(pid, filter))
+        return TRUE;
+    if (ProcStrIStr(it->Name, filter))
+        return TRUE;
+    sprintf_s(ep, sizeof(ep), "%p", (void *)(ULONG_PTR)it->Eprocess);
+    if (ProcStrIStr(ep, filter))
+        return TRUE;
+    state = acc ? "accessible" : "INACCESSIBLE";
+    /* 状态列用精确匹配：'accessible' 是 'INACCESSIBLE' 的子串，
+       子串匹配会让两个状态互相误命中。 */
+    if (_stricmp(state, filter) == 0)
+        return TRUE;
+    FeWideToAnsi(it->Path, path, sizeof(path));
+    if (ProcStrIStr(path, filter))
+        return TRUE;
+    return FALSE;
+}
 
 int ProcCmp(const void *pa, const void *pb)
 {
@@ -55,24 +112,28 @@ int ProcCmp(const void *pa, const void *pb)
     return g_ProcSortDesc ? -r : r;
 }
 
-/* 按当前排序把缓存渲染进列表（列文本逻辑与原实现一致） */
+/* 按当前过滤 + 排序把缓存渲染进列表（列文本逻辑与原实现一致） */
 static void ProcRenderRows(void)
 {
     int *order;
-    ULONG i, count = g_ProcCacheValid ? g_ProcCache.Count : 0;
+    ULONG i, n = 0, count = g_ProcCacheValid ? g_ProcCache.Count : 0;
 
     SendMessageA(g_hProc, LVM_DELETEALLITEMS, 0, 0);
+    g_ProcShown = 0;
     if (!count)
         return;
     order = (int *)malloc(count * sizeof(int));
     if (!order)
         return;
+    /* 过滤先于排序：只把命中行放进索引，qsort 的规模随之缩小 */
     for (i = 0; i < count; i++)
-        order[i] = (int)i;
-    if (g_ProcSortCol >= 0)
-        qsort(order, count, sizeof(int), ProcCmp);
+        if (ProcFilterMatch(&g_ProcCache.Items[i],
+                            g_ProcAcc ? g_ProcAcc[i] : 0, g_ProcFilter))
+            order[n++] = (int)i;
+    if (g_ProcSortCol >= 0 && n > 1)
+        qsort(order, n, sizeof(int), ProcCmp);
 
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < n; i++) {
         FE_PROCESS *it = &g_ProcCache.Items[order[i]];
         LVITEMA item;
         char buf[256];
@@ -104,10 +165,32 @@ static void ProcRenderRows(void)
 
         ZeroMemory(&item, sizeof(item));
         item.iSubItem = 4;
-        item.pszText = g_ProcAcc[order[i]] ? (LPSTR)"accessible" : (LPSTR)"INACCESSIBLE";
+        item.pszText = g_ProcAcc && g_ProcAcc[order[i]] ? (LPSTR)"accessible" : (LPSTR)"INACCESSIBLE";
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
     }
+    g_ProcShown = n;
     free(order);
+}
+
+/* 过滤串变更（EN_CHANGE 或按钮触发）：重新渲染，状态行同步显示命中数 */
+void FeProcPageSetFilter(const char *filter)
+{
+    ULONG total = g_ProcCacheValid ? g_ProcCache.Count : 0;
+    char buf[256];
+
+    if (!filter)
+        filter = "";
+    strncpy_s(g_ProcFilter, sizeof(g_ProcFilter), filter, _TRUNCATE);
+
+    if (!g_ProcCacheValid)
+        return;   /* 还没刷过，等 DoRefreshProcs 时生效 */
+    ProcRenderRows();
+    if (g_ProcShown == total)
+        sprintf_s(buf, sizeof(buf), "Processes: %lu", total);
+    else
+        sprintf_s(buf, sizeof(buf), "Processes: %lu (filter \"%s\" matched %lu)",
+                  total, g_ProcFilter, g_ProcShown);
+    SetWindowTextA(g_hProcStatus, buf);
 }
 
 /* 列头点击：同列再点反向，异列重新升序；缓存为空时忽略 */
@@ -487,12 +570,19 @@ void DoRefreshProcs(void)
                       "Processes: %lu, Hidden Processes: %lu, "
                       "Ring3 Inaccessible Processes: %lu",
                       count, hidden, inaccessible);
+            if (g_ProcFilter[0])
+                sprintf_s(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                          "  (filter \"%s\" matched %lu)", g_ProcFilter, g_ProcShown);
             SetWindowTextA(g_hProcStatus, buf);
             return;
         }
     }
 
-    sprintf_s(buf, sizeof(buf), "Processes: %lu", count);
+    if (g_ProcFilter[0])
+        sprintf_s(buf, sizeof(buf), "Processes: %lu (filter \"%s\" matched %lu)",
+                  count, g_ProcFilter, g_ProcShown);
+    else
+        sprintf_s(buf, sizeof(buf), "Processes: %lu", count);
     SetWindowTextA(g_hProcStatus, buf);
 
     /* 自动选中一行，让子视图立即有内容：优先 explorer.exe（System/Registry
@@ -743,6 +833,8 @@ int isProc = (page == 0);
         HWND hAuto = GetDlgItem(hWnd, IDC_PROC_AUTO);
         if (hAuto) ShowWindow(hAuto, isProc ? SW_SHOW : SW_HIDE);
     }
+    /* 第二步增量2：列过滤框同理 */
+    if (g_hProcFilter) ShowWindow(g_hProcFilter, isProc ? SW_SHOW : SW_HIDE);
     if (isProc) {
         RECT rc;
         GetClientRect(hWnd, &rc);

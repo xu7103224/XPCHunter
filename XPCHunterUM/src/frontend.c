@@ -37,6 +37,8 @@ XPCH_CLIENT g_Client; /* 2026-10-28 去静态：CliMain.c 共用 */
 static HWND g_hStatus;   /* 主窗口状态栏（main 模块） */
 HWND g_hMainTabs, g_hPageHint;
 HWND g_hMainWnd;
+/* 第二步增量2：Process 页的列过滤输入框（PageShow 控制显隐） */
+HWND g_hProcFilter = NULL;
 /* 第二步增量：统一刷新模型——当前页的 auto-refresh 入口（页模块设置） */
 void (*g_AutoRefFn)(void) = NULL;
 /* Key 子页当前打开的路径；Kernel 页 "Locate in Registry Tab" 会改写它 */
@@ -639,6 +641,14 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
            压在状态行右端之上创建（z 序更高），左侧留给状态文本。 */
         CreateWindowA("BUTTON", "Auto Refresh: OFF", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
                       858, 376, 94, 24, hWnd, (HMENU)IDC_PROC_AUTO, hInst, NULL);
+        /* 第二步增量2：列过滤（Process 页专属；空串 = 不过滤）。
+           布局在 WM_SIZE 的 Process 分支里定，这里只给初始位置。 */
+        g_hProcFilter = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+                                        WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+                                        10, 350, 240, 24, hWnd,
+                                        (HMENU)IDC_PROC_FILTER, hInst, NULL);
+        SendMessageA(g_hProcFilter, EM_SETCUEBANNER, TRUE,
+                     (LPARAM)L"Filter (PID / Name / Path / EPROCESS / State)");
 
         /* 明细子视图：tab + 一个 ListView（列随 tab 切换） */
         g_hTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
@@ -957,6 +967,21 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 if (nt > 0)
                     NwSelectNode(nt);
             }
+            /* --filter TEXT：启动即套用 Process 页列过滤（验证与自动化用；
+               过滤串在 DoRefreshProcs 之前先写进编辑框，刷新时生效） */
+            pk = cl ? strstr(cl, "--filter ") : NULL;
+            if (pk && g_hProcFilter) {
+                const char *v = pk + 9;
+                char f[128];
+                size_t i = 0;
+                while (v[i] && v[i] != ' ' && i + 1 < sizeof(f)) {
+                    f[i] = v[i];
+                    i++;
+                }
+                f[i] = 0;
+                SetWindowTextA(g_hProcFilter, f);
+                FeProcPageSetFilter(f);   /* 缓存未就绪时只记录，刷新后生效 */
+            }
         }
 
         SetWindowTextA(hWnd, "PC Hunter Replica");
@@ -981,12 +1006,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (g_MainTab == 0) {
             /* Process 页：进程列表(上半) + 子视图 Tab + 明细列表(下半) + 命令测试器 */
             int listH = (pageBottom - pageTop) / 2 - 40;
-            int midY, detailH;
+            int midY, detailH, filterH = 30;   /* 过滤框高度 + 间隙 */
             if (listH < 100) listH = 100;
-            midY = pageTop + listH + 4;
+            listH -= filterH;                  /* 列表底部让出过滤框的位置 */
+            if (listH < 80) listH = 80;
+            midY = pageTop + listH + filterH;
             detailH = pageBottom - (midY + 28) - 150;
             if (detailH < 80) detailH = 80;
             if (g_hProc)       MoveWindow(g_hProc, 10, pageTop, w, listH, TRUE);
+            /* 第二步增量2：过滤框贴在进程列表与状态行之间 */
+            if (g_hProcFilter) MoveWindow(g_hProcFilter, 10, midY - filterH + 2, 260, 24, TRUE);
             if (g_hProcStatus) MoveWindow(g_hProcStatus, 10, midY, w, 20, TRUE);
             /* 第二步增量：Auto Refresh 开关贴状态行右端（随窗口重排） */
             {
@@ -1187,6 +1216,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
 
     case WM_COMMAND:
+        /* 第二步增量2：过滤框边打边筛（EN_CHANGE 是通知码，不是命令 ID） */
+        if (LOWORD(wParam) == IDC_PROC_FILTER && HIWORD(wParam) == EN_CHANGE) {
+            char filter[128];
+            GetDlgItemTextA(hWnd, IDC_PROC_FILTER, filter, sizeof(filter));
+            FeProcPageSetFilter(filter);
+            return 0;
+        }
         switch (LOWORD(wParam)) {
         case IDC_CONNECT: DoConnect(); return 0;
         case IDC_REFRESH: DoRefreshProcs(); return 0;
