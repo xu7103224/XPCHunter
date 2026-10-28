@@ -4,6 +4,7 @@
 // ============================================================================
 #include "XPCHunterUM.h"
 #include "FePages.h"
+extern int g_FeSysViewSilent;
 
 HWND g_hOtList, g_hOtStatus, g_hOtPath;
 
@@ -11,7 +12,15 @@ HWND g_hOtList, g_hOtStatus, g_hOtPath;
 void OtAddRow(const char *k, const char *v)
 {
     LVITEMA it;
-    int i = ListView_GetItemCount(g_hOtList);
+    int i;
+
+    /* 自检（--selftest-sysviews-cli）时列表尚未创建，直接忽略即可；
+       数据源的正确性由各自的返回值体现。 */
+    if (!g_hOtList)
+        return;
+    if (g_FeSysViewSilent)
+        return;
+    i = ListView_GetItemCount(g_hOtList);
     ZeroMemory(&it, sizeof(it));
     it.mask = LVIF_TEXT;
     it.iItem = i;
@@ -82,7 +91,37 @@ void DoRefreshOther(void)
               "Other: OS %s; %d file-version samples",
               os.MarketName[0] ? os.MarketName : "?", ListView_GetItemCount(g_hOtList));
     SetWindowTextA(g_hOtStatus, buf);
+
+    /* 2026-10-29：追加系统类视图（用户账户 / 输入法 / 系统解锁 / WDF 驱动）
+       —— 对应 功能差距分析 §2.8 的 CUserNameDialog / CImeDialog /
+       CSystemUnlockDialog / CWdfDialog 四项。 */
+    OtAddRow("", "");
+    {
+        ULONG users = FeLoadUserAccounts();
+        char line[128];
+        sprintf_s(line, sizeof(line), "--- User Accounts (%lu) ---", users);
+        OtAddRow(line, "");
+    }
+    {
+        ULONG imes = FeLoadInputMethods();
+        char line[128];
+        sprintf_s(line, sizeof(line), "--- Input Methods (%lu) ---", imes);
+        OtAddRow(line, "");
+    }
+    {
+        ULONG locked = FeLoadLockedSystemPaths();
+        char line[128];
+        sprintf_s(line, sizeof(line), "--- Locked System Paths (%lu) ---", locked);
+        OtAddRow(line, "");
+    }
+    {
+        ULONG wdf = FeLoadWdfDrivers();
+        char line[128];
+        sprintf_s(line, sizeof(line), "--- WDF Drivers (%lu) ---", wdf);
+        OtAddRow(line, "");
+    }
 }
+
 
 /* ---- PageShow：frontend.c 的页面注册表在每次切页时调用（原 ShowPage 的 Other 页段，逐字保留） ---- */
 void FeOtherPagePageShow(HWND hWnd, int page)

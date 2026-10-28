@@ -351,10 +351,34 @@ void  FeListSelectUnderCursor(HWND hList, int X, int Y);
 /* ---- FeCommonMenu.c：剩余页面的通用右键菜单（Refresh / Export / Copy） ---- */
 void DoNetworkContextMenu(HWND hWnd, int X, int Y);
 void DoFileContextMenu(HWND hWnd, int X, int Y);
+
+/* ---- FeFileTools.c：File 页纯用户态工具集（§2.7 补全） ---- */
+ULONG FeSearchFiles(const char *RootDir, const char *Pattern, int MaxDepth,
+                    ULONG64 MinSize, volatile LONG *Cancel);
+const char *FeSearchFileAt(ULONG Index, ULONG64 *OutSize, DWORD *OutAttr);
+BOOL  FeHashFile(const char *Path, unsigned int AlgId, char *OutHex, int OutChars);
+BOOL  FeGetFileAssociation(const char *Ext, char *ProgId, int ProgIdChars,
+                           char *Command, int CommandChars);
+BOOL  FeQueryPendingFileOps(char *Out, int OutChars);
+BOOL  FeScheduleDeleteOnReboot(const char *Path);
+BOOL  FeScheduleRenameOnReboot(const char *From, const char *To);
+BOOL  FeRenameFileNow(const char *From, const char *To);
+BOOL  FeFileSearchDialog(HWND Owner, char *OutDir, int DirChars,
+                         char *OutPattern, int PatChars, int *OutDepth, ULONG64 *OutMinSize);
+BOOL  FeFilePendingView(HWND Owner);
+BOOL  FeFileAssociationView(HWND Owner, const char *Path);
+BOOL  FeFileHashView(HWND Owner, const char *Path);
 void DoServiceCommonContextMenu(HWND hWnd, int X, int Y);
 void DoOtherContextMenu(HWND hWnd, int X, int Y);
 void DoSettingContextMenu(HWND hWnd, int X, int Y);
 void DoFireeyeContextMenu(HWND hWnd, int X, int Y);
 void DoTrojanContextMenu(HWND hWnd, int X, int Y);
+
+/* ---- FeSystemViews.c：系统类纯用户态视图（§2.8 补全） ---- */
+ULONG FeLoadUserAccounts(void);
+ULONG FeLoadInputMethods(void);
+ULONG FeLoadLockedSystemPaths(void);
+ULONG FeLoadWdfDrivers(void);
+void  FeLoadSystemExtras(void);
 
 #endif /* XPCH_FEPAGES_H */

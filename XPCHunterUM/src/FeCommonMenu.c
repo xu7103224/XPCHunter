@@ -152,13 +152,6 @@ void DoNetworkContextMenu(HWND hWnd, int X, int Y)
                         0, 1, 4);
 }
 
-void DoFileContextMenu(HWND hWnd, int X, int Y)
-{
-    FeCommonContextMenu(hWnd, FE_PG_FILE, X, Y, "PCHunter_Files",
-                        "Copy Name", "Copy Path", NULL,
-                        0, 4, 0);
-}
-
 void DoServiceCommonContextMenu(HWND hWnd, int X, int Y)
 {
     FeCommonContextMenu(hWnd, FE_PG_SERVICE, X, Y, "PCHunter_Services",

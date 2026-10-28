@@ -1876,6 +1876,156 @@ static int CliSelftestMenu_53(const char *lpCmdLine)
     return fail ? 2 : 0;
 }
 
+// ============================================================================
+// 自检入口 --selftest-filetools-cli（2026-10-29 §2.7 File 页补全验证）
+// 自检入口 --selftest-sysviews-cli（2026-10-29 §2.8 系统类视图补全验证）
+// ============================================================================
+static int CliSelftestFileTools_54(const char *lpCmdLine)
+{
+    int fail = 0;
+    char hash[80];
+
+    if (!strstr(lpCmdLine, "--selftest-filetools-cli"))
+        return FE_CLI_NEXT;
+
+    printf("filetools selftest: pure user-mode file capabilities\n");
+
+    /* 1. 搜索 */
+    {
+        char root[MAX_PATH];
+        ULONG hits;
+        int found = 0;
+        ULONG i;
+
+        GetWindowsDirectoryA(root, sizeof(root));
+        hits = FeSearchFiles(root, "kernel32.dll", 4, 0, NULL);
+        for (i = 0; i < hits; i++) {
+            const char *p = FeSearchFileAt(i, NULL, NULL);
+            size_t n;
+            if (!p)
+                continue;
+            n = strlen(p);
+            if (n >= 12 && _stricmp(p + n - 12, "kernel32.dll") == 0) {
+                found = 1;
+                break;
+            }
+        }
+        printf("  [%s] search kernel32.dll under %s -> %lu hit(s)\n",
+               (hits > 0 && found) ? "PASS" : "FAIL", root, hits);
+        if (!(hits > 0 && found)) fail++;
+    }
+
+    /* 2. 哈希 */
+    {
+        char dll[MAX_PATH];
+        BOOL ok1, ok2, ok3;
+
+        GetSystemDirectoryA(dll, sizeof(dll));
+        strcat_s(dll, sizeof(dll), "\\kernel32.dll");
+
+        hash[0] = 0;
+        ok1 = FeHashFile(dll, CALG_MD5, hash, sizeof(hash));
+        printf("  [%s] MD5    %s len=%d\n", (ok1 && strlen(hash) == 32) ? "PASS" : "FAIL",
+               ok1 ? hash : "(fail)", ok1 ? (int)strlen(hash) : 0);
+        if (!(ok1 && strlen(hash) == 32)) fail++;
+
+        hash[0] = 0;
+        ok2 = FeHashFile(dll, CALG_SHA1, hash, sizeof(hash));
+        printf("  [%s] SHA1   %s len=%d\n", (ok2 && strlen(hash) == 40) ? "PASS" : "FAIL",
+               ok2 ? hash : "(fail)", ok2 ? (int)strlen(hash) : 0);
+        if (!(ok2 && strlen(hash) == 40)) fail++;
+
+        hash[0] = 0;
+        ok3 = FeHashFile(dll, CALG_SHA_256, hash, sizeof(hash));
+        printf("  [%s] SHA256 %s len=%d\n", (ok3 && strlen(hash) == 64) ? "PASS" : "FAIL",
+               ok3 ? hash : "(fail)", ok3 ? (int)strlen(hash) : 0);
+        if (!(ok3 && strlen(hash) == 64)) fail++;
+    }
+
+    /* 3. 文件关联 */
+    {
+        char progid[256], cmd[1024];
+        BOOL ok = FeGetFileAssociation(".txt", progid, sizeof(progid), cmd, sizeof(cmd));
+        printf("  [%s] assoc .txt -> %s\n", ok ? "PASS" : "FAIL", ok ? progid : "(none)");
+        if (!ok) fail++;
+    }
+
+    /* 4. Pending 查询（无挂起操作也是合法结果） */
+    {
+        char buf[2048];
+        BOOL ok = FeQueryPendingFileOps(buf, sizeof(buf));
+        printf("  [PASS] pending query -> %s\n",
+               ok ? "has scheduled operations" : "no scheduled operations");
+    }
+
+    /* 5. 重命名 */
+    {
+        char a[MAX_PATH * 2], b[MAX_PATH * 2];
+        HANDLE h;
+        BOOL ok = FALSE;
+        DWORD tmpLen;
+
+        a[0] = 0;
+        tmpLen = GetTempPathA(MAX_PATH, a);
+        if (tmpLen == 0 || tmpLen >= MAX_PATH)
+            strcpy_s(a, sizeof(a), "C:\\Windows\\Temp\\");
+        sprintf_s(b, sizeof(b), "%sxpch_rename_dst.tmp", a);
+        strcat_s(a, sizeof(a), "xpch_rename_src.tmp");
+        DeleteFileA(a);
+        DeleteFileA(b);
+        h = CreateFileA(a, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+        if (h != INVALID_HANDLE_VALUE) {
+            DWORD w;
+            WriteFile(h, "x", 1, &w, NULL);
+            CloseHandle(h);
+            if (FeRenameFileNow(a, b)) {
+                if (GetFileAttributesA(b) != INVALID_FILE_ATTRIBUTES &&
+                    GetFileAttributesA(a) == INVALID_FILE_ATTRIBUTES)
+                    ok = TRUE;
+            }
+            DeleteFileA(b);
+        }
+        printf("  [%s] rename temp file\n", ok ? "PASS" : "FAIL");
+        if (!ok) fail++;
+    }
+
+    printf("filetools selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 2 : 0;
+}
+
+extern int g_FeSysViewSilent;
+static int CliSelftestSysViews_55(const char *lpCmdLine)
+{
+    int fail = 0;
+    ULONG n;
+
+    if (!strstr(lpCmdLine, "--selftest-sysviews-cli"))
+        return FE_CLI_NEXT;
+
+    printf("sysviews selftest: pure user-mode system views\n");
+    /* 自检时列表尚未创建：静默模式下 OtAddRow 只计数不写 UI */
+    g_FeSysViewSilent = 1;
+
+    n = FeLoadUserAccounts();
+    printf("  [%s] user accounts -> %lu entry(ies)\n", n > 0 ? "PASS" : "FAIL", n);
+    if (n == 0) fail++;
+
+    n = FeLoadInputMethods();
+    printf("  [%s] input methods -> %lu layout(s)\n", n > 0 ? "PASS" : "FAIL", n);
+    if (n == 0) fail++;
+
+    n = FeLoadLockedSystemPaths();
+    printf("  [%s] locked system paths -> %lu path(s)\n", n > 0 ? "PASS" : "FAIL", n);
+    if (n == 0) fail++;
+
+    n = FeLoadWdfDrivers();
+    printf("  [INFO] WDF drivers -> %lu entry(ies) (0 is acceptable)\n", n);
+
+    g_FeSysViewSilent = 0;
+    printf("sysviews selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 2 : 0;
+}
+
 int FeCliDispatch(const char *lpCmdLine)
 {
     int r;
@@ -1984,6 +2134,10 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliSelftestTheme_52(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestMenu_53(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestFileTools_54(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestSysViews_55(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }
