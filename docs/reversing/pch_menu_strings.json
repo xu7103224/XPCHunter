@@ -1,0 +1,3318 @@
+{
+ "source": "samples/PCHunter_2024.09.02/PCHunter64.exe",
+ "method": "multi-language pointer arrays at 0x14069D000..0x1406A2000 (stride 0x18)",
+ "language_index_symbol": "dword_1407738AC (0=en, 1=zh-CN, 2=zh-TW)",
+ "count": 662,
+ "entries": {
+  "0x14069D0A8": {
+   "en": "地址",
+   "zh_cn": "地址",
+   "zh_tw": "Binary"
+  },
+  "0x14069D0C0": {
+   "en": "二进制",
+   "zh_cn": "二進制",
+   "zh_tw": "Asm"
+  },
+  "0x14069D0D8": {
+   "en": "汇编",
+   "zh_cn": "彙編",
+   "zh_tw": "Refresh"
+  },
+  "0x14069D0F0": {
+   "en": "刷新",
+   "zh_cn": "刷新",
+   "zh_tw": "Disassembler"
+  },
+  "0x14069D108": {
+   "en": "反汇编器",
+   "zh_cn": "反彙編器",
+   "zh_tw": "Address:"
+  },
+  "0x14069D120": {
+   "en": "地址：",
+   "zh_cn": "地址：",
+   "zh_tw": "Size(Bytes):"
+  },
+  "0x14069D138": {
+   "en": "大小(字节)：",
+   "zh_cn": "大小(字節)：",
+   "zh_tw": "Disasm"
+  },
+  "0x14069D150": {
+   "en": "反汇编",
+   "zh_cn": "反彙編",
+   "zh_tw": "Fun Name"
+  },
+  "0x14069D168": {
+   "en": "函数名称",
+   "zh_cn": "函數名稱",
+   "zh_tw": "Current Entry"
+  },
+  "0x14069D180": {
+   "en": "当前函数地址",
+   "zh_cn": "當前函數地址",
+   "zh_tw": "Hook"
+  },
+  "0x14069D198": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Original Entry"
+  },
+  "0x14069D1B0": {
+   "en": "原始函数地址",
+   "zh_cn": "原始函數地址",
+   "zh_tw": "Module"
+  },
+  "0x14069D1E0": {
+   "en": "Name",
+   "zh_cn": "名称",
+   "zh_tw": "名稱"
+  },
+  "0x14069D1F8": {
+   "en": "Debug Register",
+   "zh_cn": "调试寄存器值",
+   "zh_tw": "調試寄存器值"
+  },
+  "0x14069D210": {
+   "en": "Pid",
+   "zh_cn": "进程Id",
+   "zh_tw": "進程Id"
+  },
+  "0x14069D228": {
+   "en": "ETHREAD",
+   "zh_cn": "ETHREAD",
+   "zh_tw": "ETHREAD"
+  },
+  "0x14069D240": {
+   "en": "Image Path",
+   "zh_cn": "进程路径",
+   "zh_tw": "進程路徑"
+  },
+  "0x14069D270": {
+   "en": "KiDebugRoutine正常",
+   "zh_cn": "KiDebugRoutine Hooked",
+   "zh_tw": "KiDebugRoutine被Hook"
+  },
+  "0x14069D288": {
+   "en": "KiDebugRoutine被Hook",
+   "zh_cn": "Drx Count: ",
+   "zh_tw": "Drx数量："
+  },
+  "0x14069D2A0": {
+   "en": "Drx數量：",
+   "zh_cn": "System Debug",
+   "zh_tw": "系统调试"
+  },
+  "0x14069D2B8": {
+   "en": "系統調試",
+   "zh_cn": "Refresh",
+   "zh_tw": "刷新"
+  },
+  "0x14069D2D0": {
+   "en": "刷新",
+   "zh_cn": "Disassembling current entry",
+   "zh_tw": "反汇编当前函数地址"
+  },
+  "0x14069D2E8": {
+   "en": "反彙編當前函數地址",
+   "zh_cn": "Disassembling original entry",
+   "zh_tw": "反汇编原始函数地址"
+  },
+  "0x14069D300": {
+   "en": "反彙編原始函數地址",
+   "zh_cn": "Restore",
+   "zh_tw": "恢复"
+  },
+  "0x14069D318": {
+   "en": "恢復",
+   "zh_cn": "Find Target",
+   "zh_tw": "定位到模块文件"
+  },
+  "0x14069D330": {
+   "en": "定位到模塊文件",
+   "zh_cn": "Properties",
+   "zh_tw": "查看模块属性"
+  },
+  "0x14069D348": {
+   "en": "查看模塊屬性",
+   "zh_cn": "Locate in File Tab",
+   "zh_tw": "定位到PC Hunter文件管理器"
+  },
+  "0x14069D360": {
+   "en": "定位到PC Hunter文件管理器",
+   "zh_cn": "Clear Debug Register",
+   "zh_tw": "清除调试寄存器"
+  },
+  "0x14069D378": {
+   "en": "清除調試寄存器",
+   "zh_cn": "Dump Kernel Memory",
+   "zh_tw": "拷贝内核内存"
+  },
+  "0x14069D390": {
+   "en": "拷貝內核內存",
+   "zh_cn": "OK",
+   "zh_tw": "确定"
+  },
+  "0x14069D3A8": {
+   "en": "確定",
+   "zh_cn": "Cancel",
+   "zh_tw": "取消"
+  },
+  "0x14069D3C0": {
+   "en": "取消",
+   "zh_cn": "Address:",
+   "zh_tw": "地址："
+  },
+  "0x14069D3D8": {
+   "en": "地址：",
+   "zh_cn": "Size:",
+   "zh_tw": "大小："
+  },
+  "0x14069D408": {
+   "en": "文件名",
+   "zh_cn": "文件名",
+   "zh_tw": "File Path"
+  },
+  "0x14069D420": {
+   "en": "文件路径",
+   "zh_cn": "文件路徑",
+   "zh_tw": "MD5"
+  },
+  "0x14069D438": {
+   "en": "MD5",
+   "zh_cn": "MD5",
+   "zh_tw": "State"
+  },
+  "0x14069D450": {
+   "en": "状态",
+   "zh_cn": "狀態",
+   "zh_tw": "Upload"
+  },
+  "0x14069D468": {
+   "en": "上传",
+   "zh_cn": "上傳",
+   "zh_tw": "Cancel"
+  },
+  "0x14069D480": {
+   "en": "取消上传",
+   "zh_cn": "取消上傳",
+   "zh_tw": "Query Error"
+  },
+  "0x14069D498": {
+   "en": "查询出错",
+   "zh_cn": "查詢出錯",
+   "zh_tw": "Nothing"
+  },
+  "0x14069D4B0": {
+   "en": "正在分析，请稍等几分钟",
+   "zh_cn": "正在分析，請稍等幾分鐘",
+   "zh_tw": "Risk Level: %d"
+  },
+  "0x14069D4C8": {
+   "en": "风险级别: %d，您可以双击本行查看火眼报告详情",
+   "zh_cn": "風險級別: %d，您可以雙擊本行查看火眼報告詳情",
+   "zh_tw": "Refresh"
+  },
+  "0x14069D4E0": {
+   "en": "刷新",
+   "zh_cn": "刷新",
+   "zh_tw": "View the result"
+  },
+  "0x14069D4F8": {
+   "en": "查看火眼分析结果",
+   "zh_cn": "查看火眼分析結果",
+   "zh_tw": "Delete upload record"
+  },
+  "0x14069D510": {
+   "en": "删除上传记录",
+   "zh_cn": "刪除上傳記錄",
+   "zh_tw": "View the result"
+  },
+  "0x14069D540": {
+   "en": "Upload",
+   "zh_cn": "\r\n本功能使用了金山火眼模块，您可以在此上传可疑文件到金山火眼分析，并在此可查看您上传的所有文件的分析结果。\r\n一般上传文件几分钟后，您就可在此查看初步的分析结果了，风险级别越高表示越危险(最高为10分)，详细的报告您可以通过双击相应条目跳转到火眼官网查看。\r\n声明：金山火眼模块的版权归金山官方所有，由火眼分析产生的数据版权亦归金山所有。",
+   "zh_tw": "\r\n本功能使用了金山火眼模塊，您可以在此上傳可疑文件到金山火眼分析，并在此可查看您上傳的所有文件的分析結果。\r\n一般上傳文件幾分鐘後，您就可在此查看初步的分析結果了，風險級別越高表示越危險（最高為10分），詳細的報告您可以通過雙擊相應條目跳轉到火眼官網查看。\r\n聲明：金山火眼模塊的版權歸金山官方所有，由火眼分析產生的數據版權亦歸金山所有。"
+  },
+  "0x14069D558": {
+   "en": "Create Thread Failed",
+   "zh_cn": "创建线程失败",
+   "zh_tw": "創建線程失敗"
+  },
+  "0x14069D570": {
+   "en": "Please input valid file path.",
+   "zh_cn": "请输入要上传的文件路径",
+   "zh_tw": "請輸入要上傳的文件路徑"
+  },
+  "0x14069D588": {
+   "en": "File Path Error",
+   "zh_cn": "请输入存在的文件路径",
+   "zh_tw": "請輸入存在的文件路徑"
+  },
+  "0x14069D5A0": {
+   "en": "Delete OK",
+   "zh_cn": "删除成功",
+   "zh_tw": "刪除成功"
+  },
+  "0x14069D5B8": {
+   "en": "Delete Failed",
+   "zh_cn": "删除失败",
+   "zh_tw": "刪除失敗"
+  },
+  "0x14069D5D0": {
+   "en": "Delete File",
+   "zh_cn": "删除文件",
+   "zh_tw": "刪除文件"
+  },
+  "0x14069D5E8": {
+   "en": "Dump OK!",
+   "zh_cn": "拷贝成功！",
+   "zh_tw": "拷貝成功！"
+  },
+  "0x14069D600": {
+   "en": "Dump Memory",
+   "zh_cn": "拷贝内存",
+   "zh_tw": "拷貝內存"
+  },
+  "0x14069D618": {
+   "en": "Dump Failed!",
+   "zh_cn": "拷贝失败！",
+   "zh_tw": "拷貝失敗！"
+  },
+  "0x14069D630": {
+   "en": "The file has exist, do you truncate it?",
+   "zh_cn": "文件已经存在，是否覆盖？",
+   "zh_tw": "文件已經存在，是否覆蓋？"
+  },
+  "0x14069D648": {
+   "en": "Dangerous operation,continue?",
+   "zh_cn": "您真的要卸载么？卸载很大可能会导致机器蓝屏！",
+   "zh_tw": "您真的要卸載么？卸載很大可能會導致機器藍屏！"
+  },
+  "0x14069D660": {
+   "en": "Suspicious DriverObject",
+   "zh_cn": "可疑驱动对象",
+   "zh_tw": "可疑驅動對象"
+  },
+  "0x14069D678": {
+   "en": "Suspicious PE Image",
+   "zh_cn": "可疑PE映像",
+   "zh_tw": "可疑PE映像"
+  },
+  "0x14069D690": {
+   "en": "Drivers: ",
+   "zh_cn": "驱动： ",
+   "zh_tw": "驅動： "
+  },
+  "0x14069D6A8": {
+   "en": "Hidden Drivers: ",
+   "zh_cn": "隐藏驱动： ",
+   "zh_tw": "隱藏驅動： "
+  },
+  "0x14069D6C0": {
+   "en": "Suspicious DriverObject: ",
+   "zh_cn": "可疑驱动对象： ",
+   "zh_tw": "可疑驅動對象： "
+  },
+  "0x14069D6D8": {
+   "en": "Suspicious PE Image: ",
+   "zh_cn": "可疑PE映像： ",
+   "zh_tw": "可疑PE映像： "
+  },
+  "0x14069D6F0": {
+   "en": "Hidden Drivers",
+   "zh_cn": "隐藏驱动",
+   "zh_tw": "隱藏驅動"
+  },
+  "0x14069D720": {
+   "en": "刷新",
+   "zh_cn": "Dump Module Memory",
+   "zh_tw": "拷贝模块内存"
+  },
+  "0x14069D738": {
+   "en": "拷貝模塊內存",
+   "zh_cn": "Dump Kernel Memory",
+   "zh_tw": "拷贝内核内存"
+  },
+  "0x14069D750": {
+   "en": "拷貝內核內存",
+   "zh_cn": "Delete Driver(File)",
+   "zh_tw": "删除驱动(文件)"
+  },
+  "0x14069D768": {
+   "en": "刪除驅動(文件)",
+   "zh_cn": "Delete Driver(File And Reg)",
+   "zh_tw": "删除驱动(文件和注册表)"
+  },
+  "0x14069D780": {
+   "en": "刪除驅動(文件和注冊表)",
+   "zh_cn": "Unload Driver(Dangerous)",
+   "zh_tw": "卸载驱动(危险)"
+  },
+  "0x14069D798": {
+   "en": "卸載驅動(危險)",
+   "zh_cn": "Verify Driver Signature",
+   "zh_tw": "校验数字签名"
+  },
+  "0x14069D7B0": {
+   "en": "校驗數字簽名",
+   "zh_cn": "Verify All Driver Signatrue",
+   "zh_tw": "校验所有数字签名"
+  },
+  "0x14069D7C8": {
+   "en": "校驗所有數字簽名",
+   "zh_cn": "Only Show Loaded Driver",
+   "zh_tw": "仅显示已加载驱动"
+  },
+  "0x14069D7E0": {
+   "en": "僅顯示已加載驅動",
+   "zh_cn": "Copy Driver Name",
+   "zh_tw": "复制驱动名"
+  },
+  "0x14069D7F8": {
+   "en": "複製驅動名",
+   "zh_cn": "Copy Driver Path",
+   "zh_tw": "复制驱动路径"
+  },
+  "0x14069D810": {
+   "en": "複製驅動路徑",
+   "zh_cn": "Search Online",
+   "zh_tw": "在线搜索驱动名"
+  },
+  "0x14069D828": {
+   "en": "在線搜索驅動名",
+   "zh_cn": "Analyse Online",
+   "zh_tw": "在线分析"
+  },
+  "0x14069D840": {
+   "en": "在線分析",
+   "zh_cn": "Find Target",
+   "zh_tw": "定位到驱动文件"
+  },
+  "0x14069D858": {
+   "en": "定位到驅動文件",
+   "zh_cn": "Properties",
+   "zh_tw": "查看驱动文件属性"
+  },
+  "0x14069D870": {
+   "en": "查看驅動文件屬性",
+   "zh_cn": "Open By RegEdit",
+   "zh_tw": "用RegEdit打开对应注册表"
+  },
+  "0x14069D888": {
+   "en": "用RegEdit打開對應註冊表",
+   "zh_cn": "Locate in Registry Tab",
+   "zh_tw": "定位到PC Hunter注册表管理器"
+  },
+  "0x14069D8A0": {
+   "en": "定位到PC Hunter注冊表管理器",
+   "zh_cn": "Locate in File Tab",
+   "zh_tw": "定位到PC Hunter文件管理器"
+  },
+  "0x14069D8B8": {
+   "en": "定位到PC Hunter文件管理器",
+   "zh_cn": "Kernel Module",
+   "zh_tw": "内核模块"
+  },
+  "0x14069D8D0": {
+   "en": "內核模塊",
+   "zh_cn": "Set Start Type",
+   "zh_tw": "设置启动类型"
+  },
+  "0x14069D8E8": {
+   "en": "設置啟動類型",
+   "zh_cn": "Boot Start",
+   "zh_tw": "Boot Start"
+  },
+  "0x14069D900": {
+   "en": "Boot Start",
+   "zh_cn": "System Start",
+   "zh_tw": "System Start"
+  },
+  "0x14069D918": {
+   "en": "System Start",
+   "zh_cn": "Auto Start",
+   "zh_tw": "Auto Start"
+  },
+  "0x14069D930": {
+   "en": "Auto Start",
+   "zh_cn": "Demand Start",
+   "zh_tw": "Demand Start"
+  },
+  "0x14069D948": {
+   "en": "Demand Start",
+   "zh_cn": "Disabled",
+   "zh_tw": "禁用"
+  },
+  "0x14069D978": {
+   "en": "驱动名",
+   "zh_cn": "驅動名",
+   "zh_tw": "Image Base"
+  },
+  "0x14069D990": {
+   "en": "基地址",
+   "zh_cn": "基地址",
+   "zh_tw": "Image Size"
+  },
+  "0x14069D9A8": {
+   "en": "大小",
+   "zh_cn": "大小",
+   "zh_tw": "DriverObject"
+  },
+  "0x14069D9C0": {
+   "en": "驱动对象",
+   "zh_cn": "驅動對象",
+   "zh_tw": "Driver Path"
+  },
+  "0x14069D9D8": {
+   "en": "驱动路径",
+   "zh_cn": "驅動路徑",
+   "zh_tw": "Service Name"
+  },
+  "0x14069D9F0": {
+   "en": "服务名",
+   "zh_cn": "服務名",
+   "zh_tw": "Load Order"
+  },
+  "0x14069DA08": {
+   "en": "加载顺序",
+   "zh_cn": "加載順序",
+   "zh_tw": "File Corporation"
+  },
+  "0x14069DA20": {
+   "en": "文件厂商",
+   "zh_cn": "文件廠商",
+   "zh_tw": "Information && Copyright"
+  },
+  "0x14069DA68": {
+   "en": "检测新版本（当前是V1.6版本）",
+   "zh_cn": "檢測新版本（當前是V1.6版本）",
+   "zh_tw": "Contact Author"
+  },
+  "0x14069DA80": {
+   "en": "联系作者",
+   "zh_cn": "聯繫作者",
+   "zh_tw": "Author: linxer(jiwei.yao)"
+  },
+  "0x14069DA98": {
+   "en": "作者：linxer(姚纪卫)",
+   "zh_cn": "作者: linxer(姚紀衛)",
+   "zh_tw": "Email: linxer@163.com"
+  },
+  "0x14069DAB0": {
+   "en": "Email: linxer@163.com",
+   "zh_cn": "Email: linxer@163.com",
+   "zh_tw": "Home Page: http://www.xuetr.com"
+  },
+  "0x14069DAC8": {
+   "en": "官网: http://www.xuetr.com 欢迎访问",
+   "zh_cn": "官網: http://www.xuetr.com 歡迎點擊",
+   "zh_tw": "XueTr: http://www.xuetr.com"
+  },
+  "0x14069DAE0": {
+   "en": "XueTr: http://www.xuetr.com 欢迎访问",
+   "zh_cn": "XueTr: http://www.xuetr.com 歡迎點擊",
+   "zh_tw": "WeChat"
+  },
+  "0x14069DAF8": {
+   "en": "微信",
+   "zh_cn": "微信",
+   "zh_tw": " linxer2011"
+  },
+  "0x14069DB10": {
+   "en": " linxer2011",
+   "zh_cn": " linxer2011",
+   "zh_tw": "License Key: "
+  },
+  "0x14069DB28": {
+   "en": "授权时间：",
+   "zh_cn": "授權時間：",
+   "zh_tw": "For free permanently"
+  },
+  "0x14069DB40": {
+   "en": "永久免费",
+   "zh_cn": "永久免費",
+   "zh_tw": "License Error"
+  },
+  "0x14069DB58": {
+   "en": "License错误",
+   "zh_cn": "License錯誤",
+   "zh_tw": "Professional Version Introduction"
+  },
+  "0x14069DB70": {
+   "en": "您正在使用标准版，查看专业版介绍。",
+   "zh_cn": "您正在使用標准版，查看專業版介紹。",
+   "zh_tw": "Taobao Buy It"
+  },
+  "0x14069DBA0": {
+   "en": "Business cooperation",
+   "zh_cn": "商务合作",
+   "zh_tw": "商務合作"
+  },
+  "0x14069DBD0": {
+   "en": "Business cooperation",
+   "zh_cn": "捐赠我们",
+   "zh_tw": "捐贈我們"
+  },
+  "0x14069DC00": {
+   "en": "Follow the Wechat official account",
+   "zh_cn": "关注微信公众号",
+   "zh_tw": "關注微信公眾號"
+  },
+  "0x14069DC30": {
+   "en": "官方已禁止該老版本使用了，請下載新版本使用！",
+   "zh_cn": "Find New Version, Please update it!",
+   "zh_tw": "检测到新版本，请您升级到新版本！"
+  },
+  "0x14069DC48": {
+   "en": "檢測到新版本，請您升級到新版本！",
+   "zh_cn": "Your use a unvalid license, please buy the valid license!",
+   "zh_tw": "您当前使用的License已被禁用，请购买合法的License！"
+  },
+  "0x14069DC78": {
+   "en": "Ndis块地址",
+   "zh_cn": "Ndis塊地址",
+   "zh_tw": "Type"
+  },
+  "0x14069DC90": {
+   "en": "类型",
+   "zh_cn": "類型",
+   "zh_tw": "FunctionAdd"
+  },
+  "0x14069DCA8": {
+   "en": "函数地址",
+   "zh_cn": "函數地址",
+   "zh_tw": "FunctionName"
+  },
+  "0x14069DCC0": {
+   "en": "函数名",
+   "zh_cn": "函數名",
+   "zh_tw": "Hook"
+  },
+  "0x14069DCD8": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Module Path"
+  },
+  "0x14069DCF0": {
+   "en": "模块路径",
+   "zh_cn": "模塊路徑",
+   "zh_tw": "File Company"
+  },
+  "0x14069DD08": {
+   "en": "文件厂商",
+   "zh_cn": "文件廠商",
+   "zh_tw": "Refresh"
+  },
+  "0x14069DD20": {
+   "en": "刷新",
+   "zh_cn": "刷新",
+   "zh_tw": "Locate in File Tab"
+  },
+  "0x14069DD50": {
+   "en": "Ndis Handler",
+   "zh_cn": "Ndis处理函数",
+   "zh_tw": "Ndis處理函數"
+  },
+  "0x14069DD68": {
+   "en": "Function Count: ",
+   "zh_cn": "函数数量：",
+   "zh_tw": "函數數量："
+  },
+  "0x14069DD80": {
+   "en": "Suspicious Function Count: ",
+   "zh_cn": "可疑函数数量：",
+   "zh_tw": "可疑函數數量："
+  },
+  "0x14069DDC8": {
+   "en": "序号",
+   "zh_cn": "序號",
+   "zh_tw": "Fun Entry"
+  },
+  "0x14069DDE0": {
+   "en": "函数地址",
+   "zh_cn": "函數地址",
+   "zh_tw": "Module"
+  },
+  "0x14069DDF8": {
+   "en": "函数地址所在模块",
+   "zh_cn": "函數地址所在模塊",
+   "zh_tw": "File Corporation"
+  },
+  "0x14069DE10": {
+   "en": "文件厂商",
+   "zh_cn": "文件廠商",
+   "zh_tw": "Current Device Object"
+  },
+  "0x14069DE28": {
+   "en": "正在使用的对象地址",
+   "zh_cn": "正在使用的對象地址",
+   "zh_tw": "Hook"
+  },
+  "0x14069DE40": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Original Device Object"
+  },
+  "0x14069DE70": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x14069DE88": {
+   "en": "Fun Entry",
+   "zh_cn": "函数地址",
+   "zh_tw": "函數地址"
+  },
+  "0x14069DEA0": {
+   "en": "Module",
+   "zh_cn": "函数地址所在模块",
+   "zh_tw": "函數地址所在模塊"
+  },
+  "0x14069DEB8": {
+   "en": "File Corporation",
+   "zh_cn": "文件厂商",
+   "zh_tw": "文件廠商"
+  },
+  "0x14069DED0": {
+   "en": "Fun Entry",
+   "zh_cn": "函数地址",
+   "zh_tw": "函數地址"
+  },
+  "0x14069DEE8": {
+   "en": "Module",
+   "zh_cn": "函数地址所在模块",
+   "zh_tw": "函數地址所在模塊"
+  },
+  "0x14069DF00": {
+   "en": "File Corporation",
+   "zh_cn": "文件厂商",
+   "zh_tw": "文件廠商"
+  },
+  "0x14069DF30": {
+   "en": "函數地址",
+   "zh_cn": "Priority",
+   "zh_tw": "优先级别"
+  },
+  "0x14069DF48": {
+   "en": "優先級別",
+   "zh_cn": "Module",
+   "zh_tw": "函数地址所在模块"
+  },
+  "0x14069DF60": {
+   "en": "函數地址所在模塊",
+   "zh_cn": "File Corporation",
+   "zh_tw": "文件厂商"
+  },
+  "0x14069DF78": {
+   "en": "文件廠商",
+   "zh_cn": "Refresh",
+   "zh_tw": "刷新"
+  },
+  "0x14069DF90": {
+   "en": "刷新",
+   "zh_cn": "Disassembling current entry",
+   "zh_tw": "反汇编当前函数地址"
+  },
+  "0x14069DFA8": {
+   "en": "反彙編當前函數地址",
+   "zh_cn": "Disassembling original entry",
+   "zh_tw": "反汇编原始函数地址"
+  },
+  "0x14069DFC0": {
+   "en": "反彙編原始函數地址",
+   "zh_cn": "Restore",
+   "zh_tw": "恢复"
+  },
+  "0x14069DFD8": {
+   "en": "恢復",
+   "zh_cn": "Restore All",
+   "zh_tw": "恢复所有"
+  },
+  "0x14069DFF0": {
+   "en": "恢復所有",
+   "zh_cn": "Find Target",
+   "zh_tw": "定位到模块文件"
+  },
+  "0x14069E008": {
+   "en": "定位到模塊文件",
+   "zh_cn": "Properties",
+   "zh_tw": "查看模块属性"
+  },
+  "0x14069E020": {
+   "en": "查看模塊屬性",
+   "zh_cn": "Locate in File Tab",
+   "zh_tw": "定位到PC Hunter文件管理器"
+  },
+  "0x14069E038": {
+   "en": "定位到PC Hunter文件管理器",
+   "zh_cn": "Remove client",
+   "zh_tw": "移除Client"
+  },
+  "0x14069E050": {
+   "en": "移除Client",
+   "zh_cn": "Disassembling Fun Entry",
+   "zh_tw": "反汇编函数"
+  },
+  "0x14069E068": {
+   "en": "反彙編函數",
+   "zh_cn": "Remove interface",
+   "zh_tw": "移除Interface"
+  },
+  "0x14069E080": {
+   "en": "移除Interface",
+   "zh_cn": "Remove",
+   "zh_tw": "移除"
+  },
+  "0x14069E098": {
+   "en": "移除",
+   "zh_cn": "Fun Count: ",
+   "zh_tw": "函数数量："
+  },
+  "0x14069E0B0": {
+   "en": "函數數量：",
+   "zh_cn": "Hook: ",
+   "zh_tw": "异常函数数量："
+  },
+  "0x14069E0C8": {
+   "en": "異常函數數量：",
+   "zh_cn": "WfpDeviceObject is OK.",
+   "zh_tw": "Wfp DeviceObject正常"
+  },
+  "0x14069E0E0": {
+   "en": "Wfp DeviceObject正常",
+   "zh_cn": "WfpDeviceObject been Replaced.",
+   "zh_tw": "Wfp DeviceObject被替换"
+  },
+  "0x14069E0F8": {
+   "en": "Wfp DeviceObject被替換",
+   "zh_cn": "IpFilterDriver maybe not load.",
+   "zh_tw": "IpFilterDriver服务可能没启动"
+  },
+  "0x14069E128": {
+   "en": "其它网络回调",
+   "zh_cn": "其它網絡回調",
+   "zh_tw": "NdisTdiCallback"
+  },
+  "0x14069E140": {
+   "en": "NdisTdiCallback",
+   "zh_cn": "NdisTdiCallback",
+   "zh_tw": "TdiPnpClient"
+  },
+  "0x14069E158": {
+   "en": "TdiPnpClient",
+   "zh_cn": "TdiPnpClient",
+   "zh_tw": "NdisTcpOffloadHandlers"
+  },
+  "0x14069E170": {
+   "en": "NdisTcpOffloadHandlers",
+   "zh_cn": "NdisTcpOffloadHandlers",
+   "zh_tw": "NdisOidTable"
+  },
+  "0x14069E188": {
+   "en": "NdisOidTable",
+   "zh_cn": "NdisOidTable",
+   "zh_tw": "Ndis Interface"
+  },
+  "0x14069E1A0": {
+   "en": "Ndis适配器/接口信息",
+   "zh_cn": "Ndis適配器/接口信息",
+   "zh_tw": "FwpsTcpipDispatchTable"
+  },
+  "0x14069E1B8": {
+   "en": "FwpsTcpipDispatchTable",
+   "zh_cn": "FwpsTcpipDispatchTable",
+   "zh_tw": "FwpsL2DispatchTable"
+  },
+  "0x14069E1D0": {
+   "en": "FwpsL2DispatchTable",
+   "zh_cn": "FwpsL2DispatchTable",
+   "zh_tw": "WfpNblDispatchTable"
+  },
+  "0x14069E1E8": {
+   "en": "WfpNblDispatchTable",
+   "zh_cn": "WfpNblDispatchTable",
+   "zh_tw": "WfpStreamShim"
+  },
+  "0x14069E200": {
+   "en": "WfpStreamShim",
+   "zh_cn": "WfpStreamShim",
+   "zh_tw": "WfpMacShim"
+  },
+  "0x14069E218": {
+   "en": "WfpMacShim",
+   "zh_cn": "WfpMacShim",
+   "zh_tw": "NetioLayerCallback"
+  },
+  "0x14069E230": {
+   "en": "NetioLayerCallback",
+   "zh_cn": "NetioLayerCallback",
+   "zh_tw": "NsiLegacyHandler"
+  },
+  "0x14069E248": {
+   "en": "NsiLegacyHandler",
+   "zh_cn": "NsiLegacyHandler",
+   "zh_tw": "WfpDeviceObject"
+  },
+  "0x14069E260": {
+   "en": "WfpDeviceObject",
+   "zh_cn": "WfpDeviceObject",
+   "zh_tw": "WfpCallout"
+  },
+  "0x14069E278": {
+   "en": "WfpCallout",
+   "zh_cn": "WfpCallout",
+   "zh_tw": "NmrProvider(Client)"
+  },
+  "0x14069E290": {
+   "en": "NmrProvider(Client)",
+   "zh_cn": "NmrProvider(Client)",
+   "zh_tw": "NsiChangeNotification"
+  },
+  "0x14069E2A8": {
+   "en": "NsiChangeNotification",
+   "zh_cn": "NsiChangeNotification",
+   "zh_tw": "NsiChangeNotification_Monitor"
+  },
+  "0x14069E2C0": {
+   "en": "NsiChangeNotification_Monitor",
+   "zh_cn": "NsiChangeNotification_Monitor",
+   "zh_tw": "Ipsec Dispatch Fun"
+  },
+  "0x14069E2D8": {
+   "en": "Ipsec派发函数",
+   "zh_cn": "Ipsec派發函數",
+   "zh_tw": "Ipfltdrv Dispatch Fun"
+  },
+  "0x14069E2F0": {
+   "en": "Ipfltdrv派发函数",
+   "zh_cn": "Ipfltdrv派發函數",
+   "zh_tw": "IpFilterHook"
+  },
+  "0x14069E308": {
+   "en": "IpFilterHook",
+   "zh_cn": "IpFilterHook",
+   "zh_tw": "IpFirewallHook"
+  },
+  "0x14069E320": {
+   "en": "IpFirewallHook",
+   "zh_cn": "IpFirewallHook",
+   "zh_tw": "Afd Dispatch Fun"
+  },
+  "0x14069E350": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x14069E368": {
+   "en": "Current Entry",
+   "zh_cn": "当前函数地址",
+   "zh_tw": "當前函數地址"
+  },
+  "0x14069E380": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x14069E398": {
+   "en": "Original Entry",
+   "zh_cn": "原始函数地址",
+   "zh_tw": "原始函數地址"
+  },
+  "0x14069E3B0": {
+   "en": "Module",
+   "zh_cn": "当前函数地址所在模块",
+   "zh_tw": "當前函數地址所在模塊"
+  },
+  "0x14069E3C8": {
+   "en": "File Corporation",
+   "zh_cn": "文件厂商",
+   "zh_tw": "文件廠商"
+  },
+  "0x14069E3E0": {
+   "en": "Client Name",
+   "zh_cn": "对象名",
+   "zh_tw": "對象名"
+  },
+  "0x14069E3F8": {
+   "en": "Client Object",
+   "zh_cn": "对象地址",
+   "zh_tw": "對象地址"
+  },
+  "0x14069E410": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x14069E428": {
+   "en": "Fun Entry",
+   "zh_cn": "函数地址",
+   "zh_tw": "函數地址"
+  },
+  "0x14069E440": {
+   "en": "Module",
+   "zh_cn": "函数地址所在模块",
+   "zh_tw": "函數地址所在模塊"
+  },
+  "0x14069E458": {
+   "en": "File Corporation",
+   "zh_cn": "文件厂商",
+   "zh_tw": "文件廠商"
+  },
+  "0x14069E488": {
+   "en": "Professional Version Introduction",
+   "zh_cn": "专业版介绍",
+   "zh_tw": "專業版介紹"
+  },
+  "0x14069E4A0": {
+   "en": "Subscribe Information",
+   "zh_cn": "订购信息",
+   "zh_tw": "訂購信息"
+  },
+  "0x14069E4B8": {
+   "en": "Click me to get professional version detail",
+   "zh_cn": "点击查看专业版详细信息",
+   "zh_tw": "點擊查看專業版詳細信息"
+  },
+  "0x14069E4D0": {
+   "en": "Buy It: ",
+   "zh_cn": "购买途径",
+   "zh_tw": "購買途徑"
+  },
+  "0x14069E4E8": {
+   "en": "Taobao Buy It",
+   "zh_cn": "通过淘宝购买专业版",
+   "zh_tw": "通過淘寶購買專業版"
+  },
+  "0x14069EA70": {
+   "en": "㳬㫩ĳ㐨",
+   "zh_cn": "㳫㫥Ĕ㐤",
+   "zh_tw": "㳬㫱ŀ㐴"
+  },
+  "0x14069EA88": {
+   "en": "㳬㫩Ĳ㐤",
+   "zh_cn": "㳬㫩ı㐠",
+   "zh_tw": "볫㫥ĕ㐨"
+  },
+  "0x14069EAA0": {
+   "en": "볬㫨Į㐔",
+   "zh_cn": "볬㫨İ㐜",
+   "zh_tw": "볬㫨į㐘"
+  },
+  "0x14069F1D8": {
+   "en": "映像名称",
+   "zh_cn": "映像名稱",
+   "zh_tw": "PID"
+  },
+  "0x14069F1F0": {
+   "en": "进程Id",
+   "zh_cn": "進程Id",
+   "zh_tw": "TID"
+  },
+  "0x14069F208": {
+   "en": "线程Id",
+   "zh_cn": "線程Id",
+   "zh_tw": "Notify Filter"
+  },
+  "0x14069F220": {
+   "en": "改动类型",
+   "zh_cn": "改動類型",
+   "zh_tw": "Watch SubKey"
+  },
+  "0x14069F238": {
+   "en": "监控子键",
+   "zh_cn": "監控子鍵",
+   "zh_tw": "Callback Type"
+  },
+  "0x14069F250": {
+   "en": "监控回调类型",
+   "zh_cn": "監控回調類型",
+   "zh_tw": "Key Path"
+  },
+  "0x14069F268": {
+   "en": "被监控注册表路径",
+   "zh_cn": "被監控註冊表路徑",
+   "zh_tw": "Refresh"
+  },
+  "0x14069F280": {
+   "en": "刷新",
+   "zh_cn": "刷新",
+   "zh_tw": "Show All"
+  },
+  "0x14069F298": {
+   "en": "显示全部",
+   "zh_cn": "顯示全部",
+   "zh_tw": "RegNotifyChange Information"
+  },
+  "0x14069F2B0": {
+   "en": "应用层注册表监控信息",
+   "zh_cn": "應用層註冊表監控信息",
+   "zh_tw": "Name"
+  },
+  "0x14069F2C8": {
+   "en": "名称",
+   "zh_cn": "名稱",
+   "zh_tw": "Full Name"
+  },
+  "0x14069F2E0": {
+   "en": "全称",
+   "zh_cn": "全稱",
+   "zh_tw": "Path"
+  },
+  "0x14069F2F8": {
+   "en": "路径",
+   "zh_cn": "路徑",
+   "zh_tw": "Parameters"
+  },
+  "0x14069F310": {
+   "en": "参数",
+   "zh_cn": "參數",
+   "zh_tw": "Descriptor"
+  },
+  "0x14069F328": {
+   "en": "描述",
+   "zh_cn": "描述",
+   "zh_tw": "State"
+  },
+  "0x14069F340": {
+   "en": "状态",
+   "zh_cn": "狀態",
+   "zh_tw": "File Corporation"
+  },
+  "0x14069F358": {
+   "en": "文件厂商",
+   "zh_cn": "文件廠商",
+   "zh_tw": "Disable"
+  },
+  "0x14069F370": {
+   "en": "禁用",
+   "zh_cn": "禁用",
+   "zh_tw": "Enable"
+  },
+  "0x14069F3A0": {
+   "en": "Refresh",
+   "zh_cn": "刷新",
+   "zh_tw": "刷新"
+  },
+  "0x14069F3B8": {
+   "en": "Disable",
+   "zh_cn": "禁用",
+   "zh_tw": "禁用"
+  },
+  "0x14069F3D0": {
+   "en": "Enable",
+   "zh_cn": "启用",
+   "zh_tw": "啟用"
+  },
+  "0x14069F3E8": {
+   "en": "Delete",
+   "zh_cn": "删除",
+   "zh_tw": "刪除"
+  },
+  "0x14069F400": {
+   "en": "Delete And Delete File",
+   "zh_cn": "连文件一起删除",
+   "zh_tw": "連文件一起刪除"
+  },
+  "0x14069F418": {
+   "en": "Verify File Signature",
+   "zh_cn": "校验数字签名",
+   "zh_tw": "校驗數字簽名"
+  },
+  "0x14069F430": {
+   "en": "Verify All Files Signatrue",
+   "zh_cn": "校验所有数字签名",
+   "zh_tw": "校驗所有數字簽名"
+  },
+  "0x14069F448": {
+   "en": "Copy Name",
+   "zh_cn": "复制计划任务名",
+   "zh_tw": "複製計畫任務名"
+  },
+  "0x14069F460": {
+   "en": "Copy Path",
+   "zh_cn": "复制计划任务路径",
+   "zh_tw": "複製計畫任務路徑"
+  },
+  "0x14069F478": {
+   "en": "Search Online",
+   "zh_cn": "在线搜索计划任务名",
+   "zh_tw": "在線搜索計畫任務名"
+  },
+  "0x14069F490": {
+   "en": "Analyse Online",
+   "zh_cn": "在线分析",
+   "zh_tw": "在線分析"
+  },
+  "0x14069F4A8": {
+   "en": "Find Target",
+   "zh_cn": "定位到计划任务文件",
+   "zh_tw": "定位到計畫任務文件"
+  },
+  "0x14069F4C0": {
+   "en": "Properties",
+   "zh_cn": "查看计划任务文件属性",
+   "zh_tw": "查看計畫任務文件屬性"
+  },
+  "0x14069F4D8": {
+   "en": "Locate in File Tab",
+   "zh_cn": "定位到PC Hunter文件管理器",
+   "zh_tw": "定位到PC Hunter文件管理器"
+  },
+  "0x14069F4F0": {
+   "en": "Schedule Task",
+   "zh_cn": "计划任务",
+   "zh_tw": "計畫任務"
+  },
+  "0x14069F520": {
+   "en": "已停止",
+   "zh_cn": "Start pending",
+   "zh_tw": "正在启动"
+  },
+  "0x14069F538": {
+   "en": "正在啟動",
+   "zh_cn": "Stop pending",
+   "zh_tw": "正在停止"
+  },
+  "0x14069F550": {
+   "en": "正在停止",
+   "zh_cn": "Started",
+   "zh_tw": "已启动"
+  },
+  "0x14069F568": {
+   "en": "已啟動",
+   "zh_cn": "Continue pending",
+   "zh_tw": "正在继续运行"
+  },
+  "0x14069F580": {
+   "en": "正在繼續運行",
+   "zh_cn": "Pause pending",
+   "zh_tw": "正在暂停"
+  },
+  "0x14069F598": {
+   "en": "正在暫停",
+   "zh_cn": "Paused",
+   "zh_tw": "已暂停"
+  },
+  "0x14069F5B0": {
+   "en": "已暫停",
+   "zh_cn": "Unknown status",
+   "zh_tw": "未知"
+  },
+  "0x14069F5C8": {
+   "en": "未知",
+   "zh_cn": "Boot",
+   "zh_tw": "开机"
+  },
+  "0x14069F5E0": {
+   "en": "開機",
+   "zh_cn": "System",
+   "zh_tw": "系统"
+  },
+  "0x14069F5F8": {
+   "en": "系統",
+   "zh_cn": "Automatic",
+   "zh_tw": "自动"
+  },
+  "0x14069F610": {
+   "en": "自動",
+   "zh_cn": "Manual",
+   "zh_tw": "手动"
+  },
+  "0x14069F628": {
+   "en": "手動",
+   "zh_cn": "Disabled",
+   "zh_tw": "已禁用"
+  },
+  "0x14069F640": {
+   "en": "已禁用",
+   "zh_cn": "Unknown",
+   "zh_tw": "未知"
+  },
+  "0x14069F658": {
+   "en": "未知",
+   "zh_cn": "Service Name",
+   "zh_tw": "服务名"
+  },
+  "0x14069F670": {
+   "en": "服務名",
+   "zh_cn": "Display Name",
+   "zh_tw": "服务通俗名"
+  },
+  "0x14069F688": {
+   "en": "服務通俗名",
+   "zh_cn": "Status",
+   "zh_tw": "状态"
+  },
+  "0x14069F6A0": {
+   "en": "狀態",
+   "zh_cn": "Startup Type",
+   "zh_tw": "启动类型"
+  },
+  "0x14069F6B8": {
+   "en": "啟動類型",
+   "zh_cn": "Description",
+   "zh_tw": "描述"
+  },
+  "0x14069F6D0": {
+   "en": "描述",
+   "zh_cn": "Image Path",
+   "zh_tw": "映像路径"
+  },
+  "0x14069F6E8": {
+   "en": "映像路徑",
+   "zh_cn": "File Corporation",
+   "zh_tw": "文件厂商"
+  },
+  "0x14069F700": {
+   "en": "文件廠商",
+   "zh_cn": "ServiceDll Path",
+   "zh_tw": "服务动态链接库"
+  },
+  "0x14069F718": {
+   "en": "服務動態鏈接庫",
+   "zh_cn": "File Corporation",
+   "zh_tw": "文件厂商"
+  },
+  "0x14069F748": {
+   "en": "刷新",
+   "zh_cn": "刷新",
+   "zh_tw": "Start"
+  },
+  "0x14069F760": {
+   "en": "启动",
+   "zh_cn": "啟動",
+   "zh_tw": "Stop"
+  },
+  "0x14069F778": {
+   "en": "停止",
+   "zh_cn": "停止",
+   "zh_tw": "Pause"
+  },
+  "0x14069F790": {
+   "en": "暂停",
+   "zh_cn": "暫停",
+   "zh_tw": "Resume"
+  },
+  "0x14069F7A8": {
+   "en": "恢复",
+   "zh_cn": "恢復",
+   "zh_tw": "Restart"
+  },
+  "0x14069F7C0": {
+   "en": "重新启动",
+   "zh_cn": "重新啟動",
+   "zh_tw": "Delete Service(Not Delete File)"
+  },
+  "0x14069F7D8": {
+   "en": "删除服务(不会删除文件)",
+   "zh_cn": "刪除服務(不會刪除文件)",
+   "zh_tw": "Automatic"
+  },
+  "0x14069F7F0": {
+   "en": "自动",
+   "zh_cn": "自動",
+   "zh_tw": "Manual"
+  },
+  "0x14069F808": {
+   "en": "手动",
+   "zh_cn": "手動",
+   "zh_tw": "Disabled"
+  },
+  "0x14069F820": {
+   "en": "禁用",
+   "zh_cn": "禁用",
+   "zh_tw": "Verify ImagePath Signature"
+  },
+  "0x14069F838": {
+   "en": "校验映像数字签名",
+   "zh_cn": "校驗映像數字簽名",
+   "zh_tw": "Verify ServiceDll Signature"
+  },
+  "0x14069F850": {
+   "en": "校验服务动态链接库数字签名",
+   "zh_cn": "校驗服務動態鏈接庫數字簽名",
+   "zh_tw": "Verify All Signatures"
+  },
+  "0x14069F868": {
+   "en": "校验所有数字签名",
+   "zh_cn": "校驗所有數字簽名",
+   "zh_tw": "Search Online"
+  },
+  "0x14069F880": {
+   "en": "在线搜索服务项",
+   "zh_cn": "在線搜索服務項",
+   "zh_tw": "Analyse Online"
+  },
+  "0x14069F898": {
+   "en": "在线分析",
+   "zh_cn": "在線分析",
+   "zh_tw": "Analyse ImagePath by Kingsoft's FireEye"
+  },
+  "0x14069F8B0": {
+   "en": "火眼在线分析映像文件",
+   "zh_cn": "火眼在綫分析映像文件",
+   "zh_tw": "Analyse ServiceDll by Kingsoft's FireEye"
+  },
+  "0x14069F8C8": {
+   "en": "火眼在线分析服务动态链接库文件",
+   "zh_cn": "火眼在綫分析服務動態鏈接庫文件",
+   "zh_tw": "Find ImagePath Target"
+  },
+  "0x14069F8E0": {
+   "en": "定位到映像文件",
+   "zh_cn": "定位到映像文件",
+   "zh_tw": "ImagePath Properties"
+  },
+  "0x14069F8F8": {
+   "en": "查看映像文件属性",
+   "zh_cn": "查看映像文件屬性",
+   "zh_tw": "Find ServiceDll Target"
+  },
+  "0x14069F910": {
+   "en": "定位到服务动态链接库文件",
+   "zh_cn": "定位到服務動態鏈接庫文件",
+   "zh_tw": "ServiceDll Properties"
+  },
+  "0x14069F928": {
+   "en": "查看服务动态链接库文件属性",
+   "zh_cn": "查看服務動態鏈接庫文件屬性",
+   "zh_tw": "Open By RegEdit"
+  },
+  "0x14069F940": {
+   "en": "用RegEdit打开对应注册表",
+   "zh_cn": "用RegEdit打開對應註冊表",
+   "zh_tw": "Locate in Registry Tab"
+  },
+  "0x14069F958": {
+   "en": "定位到PC Hunter注册表管理器",
+   "zh_cn": "定位到PC Hunter注冊表管理器",
+   "zh_tw": "Locate in File Tab(ImagePath)"
+  },
+  "0x14069F970": {
+   "en": "定位到PC Hunter文件管理器(ImagePath)",
+   "zh_cn": "定位到PC Hunter文件管理器(ImagePath)",
+   "zh_tw": "Locate in File Tab(ServiceDll)"
+  },
+  "0x14069F9A0": {
+   "en": "Service",
+   "zh_cn": "服务",
+   "zh_tw": "服務"
+  },
+  "0x14069F9B8": {
+   "en": "Services: ",
+   "zh_cn": "服务： ",
+   "zh_tw": "服務： "
+  },
+  "0x14069F9D0": {
+   "en": "Hidden Services: ",
+   "zh_cn": "隐藏服务： ",
+   "zh_tw": "隱藏服務： "
+  },
+  "0x14069FA00": {
+   "en": "臨時配置(64位系統僅支持部分功能)",
+   "zh_cn": "Forbid Creating Process",
+   "zh_tw": "禁止创建进程"
+  },
+  "0x14069FA18": {
+   "en": "禁止創建進程",
+   "zh_cn": "Forbid Creating Thread",
+   "zh_tw": "禁止创建线程"
+  },
+  "0x14069FA30": {
+   "en": "禁止創建線程",
+   "zh_cn": "Forbid Creating File",
+   "zh_tw": "禁止创建文件"
+  },
+  "0x14069FA48": {
+   "en": "禁止創建文件",
+   "zh_cn": "Forbid Creating Key(Value)",
+   "zh_tw": "禁止创建注册表项(值)"
+  },
+  "0x14069FA60": {
+   "en": "禁止創建注冊表項(值)",
+   "zh_cn": "Forbid Setting Key Value",
+   "zh_tw": "禁止重置注册表值"
+  },
+  "0x14069FA78": {
+   "en": "禁止重置注冊表值",
+   "zh_cn": "Forbid Loading Image",
+   "zh_tw": "禁止加载模块"
+  },
+  "0x14069FA90": {
+   "en": "禁止加載模塊",
+   "zh_cn": "Forbid Injecting Module",
+   "zh_tw": "禁止消息钩子模块注入"
+  },
+  "0x14069FAA8": {
+   "en": "禁止消息鉤子模塊注入",
+   "zh_cn": "Forbid System Shutdown(Stard By)",
+   "zh_tw": "禁止待机、注销、关机和重启"
+  },
+  "0x14069FAC0": {
+   "en": "禁止待機、注銷、關機和重啟",
+   "zh_cn": "Forbid Modifying System Time",
+   "zh_tw": "禁止修改系统时间"
+  },
+  "0x14069FAD8": {
+   "en": "禁止修改系統時間",
+   "zh_cn": "Forbid Switching Desktop",
+   "zh_tw": "禁止切换桌面"
+  },
+  "0x14069FAF0": {
+   "en": "禁止切換桌面",
+   "zh_cn": "Forbid Locking Work Station",
+   "zh_tw": "禁止锁定计算机"
+  },
+  "0x14069FB08": {
+   "en": "禁止鎖定計算機",
+   "zh_cn": "Forbid Loading Driver",
+   "zh_tw": "禁止加载驱动"
+  },
+  "0x14069FB20": {
+   "en": "禁止加載驅動",
+   "zh_cn": "Forbid Writing Disk",
+   "zh_tw": "禁止写磁盘"
+  },
+  "0x14069FB38": {
+   "en": "禁止寫磁盤",
+   "zh_cn": "Shutdown",
+   "zh_tw": "关机"
+  },
+  "0x14069FB50": {
+   "en": "關機",
+   "zh_cn": "Force System Reboot",
+   "zh_tw": "强制重启"
+  },
+  "0x14069FB68": {
+   "en": "強制重啟",
+   "zh_cn": "Hboot",
+   "zh_tw": "更为暴力的强制重启"
+  },
+  "0x14069FB80": {
+   "en": "更為暴力的強制重啟",
+   "zh_cn": "Are you sure to reboot system!",
+   "zh_tw": "您真的要重启么？"
+  },
+  "0x14069FB98": {
+   "en": "您真的要重啟么？",
+   "zh_cn": "General configuration,the changes will not take effect until the next time it's started.",
+   "zh_tw": "常规配置，重启PC Hunter Professional后生效"
+  },
+  "0x14069FBB0": {
+   "en": "常規配置，重啟PC Hunter Professional後生效",
+   "zh_cn": "SelfProtection(SSDT)",
+   "zh_tw": "自我保护(SSDT层)"
+  },
+  "0x14069FBC8": {
+   "en": "自我保護(SSDT層)",
+   "zh_cn": "SelfProtection(Shadow SSDT)",
+   "zh_tw": "自我保护(Shadow SSDT层)"
+  },
+  "0x14069FBE0": {
+   "en": "自我保護(Shadow SSDT層)",
+   "zh_cn": "Open physical disk analysis on enumerates files",
+   "zh_tw": "枚举文件时使用物理磁盘分析"
+  },
+  "0x14069FBF8": {
+   "en": "枚舉文件時使用物理磁盤分析",
+   "zh_cn": "Check injected thread on startup",
+   "zh_tw": "本软件启动时，检测注入到本软件的线程"
+  },
+  "0x14069FC10": {
+   "en": "本軟件啟動時，檢測注入本軟件的線程",
+   "zh_cn": "Scan suspicious kernel modules",
+   "zh_tw": "枚举内核模块时扫描可疑对象"
+  },
+  "0x14069FC28": {
+   "en": "枚舉內核模塊時掃描可疑對象",
+   "zh_cn": "Stay on top",
+   "zh_tw": "窗口置顶"
+  },
+  "0x14069FC40": {
+   "en": "窗口置頂",
+   "zh_cn": "Minimize to tray when clicking close button",
+   "zh_tw": "点关闭按钮时最小化到托盘"
+  },
+  "0x14069FC58": {
+   "en": "點關閉按鈕時最小化到托盤",
+   "zh_cn": "Auto Check Updates",
+   "zh_tw": "自动检测新版本"
+  },
+  "0x14069FC70": {
+   "en": "自動檢測新版本",
+   "zh_cn": "Hot Key for showing main windows: Ctrl + Alt + ",
+   "zh_tw": "显示本软件主窗口的热键：   Ctrl  +  Alt  +  "
+  },
+  "0x14069FC88": {
+   "en": "顯示本軟件主窗口的熱鍵：   Ctrl  +  Alt  +  ",
+   "zh_cn": "Title name: ",
+   "zh_tw": "本软件窗口标题："
+  },
+  "0x14069FCB8": {
+   "en": "校验所有数字签名",
+   "zh_cn": "校驗所有數字簽名",
+   "zh_tw": "CreateThread Error"
+  },
+  "0x14069FCD0": {
+   "en": "开启检测线程失败",
+   "zh_cn": "開啟檢測線程失敗",
+   "zh_tw": "Show amaranth color on no signed item. Verify Signature Now, Please waiting..."
+  },
+  "0x14069FCE8": {
+   "en": "没签名项将显示紫红色。正在检测数字签名，请等待...",
+   "zh_cn": "沒簽名項將顯示紫紅色。正在檢測數字簽名，請等待...",
+   "zh_tw": "Cancel"
+  },
+  "0x14069FD00": {
+   "en": "取消",
+   "zh_cn": "取消",
+   "zh_tw": "Name"
+  },
+  "0x14069FD18": {
+   "en": "名称",
+   "zh_cn": "名稱",
+   "zh_tw": "Type"
+  },
+  "0x14069FD30": {
+   "en": "类型",
+   "zh_cn": "類型",
+   "zh_tw": "Path"
+  },
+  "0x14069FD48": {
+   "en": "启动路径",
+   "zh_cn": "啟動路徑",
+   "zh_tw": "File Corporation"
+  },
+  "0x14069FD60": {
+   "en": "文件厂商",
+   "zh_cn": "文件廠商",
+   "zh_tw": "Startup:"
+  },
+  "0x14069FD78": {
+   "en": "启动项：",
+   "zh_cn": "啟動項：",
+   "zh_tw": "This is a very important startup, are you sure repair it."
+  },
+  "0x14069FD90": {
+   "en": "这是一个很重要的启动项，你真的要修复吗？",
+   "zh_cn": "這是一個很重要的啟動項，你真的要修復嗎？",
+   "zh_tw": "Repair Startup"
+  },
+  "0x14069FDA8": {
+   "en": "修复启动项",
+   "zh_cn": "修復啟動項",
+   "zh_tw": "This is a very important startup, are you sure delete it."
+  },
+  "0x14069FDC0": {
+   "en": "这是一个很重要的启动项，你真的要删除吗？",
+   "zh_cn": "這是一個很重要的啟動項，你真的要刪除嗎？",
+   "zh_tw": "Delete Startup"
+  },
+  "0x14069FDD8": {
+   "en": "删除启动项",
+   "zh_cn": "刪除啟動項",
+   "zh_tw": "Startup"
+  },
+  "0x14069FDF0": {
+   "en": "启动项",
+   "zh_cn": "啟動項",
+   "zh_tw": "Refresh"
+  },
+  "0x14069FE08": {
+   "en": "刷新",
+   "zh_cn": "刷新",
+   "zh_tw": "Delete(Startup)"
+  },
+  "0x14069FE20": {
+   "en": "删除(启动信息)",
+   "zh_cn": "刪除(啟動信息)",
+   "zh_tw": "Delete(Startup And File)"
+  },
+  "0x14069FE38": {
+   "en": "删除(启动信息和文件)",
+   "zh_cn": "刪除(啟動信息和文件)",
+   "zh_tw": "Repair"
+  },
+  "0x14069FE50": {
+   "en": "修复",
+   "zh_cn": "修復",
+   "zh_tw": "Verify File Signatrue"
+  },
+  "0x14069FE68": {
+   "en": "校验数字签名",
+   "zh_cn": "校驗數字簽名",
+   "zh_tw": "Verify All Startup Signatrue"
+  },
+  "0x14069FE80": {
+   "en": "校验所有数字签名",
+   "zh_cn": "校驗所有數字簽名",
+   "zh_tw": "Copy Startup Name"
+  },
+  "0x14069FE98": {
+   "en": "复制启动项名",
+   "zh_cn": "複製啟動項名",
+   "zh_tw": "Copy Startup Path"
+  },
+  "0x14069FEB0": {
+   "en": "复制启动项路径",
+   "zh_cn": "複製啟動項路徑",
+   "zh_tw": "Search Online"
+  },
+  "0x14069FEC8": {
+   "en": "在线搜索启动项",
+   "zh_cn": "在線搜索啟動項",
+   "zh_tw": "Analyse Online"
+  },
+  "0x14069FEE0": {
+   "en": "在线分析",
+   "zh_cn": "在線分析",
+   "zh_tw": "Analyse by Kingsoft's FireEye"
+  },
+  "0x14069FEF8": {
+   "en": "火眼在线分析",
+   "zh_cn": "火眼在綫分析",
+   "zh_tw": "Find Target"
+  },
+  "0x14069FF10": {
+   "en": "定位到启动文件",
+   "zh_cn": "定位到啟動文件",
+   "zh_tw": "Properties"
+  },
+  "0x14069FF28": {
+   "en": "查看启动文件属性",
+   "zh_cn": "查看啟動文件屬性",
+   "zh_tw": "Open By RegEdit"
+  },
+  "0x14069FF40": {
+   "en": "用RegEdit打开对应注册表",
+   "zh_cn": "用RegEdit打開對應註冊表",
+   "zh_tw": "Locate in Registry Tab"
+  },
+  "0x14069FF58": {
+   "en": "定位到PC Hunter注册表管理器",
+   "zh_cn": "定位到PC Hunter注冊表管理器",
+   "zh_tw": "Locate in File Tab"
+  },
+  "0x14069FF70": {
+   "en": "定位到PC Hunter文件管理器",
+   "zh_cn": "定位到PC Hunter文件管理器",
+   "zh_tw": "Startup"
+  },
+  "0x14069FF88": {
+   "en": "启动项",
+   "zh_cn": "啟動項",
+   "zh_tw": "Services"
+  },
+  "0x14069FFA0": {
+   "en": "服务",
+   "zh_cn": "服務",
+   "zh_tw": "Schedule Task"
+  },
+  "0x14069FFD0": {
+   "en": "Items to be detected",
+   "zh_cn": "要检测的项目",
+   "zh_tw": "要檢測的項目"
+  },
+  "0x14069FFE8": {
+   "en": "Examination detail",
+   "zh_cn": "检测详情",
+   "zh_tw": "檢測詳情"
+  },
+  "0x1406A0000": {
+   "en": "Hide safe items",
+   "zh_cn": "隐藏明显安全项",
+   "zh_tw": "隱藏明顯安全項"
+  },
+  "0x1406A0018": {
+   "en": "Generate examination report",
+   "zh_cn": "生成检测报告",
+   "zh_tw": "生成檢測報告"
+  },
+  "0x1406A0030": {
+   "en": "Terminate generating examination report",
+   "zh_cn": "终止生成检测报告",
+   "zh_tw": "終止生成檢測報告"
+  },
+  "0x1406A0048": {
+   "en": "Export examination report",
+   "zh_cn": "导出检测报告",
+   "zh_tw": "導出檢測報告"
+  },
+  "0x1406A0060": {
+   "en": "Go to this item",
+   "zh_cn": "定位到该项目",
+   "zh_tw": "定位到該項目"
+  },
+  "0x1406A0078": {
+   "en": "Go to the top",
+   "zh_cn": "定位到顶部",
+   "zh_tw": "定位到頂部"
+  },
+  "0x1406A0090": {
+   "en": "Computer Examination",
+   "zh_cn": "电脑检测",
+   "zh_tw": "電腦檢測"
+  },
+  "0x1406A00A8": {
+   "en": "Create Thread Failed",
+   "zh_cn": "创建线程失败",
+   "zh_tw": "創建線程失敗"
+  },
+  "0x1406A00C0": {
+   "en": "PC Hunter Professional --- Computer Examination Report",
+   "zh_cn": "PC Hunter Professional --- 电脑检测报告",
+   "zh_tw": "PC Hunter Professional --- 電腦檢測報告"
+  },
+  "0x1406A00D8": {
+   "en": "Examination Date",
+   "zh_cn": "检测时间",
+   "zh_tw": "檢測時間"
+  },
+  "0x1406A00F0": {
+   "en": "OS Information",
+   "zh_cn": "系统信息",
+   "zh_tw": "系統信息"
+  },
+  "0x1406A0108": {
+   "en": "Internet Explorer",
+   "zh_cn": "IE版本  ",
+   "zh_tw": "IE版本  "
+  },
+  "0x1406A0120": {
+   "en": "Examination Items:",
+   "zh_cn": "检测项目:",
+   "zh_tw": "檢測項目:"
+  },
+  "0x1406A0150": {
+   "en": "您是否剛才打補丁了，請重啟電腦再使用本軟件！",
+   "zh_cn": "This software has been infected by virus, do you still want to run the software? ",
+   "zh_tw": "本软件被恶意修改，您是否继续运行本软件？"
+  },
+  "0x1406A0168": {
+   "en": "本軟件被惡意修改，您是否繼續運行本軟件？",
+   "zh_cn": "Find ZeroAccess Rootkit!",
+   "zh_tw": "在您的系统中发现了ZeroAccess Rootkit，您可以使用PC Hunter Professional或其它软件干掉它！"
+  },
+  "0x1406A0180": {
+   "en": "在您的系統中發現了ZeroAccess Rootkit，您可以使用PC Hunter Professional或其它軟件幹掉它！",
+   "zh_cn": "Running PC Hunter Professional again may cause PC Hunter Professional blank, do you still want to run it?",
+   "zh_tw": "运行多份PC Hunter Professional可能导致PC Hunter Professional白板，您是否还要运行？"
+  },
+  "0x1406A0198": {
+   "en": "運行多份PC Hunter Professional可能導致PC Hunter Professional白板，您是否還要運行？",
+   "zh_cn": "%d thread(s) has been injected to PC Hunter Professional,kill them or not?",
+   "zh_tw": "有%d个线程已经注入到PC Hunter Professional中，您是否杀掉它们？"
+  },
+  "0x1406A01B0": {
+   "en": "有%d個進程已經注入到PC Hunter Professional中，您是否殺掉它們？",
+   "zh_cn": "Thread Injected",
+   "zh_tw": "存在线程注入"
+  },
+  "0x1406A01C8": {
+   "en": "存在線程注入",
+   "zh_cn": "Load Driver Error!",
+   "zh_tw": "加载驱动失败！"
+  },
+  "0x1406A01E0": {
+   "en": "加載驅動失敗！",
+   "zh_cn": "Do you not reboot you system after windows update? it may affect the check results, Are you using it continue?",
+   "zh_tw": "您刚才打补丁了吧，建议您重启电脑后再使用本软件，否则可能会影响本软件的检测结果，您还要继续使用本软件么？"
+  },
+  "0x1406A01F8": {
+   "en": "您剛才打補丁了吧，建議您重啟電腦後再使用本軟件，否則可能會影響本軟件的檢測結果，您還要繼續使用本軟件麼？",
+   "zh_cn": "License Error!",
+   "zh_tw": "没有正确的License文件！"
+  },
+  "0x1406A0210": {
+   "en": "沒有正確的License文件！",
+   "zh_cn": "License Expire!",
+   "zh_tw": "License过期！"
+  },
+  "0x1406A0228": {
+   "en": "License過期！",
+   "zh_cn": "Please using x64 PC Hunter Professional in 64 bit system.",
+   "zh_tw": "在64位系统中请使用64位的PC Hunter Professional！"
+  },
+  "0x1406A0258": {
+   "en": "进程",
+   "zh_cn": "進程",
+   "zh_tw": "Kernel Module"
+  },
+  "0x1406A0270": {
+   "en": "驱动模块",
+   "zh_cn": "驅動模塊",
+   "zh_tw": "Kernel"
+  },
+  "0x1406A0288": {
+   "en": "内核",
+   "zh_cn": "內核",
+   "zh_tw": "Ring0 Hooks"
+  },
+  "0x1406A02A0": {
+   "en": "内核钩子",
+   "zh_cn": "內核鉤子",
+   "zh_tw": "Ring3 Hooks"
+  },
+  "0x1406A02B8": {
+   "en": "应用层钩子",
+   "zh_cn": "應用層鉤子",
+   "zh_tw": "Network"
+  },
+  "0x1406A02D0": {
+   "en": "网络",
+   "zh_cn": "網絡",
+   "zh_tw": "Registry"
+  },
+  "0x1406A02E8": {
+   "en": "注册表",
+   "zh_cn": "注冊表",
+   "zh_tw": "File"
+  },
+  "0x1406A0300": {
+   "en": "文件",
+   "zh_cn": "文件",
+   "zh_tw": "Startup Info"
+  },
+  "0x1406A0318": {
+   "en": "启动信息",
+   "zh_cn": "啟動信息",
+   "zh_tw": "Other"
+  },
+  "0x1406A0330": {
+   "en": "系统杂项",
+   "zh_cn": "系統雜項",
+   "zh_tw": "Examination"
+  },
+  "0x1406A0348": {
+   "en": "电脑体检",
+   "zh_cn": "電腦體檢",
+   "zh_tw": "Setting"
+  },
+  "0x1406A0360": {
+   "en": "配置",
+   "zh_cn": "配置",
+   "zh_tw": "Subscribe"
+  },
+  "0x1406A0378": {
+   "en": "升级到专业版",
+   "zh_cn": "升級到專業版",
+   "zh_tw": "Fireeye"
+  },
+  "0x1406A0390": {
+   "en": "火眼",
+   "zh_cn": "火眼",
+   "zh_tw": "Trojan Detection"
+  },
+  "0x1406A03A8": {
+   "en": "木马辅助检测",
+   "zh_cn": "木馬輔助檢測",
+   "zh_tw": "About"
+  },
+  "0x1406A03C0": {
+   "en": "关于",
+   "zh_cn": "關於",
+   "zh_tw": "About PC Hunter Professional"
+  },
+  "0x1406A03D8": {
+   "en": "关于 PC Hunter Professional",
+   "zh_cn": "關於 PC Hunter Professional",
+   "zh_tw": "(C) 2008-2025 linxer. All Rights Reserved."
+  },
+  "0x1406A03F0": {
+   "en": "(C) 2008-2025 linxer. 版权所有.",
+   "zh_cn": "(C) 2008-2025 linxer. 版權所有.",
+   "zh_tw": "Home Page: http://www.xuetr.com"
+  },
+  "0x1406A0408": {
+   "en": "官网: http://www.xuetr.com",
+   "zh_cn": "官網: http://www.xuetr.com",
+   "zh_tw": "Email: linxer@163.com"
+  },
+  "0x1406A0420": {
+   "en": "Email: linxer@163.com",
+   "zh_cn": "Email: linxer@163.com",
+   "zh_tw": "OK"
+  },
+  "0x1406A0438": {
+   "en": "确定",
+   "zh_cn": "確定",
+   "zh_tw": "Show Main Window(&S)"
+  },
+  "0x1406A0450": {
+   "en": "显示主窗口(&S)",
+   "zh_cn": "顯示主窗口(&S)",
+   "zh_tw": "Exit(&E)"
+  },
+  "0x1406A0480": {
+   "en": "Refresh",
+   "zh_cn": "刷新",
+   "zh_tw": "刷新"
+  },
+  "0x1406A0498": {
+   "en": "Disassembling current entry",
+   "zh_cn": "反汇编当前函数地址",
+   "zh_tw": "反彙編當前函數地址"
+  },
+  "0x1406A04B0": {
+   "en": "Disassembling original entry",
+   "zh_cn": "反汇编原始函数地址",
+   "zh_tw": "反彙編原始函數地址"
+  },
+  "0x1406A04C8": {
+   "en": "Disassembling Fun Entry",
+   "zh_cn": "反汇编函数",
+   "zh_tw": "反彙編函數"
+  },
+  "0x1406A04E0": {
+   "en": "Restore",
+   "zh_cn": "恢复",
+   "zh_tw": "恢復"
+  },
+  "0x1406A04F8": {
+   "en": "Restore All",
+   "zh_cn": "恢复所有",
+   "zh_tw": "恢復所有"
+  },
+  "0x1406A0510": {
+   "en": "Find Target",
+   "zh_cn": "定位到模块文件",
+   "zh_tw": "定位到模塊文件"
+  },
+  "0x1406A0528": {
+   "en": "Properties",
+   "zh_cn": "查看模块属性",
+   "zh_tw": "查看模塊屬性"
+  },
+  "0x1406A0540": {
+   "en": "Locate in File Tab",
+   "zh_cn": "定位到PC Hunter文件管理器",
+   "zh_tw": "定位到PC Hunter文件管理器"
+  },
+  "0x1406A0558": {
+   "en": "Query Failed",
+   "zh_cn": "获取失败",
+   "zh_tw": "獲取失敗"
+  },
+  "0x1406A0570": {
+   "en": "File System Item",
+   "zh_cn": "文件系统项目",
+   "zh_tw": "文件系統項目"
+  },
+  "0x1406A0588": {
+   "en": "MiniFilter",
+   "zh_cn": "微端口过滤器",
+   "zh_tw": "微端口過濾器"
+  },
+  "0x1406A05A0": {
+   "en": "File System",
+   "zh_cn": "文件系统",
+   "zh_tw": "文件系統"
+  },
+  "0x1406A05B8": {
+   "en": "Sfilter FileSystem Filter Callback",
+   "zh_cn": "Sfilter回调",
+   "zh_tw": "Sfilter回調"
+  },
+  "0x1406A05D0": {
+   "en": "ClassInitData Callback",
+   "zh_cn": "ClassInitData回调",
+   "zh_tw": "ClassInitData回調"
+  },
+  "0x1406A05E8": {
+   "en": "FltMgr Dispatch Fun",
+   "zh_cn": "Fltmgr派发函数",
+   "zh_tw": "Fltmgr派發函數"
+  },
+  "0x1406A0600": {
+   "en": "FltMgr FileSystem Filter Callback",
+   "zh_cn": "FltMgr文件系统过滤器回调",
+   "zh_tw": "FltMgr文件系統過濾器回調"
+  },
+  "0x1406A0618": {
+   "en": "FltMgr Calls",
+   "zh_cn": "FltMgr Calls",
+   "zh_tw": "FltMgr Calls"
+  },
+  "0x1406A0630": {
+   "en": "Npfs Dispatch Fun",
+   "zh_cn": "Npfs派发函数",
+   "zh_tw": "Npfs派發函數"
+  },
+  "0x1406A0648": {
+   "en": "Msfs Dispatch Fun",
+   "zh_cn": "Msfs派发函数",
+   "zh_tw": "Msfs派發函數"
+  },
+  "0x1406A0660": {
+   "en": "Usbport Dispatch Fun",
+   "zh_cn": "Usbport派发函数",
+   "zh_tw": "Usbport派發函數"
+  },
+  "0x1406A0678": {
+   "en": "Ftdisk Dispatch Fun",
+   "zh_cn": "Ftdisk派发函数",
+   "zh_tw": "Ftdisk派發函數"
+  },
+  "0x1406A0690": {
+   "en": "Volmgr Dispatch Fun",
+   "zh_cn": "Volmgr派发函数",
+   "zh_tw": "Volmgr派發函數"
+  },
+  "0x1406A06A8": {
+   "en": "Volsnap Dispatch Fun",
+   "zh_cn": "Volsnap派发函数",
+   "zh_tw": "Volsnap派發函數"
+  },
+  "0x1406A06C0": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A06D8": {
+   "en": "Fun Entry",
+   "zh_cn": "函数地址",
+   "zh_tw": "函數地址"
+  },
+  "0x1406A06F0": {
+   "en": "Module",
+   "zh_cn": "函数所在模块",
+   "zh_tw": "函數所在模塊"
+  },
+  "0x1406A0708": {
+   "en": "File Corporation",
+   "zh_cn": "文件厂商",
+   "zh_tw": "文件廠商"
+  },
+  "0x1406A0720": {
+   "en": "Filter Address",
+   "zh_cn": "过滤器地址",
+   "zh_tw": "過濾器地址"
+  },
+  "0x1406A0738": {
+   "en": "Export Display",
+   "zh_cn": "导出",
+   "zh_tw": "導出"
+  },
+  "0x1406A0750": {
+   "en": "Index",
+   "zh_cn": "序号",
+   "zh_tw": "序號"
+  },
+  "0x1406A0768": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A0780": {
+   "en": "Current Entry",
+   "zh_cn": "当前函数地址",
+   "zh_tw": "當前函數地址"
+  },
+  "0x1406A0798": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x1406A07B0": {
+   "en": "Original Entry",
+   "zh_cn": "原始函数地址",
+   "zh_tw": "原始函數地址"
+  },
+  "0x1406A07C8": {
+   "en": "Module",
+   "zh_cn": "当前函数地址所在模块",
+   "zh_tw": "當前函數地址所在模塊"
+  },
+  "0x1406A07E0": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A07F8": {
+   "en": "Current Entry",
+   "zh_cn": "当前函数地址",
+   "zh_tw": "當前函數地址"
+  },
+  "0x1406A0810": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x1406A0828": {
+   "en": "Original Entry",
+   "zh_cn": "原始函数地址",
+   "zh_tw": "原始函數地址"
+  },
+  "0x1406A0840": {
+   "en": "Module",
+   "zh_cn": "当前函数地址所在模块",
+   "zh_tw": "當前函數地址所在模塊"
+  },
+  "0x1406A0870": {
+   "en": "函數數量：",
+   "zh_cn": "Hook: ",
+   "zh_tw": "异常函数数量："
+  },
+  "0x1406A0888": {
+   "en": "異常函數數量：",
+   "zh_cn": "FltMgr Entery: ",
+   "zh_tw": "FltMgr函数： "
+  },
+  "0x1406A08A0": {
+   "en": "FltMgr函數： ",
+   "zh_cn": "Hooks: ",
+   "zh_tw": "被挂钩函数： "
+  },
+  "0x1406A08B8": {
+   "en": "被掛鉤函數： ",
+   "zh_cn": "Count: ",
+   "zh_tw": "数量： "
+  },
+  "0x1406A08D0": {
+   "en": "數量： ",
+   "zh_cn": "Find Next ClassInitData: ",
+   "zh_tw": "发现下一项ClassInitData："
+  },
+  "0x1406A08E8": {
+   "en": "發現下一項ClassInitData：",
+   "zh_cn": "Npfs Entery: ",
+   "zh_tw": "Npfs函数： "
+  },
+  "0x1406A0900": {
+   "en": "Npfs函數： ",
+   "zh_cn": "Msfs Entery: ",
+   "zh_tw": "Msfs函数： "
+  },
+  "0x1406A0918": {
+   "en": "Msfs函數： ",
+   "zh_cn": "Usbport Entery: ",
+   "zh_tw": "Usbport函数： "
+  },
+  "0x1406A0930": {
+   "en": "Usbport函數： ",
+   "zh_cn": "Ftdisk Entery: ",
+   "zh_tw": "Ftdisk函数： "
+  },
+  "0x1406A0948": {
+   "en": "Ftdisk函數： ",
+   "zh_cn": "Volmgr Entery: ",
+   "zh_tw": "Volmgr函数： "
+  },
+  "0x1406A0960": {
+   "en": "Volmgr函數： ",
+   "zh_cn": "Volsnap Entery: ",
+   "zh_tw": "Volsnap函数： "
+  },
+  "0x1406A0978": {
+   "en": "Volsnap函數： ",
+   "zh_cn": "Disassembling Fun Entry",
+   "zh_tw": "反汇编函数"
+  },
+  "0x1406A0990": {
+   "en": "反彙編函數",
+   "zh_cn": "Remove Filter",
+   "zh_tw": "移除过滤器"
+  },
+  "0x1406A09A8": {
+   "en": "移除過濾器",
+   "zh_cn": "Type",
+   "zh_tw": "类型"
+  },
+  "0x1406A09C0": {
+   "en": "類型",
+   "zh_cn": "Device Object",
+   "zh_tw": "设备对象"
+  },
+  "0x1406A09D8": {
+   "en": "設備對象",
+   "zh_cn": "DevName",
+   "zh_tw": "设备对象名称"
+  },
+  "0x1406A09F0": {
+   "en": "設備對象名稱",
+   "zh_cn": "Driver Object",
+   "zh_tw": "驱动对象"
+  },
+  "0x1406A0A08": {
+   "en": "驅動對象",
+   "zh_cn": "DrvName",
+   "zh_tw": "驱动对象名称"
+  },
+  "0x1406A0A38": {
+   "en": "驱动对象名称",
+   "zh_cn": "驅動對象名稱",
+   "zh_tw": "Driver Object"
+  },
+  "0x1406A0A50": {
+   "en": "驱动对象",
+   "zh_cn": "驅動對象",
+   "zh_tw": "Fun Entry"
+  },
+  "0x1406A0A68": {
+   "en": "函数地址",
+   "zh_cn": "函數地址",
+   "zh_tw": "Fun Name"
+  },
+  "0x1406A0A80": {
+   "en": "函数名称",
+   "zh_cn": "函數名稱",
+   "zh_tw": "Fun Module"
+  },
+  "0x1406A0AB0": {
+   "en": "Type",
+   "zh_cn": "类型",
+   "zh_tw": "類型"
+  },
+  "0x1406A0AC8": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A0AE0": {
+   "en": "Current Entry",
+   "zh_cn": "当前函数地址",
+   "zh_tw": "當前函數地址"
+  },
+  "0x1406A0AF8": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x1406A0B10": {
+   "en": "Original Entry",
+   "zh_cn": "原始函数地址",
+   "zh_tw": "原始函數地址"
+  },
+  "0x1406A0B28": {
+   "en": "Module",
+   "zh_cn": "当前函数地址所在模块",
+   "zh_tw": "當前函數地址所在模塊"
+  },
+  "0x1406A0B40": {
+   "en": "Index",
+   "zh_cn": "索引",
+   "zh_tw": "索引"
+  },
+  "0x1406A0B70": {
+   "en": "校驗文件數字簽名",
+   "zh_cn": "The File was been signed",
+   "zh_tw": "文件已经签名"
+  },
+  "0x1406A0B88": {
+   "en": "文件已經簽名",
+   "zh_cn": "The File was not been signed",
+   "zh_tw": "文件未通过签名"
+  },
+  "0x1406A0BA0": {
+   "en": "文件未通过簽名",
+   "zh_cn": "File not found",
+   "zh_tw": "文件不存在"
+  },
+  "0x1406A0BB8": {
+   "en": "文件不存在",
+   "zh_cn": "Failed on visiting FireEye's site",
+   "zh_tw": "访问火眼网站出错"
+  },
+  "0x1406A0BD0": {
+   "en": "訪問火眼網站出錯",
+   "zh_cn": "Can you send the file to FireEye? and look at the result at \"Kingsoft's FireEye\" tab several minutes.",
+   "zh_tw": "在火眼官网未发现本文件的任何信息，您是否把本文件上传到火眼官网分析，几分钟后您可以在\"火眼\"标签查看分析结果。"
+  },
+  "0x1406A0BE8": {
+   "en": "在火眼官網未發現本文件的任何信息，您是否把本文件上傳到火眼官網分析，幾分鐘後您可以在\"火眼\"標籤查看分析結果。",
+   "zh_cn": "Failed on upload file to FireEye's site",
+   "zh_tw": "上传文件到火眼官网失败"
+  },
+  "0x1406A0C00": {
+   "en": "上傳文件到火眼官網失敗",
+   "zh_cn": "File Path Error",
+   "zh_tw": "文件不存在，或文件路径信息有误"
+  },
+  "0x1406A0C18": {
+   "en": "文件不存在，或文件路徑信息有誤",
+   "zh_cn": "%s is belong to Microsoft,it don't upload to FireEye's site",
+   "zh_tw": "%s 是系统文件，不需要上传到火眼系统分析"
+  },
+  "0x1406A0C48": {
+   "en": "无",
+   "zh_cn": "無",
+   "zh_tw": "MS File"
+  },
+  "0x1406A0C60": {
+   "en": "微软文件",
+   "zh_cn": "微軟文件",
+   "zh_tw": "UnMs File"
+  },
+  "0x1406A0C90": {
+   "en": "SSDT",
+   "zh_cn": "SSDT",
+   "zh_tw": "SSDT"
+  },
+  "0x1406A0CA8": {
+   "en": "ShadowSSDT",
+   "zh_cn": "ShadowSSDT",
+   "zh_tw": "ShadowSSDT"
+  },
+  "0x1406A0CC0": {
+   "en": "FSD",
+   "zh_cn": "FSD",
+   "zh_tw": "FSD"
+  },
+  "0x1406A0CD8": {
+   "en": "Keyboard",
+   "zh_cn": "键盘",
+   "zh_tw": "鍵盤"
+  },
+  "0x1406A0CF0": {
+   "en": "I8042prt",
+   "zh_cn": "I8042prt",
+   "zh_tw": "I8042prt"
+  },
+  "0x1406A0D08": {
+   "en": "Mouse",
+   "zh_cn": "鼠标",
+   "zh_tw": "鼠標"
+  },
+  "0x1406A0D20": {
+   "en": "Partmgr",
+   "zh_cn": "Partmgr",
+   "zh_tw": "Partmgr"
+  },
+  "0x1406A0D38": {
+   "en": "Disk",
+   "zh_cn": "Disk",
+   "zh_tw": "Disk"
+  },
+  "0x1406A0D50": {
+   "en": "Atapi",
+   "zh_cn": "Atapi",
+   "zh_tw": "Atapi"
+  },
+  "0x1406A0D68": {
+   "en": "Acpi",
+   "zh_cn": "Acpi",
+   "zh_tw": "Acpi"
+  },
+  "0x1406A0D80": {
+   "en": "Scsi",
+   "zh_cn": "Scsi",
+   "zh_tw": "Scsi"
+  },
+  "0x1406A0D98": {
+   "en": "Kernel Hook",
+   "zh_cn": "内核钩子",
+   "zh_tw": "內核鉤子"
+  },
+  "0x1406A0DB0": {
+   "en": "Object Type",
+   "zh_cn": "Object钩子",
+   "zh_tw": "Object鉤子"
+  },
+  "0x1406A0DC8": {
+   "en": "IDT",
+   "zh_cn": "系统中断表",
+   "zh_tw": "系統中斷表"
+  },
+  "0x1406A0DE0": {
+   "en": "Index",
+   "zh_cn": "序号",
+   "zh_tw": "序號"
+  },
+  "0x1406A0DF8": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A0E10": {
+   "en": "Current Entry",
+   "zh_cn": "当前函数地址",
+   "zh_tw": "當前函數地址"
+  },
+  "0x1406A0E28": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x1406A0E40": {
+   "en": "Original Entry",
+   "zh_cn": "原始函数地址",
+   "zh_tw": "原始函數地址"
+  },
+  "0x1406A0E58": {
+   "en": "Module",
+   "zh_cn": "当前函数地址所在模块",
+   "zh_tw": "當前函數地址所在模塊"
+  },
+  "0x1406A0E70": {
+   "en": "Cpu Index",
+   "zh_cn": "Cpu序号",
+   "zh_tw": "Cpu序號"
+  },
+  "0x1406A0E88": {
+   "en": "Index",
+   "zh_cn": "序号",
+   "zh_tw": "序號"
+  },
+  "0x1406A0EA0": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A0EB8": {
+   "en": "Selector",
+   "zh_cn": "段选择子",
+   "zh_tw": "段選擇子"
+  },
+  "0x1406A0ED0": {
+   "en": "Current Entry",
+   "zh_cn": "当前函数地址",
+   "zh_tw": "當前函數地址"
+  },
+  "0x1406A0EE8": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x1406A0F00": {
+   "en": "Original Entry",
+   "zh_cn": "原始函数地址",
+   "zh_tw": "原始函數地址"
+  },
+  "0x1406A0F18": {
+   "en": "Module",
+   "zh_cn": "当前函数地址所在模块",
+   "zh_tw": "當前函數地址所在模塊"
+  },
+  "0x1406A0F30": {
+   "en": "Refresh",
+   "zh_cn": "刷新",
+   "zh_tw": "刷新"
+  },
+  "0x1406A0F48": {
+   "en": "Only show hooks",
+   "zh_cn": "仅显示挂钩函数",
+   "zh_tw": "僅顯示掛鉤函數"
+  },
+  "0x1406A0F60": {
+   "en": "Disassembling current entry",
+   "zh_cn": "反汇编当前函数地址",
+   "zh_tw": "反彙編當前函數地址"
+  },
+  "0x1406A0F78": {
+   "en": "Disassembling original entry",
+   "zh_cn": "反汇编原始函数地址",
+   "zh_tw": "反彙編原始函數地址"
+  },
+  "0x1406A0F90": {
+   "en": "Restore",
+   "zh_cn": "恢复",
+   "zh_tw": "恢復"
+  },
+  "0x1406A0FA8": {
+   "en": "Restore All",
+   "zh_cn": "恢复所有",
+   "zh_tw": "恢復所有"
+  },
+  "0x1406A0FC0": {
+   "en": "Find Target",
+   "zh_cn": "定位到模块文件",
+   "zh_tw": "定位到模塊文件"
+  },
+  "0x1406A0FD8": {
+   "en": "Properties",
+   "zh_cn": "查看模块属性",
+   "zh_tw": "查看模塊屬性"
+  },
+  "0x1406A0FF0": {
+   "en": "Locate in File Tab",
+   "zh_cn": "定位到PC Hunter文件管理器",
+   "zh_tw": "定位到PC Hunter文件管理器"
+  },
+  "0x1406A1020": {
+   "en": "在ServiceTable中檢測到多份SSDT函數表，恢復它可能會導致一個藍屏，您是否恢復...",
+   "zh_cn": "Existed several SSDT",
+   "zh_tw": "存在多份SSDT表"
+  },
+  "0x1406A1038": {
+   "en": "存在多份SSDT表",
+   "zh_cn": "Existed several SSDT in import table",
+   "zh_tw": "在内核模块的导入表中检测到多份SSDT表"
+  },
+  "0x1406A1050": {
+   "en": "在內核模塊的導入表中檢測到多份SSDT表",
+   "zh_cn": "Existed Int2e/Sysenter Hook: 0x%p(%s), Do you restore it...",
+   "zh_tw": "检测到int2e/sysenter钩子：0x%p(%s)，您是否恢复..."
+  },
+  "0x1406A1068": {
+   "en": "檢測到int2e/sysenter鉤子：0x%p(%s)，您是否恢復...",
+   "zh_cn": "Int2e/Sysenter Hook",
+   "zh_tw": "Int2e/Sysenter钩子"
+  },
+  "0x1406A1080": {
+   "en": "Int2e/Sysenter鉤子",
+   "zh_cn": "The Path[int2e/sysenter to ssdt] has been Hooked: 0x%p(%s)",
+   "zh_tw": "从int2e/sysenter到ssdt表的路径上检测到钩子：0x%p(%s)"
+  },
+  "0x1406A1098": {
+   "en": "從int2e/sysenter到ssdt表的路徑上檢測到鉤子：0x%p(%s)",
+   "zh_cn": " , No Scsi Device In The Current System.",
+   "zh_tw": " ，当前系统可能无SCSI设备。"
+  },
+  "0x1406A10B0": {
+   "en": " ，當前系統可能無SCSI設備。",
+   "zh_cn": "Existed DR0 AttachToDevice Hijack, Do you restore it...",
+   "zh_tw": "检测到DR0下层设备被劫持，您是否恢复..."
+  },
+  "0x1406A10C8": {
+   "en": "檢測到DR0下層設備被劫持，您是否恢復...",
+   "zh_cn": "SSDT Entery: ",
+   "zh_tw": "SSDT函数： "
+  },
+  "0x1406A10E0": {
+   "en": "SSDT函數： ",
+   "zh_cn": "Hooks: ",
+   "zh_tw": "被挂钩函数： "
+  },
+  "0x1406A10F8": {
+   "en": "被掛鉤函數： ",
+   "zh_cn": "Note: ",
+   "zh_tw": "备注： "
+  },
+  "0x1406A1110": {
+   "en": "備注： ",
+   "zh_cn": "Shadow SSDT Entery: ",
+   "zh_tw": "Shadow SSDT函数： "
+  },
+  "0x1406A1128": {
+   "en": "Shadow SSDT函數： ",
+   "zh_cn": "FSD Entery: ",
+   "zh_tw": "FSD派发函数： "
+  },
+  "0x1406A1140": {
+   "en": "FSD派發函數： ",
+   "zh_cn": "Tcpip Entery: ",
+   "zh_tw": "Tcpip派发函数： "
+  },
+  "0x1406A1158": {
+   "en": "Tcpip派發函數： ",
+   "zh_cn": "Nsiproxy Entery: ",
+   "zh_tw": "Nsiproxy派发函数： "
+  },
+  "0x1406A1170": {
+   "en": "Nsiproxy派發函數： ",
+   "zh_cn": "Tdx Entery: ",
+   "zh_tw": "Tdx派发函数： "
+  },
+  "0x1406A1188": {
+   "en": "Tdx派發函數： ",
+   "zh_cn": "KBD Entery: ",
+   "zh_tw": "KBD派发函数： "
+  },
+  "0x1406A11A0": {
+   "en": "KBD派發函數： ",
+   "zh_cn": "MOU Entery: ",
+   "zh_tw": "MOU派发函数： "
+  },
+  "0x1406A11B8": {
+   "en": "MOU派發函數： ",
+   "zh_cn": "Disk Entery: ",
+   "zh_tw": "Disk派发函数： "
+  },
+  "0x1406A11D0": {
+   "en": "Disk派發函數： ",
+   "zh_cn": "Atapi Entery: ",
+   "zh_tw": "Atapi派发函数： "
+  },
+  "0x1406A11E8": {
+   "en": "Atapi派發函數： ",
+   "zh_cn": "Acpi Entery: ",
+   "zh_tw": "Acpi派发函数： "
+  },
+  "0x1406A1200": {
+   "en": "Acpi派發函數： ",
+   "zh_cn": "Scsi Entery: ",
+   "zh_tw": "Scsi派发函数： "
+  },
+  "0x1406A1218": {
+   "en": "Scsi派發函數： ",
+   "zh_cn": "IDT Entery: ",
+   "zh_tw": "IDT派发函数： "
+  },
+  "0x1406A1230": {
+   "en": "IDT派發函數： ",
+   "zh_cn": "I8042prt Entery: ",
+   "zh_tw": "I8042prt派发函数： "
+  },
+  "0x1406A1248": {
+   "en": "I8042prt派發函數： ",
+   "zh_cn": "Partmgr Entery: ",
+   "zh_tw": "Partmgr派发函数： "
+  },
+  "0x1406A1278": {
+   "en": "Hal回调",
+   "zh_cn": "Hal回調",
+   "zh_tw": "HalDispatchTable"
+  },
+  "0x1406A1290": {
+   "en": "HalDispatchTable",
+   "zh_cn": "HalDispatchTable",
+   "zh_tw": "HalPrivateDispatchTable"
+  },
+  "0x1406A12A8": {
+   "en": "HalPrivateDispatchTable",
+   "zh_cn": "HalPrivateDispatchTable",
+   "zh_tw": "HalAcpiDispatchTable"
+  },
+  "0x1406A12C0": {
+   "en": "HalAcpiDispatchTable",
+   "zh_cn": "HalAcpiDispatchTable",
+   "zh_tw": "HalSubComponents"
+  },
+  "0x1406A12F0": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A1308": {
+   "en": "Current Entry",
+   "zh_cn": "当前函数地址",
+   "zh_tw": "當前函數地址"
+  },
+  "0x1406A1320": {
+   "en": "Hook",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x1406A1338": {
+   "en": "Original Entry",
+   "zh_cn": "原始函数地址",
+   "zh_tw": "原始函數地址"
+  },
+  "0x1406A1350": {
+   "en": "Module",
+   "zh_cn": "当前函数地址所在模块",
+   "zh_tw": "當前函數地址所在模塊"
+  },
+  "0x1406A1368": {
+   "en": "File Corporation",
+   "zh_cn": "文件厂商",
+   "zh_tw": "文件廠商"
+  },
+  "0x1406A1380": {
+   "en": "Index",
+   "zh_cn": "序号",
+   "zh_tw": "序號"
+  },
+  "0x1406A1398": {
+   "en": "Fun Name",
+   "zh_cn": "函数名称",
+   "zh_tw": "函數名稱"
+  },
+  "0x1406A13B0": {
+   "en": "Fun Entry",
+   "zh_cn": "函数地址",
+   "zh_tw": "函數地址"
+  },
+  "0x1406A13C8": {
+   "en": "Module",
+   "zh_cn": "函数地址所在模块",
+   "zh_tw": "函數地址所在模塊"
+  },
+  "0x1406A13E0": {
+   "en": "File Corporation",
+   "zh_cn": "文件厂商",
+   "zh_tw": "文件廠商"
+  },
+  "0x1406A13F8": {
+   "en": "Fun Count: ",
+   "zh_cn": "函数数量：",
+   "zh_tw": "函數數量："
+  },
+  "0x1406A1410": {
+   "en": "Hook: ",
+   "zh_cn": "异常函数数量：",
+   "zh_tw": "異常函數數量："
+  },
+  "0x1406A1428": {
+   "en": "User Name",
+   "zh_cn": "用户名称",
+   "zh_tw": "用戶名稱"
+  },
+  "0x1406A1440": {
+   "en": "System User Name",
+   "zh_cn": "系统用户名",
+   "zh_tw": "系統用戶名"
+  },
+  "0x1406A1458": {
+   "en": "User Name Count: ",
+   "zh_cn": "用户名数量：",
+   "zh_tw": "用戶名數量："
+  },
+  "0x1406A1470": {
+   "en": "Hide User Name Count: ",
+   "zh_cn": "隐藏用户名数量：",
+   "zh_tw": "隱藏用戶名數量："
+  },
+  "0x1406A1488": {
+   "en": "Refresh",
+   "zh_cn": "刷新",
+   "zh_tw": "刷新"
+  },
+  "0x1406A14A0": {
+   "en": "Delete",
+   "zh_cn": "删除",
+   "zh_tw": "刪除"
+  },
+  "0x1406A14D0": {
+   "en": "Wdf項目",
+   "zh_cn": "Wdf01000 Dispatch Fun",
+   "zh_tw": "Wdf01000派发函数"
+  },
+  "0x1406A14E8": {
+   "en": "Wdf01000派發函數",
+   "zh_cn": "WdfFunction",
+   "zh_tw": "WdfFunction"
+  },
+  "0x1406A1500": {
+   "en": "WdfFunction",
+   "zh_cn": "WdfLibraryInfo",
+   "zh_tw": "WdfLibraryInfo"
+  },
+  "0x1406A1518": {
+   "en": "WdfLibraryInfo",
+   "zh_cn": "Wdf Client",
+   "zh_tw": "Wdf Client"
+  },
+  "0x1406A1530": {
+   "en": "Wdf Client",
+   "zh_cn": "Disassembling Fun Entry",
+   "zh_tw": "反汇编函数"
+  },
+  "0x1406A1548": {
+   "en": "反彙編函數",
+   "zh_cn": "Index",
+   "zh_tw": "序号"
+  },
+  "0x1406A1560": {
+   "en": "序號",
+   "zh_cn": "Fun Name",
+   "zh_tw": "函数名称"
+  },
+  "0x1406A1578": {
+   "en": "函數名稱",
+   "zh_cn": "Current Entry",
+   "zh_tw": "当前函数地址"
+  },
+  "0x1406A1590": {
+   "en": "當前函數地址",
+   "zh_cn": "Hook",
+   "zh_tw": "Hook"
+  },
+  "0x1406A15A8": {
+   "en": "Hook",
+   "zh_cn": "Original Entry",
+   "zh_tw": "原始函数地址"
+  },
+  "0x1406A15C0": {
+   "en": "原始函數地址",
+   "zh_cn": "Module",
+   "zh_tw": "当前函数地址所在模块"
+  },
+  "0x1406A15D8": {
+   "en": "當前函數地址所在模塊",
+   "zh_cn": "Library Information",
+   "zh_tw": "Library信息"
+  },
+  "0x1406A15F0": {
+   "en": "Library信息",
+   "zh_cn": "Client Information",
+   "zh_tw": "Client信息"
+  },
+  "0x1406A1608": {
+   "en": "Client信息",
+   "zh_cn": "Fun Name",
+   "zh_tw": "函数名称"
+  },
+  "0x1406A1620": {
+   "en": "函數名稱",
+   "zh_cn": "Fun Entry",
+   "zh_tw": "函数地址"
+  },
+  "0x1406A1638": {
+   "en": "函數地址",
+   "zh_cn": "Module",
+   "zh_tw": "当前函数地址所在模块"
+  },
+  "0x1406A1668": {
+   "en": "Wdf01000函数： ",
+   "zh_cn": "Wdf01000函數： ",
+   "zh_tw": "Hooks: "
+  },
+  "0x1406A1680": {
+   "en": "被挂钩函数： ",
+   "zh_cn": "被掛鉤函數： ",
+   "zh_tw": "Fun Count: "
+  },
+  "0x1406A1698": {
+   "en": "函数数量：",
+   "zh_cn": "函數數量：",
+   "zh_tw": "Hook: "
+  },
+  "0x1406A16B0": {
+   "en": "异常函数数量：",
+   "zh_cn": "異常函數數量：",
+   "zh_tw": "Count: "
+  },
+  "0x1406A16E0": {
+   "en": "Input Reg Path",
+   "zh_cn": "输入注册表路径",
+   "zh_tw": "輸入注冊表路徑"
+  },
+  "0x1406A16F8": {
+   "en": "OK",
+   "zh_cn": "确定",
+   "zh_tw": "確定"
+  },
+  "0x1406A1710": {
+   "en": "Cancel",
+   "zh_cn": "取消",
+   "zh_tw": "取消"
+  },
+  "0x1406A1728": {
+   "en": "Please Input Reg Path.",
+   "zh_cn": "注冊表路径不能为空.",
+   "zh_tw": "注冊表路徑不能為空."
+  },
+  "0x1406A1740": {
+   "en": "Add Value",
+   "zh_cn": "添加值",
+   "zh_tw": "添加值"
+  },
+  "0x1406A1758": {
+   "en": "Value name:",
+   "zh_cn": "值名称：",
+   "zh_tw": "值名稱："
+  },
+  "0x1406A1770": {
+   "en": "Add Key",
+   "zh_cn": "添加项",
+   "zh_tw": "添加項"
+  },
+  "0x1406A1788": {
+   "en": "Key name:",
+   "zh_cn": "项名称：",
+   "zh_tw": "項名稱："
+  },
+  "0x1406A17A0": {
+   "en": "OK",
+   "zh_cn": "确定",
+   "zh_tw": "確定"
+  },
+  "0x1406A17B8": {
+   "en": "Cancel",
+   "zh_cn": "取消",
+   "zh_tw": "取消"
+  },
+  "0x1406A17D0": {
+   "en": "Edit Binary Value",
+   "zh_cn": "编辑二进制数值",
+   "zh_tw": "編輯二進制數值"
+  },
+  "0x1406A17E8": {
+   "en": "Value name:",
+   "zh_cn": "数值名称：",
+   "zh_tw": "數值名稱："
+  },
+  "0x1406A1800": {
+   "en": "Value data:",
+   "zh_cn": "数值数据：",
+   "zh_tw": "數值數據："
+  },
+  "0x1406A1818": {
+   "en": "OK",
+   "zh_cn": "确定",
+   "zh_tw": "確定"
+  },
+  "0x1406A1830": {
+   "en": "Cancel",
+   "zh_cn": "取消",
+   "zh_tw": "取消"
+  },
+  "0x1406A1860": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\policies\\Explorer"
+  },
+  "0x1406A1878": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\policies\\Explorer",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\Software\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\Windows"
+  },
+  "0x1406A1890": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ShellExecuteHooks",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ShellExecuteHooks",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Approved"
+  },
+  "0x1406A18A8": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Approved",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ShellServiceObjectDelayLoad",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\ShellServiceObjectDelayLoad"
+  },
+  "0x1406A18C0": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Internet Explorer"
+  },
+  "0x1406A18D8": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Internet Explorer",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\IniFileMapping",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\IniFileMapping"
+  },
+  "0x1406A18F0": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager"
+  },
+  "0x1406A1908": {
+   "en": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Microsoft\\Windows\\IPSec\\Policy\\Local",
+   "zh_cn": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Policies\\Microsoft\\Windows\\IPSec\\Policy\\Local",
+   "zh_tw": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace"
+  },
+  "0x1406A1938": {
+   "en": "HKEY_CURRENT_USER\\Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+   "zh_cn": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+   "zh_tw": "HKEY_CURRENT_USER\\Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer"
+  },
+  "0x1406A1950": {
+   "en": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows",
+   "zh_cn": "HKEY_CURRENT_USER\\Software\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\Windows",
+   "zh_tw": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"
+  },
+  "0x1406A1968": {
+   "en": "HKEY_CURRENT_USER\\Software\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+   "zh_cn": "HKEY_CURRENT_USER\\Software\\Microsoft\\Internet Explorer",
+   "zh_tw": "HKEY_CURRENT_USER\\Software\\Wow6432Node\\Microsoft\\Internet Explorer"
+  },
+  "0x1406A1998": {
+   "en": "名称",
+   "zh_cn": "名稱",
+   "zh_tw": "Type"
+  },
+  "0x1406A19B0": {
+   "en": "类型",
+   "zh_cn": "類型",
+   "zh_tw": "Data"
+  },
+  "0x1406A19E0": {
+   "en": "Key",
+   "zh_cn": "项",
+   "zh_tw": "項"
+  },
+  "0x1406A19F8": {
+   "en": "String",
+   "zh_cn": "字符串值",
+   "zh_tw": "字符串值"
+  },
+  "0x1406A1A10": {
+   "en": "Binary",
+   "zh_cn": "二进制值",
+   "zh_tw": "二進制值"
+  },
+  "0x1406A1A28": {
+   "en": "Dword",
+   "zh_cn": "DWORD值",
+   "zh_tw": "DWORD值"
+  },
+  "0x1406A1A40": {
+   "en": "Multi String",
+   "zh_cn": "多字符串值",
+   "zh_tw": "多字符串值"
+  },
+  "0x1406A1A58": {
+   "en": "Expand String",
+   "zh_cn": "可扩充字符串值",
+   "zh_tw": "可擴充字符串值"
+  },
+  "0x1406A1A70": {
+   "en": "Refresh",
+   "zh_cn": "刷新",
+   "zh_tw": "刷新"
+  },
+  "0x1406A1A88": {
+   "en": "Modify",
+   "zh_cn": "修改",
+   "zh_tw": "修改"
+  },
+  "0x1406A1AA0": {
+   "en": "Modify Binary Data",
+   "zh_cn": "修改二进制数据",
+   "zh_tw": "修改二進制數據"
+  },
+  "0x1406A1AB8": {
+   "en": "Delete",
+   "zh_cn": "删除",
+   "zh_tw": "刪除"
+  },
+  "0x1406A1AD0": {
+   "en": "Rename",
+   "zh_cn": "重命名",
+   "zh_tw": "重命名"
+  },
+  "0x1406A1AE8": {
+   "en": "Add",
+   "zh_cn": "新建",
+   "zh_tw": "新建"
+  },
+  "0x1406A1B00": {
+   "en": "Find...",
+   "zh_cn": "查找...",
+   "zh_tw": "查找..."
+  },
+  "0x1406A1B18": {
+   "en": "Find Hidden Item",
+   "zh_cn": "查找隐藏项",
+   "zh_tw": "查找隱藏項"
+  },
+  "0x1406A1B30": {
+   "en": "View Handle",
+   "zh_cn": "查看锁定情况",
+   "zh_tw": "查看鎖定情況"
+  },
+  "0x1406A1B48": {
+   "en": "View CmpNotifyChange",
+   "zh_cn": "查看应用层注册表监控情况",
+   "zh_tw": "查看應用層註冊表監控情況"
+  },
+  "0x1406A1B60": {
+   "en": "Export Display",
+   "zh_cn": "导出",
+   "zh_tw": "導出"
+  },
+  "0x1406A1B78": {
+   "en": "Copy Key Name",
+   "zh_cn": "复制项名称",
+   "zh_tw": "複製項名稱"
+  },
+  "0x1406A1B90": {
+   "en": "Use Hive Analysis",
+   "zh_cn": "使用Hive分析",
+   "zh_tw": "使用Hive分析"
+  },
+  "0x1406A1BC0": {
+   "en": "默認",
+   "zh_cn": "(value no set)",
+   "zh_tw": "(数值未设置)"
+  },
+  "0x1406A1BD8": {
+   "en": "數值未設置",
+   "zh_cn": "My Computer",
+   "zh_tw": "我的电脑"
+  },
+  "0x1406A1BF0": {
+   "en": "我的電腦",
+   "zh_cn": "The specified key already exists!",
+   "zh_tw": "指定的项已经存在！"
+  },
+  "0x1406A1C08": {
+   "en": "指定的項已經存在！",
+   "zh_cn": "Error Renaming Key",
+   "zh_tw": "重命名项时产生错误"
+  },
+  "0x1406A1C20": {
+   "en": "重命名項時產生錯誤",
+   "zh_cn": "The file has exist, do you truncate it?",
+   "zh_tw": "指定文件已经存在，是否覆盖？"
+  },
+  "0x1406A1C38": {
+   "en": "指定文件已經存在，是否覆蓋？",
+   "zh_cn": "Export Registery File",
+   "zh_tw": "导出注册表文件"
+  },
+  "0x1406A1C50": {
+   "en": "導出注冊表文件",
+   "zh_cn": "Export Done.",
+   "zh_tw": "导出完成"
+  },
+  "0x1406A1C68": {
+   "en": "導出完成",
+   "zh_cn": "Find Failed.",
+   "zh_tw": "查找失败"
+  },
+  "0x1406A1C80": {
+   "en": "查找失敗",
+   "zh_cn": "Find.",
+   "zh_tw": "查找"
+  },
+  "0x1406A1C98": {
+   "en": "查找",
+   "zh_cn": "Find Over.",
+   "zh_tw": "查找完成"
+  },
+  "0x1406A1CB0": {
+   "en": "查找完成",
+   "zh_cn": "Invalid Reg Path.",
+   "zh_tw": "此注册表路径不存在！"
+  },
+  "0x1406A1CC8": {
+   "en": "此註冊表路徑不存在！",
+   "zh_cn": "Input Reg Path.",
+   "zh_tw": "由我输入注册表路径"
+  },
+  "0x1406A1CE0": {
+   "en": "由我輸入注冊表路徑",
+   "zh_cn": "Not Support Now.",
+   "zh_tw": "暂不支持此功能"
+  },
+  "0x1406A1CF8": {
+   "en": "暫不支持此功能",
+   "zh_cn": "REG_NONE",
+   "zh_tw": "REG_SZ"
+  },
+  "0x1406A1D10": {
+   "en": "REG_EXPAND_SZ",
+   "zh_cn": "REG_BINARY",
+   "zh_tw": "REG_DWORD"
+  },
+  "0x1406A1D28": {
+   "en": "REG_DWORD_BIG_ENDIAN",
+   "zh_cn": "REG_LINK",
+   "zh_tw": "REG_MULTI_SZ"
+  },
+  "0x1406A1D40": {
+   "en": "REG_RESOURCE_LIST",
+   "zh_cn": "REG_FULL_RESOURCE_DESCRIPTOR",
+   "zh_tw": "REG_RESOURCE_REQUIREMENTS_LIST"
+  },
+  "0x1406A1D58": {
+   "en": "REG_QWORD",
+   "zh_cn": "HKEY_CLASSES_ROOT",
+   "zh_tw": "HKEY_CURRENT_USER"
+  },
+  "0x1406A1D70": {
+   "en": "HKEY_LOCAL_MACHINE",
+   "zh_cn": "HKEY_USERS",
+   "zh_tw": "HKEY_CURRENT_CONFIG"
+  },
+  "0x1406A1DA0": {
+   "en": "編輯 DWORD 值",
+   "zh_cn": "Value name:",
+   "zh_tw": "数值名称："
+  },
+  "0x1406A1DB8": {
+   "en": "數值名稱：",
+   "zh_cn": "Value data:",
+   "zh_tw": "数值数据："
+  },
+  "0x1406A1DD0": {
+   "en": "數值數據：",
+   "zh_cn": "Base",
+   "zh_tw": "基数"
+  },
+  "0x1406A1DE8": {
+   "en": "基數",
+   "zh_cn": "Hexadecimal",
+   "zh_tw": "十六进制"
+  },
+  "0x1406A1E00": {
+   "en": "十六進制",
+   "zh_cn": "Decimal",
+   "zh_tw": "十进制"
+  },
+  "0x1406A1E18": {
+   "en": "十進制",
+   "zh_cn": "OK",
+   "zh_tw": "确定"
+  },
+  "0x1406A1E30": {
+   "en": "確定",
+   "zh_cn": "Cancel",
+   "zh_tw": "取消"
+  },
+  "0x1406A1E48": {
+   "en": "取消",
+   "zh_cn": "Keys",
+   "zh_tw": "项"
+  },
+  "0x1406A1E60": {
+   "en": "項",
+   "zh_cn": "Values",
+   "zh_tw": "值"
+  },
+  "0x1406A1E78": {
+   "en": "值",
+   "zh_cn": "Data",
+   "zh_tw": "数据"
+  },
+  "0x1406A1E90": {
+   "en": "數據",
+   "zh_cn": "HKEY_CLASSES_ROOT",
+   "zh_tw": "HKEY_CURRENT_USER"
+  },
+  "0x1406A1EA8": {
+   "en": "HKEY_LOCAL_MACHINE",
+   "zh_cn": "HKEY_USERS",
+   "zh_tw": "HKEY_CURRENT_CONFIG"
+  },
+  "0x1406A1EC0": {
+   "en": "Find",
+   "zh_cn": "查找",
+   "zh_tw": "查找"
+  },
+  "0x1406A1ED8": {
+   "en": "Find what:",
+   "zh_cn": "查找目标：",
+   "zh_tw": "查找目標："
+  },
+  "0x1406A1EF0": {
+   "en": "Look at",
+   "zh_cn": "查看",
+   "zh_tw": "查看"
+  },
+  "0x1406A1F08": {
+   "en": "Keys",
+   "zh_cn": "项",
+   "zh_tw": "項"
+  },
+  "0x1406A1F20": {
+   "en": "Values",
+   "zh_cn": "值",
+   "zh_tw": "值"
+  },
+  "0x1406A1F38": {
+   "en": "Data",
+   "zh_cn": "数据",
+   "zh_tw": "數據"
+  },
+  "0x1406A1F50": {
+   "en": "Match whole string only",
+   "zh_cn": "全字匹配",
+   "zh_tw": "全字匹配"
+  },
+  "0x1406A1F68": {
+   "en": "Stop",
+   "zh_cn": "停止",
+   "zh_tw": "停止"
+  },
+  "0x1406A1F80": {
+   "en": "Case-insensitive",
+   "zh_cn": "忽略大小写",
+   "zh_tw": "忽略大小寫"
+  },
+  "0x1406A1FC8": {
+   "en": "开启检测线程失败",
+   "zh_cn": "開啟檢測線程失敗",
+   "zh_tw": "Find what Edit is empty."
+  },
+  "0x1406A1FE0": {
+   "en": "请输入要查找的内容",
+   "zh_cn": "請輸入要查找的內容",
+   "zh_tw": "Find Over."
+  },
+  "0x1406A1FF8": {
+   "en": "查找完成",
+   "zh_cn": "查找完成",
+   "zh_tw": "The file has exist, do you truncate it?"
+  }
+ }
+}
