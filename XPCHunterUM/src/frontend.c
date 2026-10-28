@@ -499,13 +499,6 @@ void DoRefreshFiles(void);
 void ShowPage(HWND hWnd, int page)
 {
     char hint[512];
-    if (GetCommandLineA() && strstr(GetCommandLineA(), "--dump-init")) {
-        FILE *lf = NULL;
-        if (fopen_s(&lf, "C:\\XPCHunter\\showpage.log", "ab") == 0 && lf) {
-            fprintf(lf, "ShowPage(page=%d)\n", page);
-            fclose(lf);
-        }
-    }
     /* 统一页面注册表：每页的显隐/按需刷新在各自模块的 PageShow 中实现。 */
     static const FE_PAGE_SHOW_FN g_PageShows[] = {
         FeProcPagePageShow,   /* 0 (Process) */
@@ -1044,18 +1037,6 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (p) page = atoi(p + 7);
             if (cl && strstr(cl, "--kernel-gui")) page = 1;
             if (page < 0 || page > 13) page = 0;
-            /* 诊断：--dump-init 时把命令行解析结果写文件（临时排查用） */
-            if (cl && strstr(cl, "--dump-init")) {
-                FILE *df = NULL;
-                if (fopen_s(&df, "C:\\XPCHunter\\init_debug.txt", "wb") == 0 && df) {
-                    fprintf(df, "GetCommandLineA=[%s]\n", cl ? cl : "(null)");
-                    fprintf(df, "strstr(--page ) offset=%d  parsed page=%d\n",
-                            p ? (int)(p - cl) : -1, page);
-                    fprintf(df, "strstr(--kernel-gui)=%s\n",
-                            (cl && strstr(cl, "--kernel-gui")) ? "HIT" : "no");
-                    fclose(df);
-                }
-            }
             SendMessageA(g_hMainTabs, TCM_SETCURSEL, (WPARAM)page, 0);
             ShowPage(hWnd, page);
             /* --kmtab N：预选 Kernel 页的子页（0 Module / 1 Driver / 2 SSDT /
@@ -1122,8 +1103,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         pageTop = FeDpiScale(76);                  /* 主 Tab 栏之下 */
         pageBottom = h - FeDpiScale(12);           /* 留一点下边距 */
 
-        if (g_hMainTabs)
+        if (g_hMainTabs) {
             MoveWindow(g_hMainTabs, FeDpiScale(10), FeDpiScale(44), w, FeDpiScale(24), TRUE);
+            FeThemeSubclassTab(g_hMainTabs);   /* 第三步：Tab 背景跟随主题 */
+        }
         if (g_hPageHint)
             MoveWindow(g_hPageHint, 20, pageTop + 20, w - 20, 160, TRUE);
 
@@ -1138,6 +1121,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             detailH = pageBottom - (midY + 28) - 150;
             if (detailH < 80) detailH = 80;
             if (g_hProc)       MoveWindow(g_hProc, 10, pageTop, w, listH, TRUE);
+            /* 表头可能晚于 ListView 创建，WM_SIZE 时补挂一次子类（幂等） */
+            FeThemeSubclassHeader(g_hProc);
             /* 第二步增量2：过滤框贴在进程列表与状态行之间 */
             if (g_hProcFilter) MoveWindow(g_hProcFilter, 10, midY - filterH + 2, 260, 24, TRUE);
             /* 第二步增量3：导出按钮紧贴过滤框右侧 */
@@ -1758,6 +1743,115 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
        连不上（驱动没启动）时 DoConnect 会在状态栏说明原因。 */
     DoConnect();
     DoRefreshProcs();
+
+    /* 自检入口 --ui-probe：在进程内读各控件的实际绘制像素并写文件后退出。
+       跨进程 GetDC/PrintWindow 在无交互桌面环境下读不到真实内容，只有同进程
+       可靠。输出 %TEMP%\xpch_uiprobe.txt，供渲染回归验证（深色主题、
+       控件可见性、各页数据行数）。 */
+    if (GetCommandLineA() && strstr(GetCommandLineA(), "--ui-probe")) {
+        FILE *pf = NULL;
+        char probePath[MAX_PATH];
+
+        GetTempPathA(MAX_PATH, probePath);
+        strcat_s(probePath, sizeof(probePath), "xpch_uiprobe.txt");
+        if (fopen_s(&pf, probePath, "wb") == 0 && pf) {
+            struct { const char *name; HWND h; int x; int y; } pts[] = {
+                { "list row1     ", NULL, 200,  25 },
+                { "list row1 rt  ", NULL, 600,  25 },
+                { "list empty    ", NULL, 200, 200 },
+                { "list corner   ", NULL,   5,   5 },
+            };
+            int i;
+            HWND hdr;
+
+            fprintf(pf, "== ui-probe ==\n");
+            for (i = 0; i < 4; i++) {
+                pts[i].h = g_hProc;
+                {
+                    HDC dc = GetDC(pts[i].h);
+                    COLORREF c = GetPixel(dc, pts[i].x, pts[i].y);
+                    ReleaseDC(pts[i].h, dc);
+                    fprintf(pf, "%s (%3d,%3d) rgb=(%3d,%3d,%3d)\n",
+                            pts[i].name, pts[i].x, pts[i].y,
+                            GetRValue(c), GetGValue(c), GetBValue(c));
+                }
+            }
+            /* 表头 */
+            hdr = (HWND)SendMessageA(g_hProc, LVM_GETHEADER, 0, 0);
+            if (hdr) {
+                static const int hx[] = { 10, 80, 300, 700 };
+                for (i = 0; i < 4; i++) {
+                    HDC dc = GetDC(hdr);
+                    COLORREF c = GetPixel(dc, hx[i], 8);
+                    ReleaseDC(hdr, dc);
+                    fprintf(pf, "header      (%3d,  8) rgb=(%3d,%3d,%3d)\n",
+                            hx[i], GetRValue(c), GetGValue(c), GetBValue(c));
+                }
+            } else {
+                fprintf(pf, "header: LVM_GETHEADER returned NULL\n");
+            }
+            /* 主 Tab 背景 */
+            if (g_hMainTabs) {
+                HDC dc = GetDC(g_hMainTabs);
+                COLORREF c = GetPixel(dc, 400, 10);
+                ReleaseDC(g_hMainTabs, dc);
+                fprintf(pf, "main tab    (400, 10) rgb=(%3d,%3d,%3d)\n",
+                        GetRValue(c), GetGValue(c), GetBValue(c));
+            }
+            /* 窗口背景 */
+            {
+                HDC dc = GetDC(hWnd);
+                COLORREF c = GetPixel(dc, 600, 520);
+                ReleaseDC(hWnd, dc);
+                fprintf(pf, "window bg   (600,520) rgb=(%3d,%3d,%3d)\n",
+                        GetRValue(c), GetGValue(c), GetBValue(c));
+            }
+            fprintf(pf, "procs=%d\n",
+                    (int)SendMessageA(g_hProc, LVM_GETITEMCOUNT, 0, 0));
+
+            /* 逐页检查：切页后看关键列表是否可见、有内容、底色正确 */
+            {
+                int pg;
+                for (pg = 0; pg <= 13; pg++) {
+                    HWND hList = NULL;
+                    const char *nm = "";
+
+                    ShowPage(hWnd, pg);
+                    switch (pg) {
+                    case 0:  hList = g_hProc;     nm = "Process";  break;
+                    case 1:  hList = g_hKmList;   nm = "Kernel";   break;
+                    case 2:
+                    case 3:  hList = g_hHkList;   nm = "Hooks";    break;
+                    case 5:  hList = g_hRgList;   nm = "Registry"; break;
+                    case 6:  hList = g_hSuList;   nm = "Startup";  break;
+                    case 7:  hList = g_hSvList;   nm = "Services"; break;
+                    case 8:  hList = g_hFlList;   nm = "File";     break;
+                    case 9:  hList = g_hExList;   nm = "Exam";     break;
+                    case 10: hList = g_hStList;   nm = "Setting";  break;
+                    case 11: hList = g_hFeList;   nm = "Fireeye";  break;
+                    case 12: hList = g_hTrList;   nm = "Trojan";   break;
+                    case 13: hList = g_hOtList;   nm = "Other";    break;
+                    default: break;
+                    }
+                    if (hList) {
+                        int vis = IsWindowVisible(hList) ? 1 : 0;
+                        int rows = (int)SendMessageA(hList, LVM_GETITEMCOUNT, 0, 0);
+                        HDC dc = GetDC(hList);
+                        COLORREF c = GetPixel(dc, 300, 40);
+                        ReleaseDC(hList, dc);
+                        fprintf(pf, "page %2d %-9s vis=%d rows=%4d bg=(%3d,%3d,%3d)\n",
+                                pg, nm, vis, rows,
+                                GetRValue(c), GetGValue(c), GetBValue(c));
+                    }
+                }
+                ShowPage(hWnd, 0);
+            }
+            fclose(pf);
+        }
+        if (g_Client.Opened)
+            XpchClose(&g_Client);
+        return 0;
+    }
 
     /* 第二步增量3/4：启动即执行的自动化验收入口（导出 / 下钻） */
     {

@@ -395,6 +395,47 @@ static LRESULT CALLBACK FeHeaderSubclass(HWND hWnd, UINT msg, WPARAM wParam,
         FillRect((HDC)wParam, &rc, FeThemePanelBrush());
         return 1;
     }
+    if (msg == WM_PAINT) {
+        /* 表头自己处理 WM_PAINT（在 DefSubclassProc 里画系统白底）。
+           这里先刷主题底色，再让原过程画列文字/分隔线，
+           最后再刷一次文字背景 —— 单纯拦 ERASEBKGND 不够。 */
+        LRESULT r;
+        RECT rc;
+        HDC dc = GetDC(hWnd);
+        GetClientRect(hWnd, &rc);
+        FillRect(dc, &rc, FeThemePanelBrush());
+        ReleaseDC(hWnd, dc);
+        r = DefSubclassProc(hWnd, msg, wParam, lParam);
+        /* 原过程画完后，把列文字区重刷成主题色并重画文字 */
+        {
+            int n = Header_GetItemCount(hWnd);
+            int i;
+            dc = GetDC(hWnd);
+            for (i = 0; i < n; i++) {
+                RECT ir;
+                if (Header_GetItemRect(hWnd, i, &ir)) {
+                    FillRect(dc, &ir, FeThemePanelBrush());
+                    /* 用主题色重写列标题 */
+                    {
+                        HDITEMA hi;
+                        char txt[128];
+                        ZeroMemory(&hi, sizeof(hi));
+                        hi.mask = HDI_TEXT | HDI_FORMAT;
+                        hi.pszText = txt;
+                        hi.cchTextMax = sizeof(txt);
+                        if (Header_GetItem(hWnd, i, &hi)) {
+                            SetTextColor(dc, FeThemeColors()->HeaderText);
+                            SetBkMode(dc, TRANSPARENT);
+                            DrawTextA(dc, txt, -1, &ir,
+                                      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                        }
+                    }
+                }
+            }
+            ReleaseDC(hWnd, dc);
+        }
+        return r;
+    }
     if (msg == WM_NOTIFY) {
         LPNMCUSTOMDRAW cd = (LPNMCUSTOMDRAW)lParam;
         if (cd && cd->dwDrawStage == CDDS_PREPAINT) {
@@ -424,4 +465,40 @@ void FeThemeSubclassHeader(HWND hList)
         return;
     SetWindowSubclass(hHdr, FeHeaderSubclass, 1, 0);
     InvalidateRect(hHdr, NULL, TRUE);
+}
+
+/* ---- Tab 控件子类化 ----
+   SysTabControl32 也是系统绘制，WM_CTLCOLORSTATIC 管不到它的标签区。
+   用子类化在 WM_ERASEBKGND 画底色，并靠自定义绘制覆盖标签头。 */
+static LRESULT CALLBACK FeTabSubclass(HWND hWnd, UINT msg, WPARAM wParam,
+                                      LPARAM lParam, UINT_PTR id,
+                                      DWORD_PTR refData)
+{
+    if (msg == WM_ERASEBKGND) {
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        FillRect((HDC)wParam, &rc, FeThemeBgBrush());
+        return 1;
+    }
+    if (msg == WM_PAINT) {
+        /* Tab 的标签区在 WM_PAINT 里用系统色画。先刷主题底色，
+           再让原过程画标签文字（文字仍是系统色，在深底上可读性尚可）。 */
+        LRESULT r;
+        RECT rc;
+        HDC dc = GetDC(hWnd);
+        GetClientRect(hWnd, &rc);
+        FillRect(dc, &rc, FeThemeBgBrush());
+        ReleaseDC(hWnd, dc);
+        r = DefSubclassProc(hWnd, msg, wParam, lParam);
+        return r;
+    }
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
+
+void FeThemeSubclassTab(HWND hTabs)
+{
+    if (!hTabs)
+        return;
+    SetWindowSubclass(hTabs, FeTabSubclass, 2, 0);
+    InvalidateRect(hTabs, NULL, TRUE);
 }

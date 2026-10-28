@@ -50,6 +50,8 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd);
 BOOL FeThemeDrawHeader(HDC hdc, LPNMCUSTOMDRAW cd, BOOL *NeedItemDraw);
 /* 表头子类化：SysHeader32 的 NM_CUSTOMDRAW 不冒泡到父窗口，必须直接子类化 */
 void FeThemeSubclassHeader(HWND hList);
+/* Tab 控件子类化（标签区系统绘制，需要背景接管） */
+void FeThemeSubclassTab(HWND hTabs);
 
 /* ---- 状态图标列 ----
    图标在运行时用 GDI 生成（16x16 实心圆点），不依赖外部资源文件：
