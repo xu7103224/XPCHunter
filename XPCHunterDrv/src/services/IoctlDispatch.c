@@ -470,6 +470,24 @@ __int64 CmdGetModuleCount(__int64 InputBuffer, __int64 InputSize, _DWORD *pOutpu
 //     GtObjectTypeRefFunc                                                  = PsGetCurrentProcessId
 //     GtTotalSize|GtObjectTypeField42|GtDriverObject  (0x4271, 93 组)      = IoGetCurrentProcess
 //     GtUninstallHookSyscallPeOffset|GtEprocessField120 (0x42AA, 112 组)   = PsGetCurrentThreadId
+//
+// 【2026-10-29 修正：第三个槽算成了 0x4278，应为 0x42AA】
+//   原版 0x14004F3C5 `mov ecx,42AAh; call GtRead` 读的是 0x42AA。
+//   我方此前写 `GtUninstallHookSyscallPeOffset | GtEprocessField120`，而
+//   xpc_gt_enum.h 的别名链把 GtEprocessField120 塌缩成了 **120**：
+//       #define GtEprocessField120  GtEprocessField110   // 120
+//   于是 0x4228|120 = 0x4278 —— 那是 GtSyscallHashInit94 的**哈希常量槽**，
+//   InitSyscallNumberTable 往里写的正是 0x59FA3B98。驱动随后 `call rbp`
+//   直接跳用户态地址 → 内核页错误。
+//
+//   实机表现（原版 PCHunter64.exe 打我方驱动，Win10 17763 LTSC）：
+//       bugcheck 0x3B (0x80000003)，Arg2 落在我方驱动内，
+//       !analyze 栈顶 View___Driver64+0x22e39 = CmdEnumKernelDrivers+0xC9，
+//       即 `call rbp`（GtRead(0x4278) 的返回值）。
+//   本条命令我方客户端此前列在 g_FeSkip 里从未发送，故一直未暴露。
+//
+//   0x42AA 是 112 组导出的 VA 槽（哈希槽 0x42A8 + 2），值由 BuildHookTable
+//   在解析 ntoskrnl 导出表后写入。改用字面量 0x42AA 与原始汇编一致。
 __int64 CmdEnumKernelDrivers(__int64 InputBuffer, __int64 InputSize, _DWORD *OutputBuffer, unsigned int BufferSize)
 {
     if (!OutputBuffer || BufferSize <= 0x50)
@@ -481,9 +499,8 @@ __int64 CmdEnumKernelDrivers(__int64 InputBuffer, __int64 InputSize, _DWORD *Out
     ProbeForWrite(OutputBuffer, BufferSize, 1);
     __int64 (*pObjectTypeFunc)(void) = (__int64 (*)(void))GtRead(GtObjectTypeRefFunc);
     __int64 (*pDriverObjectFunc)(void) = (__int64 (*)(void))GtRead(GtTotalSize | GtObjectTypeField42 | GtDriverObject);
-    __int64 ServiceTable = GtRead(GtUninstallHookSyscallPeOffset | GtEprocessField120);
-    __int64 (*pCurrentThreadFunc)(void) = (__int64 (*)(void))ServiceTable;
-    if (!pObjectTypeFunc || !pDriverObjectFunc || !ServiceTable)
+    __int64 (*pCurrentThreadFunc)(void) = (__int64 (*)(void))GtRead((GLOBAL_TABLE_INDEX)0x42AA);
+    if (!pObjectTypeFunc || !pDriverObjectFunc || !pCurrentThreadFunc)
         return 0;
 
     /* 与原始一致：24 字节上下文，+0 是 InfoFlag，+8 是 PID，+16 是 EPROCESS。
