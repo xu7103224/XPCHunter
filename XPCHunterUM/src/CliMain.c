@@ -2021,6 +2021,14 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
     n = FeLoadWdfDrivers();
     printf("  [INFO] WDF drivers -> %lu entry(ies) (0 is acceptable)\n", n);
 
+    /* 5. IE 插件（BHO / Extension）—— 0 也可能合法 */
+    n = FeLoadIePlugins(NULL);
+    printf("  [INFO] IE plugins -> %lu entry(ies) (0 is acceptable)\n", n);
+
+    /* 6. IFEO 映像劫持 —— 只报异常项，0 通常是干净系统 */
+    n = FeLoadIfeoEntries(NULL);
+    printf("  [INFO] IFEO suspicious -> %lu entry(ies) (0 is normal on a clean system)\n", n);
+
     g_FeSysViewSilent = 0;
     printf("sysviews selftest: %s\n", fail ? "FAILED" : "PASSED");
     return fail ? 2 : 0;

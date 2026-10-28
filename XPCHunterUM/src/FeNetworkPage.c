@@ -16,6 +16,13 @@ typedef struct _NW_COLUMN {
 HWND g_hNwTree, g_hNwList, g_hNwStatus;
 int  g_NwNode = 1;
 
+/* 2026-10-29：节点 30/31 的追加回调（Item / Detail 两列） */
+static int g_NrvRow = 0;
+static void NrvAddToNetList(const char *Item, const char *Detail)
+{
+    NwAddRow(g_hNwList, g_NrvRow++, Item ? Item : "", Detail ? Detail : "", "", "", "", "");
+}
+
 void CreateNwColumns(HWND hList, int node)
 {
     static const NW_COLUMN Node1Cols[6] = {
@@ -264,6 +271,9 @@ void BuildNwTree(void)
         NwInsertNode(Root, "NsiChangeNotification_Monitor", 17);
         NwInsertNode(Root, "Afd Dispatch Fun", 22);
         NwInsertNode(TVI_ROOT, "Ndis Interface", 5);
+        /* 2026-10-29：两个纯注册表视图（不依赖驱动） */
+        NwInsertNode(TVI_ROOT, "IE Plugin", 30);
+        NwInsertNode(TVI_ROOT, "IFEO Hijack", 31);
     }
 }
 
@@ -292,6 +302,8 @@ const char *NwNodeName(int node)
     case 20: return "IpFilterHook";
     case 21: return "IpFirewallHook";
     case 22: return "Afd Dispatch Fun";
+    case 30: return "IE Plugin";
+    case 31: return "IFEO Hijack";
     default: return "Network Callback";
     }
 }
@@ -916,6 +928,23 @@ void DoRefreshNetwork(void)
                       "Fun Count: 0,  Hook: %d   <==>  IpFilterDriver maybe not load.",
                       hooks);
         SetWindowTextA(g_hNwStatus, status);
+    } else if (g_NwNode == 30) {
+        /* 2026-10-29 IE 插件（纯注册表枚举，无需驱动） */
+        ULONG n;
+        char status[256];
+        g_NrvRow = 0;
+        n = FeLoadIePlugins(NrvAddToNetList);
+        sprintf_s(status, sizeof(status), "IE Plugin: %lu registered (BHO/Extension)", n);
+        SetWindowTextA(g_hNwStatus, status);
+    } else if (g_NwNode == 31) {
+        /* 2026-10-29 IFEO 映像劫持（纯注册表枚举） */
+        ULONG n;
+        char status[256];
+        g_NrvRow = 0;
+        n = FeLoadIfeoEntries(NrvAddToNetList);
+        sprintf_s(status, sizeof(status),
+                  "IFEO Hijack: %lu suspicious entr(ies) with Debugger/GlobalFlag", n);
+        SetWindowTextA(g_hNwStatus, status);
     } else {
         static const char *FieldNames[5] = {
             "BindingHandler", "UnBindHandler", "AddAddressHandler",
@@ -979,6 +1008,7 @@ void DoRefreshNetwork(void)
         FeFreeTdiPnpClients(&List);
     }
 }
+
 
 /* 原版恢复入口：sub_1400A6840 -> sub_140025510（cmd 0xE7），无参数。 */
 void NwRestoreTdi(void)

@@ -381,4 +381,9 @@ ULONG FeLoadLockedSystemPaths(void);
 ULONG FeLoadWdfDrivers(void);
 void  FeLoadSystemExtras(void);
 
+/* ---- FeNetRegistryViews.c：Network 页的两个纯注册表视图（§2.4 补全） ---- */
+typedef void (*NRV_ADD_FN)(const char *Item, const char *Detail);
+ULONG FeLoadIePlugins(NRV_ADD_FN Add);
+ULONG FeLoadIfeoEntries(NRV_ADD_FN Add);
+
 #endif /* XPCH_FEPAGES_H */
