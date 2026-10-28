@@ -773,14 +773,29 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         CreateKmColumns(g_hKmList, 0);
         DoRefreshKernel();
 
-        /* ---- Startup Info 页（主 Tab 6）---- */
+        /* ---- Startup Info 页（主 Tab 6）----
+           2026-10-29：加入 Startup / Schedule Task 两个子 Tab。
+           Schedule Task 对应原版独立对话框 CScheduleTaskDialog。 */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
                       10, 76, 90, 28, hWnd, (HMENU)IDC_SU_REFRESH, hInst, NULL);
         g_hSuStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
                                     110, 82, 840, 20, hWnd, (HMENU)IDC_SU_STATUS, hInst, NULL);
+        g_hSuTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
+                                  10, 104, 940, 24, hWnd, (HMENU)IDC_SU_TABS, hInst, NULL);
+        {
+            TCITEMA t;
+            static const char *suNames[2] = { "Startup Item", "Schedule Task" };
+            int k;
+            for (k = 0; k < 2; k++) {
+                ZeroMemory(&t, sizeof(t));
+                t.mask = TCIF_TEXT;
+                t.pszText = (LPSTR)suNames[k];
+                SendMessageA(g_hSuTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
+            }
+        }
         g_hSuList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
-                                    10, 110, 940, 510, hWnd, (HMENU)IDC_SU_LIST, hInst, NULL);
+                                    10, 134, 940, 486, hWnd, (HMENU)IDC_SU_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hSuList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hSuList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         FeThemeApplyToList(g_hSuList);   /* 第三步：列表深色底色/文字色 */
@@ -828,8 +843,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             /* 原版 Registry 子页名单（PCHunter64.exe 0x45D99A 起）：
                View Handle / Hidden Item / CmpNotifyChange
                此前第 3 项写成 "Key"，与原版不符。 */
-            static const char *rgNames[3] = { "View Handle", "Hidden Item", "CmpNotifyChange" };
-            for (k = 0; k < 3; k++) {
+            /* 2026-10-29：新增 "Key" 浏览子页（可编辑），
+               原版注册表主视图是 Tree+List 的完整编辑器。 */
+            static const char *rgNames[4] = { "View Handle", "Hidden Item", "CmpNotifyChange", "Key" };
+            for (k = 0; k < 4; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)rgNames[k];
@@ -1474,6 +1491,25 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             DoStartupContextMenu(hWnd, x, y);
             return 0;
         }
+        if (from == g_hRgList) {
+            DoRegistryContextMenu(hWnd, x, y);
+            return 0;
+        }
+        if (from == g_hHkList) {
+            DoHookContextMenu(hWnd, x, y);
+            return 0;
+        }
+        if (from == g_hExList) {
+            DoExaminationContextMenu(hWnd, x, y);
+            return 0;
+        }
+        /* 2026-10-29：其余页面的通用菜单（刷新/导出/复制） */
+        if (from == g_hNwList) { DoNetworkContextMenu(hWnd, x, y); return 0; }
+        if (from == g_hFlList) { DoFileContextMenu(hWnd, x, y); return 0; }
+        if (from == g_hOtList) { DoOtherContextMenu(hWnd, x, y); return 0; }
+        if (from == g_hStList) { DoSettingContextMenu(hWnd, x, y); return 0; }
+        if (from == g_hFeList) { DoFireeyeContextMenu(hWnd, x, y); return 0; }
+        if (from == g_hTrList) { DoTrojanContextMenu(hWnd, x, y); return 0; }
         break;
     }
     case WM_NOTIFY: {
@@ -1555,6 +1591,27 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 GetClientRect(hWnd, &rc);
                 SendMessageA(hWnd, WM_SIZE, SIZE_RESTORED,
                              MAKELPARAM(rc.right, rc.bottom));
+            }
+            return 0;
+        }
+        if (nm->idFrom == IDC_SU_TABS && nm->code == TCN_SELCHANGE) {
+            /* 2026-10-29：Startup / Schedule Task 子 Tab 切换 */
+            g_SuTab = (int)SendMessageA(g_hSuTabs, TCM_GETCURSEL, 0, 0);
+            DoRefreshStartup();
+            return 0;
+        }
+        if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {
+            /* 2026-10-29：注册表 4 个子页（含新增 Key 浏览） */
+            g_RgTab = (int)SendMessageA(g_hRgTabs, TCM_GETCURSEL, 0, 0);
+            g_RgKeyDepth = 0;
+            g_RgCurKey[0] = 0;
+            DoRefreshRegistry();
+            {
+                HWND hPath = GetDlgItem(hWnd, IDC_RG_PATH);
+                HWND hGo = GetDlgItem(hWnd, IDC_RG_GO);
+                BOOL show = (g_RgTab == 3);
+                if (hPath) ShowWindow(hPath, show ? SW_SHOW : SW_HIDE);
+                if (hGo) ShowWindow(hGo, show ? SW_SHOW : SW_HIDE);
             }
             return 0;
         }

@@ -54,6 +54,7 @@
 #define IDC_SU_REFRESH  1040
 #define IDC_SU_LIST     1041
 #define IDC_SU_STATUS   1042
+#define IDC_SU_TABS     1043   /* 2026-10-29：Startup / Schedule Task 子 Tab */
 /* Services 页 */
 #define IDC_SV_REFRESH  1050
 #define IDC_SV_LIST     1051
@@ -155,6 +156,9 @@ extern int g_ExamLoaded;
 void ExSetText(HWND hList, int iItem, int iSub, const char *text);
 void DoRefreshExamination(void);
 void DoExportExamination(void);
+void DoExaminationContextMenu(HWND hWnd, int X, int Y);
+extern BOOL g_ExamHideSafe;
+void DoExportExamination(void);
 
 /* ---- FeFilePage.c ---- */
 extern HWND g_hFlDir, g_hFlList, g_hFlStatus;
@@ -173,6 +177,8 @@ void DoFireeyeRecords(void);
 extern HWND g_hHkList, g_hHkStatus;
 void HkSetText(HWND h, int iItem, int iSub, const char *text);
 void DoRefreshHooks(void);
+void DoHookContextMenu(HWND hWnd, int X, int Y);
+extern BOOL g_HkOnlyHooks;
 void DoRestoreOverHooks(void);
 void DoRestoreCallbackTable(void);
 
@@ -255,9 +261,20 @@ BOOL ProcFilterMatch(const FE_PROCESS *it, unsigned char acc, const char *filter
 extern HWND g_hRgTabs, g_hRgList, g_hRgStatus;
 extern int  g_RgTab;
 extern char g_RgPath[512];
+extern char g_RgCurKey[512];   /* Key 浏览子页的当前路径 */
+extern int  g_RgKeyDepth;
 void RgSetText(HWND hList, int iItem, int iSub, const char *text);
 void CreateRgColumns(HWND hList, int tab);
 void DoRefreshRegistry(void);
+void DoRegistryContextMenu(HWND hWnd, int X, int Y);
+
+/* ---- FeSchedulePage.c（计划任务子页，原版 CScheduleTaskDialog） ---- */
+extern HWND g_hSchList, g_hSchStatus;
+extern ULONG g_SchCount;
+void SchSetText(HWND hList, int iItem, int iSub, const char *text);
+void CreateSchColumns(HWND hList);
+void DoRefreshSchedule(void);
+void DoScheduleContextMenu(HWND hWnd, int X, int Y);
 
 /* ---- FeServicePage.c ---- */
 extern HWND g_hSvList, g_hSvStatus;
@@ -277,7 +294,8 @@ void DoRefreshSetting(void);
 void DoApplyForbid(int Which);
 
 /* ---- FeStartupPage.c ---- */
-extern HWND g_hSuList, g_hSuStatus;
+extern HWND g_hSuList, g_hSuStatus, g_hSuTabs;
+extern int  g_SuTab;   /* 0=Startup Item 1=Schedule Task */
 void SuSetText(HWND hList, int iItem, int iSub, const char *text);
 void CreateSuColumns(HWND hList);
 void DoRefreshStartup(void);
@@ -310,4 +328,33 @@ extern BOOL g_PromptOk;
 
 /* frontend.c：主窗口 ShowPage（页面模块的跨页跳转回调它） */
 void ShowPage(HWND hWnd, int page);
+
+/* ---- FeMenu.c：跨页共享的右键菜单与剪贴板/导出助手 ----
+   原版每个列表都挂右键菜单（662 条多语言文案），本组函数避免各页重复实现。 */
+HMENU FeMenuBegin(void);
+void  FeMenuAdd(HMENU hMenu, UINT id, const char *Text);
+void  FeMenuAddEx(HMENU hMenu, UINT id, const char *Text, BOOL Enabled);
+void  FeMenuAddCheck(HMENU hMenu, UINT id, const char *Text, BOOL Checked);
+void  FeMenuSep(HMENU hMenu);
+void  FeMenuAddPopup(HMENU hMenu, HMENU hSub, const char *Text);
+UINT  FeMenuEnd(HMENU hMenu, HWND hWnd, int X, int Y, int FallbackDx, int FallbackDy);
+BOOL  FeClipCopyText(HWND Owner, const char *Text);
+BOOL  FeListCopyCell(HWND hList, int Sel, int Sub, HWND StatusWnd, const char *What);
+BOOL  FeListExportToFile(HWND hList, const char *Path, ULONG *OutRows);
+BOOL  FeListExportDefault(HWND hList, HWND StatusWnd, const char *Name);
+BOOL  FeConfirmDanger(HWND Owner, const char *Title, const char *Detail);
+BOOL  FeListGetCellText(HWND hList, int Sel, int Sub, char *Out, int OutChars);
+int   FeListGetSel(HWND hList);
+int   FeListGetCount(HWND hList);
+void  FeListSelectUnderCursor(HWND hList, int X, int Y);
+
+/* ---- FeCommonMenu.c：剩余页面的通用右键菜单（Refresh / Export / Copy） ---- */
+void DoNetworkContextMenu(HWND hWnd, int X, int Y);
+void DoFileContextMenu(HWND hWnd, int X, int Y);
+void DoServiceCommonContextMenu(HWND hWnd, int X, int Y);
+void DoOtherContextMenu(HWND hWnd, int X, int Y);
+void DoSettingContextMenu(HWND hWnd, int X, int Y);
+void DoFireeyeContextMenu(HWND hWnd, int X, int Y);
+void DoTrojanContextMenu(HWND hWnd, int X, int Y);
+
 #endif /* XPCH_FEPAGES_H */

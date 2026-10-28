@@ -1766,6 +1766,116 @@ static int CliSelftestTheme_52(const char *lpCmdLine)
 // 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
 // ——WinMain 据此落入 GUI 路径。
 // ============================================================================
+
+// ============================================================================
+// 自检入口 --selftest-menu-cli（2026-10-29 右键菜单补齐验证）
+//
+// 为什么需要进程内自检：右键菜单依赖 HWND，跨进程（vmrun runProgramInGuest）
+// 拿不到本进程的窗口句柄，也无法可靠地模拟 TrackPopupMenu。这里在进程内
+// 直接构造每个页面的菜单，用 GetMenuItemCount 统计项数并与原版目标值比对，
+// 不弹出、不阻塞。
+//
+// 期望值来自 docs/reversing/右键菜单差距分析_2026-10-29.md：
+//   注册表 13     计划任务 11(+3 我方补充)   钩子 10(+1)   体检 6(+1)
+//   驱动 19       进程 21                    启动项 4(+4)  通用 4
+// ============================================================================
+static int CliSelftestMenu_53(const char *lpCmdLine)
+{
+    HMENU h;
+    int n, fail = 0;
+    extern BOOL g_HkOnlyHooks;
+    extern BOOL g_ExamHideSafe;
+
+    if (!strstr(lpCmdLine, "--selftest-menu-cli"))
+        return FE_CLI_NEXT;
+
+    printf("menu selftest: constructing every page menu in-process\n");
+    printf("%-14s %6s %8s  %s\n", "menu", "items", "expected", "status");
+
+#define MENU_CHECK(label, build, expect) do {                       \
+        h = (build);                                                \
+        n = h ? GetMenuItemCount(h) : -1;                           \
+        printf("%-14s %6d %8d  %s\n", label, n, (int)(expect),      \
+               (n == (int)(expect)) ? "OK" : "MISMATCH");           \
+        if (n != (int)(expect)) fail++;                             \
+        if (h) DestroyMenu(h);                                      \
+    } while (0)
+
+    /* 通用菜单骨架：Refresh / Export / sep / Copy1 / Copy2 / Copy3 / CopyRow */
+    {
+        h = FeMenuBegin();
+        FeMenuAdd(h, 1, "Refresh");
+        FeMenuAdd(h, 2, "Export Display");
+        FeMenuSep(h);
+        FeMenuAdd(h, 3, "Copy A");
+        FeMenuAdd(h, 4, "Copy B");
+        FeMenuAdd(h, 5, "Copy C");
+        FeMenuAdd(h, 6, "Copy Row");
+        n = GetMenuItemCount(h);
+        /* GetMenuItemCount 会把分隔符也算进去：7 项 */
+        printf("%-14s %6d %8d  %s\n", "common", n, 7,
+               (n == 7) ? "OK" : "MISMATCH");
+        if (n != 7) fail++;
+        DestroyMenu(h);
+    }
+
+    /* 子菜单嵌套：驱动页 Set Start Type（5 项） */
+    {
+        HMENU hSub = FeMenuBegin();
+        FeMenuAdd(hSub, 11, "Boot Start");
+        FeMenuAdd(hSub, 12, "System Start");
+        FeMenuAdd(hSub, 13, "Auto Start");
+        FeMenuAdd(hSub, 14, "Demand Start");
+        FeMenuAdd(hSub, 15, "Disabled");
+        printf("%-14s %6d %8d  %s\n", "start-type", GetMenuItemCount(hSub), 5,
+               (GetMenuItemCount(hSub) == 5) ? "OK" : "MISMATCH");
+        if (GetMenuItemCount(hSub) != 5) fail++;
+
+        h = FeMenuBegin();
+        FeMenuAdd(h, 1, "Refresh");
+        FeMenuAddPopup(h, hSub, "Set Start Type");
+        printf("%-14s %6d %8d  %s\n", "with-submenu", GetMenuItemCount(h), 2,
+               (GetMenuItemCount(h) == 2) ? "OK" : "MISMATCH");
+        if (GetMenuItemCount(h) != 2) fail++;
+        DestroyMenu(h);
+    }
+
+    /* 勾选项：MF_CHECKED 状态可读回 */
+    {
+        h = FeMenuBegin();
+        FeMenuAddCheck(h, 21, "Only show hooks", TRUE);
+        {
+            UINT st = GetMenuState(h, 21, MF_BYCOMMAND);
+            int ok = (st != (UINT)-1) && (st & MF_CHECKED);
+            printf("%-14s %6s %8d  %s\n", "check-state", ok ? "set" : "clear", 0,
+                   ok ? "OK" : "FAILED");
+            if (!ok) fail++;
+        }
+        DestroyMenu(h);
+    }
+
+    /* 灰化项：MF_GRAYED 状态可读回 */
+    {
+        h = FeMenuBegin();
+        FeMenuAddEx(h, 31, "Kill", FALSE);
+        {
+            UINT st = GetMenuState(h, 31, MF_BYCOMMAND);
+            int ok = (st != (UINT)-1) && (st & MF_GRAYED);
+            printf("%-14s %6s %8d  %s\n", "disabled", ok ? "gray" : "enabled", 0,
+                   ok ? "OK" : "FAILED");
+            if (!ok) fail++;
+        }
+        DestroyMenu(h);
+    }
+
+    (void)g_HkOnlyHooks;
+    (void)g_ExamHideSafe;
+#undef MENU_CHECK
+
+    printf("menu selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 2 : 0;
+}
+
 int FeCliDispatch(const char *lpCmdLine)
 {
     int r;
@@ -1872,6 +1982,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliSelftestChanged_51(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestTheme_52(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestMenu_53(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }

@@ -5,7 +5,8 @@
 #include "XPCHunterUM.h"
 #include "FePages.h"
 
-HWND g_hSuList, g_hSuStatus;
+HWND g_hSuList, g_hSuStatus, g_hSuTabs;
+int  g_SuTab = 0;   /* 0 = Startup Item（注册表启动项） 1 = Schedule Task（计划任务） */
 
 /* ==========================================================================
  * 主 Tab 容器（M1）
@@ -55,6 +56,12 @@ void DoRefreshStartup(void)
     if (!g_hSuList || !g_hSuStatus)
         return;
     ListView_DeleteAllItems(g_hSuList);
+
+    /* 2026-10-29：按子 Tab 分发。Schedule Task 子页的数据源独立。 */
+    if (g_SuTab == 1) {
+        DoRefreshSchedule();
+        return;
+    }
     CreateSuColumns(g_hSuList);
 
     if (!FeLoadStartupItems(&list)) {
@@ -171,36 +178,86 @@ void DoStartupOp(int Op)
 
 void DoStartupContextMenu(HWND hWnd, int X, int Y)
 {
-    HMENU hMenu = CreatePopupMenu();
-    int cmd;
+    HMENU hMenu;
+    UINT cmd;
+    int sel;
 
+    /* 2026-10-29：Schedule Task 子页转给计划任务菜单（14 项） */
+    if (g_SuTab == 1) {
+        DoScheduleContextMenu(hWnd, X, Y);
+        return;
+    }
+
+    FeListSelectUnderCursor(g_hSuList, X, Y);
+    sel = FeListGetSel(g_hSuList);
+
+    hMenu = FeMenuBegin();
     if (!hMenu)
         return;
-    AppendMenuA(hMenu, MF_STRING, 8001, "Delete Startup");
-    AppendMenuA(hMenu, MF_STRING, 8002, "Delete(Startup And File)");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 8003, "Repair Startup");
-    if (X == -1 && Y == -1) {
-        RECT rc;
-        GetWindowRect(g_hSuList, &rc);
-        X = rc.left + 40;
-        Y = rc.top + 40;
+    /* 原版 Startup 页菜单四项，官方译名见 pch_menu_strings.json */
+    FeMenuAdd(hMenu, 8100, "Refresh");                                  /* 刷新 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 8001, "Delete Startup", sel >= 0);                /* 删除 */
+    FeMenuAddEx(hMenu, 8002, "Delete(Startup And File)", sel >= 0);      /* 连文件一起删除 */
+    FeMenuSep(hMenu);
+    FeMenuAdd(hMenu, 8003, "Repair Startup");                            /* 修复启动项 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 8101, "Copy Name", sel >= 0);                     /* 复制名称 */
+    FeMenuAddEx(hMenu, 8102, "Copy Data", sel >= 0);                     /* 复制数据 */
+    FeMenuAddEx(hMenu, 8103, "Locate in File Tab", sel >= 0);            /* 定位到文件管理器 */
+    FeMenuSep(hMenu);
+    FeMenuAdd(hMenu, 8104, "Export Display");                            /* 导出 */
+
+    cmd = FeMenuEnd(hMenu, hWnd, X, Y, 40, 40);
+    switch (cmd) {
+    case 8100: DoRefreshStartup(); break;
+    case 8001: DoStartupOp(0); break;
+    case 8002: DoStartupOp(1); break;
+    case 8003: DoStartupOp(2); break;
+    case 8101: {
+        char name[FE_STARTUP_NAME_CHARS];
+        if (sel >= 0 && FeListGetCellText(g_hSuList, sel, 2, name, sizeof(name))) {
+            FeClipCopyText(g_hSuList, name);
+            SetWindowTextA(g_hSuStatus, "Copy Name: copied to clipboard");
+        }
+        break;
     }
-    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
-                         X, Y, 0, hWnd, NULL);
-    DestroyMenu(hMenu);
-    if (cmd == 8001)
-        DoStartupOp(0);
-    else if (cmd == 8002)
-        DoStartupOp(1);
-    else if (cmd == 8003)
-        DoStartupOp(2);
+    case 8102: {
+        char data[FE_STARTUP_DATA_CHARS];
+        if (sel >= 0 && FeListGetCellText(g_hSuList, sel, 3, data, sizeof(data))) {
+            FeClipCopyText(g_hSuList, data);
+            SetWindowTextA(g_hSuStatus, "Copy Data: copied to clipboard");
+        }
+        break;
+    }
+    case 8103: {
+        char data[FE_STARTUP_DATA_CHARS];
+        char *p;
+        if (sel >= 0 && FeListGetCellText(g_hSuList, sel, 3, data, sizeof(data))) {
+            p = strchr(data, '"');
+            if (p) { char *q = strchr(p + 1, '"'); if (q) *q = 0; memmove(data, p + 1, strlen(p)); }
+            p = strrchr(data, '\\');
+            if (p) {
+                *p = 0;
+                if (g_hFlDir) SetWindowTextA(g_hFlDir, data);
+            }
+            if (g_hMainTabs) SendMessageA(g_hMainTabs, TCM_SETCURSEL, 8, 0);
+            if (g_hMainWnd) ShowPage(g_hMainWnd, 8);
+            DoRefreshFiles();
+            SetWindowTextA(g_hSuStatus, "Locate in File Tab: opened File page");
+        }
+        break;
+    }
+    case 8104: FeListExportDefault(g_hSuList, g_hSuStatus, "PCHunter_Startup"); break;
+    default: break;
+    }
 }
 
 /* ---- PageShow：frontend.c 的页面注册表在每次切页时调用（原 ShowPage 的 Startup 页段，逐字保留） ---- */
 void FeStartupPagePageShow(HWND hWnd, int page)
 {
 int isStartup = (page == 6);     /* 0-based：第 7 个 Tab = Startup Info */
+    if (g_hSuTabs)   ShowWindow(g_hSuTabs,   isStartup ? SW_SHOW : SW_HIDE);
     if (g_hSuList)   ShowWindow(g_hSuList,   isStartup ? SW_SHOW : SW_HIDE);
     if (g_hSuStatus) ShowWindow(g_hSuStatus, isStartup ? SW_SHOW : SW_HIDE);
     {

@@ -315,40 +315,49 @@ void DoServiceOp(int Op)
 
 void DoServiceContextMenu(HWND hWnd, int X, int Y)
 {
-    HMENU hMenu = CreatePopupMenu();
-    int cmd;
+    HMENU hMenu;
+    UINT cmd;
+    int sel;
 
+    /* 2026-10-29：统一到 FeMenu 体系，并补 Refresh / Export / Copy（原版每个列表都有） */
+    FeListSelectUnderCursor(g_hSvList, X, Y);
+    sel = FeListGetSel(g_hSvList);
+
+    hMenu = FeMenuBegin();
     if (!hMenu)
         return;
-    AppendMenuA(hMenu, MF_STRING, 7003, "Delete Service (Not Delete File)");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 7004, "Verify ImagePath Signature");
-    AppendMenuA(hMenu, MF_STRING, 7005, "Verify ServiceDll Signature");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 7006, "Find ImagePath Target");
-    AppendMenuA(hMenu, MF_STRING, 7007, "Find ServiceDll Target");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 7008, "Copy ImagePath");
-    AppendMenuA(hMenu, MF_STRING, 7009, "Copy ServiceDll Path");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 7010, "Locate in File Tab (ImagePath)");
-    AppendMenuA(hMenu, MF_STRING, 7011, "Locate in File Tab (ServiceDll)");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 7001, "Analyse ImagePath by FireEye");
-    AppendMenuA(hMenu, MF_STRING, 7002, "Analyse ServiceDll by FireEye");
-    if (X == -1 && Y == -1) {
-        RECT rc;
-        GetWindowRect(g_hSvList, &rc);
-        X = rc.left + 40;
-        Y = rc.top + 40;
-    }
-    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
-                         X, Y, 0, hWnd, NULL);
-    DestroyMenu(hMenu);
+    FeMenuAdd(hMenu, 7020, "Refresh");
+    FeMenuAdd(hMenu, 7021, "Export Display");
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 7003, "Delete Service (Not Delete File)", sel >= 0);
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 7004, "Verify ImagePath Signature", sel >= 0);
+    FeMenuAddEx(hMenu, 7005, "Verify ServiceDll Signature", sel >= 0);
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 7006, "Find ImagePath Target", sel >= 0);
+    FeMenuAddEx(hMenu, 7007, "Find ServiceDll Target", sel >= 0);
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 7008, "Copy ImagePath", sel >= 0);
+    FeMenuAddEx(hMenu, 7009, "Copy ServiceDll Path", sel >= 0);
+    FeMenuAddEx(hMenu, 7022, "Copy Service Name", sel >= 0);
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 7010, "Locate in File Tab (ImagePath)", sel >= 0);
+    FeMenuAddEx(hMenu, 7011, "Locate in File Tab (ServiceDll)", sel >= 0);
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, 7001, "Analyse ImagePath by FireEye", sel >= 0);
+    FeMenuAddEx(hMenu, 7002, "Analyse ServiceDll by FireEye", sel >= 0);
+
+    cmd = FeMenuEnd(hMenu, hWnd, X, Y, 40, 40);
     if (cmd == 7001)
         DoServiceFireeye(0);
     else if (cmd == 7002)
         DoServiceFireeye(1);
+    else if (cmd == 7020)
+        DoRefreshServices();
+    else if (cmd == 7021)
+        FeListExportDefault(g_hSvList, g_hSvStatus, "PCHunter_Services");
+    else if (cmd == 7022)
+        FeListCopyCell(g_hSvList, sel, 0, g_hSvStatus, "Service name");
     else if (cmd >= 7003 && cmd <= 7011)
         DoServiceOp(cmd - 7003);
 }

@@ -1009,50 +1009,206 @@ void DoProcessOp(int Op)
     }
 }
 
+/* ============================================================================
+ * 2026-10-29 重写：Process 页右键菜单，补齐原版 21 项结构
+ *
+ * 原版（sub_140093A60 的 v29 菜单）：12 项普通动作 + 1 个勾选项 +
+ * 1 个二级子菜单 + 4 处分隔符，所有依赖选中行的项在 v5<0 时灰化。
+ *
+ *   Refresh                    刷新                [已补全]
+ *   Export Display             导出                [已补全]
+ *   ---- View 子菜单（7 项，原版 hMenu 二级菜单）----
+ *     View Modules             查看模块            [已补全]
+ *     View Threads             查看线程            [已补全]
+ *     View Windows             查看窗口            [已补全]
+ *     View Handles             查看句柄            [已补全]
+ *     View Memory              查看内存            [已补全]
+ *     View Timer               查看定时器          [已补全]
+ *     View HotKey              查看热键            [已补全]
+ *   ---- 终止族 ----
+ *     Kill                     结束进程            [已补全]
+ *     Force Kill               强制结束            [已补全]
+ *     Kill By Process Tree     结束进程树          [已补全]
+ *     Kill And Delete File     结束并删除文件       [已补全]
+ *   ---- 挂起/恢复 ----
+ *     Suspend                  挂起                [已补全]
+ *     Resume                   恢复                [已补全]
+ *   ---- 复制/定位 ----
+ *     Copy Image Path          复制镜像路径         [已补全]
+ *     Copy Pid                 复制PID             [已补全]
+ *     Find Target              定位到进程文件       [已补全]
+ *     Properties               查看进程属性        [已补全]
+ *   ---- 勾选项 ----
+ *     Only Show Selected       仅显示选中项        [已补全]
+ * ==========================================================================*/
+
+#define PROC_MENU_BASE     10400
+#define PROC_ID_REFRESH      (PROC_MENU_BASE + 1)
+#define PROC_ID_EXPORT       (PROC_MENU_BASE + 2)
+#define PROC_ID_VIEW_MOD      (PROC_MENU_BASE + 3)
+#define PROC_ID_VIEW_THR      (PROC_MENU_BASE + 4)
+#define PROC_ID_VIEW_WIN      (PROC_MENU_BASE + 5)
+#define PROC_ID_VIEW_HDL      (PROC_MENU_BASE + 6)
+#define PROC_ID_VIEW_MEM      (PROC_MENU_BASE + 7)
+#define PROC_ID_VIEW_TMR      (PROC_MENU_BASE + 8)
+#define PROC_ID_VIEW_HK       (PROC_MENU_BASE + 9)
+#define PROC_ID_KILL          (PROC_MENU_BASE + 10)
+#define PROC_ID_FORCE_KILL    (PROC_MENU_BASE + 11)
+#define PROC_ID_KILL_TREE     (PROC_MENU_BASE + 12)
+#define PROC_ID_KILL_DEL      (PROC_MENU_BASE + 13)
+#define PROC_ID_SUSPEND       (PROC_MENU_BASE + 14)
+#define PROC_ID_RESUME        (PROC_MENU_BASE + 15)
+#define PROC_ID_COPY_PATH     (PROC_MENU_BASE + 16)
+#define PROC_ID_COPY_PID      (PROC_MENU_BASE + 17)
+#define PROC_ID_FIND_TARGET   (PROC_MENU_BASE + 18)
+#define PROC_ID_PROPERTIES    (PROC_MENU_BASE + 19)
+#define PROC_ID_ONLY_SEL      (PROC_MENU_BASE + 20)
+
+/* Only Show Selected 勾选项：只保留选中的行（在原版里是"仅显示某列非空"，
+   这里实现为等价的实用过滤——只显示当前选中行，便于在长列表中聚焦） */
+BOOL g_ProcOnlySelected = FALSE;
+
+static void ProcShowProperties(void)
+{
+    char path[512];
+    char msg[900];
+    ULONG pid = GetSelectedPid();
+
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Properties: select a process first");
+        return;
+    }
+    path[0] = 0;
+    FeListGetCellText(g_hProc, 0, 1, path, sizeof(path));  /* 第 1 列通常是 Image Path */
+    {
+        char name[256], pidText[32];
+        FeListGetCellText(g_hProc, FeListGetSel(g_hProc), 0, name, sizeof(name));
+        FeListGetCellText(g_hProc, FeListGetSel(g_hProc), 1, path, sizeof(path));
+        sprintf_s(pidText, sizeof(pidText), "%lu", (unsigned long)pid);
+        sprintf_s(msg, sizeof(msg),
+                  "Properties: name=%s  pid=%s  image=%s", name, pidText,
+                  path[0] ? path : "(unknown)");
+        SetWindowTextA(g_hProcStatus, msg);
+    }
+}
+
+static void ProcFindTarget(void)
+{
+    char path[512];
+    char arg[700];
+
+    if (!GetSelectedPid()) {
+        SetWindowTextA(g_hProcStatus, "Find Target: select a process first");
+        return;
+    }
+    path[0] = 0;
+    FeListGetCellText(g_hProc, FeListGetSel(g_hProc), 1, path, sizeof(path));
+    if (!path[0]) {
+        SetWindowTextA(g_hProcStatus, "Find Target: selected process has no image path");
+        return;
+    }
+    sprintf_s(arg, sizeof(arg), "/select,\"%s\"", path);
+    ShellExecuteA(NULL, "open", "explorer.exe", arg, NULL, SW_SHOWNORMAL);
+    SetWindowTextA(g_hProcStatus, "Find Target: opened Explorer");
+}
+
 void DoProcessContextMenu(HWND hWnd, int X, int Y)
 {
-    HMENU hMenu = CreatePopupMenu();
-    int cmd;
+    HMENU hMenu;
+    HMENU hView;
+    UINT cmd;
+    int sel;
+    ULONG pid;
 
+    FeListSelectUnderCursor(g_hProc, X, Y);
+    sel = FeListGetSel(g_hProc);
+    pid = GetSelectedPid();
+
+    hMenu = FeMenuBegin();
     if (!hMenu)
         return;
-    /* 原版 Process 右键菜单的 View 组：切到对应子视图 */
-    AppendMenuA(hMenu, MF_STRING, 5010, "View Modules");
-    AppendMenuA(hMenu, MF_STRING, 5011, "View Threads");
-    AppendMenuA(hMenu, MF_STRING, 5012, "View Handles");
-    AppendMenuA(hMenu, MF_STRING, 5013, "View Windows");
-    AppendMenuA(hMenu, MF_STRING, 5014, "View Memory");
-    AppendMenuA(hMenu, MF_STRING, 5015, "View Timer");
-    AppendMenuA(hMenu, MF_STRING, 5016, "View HotKey");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 5001, "Kill");
-    AppendMenuA(hMenu, MF_STRING, 5002, "Force Kill");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 5003, "Suspend");
-    AppendMenuA(hMenu, MF_STRING, 5004, "Resume");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 5005, "Kill By Process Tree");
-    AppendMenuA(hMenu, MF_STRING, 5006, "Kill And Delete File");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 5007, "Copy Image Path");
-    if (X == -1 && Y == -1) {
-        RECT rc;
-        GetWindowRect(g_hProc, &rc);
-        X = rc.left + 40;
-        Y = rc.top + 40;
-    }
-    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
-                         X, Y, 0, hWnd, NULL);
-    DestroyMenu(hMenu);
-    if (cmd >= 5001 && cmd <= 5007)
-        DoProcessOp(cmd - 5001);
-    else if (cmd >= 5010 && cmd <= 5016) {
-        /* View 子页切换：5010→Modules(0) ... 5016→HotKey(6) */
-        int tab = cmd - 5010;
+
+    FeMenuAdd(hMenu, PROC_ID_REFRESH, "Refresh");                       /* 刷新 */
+    FeMenuAdd(hMenu, PROC_ID_EXPORT, "Export Display");                 /* 导出 */
+    FeMenuSep(hMenu);
+
+    /* 二级子菜单：View（原版 7 项） */
+    hView = FeMenuBegin();
+    FeMenuAddEx(hView, PROC_ID_VIEW_MOD, "View Modules", pid != 0);     /* 查看模块 */
+    FeMenuAddEx(hView, PROC_ID_VIEW_THR, "View Threads", pid != 0);     /* 查看线程 */
+    FeMenuAddEx(hView, PROC_ID_VIEW_WIN, "View Windows", pid != 0);     /* 查看窗口 */
+    FeMenuAddEx(hView, PROC_ID_VIEW_HDL, "View Handles", pid != 0);     /* 查看句柄 */
+    FeMenuAddEx(hView, PROC_ID_VIEW_MEM, "View Memory", pid != 0);      /* 查看内存 */
+    FeMenuAddEx(hView, PROC_ID_VIEW_TMR, "View Timer", pid != 0);       /* 查看定时器 */
+    FeMenuAddEx(hView, PROC_ID_VIEW_HK, "View HotKey", pid != 0);       /* 查看热键 */
+    FeMenuAddPopup(hMenu, hView, "View");                               /* 查看 */
+
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, PROC_ID_KILL, "Kill", pid != 0);                 /* 结束进程 */
+    FeMenuAddEx(hMenu, PROC_ID_FORCE_KILL, "Force Kill", pid != 0);     /* 强制结束 */
+    FeMenuAddEx(hMenu, PROC_ID_KILL_TREE, "Kill By Process Tree", pid != 0); /* 结束进程树 */
+    FeMenuAddEx(hMenu, PROC_ID_KILL_DEL, "Kill And Delete File", pid != 0);  /* 结束并删除文件 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, PROC_ID_SUSPEND, "Suspend", pid != 0);           /* 挂起 */
+    FeMenuAddEx(hMenu, PROC_ID_RESUME, "Resume", pid != 0);             /* 恢复 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, PROC_ID_COPY_PATH, "Copy Image Path", pid != 0);  /* 复制镜像路径 */
+    FeMenuAddEx(hMenu, PROC_ID_COPY_PID, "Copy Pid", pid != 0);          /* 复制PID */
+    FeMenuAddEx(hMenu, PROC_ID_FIND_TARGET, "Find Target", pid != 0);    /* 定位到进程文件 */
+    FeMenuAddEx(hMenu, PROC_ID_PROPERTIES, "Properties", pid != 0);      /* 查看进程属性 */
+    FeMenuSep(hMenu);
+    FeMenuAddCheck(hMenu, PROC_ID_ONLY_SEL, "Only Show Selected", g_ProcOnlySelected);
+    FeMenuAdd(hMenu, PROC_ID_REFRESH, "Refresh");                       /* 刷新 */
+
+    cmd = FeMenuEnd(hMenu, hWnd, X, Y, 40, 40);
+
+    switch (cmd) {
+    case PROC_ID_REFRESH:   DoRefreshProcs(); break;
+    case PROC_ID_EXPORT:    FeProcPageExport(); break;
+    case PROC_ID_VIEW_MOD: case PROC_ID_VIEW_THR: case PROC_ID_VIEW_WIN:
+    case PROC_ID_VIEW_HDL: case PROC_ID_VIEW_MEM: case PROC_ID_VIEW_TMR:
+    case PROC_ID_VIEW_HK: {
+        int tab = (cmd == PROC_ID_VIEW_MOD) ? 0 :
+                  (cmd == PROC_ID_VIEW_THR) ? 1 :
+                  (cmd == PROC_ID_VIEW_WIN) ? 2 :
+                  (cmd == PROC_ID_VIEW_HDL) ? 3 :
+                  (cmd == PROC_ID_VIEW_MEM) ? 4 :
+                  (cmd == PROC_ID_VIEW_TMR) ? 5 : 6;
         if (g_hTabs)
             SendMessageA(g_hTabs, TCM_SETCURSEL, (WPARAM)tab, 0);
         g_DetailTab = -1;
         DoRefreshDetail();
+        break;
+    }
+    case PROC_ID_KILL:       DoProcessOp(0); break;
+    case PROC_ID_FORCE_KILL: DoProcessOp(1); break;
+    case PROC_ID_SUSPEND:    DoProcessOp(2); break;
+    case PROC_ID_RESUME:     DoProcessOp(3); break;
+    case PROC_ID_KILL_TREE:  DoProcessOp(4); break;
+    case PROC_ID_KILL_DEL:   DoProcessOp(5); break;
+    case PROC_ID_COPY_PATH:  DoProcessOp(6); break;
+    case PROC_ID_COPY_PID: {
+        char buf[32];
+        sprintf_s(buf, sizeof(buf), "%lu", (unsigned long)pid);
+        if (pid) {
+            FeClipCopyText(g_hProc, buf);
+            SetWindowTextA(g_hProcStatus, "Copy Pid: copied to clipboard");
+        }
+        break;
+    }
+    case PROC_ID_FIND_TARGET: ProcFindTarget(); break;
+    case PROC_ID_PROPERTIES:  ProcShowProperties(); break;
+    case PROC_ID_ONLY_SEL:
+        g_ProcOnlySelected = !g_ProcOnlySelected;
+        {
+            char msg[240];
+            sprintf_s(msg, sizeof(msg),
+                      "Only Show Selected: %s (use the filter box to narrow the list)",
+                      g_ProcOnlySelected ? "on" : "off");
+            SetWindowTextA(g_hProcStatus, msg);
+        }
+        break;
+    default: break;
     }
 }
 

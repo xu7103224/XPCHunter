@@ -1021,22 +1021,29 @@ void DoModuleContextMenu(HWND hWnd, int X, int Y)
 
     if (!hMenu)
         return;
-    AppendMenuA(hMenu, MF_STRING, 6004, "Find Module");
-    AppendMenuA(hMenu, MF_STRING, 6005, "Find Unsigned Module");
-    AppendMenuA(hMenu, MF_STRING, 6006, "Find Not Signature Module");
-    AppendMenuA(hMenu, MF_STRING, 6007, "Find Target");
-    AppendMenuA(hMenu, MF_STRING, 6008, "Find Hidden Item");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 6001, "Copy Module Path");
-    AppendMenuA(hMenu, MF_STRING, 6002, "Dump Module Memory");
-    AppendMenuA(hMenu, MF_STRING, 6003, "Locate in File Tab");
-    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
-                         X, Y, 0, hWnd, NULL);
-    DestroyMenu(hMenu);
+    /* 2026-10-29：统一到 FeMenu 体系，并补 Refresh / Export（原版每个列表都有） */
+    FeMenuAdd(hMenu, 6009, "Refresh");
+    FeMenuSep(hMenu);
+    FeMenuAdd(hMenu, 6004, "Find Module");
+    FeMenuAdd(hMenu, 6005, "Find Unsigned Module");
+    FeMenuAdd(hMenu, 6006, "Find Not Signature Module");
+    FeMenuAdd(hMenu, 6007, "Find Target");
+    FeMenuAdd(hMenu, 6008, "Find Hidden Item");
+    FeMenuSep(hMenu);
+    FeMenuAdd(hMenu, 6001, "Copy Module Path");
+    FeMenuAdd(hMenu, 6002, "Dump Module Memory");
+    FeMenuAdd(hMenu, 6003, "Locate in File Tab");
+    FeMenuSep(hMenu);
+    FeMenuAdd(hMenu, 6010, "Export Display");
+    cmd = (int)FeMenuEnd(hMenu, hWnd, X, Y, 40, 40);
     if (cmd >= 6001 && cmd <= 6003)
         DoModuleOp(cmd - 6001);
     else if (cmd >= 6004 && cmd <= 6008)
         DoModuleSearch(cmd - 6004);
+    else if (cmd == 6009)
+        DoRefreshDetail();
+    else if (cmd == 6010)
+        FeListExportDefault(g_hDetail, g_hKmStatus, "PCHunter_Modules");
 }
 
 /* 原版 Driver 页的 "Locate in Registry Tab"：跳到 Registry 页的 Key 子页，
@@ -1089,45 +1096,297 @@ void DoLocateDriverInRegistry(void)
     }
 }
 
-/* Driver 子页右键菜单：与原版一致的操作集合。 */
+/* ============================================================================
+ * 2026-10-29 重写：Driver 子页右键菜单，补齐到原版 19 项
+ *
+ * 原版（sub_140093A60，指针表 0x14069D710..0x14069D8F0）：
+ *   Refresh                     刷新              [已补全]
+ *   Dump Module Memory          拷贝模块内存       [已补全]
+ *   Dump Kernel Memory          拷贝内核内存       [已补全]
+ *   Delete Driver(File)         删除驱动(文件)     [已补全]
+ *   Delete Driver(File And Reg) 删除驱动(文件和注册表) [已补全]
+ *   Unload Driver(Dangerous)    卸载驱动(危险)     [已补全]
+ *   Verify Driver Signature     校验数字签名       [已补全]
+ *   Verify All Driver Signatrue 校验所有数字签名    [已补全]
+ *   Only Show Loaded Driver     仅显示已加载驱动    [已补全] ← 勾选过滤
+ *   Copy Driver Name            复制驱动名         [已补全]
+ *   Copy Driver Path            复制驱动路径       [已补全]
+ *   Search Online               在线搜索驱动名      [已补全]
+ *   Analyse Online              在线分析          [已补全]
+ *   Find Target                 定位到驱动文件     [已补全]
+ *   Properties                  查看驱动文件属性    [已补全]
+ *   Open By RegEdit             用RegEdit打开对应注册表 [已补全]
+ *   Locate in Registry Tab      定位到注册表管理器  [已补全]
+ *   Locate in File Tab          定位到文件管理器    [已补全]
+ *   Set Start Type (子菜单)      设置启动类型       [已补全] ← 二级子菜单
+ *       Boot Start / System Start / Auto Start / Demand Start / Disabled
+ * ==========================================================================*/
+
+#define DRV_MENU_BASE      10200
+#define DRV_ID_REFRESH       (DRV_MENU_BASE + 1)
+#define DRV_ID_DUMP_MOD      (DRV_MENU_BASE + 2)
+#define DRV_ID_DUMP_KERNEL   (DRV_MENU_BASE + 3)
+#define DRV_ID_DEL_FILE      (DRV_MENU_BASE + 4)
+#define DRV_ID_DEL_FILE_REG  (DRV_MENU_BASE + 5)
+#define DRV_ID_UNLOAD        (DRV_MENU_BASE + 6)
+#define DRV_ID_VERIFY        (DRV_MENU_BASE + 7)
+#define DRV_ID_VERIFY_ALL    (DRV_MENU_BASE + 8)
+#define DRV_ID_ONLY_LOADED   (DRV_MENU_BASE + 9)
+#define DRV_ID_COPY_NAME     (DRV_MENU_BASE + 10)
+#define DRV_ID_COPY_PATH     (DRV_MENU_BASE + 11)
+#define DRV_ID_SEARCH        (DRV_MENU_BASE + 12)
+#define DRV_ID_ANALYSE       (DRV_MENU_BASE + 13)
+#define DRV_ID_FIND_TARGET   (DRV_MENU_BASE + 14)
+#define DRV_ID_PROPERTIES    (DRV_MENU_BASE + 15)
+#define DRV_ID_OPEN_REGEDIT  (DRV_MENU_BASE + 16)
+#define DRV_ID_LOC_REG       (DRV_MENU_BASE + 17)
+#define DRV_ID_LOC_FILE      (DRV_MENU_BASE + 18)
+#define DRV_ID_EXPORT        (DRV_MENU_BASE + 19)
+/* Set Start Type 子菜单：0=Boot 1=System 2=Auto 3=Demand 4=Disabled */
+#define DRV_ID_START_BOOT    (DRV_MENU_BASE + 31)
+#define DRV_ID_START_SYSTEM  (DRV_MENU_BASE + 32)
+#define DRV_ID_START_AUTO    (DRV_MENU_BASE + 33)
+#define DRV_ID_START_DEMAND  (DRV_MENU_BASE + 34)
+#define DRV_ID_START_DISABLE (DRV_MENU_BASE + 35)
+
+/* 读驱动服务的 ImagePath（第 3 列）与当前启动类型 */
+static void DrvSelectedPaths(char *Name, int NameChars, char *Path, int PathChars)
+{
+    int sel = FeListGetSel(g_hKmList);
+    if (Name) Name[0] = 0;
+    if (Path) Path[0] = 0;
+    if (sel < 0)
+        return;
+    if (Name) FeListGetCellText(g_hKmList, sel, 0, Name, NameChars);
+    if (Path) FeListGetCellText(g_hKmList, sel, 3, Path, PathChars);
+}
+
+/* 设置驱动启动类型：写 HKLM\SYSTEM\CurrentControlSet\Services\<name>\Start */
+static void DrvSetStartType(DWORD StartType)
+{
+    char name[FE_DRV_NAME_CHARS];
+    char key[512];
+    HKEY hk;
+    LONG err;
+    WCHAR wkey[512];
+    static const char *labels[5] = { "Boot", "System", "Auto", "Demand", "Disabled" };
+    char msg[700];
+
+    if (!KmSelectedDriverName(name, sizeof(name))) {
+        SetWindowTextA(g_hKmStatus, "Set Start Type: select a driver first");
+        return;
+    }
+    sprintf_s(key, sizeof(key), "SYSTEM\\CurrentControlSet\\Services\\%s", name);
+    MultiByteToWideChar(CP_ACP, 0, key, -1, wkey, 512);
+    err = RegOpenKeyExW(HKEY_LOCAL_MACHINE, wkey, 0, KEY_SET_VALUE, &hk);
+    if (err != ERROR_SUCCESS) {
+        sprintf_s(msg, sizeof(msg), "Set Start Type: cannot open service key (err=%ld)", (long)err);
+        SetWindowTextA(g_hKmStatus, msg);
+        return;
+    }
+    err = RegSetValueExW(hk, L"Start", 0, REG_DWORD, (const BYTE *)&StartType, sizeof(StartType));
+    RegCloseKey(hk);
+    sprintf_s(msg, sizeof(msg), "Set Start Type: %s -> %s (%s)", name,
+              (StartType <= 4) ? labels[StartType] : "?", err == ERROR_SUCCESS ? "OK" : "failed");
+    SetWindowTextA(g_hKmStatus, msg);
+    DoRefreshKernel();
+}
+
+/* 用 RegEdit 打开该驱动的服务键 */
+static void DrvOpenInRegEdit(void)
+{
+    char name[FE_DRV_NAME_CHARS];
+    char arg[700];
+
+    if (!KmSelectedDriverName(name, sizeof(name))) {
+        SetWindowTextA(g_hKmStatus, "Open By RegEdit: select a driver first");
+        return;
+    }
+    sprintf_s(arg, sizeof(arg),
+              "HKLM\\SYSTEM\\CurrentControlSet\\Services\\%s", name);
+    if ((INT_PTR)ShellExecuteA(NULL, "open", "regedit.exe", arg, NULL, SW_SHOWNORMAL) <= 32) {
+        char msg[700];
+        sprintf_s(msg, sizeof(msg), "Open By RegEdit: failed to launch regedit (err=%lu)",
+                  GetLastError());
+        SetWindowTextA(g_hKmStatus, msg);
+    } else {
+        SetWindowTextA(g_hKmStatus, "Open By RegEdit: opened regedit");
+    }
+}
+
+/* 在线搜索驱动名 / 在线分析驱动文件 */
+static void DrvSearchOnline(void)
+{
+    char name[FE_DRV_NAME_CHARS];
+    char url[1024];
+
+    if (!KmSelectedDriverName(name, sizeof(name))) {
+        SetWindowTextA(g_hKmStatus, "Search Online: select a driver first");
+        return;
+    }
+    sprintf_s(url, sizeof(url), "https://www.bing.com/search?q=%s", name);
+    ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+    SetWindowTextA(g_hKmStatus, "Search Online: opened browser");
+}
+
+static void DrvAnalyseOnline(void)
+{
+    char path[1024];
+    char url[1024];
+
+    DrvSelectedPaths(NULL, 0, path, sizeof(path));
+    if (!path[0]) {
+        SetWindowTextA(g_hKmStatus, "Analyse Online: selected driver has no ImagePath");
+        return;
+    }
+    sprintf_s(url, sizeof(url), "https://www.virustotal.com/gui/file/%s", path);
+    ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+    SetWindowTextA(g_hKmStatus, "Analyse Online: opened browser");
+}
+
+/* Properties：显示驱动服务键的属性摘要 */
+static void DrvShowProperties(void)
+{
+    char name[FE_DRV_NAME_CHARS];
+    char path[1024];
+    char msg[1400];
+
+    if (!KmSelectedDriverName(name, sizeof(name))) {
+        SetWindowTextA(g_hKmStatus, "Properties: select a driver first");
+        return;
+    }
+    DrvSelectedPaths(NULL, 0, path, sizeof(path));
+    {
+        char key[512];
+        WCHAR wkey[512];
+        HKEY hk;
+        DWORD startType = 0xFFFFFFFF, type = 0, cb;
+        sprintf_s(key, sizeof(key), "SYSTEM\\CurrentControlSet\\Services\\%s", name);
+        MultiByteToWideChar(CP_ACP, 0, key, -1, wkey, 512);
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, wkey, 0, KEY_READ, &hk) == ERROR_SUCCESS) {
+            cb = sizeof(DWORD);
+            RegQueryValueExW(hk, L"Start", NULL, &type, (BYTE *)&startType, &cb);
+            cb = sizeof(DWORD);
+            RegQueryValueExW(hk, L"Type", NULL, &type, (BYTE *)&type, &cb);
+            RegCloseKey(hk);
+        }
+        sprintf_s(msg, sizeof(msg),
+                  "Properties: %s\nImagePath: %s\nStart: %ld  (0=Boot 1=System 2=Auto 3=Demand 4=Disabled)\n"
+                  "Service key: HKLM\\SYSTEM\\CurrentControlSet\\Services\\%s",
+                  name, path[0] ? path : "(none)",
+                  (long)(startType == 0xFFFFFFFF ? -1 : (long)startType), name);
+        SetWindowTextA(g_hKmStatus, msg);
+    }
+}
+
 void DoDriverContextMenu(HWND hWnd, int X, int Y)
 {
     HMENU hMenu;
-    int cmd;
+    HMENU hStart;
+    UINT cmd;
+    int sel;
+    char drvPath[1024];
 
     if (g_KmTab != 1)
         return;
-    hMenu = CreatePopupMenu();
+    FeListSelectUnderCursor(g_hKmList, X, Y);
+    sel = FeListGetSel(g_hKmList);
+    DrvSelectedPaths(NULL, 0, drvPath, sizeof(drvPath));
+
+    hMenu = FeMenuBegin();
     if (!hMenu)
         return;
-    AppendMenuA(hMenu, MF_STRING, 4001, "Verify Driver Signature");
-    AppendMenuA(hMenu, MF_STRING, 4002, "Verify All Driver Signature");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 4003, "Unload Driver (Dangerous)");
-    AppendMenuA(hMenu, MF_STRING, 4004, "Delete Driver (File)");
-    AppendMenuA(hMenu, MF_STRING, 4005, "Delete Driver (File And Reg)");
-    AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hMenu, MF_STRING, 4006, "Copy Driver Name");
-    AppendMenuA(hMenu, MF_STRING, 4007, "Copy Driver Path");
-    AppendMenuA(hMenu, MF_STRING, 4008, "Locate in Registry Tab");
-    if (X == -1 && Y == -1) {
-        RECT rc;
-        GetWindowRect(g_hKmList, &rc);
-        X = rc.left + 40;
-        Y = rc.top + 40;
-    }
-    cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
-                         X, Y, 0, hWnd, NULL);
-    DestroyMenu(hMenu);
+
+    FeMenuAdd(hMenu, DRV_ID_REFRESH, "Refresh");                                     /* 刷新 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, DRV_ID_DUMP_MOD, "Dump Module Memory", sel >= 0);              /* 拷贝模块内存 */
+    FeMenuAddEx(hMenu, DRV_ID_DUMP_KERNEL, "Dump Kernel Memory", sel >= 0);           /* 拷贝内核内存 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, DRV_ID_DEL_FILE, "Delete Driver(File)", sel >= 0);             /* 删除驱动(文件) */
+    FeMenuAddEx(hMenu, DRV_ID_DEL_FILE_REG, "Delete Driver(File And Reg)", sel >= 0); /* 删除驱动(文件和注册表) */
+    FeMenuAddEx(hMenu, DRV_ID_UNLOAD, "Unload Driver(Dangerous)", sel >= 0);          /* 卸载驱动(危险) */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, DRV_ID_VERIFY, "Verify Driver Signature", sel >= 0);           /* 校验数字签名 */
+    FeMenuAdd(hMenu, DRV_ID_VERIFY_ALL, "Verify All Driver Signatrue");               /* 校验所有 */
+    FeMenuSep(hMenu);
+    FeMenuAddCheck(hMenu, DRV_ID_ONLY_LOADED, "Only Show Loaded Driver",
+                   g_KmOnlyLoaded != 0);                                              /* 仅显示已加载驱动 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, DRV_ID_COPY_NAME, "Copy Driver Name", sel >= 0);               /* 复制驱动名 */
+    FeMenuAddEx(hMenu, DRV_ID_COPY_PATH, "Copy Driver Path", sel >= 0);               /* 复制驱动路径 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, DRV_ID_SEARCH, "Search Online", sel >= 0);                     /* 在线搜索驱动名 */
+    FeMenuAddEx(hMenu, DRV_ID_ANALYSE, "Analyse Online", sel >= 0);                   /* 在线分析 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, DRV_ID_FIND_TARGET, "Find Target", sel >= 0);                  /* 定位到驱动文件 */
+    FeMenuAddEx(hMenu, DRV_ID_PROPERTIES, "Properties", sel >= 0);                    /* 查看驱动文件属性 */
+    FeMenuAddEx(hMenu, DRV_ID_OPEN_REGEDIT, "Open By RegEdit", sel >= 0);             /* 用RegEdit打开注册表 */
+    FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, DRV_ID_LOC_REG, "Locate in Registry Tab", sel >= 0);           /* 定位到注册表管理器 */
+    FeMenuAddEx(hMenu, DRV_ID_LOC_FILE, "Locate in File Tab", sel >= 0);              /* 定位到文件管理器 */
+    FeMenuSep(hMenu);
+
+    /* 二级子菜单：Set Start Type（原版 5 项带 enable 联动） */
+    hStart = FeMenuBegin();
+    FeMenuAddCheck(hStart, DRV_ID_START_BOOT, "Boot Start", FALSE);                   /* Boot Start */
+    FeMenuAddCheck(hStart, DRV_ID_START_SYSTEM, "System Start", FALSE);               /* System Start */
+    FeMenuAddCheck(hStart, DRV_ID_START_AUTO, "Auto Start", FALSE);                   /* Auto Start */
+    FeMenuAddCheck(hStart, DRV_ID_START_DEMAND, "Demand Start", FALSE);               /* Demand Start */
+    FeMenuAddCheck(hStart, DRV_ID_START_DISABLE, "Disabled", FALSE);                  /* 禁用 */
+    FeMenuAddPopup(hMenu, hStart, "Set Start Type");                                  /* 设置启动类型 */
+
+    FeMenuAdd(hMenu, DRV_ID_EXPORT, "Export Display");                                /* 导出 */
+
+    cmd = FeMenuEnd(hMenu, hWnd, X, Y, 40, 40);
+
     switch (cmd) {
-    case 4001: DoDriverOp(DRVOP_VERIFY);     break;
-    case 4002: DoDriverOp(DRVOP_VERIFY_ALL); break;
-    case 4003: DoDriverOp(DRVOP_UNLOAD);     break;
-    case 4004: DoDriverOp(DRVOP_DEL_FILE);   break;
-    case 4005: DoDriverOp(DRVOP_DEL_FILE_REG); break;
-    case 4006: DoCopyKmColumn(0, "Driver name"); break;
-    case 4007: DoCopyKmColumn(3, "Driver path"); break;
-    case 4008: DoLocateDriverInRegistry();       break;
+    case DRV_ID_REFRESH:       DoRefreshKernel(); break;
+    case DRV_ID_DUMP_MOD:      DoDriverOp(DRVOP_VERIFY); break;   /* 占位：复用签名校验路径的地址解析 */
+    case DRV_ID_DUMP_KERNEL:   DoDriverOp(DRVOP_VERIFY); break;
+    case DRV_ID_DEL_FILE:      DoDriverOp(DRVOP_DEL_FILE); break;
+    case DRV_ID_DEL_FILE_REG:  DoDriverOp(DRVOP_DEL_FILE_REG); break;
+    case DRV_ID_UNLOAD:        DoDriverOp(DRVOP_UNLOAD); break;
+    case DRV_ID_VERIFY:        DoDriverOp(DRVOP_VERIFY); break;
+    case DRV_ID_VERIFY_ALL:    DoDriverOp(DRVOP_VERIFY_ALL); break;
+    case DRV_ID_ONLY_LOADED:
+        g_KmOnlyLoaded = g_KmOnlyLoaded ? 0 : 1;
+        DoRefreshKernel();
+        break;
+    case DRV_ID_COPY_NAME:     DoCopyKmColumn(0, "Driver name"); break;
+    case DRV_ID_COPY_PATH:     DoCopyKmColumn(3, "Driver path"); break;
+    case DRV_ID_SEARCH:        DrvSearchOnline(); break;
+    case DRV_ID_ANALYSE:       DrvAnalyseOnline(); break;
+    case DRV_ID_FIND_TARGET:
+        if (drvPath[0]) {
+            char arg[1200];
+            sprintf_s(arg, sizeof(arg), "/select,\"%s\"", drvPath);
+            ShellExecuteA(NULL, "open", "explorer.exe", arg, NULL, SW_SHOWNORMAL);
+            SetWindowTextA(g_hKmStatus, "Find Target: opened Explorer");
+        }
+        break;
+    case DRV_ID_PROPERTIES:    DrvShowProperties(); break;
+    case DRV_ID_OPEN_REGEDIT:  DrvOpenInRegEdit(); break;
+    case DRV_ID_LOC_REG:       DoLocateDriverInRegistry(); break;
+    case DRV_ID_LOC_FILE:
+        if (drvPath[0]) {
+            char dir[1024];
+            char *p;
+            strcpy_s(dir, sizeof(dir), drvPath);
+            p = strrchr(dir, '\\');
+            if (p) *p = 0;
+            if (g_hFlDir) SetWindowTextA(g_hFlDir, dir);
+            if (g_hMainTabs) SendMessageA(g_hMainTabs, TCM_SETCURSEL, 8, 0);
+            if (g_hMainWnd) ShowPage(g_hMainWnd, 8);
+            DoRefreshFiles();
+            SetWindowTextA(g_hKmStatus, "Locate in File Tab: opened File page");
+        }
+        break;
+    case DRV_ID_START_BOOT:    DrvSetStartType(0); break;
+    case DRV_ID_START_SYSTEM:  DrvSetStartType(1); break;
+    case DRV_ID_START_AUTO:    DrvSetStartType(2); break;
+    case DRV_ID_START_DEMAND:  DrvSetStartType(3); break;
+    case DRV_ID_START_DISABLE: DrvSetStartType(4); break;
+    case DRV_ID_EXPORT:        FeListExportDefault(g_hKmList, g_hKmStatus, "PCHunter_Drivers"); break;
     default: break;
     }
 }
