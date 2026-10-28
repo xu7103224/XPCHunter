@@ -4,6 +4,7 @@
 // ============================================================================
 #include "XPCHunterUM.h"
 #include "FePages.h"
+#include "FeTheme.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -179,8 +180,10 @@ static void ProcRenderRows(void)
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
 
         ZeroMemory(&item, sizeof(item));
+        item.mask = LVIF_TEXT | LVIF_IMAGE;   /* 第三步：状态列图标 */
         item.iSubItem = 4;
         item.pszText = g_ProcAcc && g_ProcAcc[order[i]] ? (LPSTR)"accessible" : (LPSTR)"INACCESSIBLE";
+        item.iImage = FeThemeStatusIconIndex(item.pszText);
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
     }
     g_ProcShown = n;

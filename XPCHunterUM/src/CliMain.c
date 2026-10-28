@@ -1721,6 +1721,28 @@ static int CliSelftestTheme_52(const char *lpCmdLine)
             fail = 1;
     }
 
+    /* 图标索引映射：语义色 → 图标槽位（0 正常 / 1 异常 / 2 可疑 / 3 其它） */
+    {
+        struct { const char *t; int want; } ic[] = {
+            { "accessible", 0 }, { "INACCESSIBLE", 1 }, { "suspicious", 2 },
+            { "whatever",   3 }, { "",             3 },
+        };
+        size_t k;
+        for (k = 0; k < sizeof(ic)/sizeof(ic[0]); k++) {
+            int got = FeThemeStatusIconIndex(ic[k].t);
+            printf("  icon \"%s\" -> %d %s\n", ic[k].t, got,
+                   got == ic[k].want ? "OK" : "FAIL");
+            if (got != ic[k].want) fail = 1;
+        }
+        /* 图标表必须能生成（4 个 16x16 圆点） */
+        {
+            HIMAGELIST hil = FeThemeIconList();
+            int n = hil ? ImageList_GetImageCount(hil) : 0;
+            printf("  iconlist images=%d %s\n", n, n == 4 ? "OK" : "FAIL");
+            if (n != 4) fail = 1;
+        }
+    }
+
     /* 深/浅两套必须是不同的实际颜色（否则主题切换毫无效果） */
     {
         COLORREF dBg, lBg;

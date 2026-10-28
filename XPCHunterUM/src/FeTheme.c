@@ -123,6 +123,118 @@ void FeThemeApplyToList(HWND hList)
         hList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);
 }
 
+/* ---- 状态图标 ----
+   用 GDI 在内存里画 16x16 实心圆点，四色对应四种语义。
+   这样不需要 .ico 资源、不需要外部文件，也天然跟随主题换色。 */
+#define FE_ICON_CX 16
+#define FE_ICON_CY 16
+
+static HIMAGELIST g_himl = NULL;
+
+static void FeDrawDot(HDC hdc, int cx, int cy, COLORREF Color)
+{
+    HBRUSH br = CreateSolidBrush(Color);
+    HPEN pen = CreatePen(PS_SOLID, 1, Color);
+    HGDIOBJ oldBr = SelectObject(hdc, br);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    /* 内缩 2px 留出边距，画成实心圆 */
+    Ellipse(hdc, 2, 2, cx - 2, cy - 2);
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBr);
+    DeleteObject(pen);
+    DeleteObject(br);
+}
+
+HIMAGELIST FeThemeIconList(void)
+{
+    const FE_THEME_COLORS *c = FeThemeColors();
+    HDC hdc;
+    HDC mem;
+    HBITMAP bmp;
+    HGDIOBJ old;
+    HIMAGELIST himl;
+    int i;
+    COLORREF colors[4];
+
+    if (g_himl)
+        return g_himl;
+
+    himl = ImageList_Create(FE_ICON_CX, FE_ICON_CY, ILC_COLOR24, 4, 4);
+    if (!himl)
+        return NULL;
+
+    hdc = GetDC(NULL);
+    mem = CreateCompatibleDC(hdc);
+
+    colors[0] = c->Accent;   /* 正常 */
+    colors[1] = c->Danger;   /* 异常 */
+    colors[2] = c->Warn;     /* 可疑 */
+    colors[3] = c->TextDim;  /* 其它 */
+
+    for (i = 0; i < 4; i++) {
+        /* 24 位 DIB：背景先刷成 Panel 色，再叠圆点，避免透明通道问题 */
+        BITMAPINFO bi;
+        void *bits = NULL;
+        ZeroMemory(&bi, sizeof(bi));
+        bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bi.bmiHeader.biWidth = FE_ICON_CX;
+        bi.bmiHeader.biHeight = -FE_ICON_CY;   /* 自上而下 */
+        bi.bmiHeader.biPlanes = 1;
+        bi.bmiHeader.biBitCount = 32;
+        bi.bmiHeader.biCompression = BI_RGB;
+
+        bmp = CreateDIBSection(mem, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+        if (!bmp)
+            continue;
+        old = SelectObject(mem, bmp);
+
+        {
+            HBRUSH bg = CreateSolidBrush(c->Panel);
+            RECT rc;
+            SetRect(&rc, 0, 0, FE_ICON_CX, FE_ICON_CY);
+            FillRect(mem, &rc, bg);
+            DeleteObject(bg);
+        }
+        FeDrawDot(mem, FE_ICON_CX, FE_ICON_CY, colors[i]);
+
+        SelectObject(mem, old);
+        ImageList_Add(himl, bmp, NULL);
+        DeleteObject(bmp);
+    }
+
+    DeleteDC(mem);
+    ReleaseDC(NULL, hdc);
+    g_himl = himl;
+    return g_himl;
+}
+
+/* 状态文本 → 图标索引（纯函数，供自检断言） */
+int FeThemeStatusIconIndex(const char *Text)
+{
+    COLORREF c = FeThemeStatusColor(Text);
+    const FE_THEME_COLORS *p = FeThemeColors();
+
+    if (c == p->Danger)  return 1;
+    if (c == p->Warn)    return 2;
+    if (c == p->Accent)  return 0;
+    return 3;
+}
+
+void FeThemeAttachIcons(HWND hList)
+{
+    HIMAGELIST himl;
+
+    if (!hList)
+        return;
+    himl = FeThemeIconList();
+    if (!himl)
+        return;
+    ListView_SetImageList(hList, himl, LVSIL_SMALL);
+    /* 让子项（不只是第 0 列）也能显示图标 */
+    ListView_SetExtendedListViewStyleEx(
+        hList, LVS_EX_SUBITEMIMAGES, LVS_EX_SUBITEMIMAGES);
+}
+
 /* NM_CUSTOMDRAW 处理：表头底色、行底色/文字色、网格线颜色。
    返回 FALSE 表示本次不接管，让系统默认绘制（自绘只覆盖颜色，不改布局）。 */
 BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd)

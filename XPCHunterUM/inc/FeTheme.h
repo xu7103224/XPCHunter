@@ -47,6 +47,16 @@ COLORREF FeThemeStatusColor(const char *Text);
 void FeThemeApplyToList(HWND hList);
 BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd);
 
+/* ---- 状态图标列 ----
+   图标在运行时用 GDI 生成（16x16 实心圆点），不依赖外部资源文件：
+     0 = Accent 绿（正常）  1 = Danger 红（异常）  2 = Warn 黄（可疑）
+     3 = Text 灰（其它）
+   FeThemeAttachIcons 给列表挂 IMAGELIST + LVS_EX_SUBITEMIMAGES；
+   FeThemeStatusIconIndex 是纯函数（供自检断言）。 */
+void FeThemeAttachIcons(HWND hList);
+int  FeThemeStatusIconIndex(const char *Text);
+HIMAGELIST FeThemeIconList(void);
+
 /* 整个窗口链重绘（切主题/改 DPI 后调用） */
 void FeThemeRefreshWindow(HWND hWnd);
 

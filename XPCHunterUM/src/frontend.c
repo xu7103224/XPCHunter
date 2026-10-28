@@ -675,6 +675,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                   10, 76, 940, 300, hWnd, (HMENU)IDC_PROCLIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hProc, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hProc, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hProc);   /* 第三步：状态图标 */
         CreateProcColumns(g_hProc);
 
         g_hProcStatus = CreateWindowA("STATIC", "Not connected", WS_CHILD | WS_VISIBLE | SS_LEFT,
@@ -714,6 +715,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 426, 940, 190, hWnd, (HMENU)IDC_DETAIL, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hDetail, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hDetail, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hDetail);   /* 第三步：状态图标 */
 
         /* ---- Kernel 页（主 Tab 1）：刷新 + 子页 Tab + 列表 + 状态 ---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
@@ -761,6 +763,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 140, 940, 476, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hKmList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hKmList);   /* 第三步：状态图标 */
         CreateKmColumns(g_hKmList, 0);
         DoRefreshKernel();
 
@@ -774,6 +777,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 510, hWnd, (HMENU)IDC_SU_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hSuList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hSuList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hSuList);   /* 第三步：状态图标 */
         CreateSuColumns(g_hSuList);
         DoRefreshStartup();
 
@@ -787,6 +791,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 510, hWnd, (HMENU)IDC_SV_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hSvList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hSvList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hSvList);   /* 第三步：状态图标 */
         CreateSvColumns(g_hSvList);
         DoRefreshServices();
 
@@ -826,6 +831,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 140, 940, 476, hWnd, (HMENU)IDC_RG_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hRgList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hRgList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hRgList);   /* 第三步：状态图标 */
         CreateRgColumns(g_hRgList, 0);
         DoRefreshRegistry();
 
@@ -846,6 +852,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 108, 940, 500, hWnd, (HMENU)IDC_FL_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hFlList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hFlList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hFlList);   /* 第三步：状态图标 */
         CreateFlColumns(g_hFlList);
         DoRefreshFiles();
 
@@ -864,6 +871,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 108, 940, 500, hWnd, (HMENU)IDC_OT_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hOtList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hOtList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hOtList);   /* 第三步：状态图标 */
         DoRefreshOther();
 
         /* ---- Network 页（主 Tab 4）----
@@ -880,6 +888,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     280, 76, 670, 500, hWnd, (HMENU)IDC_NW_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hNwList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hNwList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hNwList);   /* 第三步：状态图标 */
         BuildNwTree();
         CreateNwColumns(g_hNwList, 1);
 
@@ -897,6 +906,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_EX_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hExList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hExList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hExList);   /* 第三步：状态图标 */
 
         /* ---- Fireeye 页（主 Tab 11）---- */
         g_hFePath = CreateWindowA("EDIT", "C:\Windows\System32\ntoskrnl.exe",
@@ -917,6 +927,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 130, 940, 480, hWnd, (HMENU)IDC_FE_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hFeList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hFeList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hFeList);   /* 第三步：状态图标 */
 
         /* ---- Setting 页（主 Tab 10）---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
@@ -938,6 +949,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_ST_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hStList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hStList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hStList);   /* 第三步：状态图标 */
         DoRefreshSetting();
 
         /* ---- Trojan Detection 页（主 Tab 12）---- */
@@ -956,6 +968,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_TR_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hTrList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hTrList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hTrList);   /* 第三步：状态图标 */
         DoTrojanScan();
 
         /* ---- Ring0/Ring3 Hooks 页（主 Tab 2 / 3）---- */
@@ -973,6 +986,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_HK_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hHkList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hHkList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hHkList);   /* 第三步：状态图标 */
         DoRefreshHooks();
 
         /* 命令测试器（保留：逐条命令的结果与形状） */
@@ -981,6 +995,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                   10, 402, 940, 150, hWnd, (HMENU)IDC_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeAttachIcons(g_hList);   /* 第三步：状态图标 */
         CreateListColumns(g_hList);
 
         /* 初始页：--page N，或 --kernel-gui 等价于 --page 1 */
