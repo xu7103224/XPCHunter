@@ -243,6 +243,8 @@ void FeProcPageSetFilter(const char *filter);
 /* 第二步增量3：CSV 导出（导出当前过滤+排序后的可见行） */
 BOOL FeProcPageExportCsv(const char *Path, ULONG *OutRows);
 void FeProcPageExport(void);
+/* 第二步增量4：双击进程行下钻到当前子视图 */
+BOOL FeProcPageDrillDown(void);
 BOOL ProcFilterMatch(const FE_PROCESS *it, unsigned char acc, const char *filter);
 
 /* ---- FeRegistryPage.c ---- */

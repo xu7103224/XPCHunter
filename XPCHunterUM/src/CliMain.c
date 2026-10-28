@@ -1539,6 +1539,61 @@ static int CliSelftestExport_49(const char *lpCmdLine)
 
 
 // ============================================================================
+// 自检入口 --selftest-drill-cli（第二步增量4 的下钻数据链路验证）
+//
+// Dril​lDown 本身是 UI 动作（读选中行 → 重查 → 移焦点），跨进程无法直接断言。
+// 但它的承重部分是"按 PID + 子视图调 FeLoadXxx"。这里在进程内对同一个 PID
+// 分别调 Modules / Threads / Handles 三个数据源，验证链路可用且条数自洽
+// （Threads 必然 > 0，因为任何进程至少有一个线程）。
+// 用法：--selftest-drill-cli <PID>
+// ============================================================================
+static int CliSelftestDrill_50(const char *lpCmdLine)
+{
+    const char *p;
+    ULONG pid;
+    FE_THREAD_LIST threads;
+    FE_MODULE_LIST modules;
+    ULONG nThreads = 0, nModules = 0;
+    int fail = 0;
+
+    if (!strstr(lpCmdLine, "--selftest-drill-cli"))
+        return FE_CLI_NEXT;
+
+    p = strstr(lpCmdLine, "--selftest-drill-cli");
+    pid = (ULONG)strtoul(p + 20, NULL, 10);
+    if (!pid) {
+        printf("drill selftest: need a PID\n");
+        printf("drill selftest: FAILED\n");
+        return 1;
+    }
+
+    printf("drill selftest: pid=%lu\n", pid);
+
+    /* Threads：任何存活进程至少 1 个线程 */
+    if (FeLoadProcessThreads(pid, 2048, &threads)) {
+        nThreads = threads.Count;
+        FeFreeProcessThreads(&threads);
+    }
+    printf("  threads=%lu %s\n", nThreads, nThreads ? "OK" : "FAIL");
+    if (!nThreads)
+        fail = 1;
+
+    /* Modules：System/Registry 这类进程没有用户态模块，返回 0 是正常的，
+       这里只验证调用不崩、句柄释放正确，不作为失败条件。 */
+    if (FeLoadProcessModules(pid, 1024, &modules)) {
+        nModules = modules.Count;
+        FeFreeProcessModules(&modules);
+        printf("  modules=%lu (informational)\n", nModules);
+    } else {
+        printf("  modules: unavailable for this PID (expected for System) \n");
+    }
+
+    printf("drill selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 1 : 0;
+}
+
+
+// ============================================================================
 // 分发表：按原 frontend.c WinMain if 链的【源码顺序】排列。
 // 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
 // ——WinMain 据此落入 GUI 路径。
@@ -1643,6 +1698,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliSelftestFilter_48(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestExport_49(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestDrill_50(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }

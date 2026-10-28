@@ -1459,6 +1459,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             FeProcPageOnColumnClick(((NMLISTVIEW *)lParam)->iSubItem);
             return 0;
         }
+        if (nm->idFrom == IDC_PROCLIST && nm->code == NM_DBLCLK) {
+            /* 第二步增量4：双击进程行下钻（按当前子 Tab 重查该 PID 的数据源） */
+            FeProcPageDrillDown();
+            return 0;
+        }
         if (nm->idFrom == IDC_TABS && nm->code == TCN_SELCHANGE) {
             DoRefreshDetail();
         } else if (nm->idFrom == IDC_PROCLIST && nm->code == LVN_ITEMCHANGED) {
@@ -1557,38 +1562,74 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     DoConnect();
     DoRefreshProcs();
 
-    /* 第二步增量3：--export-procs PATH —— 启动即把当前可见行导出后退出。
-       走与 Export CSV 按钮完全相同的 FeProcPageExportCsv，供自动化验收。 */
+    /* 第二步增量3/4：启动即执行的自动化验收入口（导出 / 下钻） */
     {
         const char *ecl = GetCommandLineA();
-        const char *ep = ecl ? strstr(ecl, "--export-procs ") : NULL;
-        if (ep) {
-            char outPath[MAX_PATH];
-            ULONG rows = 0;
-            size_t i = 0;
-            const char *v = ep + 15;
 
-            /* 支持带引号的路径（"C:\a b\out.csv"） */
-            if (*v == '"') {
-                v++;
-                while (v[i] && v[i] != '"' && i + 1 < sizeof(outPath)) {
-                    outPath[i] = v[i];
-                    i++;
+        /* --drill-test N：选中第 N 行后跑一次下钻并回报结果。
+           走与双击事件完全相同的 FeProcPageDrillDown。 */
+        {
+            const char *dp = ecl ? strstr(ecl, "--drill-test") : NULL;
+            if (dp) {
+                int pick = (dp[12] == ' ') ? atoi(dp + 13) : 0;
+                int rows, count, tab;
+
+                if (pick < 0) pick = 0;
+                count = (int)SendMessageA(g_hProc, LVM_GETITEMCOUNT, 0, 0);
+                if (count > 0) {
+                    if (pick >= count) pick = count - 1;
+                    ListView_SetItemState(g_hProc, pick,
+                                          LVIS_SELECTED | LVIS_FOCUSED,
+                                          LVIS_SELECTED | LVIS_FOCUSED);
                 }
-            } else {
-                while (v[i] && v[i] != ' ' && i + 1 < sizeof(outPath)) {
-                    outPath[i] = v[i];
-                    i++;
+                printf("drill-test: procs=%d pick=%d\n", count, pick);
+                if (count > 0) {
+                    BOOL ok = FeProcPageDrillDown();
+                    tab = (int)SendMessageA(g_hTabs, TCM_GETCURSEL, 0, 0);
+                    rows = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0);
+                    printf("drill-test: ok=%d tab=%d detail_rows=%d\n",
+                           ok ? 1 : 0, tab, rows);
+                    if (g_Client.Opened)
+                        XpchClose(&g_Client);
+                    return ok ? 0 : 1;
                 }
+                if (g_Client.Opened)
+                    XpchClose(&g_Client);
+                return 1;
             }
-            outPath[i] = 0;
-            if (FeProcPageExportCsv(outPath, &rows))
-                printf("exported %lu rows to %s\n", rows, outPath);
-            else
-                printf("export failed: %s\n", outPath);
-            if (g_Client.Opened)
-                XpchClose(&g_Client);
-            return rows ? 0 : 1;
+        }
+
+        /* --export-procs PATH：导出当前过滤+排序后的可见行。 */
+        {
+            const char *ep = ecl ? strstr(ecl, "--export-procs ") : NULL;
+            if (ep) {
+                char outPath[MAX_PATH];
+                ULONG rows = 0;
+                size_t i = 0;
+                const char *v = ep + 15;
+
+                /* 支持带引号的路径（"C:\a b\out.csv"） */
+                if (*v == '"') {
+                    v++;
+                    while (v[i] && v[i] != '"' && i + 1 < sizeof(outPath)) {
+                        outPath[i] = v[i];
+                        i++;
+                    }
+                } else {
+                    while (v[i] && v[i] != ' ' && i + 1 < sizeof(outPath)) {
+                        outPath[i] = v[i];
+                        i++;
+                    }
+                }
+                outPath[i] = 0;
+                if (FeProcPageExportCsv(outPath, &rows))
+                    printf("exported %lu rows to %s\n", rows, outPath);
+                else
+                    printf("export failed: %s\n", outPath);
+                if (g_Client.Opened)
+                    XpchClose(&g_Client);
+                return rows ? 0 : 1;
+            }
         }
     }
 

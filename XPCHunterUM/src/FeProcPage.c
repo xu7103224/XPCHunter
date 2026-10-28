@@ -208,6 +208,57 @@ void FeProcPageSetFilter(const char *filter)
     SetWindowTextA(g_hProcStatus, buf);
 }
 
+/* ---- 第二步增量4：双击下钻 ----
+   双击进程行 = "我要看这个进程的细节"：按当前子 Tab（模块/线程/窗口/句柄/
+   内存/定时器/热键）重查该 PID 的数据源并填进详情列表，然后把焦点移过去，
+   让键盘导航可以接着在被下钻的列表里走。
+   数据源就是 DoRefreshDetail 用的那套 FeLoadXxx，不新增查询路径。 */
+BOOL FeProcPageDrillDown(void)
+{
+    static const char *kViewNames[7] = {
+        "Modules", "Threads", "Windows", "Handles", "Memory", "Timer", "HotKey"
+    };
+    ULONG pid;
+    int sel, tab;
+    char msg[256];
+
+    if (!g_hProc || !g_hDetail || !g_hTabs)
+        return FALSE;
+    sel = ListView_GetNextItem(g_hProc, -1, LVNI_SELECTED);
+    if (sel < 0) {
+        SetWindowTextA(g_hProcStatus, "Double-click a process row to drill down");
+        return FALSE;
+    }
+    pid = GetSelectedPid();
+    if (!pid)
+        return FALSE;
+
+    /* 子 Tab 越界时归到 Modules，避免详情区空转 */
+    tab = (int)SendMessageA(g_hTabs, TCM_GETCURSEL, 0, 0);
+    if (tab < 0 || tab > 6) {
+        SendMessageA(g_hTabs, TCM_SETCURSEL, 0, 0);
+        tab = 0;
+    }
+    /* 强制重建列：下钻时子视图必须是"当前 Tab + 当前 PID"的确定状态，
+       即使 g_DetailTab 没变也重设一次，避免残留上一个 PID 的列宽/列集 */
+    g_DetailTab = -1;
+
+    DoRefreshDetail();
+    SetFocus(g_hDetail);
+
+    {
+        int rows = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0);
+        if (rows > 0)
+            ListView_SetItemState(g_hDetail, 0, LVIS_SELECTED | LVIS_FOCUSED,
+                                  LVIS_SELECTED | LVIS_FOCUSED);
+        sprintf_s(msg, sizeof(msg),
+                  "Drill-down: PID %lu, %s view - %d row%s (focus in detail)",
+                  pid, kViewNames[tab], rows, rows == 1 ? "" : "s");
+        SetWindowTextA(g_hProcStatus, msg);
+    }
+    return TRUE;
+}
+
 /* 列头点击：同列再点反向，异列重新升序；缓存为空时忽略 */
 void FeProcPageOnColumnClick(int col)
 {
