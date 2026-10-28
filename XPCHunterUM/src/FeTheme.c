@@ -141,6 +141,29 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd)
         BOOL selected = (cd->nmcd.uItemState & CDIS_SELECTED) != 0;
         cd->clrText = selected ? c->SelectText : c->Text;
         cd->clrTextBk = selected ? c->Select : c->Panel;
+
+        /* 第三步-3：状态列逐行着色。
+           约定：视图把语义状态放在最后一列（Ring3 Access State / State /
+           Note 等），这里按该列文本取色。选中行保持高对比，不覆盖前景色。 */
+        if (!selected) {
+            HWND hList = cd->nmcd.hdr.hwndFrom;
+            int nCol = Header_GetItemCount(
+                           (HWND)SendMessageA(hList, LVM_GETHEADER, 0, 0));
+            int iItem = (int)cd->nmcd.dwItemSpec;
+
+            if (nCol > 0) {
+                char txt[256];
+                LVITEMA it;
+                ZeroMemory(&it, sizeof(it));
+                it.iSubItem = nCol - 1;
+                it.pszText = txt;
+                it.cchTextMax = sizeof(txt);
+                txt[0] = 0;
+                SendMessageA(hList, LVM_GETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
+                if (txt[0])
+                    cd->clrText = FeThemeStatusColor(txt);
+            }
+        }
         return FALSE;
     }
 

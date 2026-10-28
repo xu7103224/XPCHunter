@@ -245,7 +245,7 @@ IDT (0x046): contexts=1 entries=256
 
 ---------- "--gdt-cli" ---------- 
 GDT (0x0CD) -> OK result=1 entries=1
-  cpu0 limit=0x57 base=FFFF8C01BB72AFB0 descriptors=10
+  cpu0 limit=0x57 base=FFFFF8011BD1DFB0 descriptors=10
     gdt[0]=0000000000000000 gdt[1]=0000000000000000 gdt[2]=00209B0000000000
 
 ---------- "--ioport-cli" ---------- 
@@ -1650,14 +1650,14 @@ object types: available
 0x79 forbid which=0 target=FFFFF80116B6F3C8 enable=1 -> OK result=1
 ---------- "--exam-cli" ---------- 
 PC Hunter Professional --- Computer Examination Report
-Examination Date: 2026-10-28 11:05:03
+Examination Date: 2026-10-28 11:16:17
 Examination Items: 8 (risk: 1, warn: 2, info: 5)
   [INFO] Operating system             Windows 10 1903
   [RISK] Hidden registry keys         3 suspicious registry keys
   [WARN] Services                     631 services, 19 hidden (registry keys: 703)
   [WARN] Startup entries              39 startup entries, 31 CLSID overrides
   [INFO] Kernel modules               194 kernel modules loaded
-  [INFO] Registry handles             3811 open Key handles system-wide
+  [INFO] Registry handles             3837 open Key handles system-wide
   [INFO] File scan                    C:\Windows\System32: 4310 files, clean
   [INFO] File scan                    C:\Windows\Temp: 760 files, clean
 
@@ -1815,7 +1815,7 @@ Services: 631 / Hidden Services: 19  (registry keys: 703)
   gencounter                       RUNNING   dll=-   \SystemRoot\System32\drivers\vmgencounter.sys
   genericusbfn                     STOPPED   dll=-   \SystemRoot\System32\DriverStore\FileRepository\genericusbfn.inf_amd64_dbcdd1a51a139f61\genericusbfn.sys
   GPIOClx0101                      STOPPED   dll=-   System32\Drivers\msgpioclx.sys
-  gpsvc                            RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  gpsvc                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
   GpuEnergyDrv                     RUNNING   dll=-   System32\drivers\gpuenergydrv.sys
   GraphicsPerfSvc                  STOPPED   dll=yes C:\Windows\System32\svchost.exe
   HdAudAddService                  RUNNING   dll=-   \SystemRoot\System32\drivers\HdAudio.sys
@@ -2463,7 +2463,7 @@ C:\Windows\System32\ntoskrnl.exe -> signature valid and trusted
   WinVerifyTrust status = 0x00000000
 
 ---------- "--reghandles-cli" ---------- 
-registry handles: 3810  (object type index for "Key" = 44)
+registry handles: 3836  (object type index for "Key" = 44)
   pid=4      handle=0x58       access=0x2001F    object=FFFFD90021E797B0
   pid=4      handle=0x60       access=0x0        object=FFFFD90021E114A0
   pid=4      handle=0x64       access=0x20019    object=FFFFD90021E79DB0
@@ -2504,7 +2504,7 @@ registry handles: 3810  (object type index for "Key" = 44)
   pid=4      handle=0x150      access=0x2001F    object=FFFFD900222CD170
   pid=4      handle=0x154      access=0x20019    object=FFFFD90021F5ED80
   pid=4      handle=0x158      access=0x20019    object=FFFFD90022625D80
-  ... (3770 more)
+  ... (3796 more)
 
 ---------- "--reghidden-cli" ---------- 
 hidden registry items: 3
@@ -2536,7 +2536,7 @@ processes: 10
   pid=458383552 eprocess=FFFFC90A5BB561A0 name=(?)              path=(?)
 
 ---------- "--handles-cli 4" ---------- 
-handles of pid 4: 2920
+handles of pid 4: 2949
   handle=0x4      type=Process                  access=0x1FFFFF   object=FFFFC90A5AA8B380
   handle=0x8      type=Thread                   access=0x1FFFFF   object=FFFFC90A5ABB1140
   handle=0xC      type=Mutant                   access=0x1F0001   object=FFFFC90A5AAB46E0
@@ -2570,6 +2570,7 @@ handles of pid 4: 2920
   handle=0x7C     type=ALPC Port                access=0x1F0001   object=FFFFC90A5AA947B0
   handle=0x80     type=Key                      access=0x20019    object=FFFFD90021E799B0
   handle=0x84     type=ALPC Port                access=0x1F0001   object=FFFFC90A5ABB9CB0
+  handle=0x88     type=Event                    access=0x1F0003   object=FFFFC90A60D226E0
   handle=0x8C     type=Key                      access=0xF003F    object=FFFFD90021E79EB0
   handle=0x90     type=Key                      access=0x11       object=FFFFD90021E79BB0
   handle=0x94     type=Key                      access=0xF003F    object=FFFFD90021E49410
@@ -2603,7 +2604,7 @@ handles of pid 4: 2920
   handle=0x104    type=File                     access=0x12019F   object=FFFFC90A5BC114B0
   handle=0x108    type=File                     access=0x20003    object=FFFFC90A5BDFA9D0
   handle=0x10C    type=SymbolicLink             access=0xF0001    object=FFFFD900227EBC00
-  handle=0x110    type=Event                    access=0x1F0003   object=FFFFC90A61A097E0
+  handle=0x110    type=IoCompletion             access=0x1F0003   object=FFFFC90A61B85740
   handle=0x114    type=Key                      access=0x11       object=FFFFD90027D82070
   handle=0x118    type=Key                      access=0x10       object=FFFFD900226254C0
   handle=0x11C    type=File                     access=0x1        object=FFFFC90A5BC16250
@@ -3007,7 +3008,7 @@ handles of pid 4: 2920
   handle=0x770    type=Session                  access=0x0        object=FFFFC90A5D1FCAF0
   handle=0x774    type=File                     access=0x100001   object=FFFFC90A5DCBDBE0
   handle=0x778    type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF314C0
-  handle=0x77C    type=Process                  access=0x102A     object=FFFFC90A5D105080
+  handle=0x77C    type=IoCompletion             access=0x1F0003   object=FFFFC90A61AC7400
   handle=0x780    type=File                     access=0x20003    object=FFFFC90A6278A400
   handle=0x784    type=Process                  access=0x102A     object=FFFFC90A5DF5D080
   handle=0x788    type=Token                    access=0xF01FF    object=FFFFD90025C57930
@@ -3048,6 +3049,7 @@ handles of pid 4: 2920
   handle=0x81C    type=Key                      access=0x20019    object=FFFFD90025841340
   handle=0x824    type=WaitCompletionPacket     access=0x1        object=FFFFC90A6211C0B0
   handle=0x828    type=Session                  access=0x0        object=FFFFC90A5D1FCAF0
+  handle=0x82C    type=Event                    access=0x1F0003   object=FFFFC90A5FC8A3E0
   handle=0x834    type=Event                    access=0x1F0003   object=FFFFC90A6163BA60
   handle=0x838    type=SymbolicLink             access=0xF0001    object=FFFFD900258609F0
   handle=0x83C    type=File                     access=0x100001   object=FFFFC90A5DCBF670
@@ -3227,6 +3229,7 @@ handles of pid 4: 2920
   handle=0xB0C    type=IoCompletion             access=0x1F0003   object=FFFFC90A61BA5D40
   handle=0xB10    type=IoCompletion             access=0x1F0003   object=FFFFC90A61521980
   handle=0xB14    type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C1060
+  handle=0xB1C    type=WaitCompletionPacket     access=0x1        object=FFFFC90A62108570
   handle=0xB20    type=Process                  access=0x102A     object=FFFFC90A60E8C080
   handle=0xB28    type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DF7B3D0
   handle=0xB2C    type=IoCompletion             access=0x1F0003   object=FFFFC90A6151D7C0
@@ -3252,12 +3255,13 @@ handles of pid 4: 2920
   handle=0xB80    type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DDBA920
   handle=0xB84    type=File                     access=0x12019F   object=FFFFC90A5DF18CC0
   handle=0xB8C    type=IoCompletion             access=0x1F0003   object=FFFFC90A61BA1840
-  handle=0xB90    type=Process                  access=0x102A     object=FFFFC90A5FBC2080
+  handle=0xB90    type=Directory                access=0xF000F    object=FFFFD9002A520780
   handle=0xB94    type=Process                  access=0x102A     object=FFFFC90A5AA6C080
   handle=0xB98    type=IoCompletion             access=0x1F0003   object=FFFFC90A61536600
   handle=0xB9C    type=Event                    access=0x1F0003   object=FFFFC90A5DEEA160
   handle=0xBA0    type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF2DCC0
   handle=0xBA4    type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DDBA5E0
+  handle=0xBA8    type=Process                  access=0x102A     object=FFFFC90A61479080
   handle=0xBB0    type=IoCompletion             access=0x1F0003   object=FFFFC90A6153A180
   handle=0xBB4    type=Process                  access=0x1FFFFF   object=FFFFC90A5DF5C400
   handle=0xBB8    type=Process                  access=0x102A     object=FFFFC90A5D1130C0
@@ -3268,6 +3272,8 @@ handles of pid 4: 2920
   handle=0xBCC    type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF3B740
   handle=0xBD0    type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DDBCC10
   handle=0xBD4    type=WaitCompletionPacket     access=0x1        object=FFFFC90A62118A40
+  handle=0xBD8    type=IoCompletion             access=0x1F0003   object=FFFFC90A6152FD00
+  handle=0xBDC    type=Event                    access=0x1F0003   object=FFFFC90A61A0F460
   handle=0xBE0    type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF400C0
   handle=0xBE4    type=Process                  access=0x102A     object=FFFFC90A5DF5C400
   handle=0xBE8    type=Event                    access=0x1F0003   object=FFFFC90A5DEEFB60
@@ -3588,7 +3594,7 @@ handles of pid 4: 2920
   handle=0x10F8   type=IoCompletion             access=0x1F0003   object=FFFFC90A5F89A540
   handle=0x10FC   type=Event                    access=0x1F0003   object=FFFFC90A5F8AAAE0
   handle=0x1100   type=IoCompletion             access=0x1F0003   object=FFFFC90A60844DC0
-  handle=0x1104   type=Process                  access=0x1FFFFF   object=FFFFC90A61977080
+  handle=0x1108   type=Event                    access=0x1F0003   object=FFFFC90A5FEC41E0
   handle=0x110C   type=Process                  access=0x1FFFFF   object=FFFFC90A5F953400
   handle=0x1110   type=Process                  access=0x1FFFFF   object=FFFFC90A5F9763C0
   handle=0x1114   type=Process                  access=0x102A     object=FFFFC90A5F953400
@@ -3630,6 +3636,7 @@ handles of pid 4: 2920
   handle=0x11AC   type=Event                    access=0x1F0003   object=FFFFC90A5F8B28E0
   handle=0x11B0   type=IoCompletion             access=0x1F0003   object=FFFFC90A5F98ABC0
   handle=0x11B4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5F8C65E0
+  handle=0x11B8   type=Event                    access=0x1F0003   object=FFFFC90A5F65E460
   handle=0x11BC   type=ALPC Port                access=0x1F0001   object=FFFFC90A5F9EF0B0
   handle=0x11C0   type=Process                  access=0x102A     object=FFFFC90A5F707400
   handle=0x11C4   type=ALPC Port                access=0x1F0001   object=FFFFC90A5F9EF820
@@ -3718,13 +3725,12 @@ handles of pid 4: 2920
   handle=0x1324   type=Process                  access=0x102A     object=FFFFC90A5FB04400
   handle=0x1328   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FAE02C0
   handle=0x132C   type=Event                    access=0x1F0003   object=FFFFC90A5FA62C60
-  handle=0x1330   type=Process                  access=0x102A     object=FFFFC90A5D13A080
+  handle=0x1330   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62116270
   handle=0x1334   type=Process                  access=0x1FFFFF   object=FFFFC90A5F6BF080
   handle=0x1338   type=Event                    access=0x1F0003   object=FFFFC90A619E78E0
   handle=0x133C   type=Process                  access=0x1FFFFF   object=FFFFC90A5FB87480
   handle=0x1340   type=Event                    access=0x1F0003   object=FFFFC90A619E92E0
   handle=0x1344   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FAE5240
-  handle=0x1348   type=Process                  access=0x102A     object=FFFFC90A61906080
   handle=0x134C   type=Event                    access=0x1F0003   object=FFFFC90A607BBEE0
   handle=0x1350   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FAE1340
   handle=0x1354   type=Process                  access=0x102A     object=FFFFC90A5FB87480
@@ -3737,6 +3743,7 @@ handles of pid 4: 2920
   handle=0x1378   type=Process                  access=0x102A     object=FFFFC90A5F9D4400
   handle=0x137C   type=Process                  access=0x102A     object=FFFFC90A5F9D4400
   handle=0x1380   type=Process                  access=0x102A     object=FFFFC90A5F9D4400
+  handle=0x1384   type=Event                    access=0x1F0003   object=FFFFC90A61A17160
   handle=0x1388   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BB8500
   handle=0x138C   type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF31140
   handle=0x1390   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62112A60
@@ -3774,7 +3781,6 @@ handles of pid 4: 2920
   handle=0x141C   type=Process                  access=0x1FFFFF   object=FFFFC90A5FC74380
   handle=0x1420   type=Process                  access=0x102A     object=FFFFC90A5FBF5400
   handle=0x1424   type=Process                  access=0x102A     object=FFFFC90A5FBF5400
-  handle=0x1428   type=Process                  access=0x102A     object=FFFFC90A5D0D1080
   handle=0x142C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C0500
   handle=0x1430   type=Process                  access=0x102A     object=FFFFC90A5FBF5400
   handle=0x1434   type=Process                  access=0x1FFFFF   object=FFFFC90A5FBF5400
@@ -3810,6 +3816,7 @@ handles of pid 4: 2920
   handle=0x14AC   type=Event                    access=0x1F0003   object=FFFFC90A5FC86960
   handle=0x14B0   type=TmRm                     access=0x1F007F   object=FFFFC90A5FD05D80
   handle=0x14B4   type=TmTm                     access=0xF003F    object=FFFFC90A5DD0A9F0
+  handle=0x14B8   type=Directory                access=0xF000F    object=FFFFD9002A51BC80
   handle=0x14C4   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FCA5880
   handle=0x14C8   type=Token                    access=0xE        object=FFFFD90026632060
   handle=0x14CC   type=Token                    access=0xE        object=FFFFD90026628060
@@ -3836,9 +3843,10 @@ handles of pid 4: 2920
   handle=0x1520   type=Process                  access=0x1FFFFF   object=FFFFC90A5DD45080
   handle=0x1524   type=Process                  access=0x1FFFFF   object=FFFFC90A5F6170C0
   handle=0x1528   type=Directory                access=0xF000F    object=FFFFD9002B331380
+  handle=0x1530   type=Process                  access=0x102A     object=FFFFC90A5D10F080
   handle=0x1534   type=Directory                access=0xF000F    object=FFFFD900269D3740
   handle=0x1538   type=Process                  access=0x102A     object=FFFFC90A5FC74380
-  handle=0x153C   type=Event                    access=0x1F0003   object=FFFFC90A5F661860
+  handle=0x153C   type=Process                  access=0x102A     object=FFFFC90A5DE5A080
   handle=0x1540   type=Event                    access=0x1F0003   object=FFFFC90A61A06DE0
   handle=0x1544   type=Process                  access=0x102A     object=FFFFC90A60C16080
   handle=0x1548   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62122090
@@ -3860,8 +3868,8 @@ handles of pid 4: 2920
   handle=0x158C   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FCAFDC0
   handle=0x1590   type=Process                  access=0x102A     object=FFFFC90A5FD68080
   handle=0x1594   type=Event                    access=0x1F0003   object=FFFFC90A5FC90EE0
+  handle=0x1598   type=IoCompletion             access=0x1F0003   object=FFFFC90A61533080
   handle=0x159C   type=File                     access=0x13008B   object=FFFFC90A5FC45C20
-  handle=0x15A4   type=Event                    access=0x1F0003   object=FFFFC90A61A06CE0
   handle=0x15A8   type=Event                    access=0x1F0003   object=FFFFC90A6199BAE0
   handle=0x15AC   type=IoCompletion             access=0x1F0003   object=FFFFC90A61531B80
   handle=0x15B4   type=Process                  access=0x102A     object=FFFFC90A5FDBE080
@@ -3870,7 +3878,8 @@ handles of pid 4: 2920
   handle=0x15C0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FC28B30
   handle=0x15C4   type=Event                    access=0x1F0003   object=FFFFC90A5FC96160
   handle=0x15C8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C855E0
-  handle=0x15D0   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BBDE40
+  handle=0x15D0   type=Process                  access=0x102A     object=FFFFC90A5D107080
+  handle=0x15D4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BBD02D0
   handle=0x15E0   type=Process                  access=0x102A     object=FFFFC90A60EC8080
   handle=0x15E4   type=Process                  access=0x102A     object=FFFFC90A5FDBE080
   handle=0x15E8   type=Event                    access=0x1F0003   object=FFFFC90A5FC946E0
@@ -3959,7 +3968,6 @@ handles of pid 4: 2920
   handle=0x1734   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FE42D00
   handle=0x1738   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FC37460
   handle=0x173C   type=Event                    access=0x1F0003   object=FFFFC90A5FEB8260
-  handle=0x1740   type=Process                  access=0x102A     object=FFFFC90A5D0EC080
   handle=0x1744   type=Event                    access=0x1F0003   object=FFFFC90A5FEBA260
   handle=0x1748   type=Process                  access=0x102A     object=FFFFC90A5FD8A080
   handle=0x174C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FC37BB0
@@ -4003,10 +4011,11 @@ handles of pid 4: 2920
   handle=0x17E8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF9A090
   handle=0x17EC   type=Token                    access=0xF01FF    object=FFFFD90026A97870
   handle=0x17F0   type=Process                  access=0x102A     object=FFFFC90A6002E380
+  handle=0x17F4   type=Process                  access=0x102A     object=FFFFC90A5D128080
   handle=0x17F8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62121A10
   handle=0x17FC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C1D60
   handle=0x1804   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ADBD00
-  handle=0x1808   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C1880
+  handle=0x1808   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AE36C0
   handle=0x180C   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FF66700
   handle=0x1810   type=Event                    access=0x1F0003   object=FFFFC90A5FECA060
   handle=0x1814   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF9AF30
@@ -4016,6 +4025,7 @@ handles of pid 4: 2920
   handle=0x1824   type=Event                    access=0x1F0003   object=FFFFC90A5FECB360
   handle=0x1828   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FF66C40
   handle=0x182C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF9B750
+  handle=0x1830   type=Process                  access=0x102A     object=FFFFC90A5D107080
   handle=0x1834   type=Event                    access=0x1F0003   object=FFFFC90A61A1C7E0
   handle=0x1838   type=Process                  access=0x102A     object=FFFFC90A5FFD7400
   handle=0x183C   type=SymbolicLink             access=0xF0001    object=FFFFD90026D7D2D0
@@ -4024,6 +4034,7 @@ handles of pid 4: 2920
   handle=0x1848   type=ALPC Port                access=0x1F0001   object=FFFFC90A60068C60
   handle=0x184C   type=Token                    access=0xF01FF    object=FFFFD900272957B0
   handle=0x1850   type=Process                  access=0x102A     object=FFFFC90A5FF48380
+  handle=0x1854   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BBD0BC0
   handle=0x1858   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FE3CBC0
   handle=0x185C   type=Event                    access=0x1F0003   object=FFFFC90A5FED0B60
   handle=0x1860   type=Token                    access=0xE        object=FFFFD90026E45730
@@ -4072,7 +4083,7 @@ handles of pid 4: 2920
   handle=0x191C   type=Process                  access=0x102A     object=FFFFC90A60E8C080
   handle=0x1924   type=Token                    access=0xF01FF    object=FFFFD90021FD7A70
   handle=0x1928   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AE8D40
-  handle=0x192C   type=Process                  access=0x102A     object=FFFFC90A61906080
+  handle=0x192C   type=Process                  access=0x102A     object=FFFFC90A5D128080
   handle=0x193C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BB3740
   handle=0x1940   type=FilterCommunicationPort  access=0x1F0001   object=FFFFC90A604DD420
   handle=0x1944   type=Event                    access=0x1F0003   object=FFFFC90A61357860
@@ -4081,7 +4092,6 @@ handles of pid 4: 2920
   handle=0x1954   type=Process                  access=0x102A     object=FFFFC90A5F953400
   handle=0x1958   type=Event                    access=0x1F0003   object=FFFFC90A61772BE0
   handle=0x195C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61531800
-  handle=0x1960   type=Process                  access=0x102A     object=FFFFC90A61977080
   handle=0x1964   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60441780
   handle=0x1968   type=Process                  access=0x1028     object=FFFFC90A60F154C0
   handle=0x196C   type=Process                  access=0x102A     object=FFFFC90A5FD8A080
@@ -4137,7 +4147,7 @@ handles of pid 4: 2920
   handle=0x1A48   type=IoCompletion             access=0x1F0003   object=FFFFC90A5FF925C0
   handle=0x1A4C   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A60303910
   handle=0x1A50   type=Event                    access=0x1F0003   object=FFFFC90A601A3960
-  handle=0x1A54   type=Event                    access=0x1F0003   object=FFFFC90A61A10AE0
+  handle=0x1A54   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BBCF290
   handle=0x1A5C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B91E00
   handle=0x1A60   type=Event                    access=0x1F0003   object=FFFFC90A601A7260
   handle=0x1A64   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60404950
@@ -4163,11 +4173,10 @@ handles of pid 4: 2920
   handle=0x1AB8   type=Process                  access=0x1FFFFF   object=FFFFC90A603A0400
   handle=0x1ABC   type=SymbolicLink             access=0xF0001    object=FFFFD900271B58D0
   handle=0x1AC0   type=SymbolicLink             access=0xF0001    object=FFFFD900271B6530
-  handle=0x1AC4   type=Event                    access=0x1F0003   object=FFFFC90A5FEB6DE0
+  handle=0x1AC4   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AB9E80
   handle=0x1AC8   type=SymbolicLink             access=0xF0001    object=FFFFD900271B9470
   handle=0x1ACC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF9E670
   handle=0x1AD0   type=Process                  access=0x102A     object=FFFFC90A603A0400
-  handle=0x1AD4   type=IoCompletion             access=0x1F0003   object=FFFFC90A61509080
   handle=0x1AD8   type=Process                  access=0x102A     object=FFFFC90A603A0400
   handle=0x1AE0   type=SymbolicLink             access=0xF0001    object=FFFFD900271B8E40
   handle=0x1AE4   type=Event                    access=0x1F0003   object=FFFFC90A601A9DE0
@@ -4183,7 +4192,7 @@ handles of pid 4: 2920
   handle=0x1B18   type=Process                  access=0x102A     object=FFFFC90A6010D340
   handle=0x1B1C   type=Process                  access=0x102A     object=FFFFC90A603A0400
   handle=0x1B20   type=File                     access=0x13019F   object=FFFFC90A6062C7F0
-  handle=0x1B24   type=Event                    access=0x1F0003   object=FFFFC90A6177A060
+  handle=0x1B24   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AC61C0
   handle=0x1B28   type=FilterCommunicationPort  access=0x1F0001   object=FFFFC90A604DE760
   handle=0x1B2C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FC1B580
   handle=0x1B30   type=IoCompletion             access=0x1F0003   object=FFFFC90A5F697B40
@@ -4208,19 +4217,17 @@ handles of pid 4: 2920
   handle=0x1B90   type=Process                  access=0x102A     object=FFFFC90A5FDED400
   handle=0x1B94   type=File                     access=0x12008B   object=FFFFC90A605874C0
   handle=0x1B98   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C46D0
-  handle=0x1B9C   type=Process                  access=0x1FFFFF   object=FFFFC90A5D105080
+  handle=0x1B9C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ABC280
   handle=0x1BA4   type=Process                  access=0x1FFFFF   object=FFFFC90A60E69080
   handle=0x1BA8   type=Process                  access=0x1FFFFF   object=FFFFC90A60BA70C0
   handle=0x1BAC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60410360
-  handle=0x1BB0   type=Event                    access=0x1F0003   object=FFFFC90A60479460
-  handle=0x1BB4   type=IoCompletion             access=0x1F0003   object=FFFFC90A603C7B80
-  handle=0x1BB8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60417520
+  handle=0x1BB0   type=Process                  access=0x102A     object=FFFFC90A5DD7E080
   handle=0x1BBC   type=File                     access=0x12019F   object=FFFFC90A6062B3D0
   handle=0x1BC0   type=File                     access=0x12019F   object=FFFFC90A6062CAD0
   handle=0x1BC4   type=File                     access=0x12019F   object=FFFFC90A6062CDB0
   handle=0x1BC8   type=File                     access=0x12019F   object=FFFFC90A6062D370
   handle=0x1BCC   type=Event                    access=0x1F0003   object=FFFFC90A5FED3A60
-  handle=0x1BD0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A621046E0
+  handle=0x1BD0   type=Process                  access=0x102A     object=FFFFC90A5D10C080
   handle=0x1BD4   type=Process                  access=0x102A     object=FFFFC90A5FDBE080
   handle=0x1BD8   type=Process                  access=0x102A     object=FFFFC90A5F97C400
   handle=0x1BE4   type=FilterConnectionPort     access=0x1F0001   object=FFFFC90A61649C40
@@ -4235,6 +4242,7 @@ handles of pid 4: 2920
   handle=0x1C28   type=Process                  access=0x102A     object=FFFFC90A60E7B080
   handle=0x1C2C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0CA6B0
   handle=0x1C30   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DF729B0
+  handle=0x1C34   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B95EC0
   handle=0x1C3C   type=Process                  access=0x102A     object=FFFFC90A6026D080
   handle=0x1C40   type=Process                  access=0x102A     object=FFFFC90A6026D080
   handle=0x1C48   type=Process                  access=0x1FFFFF   object=FFFFC90A6026D080
@@ -4253,6 +4261,7 @@ handles of pid 4: 2920
   handle=0x1C80   type=Process                  access=0x1FFFFF   object=FFFFC90A5FD8A080
   handle=0x1C84   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BAD0C0
   handle=0x1C88   type=Process                  access=0x102A     object=FFFFC90A60F8A0C0
+  handle=0x1C8C   type=Event                    access=0x1F0003   object=FFFFC90A5F65FBE0
   handle=0x1C90   type=Process                  access=0x102A     object=FFFFC90A5F953400
   handle=0x1C98   type=ALPC Port                access=0x1F0001   object=FFFFC90A612DBD00
   handle=0x1C9C   type=Directory                access=0xF000F    object=FFFFD9002B1398A0
@@ -4290,7 +4299,7 @@ handles of pid 4: 2920
   handle=0x1D48   type=Event                    access=0x1F0003   object=FFFFC90A607A6560
   handle=0x1D4C   type=File                     access=0x20003    object=FFFFC90A605A9AC0
   handle=0x1D54   type=Process                  access=0x1FFFFF   object=FFFFC90A60C16080
-  handle=0x1D58   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BB9CC0
+  handle=0x1D58   type=Process                  access=0x102A     object=FFFFC90A61977080
   handle=0x1D5C   type=Process                  access=0x1028     object=FFFFC90A5FDE9340
   handle=0x1D60   type=File                     access=0x13008B   object=FFFFC90A60635EE0
   handle=0x1D64   type=File                     access=0x12019F   object=FFFFC90A605A9610
@@ -4306,6 +4315,7 @@ handles of pid 4: 2920
   handle=0x1D8C   type=File                     access=0x12019F   object=FFFFC90A605A8B20
   handle=0x1D90   type=File                     access=0x12019F   object=FFFFC90A605A97A0
   handle=0x1D94   type=IoCompletion             access=0x1F0003   object=FFFFC90A61531580
+  handle=0x1D98   type=Process                  access=0x1FFFFF   object=FFFFC90A5D11D080
   handle=0x1D9C   type=IoCompletion             access=0x1F0003   object=FFFFC90A60823640
   handle=0x1DA0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60425D80
   handle=0x1DA4   type=IoCompletion             access=0x1F0003   object=FFFFC90A603AB8C0
@@ -4319,7 +4329,7 @@ handles of pid 4: 2920
   handle=0x1DC4   type=Process                  access=0x102A     object=FFFFC90A5AD4C0C0
   handle=0x1DC8   type=Event                    access=0x1F0003   object=FFFFC90A607AEBE0
   handle=0x1DCC   type=Process                  access=0x102A     object=FFFFC90A5AD4C0C0
-  handle=0x1DD0   type=Event                    access=0x1F0003   object=FFFFC90A61A035E0
+  handle=0x1DD0   type=IoCompletion             access=0x1F0003   object=FFFFC90A6183C2C0
   handle=0x1DD4   type=Event                    access=0x1F0003   object=FFFFC90A607ADB60
   handle=0x1DD8   type=IoCompletion             access=0x1F0003   object=FFFFC90A60822300
   handle=0x1DDC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A604276B0
@@ -4358,9 +4368,10 @@ handles of pid 4: 2920
   handle=0x1E78   type=Event                    access=0x1F0003   object=FFFFC90A607B7EE0
   handle=0x1E7C   type=IoCompletion             access=0x1F0003   object=FFFFC90A608312C0
   handle=0x1E80   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FC1D460
-  handle=0x1E8C   type=Process                  access=0x102A     object=FFFFC90A5FBC2080
+  handle=0x1E84   type=Process                  access=0x1FFFFF   object=FFFFC90A5D128080
+  handle=0x1E8C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62109DD0
   handle=0x1E90   type=Event                    access=0x1F0003   object=FFFFC90A6047D260
-  handle=0x1E94   type=Process                  access=0x102A     object=FFFFC90A61906080
+  handle=0x1E94   type=Process                  access=0x102A     object=FFFFC90A5D10F080
   handle=0x1E98   type=IoCompletion             access=0x1F0003   object=FFFFC90A61538E40
   handle=0x1E9C   type=IoCompletion             access=0x1F0003   object=FFFFC90A608349C0
   handle=0x1EA0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FFB6110
@@ -4371,19 +4382,19 @@ handles of pid 4: 2920
   handle=0x1EB8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5F8D9B70
   handle=0x1EBC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60425700
   handle=0x1EC0   type=Event                    access=0x1F0003   object=FFFFC90A61A1A760
-  handle=0x1EC4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62116270
-  handle=0x1EC8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62117AD0
+  handle=0x1EC4   type=Directory                access=0xF000F    object=FFFFD9002A5232A0
+  handle=0x1EC8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61832D00
   handle=0x1ECC   type=Event                    access=0x1F0003   object=FFFFC90A607BAB60
   handle=0x1ED0   type=IoCompletion             access=0x1F0003   object=FFFFC90A608373C0
   handle=0x1ED4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6042C580
   handle=0x1ED8   type=Process                  access=0x102A     object=FFFFC90A60979080
   handle=0x1EDC   type=Event                    access=0x1F0003   object=FFFFC90A61A15DE0
-  handle=0x1EE4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62108980
+  handle=0x1EE4   type=IoCompletion             access=0x1F0003   object=FFFFC90A6182C6C0
   handle=0x1EE8   type=SymbolicLink             access=0xF0001    object=FFFFD9002A46D740
   handle=0x1EEC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62119260
   handle=0x1EF0   type=Event                    access=0x1F0003   object=FFFFC90A61357160
   handle=0x1EF4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6211B3B0
-  handle=0x1EF8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61832440
+  handle=0x1EF8   type=IoCompletion             access=0x1F0003   object=FFFFC90A6183CA80
   handle=0x1EFC   type=Event                    access=0x1F0003   object=FFFFC90A607D83E0
   handle=0x1F00   type=IoCompletion             access=0x1F0003   object=FFFFC90A60837840
   handle=0x1F04   type=WaitCompletionPacket     access=0x1        object=FFFFC90A604230D0
@@ -4424,6 +4435,7 @@ handles of pid 4: 2920
   handle=0x1FB0   type=IoCompletion             access=0x1F0003   object=FFFFC90A6132D140
   handle=0x1FB4   type=Section                  access=0x17       object=FFFFD9002773C7B0
   handle=0x1FB8   type=Event                    access=0x1F0003   object=FFFFC90A619FB560
+  handle=0x1FBC   type=Process                  access=0x102A     object=FFFFC90A5D10C080
   handle=0x1FC0   type=Process                  access=0x102A     object=FFFFC90A60F10080
   handle=0x1FC4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C58A10
   handle=0x1FC8   type=Directory                access=0xF        object=FFFFD90027BC5260
@@ -4437,12 +4449,14 @@ handles of pid 4: 2920
   handle=0x1FE8   type=Process                  access=0x102A     object=FFFFC90A613EF240
   handle=0x1FEC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BAFCC50
   handle=0x1FF0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6041D6A0
-  handle=0x1FF4   type=Process                  access=0x102A     object=FFFFC90A5D0EC080
+  handle=0x1FF4   type=Process                  access=0x102A     object=FFFFC90A5D10A080
   handle=0x1FF8   type=Event                    access=0x1F0003   object=FFFFC90A6162B160
   handle=0x1FFC   type=Process                  access=0x102A     object=FFFFC90A614E3080
   handle=0x2004   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CC4D40
   handle=0x2008   type=File                     access=0x3        object=FFFFC90A60A14AC0
+  handle=0x200C   type=Event                    access=0x1F0003   object=FFFFC90A60D30460
   handle=0x2018   type=File                     access=0x3        object=FFFFC90A60A14C50
+  handle=0x201C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62116750
   handle=0x2020   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62129CE0
   handle=0x2028   type=Process                  access=0x102A     object=FFFFC90A5FFC7080
   handle=0x202C   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CD9480
@@ -4456,12 +4470,10 @@ handles of pid 4: 2920
   handle=0x2050   type=Event                    access=0x1F0003   object=FFFFC90A60D5D9E0
   handle=0x2054   type=IoCompletion             access=0x1F0003   object=FFFFC90A608492C0
   handle=0x2058   type=Event                    access=0x1F0003   object=FFFFC90A60D2C7E0
-  handle=0x205C   type=Event                    access=0x1F0003   object=FFFFC90A61A21060
   handle=0x2064   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AF0700
   handle=0x2068   type=Process                  access=0x1FFFFF   object=FFFFC90A60F11080
   handle=0x206C   type=File                     access=0x1        object=FFFFC90A60A06380
   handle=0x2070   type=IoCompletion             access=0x1F0003   object=FFFFC90A6183B680
-  handle=0x2078   type=IoCompletion             access=0x1F0003   object=FFFFC90A61828440
   handle=0x207C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BAFBF50
   handle=0x2080   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A62693E30
   handle=0x2084   type=File                     access=0x1        object=FFFFC90A60A0C2D0
@@ -4471,6 +4483,7 @@ handles of pid 4: 2920
   handle=0x209C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5F8C02C0
   handle=0x20A4   type=ALPC Port                access=0x1F0001   object=FFFFC90A60BE7900
   handle=0x20B0   type=Process                  access=0x102A     object=FFFFC90A5F63C080
+  handle=0x20B8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62102730
   handle=0x20BC   type=Event                    access=0x1F0003   object=FFFFC90A60D253E0
   handle=0x20C0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A621130E0
   handle=0x20C4   type=File                     access=0x20003    object=FFFFC90A60A14160
@@ -4489,12 +4502,13 @@ handles of pid 4: 2920
   handle=0x20FC   type=Directory                access=0xF        object=FFFFD900280262C0
   handle=0x2100   type=Process                  access=0x102A     object=FFFFC90A6098E080
   handle=0x2114   type=Directory                access=0xF000F    object=FFFFD9002A521A40
+  handle=0x2118   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BAAD00
   handle=0x211C   type=Event                    access=0x1F0003   object=FFFFC90A60D30AE0
   handle=0x2120   type=Process                  access=0x1FFFFF   object=FFFFC90A612C60C0
   handle=0x2124   type=Process                  access=0x1FFFFF   object=FFFFC90A5FCF2080
   handle=0x2128   type=Event                    access=0x1F0003   object=FFFFC90A60D486E0
   handle=0x212C   type=Process                  access=0x102A     object=FFFFC90A5F6170C0
-  handle=0x2130   type=Process                  access=0x102A     object=FFFFC90A61479080
+  handle=0x2130   type=WaitCompletionPacket     access=0x1        object=FFFFC90A621083D0
   handle=0x2134   type=Process                  access=0x102A     object=FFFFC90A6075C080
   handle=0x2138   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CCD240
   handle=0x213C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BBD0C90
@@ -4505,6 +4519,7 @@ handles of pid 4: 2920
   handle=0x2150   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C60250
   handle=0x2158   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CCFA80
   handle=0x215C   type=Event                    access=0x1F0003   object=FFFFC90A60D2DFE0
+  handle=0x2160   type=Process                  access=0x102A     object=FFFFC90A5DD7E080
   handle=0x2164   type=IoCompletion             access=0x1F0003   object=FFFFC90A5F760F00
   handle=0x2168   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BAD980
   handle=0x216C   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CCBE00
@@ -4512,6 +4527,7 @@ handles of pid 4: 2920
   handle=0x2188   type=Process                  access=0x1FFFFF   object=FFFFC90A612D9080
   handle=0x218C   type=Process                  access=0x102A     object=FFFFC90A61755080
   handle=0x2190   type=Directory                access=0xF        object=FFFFD900280251E0
+  handle=0x2194   type=Directory                access=0xF000F    object=FFFFD9002B33D4A0
   handle=0x219C   type=Event                    access=0x1F0003   object=FFFFC90A60D294E0
   handle=0x21A0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C49C00
   handle=0x21A4   type=Process                  access=0x102A     object=FFFFC90A5FA920C0
@@ -4520,7 +4536,7 @@ handles of pid 4: 2920
   handle=0x21B4   type=IoCompletion             access=0x1F0003   object=FFFFC90A6084B940
   handle=0x21C4   type=Event                    access=0x1F0003   object=FFFFC90A6163E3E0
   handle=0x21C8   type=SymbolicLink             access=0xF0001    object=FFFFD900275B8300
-  handle=0x21CC   type=Process                  access=0x102A     object=FFFFC90A5D0EC080
+  handle=0x21CC   type=Process                  access=0x1FFFFF   object=FFFFC90A5DE5A080
   handle=0x21D0   type=SymbolicLink             access=0xF0001    object=FFFFD900275BE760
   handle=0x21D4   type=Event                    access=0x1F0003   object=FFFFC90A607C0DE0
   handle=0x21D8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C63F40
@@ -4530,7 +4546,7 @@ handles of pid 4: 2920
   handle=0x21E8   type=Event                    access=0x1F0003   object=FFFFC90A60D23E60
   handle=0x21EC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DDB75F0
   handle=0x21F8   type=Directory                access=0xF        object=FFFFD90028F99DA0
-  handle=0x21FC   type=Process                  access=0x102A     object=FFFFC90A5D105080
+  handle=0x21FC   type=Process                  access=0x102A     object=FFFFC90A61977080
   handle=0x2204   type=Process                  access=0x102A     object=FFFFC90A5FDD7400
   handle=0x2208   type=SymbolicLink             access=0xF0001    object=FFFFD900275B7A10
   handle=0x220C   type=Process                  access=0x102A     object=FFFFC90A60E8C080
@@ -4544,6 +4560,7 @@ handles of pid 4: 2920
   handle=0x2234   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CB5580
   handle=0x2238   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DDB6C30
   handle=0x223C   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CB62C0
+  handle=0x2240   type=Process                  access=0x102A     object=FFFFC90A61479080
   handle=0x2244   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6043BE20
   handle=0x2248   type=IoCompletion             access=0x1F0003   object=FFFFC90A603CE540
   handle=0x224C   type=Event                    access=0x1F0003   object=FFFFC90A607E3FE0
@@ -4555,8 +4572,8 @@ handles of pid 4: 2920
   handle=0x2264   type=Process                  access=0x102A     object=FFFFC90A5F6F5380
   handle=0x2268   type=Event                    access=0x1F0003   object=FFFFC90A6199B060
   handle=0x226C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B89740
-  handle=0x2274   type=Event                    access=0x1F0003   object=FFFFC90A61A02960
-  handle=0x2280   type=Process                  access=0x1FFFFF   object=FFFFC90A5D0EC080
+  handle=0x2274   type=Process                  access=0x102A     object=FFFFC90A5D11D080
+  handle=0x2280   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6210E3B0
   handle=0x2284   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5B973840
   handle=0x228C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B8A700
   handle=0x2290   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60439580
@@ -4571,7 +4588,6 @@ handles of pid 4: 2920
   handle=0x22B8   type=Process                  access=0x102A     object=FFFFC90A60757080
   handle=0x22BC   type=Process                  access=0x102A     object=FFFFC90A5AB62080
   handle=0x22C0   type=Process                  access=0x102A     object=FFFFC90A6022F080
-  handle=0x22C4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C0EC0
   handle=0x22C8   type=Event                    access=0x1F0003   object=FFFFC90A607C20E0
   handle=0x22CC   type=IoCompletion             access=0x1F0003   object=FFFFC90A6084B340
   handle=0x22D8   type=IoCompletion             access=0x1F0003   object=FFFFC90A618064C0
@@ -4585,6 +4601,7 @@ handles of pid 4: 2920
   handle=0x22FC   type=Directory                access=0xF        object=FFFFD900285A9460
   handle=0x2300   type=File                     access=0x12008B   object=FFFFC90A6214B200
   handle=0x2304   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C4F220
+  handle=0x2308   type=Directory                access=0xF000F    object=FFFFD9002B1367E0
   handle=0x230C   type=Event                    access=0x1F0003   object=FFFFC90A60D43C60
   handle=0x2310   type=File                     access=0x1F0006   object=FFFFC90A60A20C80
   handle=0x2314   type=Process                  access=0x102A     object=FFFFC90A6022F080
@@ -4628,6 +4645,7 @@ handles of pid 4: 2920
   handle=0x23E4   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CB9C80
   handle=0x23E8   type=Process                  access=0x1FFFFF   object=FFFFC90A60EC8080
   handle=0x23EC   type=IoCompletion             access=0x1F0003   object=FFFFC90A61320D40
+  handle=0x23F0   type=Event                    access=0x1F0003   object=FFFFC90A5FED1060
   handle=0x23F4   type=Process                  access=0x102A     object=FFFFC90A60A93080
   handle=0x23F8   type=Process                  access=0x40       object=FFFFC90A5DECB080
   handle=0x23FC   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BA2C40
@@ -4635,7 +4653,6 @@ handles of pid 4: 2920
   handle=0x2408   type=Directory                access=0xF000F    object=FFFFD9002B33DA40
   handle=0x240C   type=Process                  access=0x102A     object=FFFFC90A6022F080
   handle=0x2410   type=Event                    access=0x1F0003   object=FFFFC90A61A053E0
-  handle=0x2414   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B89640
   handle=0x2418   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF98EB0
   handle=0x241C   type=Process                  access=0x102A     object=FFFFC90A612D9080
   handle=0x2420   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5B9C1250
@@ -4648,6 +4665,7 @@ handles of pid 4: 2920
   handle=0x243C   type=Event                    access=0x1F0003   object=FFFFC90A60D354E0
   handle=0x2440   type=Process                  access=0x1FFFFF   object=FFFFC90A5FFC7080
   handle=0x2444   type=Process                  access=0x1FFFFF   object=FFFFC90A5D1130C0
+  handle=0x2448   type=Event                    access=0x1F0003   object=FFFFC90A61A1F160
   handle=0x244C   type=Event                    access=0x1F0003   object=FFFFC90A617777E0
   handle=0x2450   type=FilterCommunicationPort  access=0x1F0001   object=FFFFC90A610FC960
   handle=0x2454   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CE3D40
@@ -4683,10 +4701,11 @@ handles of pid 4: 2920
   handle=0x24E4   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CC88C0
   handle=0x24E8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C5C490
   handle=0x24EC   type=Event                    access=0x1F0003   object=FFFFC90A60D278E0
-  handle=0x24F0   type=Process                  access=0x102A     object=FFFFC90A5FBC2080
   handle=0x24F8   type=Process                  access=0x102A     object=FFFFC90A60E7E080
   handle=0x24FC   type=Event                    access=0x1F0003   object=FFFFC90A60D27F60
   handle=0x2500   type=Process                  access=0x102A     object=FFFFC90A60E7E080
+  handle=0x2510   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0BE3B0
+  handle=0x2518   type=Event                    access=0x1F0003   object=FFFFC90A61A0EFE0
   handle=0x251C   type=Event                    access=0x1F0003   object=FFFFC90A61A048E0
   handle=0x2524   type=Process                  access=0x102A     object=FFFFC90A5FDEE080
   handle=0x252C   type=Event                    access=0x1F0003   object=FFFFC90A5DEE9B60
@@ -4717,14 +4736,13 @@ handles of pid 4: 2920
   handle=0x25AC   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ABF380
   handle=0x25B0   type=SymbolicLink             access=0xF0001    object=FFFFD90027DD9190
   handle=0x25B8   type=Process                  access=0x102A     object=FFFFC90A60A93080
-  handle=0x25BC   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BBF440
   handle=0x25C0   type=Event                    access=0x1F0003   object=FFFFC90A619F9AE0
-  handle=0x25C4   type=Event                    access=0x1F0003   object=FFFFC90A60D34AE0
   handle=0x25C8   type=Process                  access=0x102A     object=FFFFC90A6167A080
   handle=0x25CC   type=SymbolicLink             access=0xF0001    object=FFFFD90026DB5860
   handle=0x25D0   type=Event                    access=0x1F0003   object=FFFFC90A60D43F60
   handle=0x25D4   type=Process                  access=0x1FFFFF   object=FFFFC90A60757080
   handle=0x25DC   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A60DCB600
+  handle=0x25E0   type=Process                  access=0x1FFFFF   object=FFFFC90A5DD7E080
   handle=0x25E4   type=File                     access=0x3        object=FFFFC90A605B6130
   handle=0x25E8   type=File                     access=0x3        object=FFFFC90A60122CE0
   handle=0x25EC   type=Event                    access=0x1F0003   object=FFFFC90A607B7F60
@@ -4746,6 +4764,7 @@ handles of pid 4: 2920
   handle=0x2638   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C487B0
   handle=0x263C   type=Process                  access=0x102A     object=FFFFC90A60EC8080
   handle=0x2640   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5F8D6840
+  handle=0x2648   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62114BB0
   handle=0x264C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BB2400
   handle=0x2650   type=Event                    access=0x1F0003   object=FFFFC90A613636E0
   handle=0x2654   type=IoCompletion             access=0x1F0003   object=FFFFC90A61503140
@@ -4755,10 +4774,10 @@ handles of pid 4: 2920
   handle=0x2664   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FC1C830
   handle=0x266C   type=IoCompletion             access=0x1F0003   object=FFFFC90A6133F100
   handle=0x2670   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AD6300
-  handle=0x2674   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BA6380
+  handle=0x2674   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ACA6C0
   handle=0x2678   type=SymbolicLink             access=0xF0001    object=FFFFD900275A2D50
-  handle=0x267C   type=Event                    access=0x1F0003   object=FFFFC90A6176A560
-  handle=0x2680   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6210E620
+  handle=0x267C   type=Event                    access=0x1F0003   object=FFFFC90A607CDFE0
+  handle=0x2680   type=Process                  access=0x1FFFFF   object=FFFFC90A5D10F080
   handle=0x2684   type=Process                  access=0x102A     object=FFFFC90A60757080
   handle=0x2688   type=File                     access=0x1        object=FFFFC90A615A5690
   handle=0x268C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5F8D6910
@@ -4767,7 +4786,7 @@ handles of pid 4: 2920
   handle=0x269C   type=Event                    access=0x1F0003   object=FFFFC90A5BB351E0
   handle=0x26A8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60420B70
   handle=0x26B4   type=IoCompletion             access=0x1F0003   object=FFFFC90A6131A600
-  handle=0x26B8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62109340
+  handle=0x26B8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BBCE730
   handle=0x26C0   type=Event                    access=0x1F0003   object=FFFFC90A60D33AE0
   handle=0x26C8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C52480
   handle=0x26D0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C51AC0
@@ -4780,18 +4799,17 @@ handles of pid 4: 2920
   handle=0x26F4   type=SymbolicLink             access=0xF0001    object=FFFFD900275C2B70
   handle=0x26F8   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CE2680
   handle=0x26FC   type=Section                  access=0x5        object=FFFFD90028175950
-  handle=0x2708   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B97B80
   handle=0x270C   type=Event                    access=0x1F0003   object=FFFFC90A604698E0
   handle=0x2710   type=Event                    access=0x1F0003   object=FFFFC90A619E6E60
   handle=0x2714   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CE0E00
   handle=0x2718   type=Process                  access=0x1FFFFF   object=FFFFC90A60E39080
   handle=0x271C   type=Event                    access=0x1F0003   object=FFFFC90A619947E0
   handle=0x2724   type=Event                    access=0x1F0003   object=FFFFC90A60D574E0
-  handle=0x2728   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62105A60
+  handle=0x2728   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62117110
   handle=0x272C   type=Process                  access=0x102A     object=FFFFC90A60F11080
   handle=0x2730   type=Process                  access=0x102A     object=FFFFC90A60757080
-  handle=0x2734   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6210D2A0
-  handle=0x273C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ABB640
+  handle=0x2734   type=Process                  access=0x1FFFFF   object=FFFFC90A5D10A080
+  handle=0x273C   type=Process                  access=0x102A     object=FFFFC90A5D0E6080
   handle=0x2744   type=SymbolicLink             access=0xF0001    object=FFFFD900275BE340
   handle=0x2748   type=Directory                access=0xF        object=FFFFD900285AA180
   handle=0x274C   type=SymbolicLink             access=0xF0001    object=FFFFD900275BDBB0
@@ -4811,6 +4829,7 @@ handles of pid 4: 2920
   handle=0x2794   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60431860
   handle=0x2798   type=IoCompletion             access=0x1F0003   object=FFFFC90A6131B840
   handle=0x279C   type=IoCompletion             access=0x1F0003   object=FFFFC90A6151FF40
+  handle=0x27A0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5BBD18C0
   handle=0x27A4   type=Event                    access=0x1F0003   object=FFFFC90A61626660
   handle=0x27A8   type=Event                    access=0x1F0003   object=FFFFC90A6136AAE0
   handle=0x27AC   type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF2FE00
@@ -4847,7 +4866,7 @@ handles of pid 4: 2920
   handle=0x2844   type=Process                  access=0x1FFFFF   object=FFFFC90A61274080
   handle=0x2848   type=File                     access=0x1        object=FFFFC90A61B0D720
   handle=0x284C   type=ALPC Port                access=0x1F0001   object=FFFFC90A6078FC50
-  handle=0x2850   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AC8D80
+  handle=0x2850   type=Event                    access=0x1F0003   object=FFFFC90A5FEBA6E0
   handle=0x2854   type=Directory                access=0xF000F    object=FFFFD9002A513580
   handle=0x2858   type=Event                    access=0x1F0003   object=FFFFC90A60D5FDE0
   handle=0x285C   type=Event                    access=0x1F0003   object=FFFFC90A6135F7E0
@@ -4855,6 +4874,7 @@ handles of pid 4: 2920
   handle=0x2864   type=Event                    access=0x1F0003   object=FFFFC90A61367D60
   handle=0x2868   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5B9C2360
   handle=0x286C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B8D480
+  handle=0x2870   type=Process                  access=0x102A     object=FFFFC90A5D11D080
   handle=0x2878   type=IoCompletion             access=0x1F0003   object=FFFFC90A61311D80
   handle=0x287C   type=IoCompletion             access=0x1F0003   object=FFFFC90A6133C480
   handle=0x2880   type=Process                  access=0x102A     object=FFFFC90A5F67A080
@@ -4899,19 +4919,21 @@ handles of pid 4: 2920
   handle=0x2934   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60408BF0
   handle=0x2938   type=Event                    access=0x1F0003   object=FFFFC90A60D3CD60
   handle=0x293C   type=Process                  access=0x102A     object=FFFFC90A613E8080
-  handle=0x2940   type=IoCompletion             access=0x1F0003   object=FFFFC90A61828600
+  handle=0x2940   type=Process                  access=0x102A     object=FFFFC90A5D0E3080
   handle=0x2944   type=Event                    access=0x1F0003   object=FFFFC90A613562E0
   handle=0x2948   type=Event                    access=0x1F0003   object=FFFFC90A613595E0
   handle=0x294C   type=Process                  access=0x102A     object=FFFFC90A6138E080
-  handle=0x2950   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62113690
+  handle=0x2950   type=Process                  access=0x102A     object=FFFFC90A61977080
   handle=0x2954   type=Event                    access=0x1F0003   object=FFFFC90A60D377E0
-  handle=0x2958   type=Event                    access=0x1F0003   object=FFFFC90A61A13C60
+  handle=0x295C   type=Event                    access=0x1F0003   object=FFFFC90A5FC883E0
   handle=0x2960   type=IoCompletion             access=0x1F0003   object=FFFFC90A6130C980
   handle=0x2964   type=Directory                access=0xF        object=FFFFD900289517C0
   handle=0x2968   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AED0C0
   handle=0x296C   type=Process                  access=0x1FFFFF   object=FFFFC90A61229080
+  handle=0x2970   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AE3240
   handle=0x2974   type=IoCompletion             access=0x1F0003   object=FFFFC90A6132D300
   handle=0x2978   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6041A2A0
+  handle=0x297C   type=Process                  access=0x102A     object=FFFFC90A5DD7E080
   handle=0x2980   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62110AB0
   handle=0x2984   type=WaitCompletionPacket     access=0x1        object=FFFFC90A604312B0
   handle=0x2988   type=File                     access=0x1        object=FFFFC90A62179B50
@@ -4919,7 +4941,7 @@ handles of pid 4: 2920
   handle=0x2998   type=IoCompletion             access=0x1F0003   object=FFFFC90A615241C0
   handle=0x299C   type=File                     access=0x3        object=FFFFC90A61870D20
   handle=0x29A0   type=IoCompletion             access=0x1F0003   object=FFFFC90A6183C700
-  handle=0x29A4   type=Process                  access=0x1FFFFF   object=FFFFC90A5D0D1080
+  handle=0x29A4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62106420
   handle=0x29A8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62111610
   handle=0x29B0   type=Event                    access=0x1F0003   object=FFFFC90A60D35FE0
   handle=0x29B4   type=IoCompletion             access=0x1F0003   object=FFFFC90A60CE6E40
@@ -4933,7 +4955,7 @@ handles of pid 4: 2920
   handle=0x29DC   type=IoCompletion             access=0x1F0003   object=FFFFC90A6150DCC0
   handle=0x29E4   type=Directory                access=0xF        object=FFFFD9002894B280
   handle=0x29E8   type=Process                  access=0x102A     object=FFFFC90A614E3080
-  handle=0x29EC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62118220
+  handle=0x29EC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62105720
   handle=0x29F0   type=Event                    access=0x1F0003   object=FFFFC90A6136A8E0
   handle=0x29F4   type=IoCompletion             access=0x1F0003   object=FFFFC90A6133DDC0
   handle=0x29F8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60422BF0
@@ -4962,9 +4984,8 @@ handles of pid 4: 2920
   handle=0x2A54   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6041AC60
   handle=0x2A58   type=Event                    access=0x1F0003   object=FFFFC90A6136F4E0
   handle=0x2A5C   type=IoCompletion             access=0x1F0003   object=FFFFC90A6133F580
-  handle=0x2A60   type=Event                    access=0x1F0003   object=FFFFC90A6177E760
+  handle=0x2A60   type=Event                    access=0x1F0003   object=FFFFC90A61A04560
   handle=0x2A64   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A61434B00
-  handle=0x2A68   type=Directory                access=0xF000F    object=FFFFD9002A5230C0
   handle=0x2A6C   type=Event                    access=0x1F0003   object=FFFFC90A61365460
   handle=0x2A70   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60419C20
   handle=0x2A74   type=Event                    access=0x1F0003   object=FFFFC90A61365DE0
@@ -5026,9 +5047,11 @@ handles of pid 4: 2920
   handle=0x2B70   type=Process                  access=0x102A     object=FFFFC90A5FC61080
   handle=0x2B74   type=Section                  access=0x17       object=FFFFD900289AF450
   handle=0x2B78   type=File                     access=0x12019F   object=FFFFC90A5F96D6B0
+  handle=0x2B7C   type=Process                  access=0x1FFFFF   object=FFFFC90A5D0E6080
   handle=0x2B80   type=Event                    access=0x1F0003   object=FFFFC90A6136BEE0
   handle=0x2B84   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6043F3C0
   handle=0x2B88   type=Process                  access=0x40       object=FFFFC90A6026D080
+  handle=0x2B8C   type=Event                    access=0x1F0003   object=FFFFC90A601A4A60
   handle=0x2B90   type=IoCompletion             access=0x1F0003   object=FFFFC90A61519D40
   handle=0x2B98   type=File                     access=0x3        object=FFFFC90A615B9550
   handle=0x2BA4   type=Process                  access=0x102A     object=FFFFC90A60C91380
@@ -5040,7 +5063,6 @@ handles of pid 4: 2920
   handle=0x2BC0   type=File                     access=0x3        object=FFFFC90A615B9D20
   handle=0x2BC4   type=Event                    access=0x1F0003   object=FFFFC90A6162EC60
   handle=0x2BC8   type=Event                    access=0x1F0003   object=FFFFC90A5FC81D60
-  handle=0x2BCC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C0360
   handle=0x2BD0   type=IoCompletion             access=0x1F0003   object=FFFFC90A61516380
   handle=0x2BD4   type=IoCompletion             access=0x1F0003   object=FFFFC90A61511D80
   handle=0x2BD8   type=Process                  access=0x102A     object=FFFFC90A60BA70C0
@@ -5060,6 +5082,7 @@ handles of pid 4: 2920
   handle=0x2C20   type=File                     access=0x12019F   object=FFFFC90A61174B50
   handle=0x2C24   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A61434140
   handle=0x2C28   type=Process                  access=0x1FFFFF   object=FFFFC90A61755080
+  handle=0x2C2C   type=Event                    access=0x1F0003   object=FFFFC90A607C8FE0
   handle=0x2C30   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60433740
   handle=0x2C34   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A62694D30
   handle=0x2C3C   type=Event                    access=0x1F0003   object=FFFFC90A5FA67F60
@@ -5067,6 +5090,7 @@ handles of pid 4: 2920
   handle=0x2C44   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5F8DB230
   handle=0x2C48   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60436CE0
   handle=0x2C4C   type=Event                    access=0x1F0003   object=FFFFC90A6136FC60
+  handle=0x2C50   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62118970
   handle=0x2C54   type=File                     access=0x20003    object=FFFFC90A615BA680
   handle=0x2C58   type=Event                    access=0x1F0003   object=FFFFC90A61A09660
   handle=0x2C5C   type=SymbolicLink             access=0xF0001    object=FFFFD900275A5A00
@@ -5110,8 +5134,8 @@ handles of pid 4: 2920
   handle=0x2D00   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A61435DC0
   handle=0x2D04   type=Process                  access=0x102A     object=FFFFC90A5AB62080
   handle=0x2D08   type=Section                  access=0x17       object=FFFFD900289A26B0
+  handle=0x2D10   type=Process                  access=0x102A     object=FFFFC90A5D0E6080
   handle=0x2D14   type=Event                    access=0x1F0003   object=FFFFC90A61623D60
-  handle=0x2D18   type=IoCompletion             access=0x1F0003   object=FFFFC90A61827480
   handle=0x2D1C   type=File                     access=0x3        object=FFFFC90A615AE970
   handle=0x2D20   type=Section                  access=0x5        object=FFFFD900289AA310
   handle=0x2D24   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DF73C60
@@ -5129,7 +5153,6 @@ handles of pid 4: 2920
   handle=0x2D54   type=Event                    access=0x1F0003   object=FFFFC90A613705E0
   handle=0x2D58   type=File                     access=0x1        object=FFFFC90A615AF460
   handle=0x2D5C   type=IoCompletion             access=0x1F0003   object=FFFFC90A6151A980
-  handle=0x2D60   type=Process                  access=0x102A     object=FFFFC90A5DE5A080
   handle=0x2D64   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A61433240
   handle=0x2D68   type=IoCompletion             access=0x1F0003   object=FFFFC90A61520B80
   handle=0x2D6C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DF87BB0
@@ -5139,11 +5162,13 @@ handles of pid 4: 2920
   handle=0x2D7C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61521600
   handle=0x2D80   type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF2F280
   handle=0x2D88   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C837D0
+  handle=0x2D98   type=Process                  access=0x102A     object=FFFFC90A5D0E3080
   handle=0x2D9C   type=Event                    access=0x1F0003   object=FFFFC90A61357960
   handle=0x2DA0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6043D0D0
   handle=0x2DA4   type=Process                  access=0x102A     object=FFFFC90A60F8A0C0
   handle=0x2DA8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BB3640
-  handle=0x2DB8   type=Process                  access=0x102A     object=FFFFC90A5DE5A080
+  handle=0x2DB0   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B84780
+  handle=0x2DB8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62105170
   handle=0x2DBC   type=IoCompletionReserve      access=0xF0003    object=FFFFC90A61717870
   handle=0x2DC0   type=Event                    access=0x1F0003   object=FFFFC90A617832E0
   handle=0x2DC4   type=Process                  access=0x1FFFFF   object=FFFFC90A616C0080
@@ -5153,19 +5178,16 @@ handles of pid 4: 2920
   handle=0x2DDC   type=Process                  access=0x1FFFFF   object=FFFFC90A60B78080
   handle=0x2DE4   type=Process                  access=0x102A     object=FFFFC90A601F4080
   handle=0x2DE8   type=Event                    access=0x1F0003   object=FFFFC90A5FC81DE0
-  handle=0x2DEC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A621169C0
   handle=0x2DF0   type=Process                  access=0x102A     object=FFFFC90A60D9B080
   handle=0x2DF4   type=Process                  access=0x102A     object=FFFFC90A60F8A0C0
-  handle=0x2DF8   type=Process                  access=0x1FFFFF   object=FFFFC90A5D13A080
-  handle=0x2DFC   type=Event                    access=0x1F0003   object=FFFFC90A5FEC1660
+  handle=0x2DF8   type=Process                  access=0x1FFFFF   object=FFFFC90A61479080
+  handle=0x2DFC   type=Event                    access=0x1F0003   object=FFFFC90A61A0FBE0
   handle=0x2E00   type=Event                    access=0x1F0003   object=FFFFC90A61A0F0E0
   handle=0x2E08   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C8D80
   handle=0x2E0C   type=File                     access=0x180      object=FFFFC90A601CE3B0
-  handle=0x2E10   type=Event                    access=0x1F0003   object=FFFFC90A61A14A60
   handle=0x2E14   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BA4B00
   handle=0x2E18   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DDB7450
   handle=0x2E1C   type=File                     access=0x12019F   object=FFFFC90A5FC3C980
-  handle=0x2E20   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ACD700
   handle=0x2E24   type=Event                    access=0x1F0003   object=FFFFC90A61A12BE0
   handle=0x2E28   type=Process                  access=0x102A     object=FFFFC90A60F154C0
   handle=0x2E2C   type=Process                  access=0x1FFFFF   object=FFFFC90A5AD58080
@@ -5173,6 +5195,7 @@ handles of pid 4: 2920
   handle=0x2E34   type=Event                    access=0x1F0003   object=FFFFC90A5FA6A460
   handle=0x2E38   type=Process                  access=0x102A     object=FFFFC90A5AB62080
   handle=0x2E3C   type=File                     access=0x0        object=FFFFC90A611756D0
+  handle=0x2E40   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C1F00
   handle=0x2E44   type=Event                    access=0x1F0003   object=FFFFC90A61A1B460
   handle=0x2E48   type=File                     access=0x12019F   object=FFFFC90A61176C60
   handle=0x2E4C   type=File                     access=0x0        object=FFFFC90A61174CC0
@@ -5239,18 +5262,21 @@ handles of pid 4: 2920
   handle=0x2F40   type=Key                      access=0x2001F    object=FFFFD9002874F560
   handle=0x2F44   type=Event                    access=0x1F0003   object=FFFFC90A601A0860
   handle=0x2F48   type=Event                    access=0x1F0003   object=FFFFC90A61768260
+  handle=0x2F4C   type=Event                    access=0x1F0003   object=FFFFC90A5FC8C860
   handle=0x2F50   type=Process                  access=0x102A     object=FFFFC90A60C16080
   handle=0x2F54   type=IoCompletion             access=0x1F0003   object=FFFFC90A61523C80
   handle=0x2F60   type=WaitCompletionPacket     access=0x1        object=FFFFC90A6043D1A0
   handle=0x2F64   type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF07980
   handle=0x2F68   type=Process                  access=0x1FFFFF   object=FFFFC90A601FB080
   handle=0x2F6C   type=Process                  access=0x102A     object=FFFFC90A5F6BF080
+  handle=0x2F70   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BAC100
   handle=0x2F74   type=FilterCommunicationPort  access=0x1F0001   object=FFFFC90A610FC0A0
   handle=0x2F84   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF98AA0
   handle=0x2F88   type=File                     access=0x12008B   object=FFFFC90A615E3850
   handle=0x2F8C   type=Process                  access=0x102A     object=FFFFC90A5AB62080
   handle=0x2F90   type=Process                  access=0x102A     object=FFFFC90A5FF07380
   handle=0x2F98   type=IoCompletion             access=0x1F0003   object=FFFFC90A61824700
+  handle=0x2F9C   type=Process                  access=0x102A     object=FFFFC90A5D10A080
   handle=0x2FB0   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ABE100
   handle=0x2FB4   type=Event                    access=0x1F0003   object=FFFFC90A61777E60
   handle=0x2FB8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61539540
@@ -5258,11 +5284,11 @@ handles of pid 4: 2920
   handle=0x2FC0   type=Event                    access=0x1F0003   object=FFFFC90A6177F9E0
   handle=0x2FC8   type=Process                  access=0x1FFFFF   object=FFFFC90A602450C0
   handle=0x2FCC   type=Process                  access=0x102A     object=FFFFC90A60C16080
-  handle=0x2FD0   type=IoCompletion             access=0x1F0003   object=FFFFC90A61ACA440
+  handle=0x2FD0   type=Event                    access=0x1F0003   object=FFFFC90A607D6EE0
   handle=0x2FD4   type=Directory                access=0xF        object=FFFFD900294923C0
   handle=0x2FD8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C82790
   handle=0x2FDC   type=Event                    access=0x1F0003   object=FFFFC90A61A11460
-  handle=0x2FE0   type=Process                  access=0x1FFFFF   object=FFFFC90A61479080
+  handle=0x2FE0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62110430
   handle=0x2FE4   type=File                     access=0x1        object=FFFFC90A6217B900
   handle=0x2FE8   type=Process                  access=0x102A     object=FFFFC90A5FD240C0
   handle=0x2FEC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5F8CA950
@@ -5281,13 +5307,13 @@ handles of pid 4: 2920
   handle=0x302C   type=Process                  access=0x1FFFFF   object=FFFFC90A6191F380
   handle=0x3030   type=Event                    access=0x1F0003   object=FFFFC90A61A0DE60
   handle=0x3034   type=Process                  access=0x102A     object=FFFFC90A616C0080
-  handle=0x303C   type=Process                  access=0x1FFFFF   object=FFFFC90A61906080
   handle=0x3044   type=Event                    access=0x1F0003   object=FFFFC90A5FC944E0
   handle=0x3048   type=Process                  access=0x102A     object=FFFFC90A5F6BB080
   handle=0x304C   type=Event                    access=0x1F0003   object=FFFFC90A617839E0
   handle=0x3050   type=Process                  access=0x40       object=FFFFC90A60E8C080
   handle=0x3054   type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF2EC80
   handle=0x305C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C75D40
+  handle=0x3060   type=Process                  access=0x1FFFFF   object=FFFFC90A5D10C080
   handle=0x3064   type=Process                  access=0x102A     object=FFFFC90A616C0080
   handle=0x3068   type=Process                  access=0x1FFFFF   object=FFFFC90A60C91380
   handle=0x306C   type=Process                  access=0x102A     object=FFFFC90A616C0080
@@ -5295,22 +5321,21 @@ handles of pid 4: 2920
   handle=0x307C   type=Event                    access=0x1F0003   object=FFFFC90A619E79E0
   handle=0x3080   type=IoCompletion             access=0x1F0003   object=FFFFC90A61830A00
   handle=0x3084   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C0C50
-  handle=0x3088   type=Event                    access=0x1F0003   object=FFFFC90A61772EE0
+  handle=0x3088   type=Process                  access=0x102A     object=FFFFC90A5DE5A080
   handle=0x3090   type=Event                    access=0x1F0003   object=FFFFC90A607C2660
   handle=0x3098   type=Process                  access=0x102A     object=FFFFC90A60FBE080
   handle=0x309C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C3F80
   handle=0x30A0   type=Event                    access=0x1F0003   object=FFFFC90A61639F60
-  handle=0x30A8   type=Process                  access=0x102A     object=FFFFC90A61977080
   handle=0x30AC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C815B0
+  handle=0x30B0   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AC5D40
   handle=0x30B4   type=Process                  access=0x102A     object=FFFFC90A60B78080
+  handle=0x30B8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C34F0
   handle=0x30BC   type=Process                  access=0x102A     object=FFFFC90A60BA70C0
   handle=0x30C0   type=Event                    access=0x1F0003   object=FFFFC90A61A11EE0
   handle=0x30C8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61814400
   handle=0x30CC   type=SymbolicLink             access=0xF0001    object=FFFFD900298CC1C0
   handle=0x30D0   type=IoCompletion             access=0x1F0003   object=FFFFC90A60838380
-  handle=0x30D4   type=Process                  access=0x1FFFFF   object=FFFFC90A5DE5A080
   handle=0x30D8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A621135C0
-  handle=0x30DC   type=Process                  access=0x1FFFFF   object=FFFFC90A5FBC2080
   handle=0x30E0   type=IoCompletion             access=0x1F0003   object=FFFFC90A5DF08240
   handle=0x30E4   type=Process                  access=0x102A     object=FFFFC90A60FBE080
   handle=0x30E8   type=IoCompletion             access=0x1F0003   object=FFFFC90A6181B4C0
@@ -5342,6 +5367,7 @@ handles of pid 4: 2920
   handle=0x3160   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BBA3C0
   handle=0x3164   type=Directory                access=0xF000F    object=FFFFD9002A514C00
   handle=0x3168   type=Directory                access=0xF000F    object=FFFFD9002A516BE0
+  handle=0x316C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AC98C0
   handle=0x3170   type=WaitCompletionPacket     access=0x1        object=FFFFC90A60C79480
   handle=0x3174   type=Event                    access=0x1F0003   object=FFFFC90A6019F360
   handle=0x3178   type=IoCompletion             access=0x1F0003   object=FFFFC90A61813600
@@ -5369,43 +5395,47 @@ handles of pid 4: 2920
   handle=0x31EC   type=FilterCommunicationPort  access=0x1F0001   object=FFFFC90A610FC260
   handle=0x31F0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62118700
   handle=0x31F8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62111A20
-  handle=0x3200   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AD55C0
+  handle=0x3200   type=Event                    access=0x1F0003   object=FFFFC90A601A3760
+  handle=0x3204   type=Event                    access=0x1F0003   object=FFFFC90A61A1ED60
   handle=0x3208   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF9CA00
   handle=0x320C   type=File                     access=0x1        object=FFFFC90A61B0D0E0
   handle=0x3210   type=Directory                access=0xF000F    object=FFFFD9002B33C5A0
   handle=0x3214   type=Event                    access=0x1F0003   object=FFFFC90A607D6560
   handle=0x3218   type=Process                  access=0x102A     object=FFFFC90A5AB62080
-  handle=0x321C   type=Event                    access=0x1F0003   object=FFFFC90A60195460
+  handle=0x321C   type=Process                  access=0x1FFFFF   object=FFFFC90A61977080
   handle=0x3220   type=Process                  access=0x102A     object=FFFFC90A61229080
   handle=0x3230   type=Event                    access=0x1F0003   object=FFFFC90A619E8260
   handle=0x3234   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BA3EC0
   handle=0x323C   type=Event                    access=0x1F0003   object=FFFFC90A6163FE60
   handle=0x3244   type=IoCompletion             access=0x1F0003   object=FFFFC90A61825400
   handle=0x3250   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C6820
-  handle=0x3254   type=Process                  access=0x102A     object=FFFFC90A61977080
+  handle=0x3254   type=Process                  access=0x1FFFFF   object=FFFFC90A5D0E3080
   handle=0x3258   type=IoCompletion             access=0x1F0003   object=FFFFC90A6182E700
   handle=0x325C   type=Process                  access=0x1028     object=FFFFC90A60F154C0
   handle=0x3260   type=IoCompletion             access=0x1F0003   object=FFFFC90A6183B3C0
   handle=0x3264   type=FilterConnectionPort     access=0x1F0001   object=FFFFC90A61647930
   handle=0x3268   type=Directory                access=0xF000F    object=FFFFD9002A526EA0
   handle=0x326C   type=Event                    access=0x1F0003   object=FFFFC90A61991C60
-  handle=0x3270   type=Process                  access=0x102A     object=FFFFC90A5D0D1080
   handle=0x3278   type=SymbolicLink             access=0xF0001    object=FFFFD900298CD3A0
   handle=0x327C   type=ALPC Port                access=0x1F0001   object=FFFFC90A60BE1B60
   handle=0x3284   type=Event                    access=0x1F0003   object=FFFFC90A619A53E0
   handle=0x3288   type=Process                  access=0x102A     object=FFFFC90A5FDF2080
   handle=0x328C   type=Process                  access=0x102A     object=FFFFC90A61229080
+  handle=0x3290   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AE4580
   handle=0x3294   type=Process                  access=0x102A     object=FFFFC90A6075C080
   handle=0x3298   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62121460
   handle=0x329C   type=IoCompletion             access=0x1F0003   object=FFFFC90A61833DC0
-  handle=0x32A4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5B225EC0
+  handle=0x32A0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0BDB90
+  handle=0x32A4   type=IoCompletion             access=0x1F0003   object=FFFFC90A6183E780
   handle=0x32A8   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FF9F370
   handle=0x32AC   type=Process                  access=0x102A     object=FFFFC90A60E8C080
-  handle=0x32B0   type=ALPC Port                access=0x1F0001   object=FFFFC90A60007C60
+  handle=0x32B0   type=Event                    access=0x1F0003   object=FFFFC90A6176C0E0
   handle=0x32B8   type=File                     access=0x20003    object=FFFFC90A6186EDE0
   handle=0x32C0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5DDB69C0
+  handle=0x32C4   type=Process                  access=0x1FFFFF   object=FFFFC90A5D107080
   handle=0x32C8   type=Process                  access=0x102A     object=FFFFC90A6101E080
-  handle=0x32D8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61BBB280
+  handle=0x32CC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A621141F0
+  handle=0x32D8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61AC9700
   handle=0x32DC   type=IoCompletion             access=0x1F0003   object=FFFFC90A61836340
   handle=0x32E0   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5FFA2C50
   handle=0x32E4   type=Process                  access=0x102A     object=FFFFC90A5AB62080
@@ -5425,9 +5455,8 @@ handles of pid 4: 2920
   handle=0x333C   type=WaitCompletionPacket     access=0x1        object=FFFFC90A5D0C8E50
   handle=0x3340   type=Process                  access=0x102A     object=FFFFC90A6075A080
   handle=0x3348   type=IoCompletion             access=0x1F0003   object=FFFFC90A61825880
-  handle=0x334C   type=Process                  access=0x102A     object=FFFFC90A61479080
+  handle=0x334C   type=Event                    access=0x1F0003   object=FFFFC90A6018E4E0
   handle=0x3350   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B85300
-  handle=0x3354   type=IoCompletion             access=0x1F0003   object=FFFFC90A61829F40
   handle=0x3358   type=Process                  access=0x102A     object=FFFFC90A5DD45080
   handle=0x335C   type=Directory                access=0xF        object=FFFFD90029493680
   handle=0x3360   type=Process                  access=0x1FFFFF   object=FFFFC90A6075C080
@@ -5440,9 +5469,9 @@ handles of pid 4: 2920
   handle=0x3394   type=SymbolicLink             access=0xF0001    object=FFFFD900298CD240
   handle=0x3398   type=File                     access=0x3        object=FFFFC90A62789910
   handle=0x339C   type=File                     access=0x3        object=FFFFC90A6186F420
-  handle=0x33AC   type=Event                    access=0x1F0003   object=FFFFC90A61A1EFE0
+  handle=0x33A4   type=Directory                access=0xF000F    object=FFFFD9002A526720
   handle=0x33B0   type=Event                    access=0x1F0003   object=FFFFC90A61A16760
-  handle=0x33B4   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62117110
+  handle=0x33B4   type=IoCompletion             access=0x1F0003   object=FFFFC90A61B85140
   handle=0x33B8   type=Process                  access=0x102A     object=FFFFC90A5AB62080
   handle=0x33BC   type=Event                    access=0x1F0003   object=FFFFC90A619E5860
   handle=0x33C0   type=Process                  access=0x102A     object=FFFFC90A5AB62080
@@ -5451,15 +5480,15 @@ handles of pid 4: 2920
   handle=0x33CC   type=Process                  access=0x1FFFFF   object=FFFFC90A5AB62080
   handle=0x33D0   type=Event                    access=0x1F0003   object=FFFFC90A61A093E0
   handle=0x33D8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61805A40
-  handle=0x33DC   type=WaitCompletionPacket     access=0x1        object=FFFFC90A62108CC0
+  handle=0x33DC   type=Event                    access=0x1F0003   object=FFFFC90A61A12AE0
   handle=0x33E0   type=Event                    access=0x1F0003   object=FFFFC90A60D22CE0
-  handle=0x33E8   type=Process                  access=0x102A     object=FFFFC90A5D13A080
+  handle=0x33E8   type=IoCompletion             access=0x1F0003   object=FFFFC90A61834A00
   handle=0x33F0   type=File                     access=0x1        object=FFFFC90A61B0D8B0
   handle=0x33F4   type=IoCompletion             access=0x1F0003   object=FFFFC90A61813500
   handle=0x33FC   type=Process                  access=0x1FFFFF   object=FFFFC90A60E8C080
 
 ---------- "--threads-cli 4" ---------- 
-threads of pid 4: 138
+threads of pid 4: 136
   tid=12     basePrio=13  delta=0   start=0000000000000000
   tid=16     basePrio=13  delta=0   start=0000000000000000
   tid=20     basePrio=13  delta=0   start=0000000000000000
@@ -5576,8 +5605,7 @@ threads of pid 4: 138
   tid=5604   basePrio=8   delta=0   start=0000000000000000
   tid=5972   basePrio=15  delta=0   start=0000000000000000
   tid=7044   basePrio=15  delta=0   start=0000000000000000
-  tid=8200   basePrio=8   delta=0   start=0000000000000000
-  tid=8208   basePrio=13  delta=0   start=0000000000000000
+  tid=8208   basePrio=12  delta=0   start=0000000000000000
   tid=2188   basePrio=15  delta=0   start=0000000000000000
   tid=3692   basePrio=15  delta=0   start=0000000000000000
   tid=8828   basePrio=15  delta=0   start=0000000000000000
@@ -5590,14 +5618,13 @@ threads of pid 4: 138
   tid=8840   basePrio=8   delta=0   start=0000000000000000
   tid=1524   basePrio=8   delta=0   start=0000000000000000
   tid=2528   basePrio=8   delta=0   start=0000000000000000
-  tid=5448   basePrio=13  delta=0   start=0000000000000000
+  tid=5448   basePrio=12  delta=0   start=0000000000000000
   tid=9148   basePrio=12  delta=0   start=0000000000000000
   tid=3948   basePrio=9   delta=0   start=0000000000000000
   tid=4904   basePrio=12  delta=0   start=0000000000000000
   tid=6172   basePrio=15  delta=0   start=0000000000000000
   tid=7916   basePrio=12  delta=0   start=0000000000000000
-  tid=1272   basePrio=12  delta=0   start=0000000000000000
-  tid=8444   basePrio=8   delta=0   start=0000000000000000
+  tid=8000   basePrio=12  delta=0   start=0000000000000000
 
 ---------- "--windows-cli 4" ---------- 
 windows of pid 4: 0

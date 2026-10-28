@@ -16,6 +16,7 @@
 #include "XPCHunterUM.h"
 #include "CliMain.h"
 #include "FePages.h"
+#include "FeTheme.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -1662,6 +1663,83 @@ static int CliSelftestChanged_51(const char *lpCmdLine)
 
 
 // ============================================================================
+// 自检入口 --selftest-theme-cli（第三步 表现层 的语义色映射验证）
+//
+// 主题是纯绘制层，颜色本身难以在无 GUI 环境断言；但"状态文本 → 语义色"
+// 这个映射是纯函数，可以逐用例验证。深色与浅色两套调色板都测一遍，
+// 并验证同一语义在深/浅主题下取到的是各自调色板里的对应色位。
+// ============================================================================
+static int CliSelftestTheme_52(const char *lpCmdLine)
+{
+    struct { const char *text; int slot; const char *name; } cases[] = {
+        { "accessible",            0, "Accent" },
+        { "INACCESSIBLE",          1, "Danger" },
+        { "clean",                 0, "Accent" },
+        { "modified",              1, "Danger" },
+        { "hidden",                1, "Danger" },
+        { "suspicious",            2, "Warn"   },
+        { "RUNNING",               0, "Accent" },
+        { "FAILED",                1, "Danger" },
+        { "blocked",               1, "Danger" },
+        { "something else",       -1, "Text"   },
+    };
+    int fail = 0;
+    size_t i;
+    BOOL wasDark;
+
+    if (!strstr(lpCmdLine, "--selftest-theme-cli"))
+        return FE_CLI_NEXT;
+
+    wasDark = FeThemeIsDark();
+    printf("theme selftest: %d cases x 2 palettes\n",
+           (int)(sizeof(cases) / sizeof(cases[0])));
+
+    for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        COLORREF darkGot, lightGot, darkWant, lightWant;
+        int okD, okL;
+
+        FeThemeSetDark(TRUE);
+        darkGot  = FeThemeStatusColor(cases[i].text);
+        darkWant = (cases[i].slot == 0) ? FeThemeColors()->Accent :
+                   (cases[i].slot == 1) ? FeThemeColors()->Danger :
+                   (cases[i].slot == 2) ? FeThemeColors()->Warn :
+                                          FeThemeColors()->Text;
+        okD = (darkGot == darkWant);
+
+        FeThemeSetDark(FALSE);
+        lightGot  = FeThemeStatusColor(cases[i].text);
+        lightWant = (cases[i].slot == 0) ? FeThemeColors()->Accent :
+                    (cases[i].slot == 1) ? FeThemeColors()->Danger :
+                    (cases[i].slot == 2) ? FeThemeColors()->Warn :
+                                           FeThemeColors()->Text;
+        okL = (lightGot == lightWant);
+
+        printf("  \"%-16s\" -> %-6s dark=%s light=%s\n",
+               cases[i].text, cases[i].name,
+               okD ? "OK" : "FAIL", okL ? "OK" : "FAIL");
+        if (!okD || !okL)
+            fail = 1;
+    }
+
+    /* 深/浅两套必须是不同的实际颜色（否则主题切换毫无效果） */
+    {
+        COLORREF dBg, lBg;
+        FeThemeSetDark(TRUE);  dBg = FeThemeColors()->Bg;
+        FeThemeSetDark(FALSE); lBg = FeThemeColors()->Bg;
+        printf("  palette differs: bg dark=%06lX light=%06lX %s\n",
+               (unsigned long)dBg, (unsigned long)lBg,
+               dBg != lBg ? "OK" : "FAIL");
+        if (dBg == lBg)
+            fail = 1;
+    }
+
+    FeThemeSetDark(wasDark);
+    printf("theme selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 1 : 0;
+}
+
+
+// ============================================================================
 // 分发表：按原 frontend.c WinMain if 链的【源码顺序】排列。
 // 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
 // ——WinMain 据此落入 GUI 路径。
@@ -1770,6 +1848,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliSelftestDrill_50(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestChanged_51(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestTheme_52(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }

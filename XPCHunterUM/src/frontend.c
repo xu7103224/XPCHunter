@@ -15,6 +15,7 @@
 #include "CliMain.h"
 #include "FePages.h"
 #include "FeTheme.h"
+#include "FeDpi.h"
 #include <commctrl.h>
 #include <stdio.h>
 #include <string.h>
@@ -622,6 +623,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_CREATE: {
         HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
         g_hMainWnd = hWnd;
+        FeDpiInit(hWnd);   /* 第三步：按所在显示器取 DPI */
 
         CreateWindowA("BUTTON", "Connect", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       10, 10, 90, 28, hWnd, (HMENU)IDC_CONNECT, hInst, NULL);
@@ -1049,14 +1051,15 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         RECT rc;
         int w, h, pageTop, pageBottom;
         GetClientRect(hWnd, &rc);
-        w = rc.right - 20;
+        /* 第三步：边距/固定高度按 DPI 缩放（客户区宽度本身已含 DPI，不再缩放） */
+        w = rc.right - FeDpiScale(20);
         h = rc.bottom;
-        if (w < 400) w = 400;
-        pageTop = 76;                 /* 主 Tab 栏之下 */
-        pageBottom = h - 12;          /* 留一点下边距 */
+        if (w < FeDpiScale(400)) w = FeDpiScale(400);
+        pageTop = FeDpiScale(76);                  /* 主 Tab 栏之下 */
+        pageBottom = h - FeDpiScale(12);           /* 留一点下边距 */
 
         if (g_hMainTabs)
-            MoveWindow(g_hMainTabs, 10, 44, w, 24, TRUE);
+            MoveWindow(g_hMainTabs, FeDpiScale(10), FeDpiScale(44), w, FeDpiScale(24), TRUE);
         if (g_hPageHint)
             MoveWindow(g_hPageHint, 20, pageTop + 20, w - 20, 160, TRUE);
 
@@ -1590,6 +1593,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         SetTextColor(hdc, c->Text);
         return (LRESULT)FeThemePanelBrush();
     }
+
+    /* ---- 第三步：Per-Monitor DPI ----
+       清单里声明了 PerMonitorV2，跨屏拖动时系统会发这条消息。
+       FeDpiOnChanged 更新缩放基准、按建议矩形调整窗口并触发重排。 */
+    case WM_DPICHANGED:
+        FeDpiOnChanged(hWnd, wParam, lParam);
+        return 0;
 
     case WM_DESTROY:
         KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
