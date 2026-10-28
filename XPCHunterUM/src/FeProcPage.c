@@ -112,19 +112,19 @@ int ProcCmp(const void *pa, const void *pb)
     return g_ProcSortDesc ? -r : r;
 }
 
-/* 按当前过滤 + 排序把缓存渲染进列表（列文本逻辑与原实现一致） */
-static void ProcRenderRows(void)
+/* 按当前过滤 + 排序生成行索引（渲染与导出共用，保证两者顺序严格一致）。
+   调用方负责 free()。返回行数，失败返回 0 且 *OutOrder 置 NULL。 */
+static ULONG ProcBuildOrder(int **OutOrder)
 {
     int *order;
     ULONG i, n = 0, count = g_ProcCacheValid ? g_ProcCache.Count : 0;
 
-    SendMessageA(g_hProc, LVM_DELETEALLITEMS, 0, 0);
-    g_ProcShown = 0;
+    *OutOrder = NULL;
     if (!count)
-        return;
+        return 0;
     order = (int *)malloc(count * sizeof(int));
     if (!order)
-        return;
+        return 0;
     /* 过滤先于排序：只把命中行放进索引，qsort 的规模随之缩小 */
     for (i = 0; i < count; i++)
         if (ProcFilterMatch(&g_ProcCache.Items[i],
@@ -132,6 +132,21 @@ static void ProcRenderRows(void)
             order[n++] = (int)i;
     if (g_ProcSortCol >= 0 && n > 1)
         qsort(order, n, sizeof(int), ProcCmp);
+    *OutOrder = order;
+    return n;
+}
+
+/* 按当前过滤 + 排序把缓存渲染进列表（列文本逻辑与原实现一致） */
+static void ProcRenderRows(void)
+{
+    int *order;
+    ULONG i, n;
+
+    SendMessageA(g_hProc, LVM_DELETEALLITEMS, 0, 0);
+    g_ProcShown = 0;
+    n = ProcBuildOrder(&order);
+    if (!n || !order)
+        return;
 
     for (i = 0; i < n; i++) {
         FE_PROCESS *it = &g_ProcCache.Items[order[i]];
@@ -207,6 +222,106 @@ void FeProcPageOnColumnClick(int col)
         g_ProcSortDesc = 0;
     }
     ProcRenderRows();
+}
+
+/* ---- 第二步增量3：导出当前可见行（过滤 + 排序后）为 CSV ----
+   与 ProcRenderRows 共用 ProcBuildOrder，保证导出顺序与屏幕所见完全一致。
+   CSV 转义按 RFC 4180：含逗号/引号/换行的字段用双引号包裹，内部引号翻倍。 */
+static void CsvQuote(FILE *fp, const char *s)
+{
+    BOOL need = FALSE;
+    const char *p;
+
+    if (!s)
+        s = "";
+    for (p = s; *p; p++)
+        if (*p == ',' || *p == '"' || *p == '\n' || *p == '\r') {
+            need = TRUE;
+            break;
+        }
+    if (!need) {
+        fputs(s, fp);
+        return;
+    }
+    fputc('"', fp);
+    for (p = s; *p; p++) {
+        if (*p == '"')
+            fputc('"', fp);   /* 引号翻倍 */
+        fputc(*p, fp);
+    }
+    fputc('"', fp);
+}
+
+BOOL FeProcPageExportCsv(const char *Path, ULONG *OutRows)
+{
+    FILE *fp;
+    int *order;
+    ULONG i, n;
+
+    if (OutRows)
+        *OutRows = 0;
+    if (!Path || !Path[0])
+        return FALSE;
+    if (!g_ProcCacheValid || !g_ProcCache.Count)
+        return FALSE;
+
+    n = ProcBuildOrder(&order);
+    if (!order)
+        return FALSE;
+
+    /* 带 BOM 的 UTF-8：Excel 双击打开不会把中文路径变成乱码。
+       ANSI 路径转换失败也照写（纯 ASCII 数据仍可读）。 */
+    if (fopen_s(&fp, Path, "wb") != 0 || !fp) {
+        free(order);
+        return FALSE;
+    }
+    fputs("\xEF\xBB\xBF", fp);
+    fputs("PID,Name,Path,EPROCESS,Ring3AccessState\r\n", fp);
+    for (i = 0; i < n; i++) {
+        const FE_PROCESS *it = &g_ProcCache.Items[order[i]];
+        char num[32];
+        char path[FE_PROC_PATH_CHARS * 2];
+
+        fprintf(fp, "%lu,", it->Pid);
+        CsvQuote(fp, it->Name[0] ? it->Name : "(?)");
+        fputc(',', fp);
+        FeWideToAnsi(it->Path, path, sizeof(path));
+        CsvQuote(fp, path);
+        fputc(',', fp);
+        sprintf_s(num, sizeof(num), "%p", (void *)(ULONG_PTR)it->Eprocess);
+        fputs(num, fp);
+        fprintf(fp, ",%s\r\n",
+                (g_ProcAcc && g_ProcAcc[order[i]]) ? "accessible" : "INACCESSIBLE");
+    }
+    fclose(fp);
+    free(order);
+    if (OutRows)
+        *OutRows = n;
+    return TRUE;
+}
+
+/* 导出按钮：写 %TEMP%\PCHunter_Processes.csv，状态行回报路径与行数 */
+void FeProcPageExport(void)
+{
+    char path[MAX_PATH];
+    ULONG rows = 0;
+    char msg[600];
+
+    if (!g_ProcCacheValid || !g_ProcCache.Count) {
+        SetWindowTextA(g_hProcStatus, "Nothing to export - refresh the process list first");
+        return;
+    }
+    GetTempPathA(MAX_PATH, path);
+    strcat_s(path, sizeof(path), "PCHunter_Processes.csv");
+    if (FeProcPageExportCsv(path, &rows)) {
+        sprintf_s(msg, sizeof(msg),
+                  "Exported %lu row%s%s to %s",
+                  rows, rows == 1 ? "" : "s",
+                  g_ProcFilter[0] ? " (filtered)" : "", path);
+        SetWindowTextA(g_hProcStatus, msg);
+    } else {
+        SetWindowTextA(g_hProcStatus, "Export failed");
+    }
 }
 
 /* Auto Refresh 开关：共享 WM_TIMER（FE_AUTOREF_TIMER_ID），2s 周期 */
@@ -835,6 +950,11 @@ int isProc = (page == 0);
     }
     /* 第二步增量2：列过滤框同理 */
     if (g_hProcFilter) ShowWindow(g_hProcFilter, isProc ? SW_SHOW : SW_HIDE);
+    /* 第二步增量3：导出按钮只属于本页 */
+    {
+        HWND hExp = GetDlgItem(hWnd, IDC_PROC_EXPORT);
+        if (hExp) ShowWindow(hExp, isProc ? SW_SHOW : SW_HIDE);
+    }
     if (isProc) {
         RECT rc;
         GetClientRect(hWnd, &rc);

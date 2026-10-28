@@ -122,6 +122,8 @@
 #define IDC_PROC_AUTO   1032
 /* 第二步增量2：Process 页的列过滤输入框 */
 #define IDC_PROC_FILTER 1033
+/* 第二步增量3：Process 页导出 CSV 按钮 */
+#define IDC_PROC_EXPORT 1034
 
 /* ---- 统一刷新模型：auto-refresh 共享定时器（frontend.c WM_TIMER 驱动；
    页面模块把本页刷新函数挂到 g_AutoRefFn，开关按钮各自实现） ---- */
@@ -238,6 +240,9 @@ int ProcCmp(const void *pa, const void *pb);
 extern ULONG g_ProcShown;
 extern char  g_ProcFilter[128];
 void FeProcPageSetFilter(const char *filter);
+/* 第二步增量3：CSV 导出（导出当前过滤+排序后的可见行） */
+BOOL FeProcPageExportCsv(const char *Path, ULONG *OutRows);
+void FeProcPageExport(void);
 BOOL ProcFilterMatch(const FE_PROCESS *it, unsigned char acc, const char *filter);
 
 /* ---- FeRegistryPage.c ---- */

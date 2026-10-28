@@ -649,6 +649,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                         (HMENU)IDC_PROC_FILTER, hInst, NULL);
         SendMessageA(g_hProcFilter, EM_SETCUEBANNER, TRUE,
                      (LPARAM)L"Filter (PID / Name / Path / EPROCESS / State)");
+        /* 第二步增量3：导出当前可见行（过滤+排序后）为 CSV */
+        CreateWindowA("BUTTON", "Export CSV", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      278, 350, 90, 24, hWnd, (HMENU)IDC_PROC_EXPORT, hInst, NULL);
 
         /* 明细子视图：tab + 一个 ListView（列随 tab 切换） */
         g_hTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
@@ -1016,6 +1019,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hProc)       MoveWindow(g_hProc, 10, pageTop, w, listH, TRUE);
             /* 第二步增量2：过滤框贴在进程列表与状态行之间 */
             if (g_hProcFilter) MoveWindow(g_hProcFilter, 10, midY - filterH + 2, 260, 24, TRUE);
+            /* 第二步增量3：导出按钮紧贴过滤框右侧 */
+            {
+                HWND hExp = GetDlgItem(hWnd, IDC_PROC_EXPORT);
+                if (hExp) MoveWindow(hExp, 278, midY - filterH + 2, 90, 24, TRUE);
+            }
             if (g_hProcStatus) MoveWindow(g_hProcStatus, 10, midY, w, 20, TRUE);
             /* 第二步增量：Auto Refresh 开关贴状态行右端（随窗口重排） */
             {
@@ -1230,6 +1238,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SEND:    DoSend();    return 0;
         case IDC_KILL:    DoKillSelected(); return 0;
         case IDC_PROC_AUTO: FeProcPageToggleAuto(hWnd); return 0;   /* 第二步增量 */
+        case IDC_PROC_EXPORT: FeProcPageExport(); return 0;         /* 第二步增量3 */
         case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
         case IDC_KM_ONLYLOADED:
             g_KmOnlyLoaded = (IsDlgButtonChecked(hWnd, IDC_KM_ONLYLOADED) == BST_CHECKED) ? 1 : 0;
@@ -1547,6 +1556,41 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
        连不上（驱动没启动）时 DoConnect 会在状态栏说明原因。 */
     DoConnect();
     DoRefreshProcs();
+
+    /* 第二步增量3：--export-procs PATH —— 启动即把当前可见行导出后退出。
+       走与 Export CSV 按钮完全相同的 FeProcPageExportCsv，供自动化验收。 */
+    {
+        const char *ecl = GetCommandLineA();
+        const char *ep = ecl ? strstr(ecl, "--export-procs ") : NULL;
+        if (ep) {
+            char outPath[MAX_PATH];
+            ULONG rows = 0;
+            size_t i = 0;
+            const char *v = ep + 15;
+
+            /* 支持带引号的路径（"C:\a b\out.csv"） */
+            if (*v == '"') {
+                v++;
+                while (v[i] && v[i] != '"' && i + 1 < sizeof(outPath)) {
+                    outPath[i] = v[i];
+                    i++;
+                }
+            } else {
+                while (v[i] && v[i] != ' ' && i + 1 < sizeof(outPath)) {
+                    outPath[i] = v[i];
+                    i++;
+                }
+            }
+            outPath[i] = 0;
+            if (FeProcPageExportCsv(outPath, &rows))
+                printf("exported %lu rows to %s\n", rows, outPath);
+            else
+                printf("export failed: %s\n", outPath);
+            if (g_Client.Opened)
+                XpchClose(&g_Client);
+            return rows ? 0 : 1;
+        }
+    }
 
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         TranslateMessage(&msg);

@@ -1423,6 +1423,122 @@ static int CliSelftestFilter_48(const char *lpCmdLine)
 
 
 // ============================================================================
+// 自检入口 --selftest-export-cli（第二步增量3 的导出验证）
+//
+// 导出与渲染共用 ProcBuildOrder，顺序一致性是承重语义。这里在进程内构造
+// 含 CSV 特殊字符（逗号 / 双引号 / 换行）的样本，导出到临时文件后原样读回，
+// 逐字节比对期望内容——覆盖 BOM、表头、转义、行尾 CRLF、排序参与。
+// ============================================================================
+static int CliSelftestExport_49(const char *lpCmdLine)
+{
+    static FE_PROCESS items[3];
+    unsigned char acc[3];
+    char path[MAX_PATH];
+    char expect[2048];
+    char got[2048];
+    FILE *fp;
+    size_t nread;
+    int fail = 0;
+
+    if (!strstr(lpCmdLine, "--selftest-export-cli"))
+        return FE_CLI_NEXT;
+
+    ZeroMemory(items, sizeof(items));
+    /* 乱序输入 + 特殊字符，验证排序参与且转义正确 */
+    items[0].Pid = 300; items[0].Eprocess = 0x3000;
+    strcpy_s(items[0].Name, sizeof(items[0].Name), "plain.exe");
+    wcscpy_s(items[0].Path, FE_PROC_PATH_CHARS, L"C:\\Windows\\plain.exe");
+    items[1].Pid = 100; items[1].Eprocess = 0x1000;
+    strcpy_s(items[1].Name, sizeof(items[1].Name), "has,comma");
+    wcscpy_s(items[1].Path, FE_PROC_PATH_CHARS, L"C:\\dir with space\\a.exe");
+    items[2].Pid = 200; items[2].Eprocess = 0x2000;
+    strcpy_s(items[2].Name, sizeof(items[2].Name), "q\"uote");
+    wcscpy_s(items[2].Path, FE_PROC_PATH_CHARS, L"C:\\q.exe");
+    acc[0] = 1; acc[1] = 0; acc[2] = 1;
+
+    g_ProcCache.Count = 3;
+    g_ProcCache.Capacity = 3;
+    g_ProcCache.Items = items;
+    g_ProcAcc = acc;
+    g_ProcCacheValid = TRUE;
+    g_ProcSortCol = 0;      /* 按 PID 升序 -> 100,200,300 */
+    g_ProcSortDesc = 0;
+    g_ProcFilter[0] = 0;
+
+    GetTempPathA(MAX_PATH, path);
+    strcat_s(path, sizeof(path), "xpch_selftest_export.csv");
+
+    /* 期望内容：BOM + 表头 + 三行（PID 升序），特殊字符按 RFC 4180 转义 */
+    sprintf_s(expect, sizeof(expect),
+              "\xEF\xBB\xBF"
+              "PID,Name,Path,EPROCESS,Ring3AccessState\r\n"
+              "100,\"has,comma\",C:\\dir with space\\a.exe,0000000000001000,INACCESSIBLE\r\n"
+              "200,\"q\"\"uote\",C:\\q.exe,0000000000002000,accessible\r\n"
+              "300,plain.exe,C:\\Windows\\plain.exe,0000000000003000,accessible\r\n");
+
+    got[0] = 0;
+    if (!FeProcPageExportCsv(path, NULL)) {
+        printf("export selftest: FAILED (export returned FALSE)\n");
+        fail = 1;
+    } else if (fopen_s(&fp, path, "rb") != 0 || !fp) {
+        printf("export selftest: FAILED (cannot reopen)\n");
+        fail = 1;
+    } else {
+        nread = fread(got, 1, sizeof(got) - 1, fp);
+        got[nread] = 0;
+        fclose(fp);
+        if (strcmp(got, expect) != 0) {
+            printf("export selftest: FAILED (content mismatch)\n");
+            printf("  expected(%u bytes):\n%s", (unsigned)strlen(expect), expect);
+            printf("  got(%u bytes):\n%s", (unsigned)strlen(got), got);
+            fail = 1;
+        } else {
+            printf("export selftest: CSV content matches (%u bytes)\n",
+                   (unsigned)nread);
+        }
+        DeleteFileA(path);
+    }
+
+    /* 过滤参与导出的验证：只导出命中行 */
+    if (!fail) {
+        strcpy_s(g_ProcFilter, sizeof(g_ProcFilter), "plain");
+        got[0] = 0;
+        if (FeProcPageExportCsv(path, NULL) &&
+            fopen_s(&fp, path, "rb") == 0 && fp) {
+            nread = fread(got, 1, sizeof(got) - 1, fp);
+            got[nread] = 0;
+            fclose(fp);
+            DeleteFileA(path);
+            /* 只有表头 + 1 行（两个 CRLF） */
+            if (strstr(got, "plain.exe") && !strstr(got, "has,comma") &&
+                !strstr(got, "q\"\"uote")) {
+                printf("export selftest: filter honored (only matched rows)\n");
+            } else {
+                printf("export selftest: FAILED (filter not honored)\n");
+                fail = 1;
+            }
+        } else {
+            printf("export selftest: FAILED (filtered export)\n");
+            fail = 1;
+        }
+    }
+
+    /* 复位 */
+    g_ProcCache.Items = NULL;
+    g_ProcCache.Count = 0;
+    g_ProcCache.Capacity = 0;
+    g_ProcAcc = NULL;
+    g_ProcCacheValid = FALSE;
+    g_ProcSortCol = -1;
+    g_ProcSortDesc = 0;
+    g_ProcFilter[0] = 0;
+
+    printf("export selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 1 : 0;
+}
+
+
+// ============================================================================
 // 分发表：按原 frontend.c WinMain if 链的【源码顺序】排列。
 // 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
 // ——WinMain 据此落入 GUI 路径。
@@ -1525,6 +1641,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliSelftestSort_47(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestFilter_48(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestExport_49(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }
