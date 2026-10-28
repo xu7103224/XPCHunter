@@ -1594,6 +1594,74 @@ static int CliSelftestDrill_50(const char *lpCmdLine)
 
 
 // ============================================================================
+// 自检入口 --selftest-changed-cli（第二步增量5 的变更触发验证）
+//
+// 变更触发的承重语义是"指纹只对内容敏感、对规模与顺序稳定"：
+//   同内容 → 同指纹；任一 PID 或 EPROCESS 变 → 指纹必变。
+// 这里在进程内构造三组样本做断言，不依赖驱动。
+// ============================================================================
+static int CliSelftestChanged_51(const char *lpCmdLine)
+{
+    static FE_PROCESS a[3], b[3];
+    ULONG64 f1, f2, f3;
+    int fail = 0;
+
+    if (!strstr(lpCmdLine, "--selftest-changed-cli"))
+        return FE_CLI_NEXT;
+
+    ZeroMemory(a, sizeof(a));
+    a[0].Pid = 100; a[0].Eprocess = 0x1000;
+    a[1].Pid = 200; a[1].Eprocess = 0x2000;
+    a[2].Pid = 300; a[2].Eprocess = 0x3000;
+
+    g_ProcCache.Count = 3;
+    g_ProcCache.Capacity = 3;
+    g_ProcCache.Items = a;
+    g_ProcCacheValid = TRUE;
+
+    f1 = ProcComputeFingerprint();
+    f2 = ProcComputeFingerprint();          /* 同内容重算 */
+    printf("changed selftest: stable:   %016I64X == %016I64X %s\n",
+           f1, f2, f1 == f2 ? "OK" : "FAIL");
+    if (f1 != f2) fail = 1;
+
+    /* 改一个 PID → 必须变 */
+    a[2].Pid = 301;
+    f3 = ProcComputeFingerprint();
+    printf("changed selftest: pid-chg:  %016I64X != %016I64X %s\n",
+           f1, f3, f1 != f3 ? "OK" : "FAIL");
+    if (f1 == f3) fail = 1;
+
+    /* 改回 PID、改一个 EPROCESS → 也必须变 */
+    a[2].Pid = 300;
+    a[1].Eprocess = 0x2001;
+    f3 = ProcComputeFingerprint();
+    printf("changed selftest: eproc-chg:%016I64X != %016I64X %s\n",
+           f1, f3, f1 != f3 ? "OK" : "FAIL");
+    if (f1 == f3) fail = 1;
+
+    /* 顺序变化 → 指纹也应变（避免"只看集合不看顺序"导致的漏判：
+       进程列表顺序就是驱动枚举顺序，序变即视为变化） */
+    a[1].Eprocess = 0x2000;
+    b[0] = a[2]; b[1] = a[1]; b[2] = a[0];
+    g_ProcCache.Items = b;
+    f3 = ProcComputeFingerprint();
+    printf("changed selftest: order-chg:%016I64X != %016I64X %s\n",
+           f1, f3, f1 != f3 ? "OK" : "FAIL");
+    if (f1 == f3) fail = 1;
+
+    /* 复位 */
+    g_ProcCache.Items = NULL;
+    g_ProcCache.Count = 0;
+    g_ProcCache.Capacity = 0;
+    g_ProcCacheValid = FALSE;
+
+    printf("changed selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 1 : 0;
+}
+
+
+// ============================================================================
 // 分发表：按原 frontend.c WinMain if 链的【源码顺序】排列。
 // 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
 // ——WinMain 据此落入 GUI 路径。
@@ -1700,6 +1768,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliSelftestExport_49(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestDrill_50(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestChanged_51(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }

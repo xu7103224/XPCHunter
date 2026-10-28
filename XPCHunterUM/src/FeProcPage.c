@@ -375,21 +375,123 @@ void FeProcPageExport(void)
     }
 }
 
+/* ---- 第二步增量5：变更触发 ----
+   定时刷新不再每次都全量重绘：先算当前缓存的指纹（PID+EPROCESS 的滚动哈希），
+   与上次渲染时的指纹比对，只有变化才重绘。手动刷新（按钮/下钻）走
+   DoRefreshProcs 的强制路径，不受此限。 */
+static ULONG64 g_ProcFingerprint = 0;
+static BOOL    g_ProcFingerprintValid = FALSE;
+
+/* FNV-1a 变体：把 (PID, EPROCESS) 序列压成一个 64 位指纹 */
+ULONG64 ProcComputeFingerprint(void)
+{
+    ULONG64 h = 1469598103934665603ULL;   /* FNV offset basis */
+    ULONG i, count = g_ProcCacheValid ? g_ProcCache.Count : 0;
+
+    for (i = 0; i < count; i++) {
+        ULONG64 v = (ULONG64)g_ProcCache.Items[i].Pid;
+        int b;
+        for (b = 0; b < 8; b++) {
+            h ^= (v >> (b * 8)) & 0xFF;
+            h *= 1099511628211ULL;        /* FNV prime */
+        }
+        v = g_ProcCache.Items[i].Eprocess;
+        for (b = 0; b < 8; b++) {
+            h ^= (v >> (b * 8)) & 0xFF;
+            h *= 1099511628211ULL;
+        }
+    }
+    return h;
+}
+
+/* 定时刷新入口：重查驱动，但只有指纹变化时才重绘列表。
+   返回 TRUE 表示本次发生了重绘（供状态栏提示用）。 */
+BOOL DoRefreshProcsIfChanged(void)
+{
+    FE_PROCESS_LIST list;
+    ULONG i, count;
+    ULONG64 fp;
+    char buf[256];
+
+    if (!g_Client.Opened)
+        return FALSE;
+    if (!FeLoadProcessList(&g_Client, FE_PROC_DEFAULT_MAX, &list))
+        return FALSE;
+
+    /* 先用新数据算指纹：临时借缓存字段做哈希，不搬整块结构 */
+    {
+        ULONG64 h = 1469598103934665603ULL;
+        for (i = 0; i < list.Count; i++) {
+            ULONG64 v = (ULONG64)list.Items[i].Pid;
+            int b;
+            for (b = 0; b < 8; b++) {
+                h ^= (v >> (b * 8)) & 0xFF;
+                h *= 1099511628211ULL;
+            }
+            v = list.Items[i].Eprocess;
+            for (b = 0; b < 8; b++) {
+                h ^= (v >> (b * 8)) & 0xFF;
+                h *= 1099511628211ULL;
+            }
+        }
+        fp = h;
+    }
+
+    if (g_ProcFingerprintValid && fp == g_ProcFingerprint && list.Count == g_ProcCache.Count) {
+        /* 无变化：释放新数据，保持现列表不动（不闪烁、不丢选中） */
+        FeFreeProcessList(&list);
+        return FALSE;
+    }
+
+    /* 有变化：整块替换缓存并重绘（与 DoRefreshProcs 的缓存管理一致） */
+    if (g_ProcCacheValid)
+        FeFreeProcessList(&g_ProcCache);
+    if (g_ProcAcc) {
+        free(g_ProcAcc);
+        g_ProcAcc = NULL;
+    }
+    g_ProcCache = list;
+    g_ProcCacheValid = TRUE;
+    count = g_ProcCache.Count;
+    g_ProcAcc = (unsigned char *)malloc(count ? count : 1);
+    if (g_ProcAcc)
+        for (i = 0; i < count; i++)
+            g_ProcAcc[i] = FeIsProcessRing3Accessible(g_ProcCache.Items[i].Pid) ? 1 : 0;
+    for (i = 0; i < count; i++)
+        if (!FeLoadProcessPathWin32(g_ProcCache.Items[i].Pid, g_ProcCache.Items[i].Path,
+                                    FE_PROC_PATH_CHARS))
+            g_ProcCache.Items[i].Path[0] = 0;
+
+    ProcRenderRows();
+    g_ProcFingerprint = fp;
+    g_ProcFingerprintValid = TRUE;
+
+    if (g_ProcFilter[0])
+        sprintf_s(buf, sizeof(buf), "Processes: %lu (filter \"%s\" matched %lu) [changed]",
+                  count, g_ProcFilter, g_ProcShown);
+    else
+        sprintf_s(buf, sizeof(buf), "Processes: %lu [changed]", count);
+    SetWindowTextA(g_hProcStatus, buf);
+    return TRUE;
+}
+
 /* Auto Refresh 开关：共享 WM_TIMER（FE_AUTOREF_TIMER_ID），2s 周期 */
 void FeProcPageToggleAuto(HWND hWnd)
 {
     HWND hAuto = GetDlgItem(hWnd, IDC_PROC_AUTO);
 
     if (!g_ProcAutoOn) {
-        g_AutoRefFn = DoRefreshProcs;
+        g_AutoRefFn = DoRefreshProcsIfChanged;   /* 变更触发 */
         SetTimer(hWnd, FE_AUTOREF_TIMER_ID, 2000, NULL);
         g_ProcAutoOn = TRUE;
+        g_ProcAutoOwnedTimer = TRUE;             /* 定时器归本页所有 */
         if (hAuto)
             SetWindowTextA(hAuto, "Auto Refresh: ON (2s)");
     } else {
         KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
         g_AutoRefFn = NULL;
         g_ProcAutoOn = FALSE;
+        g_ProcAutoOwnedTimer = FALSE;
         if (hAuto)
             SetWindowTextA(hAuto, "Auto Refresh: OFF");
     }
@@ -728,6 +830,9 @@ void DoRefreshProcs(void)
             g_ProcCache.Items[i].Path[0] = 0;
 
     ProcRenderRows();
+    /* 第二步增量5：手动刷新后同步指纹，避免下一次定时轮询把"无变化"误判为变化 */
+    g_ProcFingerprint = ProcComputeFingerprint();
+    g_ProcFingerprintValid = TRUE;
 
     {
         ULONG hidden = 0, inaccessible = 0;

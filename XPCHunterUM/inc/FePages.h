@@ -129,6 +129,7 @@
    页面模块把本页刷新函数挂到 g_AutoRefFn，开关按钮各自实现） ---- */
 #define FE_AUTOREF_TIMER_ID  0x0A01u
 extern void (*g_AutoRefFn)(void);   /* 当前页的定时刷新入口；NULL = 未启用 */
+extern BOOL g_ProcAutoOwnedTimer;   /* 定时器当前是否归 Process 页自管 */
 
 /* 页面注册表：主 Tab 编号 -> 显隐/按需刷新入口（各页模块实现） */
 typedef void (*FE_PAGE_SHOW_FN)(HWND hWnd, int page);
@@ -245,6 +246,9 @@ BOOL FeProcPageExportCsv(const char *Path, ULONG *OutRows);
 void FeProcPageExport(void);
 /* 第二步增量4：双击进程行下钻到当前子视图 */
 BOOL FeProcPageDrillDown(void);
+/* 第二步增量5：变更触发（指纹未变则不重绘） */
+BOOL DoRefreshProcsIfChanged(void);
+ULONG64 ProcComputeFingerprint(void);
 BOOL ProcFilterMatch(const FE_PROCESS *it, unsigned char acc, const char *filter);
 
 /* ---- FeRegistryPage.c ---- */

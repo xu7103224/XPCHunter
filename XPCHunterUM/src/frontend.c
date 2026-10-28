@@ -41,6 +41,9 @@ HWND g_hMainWnd;
 HWND g_hProcFilter = NULL;
 /* 第二步增量：统一刷新模型——当前页的 auto-refresh 入口（页模块设置） */
 void (*g_AutoRefFn)(void) = NULL;
+/* Process 页用 g_AutoRefFn 走自己的开关；该标志表示定时器当前归 Process 页所有，
+   切到其它页时 ShowPage 需要先把它停掉，避免两页抢同一个 timer id。 */
+BOOL g_ProcAutoOwnedTimer = FALSE;
 /* Key 子页当前打开的路径；Kernel 页 "Locate in Registry Tab" 会改写它 */
 /* Network 页（主 Tab 4）：原版为 "Network Callback" 树 + 右侧 6 列列表。
    树由 sub_1400A78F0 按系统 build 构建，节点 lParam = formatter case 号；
@@ -515,6 +518,41 @@ void ShowPage(HWND hWnd, int page)
         g_PageShows[i](hWnd, page);
 
     g_MainTab = page;
+
+    /* 第二步增量5：刷新模型统一——切页时把定时器绑定到该页的刷新入口。
+       Process 页有自己的开关（FeProcPageToggleAuto 管理 g_ProcAutoOn），
+       不能被这里覆盖；其它页跟随当前页自动开/关。 */
+    {
+        void (*fn)(void) = NULL;
+
+        switch (page) {
+        case 1:  fn = DoRefreshKernel;   break;   /* Kernel */
+        case 2:
+        case 3:  fn = DoRefreshHooks;    break;   /* Ring0 / Ring3 Hooks */
+        case 6:  fn = DoRefreshStartup;  break;   /* Startup Info */
+        case 7:  fn = DoRefreshServices; break;   /* Services */
+        case 13: fn = DoRefreshOther;    break;   /* Other */
+        default: break;
+        }
+
+        if (page != 0) {
+            /* 离开 Process 页：把它自己的开关停掉，避免两页抢同一个定时器 */
+            if (g_ProcAutoOwnedTimer) {
+                KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
+                g_ProcAutoOwnedTimer = FALSE;
+            }
+            if (fn) {
+                if (g_AutoRefFn != fn) {
+                    g_AutoRefFn = fn;
+                    SetTimer(hWnd, FE_AUTOREF_TIMER_ID, 3000, NULL);
+                }
+            } else if (g_AutoRefFn) {
+                /* 该页没有定时刷新需求：停掉定时器 */
+                KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
+                g_AutoRefFn = NULL;
+            }
+        }
+    }
 
     if (g_hPageHint) {
         if (page >= 0 && page <= 13) {   /* 注册表覆盖全部 14 个主 Tab */
