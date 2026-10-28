@@ -4,6 +4,10 @@
 // ============================================================================
 #include "XPCHunterUM.h"
 #include "FePages.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
 HWND g_hList;
 HWND g_hCmd;
 HWND g_hSize;
@@ -11,6 +15,136 @@ HWND g_hSize;
 HWND g_hList, g_hStatus, g_hCmd, g_hSize;
 HWND g_hProc, g_hProcStatus, g_hTabs, g_hDetail;
 int  g_DetailTab = -1;
+
+/* ---- 第二步增量：进程列表缓存 + 列头点击排序 + 定时自动刷新 ----
+   缓存与 Items 平行保存 Ring3 可访问状态；排序在缓存索引上做，
+   重绘不重查驱动。 */
+FE_PROCESS_LIST g_ProcCache = { 0, 0, NULL };
+unsigned char  *g_ProcAcc = NULL;
+BOOL g_ProcCacheValid = FALSE;
+int  g_ProcSortCol = -1;     /* -1 = 按驱动枚举序 */
+int  g_ProcSortDesc = 0;
+static BOOL g_ProcAutoOn = FALSE;
+
+int ProcCmp(const void *pa, const void *pb)
+{
+    int a = *(const int *)pa, b = *(const int *)pb;
+    const FE_PROCESS *A = &g_ProcCache.Items[a];
+    const FE_PROCESS *B = &g_ProcCache.Items[b];
+    int r = 0;
+
+    switch (g_ProcSortCol) {
+    case 0:   /* PID：数值序 */
+        r = (A->Pid < B->Pid) ? -1 : ((A->Pid > B->Pid) ? 1 : 0);
+        break;
+    case 1:   /* Name：ImageFileName 可能占满 16 字节，按定长比较 */
+        r = strncmp(A->Name, B->Name, sizeof(A->Name));
+        break;
+    case 2:   /* Path：宽字符字典序 */
+        r = wcscmp(A->Path, B->Path);
+        break;
+    case 3:   /* EPROCESS：地址序 */
+        r = (A->Eprocess < B->Eprocess) ? -1 : ((A->Eprocess > B->Eprocess) ? 1 : 0);
+        break;
+    case 4:   /* Ring3 Access State：accessible < INACCESSIBLE */
+        r = (int)g_ProcAcc[a] - (int)g_ProcAcc[b];
+        break;
+    }
+    if (r == 0)
+        r = (a < b) ? -1 : ((a > b) ? 1 : 0);   /* 同键保持枚举序（稳定） */
+    return g_ProcSortDesc ? -r : r;
+}
+
+/* 按当前排序把缓存渲染进列表（列文本逻辑与原实现一致） */
+static void ProcRenderRows(void)
+{
+    int *order;
+    ULONG i, count = g_ProcCacheValid ? g_ProcCache.Count : 0;
+
+    SendMessageA(g_hProc, LVM_DELETEALLITEMS, 0, 0);
+    if (!count)
+        return;
+    order = (int *)malloc(count * sizeof(int));
+    if (!order)
+        return;
+    for (i = 0; i < count; i++)
+        order[i] = (int)i;
+    if (g_ProcSortCol >= 0)
+        qsort(order, count, sizeof(int), ProcCmp);
+
+    for (i = 0; i < count; i++) {
+        FE_PROCESS *it = &g_ProcCache.Items[order[i]];
+        LVITEMA item;
+        char buf[256];
+        char path[FE_PROC_PATH_CHARS * 2];
+
+        ZeroMemory(&item, sizeof(item));
+        item.mask = LVIF_TEXT;
+        item.iItem = (int)i;
+        sprintf_s(buf, sizeof(buf), "%lu", it->Pid);
+        item.pszText = buf;
+        SendMessageA(g_hProc, LVM_INSERTITEMA, 0, (LPARAM)&item);
+
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 1;
+        item.pszText = it->Name[0] ? it->Name : (LPSTR)"(?)";
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+
+        FeWideToAnsi(it->Path, path, sizeof(path));
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 2;
+        item.pszText = path;
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+
+        sprintf_s(buf, sizeof(buf), "%p", (void *)(ULONG_PTR)it->Eprocess);
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 3;
+        item.pszText = buf;
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+
+        ZeroMemory(&item, sizeof(item));
+        item.iSubItem = 4;
+        item.pszText = g_ProcAcc[order[i]] ? (LPSTR)"accessible" : (LPSTR)"INACCESSIBLE";
+        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+    }
+    free(order);
+}
+
+/* 列头点击：同列再点反向，异列重新升序；缓存为空时忽略 */
+void FeProcPageOnColumnClick(int col)
+{
+    if (col < 0 || col > 4)
+        return;
+    if (!g_ProcCacheValid || !g_ProcCache.Count)
+        return;
+    if (col == g_ProcSortCol)
+        g_ProcSortDesc = !g_ProcSortDesc;
+    else {
+        g_ProcSortCol = col;
+        g_ProcSortDesc = 0;
+    }
+    ProcRenderRows();
+}
+
+/* Auto Refresh 开关：共享 WM_TIMER（FE_AUTOREF_TIMER_ID），2s 周期 */
+void FeProcPageToggleAuto(HWND hWnd)
+{
+    HWND hAuto = GetDlgItem(hWnd, IDC_PROC_AUTO);
+
+    if (!g_ProcAutoOn) {
+        g_AutoRefFn = DoRefreshProcs;
+        SetTimer(hWnd, FE_AUTOREF_TIMER_ID, 2000, NULL);
+        g_ProcAutoOn = TRUE;
+        if (hAuto)
+            SetWindowTextA(hAuto, "Auto Refresh: ON (2s)");
+    } else {
+        KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
+        g_AutoRefFn = NULL;
+        g_ProcAutoOn = FALSE;
+        if (hAuto)
+            SetWindowTextA(hAuto, "Auto Refresh: OFF");
+    }
+}
 
 void CreateProcColumns(HWND h)
 {
@@ -320,54 +454,35 @@ void DoRefreshProcs(void)
                        "0xE4 returned 0 - driver not ready (handshake) or output < 0x298 bytes");
         return;
     }
-    count = list.Count;
 
-    for (i = 0; i < count; i++) {
-        LVITEMA item;
-
-        ZeroMemory(&item, sizeof(item));
-        item.mask = LVIF_TEXT;
-        item.iItem = (int)i;
-        sprintf_s(buf, sizeof(buf), "%lu", list.Items[i].Pid);
-        item.pszText = buf;
-        SendMessageA(g_hProc, LVM_INSERTITEMA, 0, (LPARAM)&item);
-
-        ZeroMemory(&item, sizeof(item));
-        item.iSubItem = 1;
-        item.pszText = list.Items[i].Name[0] ? list.Items[i].Name : (LPSTR)"(?)";
-        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
-
-        /* 完整映像路径：QueryFullProcessImageNameW（不走驱动 0x2A —— 它的
-           KeStackAttachProcess 手工追链会让 guest 挂死，已记录待修）。 */
-        if (!FeLoadProcessPathWin32(list.Items[i].Pid, list.Items[i].Path, FE_PROC_PATH_CHARS))
-            list.Items[i].Path[0] = 0;
-        {
-            char path[FE_PROC_PATH_CHARS * 2];
-            FeWideToAnsi(list.Items[i].Path, path, sizeof(path));
-            ZeroMemory(&item, sizeof(item));
-            item.iSubItem = 2;
-            item.pszText = path;
-            SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
-        }
-
-        sprintf_s(buf, sizeof(buf), "%p", (void *)(ULONG_PTR)list.Items[i].Eprocess);
-        ZeroMemory(&item, sizeof(item));
-        item.iSubItem = 3;
-        item.pszText = buf;
-        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
-
-        /* Ring3 Access State：用户态能否打开这个进程 */
-        ZeroMemory(&item, sizeof(item));
-        item.iSubItem = 4;
-        item.pszText = FeIsProcessRing3Accessible(list.Items[i].Pid)
-                       ? (LPSTR)"accessible" : (LPSTR)"INACCESSIBLE";
-        SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
+    /* 第二步增量：列表整体移入缓存（排序/自动刷新的重绘不再重查驱动），
+       Ring3 可访问性按本次枚举缓存。 */
+    if (g_ProcCacheValid)
+        FeFreeProcessList(&g_ProcCache);
+    if (g_ProcAcc) {
+        free(g_ProcAcc);
+        g_ProcAcc = NULL;
     }
+    g_ProcCache = list;
+    g_ProcCacheValid = TRUE;
+    count = g_ProcCache.Count;
+    g_ProcAcc = (unsigned char *)malloc(count ? count : 1);
+    if (g_ProcAcc)
+        for (i = 0; i < count; i++)
+            g_ProcAcc[i] = FeIsProcessRing3Accessible(g_ProcCache.Items[i].Pid) ? 1 : 0;
+
+    /* 完整映像路径：QueryFullProcessImageNameW（不走驱动 0x2A —— 它的
+       KeStackAttachProcess 手工追链会让 guest 挂死，已记录待修）。
+       路径在刷新时一次性解析进缓存，排序重绘不再重复查询。 */
+    for (i = 0; i < count; i++)
+        if (!FeLoadProcessPathWin32(g_ProcCache.Items[i].Pid, g_ProcCache.Items[i].Path, FE_PROC_PATH_CHARS))
+            g_ProcCache.Items[i].Path[0] = 0;
+
+    ProcRenderRows();
 
     {
         ULONG hidden = 0, inaccessible = 0;
-        if (FeComputeProcessStatus(&list, &hidden, &inaccessible, NULL)) {
-            FeFreeProcessList(&list);
+        if (FeComputeProcessStatus(&g_ProcCache, &hidden, &inaccessible, NULL)) {
             sprintf_s(buf, sizeof(buf),
                       "Processes: %lu, Hidden Processes: %lu, "
                       "Ring3 Inaccessible Processes: %lu",
@@ -376,8 +491,6 @@ void DoRefreshProcs(void)
             return;
         }
     }
-
-    FeFreeProcessList(&list);
 
     sprintf_s(buf, sizeof(buf), "Processes: %lu", count);
     SetWindowTextA(g_hProcStatus, buf);
@@ -625,6 +738,11 @@ int isProc = (page == 0);
     if (g_hList)       ShowWindow(g_hList,       isProc ? SW_SHOW : SW_HIDE);
     hKill = GetDlgItem(hWnd, IDC_KILL);
     if (hKill) ShowWindow(hKill, isProc ? SW_SHOW : SW_HIDE);
+    /* 第二步增量：Auto Refresh 开关只属于 Process 页 */
+    {
+        HWND hAuto = GetDlgItem(hWnd, IDC_PROC_AUTO);
+        if (hAuto) ShowWindow(hAuto, isProc ? SW_SHOW : SW_HIDE);
+    }
     if (isProc) {
         RECT rc;
         GetClientRect(hWnd, &rc);

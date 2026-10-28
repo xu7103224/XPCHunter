@@ -15,6 +15,7 @@
 // ============================================================================
 #include "XPCHunterUM.h"
 #include "CliMain.h"
+#include "FePages.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -1229,6 +1230,116 @@ static int CliScanCli_46(const char *lpCmdLine)
 }
 
 // ============================================================================
+// 自检入口 --selftest-sort-cli（第二步增量的排序器验证）
+//
+// 列头排序的实现是"缓存 + 索引 qsort"，无法从 GUI 外部跨进程可靠验证
+// （LVM_GETITEMTEXTA 的指针不跨进程封送）。这里在进程内直接驱动同一个
+// 比较器 ProcCmp：构造已知序的样本，验证 5 列 × 升降序全排列的结果。
+// 合成样本、不访问驱动，因此输出完全确定，可纳入 CLI 回归。
+// ============================================================================
+static int CliSelftestSort_47(const char *lpCmdLine)
+{
+    static FE_PROCESS items[5];
+    unsigned char acc[5];
+    int order[5];
+    int col, desc, i, fail = 0;
+
+    if (!strstr(lpCmdLine, "--selftest-sort-cli"))
+        return FE_CLI_NEXT;
+
+    ZeroMemory(items, sizeof(items));
+    /* 故意用与枚举序相反的输入，任何"未排序"都会显形 */
+    items[0].Pid = 300; items[0].Eprocess = 0x3000;
+    strcpy_s(items[0].Name, sizeof(items[0].Name), "ccc.exe");
+    wcscpy_s(items[0].Path, FE_PROC_PATH_CHARS, L"C:\\c.exe");
+    items[1].Pid = 100; items[1].Eprocess = 0x1000;
+    strcpy_s(items[1].Name, sizeof(items[1].Name), "aaa.exe");
+    wcscpy_s(items[1].Path, FE_PROC_PATH_CHARS, L"A:\\a.exe");
+    items[2].Pid = 500; items[2].Eprocess = 0x5000;
+    strcpy_s(items[2].Name, sizeof(items[2].Name), "eee.exe");
+    wcscpy_s(items[2].Path, FE_PROC_PATH_CHARS, L"E:\\e.exe");
+    items[3].Pid = 200; items[3].Eprocess = 0x2000;
+    strcpy_s(items[3].Name, sizeof(items[3].Name), "bbb.exe");
+    wcscpy_s(items[3].Path, FE_PROC_PATH_CHARS, L"B:\\b.exe");
+    items[4].Pid = 400; items[4].Eprocess = 0x4000;
+    strcpy_s(items[4].Name, sizeof(items[4].Name), "ddd.exe");
+    wcscpy_s(items[4].Path, FE_PROC_PATH_CHARS, L"D:\\d.exe");
+    /* Ring3 状态：0/1 交错，验证第 5 列的 0<1 序 */
+    acc[0] = 1; acc[1] = 0; acc[2] = 1; acc[3] = 0; acc[4] = 1;
+
+    g_ProcCache.Count = 5;
+    g_ProcCache.Capacity = 5;
+    g_ProcCache.Items = items;
+    g_ProcAcc = acc;
+    g_ProcCacheValid = TRUE;
+
+    printf("sort selftest: 5 rows, columns 0..4, asc+desc\n");
+    for (col = 0; col < 5; col++) {
+        for (desc = 0; desc < 2; desc++) {
+            char line[256];
+            int n = 0;
+
+            g_ProcSortCol = col;
+            g_ProcSortDesc = desc;
+            for (i = 0; i < 5; i++)
+                order[i] = i;
+            qsort(order, 5, sizeof(int), ProcCmp);
+
+            line[0] = 0;
+            for (i = 0; i < 5; i++) {
+                size_t used = strlen(line);
+                sprintf_s(line + used, sizeof(line) - used, "%s%lu",
+                          i ? "," : "", items[order[i]].Pid);
+            }
+            printf("  col%d %s: pids=%s\n", col, desc ? "desc" : "asc ", line);
+
+            /* 断言：同键并列时保持枚举序，故 5 个索引必须全不重复 */
+            {
+                int seen = 0;
+                for (i = 0; i < 5; i++)
+                    seen |= (1 << order[i]);
+                if (seen != 0x1F) {
+                    printf("  col%d %s: FAIL (permutation broken)\n",
+                           col, desc ? "desc" : "asc");
+                    fail = 1;
+                }
+            }
+        }
+    }
+
+    /* 数值列升序必须是单调不减；desc 必须单调不增 */
+    g_ProcSortCol = 0; g_ProcSortDesc = 0;
+    for (i = 0; i < 5; i++) order[i] = i;
+    qsort(order, 5, sizeof(int), ProcCmp);
+    for (i = 1; i < 5; i++)
+        if (items[order[i - 1]].Pid > items[order[i]].Pid) {
+            printf("  PID asc: FAIL at %d\n", i);
+            fail = 1;
+        }
+    g_ProcSortDesc = 1;
+    for (i = 0; i < 5; i++) order[i] = i;
+    qsort(order, 5, sizeof(int), ProcCmp);
+    for (i = 1; i < 5; i++)
+        if (items[order[i - 1]].Pid < items[order[i]].Pid) {
+            printf("  PID desc: FAIL at %d\n", i);
+            fail = 1;
+        }
+
+    /* 复位，避免影响后续 GUI 路径 */
+    g_ProcCache.Items = NULL;
+    g_ProcCache.Count = 0;
+    g_ProcCache.Capacity = 0;
+    g_ProcAcc = NULL;
+    g_ProcCacheValid = FALSE;
+    g_ProcSortCol = -1;
+    g_ProcSortDesc = 0;
+
+    printf("sort selftest: %s\n", fail ? "FAILED" : "PASSED");
+    return fail ? 1 : 0;
+}
+
+
+// ============================================================================
 // 分发表：按原 frontend.c WinMain if 链的【源码顺序】排列。
 // 首个命中（处理函数返回非 FE_CLI_NEXT）即其退出码；全不命中返回 FE_CLI_NONE
 // ——WinMain 据此落入 GUI 路径。
@@ -1327,6 +1438,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliHotkeysCli_45(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliScanCli_46(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliSelftestSort_47(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }

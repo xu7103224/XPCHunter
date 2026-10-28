@@ -37,6 +37,8 @@ XPCH_CLIENT g_Client; /* 2026-10-28 去静态：CliMain.c 共用 */
 static HWND g_hStatus;   /* 主窗口状态栏（main 模块） */
 HWND g_hMainTabs, g_hPageHint;
 HWND g_hMainWnd;
+/* 第二步增量：统一刷新模型——当前页的 auto-refresh 入口（页模块设置） */
+void (*g_AutoRefFn)(void) = NULL;
 /* Key 子页当前打开的路径；Kernel 页 "Locate in Registry Tab" 会改写它 */
 /* Network 页（主 Tab 4）：原版为 "Network Callback" 树 + 右侧 6 列列表。
    树由 sub_1400A78F0 按系统 build 构建，节点 lParam = formatter case 号；
@@ -633,6 +635,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         g_hProcStatus = CreateWindowA("STATIC", "Not connected", WS_CHILD | WS_VISIBLE | SS_LEFT,
                                       10, 380, 940, 20, hWnd, (HMENU)IDC_PROCSTATUS, hInst, NULL);
+        /* 第二步增量：Auto Refresh 开关（Process 页专属，PageShow 控制显隐）。
+           压在状态行右端之上创建（z 序更高），左侧留给状态文本。 */
+        CreateWindowA("BUTTON", "Auto Refresh: OFF", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                      858, 376, 94, 24, hWnd, (HMENU)IDC_PROC_AUTO, hInst, NULL);
 
         /* 明细子视图：tab + 一个 ListView（列随 tab 切换） */
         g_hTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
@@ -982,6 +988,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (detailH < 80) detailH = 80;
             if (g_hProc)       MoveWindow(g_hProc, 10, pageTop, w, listH, TRUE);
             if (g_hProcStatus) MoveWindow(g_hProcStatus, 10, midY, w, 20, TRUE);
+            /* 第二步增量：Auto Refresh 开关贴状态行右端（随窗口重排） */
+            {
+                HWND hAuto = GetDlgItem(hWnd, IDC_PROC_AUTO);
+                if (hAuto) MoveWindow(hAuto, 10 + w - 96, midY - 4, 94, 24, TRUE);
+            }
             if (g_hTabs)       MoveWindow(g_hTabs, 10, midY + 22, w, 24, TRUE);
             if (g_hDetail)     MoveWindow(g_hDetail, 10, midY + 46, w, detailH, TRUE);
             if (g_hList)       MoveWindow(g_hList, 10, h - 150, w, 132, TRUE);
@@ -1182,6 +1193,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SCAN:    DoScan();    return 0;
         case IDC_SEND:    DoSend();    return 0;
         case IDC_KILL:    DoKillSelected(); return 0;
+        case IDC_PROC_AUTO: FeProcPageToggleAuto(hWnd); return 0;   /* 第二步增量 */
         case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
         case IDC_KM_ONLYLOADED:
             g_KmOnlyLoaded = (IsDlgButtonChecked(hWnd, IDC_KM_ONLYLOADED) == BST_CHECKED) ? 1 : 0;
@@ -1397,6 +1409,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 NwRestoreTdi();
             return 0;
         }
+        if (nm->idFrom == IDC_PROCLIST && nm->code == LVN_COLUMNCLICK) {
+            /* 第二步增量：列头点击排序（FeProcPage.c 缓存上排序重绘） */
+            FeProcPageOnColumnClick(((NMLISTVIEW *)lParam)->iSubItem);
+            return 0;
+        }
         if (nm->idFrom == IDC_TABS && nm->code == TCN_SELCHANGE) {
             DoRefreshDetail();
         } else if (nm->idFrom == IDC_PROCLIST && nm->code == LVN_ITEMCHANGED) {
@@ -1408,7 +1425,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
     }
 
+    case WM_TIMER:
+        /* 第二步增量：统一刷新模型——auto-refresh 定时器（页模块经 g_AutoRefFn 注册） */
+        if (wParam == FE_AUTOREF_TIMER_ID && g_AutoRefFn) {
+            g_AutoRefFn();
+            return 0;
+        }
+        break;
+
     case WM_DESTROY:
+        KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
         if (g_Client.Opened)
             XpchClose(&g_Client);
         PostQuitMessage(0);

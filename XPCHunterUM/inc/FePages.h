@@ -118,6 +118,13 @@
 /* Ring0 两项恢复操作（原版右键菜单项，这里做成按钮，便于实机验证） */
 #define IDC_HK_RESTORE  1133
 #define IDC_HK_CBTABLE  1134
+/* 第二步增量：Process 页的 Auto Refresh 开关（1032 未被占用） */
+#define IDC_PROC_AUTO   1032
+
+/* ---- 统一刷新模型：auto-refresh 共享定时器（frontend.c WM_TIMER 驱动；
+   页面模块把本页刷新函数挂到 g_AutoRefFn，开关按钮各自实现） ---- */
+#define FE_AUTOREF_TIMER_ID  0x0A01u
+extern void (*g_AutoRefFn)(void);   /* 当前页的定时刷新入口；NULL = 未启用 */
 
 /* 页面注册表：主 Tab 编号 -> 显隐/按需刷新入口（各页模块实现） */
 typedef void (*FE_PAGE_SHOW_FN)(HWND hWnd, int page);
@@ -215,6 +222,16 @@ void DoProcessOp(int Op);
 void DoProcessContextMenu(HWND hWnd, int X, int Y);
 ULONG64 DetailColumnQword(int Sel, int Sub);
 BOOL DetailColumnText(int Sel, int Sub, char *Out, int OutChars);
+/* 第二步增量：列头点击排序 + 定时自动刷新开关 */
+void FeProcPageOnColumnClick(int col);
+void FeProcPageToggleAuto(HWND hWnd);
+/* 排序器状态（--selftest-sort-cli 在进程内直接驱动，见 CliMain.c） */
+extern FE_PROCESS_LIST g_ProcCache;
+extern unsigned char  *g_ProcAcc;
+extern BOOL g_ProcCacheValid;
+extern int  g_ProcSortCol;
+extern int  g_ProcSortDesc;
+int ProcCmp(const void *pa, const void *pb);
 
 /* ---- FeRegistryPage.c ---- */
 extern HWND g_hRgTabs, g_hRgList, g_hRgStatus;
