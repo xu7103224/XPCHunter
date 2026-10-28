@@ -853,9 +853,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 SendMessageA(g_hRgTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
             }
         }
+        /* 2026-10-29：Key 子页的左侧树形导航（原版 CRegEditDialog 是 Tree+List）。
+           只在 Key 子页显示，其它子页隐藏。 */
+        g_hRgTree = CreateWindowExA(WS_EX_CLIENTEDGE, WC_TREEVIEWA, "",
+                                    WS_CHILD | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |
+                                    TVS_SHOWSELALWAYS,
+                                    10, 140, 250, 476, hWnd, (HMENU)IDC_RG_TREE, hInst, NULL);
+        ShowWindow(g_hRgTree, SW_HIDE);
         g_hRgList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
-                                    10, 140, 940, 476, hWnd, (HMENU)IDC_RG_LIST, hInst, NULL);
+                                    268, 140, 682, 476, hWnd, (HMENU)IDC_RG_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hRgList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hRgList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         FeThemeApplyToList(g_hRgList);   /* 第三步：列表深色底色/文字色 */
@@ -1308,7 +1315,17 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (listH < 100) listH = 100;
             if (hRg) MoveWindow(hRg, 10, pageTop, 90, 28, TRUE);
             if (g_hRgTabs)   MoveWindow(g_hRgTabs, 10, tabsY, w, 24, TRUE);
-            if (g_hRgList)   MoveWindow(g_hRgList, 10, listY, w, listH, TRUE);
+            /* 2026-10-29：Key 子页（tab 3）显示左侧树，列表右移 */
+            if (g_RgTab == 3 && g_hRgTree) {
+                int treeW = (w > 700) ? 250 : (w * 30 / 100);
+                ShowWindow(g_hRgTree, SW_SHOW);
+                MoveWindow(g_hRgTree, 10, listY, treeW, listH, TRUE);
+                if (g_hRgList) MoveWindow(g_hRgList, 10 + treeW + 8, listY,
+                                          w - treeW - 8, listH, TRUE);
+            } else {
+                if (g_hRgTree) ShowWindow(g_hRgTree, SW_HIDE);
+                if (g_hRgList) MoveWindow(g_hRgList, 10, listY, w, listH, TRUE);
+            }
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 7) {
             int listY = pageTop + 34;
@@ -1594,6 +1611,14 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             }
             return 0;
         }
+        if (nm->idFrom == IDC_RG_TREE && nm->code == TVN_ITEMEXPANDINGA) {
+            RgOnTreeExpanding((NMTREEVIEWA *)lParam);
+            return 0;
+        }
+        if (nm->idFrom == IDC_RG_TREE && nm->code == TVN_SELCHANGEDA) {
+            RgOnTreeSelChanged();
+            return 0;
+        }
         if (nm->idFrom == IDC_SU_TABS && nm->code == TCN_SELCHANGE) {
             /* 2026-10-29：Startup / Schedule Task 子 Tab 切换 */
             g_SuTab = (int)SendMessageA(g_hSuTabs, TCM_GETCURSEL, 0, 0);
@@ -1605,6 +1630,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             g_RgTab = (int)SendMessageA(g_hRgTabs, TCM_GETCURSEL, 0, 0);
             g_RgKeyDepth = 0;
             g_RgCurKey[0] = 0;
+            /* 2026-10-29：Key 子页首次进入时构建树根（懒加载子键） */
+            if (g_RgTab == 3)
+                RgBuildRoots();
             DoRefreshRegistry();
             {
                 HWND hPath = GetDlgItem(hWnd, IDC_RG_PATH);

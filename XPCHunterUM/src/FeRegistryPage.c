@@ -30,13 +30,13 @@
 #include <string.h>
 #include <ctype.h>
 
-HWND g_hRgTabs, g_hRgList, g_hRgStatus;
+HWND g_hRgTabs, g_hRgList, g_hRgStatus, g_hRgTree;
 int  g_RgTab = 0;
 char g_RgPath[512] = "HKLM\\SYSTEM\\CurrentControlSet\\Services";
 
 /* Key 浏览子页的状态：当前展开的完整键路径 + 子项/值混排 */
-static char g_RgCurKey[512];
-static int  g_RgKeyDepth = 0;
+char g_RgCurKey[512];
+int  g_RgKeyDepth = 0;
 
 #define RG_MENU_BASE   9000
 #define RG_ID_REFRESH      (RG_MENU_BASE + 1)
@@ -155,7 +155,7 @@ static HKEY RgOpenEx(const char *Path, REGSAM Access, LONG *OutErr)
 
 /* ---- Key 浏览子页填充（子项 + 值） ---- */
 
-static void RgFillKeyView(const char *KeyPath)
+void RgFillKeyViewPublic(const char *KeyPath)
 {
     HKEY hk;
     LONG err;
@@ -709,7 +709,7 @@ void DoRefreshRegistry(void)
         /* Key 浏览子页：g_RgPath 为当前路径 */
         if (!g_RgCurKey[0])
             strcpy_s(g_RgCurKey, sizeof(g_RgCurKey), g_RgPath);
-        RgFillKeyView(g_RgCurKey);
+        RgFillKeyViewPublic(g_RgCurKey);
     } else {
         FE_REG_HIDDEN_LIST list;
         ULONG i;

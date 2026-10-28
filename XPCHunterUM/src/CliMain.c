@@ -2029,6 +2029,82 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
     n = FeLoadIfeoEntries(NULL);
     printf("  [INFO] IFEO suspicious -> %lu entry(ies) (0 is normal on a clean system)\n", n);
 
+/* 7. 注册表树形导航：独立建 TreeView，验证根节点与懒加载 */
+    {
+        HWND hTree;
+        HWND hSave = g_hRgTree;
+        int nodes = 0;
+        static const char *expectText[5] = { "HKEY_LOCAL_MACHINE", "HKEY_CURRENT_USER",
+                                             "HKEY_CLASSES_ROOT", "HKEY_USERS",
+                                             "HKEY_CURRENT_CONFIG" };
+        static const char *expectPath[5] = { "HKLM", "HKCU", "HKCR", "HKU", "HKCC" };
+
+        hTree = CreateWindowExA(0, WC_TREEVIEWA, "", WS_POPUP,
+                                0, 0, 200, 300, NULL, NULL, GetModuleHandleA(NULL), NULL);
+        if (!hTree) {
+            printf("  [FAIL] registry tree: CreateWindow failed\n");
+            fail++;
+        } else {
+            g_hRgTree = hTree;
+            RgBuildRoots();
+            {
+                HTREEITEM h = (HTREEITEM)SendMessageA(hTree, TVM_GETNEXTITEM, TVGN_ROOT, 0);
+                while (h) {
+                    TVITEMA tv;
+                    char text[128];
+                    ZeroMemory(&tv, sizeof(tv));
+                    tv.mask = TVIF_TEXT | TVIF_PARAM;
+                    tv.hItem = h;
+                    tv.pszText = text;
+                    tv.cchTextMax = sizeof(text);
+                    if (SendMessageA(hTree, TVM_GETITEMA, 0, (LPARAM)&tv)) {
+                        const char *path = (const char *)tv.lParam;
+                        int idx = (nodes < 5) ? nodes : 4;
+                        int okText = (strcmp(text, expectText[idx]) == 0);
+                        int okPath = (path && strcmp(path, expectPath[idx]) == 0);
+                        printf("  [%s] root[%d] text=%s path=%s\n",
+                               (okText && okPath) ? "PASS" : "FAIL", nodes, text,
+                               path ? path : "(null)");
+                        if (!(okText && okPath)) fail++;
+                    }
+                    nodes++;
+                    h = (HTREEITEM)SendMessageA(hTree, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)h);
+                }
+            }
+            /* 验证 HKLM 根下能懒加载出子键 */
+            {
+                HTREEITEM hRoot = (HTREEITEM)SendMessageA(hTree, TVM_GETNEXTITEM, TVGN_ROOT, 0);
+                int children = 0;
+                if (hRoot) {
+                    NMTREEVIEWA nm;
+                    RgOnTreeExpanding(NULL);   /* 容错：NULL 不应崩 */
+                    ZeroMemory(&nm, sizeof(nm));
+                    nm.action = TVE_EXPAND;
+                    nm.itemNew.hItem = hRoot;
+                    RgOnTreeExpanding(&nm);
+                    {
+                        HTREEITEM c = (HTREEITEM)SendMessageA(hTree, TVM_GETNEXTITEM,
+                                                              TVGN_CHILD, (LPARAM)hRoot);
+                        while (c) {
+                            children++;
+                            c = (HTREEITEM)SendMessageA(hTree, TVM_GETNEXTITEM,
+                                                        TVGN_NEXT, (LPARAM)c);
+                        }
+                    }
+                }
+                printf("  [%s] HKLM lazy-load -> %d child key(s)\n",
+                       children > 0 ? "PASS" : "FAIL", children);
+                if (children <= 0) fail++;
+            }
+            RgTreeFreeAll();
+            DestroyWindow(hTree);
+            g_hRgTree = hSave;
+        }
+        printf("  [%s] registry tree roots -> %d (expect 5)\n",
+               nodes == 5 ? "PASS" : "FAIL", nodes);
+        if (nodes != 5) fail++;
+    }
+
     g_FeSysViewSilent = 0;
     printf("sysviews selftest: %s\n", fail ? "FAILED" : "PASSED");
     return fail ? 2 : 0;

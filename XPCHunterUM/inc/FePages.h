@@ -66,6 +66,7 @@
 #define IDC_RG_STATUS   1063
 #define IDC_RG_PATH     1064
 #define IDC_RG_GO       1065
+#define IDC_RG_TREE     1066   /* 2026-10-29：Key 子页的树形导航 */
 /* File 页 */
 #define IDC_FL_DIR      1070
 #define IDC_FL_GO       1071
@@ -258,7 +259,7 @@ ULONG64 ProcComputeFingerprint(void);
 BOOL ProcFilterMatch(const FE_PROCESS *it, unsigned char acc, const char *filter);
 
 /* ---- FeRegistryPage.c ---- */
-extern HWND g_hRgTabs, g_hRgList, g_hRgStatus;
+extern HWND g_hRgTabs, g_hRgList, g_hRgStatus, g_hRgTree;
 extern int  g_RgTab;
 extern char g_RgPath[512];
 extern char g_RgCurKey[512];   /* Key 浏览子页的当前路径 */
@@ -267,6 +268,13 @@ void RgSetText(HWND hList, int iItem, int iSub, const char *text);
 void CreateRgColumns(HWND hList, int tab);
 void DoRefreshRegistry(void);
 void DoRegistryContextMenu(HWND hWnd, int X, int Y);
+/* 2026-10-29：Key 子页树形导航 */
+void RgBuildRoots(void);
+void RgTreeFreeAll(void);
+void RgFillKeyViewPublic(const char *KeyPath);
+void RgOnTreeExpanding(NMTREEVIEWA *nm);
+void RgExpandTo(HWND hTree, HTREEITEM hItem);
+void RgOnTreeSelChanged(void);
 
 /* ---- FeSchedulePage.c（计划任务子页，原版 CScheduleTaskDialog） ---- */
 extern HWND g_hSchList, g_hSchStatus;
