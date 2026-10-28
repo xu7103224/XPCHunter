@@ -121,6 +121,50 @@ void FeThemeApplyToList(HWND hList)
         return;
     ListView_SetExtendedListViewStyleEx(
         hList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);
+
+    /* 列表背景/文字底色走控件自身的 API。
+       —— 不用 custom draw 的 POSTPAINT 去填空白区：POSTPAINT 在全部行绘制
+       之后触发，那时 FillRect 整个客户区会把已经画好的行一起抹掉。 */
+    ListView_SetBkColor(hList, FeThemeColors()->Panel);
+    ListView_SetTextBkColor(hList, FeThemeColors()->Panel);
+    ListView_SetTextColor(hList, FeThemeColors()->Text);
+
+    /* 表头是独立的 SysHeader32 子窗口，ListView 的 BkColor 管不到它，
+       只能靠 custom draw（见 FeThemeDrawHeader）。 */
+}
+
+/* 表头 custom draw：只有 NM_CUSTOMDRAW 才能改表头底色。
+   返回 TRUE 表示已处理（调用方据此返回 CDRF_NEWFONT / NOTIFYITEMDRAW）。 */
+BOOL FeThemeDrawHeader(HDC hdc, LPNMCUSTOMDRAW cd, BOOL *NeedItemDraw)
+{
+    const FE_THEME_COLORS *c = FeThemeColors();
+
+    if (NeedItemDraw)
+        *NeedItemDraw = FALSE;
+    if (!cd)
+        return FALSE;
+
+    switch (cd->dwDrawStage) {
+    case CDDS_PREPAINT:
+        /* 表头整体底色（列间空隙也覆盖） */
+        if (hdc)
+            FillRect(hdc, &cd->rc, FeThemePanelBrush());
+        if (NeedItemDraw)
+            *NeedItemDraw = TRUE;
+        return TRUE;
+
+    case CDDS_ITEMPREPAINT:
+        if (hdc) {
+            FillRect(hdc, &cd->rc, FeThemePanelBrush());
+            SetTextColor(hdc, c->HeaderText);
+            SetBkColor(hdc, c->Panel);
+        }
+        return TRUE;
+
+    default:
+        break;
+    }
+    return FALSE;
 }
 
 /* ---- 状态图标 ----
@@ -251,12 +295,11 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd)
 
     case CDDS_ITEMPREPAINT: {
         BOOL selected = (cd->nmcd.uItemState & CDIS_SELECTED) != 0;
+
         cd->clrText = selected ? c->SelectText : c->Text;
         cd->clrTextBk = selected ? c->Select : c->Panel;
 
-        /* 第三步-3：状态列逐行着色。
-           约定：视图把语义状态放在最后一列（Ring3 Access State / State /
-           Note 等），这里按该列文本取色。选中行保持高对比，不覆盖前景色。 */
+        /* 第三步-3：状态列逐行着色（语义状态约定在最后一列）。 */
         if (!selected) {
             HWND hList = cd->nmcd.hdr.hwndFrom;
             int nCol = Header_GetItemCount(
@@ -276,18 +319,46 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd)
                     cd->clrText = FeThemeStatusColor(txt);
             }
         }
+        return TRUE;    /* 需要逐子项通知，否则子项底色仍是系统白 */
+    }
+
+    /* 逐子项（每一列）都要设一次底色。
+       只设 ITEMPREPAINT 不够：ListView 的每个子项是独立绘制的，
+       不在这里给 clrTextBk，列区域会露出系统白色背景。 */
+    case CDDS_SUBITEM | CDDS_ITEMPREPAINT: {
+        BOOL selected = (cd->nmcd.uItemState & CDIS_SELECTED) != 0;
+
+        cd->clrTextBk = selected ? c->Select : c->Panel;
+        if (selected) {
+            cd->clrText = c->SelectText;
+        } else {
+            HWND hList = cd->nmcd.hdr.hwndFrom;
+            int nCol = Header_GetItemCount(
+                           (HWND)SendMessageA(hList, LVM_GETHEADER, 0, 0));
+            /* 只在状态列取语义色，其余列保持主文本色 */
+            if (nCol > 0 && (int)cd->iSubItem == nCol - 1) {
+                char txt[256];
+                LVITEMA it;
+                ZeroMemory(&it, sizeof(it));
+                it.iSubItem = cd->iSubItem;
+                it.pszText = txt;
+                it.cchTextMax = sizeof(txt);
+                txt[0] = 0;
+                SendMessageA(hList, LVM_GETITEMTEXTA,
+                             (WPARAM)cd->nmcd.dwItemSpec, (LPARAM)&it);
+                cd->clrText = txt[0] ? FeThemeStatusColor(txt) : c->Text;
+            } else {
+                cd->clrText = c->Text;
+            }
+        }
         return FALSE;
     }
 
-    case CDDS_POSTPAINT: {
-        /* 行下方/右侧的空白区由 ListView 用窗口底色填充，custom draw 覆盖不到，
-           这里补一层，避免深色主题下露出白色底。 */
-        RECT rcClip;
-        rcClip = cd->nmcd.rc;
-        if (rcClip.right > rcClip.left && rcClip.bottom > rcClip.top)
-            FillRect(cd->nmcd.hdc, &rcClip, FeThemePanelBrush());
+    case CDDS_POSTPAINT:
+        /* 不在这里填背景：POSTPAINT 在全部行绘制之后触发，
+           此时 FillRect 整个客户区会把已画好的行一起抹掉（曾是"整页全黑"的根因）。
+           空白区底色由 ListView_SetBkColor 负责。 */
         return FALSE;
-    }
 
     default:
         break;
@@ -309,4 +380,48 @@ void FeThemeRefreshWindow(HWND hWnd)
         }
     }
     UpdateWindow(hWnd);
+}
+/* ---- 表头子类化 ----
+   SysHeader32 的 NM_CUSTOMDRAW 不会冒泡到父窗口的 WM_NOTIFY
+   （实测：父窗口收不到表头的 CDDS_*，表头始终保持系统白底）。
+   只能在此处直接子类化表头窗口。 */
+static LRESULT CALLBACK FeHeaderSubclass(HWND hWnd, UINT msg, WPARAM wParam,
+                                         LPARAM lParam, UINT_PTR id,
+                                         DWORD_PTR refData)
+{
+    if (msg == WM_ERASEBKGND) {
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        FillRect((HDC)wParam, &rc, FeThemePanelBrush());
+        return 1;
+    }
+    if (msg == WM_NOTIFY) {
+        LPNMCUSTOMDRAW cd = (LPNMCUSTOMDRAW)lParam;
+        if (cd && cd->dwDrawStage == CDDS_PREPAINT) {
+            FillRect(cd->hdc, &cd->rc, FeThemePanelBrush());
+            return CDRF_NOTIFYITEMDRAW;
+        }
+        if (cd && (cd->dwDrawStage & CDDS_ITEM) == CDDS_ITEM &&
+            cd->dwDrawStage == CDDS_ITEMPREPAINT) {
+            FillRect(cd->hdc, &cd->rc, FeThemePanelBrush());
+            SetTextColor(cd->hdc, FeThemeColors()->HeaderText);
+            SetBkColor(cd->hdc, FeThemeColors()->Panel);
+            return CDRF_NEWFONT;
+        }
+    }
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
+
+/* 给 ListView 的表头挂子类化（每个表头只需挂一次） */
+void FeThemeSubclassHeader(HWND hList)
+{
+    HWND hHdr;
+
+    if (!hList)
+        return;
+    hHdr = (HWND)SendMessageA(hList, LVM_GETHEADER, 0, 0);
+    if (!hHdr)
+        return;
+    SetWindowSubclass(hHdr, FeHeaderSubclass, 1, 0);
+    InvalidateRect(hHdr, NULL, TRUE);
 }

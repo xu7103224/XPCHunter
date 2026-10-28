@@ -46,6 +46,10 @@ COLORREF FeThemeStatusColor(const char *Text);
    实际绘制在 WndProc 的 NM_CUSTOMDRAW 分支里（见 FeThemeDrawListViewItem）。 */
 void FeThemeApplyToList(HWND hList);
 BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd);
+/* 表头自绘（表头是独立 SysHeader32 子窗口，只能靠 custom draw 上色） */
+BOOL FeThemeDrawHeader(HDC hdc, LPNMCUSTOMDRAW cd, BOOL *NeedItemDraw);
+/* 表头子类化：SysHeader32 的 NM_CUSTOMDRAW 不冒泡到父窗口，必须直接子类化 */
+void FeThemeSubclassHeader(HWND hList);
 
 /* ---- 状态图标列 ----
    图标在运行时用 GDI 生成（16x16 实心圆点），不依赖外部资源文件：

@@ -499,6 +499,13 @@ void DoRefreshFiles(void);
 void ShowPage(HWND hWnd, int page)
 {
     char hint[512];
+    if (GetCommandLineA() && strstr(GetCommandLineA(), "--dump-init")) {
+        FILE *lf = NULL;
+        if (fopen_s(&lf, "C:\\XPCHunter\\showpage.log", "ab") == 0 && lf) {
+            fprintf(lf, "ShowPage(page=%d)\n", page);
+            fclose(lf);
+        }
+    }
     /* 统一页面注册表：每页的显隐/按需刷新在各自模块的 PageShow 中实现。 */
     static const FE_PAGE_SHOW_FN g_PageShows[] = {
         FeProcPagePageShow,   /* 0 (Process) */
@@ -675,7 +682,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                   10, 76, 940, 300, hWnd, (HMENU)IDC_PROCLIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hProc, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hProc, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hProc);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hProc);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hProc);   /* 第三步：表头深色 */
         CreateProcColumns(g_hProc);
 
         g_hProcStatus = CreateWindowA("STATIC", "Not connected", WS_CHILD | WS_VISIBLE | SS_LEFT,
@@ -715,7 +724,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 426, 940, 190, hWnd, (HMENU)IDC_DETAIL, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hDetail, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hDetail, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hDetail);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hDetail);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hDetail);   /* 第三步：表头深色 */
 
         /* ---- Kernel 页（主 Tab 1）：刷新 + 子页 Tab + 列表 + 状态 ---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
@@ -763,7 +774,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 140, 940, 476, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hKmList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hKmList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hKmList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hKmList);   /* 第三步：表头深色 */
         CreateKmColumns(g_hKmList, 0);
         DoRefreshKernel();
 
@@ -777,7 +790,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 510, hWnd, (HMENU)IDC_SU_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hSuList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hSuList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hSuList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hSuList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hSuList);   /* 第三步：表头深色 */
         CreateSuColumns(g_hSuList);
         DoRefreshStartup();
 
@@ -791,7 +806,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 510, hWnd, (HMENU)IDC_SV_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hSvList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hSvList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hSvList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hSvList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hSvList);   /* 第三步：表头深色 */
         CreateSvColumns(g_hSvList);
         DoRefreshServices();
 
@@ -831,7 +848,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 140, 940, 476, hWnd, (HMENU)IDC_RG_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hRgList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hRgList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hRgList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hRgList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hRgList);   /* 第三步：表头深色 */
         CreateRgColumns(g_hRgList, 0);
         DoRefreshRegistry();
 
@@ -852,7 +871,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 108, 940, 500, hWnd, (HMENU)IDC_FL_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hFlList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hFlList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hFlList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hFlList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hFlList);   /* 第三步：表头深色 */
         CreateFlColumns(g_hFlList);
         DoRefreshFiles();
 
@@ -871,7 +892,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 108, 940, 500, hWnd, (HMENU)IDC_OT_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hOtList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hOtList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hOtList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hOtList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hOtList);   /* 第三步：表头深色 */
         DoRefreshOther();
 
         /* ---- Network 页（主 Tab 4）----
@@ -888,7 +911,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     280, 76, 670, 500, hWnd, (HMENU)IDC_NW_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hNwList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hNwList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hNwList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hNwList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hNwList);   /* 第三步：表头深色 */
         BuildNwTree();
         CreateNwColumns(g_hNwList, 1);
 
@@ -906,7 +931,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_EX_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hExList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hExList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hExList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hExList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hExList);   /* 第三步：表头深色 */
 
         /* ---- Fireeye 页（主 Tab 11）---- */
         g_hFePath = CreateWindowA("EDIT", "C:\Windows\System32\ntoskrnl.exe",
@@ -927,7 +954,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 130, 940, 480, hWnd, (HMENU)IDC_FE_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hFeList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hFeList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hFeList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hFeList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hFeList);   /* 第三步：表头深色 */
 
         /* ---- Setting 页（主 Tab 10）---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
@@ -949,7 +978,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_ST_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hStList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hStList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hStList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hStList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hStList);   /* 第三步：表头深色 */
         DoRefreshSetting();
 
         /* ---- Trojan Detection 页（主 Tab 12）---- */
@@ -968,7 +999,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_TR_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hTrList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hTrList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hTrList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hTrList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hTrList);   /* 第三步：表头深色 */
         DoTrojanScan();
 
         /* ---- Ring0/Ring3 Hooks 页（主 Tab 2 / 3）---- */
@@ -986,7 +1019,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_HK_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hHkList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hHkList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hHkList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hHkList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hHkList);   /* 第三步：表头深色 */
         DoRefreshHooks();
 
         /* 命令测试器（保留：逐条命令的结果与形状） */
@@ -995,7 +1030,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                   10, 402, 940, 150, hWnd, (HMENU)IDC_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
+        FeThemeApplyToList(g_hList);   /* 第三步：列表深色底色/文字色 */
         FeThemeAttachIcons(g_hList);   /* 第三步：状态图标 */
+        FeThemeSubclassHeader(g_hList);   /* 第三步：表头深色 */
         CreateListColumns(g_hList);
 
         /* 初始页：--page N，或 --kernel-gui 等价于 --page 1 */
@@ -1007,6 +1044,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (p) page = atoi(p + 7);
             if (cl && strstr(cl, "--kernel-gui")) page = 1;
             if (page < 0 || page > 13) page = 0;
+            /* 诊断：--dump-init 时把命令行解析结果写文件（临时排查用） */
+            if (cl && strstr(cl, "--dump-init")) {
+                FILE *df = NULL;
+                if (fopen_s(&df, "C:\\XPCHunter\\init_debug.txt", "wb") == 0 && df) {
+                    fprintf(df, "GetCommandLineA=[%s]\n", cl ? cl : "(null)");
+                    fprintf(df, "strstr(--page ) offset=%d  parsed page=%d\n",
+                            p ? (int)(p - cl) : -1, page);
+                    fprintf(df, "strstr(--kernel-gui)=%s\n",
+                            (cl && strstr(cl, "--kernel-gui")) ? "HIT" : "no");
+                    fclose(df);
+                }
+            }
             SendMessageA(g_hMainTabs, TCM_SETCURSEL, (WPARAM)page, 0);
             ShowPage(hWnd, page);
             /* --kmtab N：预选 Kernel 页的子页（0 Module / 1 Driver / 2 SSDT /
@@ -1447,20 +1496,31 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         /* 第三步：列表自绘（只改颜色，不改布局）。CDDS_* 的 code 不在业务
            分支的取值域里，先处理不会与各页通知互相干扰。 */
         if (nm->code == NM_CUSTOMDRAW) {
-            NMLVCUSTOMDRAW *cd = (NMLVCUSTOMDRAW *)lParam;
-            UINT stage = cd->nmcd.dwDrawStage;
+            LPNMCUSTOMDRAW hcd = (LPNMCUSTOMDRAW)lParam;
+            UINT stage = hcd->dwDrawStage;
 
-            if (stage == CDDS_PREPAINT) {
-                FeThemeDrawListViewItem(cd);
-                /* 逐项上色 + 画完后补空白区底色 */
-                return CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT;
+            /* 表头的 hwndFrom 是 SysHeader32，idFrom 为 0；ListView 带控件 ID。
+               两者分开处理：ListView 走行/列着色，表头走底色。 */
+            if (nm->idFrom == 0) {
+                BOOL needItem = FALSE;
+                if (FeThemeDrawHeader((HDC)hcd->hdc, hcd, &needItem))
+                    return needItem ? CDRF_NOTIFYITEMDRAW : CDRF_DODEFAULT;
+                return CDRF_DODEFAULT;
             }
-            if (stage == CDDS_POSTPAINT) {
+
+            {
+                NMLVCUSTOMDRAW *cd = (NMLVCUSTOMDRAW *)lParam;
+                if (stage == CDDS_PREPAINT)
+                    return CDRF_NOTIFYITEMDRAW;
+                if (stage == CDDS_ITEMPREPAINT) {
+                    FeThemeDrawListViewItem(cd);
+                    /* 子项（每一列）独立绘制，必须再要一层通知，
+                       否则列区域会保留系统白底。 */
+                    return CDRF_NOTIFYSUBITEMDRAW;
+                }
                 FeThemeDrawListViewItem(cd);
                 return CDRF_DODEFAULT;
             }
-            FeThemeDrawListViewItem(cd);   /* ITEMPREPAINT：只改颜色 */
-            return CDRF_DODEFAULT;
         }
         if (nm->idFrom == IDC_MAIN_TABS && nm->code == TCN_SELCHANGE) {
             int page = (int)SendMessageA(g_hMainTabs, TCM_GETCURSEL, 0, 0);
@@ -1582,8 +1642,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         FillRect((HDC)wParam, &rc, FeThemeBgBrush());
         return 1;
     }
-    case WM_CTLCOLORSTATIC:
-    case WM_CTLCOLORBTN: {
+    case WM_CTLCOLORSTATIC: {
         const FE_THEME_COLORS *c = FeThemeColors();
         HDC hdc = (HDC)wParam;
         HWND hCtl = (HWND)lParam;
@@ -1599,6 +1658,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         return (LRESULT)FeThemeBgBrush();
     }
+    /* 按钮交给系统绘制。
+       WM_CTLCOLORBTN 只能改按钮的底色，文字仍是系统黑色 —— 深色背景 +
+       黑色文字 = 看不见（实测按钮区整块纯色、零文字像素）。所以不接管。 */
+    case WM_CTLCOLORBTN:
+        break;
     case WM_CTLCOLOREDIT:
     case WM_CTLCOLORLISTBOX: {
         const FE_THEME_COLORS *c = FeThemeColors();
