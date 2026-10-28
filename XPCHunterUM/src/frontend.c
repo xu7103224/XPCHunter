@@ -14,6 +14,7 @@
 #include "XPCHunterUM.h"
 #include "CliMain.h"
 #include "FePages.h"
+#include "FeTheme.h"
 #include <commctrl.h>
 #include <stdio.h>
 #include <string.h>
@@ -671,6 +672,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
                                   10, 76, 940, 300, hWnd, (HMENU)IDC_PROCLIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hProc, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hProc, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         CreateProcColumns(g_hProc);
 
         g_hProcStatus = CreateWindowA("STATIC", "Not connected", WS_CHILD | WS_VISIBLE | SS_LEFT,
@@ -709,6 +711,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
                                     10, 426, 940, 190, hWnd, (HMENU)IDC_DETAIL, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hDetail, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hDetail, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
 
         /* ---- Kernel 页（主 Tab 1）：刷新 + 子页 Tab + 列表 + 状态 ---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
@@ -755,6 +758,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 140, 940, 476, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hKmList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         CreateKmColumns(g_hKmList, 0);
         DoRefreshKernel();
 
@@ -767,6 +771,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 110, 940, 510, hWnd, (HMENU)IDC_SU_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hSuList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hSuList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         CreateSuColumns(g_hSuList);
         DoRefreshStartup();
 
@@ -779,6 +784,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 110, 940, 510, hWnd, (HMENU)IDC_SV_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hSvList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hSvList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         CreateSvColumns(g_hSvList);
         DoRefreshServices();
 
@@ -817,6 +823,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 140, 940, 476, hWnd, (HMENU)IDC_RG_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hRgList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hRgList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         CreateRgColumns(g_hRgList, 0);
         DoRefreshRegistry();
 
@@ -836,6 +843,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 108, 940, 500, hWnd, (HMENU)IDC_FL_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hFlList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hFlList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         CreateFlColumns(g_hFlList);
         DoRefreshFiles();
 
@@ -853,6 +861,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 108, 940, 500, hWnd, (HMENU)IDC_OT_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hOtList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hOtList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         DoRefreshOther();
 
         /* ---- Network 页（主 Tab 4）----
@@ -868,6 +877,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     280, 76, 670, 500, hWnd, (HMENU)IDC_NW_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hNwList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hNwList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         BuildNwTree();
         CreateNwColumns(g_hNwList, 1);
 
@@ -884,6 +894,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_EX_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hExList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hExList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
 
         /* ---- Fireeye 页（主 Tab 11）---- */
         g_hFePath = CreateWindowA("EDIT", "C:\Windows\System32\ntoskrnl.exe",
@@ -903,6 +914,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 130, 940, 480, hWnd, (HMENU)IDC_FE_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hFeList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hFeList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
 
         /* ---- Setting 页（主 Tab 10）---- */
         CreateWindowA("BUTTON", "Refresh", WS_CHILD | BS_PUSHBUTTON,
@@ -923,6 +935,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_ST_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hStList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hStList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         DoRefreshSetting();
 
         /* ---- Trojan Detection 页（主 Tab 12）---- */
@@ -940,6 +953,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_TR_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hTrList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hTrList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         DoTrojanScan();
 
         /* ---- Ring0/Ring3 Hooks 页（主 Tab 2 / 3）---- */
@@ -956,6 +970,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
                                     10, 110, 940, 500, hWnd, (HMENU)IDC_HK_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hHkList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hHkList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         DoRefreshHooks();
 
         /* 命令测试器（保留：逐条命令的结果与形状） */
@@ -963,6 +978,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                                   "", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
                                   10, 402, 940, 150, hWnd, (HMENU)IDC_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ListView_SetExtendedListViewStyleEx(g_hList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         CreateListColumns(g_hList);
 
         /* 初始页：--page N，或 --kernel-gui 等价于 --page 1 */
@@ -1410,6 +1426,24 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
     case WM_NOTIFY: {
         NMHDR *nm = (NMHDR *)lParam;
+        /* 第三步：列表自绘（只改颜色，不改布局）。CDDS_* 的 code 不在业务
+           分支的取值域里，先处理不会与各页通知互相干扰。 */
+        if (nm->code == NM_CUSTOMDRAW) {
+            NMLVCUSTOMDRAW *cd = (NMLVCUSTOMDRAW *)lParam;
+            UINT stage = cd->nmcd.dwDrawStage;
+
+            if (stage == CDDS_PREPAINT) {
+                FeThemeDrawListViewItem(cd);
+                /* 逐项上色 + 画完后补空白区底色 */
+                return CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT;
+            }
+            if (stage == CDDS_POSTPAINT) {
+                FeThemeDrawListViewItem(cd);
+                return CDRF_DODEFAULT;
+            }
+            FeThemeDrawListViewItem(cd);   /* ITEMPREPAINT：只改颜色 */
+            return CDRF_DODEFAULT;
+        }
         if (nm->idFrom == IDC_MAIN_TABS && nm->code == TCN_SELCHANGE) {
             int page = (int)SendMessageA(g_hMainTabs, TCM_GETCURSEL, 0, 0);
             ShowPage(hWnd, page);
@@ -1521,6 +1555,42 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         break;
 
+    /* ---- 第三步：主题着色 ----
+       WM_CTLCOLOR* 是"静态/编辑/按钮/列表"这些系统控件的上色入口。
+       只改颜色，不动控件本身的绘制逻辑（按钮仍由系统画，列表走上方 custom draw）。 */
+    case WM_ERASEBKGND: {
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        FillRect((HDC)wParam, &rc, FeThemeBgBrush());
+        return 1;
+    }
+    case WM_CTLCOLORSTATIC:
+    case WM_CTLCOLORBTN: {
+        const FE_THEME_COLORS *c = FeThemeColors();
+        HDC hdc = (HDC)wParam;
+        HWND hCtl = (HWND)lParam;
+
+        SetBkColor(hdc, c->Bg);
+        if (hCtl && GetDlgCtrlID(hCtl) == IDC_PROCSTATUS) {
+            /* 进程状态行按语义着色（隐藏/不可访问 → 红） */
+            char txt[512];
+            GetWindowTextA(hCtl, txt, sizeof(txt));
+            SetTextColor(hdc, FeThemeStatusColor(txt));
+        } else {
+            SetTextColor(hdc, c->Text);
+        }
+        return (LRESULT)FeThemeBgBrush();
+    }
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX: {
+        const FE_THEME_COLORS *c = FeThemeColors();
+        HDC hdc = (HDC)wParam;
+
+        SetBkColor(hdc, c->Panel);
+        SetTextColor(hdc, c->Text);
+        return (LRESULT)FeThemePanelBrush();
+    }
+
     case WM_DESTROY:
         KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
         if (g_Client.Opened)
@@ -1583,7 +1653,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     wc.hInstance = hInst;
     wc.lpszClassName = "XPCHunterFrontend";
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    wc.hbrBackground = FeThemeBgBrush();
     RegisterClassA(&wc);
 
     hWnd = CreateWindowA("XPCHunterFrontend", "XPCHunter Frontend - Process",
