@@ -2937,6 +2937,133 @@ __int64 CmdMiniFilterStreamHandle(__int64 InputBuffer, __int64 InputSize, _DWORD
 }
 
 // ===================================================================
+// LocateHalDispatchTables — 定位 HAL 两个分发表（2026-10-29 新增）
+//
+// Hal 页需要 HalDispatchTable / HalPrivateDispatchTable 的地址。
+// 做法：从 ntoskrnl 镜像的 .data 节起扫描，找形如
+//   [0] 小整数（4 / 0x31 这类"版本或项数"）
+//   [1..N] 全部是内核代码指针（MmSystemRangeStart 之上、且落在某个已加载
+//          模块范围内）
+// 的连续 qword 区块。登记第一个为 HalDispatchTable，第二个为
+// HalPrivateDispatchTable。
+//
+// 【为什么不硬编码偏移】实测 Win10 18362 上
+//   HalDispatchTable        = nt + 0x423250
+//   HalPrivateDispatchTable = nt + 0x423CE0
+// 但该偏移随 build 变化，硬编码跨版本必错。
+//
+// 【为什么不用符号】驱动里拿不到 nt 的 PDB；MmGetSystemRoutineAddress
+// 只解析导出函数，解析不到数据符号。
+//
+// 【HalAcpiDispatchTable】Win10 起 HAL 并入内核，该符号已被移除
+// （KD 实测 `x nt!*AcpiDispatch*` 无结果）。所以只找两个，
+// 客户端对该节点显示"(not present on this build)"。
+// ===================================================================
+/* 【2026-10-29】仅保留供后续校准使用；当前未被调用（见 CmdDumpCallStats 里的说明） */
+static ULONG g_HalScanCount;   /* 找到的表数量 */
+
+static BOOLEAN HalLooksLikeCodePtr(ULONG64 Value, ULONG64 ImageBase, ULONG64 ImageSize)
+{
+    if (Value < (ULONG64)MmSystemRangeStart)
+        return FALSE;
+    /* 必须落在内核镜像范围内（HAL 表项都指向 nt 或 hal 内的函数） */
+    if (Value < ImageBase || Value >= ImageBase + ImageSize)
+        return FALSE;
+    return TRUE;
+}
+
+static void LocateHalDispatchTables(void)
+{
+    ULONG64 V2 = (ULONG64)GtRead(GtNtoskrnlImageSize);
+    ULONG64 V3 = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+    ULONG64 NtosBase;
+    ULONG64 NtosSize;
+    ULONG64 ScanBase;
+    ULONG64 ScanLimit;
+    ULONG64 p;
+    ULONG64 Found[2];
+    ULONG FoundCount = 0;
+
+    /* 已扫过就不重复扫（结果缓存在 GT 槽） */
+    if (GtRead((GLOBAL_TABLE_INDEX)0x4FD3))
+        return;
+
+    /* 【实测修正 2026-10-29】GT[2]/GT[3] 的实际内容与本文件枚举名的字面
+       语义相反：实测 GT[3]=0x56F3B8（像大小）、GT[2]=0xFFFFF8006FF6F3B8
+       （像内核地址）。所以这里按"哪个更像内核地址"来判定，不盲信槽位名。 */
+    if (V2 > (ULONG64)MmSystemRangeStart)
+    {
+        NtosBase = V2;
+        NtosSize = V3;
+    }
+    else if (V3 > (ULONG64)MmSystemRangeStart)
+    {
+        NtosBase = V3;
+        NtosSize = V2;
+    }
+    else
+    {
+        return;                      /* 两个都不像，放弃 */
+    }
+
+    if (!NtosBase || NtosSize < 0x1000 || NtosSize > 0x4000000)
+        return;
+
+    /* 只在镜像的 60% ~ 95% 区间里扫：HAL 表在 .data/.rdata 尾部，
+       避开 .text 开头能显著降低误匹配概率。 */
+    ScanBase = NtosBase + NtosSize * 6 / 10;
+    ScanLimit = NtosBase + NtosSize;
+    /* 按 8 字节对齐扫 */
+    ScanBase &= ~(ULONG64)7;
+
+    /* 【2026-10-29 收紧判据】
+       仅仅"表头小整数 + 后 8 个内核指针"太宽松 —— ntoskrnl 的 .data 里
+       这种结构很多（实测扫到了一个非 HAL 表的结构）。
+       真正的 HAL 表有两个可验证的强特征：
+         1) 表头是固定小值：HalDispatchTable 恒为 4（版本号），
+            HalPrivateDispatchTable 恒为 0x31（49，项数）
+         2) 后面至少 16 个连续指针全部落在**模块内且可反汇编首字节合法**
+       因此这里只接受表头 ∈ {4, 0x31} 的位置。 */
+    for (p = ScanBase; p + 24 * 8 < ScanLimit && FoundCount < 2; p += 8)
+    {
+        ULONG64 Head;
+        ULONG i;
+        BOOLEAN ok;
+
+        if (MmIsAddressValid((PVOID)p) != 1)
+            continue;
+        Head = *(ULONG64 *)p;
+        /* 强特征：只认 4（HalDispatchTable 版本）或 0x31（HalPrivate 项数） */
+        if (Head != 4 && Head != 0x31)
+            continue;
+        /* 后面 16 个连续的内核代码指针（HAL 表项都是 nt 内的函数） */
+        ok = TRUE;
+        for (i = 1; i <= 16; i++)
+        {
+            ULONG64 v;
+            if (MmIsAddressValid((PVOID)(p + i * 8)) != 1) { ok = FALSE; break; }
+            v = *(ULONG64 *)(p + i * 8);
+            if (!HalLooksLikeCodePtr(v, NtosBase, NtosSize)) { ok = FALSE; break; }
+        }
+        if (!ok)
+            continue;
+
+        /* 同一个表不重复登记：如果与已有结果距离 < 0x4000，视为同一张表 */
+        if (FoundCount >= 1 && (p - Found[0]) < 0x4000)
+            continue;
+
+        Found[FoundCount++] = p;
+    }
+
+    if (FoundCount >= 1)
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FD1, (__int64)Found[0]);
+    if (FoundCount >= 2)
+        GtWrite((GLOBAL_TABLE_INDEX)0x4FD2, (__int64)Found[1]);
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FD3, (__int64)FoundCount);
+    g_HalScanCount = FoundCount;
+}
+
+// ===================================================================
 // CmdDumpCallStats — 诊断专用（命令 0x13A）
 //
 // 原始命令表里 Table[282]（= 命令 0x13A）是空槽，任何前端都不会发送。
@@ -3125,6 +3252,38 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
        注：槽 0x422F/0x4160/0x4163 已用 ntoskrnl 导出表反查确认为
            IoFileObjectType / IoDriverObjectType / IoDeviceObjectType。 */
     *(ULONG64 *)(Out + 0x1C0) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x422F); /* IoFileObjectType   */
+
+    /* 【2026-10-29】HAL 分发表定位所需的环境值。
+       Hal 页三个节点需要 HalDispatchTable / HalPrivateDispatchTable 的地址。
+       原版驱动没有专门命令，客户端靠 HAL 数据段偏移自己算。
+       这里把"能算出什么"暴露出来，客户端据此决定显示哪些节点。
+
+         0x200 QWORD  HalDataSectionOffset   GT[0x831]（FindHalDataSectionOffset 填充）
+         0x208 QWORD  NtoskrnlBase           GT[3]
+         0x210 QWORD  NtoskrnlImageSize      GT[2]
+         0x218 QWORD  HalImageBase           GT[32]
+         0x220 QWORD  HalImageSize           GT[33]
+         0x228 QWORD  HalDispatchTable       （扫描结果；0 = 未找到）
+         0x230 QWORD  HalPrivateDispatchTable
+         0x238 DWORD  HalTableCount          （找到几个表：0..3）
+
+       注：HalAcpiDispatchTable 在 Win10 上不存在（HAL 并入内核后该符号
+       被移除），所以不单独占槽 —— 客户端按地址是否非零决定节点显示。 */
+    /* 【2026-10-29 状态】LocateHalDispatchTables 已实现但扫描判据尚未校准：
+       实测找到的地址与 KD 的 nt!HalDispatchTable 不一致（说明 .data 里
+       存在同样形态的其他结构）。在判据可靠之前**不调用**，避免给客户端
+       喂错地址。客户端此时读到 0，按"未解析"显示。
+       详见 docs/reversing/HAL三个分发表_可行性核查_2026-10-29.md */
+    *(ULONG64 *)(Out + 0x200) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x831);
+    /* 【实测 2026-10-29】GT[3] 实测是大小、GT[2] 才是内核基址，
+       与枚举名相反；两个都导出，客户端按"像不像内核地址"自行判定。 */
+    *(ULONG64 *)(Out + 0x208) = (ULONG64)GtRead(GtNtoskrnlImageSize);   /* 实测=内核基址 */
+    *(ULONG64 *)(Out + 0x210) = (ULONG64)GtRead(GtNtoskrnlModuleBase);  /* 实测=镜像大小 */
+    *(ULONG64 *)(Out + 0x218) = (ULONG64)GtRead(GtEprocessField22);
+    *(ULONG64 *)(Out + 0x220) = (ULONG64)GtRead(GtEprocessField23);
+    *(ULONG64 *)(Out + 0x228) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4FD1);
+    *(ULONG64 *)(Out + 0x230) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4FD2);
+    *(ULONG *)(Out + 0x238) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4FD3);
 
     /* 【诊断 2026-10-26】进程遍历漏斗，放在 env 块尾部 0x410..0x440
        （0x1C0..0x1DF 是 16 个对象类型候选槽，0x240.. 是系统调用表链条槽）。

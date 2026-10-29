@@ -874,6 +874,42 @@ typedef struct _FE_DEVICE_LIST {
 BOOL FeLoadDeviceObjects(XPCH_CLIENT *Client, FE_DEVICE_LIST *Out, ULONG BufSize);
 void FeFreeDeviceList(FE_DEVICE_LIST *List);
 
+/* ---- 0x056 条目分段（原版「File System Item」树的 9 个分类） ----
+ *
+ * 驱动侧 CmdEnumObjectAllTypes 把 9 个枚举器顺序拼接进同一块缓冲，
+ * 每个条目固定 2104 字节。区分依据是条目 +0x00 的 DWORD ——
+ * 该字段由 QueryDriverObjectByPath 把 **路径长度** 透传给
+ * CopySectionString 的 DeviceType 形参（原版 0x1400083C4 亦如此），
+ * 因此按数值唯一：2/3/4/5/6/7/8/9/10/11/12。
+ *
+ * 注意：函数名与实际路径不符（历史误命名），下表按**实际路径**标注：
+ *   QueryFileSystemDriverObject(2)  → \FileSystem\...
+ *   QueryTcpipDriverObject(5)       → \Driver\Tcpip
+ *   QueryVolmgrDriverObject(6)      → \Driver\nsiproxy
+ *   QueryTdxDriverObject(7)         → \Driver\tdx
+ *   BuildDriverPathKbdClass(8)      → \Driver\KbdClass
+ *   BuildDriverPathMouClass(9)      → \Driver\Mouclass
+ *   BuildDriverPathI8042prt(10)     → \Driver\i8042prt
+ *   QueryNdisDriverObject(11)       → \Driver\NDIS
+ *   QueryPnpManagerDriverObject(12) → \Driver\PnpManager
+ *
+ * 1/3/4 来自 QueryDriverObjectDevice / EnumDeviceObjects 内部
+ * 的固定字面量（1=设备链表, 3=驱动对象, 4=设备对象），不是路径长度。
+ */
+const char *FeDeviceTypeName(ULONG Type);
+
+/* 0x056 分段枚举：只取属于 Type 的条目，按原版「File System Item」
+   树的口径分组。Type=0 表示全部。返回取到的条目数。 */
+ULONG FeDeviceListGroupCount(const FE_DEVICE_LIST *List, ULONG Type);
+
+/* 按驱动名子串筛选（大小写不敏感），用于实现原版那些"按驱动对象筛一类"
+   的节点。实测 volmgr / volsnap / fvevol 等都出现在 Driver Object(3) 段，
+   而不是各自的独立段（那些段用的 \Driver\<name> 路径在本机打不开）。
+   NameSub 为 NULL 或空串时等价于不过滤。返回匹配条目数。 */
+ULONG FeDeviceListMatchDriver(const FE_DEVICE_LIST *List,
+                              ULONG Type, const char *NameSub,
+                              ULONG *OutIndices, ULONG MaxOut);
+
 typedef struct _FE_KOBJ_ENTRY {
     ULONG64 ObjectHeader;
     ULONG64 Field1;

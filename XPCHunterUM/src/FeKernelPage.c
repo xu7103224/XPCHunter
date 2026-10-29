@@ -224,7 +224,6 @@ void DoRefreshKernel(void)
     } else if (g_KmTab == 4) {
         /* Device 子页：0x056 CmdEnumObjectAllTypes（0x2000 起不再蓝屏） */
         FE_DEVICE_LIST dev;
-        ULONG i;
         if (!FeLoadDeviceObjects(&g_Client, &dev, 0x20000)) {
             sprintf_s(status, sizeof(status), "Device: query failed (0x056)%s",
                       g_Client.Opened ? "" : " - not connected");
@@ -238,24 +237,67 @@ void DoRefreshKernel(void)
             FeFreeDeviceList(&dev);
             return;
         }
-        for (i = 0; i < dev.Count; i++) {
-            LVITEMA it;
-            char t[16], d[32];
-            ZeroMemory(&it, sizeof(it));
-            it.mask = LVIF_TEXT;
-            it.iItem = (int)i;
-            sprintf_s(t, sizeof(t), "%lu", (unsigned long)dev.Items[i].Type);
-            sprintf_s(d, sizeof(d), "%016I64X", dev.Items[i].DeviceObject);
-            it.pszText = t;
-            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
-            KmSetText(g_hKmList, (int)i, 1, d);
-            KmSetText(g_hKmList, (int)i, 2, dev.Items[i].DriverName);
-            KmSetText(g_hKmList, (int)i, 3, dev.Items[i].DeviceName);
-            KmSetText(g_hKmList, (int)i, 4, dev.Items[i].ObjectName);
-            KmSetText(g_hKmList, (int)i, 5, dev.Items[i].FilePath);
+        /* 按 Type 升序展示，让同一段（FileSystem / PnpManager / ...）连续成块，
+           视觉上等价于原版「File System Item」树的一个个节点分组。
+           驱动侧的顺序是"枚举器调用顺序"，同一 Type 也可能分散（段 A 与段 D
+           分别是 DeviceObjects 与 FileSystemDevices），排序后更好读。 */
+        {
+            ULONG *order = (ULONG *)calloc(dev.Count ? dev.Count : 1, sizeof(ULONG));
+            ULONG row = 0, pass;
+            if (!order) {
+                sprintf_s(status, sizeof(status), "Device: out of memory");
+                SetWindowTextA(g_hKmStatus, status);
+                FeFreeDeviceList(&dev);
+                return;
+            }
+            for (pass = 0; pass < dev.Count; pass++)
+                order[pass] = pass;
+            /* 稳定插入排序（29 条量级，O(n^2) 可接受，且保持同 Type 内的原顺序） */
+            for (pass = 1; pass < dev.Count; pass++) {
+                ULONG key = order[pass], j = pass;
+                while (j > 0 && dev.Items[order[j - 1]].Type > dev.Items[key].Type) {
+                    order[j] = order[j - 1];
+                    j--;
+                }
+                order[j] = key;
+            }
+            for (pass = 0; pass < dev.Count; pass++, row++) {
+                ULONG i = order[pass];
+                LVITEMA it;
+                char t[32], d[32];
+                ZeroMemory(&it, sizeof(it));
+                it.mask = LVIF_TEXT;
+                it.iItem = (int)row;
+                /* Type 列显示语义名（原版「File System Item」树的分类口径），
+                   末尾带上原始数值便于对照驱动输出。 */
+                sprintf_s(t, sizeof(t), "%s (%lu)",
+                          FeDeviceTypeName(dev.Items[i].Type),
+                          (unsigned long)dev.Items[i].Type);
+                sprintf_s(d, sizeof(d), "%016I64X", dev.Items[i].DeviceObject);
+                it.pszText = t;
+                SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+                KmSetText(g_hKmList, (int)row, 1, d);
+                KmSetText(g_hKmList, (int)row, 2, dev.Items[i].DriverName);
+                KmSetText(g_hKmList, (int)row, 3, dev.Items[i].DeviceName);
+                KmSetText(g_hKmList, (int)row, 4, dev.Items[i].ObjectName);
+                KmSetText(g_hKmList, (int)row, 5, dev.Items[i].FilePath);
+            }
+            free(order);
         }
+        /* 状态栏给出原版「File System Item」树的节点计数（按驱动名筛选），
+           比单纯列 9 个 Type 数字更贴近原版语义。 */
         sprintf_s(status, sizeof(status),
-                  "Device: %lu objects (cmd 0x056, buffer 0x20000)", dev.Count);
+                  "Device: %lu objects (0x056)  |  File System Item: "
+                  "FltMgr %lu, Volmgr %lu, Volsnap %lu, Npfs %lu, "
+                  "Msfs %lu, Usbport %lu, Ftdisk %lu",
+                  dev.Count,
+                  FeDeviceListMatchDriver(&dev, 0, "FltMgr",   NULL, 0),
+                  FeDeviceListMatchDriver(&dev, 0, "\\volmgr", NULL, 0),
+                  FeDeviceListMatchDriver(&dev, 0, "volsnap",  NULL, 0),
+                  FeDeviceListMatchDriver(&dev, 0, "Npfs",     NULL, 0),
+                  FeDeviceListMatchDriver(&dev, 0, "Msfs",     NULL, 0),
+                  FeDeviceListMatchDriver(&dev, 0, "Usbport",  NULL, 0),
+                  FeDeviceListMatchDriver(&dev, 0, "Ftdisk",   NULL, 0));
         FeFreeDeviceList(&dev);
     } else if (g_KmTab == 5) {
         /* Object 子页：0x0D5 CmdEnumKernelObjectTable */

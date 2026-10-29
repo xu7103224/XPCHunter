@@ -274,6 +274,128 @@ static int CliTrojanCli_08(const char *lpCmdLine)
         return FePrintTrojanReport(0) ? 0 : 1;
 }
 
+/* --devobj-cli [type]
+ * 0x056 CmdEnumObjectAllTypes 的分段打印。不带参数打印全部并按原版
+ * 「File System Item」树的分类给出各组统计；带 type 值只打印该段。
+ * 用于验证 FileSystem / 卷管理器 / NDIS 等拼接段是否都能取到数据。 */
+static int CliDevObjCli_08b(const char *lpCmdLine)
+{
+    FE_DEVICE_LIST dev;
+    ULONG want = 0, shown = 0, i2;
+    const char *p;
+
+    if (!((lpCmdLine && strstr(lpCmdLine, "--devobj-cli"))))
+        return FE_CLI_NEXT;
+
+    p = strstr(lpCmdLine, "--devobj-cli") + 12;
+    while (*p == ' ') p++;
+    if (*p >= '0' && *p <= '9')
+        want = (ULONG)strtoul(p, NULL, 0);
+
+    if (!XpchOpen(&g_Client)) {
+        printf("devobj: open device failed, GetLastError=%lu\n", GetLastError());
+        return 1;
+    }
+    XpchHandshake(&g_Client);
+
+    if (!FeLoadDeviceObjects(&g_Client, &dev, 0x20000)) {
+        printf("devobj: query failed (0x056)%s\n",
+               g_Client.Opened ? "" : " - not connected");
+        XpchClose(&g_Client);
+        return 1;
+    }
+    if (dev.State != 1) {
+        printf("devobj: driver rejected (0x056 result=%u)\n", dev.ResultByte);
+        FeFreeDeviceList(&dev);
+        XpchClose(&g_Client);
+        return 1;
+    }
+
+    printf("=== 0x056 objects: %lu ===\n", dev.Count);
+    /* 按 Type 升序输出，同段连续成块（与 UI 同一排序口径）。 */
+    if (dev.Count) {
+        ULONG *order = (ULONG *)calloc(dev.Count, sizeof(ULONG));
+        if (order) {
+            ULONG pass;
+            for (pass = 0; pass < dev.Count; pass++)
+                order[pass] = pass;
+            for (pass = 1; pass < dev.Count; pass++) {
+                ULONG key = order[pass], j = pass;
+                while (j > 0 && dev.Items[order[j - 1]].Type > dev.Items[key].Type) {
+                    order[j] = order[j - 1];
+                    j--;
+                }
+                order[j] = key;
+            }
+            for (pass = 0; pass < dev.Count; pass++) {
+                ULONG i = order[pass];
+                if (want && dev.Items[i].Type != want)
+                    continue;
+                printf("  [%s (%lu)] obj=%016I64X  drv=%s%s%s\n",
+                       FeDeviceTypeName(dev.Items[i].Type),
+                       (unsigned long)dev.Items[i].Type,
+                       dev.Items[i].DeviceObject,
+                       dev.Items[i].DriverName,
+                       dev.Items[i].DeviceName[0] ? "  dev=" : "",
+                       dev.Items[i].DeviceName);
+                shown++;
+            }
+            free(order);
+        }
+    }
+
+    printf("=== segment counts ===\n");
+    printf("  FileSystem(2)  %lu\n", FeDeviceListGroupCount(&dev, 2));
+    printf("  Tcpip(5)       %lu\n", FeDeviceListGroupCount(&dev, 5));
+    printf("  Nsiproxy(6)    %lu\n", FeDeviceListGroupCount(&dev, 6));
+    printf("  Tdx(7)         %lu\n", FeDeviceListGroupCount(&dev, 7));
+    printf("  KbdClass(8)    %lu\n", FeDeviceListGroupCount(&dev, 8));
+    printf("  Mouclass(9)    %lu\n", FeDeviceListGroupCount(&dev, 9));
+    printf("  i8042prt(10)   %lu\n", FeDeviceListGroupCount(&dev, 10));
+    printf("  NDIS(11)       %lu\n", FeDeviceListGroupCount(&dev, 11));
+    printf("  PnpManager(12) %lu\n", FeDeviceListGroupCount(&dev, 12));
+    printf("  DeviceLink(1)  %lu\n", FeDeviceListGroupCount(&dev, 1));
+    printf("  DriverObj(3)   %lu\n", FeDeviceListGroupCount(&dev, 3));
+    printf("  DeviceObj(4)   %lu\n", FeDeviceListGroupCount(&dev, 4));
+    printf("  -- printed %lu of %lu --\n", shown, dev.Count);
+
+    /* 原版「File System Item」树的节点视角：按驱动名筛选。
+       实测这些驱动的对象都在 Driver Object(3) 段（\Driver\<name> 独立段
+       在本机打不开，原版驱动亦然），所以按名字从 Type=3 里筛。 */
+    {
+        static const struct { const char *Node; ULONG Type; const char *Name; } kNodes[] = {
+            /* FltMgr 的对象在 FileSystem(2) 段（dev=\FileSystem\FltMgr），
+               不是 Driver Object(3)，所以 Type 传 0 全段查。 */
+            { "FltMgr Dispatch Fun",  0, "FltMgr"   },
+            { "Npfs Dispatch Fun",    0, "Npfs"     },
+            { "Msfs Dispatch Fun",    0, "Msfs"     },
+            { "Usbport Dispatch Fun", 0, "Usbport"  },
+            { "Ftdisk Dispatch Fun",  0, "Ftdisk"   },
+            { "Volmgr Dispatch Fun",  0, "\\volmgr"  },
+            { "Volsnap Dispatch Fun", 0, "volsnap"  },
+            { "File System",          2, NULL       },
+        };
+        ULONG ni;
+        printf("=== File System Item (by driver) ===\n");
+        for (ni = 0; ni < sizeof(kNodes) / sizeof(kNodes[0]); ni++) {
+            ULONG idx[32];
+            ULONG cnt = FeDeviceListMatchDriver(&dev, kNodes[ni].Type,
+                                                kNodes[ni].Name, idx, 32);
+            printf("  %-22s %lu\n", kNodes[ni].Node, cnt);
+            for (i2 = 0; i2 < cnt && i2 < 32; i2++) {
+                ULONG k = idx[i2];
+                printf("      obj=%016I64X  drv=%s  dev=%s\n",
+                       dev.Items[k].DeviceObject,
+                       dev.Items[k].DriverName, dev.Items[k].DeviceName);
+            }
+        }
+    }
+
+    FeFreeDeviceList(&dev);
+    XpchClose(&g_Client);
+    return 0;
+}
+
     /* Driver 子页操作的无 UI 入口（取证/回归用，与右键菜单同一套实现） */
 static int CliDrvopCli_09(const char *lpCmdLine)
 {
@@ -2201,6 +2323,8 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliHooksCli_07(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliTrojanCli_08(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliDevObjCli_08b(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliDrvopCli_09(lpCmdLine)) != FE_CLI_NEXT)
         return r;

@@ -492,6 +492,100 @@ void FeFreeDeviceList(FE_DEVICE_LIST *List)
     List->Capacity = 0;
 }
 
+/* 0x056 条目的 Type 字段语义名。
+ * 依据见 XPCHunterUM.h 里 FeDeviceTypeName 上方的注释表：
+ * 2/5/6/7/8/9/10/11/12 是各 QueryDriverObjectByPath 的路径长度，
+ * 1/3/4 是 EnumDeviceObjects / QueryDriverObjectDevice 内部的固定字面量。 */
+const char *FeDeviceTypeName(ULONG Type)
+{
+    switch (Type) {
+    case 1:  return "Device Link";
+    case 2:  return "FileSystem";
+    case 3:  return "Driver Object";
+    case 4:  return "Device Object";
+    case 5:  return "Tcpip";
+    case 6:  return "Nsiproxy";
+    case 7:  return "Tdx";
+    case 8:  return "KbdClass";
+    case 9:  return "Mouclass";
+    case 10: return "i8042prt";
+    case 11: return "NDIS";
+    case 12: return "PnpManager";
+    default: return "Other";
+    }
+}
+
+/* 统计属于某一 Type 的条目数。Type=0 表示全部。
+ * 原版「File System Item」树就是按这个维度把 0x056 的拼接段拆开的。 */
+ULONG FeDeviceListGroupCount(const FE_DEVICE_LIST *List, ULONG Type)
+{
+    ULONG i, n = 0;
+
+    if (!List || !List->Items)
+        return 0;
+    for (i = 0; i < List->Count; i++)
+        if (Type == 0 || List->Items[i].Type == Type)
+            n++;
+    return n;
+}
+
+/* 大小写不敏感的子串匹配（不引入 strstr 的大小写变体依赖）。 */
+static BOOL FeContainsI(const char *Hay, const char *Needle)
+{
+    size_t hn, nn, i;
+    if (!Hay || !Needle)
+        return FALSE;
+    hn = strlen(Hay);
+    nn = strlen(Needle);
+    if (!nn)
+        return TRUE;
+    if (nn > hn)
+        return FALSE;
+    for (i = 0; i + nn <= hn; i++) {
+        size_t k;
+        for (k = 0; k < nn; k++) {
+            char a = Hay[i + k], b = Needle[k];
+            if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+            if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
+            if (a != b)
+                break;
+        }
+        if (k == nn)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+/* 按 Type + 驱动名子串筛选条目下标。
+ * 用于实现原版那些"按驱动对象筛一类"的节点：实测 volmgr / volsnap / fvevol
+ * 都出现在 Driver Object(3) 段，而不是各自的独立段（那些段用的
+ * \Driver\<name> 路径在本机打不开，原版驱动同样打不开，见对照实验）。 */
+ULONG FeDeviceListMatchDriver(const FE_DEVICE_LIST *List,
+                              ULONG Type, const char *NameSub,
+                              ULONG *OutIndices, ULONG MaxOut)
+{
+    ULONG i, n = 0;
+
+    if (!List || !List->Items)
+        return 0;
+    for (i = 0; i < List->Count; i++) {
+        if (Type && List->Items[i].Type != Type)
+            continue;
+        if (NameSub && NameSub[0]) {
+            /* 驱动名与设备名任一命中即可（不同段填的字段不同：
+               Driver Object 段的 dev= 才是真实驱动名，drv= 是上级）。 */
+            if (!FeContainsI(List->Items[i].DriverName, NameSub) &&
+                !FeContainsI(List->Items[i].DeviceName, NameSub) &&
+                !FeContainsI(List->Items[i].ObjectName, NameSub))
+                continue;
+        }
+        if (OutIndices && n < MaxOut)
+            OutIndices[n] = i;
+        n++;
+    }
+    return n;
+}
+
 BOOL FeLoadKernelObjectTable(XPCH_CLIENT *Client, FE_KOBJ_LIST *Out)
 {
     BYTE *buf;

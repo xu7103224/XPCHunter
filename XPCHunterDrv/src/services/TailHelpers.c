@@ -45,6 +45,11 @@ extern unsigned int QueryNdisDriverObject(__int64 OutputBuffer, unsigned int Max
 extern unsigned int QueryPnpManagerDriverObject(__int64 OutputBuffer, unsigned int MaxEntries);
 extern void NormalizeModulePaths(__int64 OutputBuffer, unsigned int EntryCount);
 extern char WritePhysicalMemoryBuffer(unsigned __int64 TargetAddress, const void *SourceBuffer, unsigned int BufferSize, char ProcessorMode, void *pReadBack);
+/* QuerySyscallHookStatus 依赖（对应原始驱动 0x140087400 的 4 个被调用方） */
+extern void ParseSyscallTableExportDir(void);
+extern BOOLEAN CheckMemoryValid(void *Address);
+extern unsigned int MemoryCompare(__int64 Buf1, char *Buf2, unsigned int Size);
+extern char WritePhysicalMemoryQword(unsigned __int64 TargetAddress, __int64 Value);
 extern __int64 ResolveKernelModuleBasePair(__int64 CpuNumber, ULONG_PTR *pMsrPair);
 extern char ReadThreadContext(unsigned int ThreadId, unsigned int **pContextArray);
 extern __int64 ValidateAndClearProcessContext(int CurrentProcessor, __int64 pContext);
@@ -3946,31 +3951,119 @@ __int64 QueryProcessModuleInfo(volatile void **Address, int InputSize, _DWORD *p
     return Result;
 }
 
-// QuerySyscallHookStatus — 查询系统调用 Hook 状态
-// 检查 a1 地址处的指令，若为 JMP (0xE9) 或间接 JMP (0xFF 0x25) 则返回 Hooked 标志
-// 对应原始驱动 sub_140087400
+// QuerySyscallHookStatus — 查询系统调用入口点是否被 Hook
+// 对应原始驱动 sub_140087400（0x156 字节）
+//
+// 【2026-10-29 重写】原实现是"看首字节是否 E9 / FF 25"，与原版语义完全不同：
+//   * 漏报：mov rax,imm64; jmp rax（12 字节）、push imm; ret 等常见 inline hook
+//           首字节都不是 E9/FF25，全部漏掉；
+//   * 误报：x64 内核里首字节合法为 E9 的正常函数会被当成 hook；
+//   * 无基线：不比对任何原始值，纯凭单字节判断。
+//
+// 【原版真实语义（IDA 逐行确认）】
+//   1) 若 GT[0x8B6]（4 项基线表的"就绪"计数）为 0，先 ParseSyscallTableExportDir()
+//      从磁盘 wdf01000.sys 的文件映像重建基线。
+//   2) 取 Count = GT[0x8B6]，Table = GT[0x8B5]（描述符地址）。
+//   3) 前置校验：Count 非 0、Table 非 0、
+//      CheckMemoryValid(Table) == 1、CheckMemoryValid(Table + 55) == 1。
+//      —— Table+55 覆盖 4 个 qword（32 字节）之后的边界，防跨页断裂。
+//   4) 取基线表 GtAlloc(0x2180)，在 4 项里按 **原始地址** 精确匹配 SyscallAddress；
+//      未命中直接返回 0（说明这个地址根本不在被监控的 4 个入口点之列，
+//      **不做任何判断**——这是最重要的一条防误判规则）。
+//   5) 命中第 i 项且该项有效标志 == 1 时：
+//      a. 目标槽 = Table + (i + 1)；原始地址 = 基线项 +0x08。
+//         若 *目标槽 != 原始地址 → Result = 1，并顺手写回原始地址。
+//      b. 再用 MemoryCompare(原始地址, 基线项 +0x10, 16) 比对前 16 字节，
+//         不同则 Result |= WritePhysicalMemoryBuffer(原始地址, 基线字节, 16, 0, 0)。
+//
+// 【基线表项布局（48 字节 / 6 个 QWORD，由 CollectSyscallEntries4 填充）】
+//   +0x00 DWORD  有效标志（1 = 该入口点基线可用）
+//   +0x08 QWORD  原始地址（文件内 RVA + WdfModuleBase）
+//   +0x10 16B    原始指令前 16 字节
+//
+// 【为何固定只查 4 个入口点】
+//   这 4 项是 int2e/sysenter → SSDT 路径上的 4 个必经跳转点，
+//   不是"所有系统调用"。覆盖面小而精，正是原版误报率低的根本原因。
+//
+// 【注意：本函数有副作用】
+//   原版在检测到差异时会**直接写回原始值**。这意味着调用一次就把 hook 抹掉了，
+//   第二次调用返回 0。调用方不得把它当作无副作用的查询接口反复刷新。
 __int64 QuerySyscallHookStatus(__int64 SyscallAddress)
 {
     char Result = 0;
-    if (!SyscallAddress || (unsigned __int64)SyscallAddress < (unsigned __int64)MmSystemRangeStart)
-        return Result;
-    if (MmIsAddressValid((void *)SyscallAddress) != 1)
-        return Result;
-    UCHAR FirstByte = *(UCHAR *)SyscallAddress;
-    if (FirstByte == 0xE9)
+    int TableEntryCount;
+    _QWORD *SyscallTable;
+    _QWORD *SyscallTableCopy;
+    __int64 *pHookTable;
+    unsigned int TableIndex;
+    __int64 EntryOffset;
+    _QWORD *pTargetEntry;
+    __int64 OriginalAddress;
+    __int64 *pHookEntry;
+    _OWORD OriginalBytes;
+
+    /* 1) 基线未建立则从磁盘重建 */
+    if (!(unsigned int)GtRead((GLOBAL_TABLE_INDEX)0x8B6))
+        ParseSyscallTableExportDir();
+
+    TableEntryCount = (int)GtRead((GLOBAL_TABLE_INDEX)0x8B6);
+    SyscallTable = (_QWORD *)GtRead(GtKeLowerIrql);          /* GT 0x8B5 */
+    SyscallTableCopy = SyscallTable;
+
+    /* 3) 前置有效性校验（含 +55 边界，防跨页断裂） */
+    if (!TableEntryCount
+        || !SyscallTable
+        || CheckMemoryValid(SyscallTable) != 1
+        || CheckMemoryValid((char *)SyscallTableCopy + 55) != 1)
     {
-        // 相对 JMP — Hooked
+        return Result;
+    }
+
+    /* 4) 在 4 项基线里按原始地址精确匹配；不命中即放弃判断 */
+    pHookTable = GtAlloc((GLOBAL_TABLE_INDEX)0x2180);
+    for (TableIndex = 0; TableIndex < 4; TableIndex++)
+    {
+        if (pHookTable[6 * TableIndex + 1] && pHookTable[6 * TableIndex + 1] == SyscallAddress)
+            break;
+    }
+    if (TableIndex >= 4)
+        return Result;
+
+    EntryOffset = 6 * TableIndex;
+
+    /* 5) 该项基线有效才做判断 */
+    if ((ULONG)pHookTable[EntryOffset] != 1)
+        return Result;
+
+    /* 目标槽：第 0 项 → Table+1，其后依此类推 Table+2/+3/+4 */
+    if (TableIndex == 0)
+        pTargetEntry = SyscallTableCopy + 1;
+    else if (TableIndex == 1)
+        pTargetEntry = SyscallTableCopy + 2;
+    else if (TableIndex == 2)
+        pTargetEntry = SyscallTableCopy + 3;
+    else
+        pTargetEntry = SyscallTableCopy + 4;
+
+    if (!pTargetEntry)
+        return Result;
+
+    /* 5a) 表项地址比对 */
+    OriginalAddress = pHookTable[EntryOffset + 1];
+    if (*pTargetEntry != OriginalAddress)
+    {
         Result = 1;
+        WritePhysicalMemoryQword((unsigned __int64)pTargetEntry, OriginalAddress);
     }
-    else if (FirstByte == 0xFF && MmIsAddressValid((void *)(SyscallAddress + 1)) == 1)
+
+    /* 5b) 入口处前 16 字节比对（inline patch） */
+    pHookEntry = &pHookTable[EntryOffset];
+    if ((unsigned int)MemoryCompare(pHookEntry[1], (char *)pHookEntry + 16, 0x10u))
     {
-        UCHAR SecondByte = *(UCHAR *)(SyscallAddress + 1);
-        if ((SecondByte & 0x3F) == 0x25)
-        {
-            // 间接 JMP [disp32] — Hooked
-            Result = 1;
-        }
+        OriginalBytes = *((_OWORD *)pHookEntry + 1);
+        return WritePhysicalMemoryBuffer(pHookEntry[1], &OriginalBytes, 0x10u, 0, 0) | Result;
     }
+
     return Result;
 }
 
