@@ -2003,6 +2003,7 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
         return FE_CLI_NEXT;
 
     printf("sysviews selftest: pure user-mode system views\n");
+
     /* 自检时列表尚未创建：静默模式下 OtAddRow 只计数不写 UI */
     g_FeSysViewSilent = 1;
 
@@ -2103,6 +2104,43 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
         printf("  [%s] registry tree roots -> %d (expect 5)\n",
                nodes == 5 ? "PASS" : "FAIL", nodes);
         if (nodes != 5) fail++;
+    }
+
+/* 8. 文件解锁：对本进程自己打开的临时文件做占用者枚举 */
+    {
+        char tmp[MAX_PATH * 2], name[MAX_PATH];
+        HANDLE h;
+        ULONG n = 0;
+        BOOL ok = FALSE;
+
+        tmp[0] = 0;
+        if (GetTempPathA(MAX_PATH, tmp) == 0)
+            strcpy_s(tmp, sizeof(tmp), "C:\\Windows\\Temp\\");
+        strncat_s(tmp, sizeof(tmp), "xpch_locker_probe.tmp", _TRUNCATE);
+        DeleteFileA(tmp);
+
+        /* 以独占方式持有，然后枚举占用者 */
+        h = CreateFileA(tmp, GENERIC_READ | GENERIC_WRITE,
+                        FILE_SHARE_READ, NULL, CREATE_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL, NULL);
+        if (h != INVALID_HANDLE_VALUE) {
+            DWORD w;
+            WriteFile(h, "x", 1, &w, NULL);
+            strcpy_s(name, sizeof(name), tmp);
+            n = FeFileLockerFindHolders(tmp, NULL, NULL);
+            ok = (n > 0);
+            fflush(stdout);
+            printf("  [%s] file locker: %lu holder(s) for own temp file\n",
+                   ok ? "PASS" : "FAIL", n);
+            if (!ok) fail++;
+            FeFileLockerFree();
+            CloseHandle(h);
+            DeleteFileA(tmp);
+        } else {
+            printf("  [FAIL] file locker: cannot create temp file (err=%lu)\n",
+                   GetLastError());
+            fail++;
+        }
     }
 
     g_FeSysViewSilent = 0;

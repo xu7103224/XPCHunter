@@ -376,6 +376,15 @@ BOOL  FeFileSearchDialog(HWND Owner, char *OutDir, int DirChars,
 BOOL  FeFilePendingView(HWND Owner);
 BOOL  FeFileAssociationView(HWND Owner, const char *Path);
 BOOL  FeFileHashView(HWND Owner, const char *Path);
+
+/* ---- FeFileLocker.c：文件解锁（§2.7 最后一项） ---- */
+ULONG FeFileLockerFindHolders(const char *TargetPath, void **Out, ULONG *OutCount);
+BOOL  FeFileLockerGet(ULONG Index, ULONG *Pid, ULONG64 *Handle,
+                      const char **ProcessName, const char **ObjectPath);
+BOOL  FeFileLockerCloseHandle(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Handle, UCHAR *OutResult);
+void  FeFileLockerFree(void);
+ULONG FeFileLockerCount(void);
+extern ULONG g_FlkDiagHandles, g_FlkDiagSelfHandles, g_FlkDiagNameOk, g_FlkDiagNameFail;
 void DoServiceCommonContextMenu(HWND hWnd, int X, int Y);
 void DoOtherContextMenu(HWND hWnd, int X, int Y);
 void DoSettingContextMenu(HWND hWnd, int X, int Y);
