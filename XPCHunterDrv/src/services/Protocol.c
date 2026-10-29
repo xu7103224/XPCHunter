@@ -933,7 +933,7 @@ __int64 OpenFileSection(__int64 EncodedPath)
     __int64 Result;
     void (__fastcall *InitUnicodeFunc)(_BYTE *, __int64);
     int (__fastcall *CreateFileFunc)(_BYTE *, __int64, ULONG64, ULONG64, ULONG64, char, ULONG64, __int64 *);
-    void (*CloseFunc)(void);
+    void (*CloseFunc)(__int64);
     _QWORD *DriverListHead;
     char Status;
     _BYTE UnicodeBuffer[16];
@@ -942,7 +942,7 @@ __int64 OpenFileSection(__int64 EncodedPath)
     Result = 0;
     InitUnicodeFunc = (void (__fastcall *)(_BYTE *, __int64))GtRead(GtRtlInitUnicodeStringFunc);
     CreateFileFunc = (int (__fastcall *)(_BYTE *, __int64, ULONG64, ULONG64, ULONG64, char, ULONG64, __int64 *))GtRead(GtIoCreateFileFunc);
-    CloseFunc = (void (*)(void))GtRead(GtCloseHandleFunc);
+    CloseFunc = (void (*)(__int64))GtRead(GtCloseHandleFunc);
     DriverListHead = (_QWORD *)GtRead(GtDriverObjectListHead);
 
     /* 【诊断】逐级 trace：OpenFileSection 只返回 0/句柄，不返回失败原因，
@@ -977,7 +977,14 @@ __int64 OpenFileSection(__int64 EncodedPath)
             {
                 g_DiagOpenStage = 4;
                 Result = FileHandle;
-                CloseFunc();
+                /* 【2026-10-30 修复】原版 0x140078FF0/FF3 是
+                     mov rbx, rcx ; call rdi
+                   rcx 来自 140078FE6 的 `mov rcx,[rsp+arg_8]`，即**句柄本身**。
+                   此处原来写成 CloseFunc() 无参调用，rcx 留着调用前的残留值；
+                   实测该值是 0x8d117757c05f0000（未初始化栈），被被调用方
+                   当作对象指针交给 ObfDereferenceObject → BSOD 0x3B。
+                   必须显式传句柄。 */
+                CloseFunc(FileHandle);
             }
         }
     }

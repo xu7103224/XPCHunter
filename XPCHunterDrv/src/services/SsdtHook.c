@@ -936,8 +936,15 @@ char EnumSyscallTable7(__int64 pOutputBuffer)
             pEntry += 48;
             pFuncPtr++;
         } while (Index <= 0x1B);
-        *(_DWORD *)(pOutputBuffer + 1344) = Index;
-        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        /* 【2026-10-30 修复】原版 0x1400537B8 只有上面这个循环，
+           写完 28×48 = 1344 字节就 return 1，**没有**额外两处写入。
+           此前这里多写了
+             *(DWORD*)(pOutputBuffer + 1344) = Index;
+             *(QWORD*)(pOutputBuffer + 1360) = *(QWORD*)(SectionBase + 96);
+           调用方（CmdEnumSyscallEntries）传进来的是 pOutputBuffer+8，
+           所以实际写到调用方缓冲的 +1352 和 +1368，而缓冲只有 1352 字节：
+           前者越界 4 字节，后者越界 24 字节 —— 池溢出。
+           删除这两行即与原版一致。 */
         return 1;
     }
     return 0;
@@ -958,8 +965,7 @@ char EnumShadowSyscallTable(__int64 pOutputBuffer)
             pEntry += 48;
             pFuncPtr++;
         } while (Index <= 0x1B);
-        *(_DWORD *)(pOutputBuffer + 1344) = Index;
-        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        /* 原版只有上面的循环，无 +1344/+1360 写入（调用方缓冲 1352 字节）。 */
         return 1;
     }
     return 0;
@@ -1002,8 +1008,7 @@ char EnumSyscallTable6(__int64 pOutputBuffer)
             pEntry += 48;
             pFuncPtr++;
         } while (Index <= 0x1B);
-        *(_DWORD *)(pOutputBuffer + 1344) = Index;
-        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        /* 原版只有上面的循环，无 +1344/+1360 写入（调用方缓冲 1352 字节）。 */
         return 1;
     }
     return 0;
@@ -1024,8 +1029,8 @@ char InitSyscallExportEntryArray(__int64 pOutputBuffer)
             pEntry += 48;
             pFuncPtr++;
         } while (Index <= 0x1B);
-        *(_DWORD *)(pOutputBuffer + 1344) = Index;
-        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(DriverSection + 96);
+        /* 原版 0x140046A3C 只有上面的循环，无 +1344/+1360 写入
+           （调用方缓冲 1352 字节）。 */
         return 1;
     }
     return 0;
@@ -1116,8 +1121,7 @@ char CopyWin32kServiceTable(__int64 pOutputBuffer)
             pEntry += 48;
             pFuncPtr++;
         } while (Index <= 0x1B);
-        *(_DWORD *)(pOutputBuffer + 1344) = Index;
-        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        /* 原版只有上面的循环，无 +1344/+1360 写入（调用方缓冲 1352 字节）。 */
         return 1;
     }
     return 0;
@@ -1138,8 +1142,7 @@ char CopySyscallTableEntries(__int64 pOutputBuffer)
             pEntry += 48;
             pFuncPtr++;
         } while (Index <= 0x1B);
-        *(_DWORD *)(pOutputBuffer + 1344) = Index;
-        *(_QWORD *)(pOutputBuffer + 1360) = *(_QWORD *)(SectionBase + 96);
+        /* 原版只有上面的循环，无 +1344/+1360 写入（调用方缓冲 1352 字节）。 */
         return 1;
     }
     return 0;
