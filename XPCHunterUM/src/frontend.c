@@ -746,16 +746,31 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
            被截断（KiDebugRoutine / Find PTE Hook / Find Next ClassInitData）。 */
         g_hKmKExtra = CreateWindowA("STATIC", "", WS_CHILD | SS_LEFT,
                                     10, 106, 940, 18, hWnd, (HMENU)IDC_KM_KEXTRA, hInst, NULL);
-        g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
-                                  10, 110, 940, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
+        /* 【2026-10-30】21 个标签单行放不下（约 1440px > 940px），
+           改 TCS_MULTILINE 两行换行；列表相应下移 24px。 */
+        g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS | TCS_MULTILINE,
+                                  10, 110, 940, 64, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
         {
             TCITEMA t;
             int k;
-            static const char *kmNames[11] = { "Kernel Module", "Driver", "SSDT",
+            /* 【2026-10-30 扩展】原版 Kernel 页的驱动服务表族接入：
+               0x0AC/0x0AE/0x0B0/0x0B2/0x0B4/0x0B6/0x0B8/0x0BA/0x0BC/0x0C0
+               实测全部 OK（见 docs/reversing/剩余工作清单_2026-10-30.md §7）。
+               标签用驱动内 Open*DriverSection 解码出的对象路径名
+               （\Driver\Tcpip 等，解码 EncodedPath 整数数组得到）。
+               注意两处函数名与实际打开的驱动不符：
+                 OpenMountMgrDriverSection 实开 mouClass（tab 17）
+                 OpenWin32kSection         实开 tdx    （tab 19）
+               0x0B2 基于 ntoskrnl 数据（BuildSsdtHookTargets3），无文件节。 */
+            static const char *kmNames[21] = { "Kernel Module", "Driver", "SSDT",
                                                "Shadow SSDT", "Device", "Object",
                                                "Hidden Drivers", "Suspicious DriverObj",
-                                               "IDT", "I/O Port", "GDT" };
-            for (k = 0; k < 11; k++) {
+                                               "IDT", "I/O Port", "GDT",
+                                               "Tcpip 表", "KbdClass 表", "Disk 表",
+                                               "Ntoskrnl Hook", "Acpi 表", "Disk 表2",
+                                               "MouClass 表", "nsiproxy 表", "tdx 表",
+                                               "wdf01000 表" };
+            for (k = 0; k < 21; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)kmNames[k];
@@ -764,7 +779,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         g_hKmList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
-                                    10, 140, 940, 476, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
+                                    10, 180, 940, 436, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hKmList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         FeThemeApplyToList(g_hKmList);   /* 第三步：列表深色底色/文字色 */
@@ -1068,7 +1083,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             pk = cl ? strstr(cl, "--kmtab ") : NULL;
             if (pk && g_hKmTabs) {
                 int kt = atoi(pk + 8);
-                if (kt >= 0 && kt <= 10) {
+                /* 2026-10-30：扩展到 20（11..20 = 驱动服务表族） */
+                if (kt >= 0 && kt <= 20) {
                     HWND b;
                     g_KmTab = kt;
                     SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);

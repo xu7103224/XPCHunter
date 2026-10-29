@@ -514,6 +514,92 @@ void DoRefreshKernel(void)
         }
         SetWindowTextA(g_hKmStatus, status);
         free(out);
+    } else if (g_KmTab >= 11) {
+        /* 驱动服务表族（2026-10-30 接入；命令实测见
+           docs/reversing/剩余工作清单_2026-10-30.md §7）。
+           数据形状：+0 一字节就绪标志；+8 起 28 条 × 48 字节
+           （+0x00 DWORD 索引，+0x10 QWORD 服务函数地址）。
+           1400 族（0x0B0/0x0B6）在缓冲 +1352 处多一个 DWORD 项数、
+           +1368 处多一个 QWORD 基址（原版 EnumSsdtFunctionTable2 /
+           FillSyscallTableInfo 的额外字段，已逐条核对原版确认）。
+           1864（0x0B2）为 CopySsdtHookTargetTable3 的扩展布局，
+           前 28 条按同族形状渲染。 */
+        static const struct { ULONG Cmd; ULONG Size; const char *Name; } Svc[] = {
+            { 0x0AC, 1352, "Tcpip"    },
+            { 0x0AE, 1352, "KbdClass" },
+            { 0x0B0, 1400, "Disk"     },
+            { 0x0B2, 1864, "Ntoskrnl" },
+            { 0x0B4, 1352, "Acpi"     },
+            { 0x0B6, 1400, "Disk2"    },
+            { 0x0B8, 1352, "MouClass" },
+            { 0x0BA, 1352, "nsiproxy" },
+            { 0x0BC, 1352, "tdx"      },
+            { 0x0C0, 1352, "wdf01000" },
+        };
+        const ULONG idx = (ULONG)g_KmTab - 11;
+        UCHAR ready = 0;
+        BYTE *buf;
+        BOOL ok;
+        ULONG i, shown = 0;
+        ULONG extraCount = 0;
+        ULONG64 extraBase = 0;
+
+        /* 【2026-10-30 堆溢出防护】CopySyscallTable7（原版 0x14003D3FC 的 1:1
+           转写，服务表族的 copy/validate 链）在 TableReady 时最多写到
+           调用方缓冲的 +1382 字节（29 项 × 48 起点 +4 + 22 偏移的 OWORD），
+           而 handler 校验的 OutputSize 是 1352 —— 原版客户端显然分配了
+           带余量的缓冲。这里 +256 堆余量吸收之，OutSize 仍传驱动要求的
+           精确值。否则下一次堆分配时 ntdll 崩 0xC0000005（实测 kmtab 20
+           启动即崩；probe 批 2 尾部的 fast-fail 同根因）。 */
+        buf = (BYTE *)calloc(1, Svc[idx].Size + 256);
+        if (!buf) {
+            SetWindowTextA(g_hKmStatus, "svctable: out of memory");
+            return;
+        }
+        ok = (g_Client.Opened)
+           ? XpchInvoke(&g_Client, Svc[idx].Cmd, NULL, 0, buf, Svc[idx].Size, &ready)
+           : FALSE;
+        if (!ok) {
+            sprintf_s(status, sizeof(status),
+                      "%s 表: driver rejected (cmd 0x%03X)%s",
+                      Svc[idx].Name, Svc[idx].Cmd,
+                      g_Client.Opened ? "" : " - not connected");
+            SetWindowTextA(g_hKmStatus, status);
+            free(buf);
+            return;
+        }
+        for (i = 0; i < 28; i++) {
+            ULONG eidx = *(ULONG *)(buf + 8 + 48ULL * i);
+            ULONG64 addr = *(ULONG64 *)(buf + 8 + 48ULL * i + 16);
+            char sidx[32], cur[32];
+            LVITEMA it;
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)shown;
+            sprintf_s(sidx, sizeof(sidx), "%lu", (unsigned long)eidx);
+            sprintf_s(cur, sizeof(cur), "%016I64X", addr);
+            it.pszText = sidx;
+            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            KmSetText(g_hKmList, (int)shown, 1, cur);
+            KmSetText(g_hKmList, (int)shown, 2, "-");
+            KmSetText(g_hKmList, (int)shown, 3, addr ? "present" : "null");
+            KmSetText(g_hKmList, (int)shown, 4, Svc[idx].Name);
+            shown++;
+        }
+        if (Svc[idx].Size >= 1376) {
+            extraCount = *(ULONG *)(buf + 1352);
+            extraBase  = *(ULONG64 *)(buf + 1368);
+        }
+        if (extraCount || extraBase)
+            sprintf_s(status, sizeof(status),
+                      "%s 表: %lu entries (cmd 0x%03X, ready=%u, count=%lu base=%016I64X)",
+                      Svc[idx].Name, shown, Svc[idx].Cmd, ready,
+                      (unsigned long)extraCount, extraBase);
+        else
+            sprintf_s(status, sizeof(status),
+                      "%s 表: %lu entries (cmd 0x%03X, ready=%u)",
+                      Svc[idx].Name, shown, Svc[idx].Cmd, ready);
+        free(buf);
     } else {
         /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）
          *
