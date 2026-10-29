@@ -384,6 +384,13 @@ BOOL  FeFileLockerGet(ULONG Index, ULONG *Pid, ULONG64 *Handle,
 BOOL  FeFileLockerCloseHandle(XPCH_CLIENT *Client, ULONG Pid, ULONG64 Handle, UCHAR *OutResult);
 void  FeFileLockerFree(void);
 ULONG FeFileLockerCount(void);
+
+/* ---- FeObjectHookViews.c：对象类型钩子（§2.3 补全，命令 0xFF） ---- */
+ULONG FeLoadObjectTypeHooks(XPCH_CLIENT *Client);
+BOOL  FeObjectHookGet(ULONG Index, ULONG *TypeIndex, ULONG64 *ObjectPtr, ULONG64 *Value);
+const char *FeObjectHookStatus(void);
+ULONG FeObjectHookTypeCount(void);
+void  FeObjectHookFree(void);
 extern ULONG g_FlkDiagHandles, g_FlkDiagSelfHandles, g_FlkDiagNameOk, g_FlkDiagNameFail;
 void DoServiceCommonContextMenu(HWND hWnd, int X, int Y);
 void DoOtherContextMenu(HWND hWnd, int X, int Y);

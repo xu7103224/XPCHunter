@@ -324,6 +324,7 @@ int isHooks = (page == 2 || page == 3);  /* Ring0 Hooks / Ring3 Hooks */
 #define HK_ID_PROPERTIES   (HK_MENU_BASE + 9)
 #define HK_ID_LOCATE_FILE  (HK_MENU_BASE + 10)
 #define HK_ID_EXPORT       (HK_MENU_BASE + 11)
+#define HK_ID_OBJTYPE      (HK_MENU_BASE + 12)
 
 /* 在状态栏以可读形式展示一段反汇编（FeDisasmOne 逐条解，最多 8 条） */
 static void HkShowDisasm(ULONG64 Addr, const unsigned char *Bytes, int Len, const char *What)
@@ -402,6 +403,8 @@ void DoHookContextMenu(HWND hWnd, int X, int Y)
         return;
 
     FeMenuAdd(hMenu, HK_ID_REFRESH, "Refresh");
+    FeMenuAdd(hMenu, HK_ID_OBJTYPE, "Object Type Hook (0xFF)");
+    FeMenuSep(hMenu);
     FeMenuAddCheck(hMenu, HK_ID_ONLY_HOOKS, "Only show hooks", g_HkOnlyHooks);
     FeMenuSep(hMenu);
     FeMenuAddEx(hMenu, HK_ID_DISASM_CUR, "Disassembling current entry", e != NULL);
@@ -519,6 +522,56 @@ void DoHookContextMenu(HWND hWnd, int X, int Y)
     case HK_ID_EXPORT:
         FeListExportDefault(g_hHkList, g_hHkStatus, "PCHunter_Hooks");
         break;
+    case HK_ID_OBJTYPE: {
+        /* 2026-10-29：对象类型钩子（命令 0xFF）
+           驱动 EnumObjectTypeTableOperation 返回对象类型表，
+           这里把条目渲染进钩子列表。 */
+        ULONG cnt, k;
+        char msg[600];
+
+        SetWindowTextA(g_hHkStatus, "Object Type Hook: querying driver (0xFF)...");
+        UpdateWindow(g_hHkStatus);
+        cnt = FeLoadObjectTypeHooks(&g_Client);
+        ListView_DeleteAllItems(g_hHkList);
+        {
+            LVCOLUMNA c;
+            while (ListView_DeleteColumn(g_hHkList, 0))
+                ;
+            ZeroMemory(&c, sizeof(c));
+            c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+            c.pszText = "Type";     c.cx = 90;  c.iSubItem = 0; ListView_InsertColumn(g_hHkList, 0, &c);
+            c.pszText = "TypeIdx";  c.cx = 90;  c.iSubItem = 1; ListView_InsertColumn(g_hHkList, 1, &c);
+            c.pszText = "Object";   c.cx = 190; c.iSubItem = 2; ListView_InsertColumn(g_hHkList, 2, &c);
+            c.pszText = "Value";    c.cx = 190; c.iSubItem = 3; ListView_InsertColumn(g_hHkList, 3, &c);
+            c.pszText = "Note";     c.cx = 300; c.iSubItem = 4; ListView_InsertColumn(g_hHkList, 4, &c);
+        }
+        for (k = 0; k < cnt; k++) {
+            ULONG ti = 0;
+            ULONG64 op = 0, val = 0;
+            char a[32], b[32], d[32];
+            LVITEMA it;
+
+            if (!FeObjectHookGet(k, &ti, &op, &val))
+                break;
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)k;
+            it.pszText = (ti == 0) ? "TypeNode" : "Entry";
+            SendMessageA(g_hHkList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            sprintf_s(a, sizeof(a), "%lu", (unsigned long)ti);
+            sprintf_s(b, sizeof(b), "%016I64X", op);
+            sprintf_s(d, sizeof(d), "%016I64X", val);
+            HkSetText(g_hHkList, (int)k, 1, a);
+            HkSetText(g_hHkList, (int)k, 2, b);
+            HkSetText(g_hHkList, (int)k, 3, d);
+            HkSetText(g_hHkList, (int)k, 4,
+                      (ti == 0) ? "object type node" : "type entry pointer");
+        }
+        sprintf_s(msg, sizeof(msg), "%s", FeObjectHookStatus());
+        SetWindowTextA(g_hHkStatus, msg);
+        FeObjectHookFree();
+        break;
+    }
     default:
         break;
     }

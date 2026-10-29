@@ -2143,6 +2143,14 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
         }
     }
 
+    /* 9. 对象类型钩子（0xFF）：驱动未连时应返回 0 并给出明确状态 */
+    {
+        ULONG cnt = FeLoadObjectTypeHooks(&g_Client);
+        printf("  [INFO] object type hook (0xFF) -> %lu entr(ies); status: %s\n",
+               cnt, FeObjectHookStatus());
+        FeObjectHookFree();
+    }
+
     g_FeSysViewSilent = 0;
     printf("sysviews selftest: %s\n", fail ? "FAILED" : "PASSED");
     return fail ? 2 : 0;
