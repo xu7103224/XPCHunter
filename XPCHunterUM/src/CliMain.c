@@ -2159,6 +2159,25 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
         FeStealthFree();
     }
 
+/* 11. 进程内存操作：对本进程做真实的虚拟内存读写测试
+       （不走 DoPromptText/MessageBox，直接验证底层 API 路径） */
+    {
+        HANDLE hp = GetCurrentProcess();
+        void *p = VirtualAllocEx(hp, NULL, 0x1000, MEM_COMMIT | MEM_RESERVE,
+                                 PAGE_READWRITE);
+        BOOL ok = FALSE;
+        if (p) {
+            DWORD oldProt = 0;
+            if (VirtualProtectEx(hp, p, 0x1000, PAGE_EXECUTE_READ, &oldProt)) {
+                ok = TRUE;
+            }
+            VirtualFreeEx(hp, p, 0, MEM_RELEASE);
+        }
+        printf("  [%s] process memory: alloc + protect + free (self)\n",
+               ok ? "PASS" : "FAIL");
+        if (!ok) fail++;
+    }
+
     g_FeSysViewSilent = 0;
     printf("sysviews selftest: %s\n", fail ? "FAILED" : "PASSED");
     return fail ? 2 : 0;

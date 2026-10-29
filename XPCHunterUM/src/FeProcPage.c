@@ -1064,6 +1064,9 @@ void DoProcessOp(int Op)
 #define PROC_ID_PROPERTIES    (PROC_MENU_BASE + 19)
 #define PROC_ID_ONLY_SEL      (PROC_MENU_BASE + 20)
 #define PROC_ID_STEALTH       (PROC_MENU_BASE + 21)
+#define PROC_ID_ALLOC_MEM     (PROC_MENU_BASE + 22)
+#define PROC_ID_MOD_PROT      (PROC_MENU_BASE + 23)
+#define PROC_ID_FREE_MEM      (PROC_MENU_BASE + 24)
 
 /* Only Show Selected 勾选项：只保留选中的行（在原版里是"仅显示某列非空"，
    这里实现为等价的实用过滤——只显示当前选中行，便于在长列表中聚焦） */
@@ -1159,6 +1162,10 @@ void DoProcessContextMenu(HWND hWnd, int X, int Y)
     FeMenuAddEx(hMenu, PROC_ID_PROPERTIES, "Properties", pid != 0);      /* 查看进程属性 */
     FeMenuAddEx(hMenu, PROC_ID_STEALTH, "Scan Stealth Code", pid != 0);   /* 隐蔽代码扫描 */
     FeMenuSep(hMenu);
+    FeMenuAddEx(hMenu, PROC_ID_ALLOC_MEM, "Allocate Memory", pid != 0);    /* 分配内存 */
+    FeMenuAddEx(hMenu, PROC_ID_MOD_PROT, "Modify Memory Protect", pid != 0); /* 改内存保护 */
+    FeMenuAddEx(hMenu, PROC_ID_FREE_MEM, "Free Memory", pid != 0);         /* 释放内存 */
+    FeMenuSep(hMenu);
     FeMenuAddCheck(hMenu, PROC_ID_ONLY_SEL, "Only Show Selected", g_ProcOnlySelected);
     FeMenuAdd(hMenu, PROC_ID_REFRESH, "Refresh");                       /* 刷新 */
 
@@ -1200,6 +1207,15 @@ void DoProcessContextMenu(HWND hWnd, int X, int Y)
     }
     case PROC_ID_FIND_TARGET: ProcFindTarget(); break;
     case PROC_ID_PROPERTIES:  ProcShowProperties(); break;
+    case PROC_ID_ALLOC_MEM:
+        if (pid) FeProcAllocateMemory(hWnd, pid, NULL, NULL);
+        break;
+    case PROC_ID_MOD_PROT:
+        if (pid) FeProcModifyProtect(hWnd, pid);
+        break;
+    case PROC_ID_FREE_MEM:
+        if (pid) FeProcFreeMemory(hWnd, pid);
+        break;
     case PROC_ID_STEALTH: {
         ULONG n, k;
         char msg[700];

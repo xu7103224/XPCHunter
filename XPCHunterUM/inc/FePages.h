@@ -399,6 +399,11 @@ ULONG FeStealthCount(void);
 ULONG FeStealthModules(void);
 ULONG64 FeStealthScannedBytes(void);
 void  FeStealthFree(void);
+
+/* ---- FeProcMemory.c：分配内存 / 改保护（§2.1 补全，纯用户态） ---- */
+BOOL FeProcAllocateMemory(HWND Owner, ULONG Pid, ULONG64 *OutAddr, ULONG64 *OutSize);
+BOOL FeProcModifyProtect(HWND Owner, ULONG Pid);
+BOOL FeProcFreeMemory(HWND Owner, ULONG Pid);
 extern ULONG g_FlkDiagHandles, g_FlkDiagSelfHandles, g_FlkDiagNameOk, g_FlkDiagNameFail;
 void DoServiceCommonContextMenu(HWND hWnd, int X, int Y);
 void DoOtherContextMenu(HWND hWnd, int X, int Y);
