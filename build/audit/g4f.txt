@@ -1,0 +1,1541 @@
+===== G4 CLI SWEEP (current build) =====
+
+
+---------- "--g4-status-cli" ----------
+[Kernel/Driver] Driver: 383 kernel driver services   |   Drivers: 383 / Hidden Drivers: 32 / Suspicious DriverObject: 0
+[Kernel/Other ] KiDebugRoutine: not present on this Windows version - the global was removed after Windows 7 (kd: x nt!KiDebugRoutine finds nothing; Win10 uses PTE/interrupt based debug hooks)   |   Find PTE Hook: needs an arbitrary kernel-address read; 0xF7/0xF9 only read one fixed GT-resolved pointer, 0x20/0x25 are process-only   |   Find Next ClassInitData: not available - the driver has no arbitrary kernel-VA read (0xF7/0xF9 read one fixed GT pointer; 0x3A needs GT[0x41E4]/GT[0x4189], both 0 here)
+[Setting      ] Object types: resolved | Forbid available: 5 of 6 | Tray minimize: OFF
+
+---------- "--os-cli" ----------
+Windows version: 10.0.18362.30
+  market name   : Windows 10 1903
+  product name  : Windows 10 Home
+  display ver   : (?)
+  current build : 18362
+  platform id   : 2
+
+---------- "--kernel-cli" ----------
+kernel modules: 194
+  base=FFFF848F04E00000 size=0x650000    win32kfull.sys           \SystemRoot\System32\win32kfull.sys
+  base=FFFF848F05450000 size=0x1C0000    win32k.sys               \SystemRoot\System32\win32k.sys
+  base=FFFF848F05610000 size=0x2C0000    win32kbase.sys           \SystemRoot\System32\win32kbase.sys
+  base=FFFF848F058D0000 size=0x73741A28D000 cdd.dll                  \SystemRoot\System32\cdd.dll
+  base=FFFFF8031FB5D000 size=0xA3000     hal.dll                  \SystemRoot\system32\hal.dll
+  base=FFFFF8031FC00000 size=0x3400000   ntoskrnl.exe             \SystemRoot\system32\ntoskrnl.exe
+  base=FFFFF80323000000 size=0x50000     kd_02_8086.dll           \SystemRoot\system32\kd_02_8086.dll
+  base=FFFFF80323050000 size=0x50000     kdnet.dll                \SystemRoot\system32\kdnet.dll
+  base=FFFFF803230A0000 size=0x210000    mcupdate_GenuineIntel.dll \SystemRoot\system32\mcupdate_GenuineIntel.dll
+  base=FFFFF803232B0000 size=0x20000     werkernel.sys            \SystemRoot\System32\drivers\werkernel.sys
+  base=FFFFF803232D0000 size=0x30000     ksecdd.sys               \SystemRoot\System32\drivers\ksecdd.sys
+  base=FFFFF80323300000 size=0x70000     msrpc.sys                \SystemRoot\System32\drivers\msrpc.sys
+  base=FFFFF80323370000 size=0x30000     tm.sys                   \SystemRoot\System32\drivers\tm.sys
+  base=FFFFF803233A0000 size=0x20000     PSHED.dll                \SystemRoot\system32\PSHED.dll
+  base=FFFFF803233C0000 size=0x10000     BOOTVID.dll              \SystemRoot\system32\BOOTVID.dll
+  base=FFFFF803233D0000 size=0x10000     cmimcext.sys             \SystemRoot\System32\drivers\cmimcext.sys
+  base=FFFFF803233E0000 size=0x10000     ntosext.sys              \SystemRoot\System32\drivers\ntosext.sys
+  base=FFFFF803233F0000 size=0x10000     SleepStudyHelper.sys     \SystemRoot\system32\drivers\SleepStudyHelper.sys
+  base=FFFFF80323400000 size=0x70000     CLFS.SYS                 \SystemRoot\System32\drivers\CLFS.SYS
+  base=FFFFF80323470000 size=0x110000    clipsp.sys               \SystemRoot\System32\drivers\clipsp.sys
+  base=FFFFF80323580000 size=0x80000     FLTMGR.SYS               \SystemRoot\System32\drivers\FLTMGR.SYS
+  base=FFFFF80323600000 size=0xE0000     CI.dll                   \SystemRoot\system32\CI.dll
+  base=FFFFF803236E0000 size=0xC0000     cng.sys                  \SystemRoot\System32\drivers\cng.sys
+  base=FFFFF803237A0000 size=0xE0000     Wdf01000.sys             \SystemRoot\system32\drivers\Wdf01000.sys
+  base=FFFFF80323880000 size=0x20000     WDFLDR.SYS               \SystemRoot\system32\drivers\WDFLDR.SYS
+  base=FFFFF803238A0000 size=0x20000     WppRecorder.sys          \SystemRoot\system32\drivers\WppRecorder.sys
+  base=FFFFF803238C0000 size=0x30000     acpiex.sys               \SystemRoot\System32\Drivers\acpiex.sys
+  base=FFFFF803238F0000 size=0x20000     SgrmAgent.sys            \SystemRoot\system32\drivers\SgrmAgent.sys
+  base=FFFFF80323910000 size=0xD0000     ACPI.sys                 \SystemRoot\System32\drivers\ACPI.sys
+  base=FFFFF803239E0000 size=0x20000     WMILIB.SYS               \SystemRoot\System32\drivers\WMILIB.SYS
+  base=FFFFF80323A00000 size=0x50000     intelpep.sys             \SystemRoot\System32\drivers\intelpep.sys
+  base=FFFFF80323A50000 size=0x20000     WindowsTrustedRT.sys     \SystemRoot\system32\drivers\WindowsTrustedRT.sys
+  base=FFFFF80323A70000 size=0x10000     WindowsTrustedRTProxy.sys \SystemRoot\System32\drivers\WindowsTrustedRTProxy.sys
+  base=FFFFF80323A80000 size=0x20000     pcw.sys                  \SystemRoot\System32\drivers\pcw.sys
+  base=FFFFF80323AA0000 size=0x10000     msisadrv.sys             \SystemRoot\System32\drivers\msisadrv.sys
+  base=FFFFF80323AB0000 size=0x70000     pci.sys                  \SystemRoot\System32\drivers\pci.sys
+  base=FFFFF80323B20000 size=0x20000     vdrvroot.sys             \SystemRoot\System32\drivers\vdrvroot.sys
+  base=FFFFF80323B40000 size=0x40000     pdc.sys                  \SystemRoot\system32\drivers\pdc.sys
+  base=FFFFF80323B80000 size=0x20000     CEA.sys                  \SystemRoot\system32\drivers\CEA.sys
+  base=FFFFF80323BA0000 size=0x40000     partmgr.sys              \SystemRoot\System32\drivers\partmgr.sys
+  base=FFFFF80323BE0000 size=0xB0000     spaceport.sys            \SystemRoot\System32\drivers\spaceport.sys
+  base=FFFFF80323C90000 size=0x10000     intelide.sys             \SystemRoot\System32\drivers\intelide.sys
+  base=FFFFF80323CA0000 size=0x20000     PCIIDEX.SYS              \SystemRoot\System32\drivers\PCIIDEX.SYS
+  base=FFFFF80323CC0000 size=0x20000     volmgr.sys               \SystemRoot\System32\drivers\volmgr.sys
+  base=FFFFF80323CE0000 size=0x70000     volmgrx.sys              \SystemRoot\System32\drivers\volmgrx.sys
+  base=FFFFF80323D50000 size=0x20000     vsock.sys                \SystemRoot\system32\DRIVERS\vsock.sys
+  base=FFFFF80323D70000 size=0x20000     vmci.sys                 \SystemRoot\System32\drivers\vmci.sys
+  base=FFFFF80323D90000 size=0x20000     mountmgr.sys             \SystemRoot\System32\drivers\mountmgr.sys
+  base=FFFFF80323DB0000 size=0x10000     atapi.sys                \SystemRoot\System32\drivers\atapi.sys
+  base=FFFFF80323DC0000 size=0x40000     ataport.SYS              \SystemRoot\System32\drivers\ataport.SYS
+  base=FFFFF80323E00000 size=0x30000     storahci.sys             \SystemRoot\System32\drivers\storahci.sys
+  base=FFFFF80323E30000 size=0xB0000     storport.sys             \SystemRoot\System32\drivers\storport.sys
+  base=FFFFF80323EE0000 size=0x30000     stornvme.sys             \SystemRoot\System32\drivers\stornvme.sys
+  base=FFFFF80323F10000 size=0x20000     EhStorClass.sys          \SystemRoot\System32\drivers\EhStorClass.sys
+  base=FFFFF80323F30000 size=0x20000     fileinfo.sys             \SystemRoot\System32\drivers\fileinfo.sys
+  base=FFFFF80323F50000 size=0x40000     Wof.sys                  \SystemRoot\System32\Drivers\Wof.sys
+  base=FFFFF80323F90000 size=0xB0000     WdFilter.sys             \SystemRoot\system32\drivers\wd\WdFilter.sys
+  base=FFFFF80324040000 size=0x2A0000    Ntfs.sys                 \SystemRoot\System32\Drivers\Ntfs.sys
+  base=FFFFF803242E0000 size=0x10000     Fs_Rec.sys               \SystemRoot\System32\Drivers\Fs_Rec.sys
+  base=FFFFF803242F0000 size=0x180000    ndis.sys                 \SystemRoot\system32\drivers\ndis.sys
+  base=FFFFF80324470000 size=0xA0000     NETIO.SYS                \SystemRoot\system32\drivers\NETIO.SYS
+  base=FFFFF80324510000 size=0x40000     ksecpkg.sys              \SystemRoot\System32\Drivers\ksecpkg.sys
+  base=FFFFF80324550000 size=0x2F0000    tcpip.sys                \SystemRoot\System32\drivers\tcpip.sys
+  base=FFFFF80324840000 size=0x80000     fwpkclnt.sys             \SystemRoot\System32\drivers\fwpkclnt.sys
+  base=FFFFF803248C0000 size=0x40000     wfplwfs.sys              \SystemRoot\System32\drivers\wfplwfs.sys
+  base=FFFFF80324900000 size=0xD0000     fvevol.sys               \SystemRoot\System32\DRIVERS\fvevol.sys
+  base=FFFFF803249D0000 size=0x10000     volume.sys               \SystemRoot\System32\drivers\volume.sys
+  base=FFFFF803249E0000 size=0x70000     volsnap.sys              \SystemRoot\System32\drivers\volsnap.sys
+  base=FFFFF80324A50000 size=0x50000     rdyboost.sys             \SystemRoot\System32\drivers\rdyboost.sys
+  base=FFFFF80324AA0000 size=0x30000     mup.sys                  \SystemRoot\System32\Drivers\mup.sys
+  base=FFFFF80324AD0000 size=0x30000     iorate.sys               \SystemRoot\system32\drivers\iorate.sys
+  base=FFFFF80324B00000 size=0x20000     disk.sys                 \SystemRoot\System32\drivers\disk.sys
+  base=FFFFF80324B20000 size=0x4E0000    CLASSPNP.SYS             \SystemRoot\System32\drivers\CLASSPNP.SYS
+  base=FFFFF80325000000 size=0x20000     vmrawdsk.sys             \SystemRoot\system32\DRIVERS\vmrawdsk.sys
+  base=FFFFF80325020000 size=0x380000    dxgkrnl.sys              \SystemRoot\System32\drivers\dxgkrnl.sys
+  base=FFFFF803253A0000 size=0x20000     watchdog.sys             \SystemRoot\System32\drivers\watchdog.sys
+  base=FFFFF803253C0000 size=0x20000     BasicDisplay.sys         \SystemRoot\System32\DriverStore\FileRepository\basicdisplay.inf_amd64_25ab9510fd18cfda\BasicDisplay.sys
+  base=FFFFF803253E0000 size=0x20000     BasicRender.sys          \SystemRoot\System32\DriverStore\FileRepository\basicrender.inf_amd64_9ff437f462543a42\BasicRender.sys
+  base=FFFFF80325400000 size=0x20000     Npfs.SYS                 \SystemRoot\System32\Drivers\Npfs.SYS
+  base=FFFFF80325420000 size=0x20000     Msfs.SYS                 \SystemRoot\System32\Drivers\Msfs.SYS
+  base=FFFFF80325440000 size=0x30000     tdx.sys                  \SystemRoot\system32\DRIVERS\tdx.sys
+  base=FFFFF80325470000 size=0x20000     TDI.SYS                  \SystemRoot\system32\DRIVERS\TDI.SYS
+  base=FFFFF80325490000 size=0x10000     ws2ifsl.sys              \SystemRoot\system32\drivers\ws2ifsl.sys
+  base=FFFFF803254A0000 size=0x60000     netbt.sys                \SystemRoot\System32\DRIVERS\netbt.sys
+  base=FFFFF80325500000 size=0x20000     afunix.sys               \SystemRoot\system32\drivers\afunix.sys
+  base=FFFFF80325520000 size=0xB0000     afd.sys                  \SystemRoot\system32\drivers\afd.sys
+  base=FFFFF803255D0000 size=0x20000     vwififlt.sys             \SystemRoot\System32\drivers\vwififlt.sys
+  base=FFFFF803255F0000 size=0x30000     pacer.sys                \SystemRoot\System32\drivers\pacer.sys
+  base=FFFFF80325620000 size=0x20000     netbios.sys              \SystemRoot\system32\drivers\netbios.sys
+  base=FFFFF80325640000 size=0x80000     rdbss.sys                \SystemRoot\system32\DRIVERS\rdbss.sys
+  base=FFFFF803256C0000 size=0x20000     nsiproxy.sys             \SystemRoot\system32\drivers\nsiproxy.sys
+  base=FFFFF803256E0000 size=0x10000     npsvctrig.sys            \SystemRoot\System32\drivers\npsvctrig.sys
+  base=FFFFF803256F0000 size=0x20000     mssmbios.sys             \SystemRoot\System32\drivers\mssmbios.sys
+  base=FFFFF80325710000 size=0x10000     gpuenergydrv.sys         \SystemRoot\System32\drivers\gpuenergydrv.sys
+  base=FFFFF80325720000 size=0x30000     dfsc.sys                 \SystemRoot\System32\Drivers\dfsc.sys
+  base=FFFFF80325750000 size=0x20000     vm3dmp_loader.sys        \SystemRoot\system32\DRIVERS\vm3dmp_loader.sys
+  base=FFFFF80325770000 size=0x70000     fastfat.SYS              \SystemRoot\System32\Drivers\fastfat.SYS
+  base=FFFFF803257E0000 size=0x20000     bam.sys                  \SystemRoot\system32\drivers\bam.sys
+  base=FFFFF80325800000 size=0x40000     AskLinkVGC.sys           \SystemRoot\System32\drivers\AskLinkVGC.sys
+  base=FFFFF80325840000 size=0x50000     ahcache.sys              \SystemRoot\system32\DRIVERS\ahcache.sys
+  base=FFFFF80325890000 size=0x60000     vm3dmp.sys               \SystemRoot\system32\DRIVERS\vm3dmp.sys
+  base=FFFFF803258F0000 size=0x90000     Vid.sys                  \SystemRoot\System32\drivers\Vid.sys
+  base=FFFFF80325980000 size=0x20000     winhvr.sys               \SystemRoot\System32\drivers\winhvr.sys
+  base=FFFFF803259A0000 size=0x20000     CompositeBus.sys         \SystemRoot\System32\DriverStore\FileRepository\compositebus.inf_amd64_160f98ccef202f85\CompositeBus.sys
+  base=FFFFF803259C0000 size=0x10000     kdnic.sys                \SystemRoot\System32\drivers\kdnic.sys
+  base=FFFFF803259D0000 size=0x20000     umbus.sys                \SystemRoot\System32\DriverStore\FileRepository\umbus.inf_amd64_0a69be6a385b49f7\umbus.sys
+  base=FFFFF803259F0000 size=0x30000     i8042prt.sys             \SystemRoot\System32\drivers\i8042prt.sys
+  base=FFFFF80325A20000 size=0x20000     kbdclass.sys             \SystemRoot\System32\drivers\kbdclass.sys
+  base=FFFFF80325A40000 size=0x10000     vmmouse.sys              \SystemRoot\System32\drivers\vmmouse.sys
+  base=FFFFF80325A50000 size=0x40000     mouclass.sys             \SystemRoot\System32\drivers\mouclass.sys
+  base=FFFFF80325A90000 size=0x20000     crashdmp.sys             \SystemRoot\System32\Drivers\crashdmp.sys
+  base=FFFFF80325AB0000 size=0xC0000     mrxsmb.sys               \SystemRoot\system32\DRIVERS\mrxsmb.sys
+  base=FFFFF80325B70000 size=0x40000     cdrom.sys                \SystemRoot\System32\drivers\cdrom.sys
+  base=FFFFF80325BB0000 size=0x20000     filecrypt.sys            \SystemRoot\system32\drivers\filecrypt.sys
+  base=FFFFF80325BD0000 size=0x10000     tbs.sys                  \SystemRoot\system32\drivers\tbs.sys
+  base=FFFFF80325BE0000 size=0x10000     Null.SYS                 \SystemRoot\System32\Drivers\Null.SYS
+  base=FFFFF80325BF0000 size=0x10000     Beep.SYS                 \SystemRoot\System32\Drivers\Beep.SYS
+  base=FFFFF80325C00000 size=0x80000     ks.sys                   \SystemRoot\System32\drivers\ks.sys
+  base=FFFFF80325C80000 size=0x20000     usbehci.sys              \SystemRoot\System32\drivers\usbehci.sys
+  base=FFFFF80325CA0000 size=0x90000     USBXHCI.SYS              \SystemRoot\System32\drivers\USBXHCI.SYS
+  base=FFFFF80325D30000 size=0x50000     ucx01000.sys             \SystemRoot\system32\drivers\ucx01000.sys
+  base=FFFFF80325D80000 size=0x10000     vmgencounter.sys         \SystemRoot\System32\drivers\vmgencounter.sys
+  base=FFFFF80325D90000 size=0x10000     CmBatt.sys               \SystemRoot\System32\drivers\CmBatt.sys
+  base=FFFFF80325DA0000 size=0x20000     BATTC.SYS                \SystemRoot\System32\drivers\BATTC.SYS
+  base=FFFFF80325DC0000 size=0x40000     intelppm.sys             \SystemRoot\System32\drivers\intelppm.sys
+  base=FFFFF80325E00000 size=0x10000     NdisVirtualBus.sys       \SystemRoot\System32\drivers\NdisVirtualBus.sys
+  base=FFFFF80325E10000 size=0x10000     swenum.sys               \SystemRoot\System32\DriverStore\FileRepository\swenum.inf_amd64_9ebb9a8726114d22\swenum.sys
+  base=FFFFF80325E20000 size=0x10000     linklook.sys             \SystemRoot\System32\drivers\linklook.sys
+  base=FFFFF80325E30000 size=0x10000     mshidkmdf.sys            \SystemRoot\System32\drivers\mshidkmdf.sys
+  base=FFFFF80325E40000 size=0x20000     usbuhci.sys              \SystemRoot\System32\drivers\usbuhci.sys
+  base=FFFFF80325E60000 size=0x80000     USBPORT.SYS              \SystemRoot\System32\drivers\USBPORT.SYS
+  base=FFFFF80325EE0000 size=0x30000     HDAudBus.sys             \SystemRoot\System32\drivers\HDAudBus.sys
+  base=FFFFF80325F10000 size=0x70000     portcls.sys              \SystemRoot\System32\drivers\portcls.sys
+  base=FFFFF80325F80000 size=0x30000     drmk.sys                 \SystemRoot\System32\drivers\drmk.sys
+  base=FFFFF80325FB0000 size=0x50000     HIDCLASS.SYS             \SystemRoot\System32\drivers\HIDCLASS.SYS
+  base=FFFFF80326000000 size=0x70000     HdAudio.sys              \SystemRoot\System32\drivers\HdAudio.sys
+  base=FFFFF80326070000 size=0x20000     ksthunk.sys              \SystemRoot\system32\drivers\ksthunk.sys
+  base=FFFFF80326090000 size=0x20000     HIDPARSE.SYS             \SystemRoot\System32\drivers\HIDPARSE.SYS
+  base=FFFFF803260B0000 size=0x10000     rdpbus.sys               \SystemRoot\System32\drivers\rdpbus.sys
+  base=FFFFF803260C0000 size=0x90000     usbhub.sys               \SystemRoot\System32\drivers\usbhub.sys
+  base=FFFFF80326150000 size=0x10000     USBD.SYS                 \SystemRoot\System32\drivers\USBD.SYS
+  base=FFFFF80326160000 size=0x20000     mouhid.sys               \SystemRoot\System32\drivers\mouhid.sys
+  base=FFFFF80326180000 size=0x20000     kbdhid.sys               \SystemRoot\System32\drivers\kbdhid.sys
+  base=FFFFF803261A0000 size=0x60000     srvnet.sys               \SystemRoot\System32\DRIVERS\srvnet.sys
+  base=FFFFF80326200000 size=0x60000     WUDFRd.sys               \SystemRoot\System32\drivers\WUDFRd.sys
+  base=FFFFF80326260000 size=0x20000     IndirectKmd.sys          \SystemRoot\System32\drivers\IndirectKmd.sys
+  base=FFFFF80326280000 size=0x20000     BTHUSB.sys               \SystemRoot\System32\drivers\BTHUSB.sys
+  base=FFFFF803262A0000 size=0x170000    bthport.sys              \SystemRoot\System32\drivers\bthport.sys
+  base=FFFFF80326410000 size=0x40000     rfcomm.sys               \SystemRoot\System32\drivers\rfcomm.sys
+  base=FFFFF80326450000 size=0x30000     BthEnum.sys              \SystemRoot\System32\drivers\BthEnum.sys
+  base=FFFFF80326480000 size=0x30000     bthpan.sys               \SystemRoot\System32\drivers\bthpan.sys
+  base=FFFFF803264B0000 size=0x30000     luafv.sys                \SystemRoot\system32\drivers\luafv.sys
+  base=FFFFF803264E0000 size=0x40000     wcifs.sys                \SystemRoot\system32\drivers\wcifs.sys
+  base=FFFFF80326520000 size=0x80000     cldflt.sys               \SystemRoot\system32\drivers\cldflt.sys
+  base=FFFFF803265A0000 size=0x20000     storqosflt.sys           \SystemRoot\system32\drivers\storqosflt.sys
+  base=FFFFF803265C0000 size=0x20000     lltdio.sys               \SystemRoot\system32\drivers\lltdio.sys
+  base=FFFFF803265E0000 size=0x20000     mslldp.sys               \SystemRoot\system32\drivers\mslldp.sys
+  base=FFFFF80326600000 size=0x20000     rspndr.sys               \SystemRoot\system32\drivers\rspndr.sys
+  base=FFFFF80326620000 size=0x20000     wanarp.sys               \SystemRoot\System32\DRIVERS\wanarp.sys
+  base=FFFFF80326640000 size=0x40000     winquic.sys              \SystemRoot\system32\drivers\winquic.sys
+  base=FFFFF80326680000 size=0x150000    HTTP.sys                 \SystemRoot\system32\drivers\HTTP.sys
+  base=FFFFF803267D0000 size=0x30000     bowser.sys               \SystemRoot\system32\DRIVERS\bowser.sys
+  base=FFFFF80326800000 size=0x20000     mpsdrv.sys               \SystemRoot\System32\drivers\mpsdrv.sys
+  base=FFFFF80326820000 size=0x60000     mrxsmb20.sys             \SystemRoot\system32\DRIVERS\mrxsmb20.sys
+  base=FFFFF80326880000 size=0x40000     dump_dumpstorport.sys    \SystemRoot\System32\Drivers\dump_dumpstorport.sys
+  base=FFFFF803268C0000 size=0x50000     dump_stornvme.sys        \SystemRoot\System32\drivers\dump_stornvme.sys
+  base=FFFFF80326910000 size=0x20000     dump_dumpfve.sys         \SystemRoot\System32\Drivers\dump_dumpfve.sys
+  base=FFFFF80326930000 size=0x80000     dxgmms1.sys              \SystemRoot\System32\drivers\dxgmms1.sys
+  base=FFFFF803269B0000 size=0x20000     monitor.sys              \SystemRoot\System32\drivers\monitor.sys
+  base=FFFFF803269D0000 size=0x10000     vmmemctl.sys             \SystemRoot\system32\DRIVERS\vmmemctl.sys
+  base=FFFFF803269E0000 size=0x30000     mmcss.sys                \SystemRoot\system32\drivers\mmcss.sys
+  base=FFFFF80326A10000 size=0xA0000     UsbHub3.sys              \SystemRoot\System32\drivers\UsbHub3.sys
+  base=FFFFF80326AB0000 size=0xE0000     dxgmms2.sys              \SystemRoot\System32\drivers\dxgmms2.sys
+  base=FFFFF80326B90000 size=0x40000     usbccgp.sys              \SystemRoot\System32\drivers\usbccgp.sys
+  base=FFFFF80326BD0000 size=0x20000     hidusb.sys               \SystemRoot\System32\drivers\hidusb.sys
+  base=FFFFF80326BF0000 size=0x210000    vmusbmouse.sys           \SystemRoot\System32\drivers\vmusbmouse.sys
+  base=FFFFF80326E00000 size=0x60000     mrxsmb10.sys             \SystemRoot\system32\DRIVERS\mrxsmb10.sys
+  base=FFFFF80326E60000 size=0x30000     Ndu.sys                  \SystemRoot\system32\drivers\Ndu.sys
+  base=FFFFF80326E90000 size=0xE0000     peauth.sys               \SystemRoot\system32\drivers\peauth.sys
+  base=FFFFF80326F70000 size=0x20000     tcpipreg.sys             \SystemRoot\System32\drivers\tcpipreg.sys
+  base=FFFFF80326F90000 size=0x20000     rassstp.sys              \SystemRoot\System32\drivers\rassstp.sys
+  base=FFFFF80326FB0000 size=0x50000     NDProxy.sys              \SystemRoot\System32\DRIVERS\NDProxy.sys
+  base=FFFFF80327000000 size=0x30000     vmhgfs.sys               \SystemRoot\system32\DRIVERS\vmhgfs.sys
+  base=FFFFF80327030000 size=0x30000     AgileVpn.sys             \SystemRoot\System32\drivers\AgileVpn.sys
+  base=FFFFF80327060000 size=0x30000     rasl2tp.sys              \SystemRoot\System32\drivers\rasl2tp.sys
+  base=FFFFF80327090000 size=0x30000     raspptp.sys              \SystemRoot\System32\drivers\raspptp.sys
+  base=FFFFF803270C0000 size=0x20000     raspppoe.sys             \SystemRoot\System32\DRIVERS\raspppoe.sys
+  base=FFFFF803270E0000 size=0x10000     ndistapi.sys             \SystemRoot\System32\DRIVERS\ndistapi.sys
+  base=FFFFF803270F0000 size=0x40000     ndiswan.sys              \SystemRoot\System32\drivers\ndiswan.sys
+  base=FFFFF80327130000 size=0x20000     condrv.sys               \SystemRoot\System32\drivers\condrv.sys
+  base=FFFFF80327150000 size=0x20000     KslD.sys                 \SystemRoot\system32\drivers\wd\KslD.sys
+  base=FFFFF80327170000 size=0x110000    WdNisDrv.sys             \SystemRoot\system32\drivers\wd\WdNisDrv.sys
+  base=FFFFF80327280000 size=0x8A0000    ndisuio.sys              \SystemRoot\system32\drivers\ndisuio.sys
+  base=FFFFF80327B20000 size=0x0         srv2.sys                 \SystemRoot\System32\DRIVERS\srv2.sys
+
+---------- "--kernel-extra-cli" ----------
+KiDebugRoutine: unreadable -> KiDebugRoutine: not present on this Windows version - the global was removed after Windows 7 (kd: x nt!KiDebugRoutine finds nothing; Win10 uses PTE/interrupt based debug hooks)
+Find PTE Hook: Find PTE Hook: needs an arbitrary kernel-address read; 0xF7/0xF9 only read one fixed GT-resolved pointer, 0x20/0x25 are process-only
+Find Next ClassInitData: not available - the driver has no arbitrary kernel-VA read (0xF7/0xF9 read one fixed GT pointer; 0x3A needs GT[0x41E4]/GT[0x4189], both 0 on this machine)
+
+---------- "--idt-cli" ----------
+open device failed, GetLastError=2
+
+---------- "--gdt-cli" ----------
+open device failed, GetLastError=2
+
+---------- "--ioport-cli" ----------
+open device failed, GetLastError=2
+
+---------- "--ssdt-cli" ----------
+open device failed, GetLastError=2
+
+---------- "--ring0-cli" ----------
+open device failed, GetLastError=2
+
+---------- "--hiddendrv-cli" ----------
+hidden drivers: 32
+  cdd.dll                      FFFF848F058D0000  \SystemRoot\System32\cdd.dll
+  kd_02_8086.dll               FFFFF80323000000  \SystemRoot\system32\kd_02_8086.dll
+  kdnet.dll                    FFFFF80323050000  \SystemRoot\system32\kdnet.dll
+  tm.sys                       FFFFF80323370000  \SystemRoot\System32\drivers\tm.sys
+  BOOTVID.dll                  FFFFF803233C0000  \SystemRoot\system32\BOOTVID.dll
+  cmimcext.sys                 FFFFF803233D0000  \SystemRoot\System32\drivers\cmimcext.sys
+  ntosext.sys                  FFFFF803233E0000  \SystemRoot\System32\drivers\ntosext.sys
+  SleepStudyHelper.sys         FFFFF803233F0000  \SystemRoot\system32\drivers\SleepStudyHelper.sys
+  clipsp.sys                   FFFFF80323470000  \SystemRoot\System32\drivers\clipsp.sys
+  WppRecorder.sys              FFFFF803238A0000  \SystemRoot\system32\drivers\WppRecorder.sys
+  WMILIB.SYS                   FFFFF803239E0000  \SystemRoot\System32\drivers\WMILIB.SYS
+  CEA.sys                      FFFFF80323B80000  \SystemRoot\system32\drivers\CEA.sys
+  PCIIDEX.SYS                  FFFFF80323CA0000  \SystemRoot\System32\drivers\PCIIDEX.SYS
+  ataport.SYS                  FFFFF80323DC0000  \SystemRoot\System32\drivers\ataport.SYS
+  storport.sys                 FFFFF80323E30000  \SystemRoot\System32\drivers\storport.sys
+  Fs_Rec.sys                   FFFFF803242E0000  \SystemRoot\System32\Drivers\Fs_Rec.sys
+  CLASSPNP.SYS                 FFFFF80324B20000  \SystemRoot\System32\drivers\CLASSPNP.SYS
+  watchdog.sys                 FFFFF803253A0000  \SystemRoot\System32\drivers\watchdog.sys
+  TDI.SYS                      FFFFF80325470000  \SystemRoot\system32\DRIVERS\TDI.SYS
+  winhvr.sys                   FFFFF80325980000  \SystemRoot\System32\drivers\winhvr.sys
+  crashdmp.sys                 FFFFF80325A90000  \SystemRoot\System32\Drivers\crashdmp.sys
+  tbs.sys                      FFFFF80325BD0000  \SystemRoot\system32\drivers\tbs.sys
+  ks.sys                       FFFFF80325C00000  \SystemRoot\System32\drivers\ks.sys
+  BATTC.SYS                    FFFFF80325DA0000  \SystemRoot\System32\drivers\BATTC.SYS
+  USBPORT.SYS                  FFFFF80325E60000  \SystemRoot\System32\drivers\USBPORT.SYS
+  portcls.sys                  FFFFF80325F10000  \SystemRoot\System32\drivers\portcls.sys
+  drmk.sys                     FFFFF80325F80000  \SystemRoot\System32\drivers\drmk.sys
+  HIDCLASS.SYS                 FFFFF80325FB0000  \SystemRoot\System32\drivers\HIDCLASS.SYS
+  HIDPARSE.SYS                 FFFFF80326090000  \SystemRoot\System32\drivers\HIDPARSE.SYS
+  USBD.SYS                     FFFFF80326150000  \SystemRoot\System32\drivers\USBD.SYS
+  dxgmms1.sys                  FFFFF80326930000  \SystemRoot\System32\drivers\dxgmms1.sys
+  dxgmms2.sys                  FFFFF80326AB0000  \SystemRoot\System32\drivers\dxgmms2.sys
+suspicious driver objects: 0
+
+---------- "--drivers-cli" ----------
+drivers: 383
+  0000TEST                     STOPPED   DEMAND  \??\C:\Users\Public\aaatest.sys
+  1394ohci                     STOPPED   DEMAND  \SystemRoot\System32\drivers\1394ohci.sys
+  3ware                        STOPPED   DEMAND  \SystemRoot\System32\drivers\3ware.sys
+  ACPI                         RUNNING   BOOT    \SystemRoot\System32\drivers\ACPI.sys
+  AcpiDev                      STOPPED   DEMAND  \SystemRoot\System32\drivers\AcpiDev.sys
+  acpiex                       RUNNING   BOOT    \SystemRoot\System32\Drivers\acpiex.sys
+  acpipagr                     STOPPED   DEMAND  \SystemRoot\System32\drivers\acpipagr.sys
+  AcpiPmi                      STOPPED   DEMAND  \SystemRoot\System32\drivers\acpipmi.sys
+  acpitime                     STOPPED   DEMAND  \SystemRoot\System32\drivers\acpitime.sys
+  Acx01000                     STOPPED   DEMAND  system32\drivers\Acx01000.sys
+  ADP80XX                      STOPPED   DEMAND  \SystemRoot\System32\drivers\ADP80XX.SYS
+  AFD                          RUNNING   SYSTEM  \SystemRoot\system32\drivers\afd.sys
+  afunix                       RUNNING   SYSTEM  \SystemRoot\system32\drivers\afunix.sys
+  ahcache                      RUNNING   SYSTEM  system32\DRIVERS\ahcache.sys
+  amdgpio2                     STOPPED   DEMAND  \SystemRoot\System32\drivers\amdgpio2.sys
+  amdi2c                       STOPPED   DEMAND  \SystemRoot\System32\drivers\amdi2c.sys
+  AmdK8                        STOPPED   DEMAND  \SystemRoot\System32\drivers\amdk8.sys
+  AmdPPM                       STOPPED   DEMAND  \SystemRoot\System32\drivers\amdppm.sys
+  amdsata                      STOPPED   DEMAND  \SystemRoot\System32\drivers\amdsata.sys
+  amdsbs                       STOPPED   DEMAND  \SystemRoot\System32\drivers\amdsbs.sys
+  amdxata                      STOPPED   DEMAND  \SystemRoot\System32\drivers\amdxata.sys
+  AppID                        STOPPED   DEMAND  system32\drivers\appid.sys
+  applockerfltr                STOPPED   DEMAND  system32\drivers\applockerfltr.sys
+  arcsas                       STOPPED   DEMAND  \SystemRoot\System32\drivers\arcsas.sys
+  AskLinkVGC                   RUNNING   SYSTEM  \SystemRoot\System32\drivers\AskLinkVGC.sys
+  AsyncMac                     STOPPED   DEMAND  \SystemRoot\System32\drivers\asyncmac.sys
+  atapi                        RUNNING   BOOT    \SystemRoot\System32\drivers\atapi.sys
+  b06bdrv                      STOPPED   DEMAND  \SystemRoot\System32\drivers\bxvbda.sys
+  bam                          RUNNING   SYSTEM  system32\drivers\bam.sys
+  BasicDisplay                 RUNNING   SYSTEM  \SystemRoot\System32\DriverStore\FileRepository\basicdisplay.inf_amd64_25ab9510fd18cfda\BasicDisplay.sys
+  BasicRender                  RUNNING   SYSTEM  \SystemRoot\System32\DriverStore\FileRepository\basicrender.inf_amd64_9ff437f462543a42\BasicRender.sys
+  bcmfn2                       STOPPED   DEMAND  \SystemRoot\System32\drivers\bcmfn2.sys
+  Beep                         RUNNING   SYSTEM  (?)
+  bindflt                      STOPPED   DEMAND  \SystemRoot\system32\drivers\bindflt.sys
+  bowser                       RUNNING   DEMAND  system32\DRIVERS\bowser.sys
+  BthA2dp                      STOPPED   DEMAND  \SystemRoot\System32\drivers\BthA2dp.sys
+  BthEnum                      RUNNING   DEMAND  \SystemRoot\System32\drivers\BthEnum.sys
+  BthHFEnum                    STOPPED   DEMAND  \SystemRoot\System32\drivers\bthhfenum.sys
+  BthLEEnum                    STOPPED   DEMAND  \SystemRoot\System32\drivers\Microsoft.Bluetooth.Legacy.LEEnumerator.sys
+  BthMini                      STOPPED   DEMAND  \SystemRoot\System32\drivers\BTHMINI.sys
+  BTHMODEM                     STOPPED   DEMAND  \SystemRoot\System32\drivers\bthmodem.sys
+  BthPan                       RUNNING   DEMAND  \SystemRoot\System32\drivers\bthpan.sys
+  BTHPORT                      STOPPED   DEMAND  \SystemRoot\System32\drivers\BTHport.sys
+  BTHUSB                       RUNNING   DEMAND  \SystemRoot\System32\drivers\BTHUSB.sys
+  bttflt                       STOPPED   DEMAND  \SystemRoot\System32\drivers\bttflt.sys
+  buttonconverter              STOPPED   DEMAND  \SystemRoot\System32\drivers\buttonconverter.sys
+  CAD                          STOPPED   DEMAND  \SystemRoot\System32\drivers\CAD.sys
+  cdfs                         STOPPED   DISABLED system32\DRIVERS\cdfs.sys
+  cdrom                        RUNNING   SYSTEM  \SystemRoot\System32\drivers\cdrom.sys
+  cht4iscsi                    STOPPED   DEMAND  \SystemRoot\System32\drivers\cht4sx64.sys
+  cht4vbd                      STOPPED   DEMAND  \SystemRoot\System32\drivers\cht4vx64.sys
+  circlass                     STOPPED   DEMAND  \SystemRoot\System32\drivers\circlass.sys
+  CldFlt                       RUNNING   AUTO    system32\drivers\cldflt.sys
+  CLFS                         RUNNING   BOOT    \SystemRoot\System32\drivers\CLFS.sys
+  CmBatt                       RUNNING   DEMAND  \SystemRoot\System32\drivers\CmBatt.sys
+  CNG                          RUNNING   BOOT    \SystemRoot\System32\Drivers\cng.sys
+  cnghwassist                  STOPPED   DISABLED System32\DRIVERS\cnghwassist.sys
+  CompositeBus                 RUNNING   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\compositebus.inf_amd64_160f98ccef202f85\CompositeBus.sys
+  condrv                       RUNNING   DEMAND  System32\drivers\condrv.sys
+  dam                          STOPPED   SYSTEM  system32\drivers\dam.sys
+  Dfsc                         RUNNING   SYSTEM  System32\Drivers\dfsc.sys
+  disk                         RUNNING   BOOT    \SystemRoot\System32\drivers\disk.sys
+  dmvsc                        STOPPED   DEMAND  \SystemRoot\System32\drivers\dmvsc.sys
+  drmkaud                      STOPPED   DEMAND  \SystemRoot\System32\drivers\drmkaud.sys
+  DXGKrnl                      RUNNING   SYSTEM  \SystemRoot\System32\drivers\dxgkrnl.sys
+  e1i65x64                     STOPPED   DEMAND  \SystemRoot\System32\drivers\e1i65x64.sys
+  ebdrv                        STOPPED   DEMAND  \SystemRoot\System32\drivers\evbda.sys
+  EhStorClass                  RUNNING   BOOT    \SystemRoot\System32\drivers\EhStorClass.sys
+  EhStorTcgDrv                 STOPPED   DEMAND  \SystemRoot\System32\drivers\EhStorTcgDrv.sys
+  ErrDev                       STOPPED   DEMAND  \SystemRoot\System32\drivers\errdev.sys
+  exfat                        STOPPED   DEMAND  (?)
+  fastfat                      RUNNING   DEMAND  (?)
+  fdc                          STOPPED   DEMAND  \SystemRoot\System32\drivers\fdc.sys
+  FileCrypt                    RUNNING   SYSTEM  system32\drivers\filecrypt.sys
+  FileInfo                     RUNNING   BOOT    \SystemRoot\System32\drivers\fileinfo.sys
+  Filetrace                    STOPPED   DEMAND  system32\drivers\filetrace.sys
+  flpydisk                     STOPPED   DEMAND  \SystemRoot\System32\drivers\flpydisk.sys
+  FltMgr                       RUNNING   BOOT    \SystemRoot\system32\drivers\fltmgr.sys
+  FsDepends                    STOPPED   DEMAND  System32\drivers\FsDepends.sys
+  fvevol                       RUNNING   BOOT    \SystemRoot\System32\DRIVERS\fvevol.sys
+  gencounter                   RUNNING   DEMAND  \SystemRoot\System32\drivers\vmgencounter.sys
+  genericusbfn                 STOPPED   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\genericusbfn.inf_amd64_dbcdd1a51a139f61\genericusbfn.sys
+  GPIOClx0101                  STOPPED   DEMAND  System32\Drivers\msgpioclx.sys
+  GpuEnergyDrv                 RUNNING   SYSTEM  System32\drivers\gpuenergydrv.sys
+  HdAudAddService              RUNNING   DEMAND  \SystemRoot\System32\drivers\HdAudio.sys
+  HDAudBus                     RUNNING   DEMAND  \SystemRoot\System32\drivers\HDAudBus.sys
+  HidBatt                      STOPPED   DEMAND  \SystemRoot\System32\drivers\HidBatt.sys
+  HidBth                       STOPPED   DEMAND  \SystemRoot\System32\drivers\hidbth.sys
+  hidi2c                       STOPPED   DEMAND  \SystemRoot\System32\drivers\hidi2c.sys
+  hidinterrupt                 STOPPED   DEMAND  \SystemRoot\System32\drivers\hidinterrupt.sys
+  HidIr                        STOPPED   DEMAND  \SystemRoot\System32\drivers\hidir.sys
+  hidspi                       STOPPED   DEMAND  \SystemRoot\System32\drivers\hidspi.sys
+  HidUsb                       RUNNING   DEMAND  \SystemRoot\System32\drivers\hidusb.sys
+  HpSAMD                       STOPPED   DEMAND  \SystemRoot\System32\drivers\HpSAMD.sys
+  HTTP                         RUNNING   DEMAND  system32\drivers\HTTP.sys
+  hvcrash                      STOPPED   DISABLED \SystemRoot\System32\drivers\hvcrash.sys
+  hvservice                    STOPPED   DEMAND  system32\drivers\hvservice.sys
+  HwNClx0101                   STOPPED   DEMAND  System32\Drivers\mshwnclx.sys
+  hwpolicy                     STOPPED   BOOT    \SystemRoot\System32\drivers\hwpolicy.sys
+  hyperkbd                     STOPPED   DEMAND  \SystemRoot\System32\drivers\hyperkbd.sys
+  HyperVideo                   STOPPED   DEMAND  \SystemRoot\System32\drivers\HyperVideo.sys
+  i8042prt                     RUNNING   DEMAND  \SystemRoot\System32\drivers\i8042prt.sys
+  iagpio                       STOPPED   DEMAND  \SystemRoot\System32\drivers\iagpio.sys
+  iai2c                        STOPPED   DEMAND  \SystemRoot\System32\drivers\iai2c.sys
+  iaLPSS2i_GPIO2               STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_GPIO2.sys
+  iaLPSS2i_GPIO2_BXT_P         STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_GPIO2_BXT_P.sys
+  iaLPSS2i_GPIO2_CNL           STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_GPIO2_CNL.sys
+  iaLPSS2i_GPIO2_GLK           STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_GPIO2_GLK.sys
+  iaLPSS2i_I2C                 STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_I2C.sys
+  iaLPSS2i_I2C_BXT_P           STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_I2C_BXT_P.sys
+  iaLPSS2i_I2C_CNL             STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_I2C_CNL.sys
+  iaLPSS2i_I2C_GLK             STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSS2i_I2C_GLK.sys
+  iaLPSSi_GPIO                 STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSSi_GPIO.sys
+  iaLPSSi_I2C                  STOPPED   DEMAND  \SystemRoot\System32\drivers\iaLPSSi_I2C.sys
+  iaStorAVC                    STOPPED   DEMAND  \SystemRoot\System32\drivers\iaStorAVC.sys
+  iaStorV                      STOPPED   DEMAND  \SystemRoot\System32\drivers\iaStorV.sys
+  ibbus                        STOPPED   DEMAND  \SystemRoot\System32\drivers\ibbus.sys
+  iMonitorEngine               STOPPED   DEMAND  \??\C:\Program Files\iMonitor\iMonitor64.sys
+  IndirectKmd                  RUNNING   DEMAND  \SystemRoot\System32\drivers\IndirectKmd.sys
+  intelide                     RUNNING   BOOT    \SystemRoot\System32\drivers\intelide.sys
+  intelpep                     RUNNING   BOOT    \SystemRoot\System32\drivers\intelpep.sys
+  intelpmax                    STOPPED   DEMAND  \SystemRoot\System32\drivers\intelpmax.sys
+  intelppm                     RUNNING   DEMAND  \SystemRoot\System32\drivers\intelppm.sys
+  iorate                       RUNNING   BOOT    \SystemRoot\system32\drivers\iorate.sys
+  IpFilterDriver               STOPPED   DEMAND  system32\DRIVERS\ipfltdrv.sys
+  IPMIDRV                      STOPPED   DEMAND  \SystemRoot\System32\drivers\IPMIDrv.sys
+  IPNAT                        STOPPED   DEMAND  System32\drivers\ipnat.sys
+  IPT                          STOPPED   DEMAND  \SystemRoot\System32\drivers\ipt.sys
+  isapnp                       STOPPED   DEMAND  \SystemRoot\System32\drivers\isapnp.sys
+  iScsiPrt                     STOPPED   DEMAND  \SystemRoot\System32\drivers\msiscsi.sys
+  ItSas35i                     STOPPED   DEMAND  \SystemRoot\System32\drivers\ItSas35i.sys
+  kbdclass                     RUNNING   DEMAND  \SystemRoot\System32\drivers\kbdclass.sys
+  kbdhid                       RUNNING   DEMAND  \SystemRoot\System32\drivers\kbdhid.sys
+  kdnic                        RUNNING   DEMAND  \SystemRoot\System32\drivers\kdnic.sys
+  KSecDD                       RUNNING   BOOT    \SystemRoot\System32\Drivers\ksecdd.sys
+  KSecPkg                      RUNNING   BOOT    \SystemRoot\System32\Drivers\ksecpkg.sys
+  KslD                         RUNNING   DEMAND  system32\drivers\wd\KslD.sys
+  ksthunk                      RUNNING   DEMAND  \SystemRoot\system32\drivers\ksthunk.sys
+  linklook                     RUNNING   DEMAND  \SystemRoot\System32\drivers\linklook.sys
+  lltdio                       RUNNING   AUTO    system32\drivers\lltdio.sys
+  LSI_SAS                      STOPPED   DEMAND  \SystemRoot\System32\drivers\lsi_sas.sys
+  LSI_SAS2i                    STOPPED   DEMAND  \SystemRoot\System32\drivers\lsi_sas2i.sys
+  LSI_SAS3i                    STOPPED   DEMAND  \SystemRoot\System32\drivers\lsi_sas3i.sys
+  LSI_SSS                      STOPPED   DEMAND  \SystemRoot\System32\drivers\lsi_sss.sys
+  luafv                        RUNNING   AUTO    \SystemRoot\system32\drivers\luafv.sys
+  mausbhost                    STOPPED   DEMAND  \SystemRoot\System32\drivers\mausbhost.sys
+  mausbip                      STOPPED   DEMAND  \SystemRoot\System32\drivers\mausbip.sys
+  MbbCx                        STOPPED   DEMAND  system32\drivers\MbbCx.sys
+  megasas                      STOPPED   DEMAND  \SystemRoot\System32\drivers\megasas.sys
+  megasas2i                    STOPPED   DEMAND  \SystemRoot\System32\drivers\MegaSas2i.sys
+  megasas35i                   STOPPED   DEMAND  \SystemRoot\System32\drivers\megasas35i.sys
+  megasr                       STOPPED   DEMAND  \SystemRoot\System32\drivers\megasr.sys
+  Microsoft_Bluetooth_AvrcpTransport STOPPED   DEMAND  \SystemRoot\System32\drivers\Microsoft.Bluetooth.AvrcpTransport.sys
+  mlx4_bus                     STOPPED   DEMAND  \SystemRoot\System32\drivers\mlx4_bus.sys
+  MMCSS                        RUNNING   AUTO    \SystemRoot\system32\drivers\mmcss.sys
+  Modem                        STOPPED   DEMAND  system32\drivers\modem.sys
+  monitor                      RUNNING   DEMAND  \SystemRoot\System32\drivers\monitor.sys
+  mouclass                     RUNNING   DEMAND  \SystemRoot\System32\drivers\mouclass.sys
+  mouhid                       RUNNING   DEMAND  \SystemRoot\System32\drivers\mouhid.sys
+  mountmgr                     RUNNING   BOOT    \SystemRoot\System32\drivers\mountmgr.sys
+  mpsdrv                       RUNNING   DEMAND  System32\drivers\mpsdrv.sys
+  MRxDAV                       STOPPED   DEMAND  \SystemRoot\system32\drivers\mrxdav.sys
+  mrxsmb                       RUNNING   DEMAND  system32\DRIVERS\mrxsmb.sys
+  mrxsmb10                     RUNNING   AUTO    system32\DRIVERS\mrxsmb10.sys
+  mrxsmb20                     RUNNING   DEMAND  system32\DRIVERS\mrxsmb20.sys
+  MsBridge                     STOPPED   DEMAND  System32\drivers\bridge.sys
+  Msfs                         RUNNING   SYSTEM  (?)
+  msgpiowin32                  STOPPED   DEMAND  \SystemRoot\System32\drivers\msgpiowin32.sys
+  mshidkmdf                    RUNNING   DEMAND  \SystemRoot\System32\drivers\mshidkmdf.sys
+  mshidumdf                    STOPPED   DEMAND  \SystemRoot\System32\drivers\mshidumdf.sys
+  msisadrv                     RUNNING   BOOT    \SystemRoot\System32\drivers\msisadrv.sys
+  MSKSSRV                      STOPPED   DEMAND  \SystemRoot\System32\drivers\MSKSSRV.sys
+  MsLldp                       RUNNING   AUTO    system32\drivers\mslldp.sys
+  MSPCLOCK                     STOPPED   DEMAND  \SystemRoot\System32\drivers\MSPCLOCK.sys
+  MSPQM                        STOPPED   DEMAND  \SystemRoot\System32\drivers\MSPQM.sys
+  MsRPC                        STOPPED   DEMAND  (?)
+  mssmbios                     RUNNING   SYSTEM  \SystemRoot\System32\drivers\mssmbios.sys
+  MSTEE                        STOPPED   DEMAND  \SystemRoot\System32\drivers\MSTEE.sys
+  MTConfig                     STOPPED   DEMAND  \SystemRoot\System32\drivers\MTConfig.sys
+  Mup                          RUNNING   BOOT    \SystemRoot\System32\Drivers\mup.sys
+  mvumis                       STOPPED   DEMAND  \SystemRoot\System32\drivers\mvumis.sys
+  NativeWifiP                  STOPPED   DEMAND  system32\DRIVERS\nwifi.sys
+  ndfltr                       STOPPED   DEMAND  \SystemRoot\System32\drivers\ndfltr.sys
+  NDIS                         RUNNING   BOOT    \SystemRoot\system32\drivers\ndis.sys
+  NdisCap                      STOPPED   DEMAND  System32\drivers\ndiscap.sys
+  NdisImPlatform               STOPPED   DEMAND  System32\drivers\NdisImPlatform.sys
+  NdisTapi                     RUNNING   DEMAND  System32\DRIVERS\ndistapi.sys
+  Ndisuio                      RUNNING   DEMAND  system32\drivers\ndisuio.sys
+  NdisVirtualBus               RUNNING   DEMAND  \SystemRoot\System32\drivers\NdisVirtualBus.sys
+  NdisWan                      RUNNING   DEMAND  \SystemRoot\System32\drivers\ndiswan.sys
+  ndiswanlegacy                STOPPED   DEMAND  System32\DRIVERS\ndiswan.sys
+  NDKPing                      STOPPED   DEMAND  system32\drivers\NDKPing.sys
+  ndproxy                      RUNNING   DEMAND  System32\DRIVERS\NDProxy.sys
+  Ndu                          RUNNING   AUTO    system32\drivers\Ndu.sys
+  NetAdapterCx                 STOPPED   DEMAND  system32\drivers\NetAdapterCx.sys
+  NetBIOS                      RUNNING   SYSTEM  system32\drivers\netbios.sys
+  NetBT                        RUNNING   SYSTEM  System32\DRIVERS\netbt.sys
+  netvsc                       STOPPED   DEMAND  \SystemRoot\System32\drivers\netvsc.sys
+  Npfs                         RUNNING   SYSTEM  (?)
+  npsvctrig                    RUNNING   SYSTEM  \SystemRoot\System32\drivers\npsvctrig.sys
+  nsiproxy                     RUNNING   SYSTEM  system32\drivers\nsiproxy.sys
+  Ntfs                         RUNNING   DEMAND  (?)
+  Null                         RUNNING   SYSTEM  (?)
+  nvdimm                       STOPPED   DEMAND  \SystemRoot\System32\drivers\nvdimm.sys
+  nvraid                       STOPPED   DEMAND  \SystemRoot\System32\drivers\nvraid.sys
+  nvstor                       STOPPED   DEMAND  \SystemRoot\System32\drivers\nvstor.sys
+  Parport                      STOPPED   DEMAND  \SystemRoot\System32\drivers\parport.sys
+  partmgr                      RUNNING   BOOT    \SystemRoot\System32\drivers\partmgr.sys
+  pci                          RUNNING   BOOT    \SystemRoot\System32\drivers\pci.sys
+  pciide                       STOPPED   DEMAND  \SystemRoot\System32\drivers\pciide.sys
+  pcmcia                       STOPPED   DEMAND  \SystemRoot\System32\drivers\pcmcia.sys
+  pcw                          RUNNING   BOOT    \SystemRoot\System32\drivers\pcw.sys
+  pdc                          RUNNING   BOOT    \SystemRoot\system32\drivers\pdc.sys
+  PEAUTH                       RUNNING   AUTO    system32\drivers\peauth.sys
+  percsas2i                    STOPPED   DEMAND  \SystemRoot\System32\drivers\percsas2i.sys
+  percsas3i                    STOPPED   DEMAND  \SystemRoot\System32\drivers\percsas3i.sys
+  PktMon                       STOPPED   DEMAND  system32\drivers\PktMon.sys
+  pmem                         STOPPED   DEMAND  \SystemRoot\System32\drivers\pmem.sys
+  PNPMEM                       STOPPED   DEMAND  \SystemRoot\System32\drivers\pnpmem.sys
+  portcfg                      STOPPED   DEMAND  \SystemRoot\System32\drivers\portcfg.sys
+  PptpMiniport                 RUNNING   DEMAND  \SystemRoot\System32\drivers\raspptp.sys
+  Processor                    STOPPED   DEMAND  \SystemRoot\System32\drivers\processr.sys
+  Psched                       RUNNING   SYSTEM  System32\drivers\pacer.sys
+  QWAVEdrv                     STOPPED   DEMAND  \SystemRoot\system32\drivers\qwavedrv.sys
+  Ramdisk                      STOPPED   DEMAND  \SystemRoot\system32\DRIVERS\ramdisk.sys
+  RasAcd                       STOPPED   DEMAND  System32\DRIVERS\rasacd.sys
+  RasAgileVpn                  RUNNING   DEMAND  \SystemRoot\System32\drivers\AgileVpn.sys
+  Rasl2tp                      RUNNING   DEMAND  \SystemRoot\System32\drivers\rasl2tp.sys
+  RasPppoe                     RUNNING   DEMAND  System32\DRIVERS\raspppoe.sys
+  RasSstp                      RUNNING   DEMAND  \SystemRoot\System32\drivers\rassstp.sys
+  rdbss                        RUNNING   SYSTEM  system32\DRIVERS\rdbss.sys
+  rdpbus                       RUNNING   DEMAND  \SystemRoot\System32\drivers\rdpbus.sys
+  RDPDR                        STOPPED   DEMAND  System32\drivers\rdpdr.sys
+  RdpVideoMiniport             STOPPED   DEMAND  System32\drivers\rdpvideominiport.sys
+  rdyboost                     RUNNING   BOOT    \SystemRoot\System32\drivers\rdyboost.sys
+  ReFS                         STOPPED   DEMAND  (?)
+  ReFSv1                       STOPPED   DEMAND  (?)
+  RFCOMM                       RUNNING   DEMAND  \SystemRoot\System32\drivers\rfcomm.sys
+  rhproxy                      STOPPED   DEMAND  \SystemRoot\System32\drivers\rhproxy.sys
+  rspndr                       RUNNING   AUTO    system32\drivers\rspndr.sys
+  RTZ1                         STOPPED   DEMAND  \??\C:\Users\Public\rtZ1.sys
+  s3cap                        STOPPED   DEMAND  \SystemRoot\System32\drivers\vms3cap.sys
+  sbp2port                     STOPPED   DEMAND  \SystemRoot\System32\drivers\sbp2port.sys
+  scfilter                     STOPPED   DEMAND  System32\DRIVERS\scfilter.sys
+  scmbus                       STOPPED   DEMAND  \SystemRoot\System32\drivers\scmbus.sys
+  sdbus                        STOPPED   DEMAND  \SystemRoot\System32\drivers\sdbus.sys
+  SDFRd                        STOPPED   DEMAND  \SystemRoot\System32\drivers\SDFRd.sys
+  sdstor                       STOPPED   DEMAND  \SystemRoot\System32\drivers\sdstor.sys
+  SerCx                        STOPPED   DEMAND  system32\drivers\SerCx.sys
+  SerCx2                       STOPPED   DEMAND  system32\drivers\SerCx2.sys
+  Serenum                      STOPPED   DEMAND  \SystemRoot\System32\drivers\serenum.sys
+  Serial                       STOPPED   DEMAND  \SystemRoot\System32\drivers\serial.sys
+  sermouse                     STOPPED   DEMAND  \SystemRoot\System32\drivers\sermouse.sys
+  sfloppy                      STOPPED   DEMAND  \SystemRoot\System32\drivers\sfloppy.sys
+  SgrmAgent                    RUNNING   BOOT    \SystemRoot\system32\drivers\SgrmAgent.sys
+  SiSRaid2                     STOPPED   DEMAND  \SystemRoot\System32\drivers\SiSRaid2.sys
+  SiSRaid4                     STOPPED   DEMAND  \SystemRoot\System32\drivers\sisraid4.sys
+  SmartSAMD                    STOPPED   DEMAND  \SystemRoot\System32\drivers\SmartSAMD.sys
+  spaceport                    RUNNING   BOOT    \SystemRoot\System32\drivers\spaceport.sys
+  SpatialGraphFilter           STOPPED   DEMAND  System32\drivers\SpatialGraphFilter.sys
+  SpbCx                        STOPPED   DEMAND  system32\drivers\SpbCx.sys
+  srv2                         RUNNING   DEMAND  System32\DRIVERS\srv2.sys
+  srvnet                       RUNNING   DEMAND  System32\DRIVERS\srvnet.sys
+  stexstor                     STOPPED   DEMAND  \SystemRoot\System32\drivers\stexstor.sys
+  storahci                     RUNNING   BOOT    \SystemRoot\System32\drivers\storahci.sys
+  storflt                      STOPPED   DEMAND  \SystemRoot\System32\drivers\vmstorfl.sys
+  stornvme                     RUNNING   BOOT    \SystemRoot\System32\drivers\stornvme.sys
+  storqosflt                   RUNNING   AUTO    system32\drivers\storqosflt.sys
+  storufs                      STOPPED   DEMAND  \SystemRoot\System32\drivers\storufs.sys
+  storvsc                      STOPPED   DEMAND  \SystemRoot\System32\drivers\storvsc.sys
+  swenum                       RUNNING   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\swenum.inf_amd64_9ebb9a8726114d22\swenum.sys
+  Synth3dVsc                   STOPPED   DEMAND  \SystemRoot\System32\drivers\Synth3dVsc.sys
+  Tcpip                        RUNNING   BOOT    \SystemRoot\System32\drivers\tcpip.sys
+  Tcpip6                       STOPPED   DEMAND  System32\drivers\tcpip.sys
+  tcpipreg                     RUNNING   AUTO    System32\drivers\tcpipreg.sys
+  tdx                          RUNNING   SYSTEM  \SystemRoot\system32\DRIVERS\tdx.sys
+  terminpt                     STOPPED   DEMAND  \SystemRoot\System32\drivers\terminpt.sys
+  TPM                          STOPPED   DEMAND  \SystemRoot\System32\drivers\tpm.sys
+  TsUsbFlt                     STOPPED   DEMAND  system32\drivers\tsusbflt.sys
+  TsUsbGD                      STOPPED   DEMAND  \SystemRoot\System32\drivers\TsUsbGD.sys
+  tunnel                       STOPPED   DEMAND  System32\drivers\tunnel.sys
+  UASPStor                     STOPPED   DEMAND  \SystemRoot\System32\drivers\uaspstor.sys
+  UcmCx0101                    STOPPED   DEMAND  System32\Drivers\UcmCx.sys
+  UcmTcpciCx0101               STOPPED   DEMAND  System32\Drivers\UcmTcpciCx.sys
+  UcmUcsiAcpiClient            STOPPED   DEMAND  \SystemRoot\System32\drivers\UcmUcsiAcpiClient.sys
+  UcmUcsiCx0101                STOPPED   DEMAND  System32\Drivers\UcmUcsiCx.sys
+  Ucx01000                     RUNNING   DEMAND  system32\drivers\ucx01000.sys
+  UdeCx                        STOPPED   DEMAND  system32\drivers\udecx.sys
+  udfs                         STOPPED   DISABLED system32\DRIVERS\udfs.sys
+  UEFI                         STOPPED   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\uefi.inf_amd64_245b553a99d0abd8\UEFI.sys
+  Ufx01000                     STOPPED   DEMAND  system32\drivers\ufx01000.sys
+  UfxChipidea                  STOPPED   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\ufxchipidea.inf_amd64_a4b229fb37a19c3f\UfxChipidea.sys
+  ufxsynopsys                  STOPPED   DEMAND  \SystemRoot\System32\drivers\ufxsynopsys.sys
+  umbus                        RUNNING   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\umbus.inf_amd64_0a69be6a385b49f7\umbus.sys
+  UmPass                       STOPPED   DEMAND  \SystemRoot\System32\drivers\umpass.sys
+  UrsChipidea                  STOPPED   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\urschipidea.inf_amd64_5bdb369042347ad7\urschipidea.sys
+  UrsCx01000                   STOPPED   DEMAND  system32\drivers\urscx01000.sys
+  UrsSynopsys                  STOPPED   DEMAND  \SystemRoot\System32\DriverStore\FileRepository\urssynopsys.inf_amd64_38704576f04a98fd\urssynopsys.sys
+  usbaudio                     STOPPED   DEMAND  \SystemRoot\system32\drivers\usbaudio.sys
+  usbaudio2                    STOPPED   DEMAND  \SystemRoot\System32\drivers\usbaudio2.sys
+  usbccgp                      RUNNING   DEMAND  \SystemRoot\System32\drivers\usbccgp.sys
+  usbcir                       STOPPED   DEMAND  \SystemRoot\System32\drivers\usbcir.sys
+  usbehci                      RUNNING   DEMAND  \SystemRoot\System32\drivers\usbehci.sys
+  usbhub                       RUNNING   DEMAND  \SystemRoot\System32\drivers\usbhub.sys
+  USBHUB3                      RUNNING   DEMAND  \SystemRoot\System32\drivers\UsbHub3.sys
+  usbohci                      STOPPED   DEMAND  \SystemRoot\System32\drivers\usbohci.sys
+  usbprint                     STOPPED   DEMAND  \SystemRoot\System32\drivers\usbprint.sys
+  usbser                       STOPPED   DEMAND  \SystemRoot\System32\drivers\usbser.sys
+  USBSTOR                      STOPPED   DEMAND  \SystemRoot\System32\drivers\USBSTOR.SYS
+  usbuhci                      RUNNING   DEMAND  \SystemRoot\System32\drivers\usbuhci.sys
+  USBXHCI                      RUNNING   DEMAND  \SystemRoot\System32\drivers\USBXHCI.SYS
+  vdrvroot                     RUNNING   BOOT    \SystemRoot\System32\drivers\vdrvroot.sys
+  VerifierExt                  STOPPED   DISABLED System32\drivers\VerifierExt.sys
+  vhdmp                        STOPPED   DEMAND  \SystemRoot\System32\drivers\vhdmp.sys
+  vhf                          STOPPED   DEMAND  \SystemRoot\System32\drivers\vhf.sys
+  Vid                          RUNNING   DEMAND  \SystemRoot\System32\drivers\Vid.sys
+  View++ByLinxer               STOPPED   DEMAND  \??\C:\Windows\System32\drivers\ViewPlusPlusByLinxer.sys
+  ViewOrig                     STOPPED   DEMAND  \??\C:\Windows\System32\drivers\ViewOrig64.sys
+  vm3dmp                       RUNNING   DEMAND  \SystemRoot\system32\DRIVERS\vm3dmp.sys
+  vm3dmp-debug                 STOPPED   DEMAND  \SystemRoot\system32\DRIVERS\vm3dmp-debug.sys
+  vm3dmp-stats                 STOPPED   DEMAND  \SystemRoot\system32\DRIVERS\vm3dmp-stats.sys
+  vm3dmp_loader                RUNNING   DEMAND  \SystemRoot\system32\DRIVERS\vm3dmp_loader.sys
+  vmbus                        STOPPED   DEMAND  \SystemRoot\System32\drivers\vmbus.sys
+  VMBusHID                     STOPPED   DEMAND  \SystemRoot\System32\drivers\VMBusHID.sys
+  vmci                         RUNNING   BOOT    \SystemRoot\System32\drivers\vmci.sys
+  vmgid                        STOPPED   DEMAND  \SystemRoot\System32\drivers\vmgid.sys
+  vmhgfs                       RUNNING   DEMAND  system32\DRIVERS\vmhgfs.sys
+  VMMemCtl                     RUNNING   AUTO    \SystemRoot\system32\DRIVERS\vmmemctl.sys
+  vmmouse                      RUNNING   DEMAND  \SystemRoot\System32\drivers\vmmouse.sys
+  vmrawdsk                     RUNNING   SYSTEM  \SystemRoot\system32\DRIVERS\vmrawdsk.sys
+  vmusbmouse                   RUNNING   DEMAND  \SystemRoot\System32\drivers\vmusbmouse.sys
+  volmgr                       RUNNING   BOOT    \SystemRoot\System32\drivers\volmgr.sys
+  volmgrx                      RUNNING   BOOT    \SystemRoot\System32\drivers\volmgrx.sys
+  volsnap                      RUNNING   BOOT    \SystemRoot\System32\drivers\volsnap.sys
+  volume                       RUNNING   BOOT    \SystemRoot\System32\drivers\volume.sys
+  VPCHN                        STOPPED   DEMAND  \??\C:\Users\Public\VPChainN.sys
+  VPCHV                        STOPPED   DEMAND  \??\C:\Users\Public\VPChainV.sys
+  VPCHY                        STOPPED   DEMAND  \??\C:\Users\Public\VPChainY.sys
+  VPCHZ                        STOPPED   DEMAND  \??\C:\Users\Public\VPChainZ.sys
+  vpci                         STOPPED   DEMAND  \SystemRoot\System32\drivers\vpci.sys
+  vsmraid                      STOPPED   DEMAND  \SystemRoot\System32\drivers\vsmraid.sys
+  vsock                        RUNNING   BOOT    \SystemRoot\system32\DRIVERS\vsock.sys
+  VSTXRAID                     STOPPED   DEMAND  \SystemRoot\System32\drivers\vstxraid.sys
+  vwifibus                     STOPPED   DEMAND  \SystemRoot\System32\drivers\vwifibus.sys
+  vwififlt                     RUNNING   SYSTEM  System32\drivers\vwififlt.sys
+  WacomPen                     STOPPED   DEMAND  \SystemRoot\System32\drivers\wacompen.sys
+  wanarp                       RUNNING   AUTO    System32\DRIVERS\wanarp.sys
+  wanarpv6                     STOPPED   DEMAND  System32\DRIVERS\wanarp.sys
+  wcifs                        RUNNING   AUTO    \SystemRoot\system32\drivers\wcifs.sys
+  wcnfs                        STOPPED   DEMAND  \SystemRoot\system32\drivers\wcnfs.sys
+  WdAiNisDrv                   STOPPED   DISABLED system32\drivers\wd\WdAiNisDrv.sys
+  WdBoot                       STOPPED   BOOT    \SystemRoot\system32\drivers\wd\WdBoot.sys
+  Wdf01000                     RUNNING   BOOT    \SystemRoot\system32\drivers\Wdf01000.sys
+  WdFilter                     RUNNING   BOOT    \SystemRoot\system32\drivers\wd\WdFilter.sys
+  wdiwifi                      STOPPED   DEMAND  system32\DRIVERS\wdiwifi.sys
+  WdmCompanionFilter           STOPPED   DEMAND  system32\drivers\WdmCompanionFilter.sys
+  WdNisDrv                     RUNNING   DEMAND  system32\drivers\wd\WdNisDrv.sys
+  WFPLWFS                      RUNNING   BOOT    \SystemRoot\System32\drivers\wfplwfs.sys
+  WIMMount                     STOPPED   DEMAND  system32\drivers\wimmount.sys
+  WindowsTrustedRT             RUNNING   BOOT    \SystemRoot\system32\drivers\WindowsTrustedRT.sys
+  WindowsTrustedRTProxy        RUNNING   BOOT    \SystemRoot\System32\drivers\WindowsTrustedRTProxy.sys
+  WinMad                       STOPPED   DEMAND  \SystemRoot\System32\drivers\winmad.sys
+  WinNat                       STOPPED   DEMAND  system32\drivers\winnat.sys
+  WinQuic                      RUNNING   DEMAND  system32\drivers\winquic.sys
+  WINUSB                       STOPPED   DEMAND  \SystemRoot\System32\drivers\WinUSB.SYS
+  WinVerbs                     STOPPED   DEMAND  \SystemRoot\System32\drivers\winverbs.sys
+  WmiAcpi                      STOPPED   DEMAND  \SystemRoot\System32\drivers\wmiacpi.sys
+  Wof                          RUNNING   BOOT    (?)
+  WpdUpFltr                    STOPPED   DEMAND  System32\drivers\WpdUpFltr.sys
+  ws2ifsl                      RUNNING   SYSTEM  \SystemRoot\system32\drivers\ws2ifsl.sys
+  WudfPf                       STOPPED   DEMAND  system32\drivers\WudfPf.sys
+  WUDFRd                       RUNNING   DEMAND  \SystemRoot\System32\drivers\WUDFRd.sys
+  xboxgip                      STOPPED   DEMAND  \SystemRoot\System32\drivers\xboxgip.sys
+  xinputhid                    STOPPED   DEMAND  \SystemRoot\System32\drivers\xinputhid.sys
+  XPCHunterDrv                 STOPPED   DEMAND  \??\C:\Windows\System32\drivers\XPCHunterDrv.sys
+  ZQE1                         STOPPED   DEMAND  \??\C:\Users\Public\VPChainD.sys
+  ZQF1                         STOPPED   DEMAND  \??\C:\Users\Public\VPChainD.sys
+  ZQH1                         STOPPED   DEMAND  \??\C:\Users\Public\VPChainE.sys
+  ZQN1                         STOPPED   DEMAND  \??\C:\Users\Public\VPChainI.sys
+  ZQP1                         STOPPED   DEMAND  \??\C:\Users\Public\VPChainJ.sys
+  ZQU1                         STOPPED   DEMAND  \??\C:\Users\Public\VPChainL.sys
+  ZQX1                         STOPPED   DEMAND  \??\C:\Users\Public\VPChainO.sys
+  zzdummy                      STOPPED   DEMAND  \??\C:\Users\Public\zzdummy.sys
+
+---------- "--setting-cli" ----------
+open device failed
+
+---------- "--forbid-cli" ----------
+open device failed
+---------- "--exam-cli" ----------
+PC Hunter Professional --- Computer Examination Report
+Examination Date: 2026-10-25 14:26:13
+Examination Items: 8 (risk: 1, warn: 2, info: 5)
+  [INFO] Operating system             Windows 10 1903
+  [RISK] Hidden registry keys         3 suspicious registry keys
+  [WARN] Services                     630 services, 19 hidden (registry keys: 702)
+  [WARN] Startup entries              38 startup entries, 30 CLSID overrides
+  [INFO] Kernel modules               194 kernel modules loaded
+  [INFO] Registry handles             3735 open Key handles system-wide
+  [INFO] File scan                    C:\Windows\System32: 4310 files, clean
+  [INFO] File scan                    C:\Windows\Temp: 304 files, clean
+
+---------- "--fireeye-cli" ----------
+fireeye analysis for: ÐAŠ´ú
+  verdict : cannot analyse (cannot compute SHA-256)
+
+---------- "--trojan-cli" ----------
+=== Trojan Detection (PhysicalDrive0) ===
+MBR: MBR OK!
+     signature OK, 379 non-zero boot bytes, 1 partition(s)
+ZeroAccess: not detected
+LSP: OK (16 LSP entries in system dirs, 0 outside)
+Safeboot: OK (SafeBoot policy normal)
+
+---------- "--services-cli" ----------
+Services: 630 / Hidden Services: 19  (registry keys: 702)
+  0000TEST                         STOPPED   dll=-   \??\C:\Users\Public\aaatest.sys
+  1394ohci                         STOPPED   dll=-   \SystemRoot\System32\drivers\1394ohci.sys
+  3ware                            STOPPED   dll=-   System32\drivers\3ware.sys
+  ACPI                             RUNNING   dll=-   System32\drivers\ACPI.sys
+  AcpiDev                          STOPPED   dll=-   \SystemRoot\System32\drivers\AcpiDev.sys
+  acpiex                           RUNNING   dll=-   System32\Drivers\acpiex.sys
+  acpipagr                         STOPPED   dll=-   \SystemRoot\System32\drivers\acpipagr.sys
+  AcpiPmi                          STOPPED   dll=-   \SystemRoot\System32\drivers\acpipmi.sys
+  acpitime                         STOPPED   dll=-   \SystemRoot\System32\drivers\acpitime.sys
+  Acx01000                         STOPPED   dll=-   system32\drivers\Acx01000.sys
+  ADP80XX                          STOPPED   dll=-   System32\drivers\ADP80XX.SYS
+  AFD                              RUNNING   dll=-   \SystemRoot\system32\drivers\afd.sys
+  afunix                           RUNNING   dll=-   \SystemRoot\system32\drivers\afunix.sys
+  ahcache                          RUNNING   dll=-   system32\DRIVERS\ahcache.sys
+  AJRouter                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  ALG                              STOPPED   dll=-   C:\Windows\System32\alg.exe
+  amdgpio2                         STOPPED   dll=-   \SystemRoot\System32\drivers\amdgpio2.sys
+  amdi2c                           STOPPED   dll=-   \SystemRoot\System32\drivers\amdi2c.sys
+  AmdK8                            STOPPED   dll=-   \SystemRoot\System32\drivers\amdk8.sys
+  AmdPPM                           STOPPED   dll=-   \SystemRoot\System32\drivers\amdppm.sys
+  amdsata                          STOPPED   dll=-   System32\drivers\amdsata.sys
+  amdsbs                           STOPPED   dll=-   System32\drivers\amdsbs.sys
+  amdxata                          STOPPED   dll=-   System32\drivers\amdxata.sys
+  AppID                            STOPPED   dll=-   system32\drivers\appid.sys
+  AppIDSvc                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  Appinfo                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  applockerfltr                    STOPPED   dll=-   system32\drivers\applockerfltr.sys
+  AppReadiness                     STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  AppXSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  arcsas                           STOPPED   dll=-   System32\drivers\arcsas.sys
+  AskLinkService                   STOPPED   dll=-   C:\Program Files\AskLink\4.0.12.6\AskLink.exe
+  AskLinkVGC                       RUNNING   dll=-   \SystemRoot\System32\drivers\AskLinkVGC.sys
+  AsyncMac                         STOPPED   dll=-   \SystemRoot\System32\drivers\asyncmac.sys
+  atapi                            RUNNING   dll=-   System32\drivers\atapi.sys
+  AudioEndpointBuilder             RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  Audiosrv                         RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  autotimesvc                      STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  AxInstSV                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  b06bdrv                          STOPPED   dll=-   System32\drivers\bxvbda.sys
+  bam                              RUNNING   dll=-   system32\drivers\bam.sys
+  BasicDisplay                     RUNNING   dll=-   \SystemRoot\System32\DriverStore\FileRepository\basicdisplay.inf_amd64_25ab9510fd18cfda\BasicDisplay.sys
+  BasicRender                      RUNNING   dll=-   \SystemRoot\System32\DriverStore\FileRepository\basicrender.inf_amd64_9ff437f462543a42\BasicRender.sys
+  bcmfn2                           STOPPED   dll=-   \SystemRoot\System32\drivers\bcmfn2.sys
+  BDESVC                           STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  Beep                             RUNNING   dll=-   (?)
+  BFE                              RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  bindflt                          STOPPED   dll=-   \SystemRoot\system32\drivers\bindflt.sys
+  BITS                             STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  bowser                           RUNNING   dll=-   system32\DRIVERS\bowser.sys
+  BrokerInfrastructure             RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  Browser                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  BTAGService                      RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  BthA2dp                          STOPPED   dll=-   \SystemRoot\System32\drivers\BthA2dp.sys
+  BthAvctpSvc                      RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  BthEnum                          RUNNING   dll=-   \SystemRoot\System32\drivers\BthEnum.sys
+  BthHFEnum                        STOPPED   dll=-   \SystemRoot\System32\drivers\bthhfenum.sys
+  BthLEEnum                        STOPPED   dll=-   \SystemRoot\System32\drivers\Microsoft.Bluetooth.Legacy.LEEnumerator.sys
+  BthMini                          STOPPED   dll=-   \SystemRoot\System32\drivers\BTHMINI.sys
+  BTHMODEM                         STOPPED   dll=-   \SystemRoot\System32\drivers\bthmodem.sys
+  BthPan                           RUNNING   dll=-   \SystemRoot\System32\drivers\bthpan.sys
+  BTHPORT                          STOPPED   dll=-   \SystemRoot\System32\drivers\BTHport.sys
+  bthserv                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  BTHUSB                           RUNNING   dll=-   \SystemRoot\System32\drivers\BTHUSB.sys
+  bttflt                           STOPPED   dll=-   System32\drivers\bttflt.sys
+  buttonconverter                  STOPPED   dll=-   \SystemRoot\System32\drivers\buttonconverter.sys
+  CAD                              STOPPED   dll=-   \SystemRoot\System32\drivers\CAD.sys
+  camsvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  cdfs                             STOPPED   dll=-   system32\DRIVERS\cdfs.sys
+  CDPSvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  cdrom                            RUNNING   dll=-   \SystemRoot\System32\drivers\cdrom.sys
+  CertPropSvc                      STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  cht4iscsi                        STOPPED   dll=-   System32\drivers\cht4sx64.sys
+  cht4vbd                          STOPPED   dll=-   \SystemRoot\System32\drivers\cht4vx64.sys
+  circlass                         STOPPED   dll=-   \SystemRoot\System32\drivers\circlass.sys
+  CldFlt                           RUNNING   dll=-   system32\drivers\cldflt.sys
+  CLFS                             RUNNING   dll=-   System32\drivers\CLFS.sys
+  ClipSVC                          RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  CmBatt                           RUNNING   dll=-   \SystemRoot\System32\drivers\CmBatt.sys
+  CNG                              RUNNING   dll=-   System32\Drivers\cng.sys
+  cnghwassist                      STOPPED   dll=-   System32\DRIVERS\cnghwassist.sys
+  CompositeBus                     RUNNING   dll=-   \SystemRoot\System32\DriverStore\FileRepository\compositebus.inf_amd64_160f98ccef202f85\CompositeBus.sys
+  COMSysApp                        RUNNING   dll=-   C:\Windows\system32\dllhost.exe
+  condrv                           RUNNING   dll=-   System32\drivers\condrv.sys
+  CoreMessagingRegistrar           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  CryptSvc                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  dam                              STOPPED   dll=-   system32\drivers\dam.sys
+  DcomLaunch                       RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  defragsvc                        STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  DeviceAssociationService         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  DeviceInstall                    STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  DevQueryBroker                   STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  Dfsc                             RUNNING   dll=-   System32\Drivers\dfsc.sys
+  Dhcp                             RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  diagnosticshub.standardcollector.service STOPPED   dll=-   C:\Windows\system32\DiagSvcs\DiagnosticsHub.StandardCollector.Service.exe
+  diagsvc                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  DiagTrack                        RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  disk                             RUNNING   dll=-   System32\drivers\disk.sys
+  DispBrokerDesktopSvc             RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  DisplayEnhancementService        STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  DmEnrollmentSvc                  STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  dmvsc                            STOPPED   dll=-   \SystemRoot\System32\drivers\dmvsc.sys
+  dmwappushservice                 STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  Dnscache                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  DoSvc                            RUNNING   dll=-   C:\Windows\System32\svchost.exe
+  dot3svc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  DPS                              RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  drmkaud                          STOPPED   dll=-   \SystemRoot\System32\drivers\drmkaud.sys
+  DsmSvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  DsSvc                            STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  DusmSvc                          RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  DXGKrnl                          RUNNING   dll=-   \SystemRoot\System32\drivers\dxgkrnl.sys
+  e1i65x64                         STOPPED   dll=-   \SystemRoot\System32\drivers\e1i65x64.sys
+  Eaphost                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  ebdrv                            STOPPED   dll=-   System32\drivers\evbda.sys
+  EFS                              STOPPED   dll=yes C:\Windows\System32\lsass.exe
+  EhStorClass                      RUNNING   dll=-   System32\drivers\EhStorClass.sys
+  EhStorTcgDrv                     STOPPED   dll=-   System32\drivers\EhStorTcgDrv.sys
+  embeddedmode                     STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  EntAppSvc                        STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  ErrDev                           STOPPED   dll=-   \SystemRoot\System32\drivers\errdev.sys
+  EventLog                         RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  EventSystem                      RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  exfat                            STOPPED   dll=-   (?)
+  fastfat                          RUNNING   dll=-   (?)
+  Fax                              STOPPED   dll=-   C:\Windows\system32\fxssvc.exe
+  fdc                              STOPPED   dll=-   \SystemRoot\System32\drivers\fdc.sys
+  fdPHost                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  FDResPub                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  fhsvc                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  FileCrypt                        RUNNING   dll=-   system32\drivers\filecrypt.sys
+  FileInfo                         RUNNING   dll=-   System32\drivers\fileinfo.sys
+  Filetrace                        STOPPED   dll=-   system32\drivers\filetrace.sys
+  flpydisk                         STOPPED   dll=-   \SystemRoot\System32\drivers\flpydisk.sys
+  FltMgr                           RUNNING   dll=-   system32\drivers\fltmgr.sys
+  FontCache                        RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  FrameServer                      STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  FsDepends                        STOPPED   dll=-   System32\drivers\FsDepends.sys
+  fvevol                           RUNNING   dll=-   System32\DRIVERS\fvevol.sys
+  gencounter                       RUNNING   dll=-   \SystemRoot\System32\drivers\vmgencounter.sys
+  genericusbfn                     STOPPED   dll=-   \SystemRoot\System32\DriverStore\FileRepository\genericusbfn.inf_amd64_dbcdd1a51a139f61\genericusbfn.sys
+  GPIOClx0101                      STOPPED   dll=-   System32\Drivers\msgpioclx.sys
+  gpsvc                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  GpuEnergyDrv                     RUNNING   dll=-   System32\drivers\gpuenergydrv.sys
+  GraphicsPerfSvc                  STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  HdAudAddService                  RUNNING   dll=-   \SystemRoot\System32\drivers\HdAudio.sys
+  HDAudBus                         RUNNING   dll=-   \SystemRoot\System32\drivers\HDAudBus.sys
+  HidBatt                          STOPPED   dll=-   \SystemRoot\System32\drivers\HidBatt.sys
+  HidBth                           STOPPED   dll=-   \SystemRoot\System32\drivers\hidbth.sys
+  hidi2c                           STOPPED   dll=-   \SystemRoot\System32\drivers\hidi2c.sys
+  hidinterrupt                     STOPPED   dll=-   \SystemRoot\System32\drivers\hidinterrupt.sys
+  HidIr                            STOPPED   dll=-   \SystemRoot\System32\drivers\hidir.sys
+  hidserv                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  hidspi                           STOPPED   dll=-   \SystemRoot\System32\drivers\hidspi.sys
+  HidUsb                           RUNNING   dll=-   \SystemRoot\System32\drivers\hidusb.sys
+  HpSAMD                           STOPPED   dll=-   System32\drivers\HpSAMD.sys
+  HTTP                             RUNNING   dll=-   system32\drivers\HTTP.sys
+  hvcrash                          STOPPED   dll=-   \SystemRoot\System32\drivers\hvcrash.sys
+  HvHost                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  hvservice                        STOPPED   dll=-   system32\drivers\hvservice.sys
+  HwNClx0101                       STOPPED   dll=-   System32\Drivers\mshwnclx.sys
+  hwpolicy                         STOPPED   dll=-   System32\drivers\hwpolicy.sys
+  hyperkbd                         STOPPED   dll=-   \SystemRoot\System32\drivers\hyperkbd.sys
+  HyperVideo                       STOPPED   dll=-   \SystemRoot\System32\drivers\HyperVideo.sys
+  i8042prt                         RUNNING   dll=-   \SystemRoot\System32\drivers\i8042prt.sys
+  iagpio                           STOPPED   dll=-   \SystemRoot\System32\drivers\iagpio.sys
+  iai2c                            STOPPED   dll=-   \SystemRoot\System32\drivers\iai2c.sys
+  iaLPSS2i_GPIO2                   STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_GPIO2.sys
+  iaLPSS2i_GPIO2_BXT_P             STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_GPIO2_BXT_P.sys
+  iaLPSS2i_GPIO2_CNL               STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_GPIO2_CNL.sys
+  iaLPSS2i_GPIO2_GLK               STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_GPIO2_GLK.sys
+  iaLPSS2i_I2C                     STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_I2C.sys
+  iaLPSS2i_I2C_BXT_P               STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_I2C_BXT_P.sys
+  iaLPSS2i_I2C_CNL                 STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_I2C_CNL.sys
+  iaLPSS2i_I2C_GLK                 STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSS2i_I2C_GLK.sys
+  iaLPSSi_GPIO                     STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSSi_GPIO.sys
+  iaLPSSi_I2C                      STOPPED   dll=-   \SystemRoot\System32\drivers\iaLPSSi_I2C.sys
+  iaStorAVC                        STOPPED   dll=-   System32\drivers\iaStorAVC.sys
+  iaStorV                          STOPPED   dll=-   System32\drivers\iaStorV.sys
+  ibbus                            STOPPED   dll=-   \SystemRoot\System32\drivers\ibbus.sys
+  icssvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  IKEEXT                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  iMonitorEngine                   STOPPED   dll=-   \??\C:\Program
+  IndirectKmd                      RUNNING   dll=-   \SystemRoot\System32\drivers\IndirectKmd.sys
+  InstallService                   RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  intelide                         RUNNING   dll=-   System32\drivers\intelide.sys
+  intelpep                         RUNNING   dll=-   System32\drivers\intelpep.sys
+  intelpmax                        STOPPED   dll=-   \SystemRoot\System32\drivers\intelpmax.sys
+  intelppm                         RUNNING   dll=-   \SystemRoot\System32\drivers\intelppm.sys
+  iorate                           RUNNING   dll=-   system32\drivers\iorate.sys
+  IpFilterDriver                   STOPPED   dll=-   system32\DRIVERS\ipfltdrv.sys
+  iphlpsvc                         RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  IPMIDRV                          STOPPED   dll=-   \SystemRoot\System32\drivers\IPMIDrv.sys
+  IPNAT                            STOPPED   dll=-   System32\drivers\ipnat.sys
+  IPT                              STOPPED   dll=-   \SystemRoot\System32\drivers\ipt.sys
+  IpxlatCfgSvc                     STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  isapnp                           STOPPED   dll=-   System32\drivers\isapnp.sys
+  iScsiPrt                         STOPPED   dll=-   \SystemRoot\System32\drivers\msiscsi.sys
+  ItSas35i                         STOPPED   dll=-   System32\drivers\ItSas35i.sys
+  kbdclass                         RUNNING   dll=-   \SystemRoot\System32\drivers\kbdclass.sys
+  kbdhid                           RUNNING   dll=-   \SystemRoot\System32\drivers\kbdhid.sys
+  kdnic                            RUNNING   dll=-   \SystemRoot\System32\drivers\kdnic.sys
+  KeyIso                           RUNNING   dll=yes C:\Windows\system32\lsass.exe
+  KSecDD                           RUNNING   dll=-   System32\Drivers\ksecdd.sys
+  KSecPkg                          RUNNING   dll=-   System32\Drivers\ksecpkg.sys
+  KslD                             RUNNING   dll=-   system32\drivers\wd\KslD.sys
+  ksthunk                          RUNNING   dll=-   \SystemRoot\system32\drivers\ksthunk.sys
+  KtmRm                            STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  LanmanServer                     RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  LanmanWorkstation                RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  lfsvc                            RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  LicenseManager                   RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  linklook                         RUNNING   dll=-   \SystemRoot\System32\drivers\linklook.sys
+  lltdio                           RUNNING   dll=-   system32\drivers\lltdio.sys
+  lltdsvc                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  lmhosts                          RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  LSI_SAS                          STOPPED   dll=-   System32\drivers\lsi_sas.sys
+  LSI_SAS2i                        STOPPED   dll=-   System32\drivers\lsi_sas2i.sys
+  LSI_SAS3i                        STOPPED   dll=-   System32\drivers\lsi_sas3i.sys
+  LSI_SSS                          STOPPED   dll=-   System32\drivers\lsi_sss.sys
+  LSM                              RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  luafv                            RUNNING   dll=-   \SystemRoot\system32\drivers\luafv.sys
+  LxpSvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  MapsBroker                       STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  mausbhost                        STOPPED   dll=-   \SystemRoot\System32\drivers\mausbhost.sys
+  mausbip                          STOPPED   dll=-   \SystemRoot\System32\drivers\mausbip.sys
+  MbbCx                            STOPPED   dll=-   system32\drivers\MbbCx.sys
+  MDCoreSvc                        RUNNING   dll=-   C:\ProgramData\Microsoft\Windows Defender\Platform\4.18.26090.9-0\MpDefenderCoreService.exe
+  megasas                          STOPPED   dll=-   System32\drivers\megasas.sys
+  megasas2i                        STOPPED   dll=-   System32\drivers\MegaSas2i.sys
+  megasas35i                       STOPPED   dll=-   System32\drivers\megasas35i.sys
+  megasr                           STOPPED   dll=-   System32\drivers\megasr.sys
+  Microsoft_Bluetooth_AvrcpTransport STOPPED   dll=-   \SystemRoot\System32\drivers\Microsoft.Bluetooth.AvrcpTransport.sys
+  mlx4_bus                         STOPPED   dll=-   \SystemRoot\System32\drivers\mlx4_bus.sys
+  MMCSS                            RUNNING   dll=-   \SystemRoot\system32\drivers\mmcss.sys
+  Modem                            STOPPED   dll=-   system32\drivers\modem.sys
+  monitor                          RUNNING   dll=-   \SystemRoot\System32\drivers\monitor.sys
+  mouclass                         RUNNING   dll=-   \SystemRoot\System32\drivers\mouclass.sys
+  mouhid                           RUNNING   dll=-   \SystemRoot\System32\drivers\mouhid.sys
+  mountmgr                         RUNNING   dll=-   System32\drivers\mountmgr.sys
+  mpsdrv                           RUNNING   dll=-   System32\drivers\mpsdrv.sys
+  mpssvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  MRxDAV                           STOPPED   dll=-   \SystemRoot\system32\drivers\mrxdav.sys
+  mrxsmb                           RUNNING   dll=-   system32\DRIVERS\mrxsmb.sys
+  mrxsmb10                         RUNNING   dll=-   system32\DRIVERS\mrxsmb10.sys
+  mrxsmb20                         RUNNING   dll=-   system32\DRIVERS\mrxsmb20.sys
+  MsBridge                         STOPPED   dll=-   System32\drivers\bridge.sys
+  MSDTC                            RUNNING   dll=-   C:\Windows\System32\msdtc.exe
+  Msfs                             RUNNING   dll=-   (?)
+  msgpiowin32                      STOPPED   dll=-   \SystemRoot\System32\drivers\msgpiowin32.sys
+  mshidkmdf                        RUNNING   dll=-   \SystemRoot\System32\drivers\mshidkmdf.sys
+  mshidumdf                        STOPPED   dll=-   \SystemRoot\System32\drivers\mshidumdf.sys
+  msisadrv                         RUNNING   dll=-   System32\drivers\msisadrv.sys
+  MSiSCSI                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  msiserver                        STOPPED   dll=-   C:\Windows\system32\msiexec.exe
+  MSKSSRV                          STOPPED   dll=-   \SystemRoot\System32\drivers\MSKSSRV.sys
+  MsLldp                           RUNNING   dll=-   system32\drivers\mslldp.sys
+  MSPCLOCK                         STOPPED   dll=-   \SystemRoot\System32\drivers\MSPCLOCK.sys
+  MSPQM                            STOPPED   dll=-   \SystemRoot\System32\drivers\MSPQM.sys
+  MsRPC                            STOPPED   dll=-   (?)
+  mssmbios                         RUNNING   dll=-   \SystemRoot\System32\drivers\mssmbios.sys
+  MSTEE                            STOPPED   dll=-   \SystemRoot\System32\drivers\MSTEE.sys
+  MTConfig                         STOPPED   dll=-   \SystemRoot\System32\drivers\MTConfig.sys
+  Mup                              RUNNING   dll=-   System32\Drivers\mup.sys
+  mvumis                           STOPPED   dll=-   System32\drivers\mvumis.sys
+  NativeWifiP                      STOPPED   dll=-   system32\DRIVERS\nwifi.sys
+  NaturalAuthentication            STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  NcaSvc                           STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  NcbService                       RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  NcdAutoSetup                     RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  ndfltr                           STOPPED   dll=-   \SystemRoot\System32\drivers\ndfltr.sys
+  NDIS                             RUNNING   dll=-   system32\drivers\ndis.sys
+  NdisCap                          STOPPED   dll=-   System32\drivers\ndiscap.sys
+  NdisImPlatform                   STOPPED   dll=-   System32\drivers\NdisImPlatform.sys
+  NdisTapi                         RUNNING   dll=-   System32\DRIVERS\ndistapi.sys
+  Ndisuio                          RUNNING   dll=-   system32\drivers\ndisuio.sys
+  NdisVirtualBus                   RUNNING   dll=-   \SystemRoot\System32\drivers\NdisVirtualBus.sys
+  NdisWan                          RUNNING   dll=-   \SystemRoot\System32\drivers\ndiswan.sys
+  ndiswanlegacy                    STOPPED   dll=-   System32\DRIVERS\ndiswan.sys
+  NDKPing                          STOPPED   dll=-   system32\drivers\NDKPing.sys
+  ndproxy                          RUNNING   dll=-   System32\DRIVERS\NDProxy.sys
+  Ndu                              RUNNING   dll=-   system32\drivers\Ndu.sys
+  NetAdapterCx                     STOPPED   dll=-   system32\drivers\NetAdapterCx.sys
+  NetBIOS                          RUNNING   dll=-   system32\drivers\netbios.sys
+  NetBT                            RUNNING   dll=-   System32\DRIVERS\netbt.sys
+  Netlogon                         STOPPED   dll=yes C:\Windows\system32\lsass.exe
+  Netman                           STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  netprofm                         RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  NetSetupSvc                      STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  NetTcpPortSharing                STOPPED   dll=-   C:\Windows\Microsoft.NET\Framework64\v4.0.30319\SMSvcHost.exe
+  netvsc                           STOPPED   dll=-   \SystemRoot\System32\drivers\netvsc.sys
+  NgcCtnrSvc                       STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  NgcSvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  NlaSvc                           RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  Npfs                             RUNNING   dll=-   (?)
+  npsvctrig                        RUNNING   dll=-   \SystemRoot\System32\drivers\npsvctrig.sys
+  nsi                              RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  nsiproxy                         RUNNING   dll=-   system32\drivers\nsiproxy.sys
+  Ntfs                             RUNNING   dll=-   (?)
+  Null                             RUNNING   dll=-   (?)
+  nvdimm                           STOPPED   dll=-   \SystemRoot\System32\drivers\nvdimm.sys
+  nvraid                           STOPPED   dll=-   System32\drivers\nvraid.sys
+  nvstor                           STOPPED   dll=-   System32\drivers\nvstor.sys
+  p2pimsvc                         STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  p2psvc                           STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  Parport                          STOPPED   dll=-   \SystemRoot\System32\drivers\parport.sys
+  partmgr                          RUNNING   dll=-   System32\drivers\partmgr.sys
+  PcaSvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  pci                              RUNNING   dll=-   System32\drivers\pci.sys
+  pciide                           STOPPED   dll=-   System32\drivers\pciide.sys
+  pcmcia                           STOPPED   dll=-   System32\drivers\pcmcia.sys
+  pcw                              RUNNING   dll=-   System32\drivers\pcw.sys
+  pdc                              RUNNING   dll=-   system32\drivers\pdc.sys
+  PEAUTH                           RUNNING   dll=-   system32\drivers\peauth.sys
+  perceptionsimulation             STOPPED   dll=-   C:\Windows\system32\PerceptionSimulation\PerceptionSimulationService.exe
+  percsas2i                        STOPPED   dll=-   System32\drivers\percsas2i.sys
+  percsas3i                        STOPPED   dll=-   System32\drivers\percsas3i.sys
+  PerfHost                         STOPPED   dll=-   C:\Windows\SysWow64\perfhost.exe
+  PhoneSvc                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  PktMon                           STOPPED   dll=-   system32\drivers\PktMon.sys
+  pla                              STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  PlugPlay                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  pmem                             STOPPED   dll=-   \SystemRoot\System32\drivers\pmem.sys
+  PNPMEM                           STOPPED   dll=-   \SystemRoot\System32\drivers\pnpmem.sys
+  PNRPAutoReg                      STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  PNRPsvc                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  PolicyAgent                      STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  portcfg                          STOPPED   dll=-   \SystemRoot\System32\drivers\portcfg.sys
+  Power                            RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  PptpMiniport                     RUNNING   dll=-   \SystemRoot\System32\drivers\raspptp.sys
+  PrintNotify                      STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  Processor                        STOPPED   dll=-   \SystemRoot\System32\drivers\processr.sys
+  ProfSvc                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  Psched                           RUNNING   dll=-   System32\drivers\pacer.sys
+  PushToInstall                    STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  QWAVE                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  QWAVEdrv                         STOPPED   dll=-   \SystemRoot\system32\drivers\qwavedrv.sys
+  Ramdisk                          STOPPED   dll=-   system32\DRIVERS\ramdisk.sys
+  RasAcd                           STOPPED   dll=-   System32\DRIVERS\rasacd.sys
+  RasAgileVpn                      RUNNING   dll=-   \SystemRoot\System32\drivers\AgileVpn.sys
+  RasAuto                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  Rasl2tp                          RUNNING   dll=-   \SystemRoot\System32\drivers\rasl2tp.sys
+  RasMan                           RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  RasPppoe                         RUNNING   dll=-   System32\DRIVERS\raspppoe.sys
+  RasSstp                          RUNNING   dll=-   \SystemRoot\System32\drivers\rassstp.sys
+  rdbss                            RUNNING   dll=-   system32\DRIVERS\rdbss.sys
+  rdpbus                           RUNNING   dll=-   \SystemRoot\System32\drivers\rdpbus.sys
+  RDPDR                            STOPPED   dll=-   System32\drivers\rdpdr.sys
+  RdpVideoMiniport                 STOPPED   dll=-   System32\drivers\rdpvideominiport.sys
+  rdyboost                         RUNNING   dll=-   System32\drivers\rdyboost.sys
+  ReFS                             STOPPED   dll=-   (?)
+  ReFSv1                           STOPPED   dll=-   (?)
+  RemoteAccess                     STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  RemoteRegistry                   STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  RetailDemo                       STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  RFCOMM                           RUNNING   dll=-   \SystemRoot\System32\drivers\rfcomm.sys
+  rhproxy                          STOPPED   dll=-   \SystemRoot\System32\drivers\rhproxy.sys
+  RmSvc                            STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  RpcEptMapper                     RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  RpcLocator                       STOPPED   dll=-   C:\Windows\system32\locator.exe
+  RpcSs                            RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  rspndr                           RUNNING   dll=-   system32\drivers\rspndr.sys
+  RTZ1                             STOPPED   dll=-   \??\C:\Users\Public\rtZ1.sys
+  s3cap                            STOPPED   dll=-   \SystemRoot\System32\drivers\vms3cap.sys
+  SamSs                            RUNNING   dll=-   C:\Windows\system32\lsass.exe
+  sbp2port                         STOPPED   dll=-   System32\drivers\sbp2port.sys
+  SCardSvr                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  ScDeviceEnum                     STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  scfilter                         STOPPED   dll=-   System32\DRIVERS\scfilter.sys
+  Schedule                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  scmbus                           STOPPED   dll=-   System32\drivers\scmbus.sys
+  SCPolicySvc                      STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  sdbus                            STOPPED   dll=-   \SystemRoot\System32\drivers\sdbus.sys
+  SDFRd                            STOPPED   dll=-   \SystemRoot\System32\drivers\SDFRd.sys
+  SDRSVC                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  sdstor                           STOPPED   dll=-   \SystemRoot\System32\drivers\sdstor.sys
+  seclogon                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  SecurityHealthService            RUNNING   dll=-   C:\Windows\system32\SecurityHealthService.exe
+  SEMgrSvc                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  SENS                             RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  SensorDataService                STOPPED   dll=-   C:\Windows\System32\SensorDataService.exe
+  SensorService                    STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  SensrSvc                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  SerCx                            STOPPED   dll=-   system32\drivers\SerCx.sys
+  SerCx2                           STOPPED   dll=-   system32\drivers\SerCx2.sys
+  Serenum                          STOPPED   dll=-   \SystemRoot\System32\drivers\serenum.sys
+  Serial                           STOPPED   dll=-   \SystemRoot\System32\drivers\serial.sys
+  sermouse                         STOPPED   dll=-   \SystemRoot\System32\drivers\sermouse.sys
+  SessionEnv                       STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  sfloppy                          STOPPED   dll=-   \SystemRoot\System32\drivers\sfloppy.sys
+  SgrmAgent                        RUNNING   dll=-   system32\drivers\SgrmAgent.sys
+  SgrmBroker                       RUNNING   dll=-   C:\Windows\system32\SgrmBroker.exe
+  SharedAccess                     STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  SharedRealitySvc                 STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  ShellHWDetection                 RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  shpamsvc                         STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  SiSRaid2                         STOPPED   dll=-   System32\drivers\SiSRaid2.sys
+  SiSRaid4                         STOPPED   dll=-   System32\drivers\sisraid4.sys
+  SmartSAMD                        STOPPED   dll=-   System32\drivers\SmartSAMD.sys
+  smphost                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  SmsRouter                        STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  SNMPTRAP                         STOPPED   dll=-   C:\Windows\System32\snmptrap.exe
+  spaceport                        RUNNING   dll=-   System32\drivers\spaceport.sys
+  SpatialGraphFilter               STOPPED   dll=-   System32\drivers\SpatialGraphFilter.sys
+  SpbCx                            STOPPED   dll=-   system32\drivers\SpbCx.sys
+  spectrum                         STOPPED   dll=-   C:\Windows\system32\spectrum.exe
+  Spooler                          RUNNING   dll=-   C:\Windows\System32\spoolsv.exe
+  sppsvc                           STOPPED   dll=-   C:\Windows\system32\sppsvc.exe
+  srv2                             RUNNING   dll=-   System32\DRIVERS\srv2.sys
+  srvnet                           RUNNING   dll=-   System32\DRIVERS\srvnet.sys
+  SSDPSRV                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  ssh-agent                        STOPPED   dll=-   C:\Windows\System32\OpenSSH\ssh-agent.exe
+  SstpSvc                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  StateRepository                  RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  stexstor                         STOPPED   dll=-   System32\drivers\stexstor.sys
+  stisvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  storahci                         RUNNING   dll=-   System32\drivers\storahci.sys
+  storflt                          STOPPED   dll=-   System32\drivers\vmstorfl.sys
+  stornvme                         RUNNING   dll=-   System32\drivers\stornvme.sys
+  storqosflt                       RUNNING   dll=-   system32\drivers\storqosflt.sys
+  StorSvc                          RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  storufs                          STOPPED   dll=-   System32\drivers\storufs.sys
+  storvsc                          STOPPED   dll=-   System32\drivers\storvsc.sys
+  svsvc                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  swenum                           RUNNING   dll=-   \SystemRoot\System32\DriverStore\FileRepository\swenum.inf_amd64_9ebb9a8726114d22\swenum.sys
+  swprv                            STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  Synth3dVsc                       STOPPED   dll=-   \SystemRoot\System32\drivers\Synth3dVsc.sys
+  SysMain                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  SystemEventsBroker               RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  TabletInputService               RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  TapiSrv                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  Tcpip                            RUNNING   dll=-   System32\drivers\tcpip.sys
+  Tcpip6                           STOPPED   dll=-   System32\drivers\tcpip.sys
+  tcpipreg                         RUNNING   dll=-   System32\drivers\tcpipreg.sys
+  tdx                              RUNNING   dll=-   \SystemRoot\system32\DRIVERS\tdx.sys
+  terminpt                         STOPPED   dll=-   \SystemRoot\System32\drivers\terminpt.sys
+  TermService                      STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  Themes                           RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  TieringEngineService             STOPPED   dll=-   C:\Windows\system32\TieringEngineService.exe
+  TimeBrokerSvc                    RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  TokenBroker                      RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  TPM                              STOPPED   dll=-   \SystemRoot\System32\drivers\tpm.sys
+  TrkWks                           RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  TroubleshootingSvc               STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  TrustedInstaller                 STOPPED   dll=-   C:\Windows\servicing\TrustedInstaller.exe
+  TsUsbFlt                         STOPPED   dll=-   system32\drivers\tsusbflt.sys
+  TsUsbGD                          STOPPED   dll=-   \SystemRoot\System32\drivers\TsUsbGD.sys
+  tunnel                           STOPPED   dll=-   System32\drivers\tunnel.sys
+  tzautoupdate                     STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  UASPStor                         STOPPED   dll=-   \SystemRoot\System32\drivers\uaspstor.sys
+  UcmCx0101                        STOPPED   dll=-   System32\Drivers\UcmCx.sys
+  UcmTcpciCx0101                   STOPPED   dll=-   System32\Drivers\UcmTcpciCx.sys
+  UcmUcsiAcpiClient                STOPPED   dll=-   \SystemRoot\System32\drivers\UcmUcsiAcpiClient.sys
+  UcmUcsiCx0101                    STOPPED   dll=-   System32\Drivers\UcmUcsiCx.sys
+  Ucx01000                         RUNNING   dll=-   system32\drivers\ucx01000.sys
+  UdeCx                            STOPPED   dll=-   system32\drivers\udecx.sys
+  udfs                             STOPPED   dll=-   system32\DRIVERS\udfs.sys
+  UEFI                             STOPPED   dll=-   \SystemRoot\System32\DriverStore\FileRepository\uefi.inf_amd64_245b553a99d0abd8\UEFI.sys
+  Ufx01000                         STOPPED   dll=-   system32\drivers\ufx01000.sys
+  UfxChipidea                      STOPPED   dll=-   \SystemRoot\System32\DriverStore\FileRepository\ufxchipidea.inf_amd64_a4b229fb37a19c3f\UfxChipidea.sys
+  ufxsynopsys                      STOPPED   dll=-   \SystemRoot\System32\drivers\ufxsynopsys.sys
+  uhssvc                           STOPPED   dll=-   C:\Program Files\Microsoft Update Health Tools\uhssvc.exe
+  umbus                            RUNNING   dll=-   \SystemRoot\System32\DriverStore\FileRepository\umbus.inf_amd64_0a69be6a385b49f7\umbus.sys
+  UmPass                           STOPPED   dll=-   \SystemRoot\System32\drivers\umpass.sys
+  UmRdpService                     STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  upnphost                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  UrsChipidea                      STOPPED   dll=-   \SystemRoot\System32\DriverStore\FileRepository\urschipidea.inf_amd64_5bdb369042347ad7\urschipidea.sys
+  UrsCx01000                       STOPPED   dll=-   system32\drivers\urscx01000.sys
+  UrsSynopsys                      STOPPED   dll=-   \SystemRoot\System32\DriverStore\FileRepository\urssynopsys.inf_amd64_38704576f04a98fd\urssynopsys.sys
+  usbaudio                         STOPPED   dll=-   \SystemRoot\system32\drivers\usbaudio.sys
+  usbaudio2                        STOPPED   dll=-   \SystemRoot\System32\drivers\usbaudio2.sys
+  usbccgp                          RUNNING   dll=-   \SystemRoot\System32\drivers\usbccgp.sys
+  usbcir                           STOPPED   dll=-   \SystemRoot\System32\drivers\usbcir.sys
+  usbehci                          RUNNING   dll=-   \SystemRoot\System32\drivers\usbehci.sys
+  usbhub                           RUNNING   dll=-   \SystemRoot\System32\drivers\usbhub.sys
+  USBHUB3                          RUNNING   dll=-   \SystemRoot\System32\drivers\UsbHub3.sys
+  usbohci                          STOPPED   dll=-   \SystemRoot\System32\drivers\usbohci.sys
+  usbprint                         STOPPED   dll=-   \SystemRoot\System32\drivers\usbprint.sys
+  usbser                           STOPPED   dll=-   \SystemRoot\System32\drivers\usbser.sys
+  USBSTOR                          STOPPED   dll=-   \SystemRoot\System32\drivers\USBSTOR.SYS
+  usbuhci                          RUNNING   dll=-   \SystemRoot\System32\drivers\usbuhci.sys
+  USBXHCI                          RUNNING   dll=-   \SystemRoot\System32\drivers\USBXHCI.SYS
+  UserManager                      RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  UsoSvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  VacSvc                           STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  VaultSvc                         RUNNING   dll=yes C:\Windows\system32\lsass.exe
+  vdrvroot                         RUNNING   dll=-   System32\drivers\vdrvroot.sys
+  vds                              STOPPED   dll=-   C:\Windows\System32\vds.exe
+  VerifierExt                      STOPPED   dll=-   System32\drivers\VerifierExt.sys
+  VGAuthService                    RUNNING   dll=-   C:\Program Files\VMware\VMware Tools\VMware VGAuth\VGAuthService.exe
+  vhdmp                            STOPPED   dll=-   \SystemRoot\System32\drivers\vhdmp.sys
+  vhf                              STOPPED   dll=-   \SystemRoot\System32\drivers\vhf.sys
+  Vid                              RUNNING   dll=-   \SystemRoot\System32\drivers\Vid.sys
+  View++ByLinxer                   STOPPED   dll=-   \??\C:\Windows\System32\drivers\ViewPlusPlusByLinxer.sys
+  ViewOrig                         STOPPED   dll=-   \??\C:\Windows\System32\drivers\ViewOrig64.sys
+  vm3dmp                           RUNNING   dll=-   \SystemRoot\system32\DRIVERS\vm3dmp.sys
+  vm3dmp-debug                     STOPPED   dll=-   \SystemRoot\system32\DRIVERS\vm3dmp-debug.sys
+  vm3dmp-stats                     STOPPED   dll=-   \SystemRoot\system32\DRIVERS\vm3dmp-stats.sys
+  vm3dmp_loader                    RUNNING   dll=-   \SystemRoot\system32\DRIVERS\vm3dmp_loader.sys
+  vm3dservice                      RUNNING   dll=-   C:\Windows\system32\vm3dservice.exe
+  vmbus                            STOPPED   dll=-   System32\drivers\vmbus.sys
+  VMBusHID                         STOPPED   dll=-   \SystemRoot\System32\drivers\VMBusHID.sys
+  vmci                             RUNNING   dll=-   System32\drivers\vmci.sys
+  vmgid                            STOPPED   dll=-   \SystemRoot\System32\drivers\vmgid.sys
+  vmhgfs                           RUNNING   dll=-   system32\DRIVERS\vmhgfs.sys
+  vmicguestinterface               STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  vmicheartbeat                    STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  vmickvpexchange                  STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  vmicrdv                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  vmicshutdown                     STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  vmictimesync                     STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  vmicvmsession                    STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  vmicvss                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  VMMemCtl                         RUNNING   dll=-   \SystemRoot\system32\DRIVERS\vmmemctl.sys
+  vmmouse                          RUNNING   dll=-   \SystemRoot\System32\drivers\vmmouse.sys
+  vmrawdsk                         RUNNING   dll=-   \SystemRoot\system32\DRIVERS\vmrawdsk.sys
+  VMTools                          RUNNING   dll=-   C:\Program Files\VMware\VMware Tools\vmtoolsd.exe
+  vmusbmouse                       RUNNING   dll=-   \SystemRoot\System32\drivers\vmusbmouse.sys
+  vmvss                            STOPPED   dll=-   C:\Windows\system32\dllhost.exe
+  volmgr                           RUNNING   dll=-   System32\drivers\volmgr.sys
+  volmgrx                          RUNNING   dll=-   System32\drivers\volmgrx.sys
+  volsnap                          RUNNING   dll=-   System32\drivers\volsnap.sys
+  volume                           RUNNING   dll=-   System32\drivers\volume.sys
+  VPCHN                            STOPPED   dll=-   \??\C:\Users\Public\VPChainN.sys
+  VPCHV                            STOPPED   dll=-   \??\C:\Users\Public\VPChainV.sys
+  VPCHY                            STOPPED   dll=-   \??\C:\Users\Public\VPChainY.sys
+  VPCHZ                            STOPPED   dll=-   \??\C:\Users\Public\VPChainZ.sys
+  vpci                             STOPPED   dll=-   \SystemRoot\System32\drivers\vpci.sys
+  vsmraid                          STOPPED   dll=-   System32\drivers\vsmraid.sys
+  vsock                            RUNNING   dll=-   system32\DRIVERS\vsock.sys
+  VSS                              STOPPED   dll=-   C:\Windows\system32\vssvc.exe
+  VSTXRAID                         STOPPED   dll=-   System32\drivers\vstxraid.sys
+  vwifibus                         STOPPED   dll=-   \SystemRoot\System32\drivers\vwifibus.sys
+  vwififlt                         RUNNING   dll=-   System32\drivers\vwififlt.sys
+  W32Time                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WaaSMedicSvc                     STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WacomPen                         STOPPED   dll=-   \SystemRoot\System32\drivers\wacompen.sys
+  WalletService                    STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  wanarp                           RUNNING   dll=-   System32\DRIVERS\wanarp.sys
+  wanarpv6                         STOPPED   dll=-   System32\DRIVERS\wanarp.sys
+  WarpJITSvc                       STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  wbengine                         STOPPED   dll=-   C:\Windows\system32\wbengine.exe
+  WbioSrvc                         RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  wcifs                            RUNNING   dll=-   \SystemRoot\system32\drivers\wcifs.sys
+  Wcmsvc                           RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  wcncsvc                          STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  wcnfs                            STOPPED   dll=-   \SystemRoot\system32\drivers\wcnfs.sys
+  WdAiNisDrv                       STOPPED   dll=-   system32\drivers\wd\WdAiNisDrv.sys
+  WdBoot                           STOPPED   dll=-   system32\drivers\wd\WdBoot.sys
+  Wdf01000                         RUNNING   dll=-   system32\drivers\Wdf01000.sys
+  WdFilter                         RUNNING   dll=-   system32\drivers\wd\WdFilter.sys
+  WdiServiceHost                   RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  WdiSystemHost                    RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  wdiwifi                          STOPPED   dll=-   system32\DRIVERS\wdiwifi.sys
+  WdmCompanionFilter               STOPPED   dll=-   system32\drivers\WdmCompanionFilter.sys
+  WdNisDrv                         RUNNING   dll=-   system32\drivers\wd\WdNisDrv.sys
+  WdNisSvc                         RUNNING   dll=-   C:\ProgramData\Microsoft\Windows Defender\Platform\4.18.26090.9-0\NisSrv.exe
+  WebClient                        STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  Wecsvc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WEPHOSTSVC                       STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  wercplsupport                    STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  WerSvc                           STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  WFDSConMgrSvc                    STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WFPLWFS                          RUNNING   dll=-   System32\drivers\wfplwfs.sys
+  WiaRpc                           STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WIMMount                         STOPPED   dll=-   system32\drivers\wimmount.sys
+  WinDefend                        RUNNING   dll=-   C:\ProgramData\Microsoft\Windows Defender\Platform\4.18.26090.9-0\MsMpEng.exe
+  WindowsTrustedRT                 RUNNING   dll=-   system32\drivers\WindowsTrustedRT.sys
+  WindowsTrustedRTProxy            RUNNING   dll=-   System32\drivers\WindowsTrustedRTProxy.sys
+  WinHttpAutoProxySvc              RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  WinMad                           STOPPED   dll=-   \SystemRoot\System32\drivers\winmad.sys
+  Winmgmt                          RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  WinNat                           STOPPED   dll=-   system32\drivers\winnat.sys
+  WinQuic                          RUNNING   dll=-   system32\drivers\winquic.sys
+  WinRM                            STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  WINUSB                           STOPPED   dll=-   \SystemRoot\System32\drivers\WinUSB.SYS
+  WinVerbs                         STOPPED   dll=-   \SystemRoot\System32\drivers\winverbs.sys
+  wisvc                            STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WlanSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  wlidsvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  wlpasvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WManSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WmiAcpi                          STOPPED   dll=-   \SystemRoot\System32\drivers\wmiacpi.sys
+  wmiApSrv                         STOPPED   dll=-   C:\Windows\system32\wbem\WmiApSrv.exe
+  WMPNetworkSvc                    STOPPED   dll=-   C:\Program Files\Windows Media Player\wmpnetwk.exe
+  Wof                              RUNNING   dll=-   (?)
+  workfolderssvc                   STOPPED   dll=yes C:\Windows\System32\svchost.exe
+  WpcMonSvc                        STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WPDBusEnum                       STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WpdUpFltr                        STOPPED   dll=-   System32\drivers\WpdUpFltr.sys
+  WpnService                       RUNNING   dll=yes C:\Windows\system32\svchost.exe
+  ws2ifsl                          RUNNING   dll=-   \SystemRoot\system32\drivers\ws2ifsl.sys
+  wscsvc                           RUNNING   dll=yes C:\Windows\System32\svchost.exe
+  WSearch                          RUNNING   dll=-   C:\Windows\system32\SearchIndexer.exe
+  wuauserv                         STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  WudfPf                           STOPPED   dll=-   system32\drivers\WudfPf.sys
+  WUDFRd                           RUNNING   dll=-   \SystemRoot\System32\drivers\WUDFRd.sys
+  WwanSvc                          STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  XblAuthManager                   STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  XblGameSave                      STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  xboxgip                          STOPPED   dll=-   \SystemRoot\System32\drivers\xboxgip.sys
+  XboxGipSvc                       STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  XboxNetApiSvc                    STOPPED   dll=yes C:\Windows\system32\svchost.exe
+  xinputhid                        STOPPED   dll=-   \SystemRoot\System32\drivers\xinputhid.sys
+  XPCHunterDrv                     STOPPED   dll=-   \??\C:\Windows\System32\drivers\XPCHunterDrv.sys
+  ZQE1                             STOPPED   dll=-   \??\C:\Users\Public\VPChainD.sys
+  ZQF1                             STOPPED   dll=-   \??\C:\Users\Public\VPChainD.sys
+  ZQH1                             STOPPED   dll=-   \??\C:\Users\Public\VPChainE.sys
+  ZQN1                             STOPPED   dll=-   \??\C:\Users\Public\VPChainI.sys
+  ZQP1                             STOPPED   dll=-   \??\C:\Users\Public\VPChainJ.sys
+  ZQU1                             STOPPED   dll=-   \??\C:\Users\Public\VPChainL.sys
+  ZQX1                             STOPPED   dll=-   \??\C:\Users\Public\VPChainO.sys
+  zzdummy                          STOPPED   dll=-   \??\C:\Users\Public\zzdummy.sys
+  AarSvc_33093                     STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  BcastDVRUserService_33093        STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  BluetoothUserService_33093       STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  CaptureService_33093             STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  cbdhsvc_33093                    RUNNING   dll=-   C:\Windows\system32\svchost.exe
+  CDPUserSvc_33093                 RUNNING   dll=-   C:\Windows\system32\svchost.exe
+  ConsentUxUserSvc_33093           STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  CredentialEnrollmentManagerUserSvc_33093 STOPPED   dll=-   C:\Windows\system32\CredentialEnrollmentManager.exe
+  DeviceAssociationBrokerSvc_33093 STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  DevicePickerUserSvc_33093        STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  DevicesFlowUserSvc_33093         STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  MessagingService_33093           STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  OneSyncSvc_33093                 RUNNING   dll=-   C:\Windows\system32\svchost.exe
+  PimIndexMaintenanceSvc_33093     RUNNING   dll=-   C:\Windows\system32\svchost.exe
+  PrintWorkflowUserSvc_33093       STOPPED   dll=-   C:\Windows\system32\svchost.exe
+  UnistoreSvc_33093                RUNNING   dll=-   C:\Windows\System32\svchost.exe
+  UserDataSvc_33093                RUNNING   dll=-   C:\Windows\system32\svchost.exe
+  WpnUserService_33093             RUNNING   dll=-   C:\Windows\system32\svchost.exe
+
+---------- "--startup-cli" ----------
+startup items: 38
+  [64] HKLM\...\Run                       VMware User Process          "C:\Program Files\VMware\VMware Tools\vmtoolsd.exe" -n vmusr
+  [64] HKLM\...\Run                       SecurityHealth               %windir%\system32\SecurityHealthSystray.exe
+  [64] HKCU\...\Run                       OneDrive                     "C:\Users\xuq\AppData\Local\Microsoft\OneDrive\OneDrive.exe" /background
+  [64] HKCU\...\Run                       Microsoft Edge Update        "C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.303.7\MicrosoftEdgeUpdateCore.exe"
+  [32] HKCU\...\Run (Wow64)               OneDrive                     "C:\Users\xuq\AppData\Local\Microsoft\OneDrive\OneDrive.exe" /background
+  [32] HKCU\...\Run (Wow64)               Microsoft Edge Update        "C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.303.7\MicrosoftEdgeUpdateCore.exe"
+  [64] CLSID hijack (HKCU over HKLM)      {018D5C66-4533-4307-9B53-224DE2ED1FE6} HKCU=%systemroot%\system32\shell32.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {03B29243-35DA-4858-920E-B70A007DF5AA} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.217.3\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {1BF42E4C-4AF4-4CFD-A1A0-CF2960B8F63E} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {20894375-46AE-46E2-BAFD-CB38975CDCE6} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {41B09861-5409-4D44-8CA4-D49FBFAA2E6F} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.195.49\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {4410DC33-BC7C-496B-AA84-4AEA3EEE75F7} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileCoAuthLib64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {448DD314-7FBB-429C-9DAA-C05A00D235A8} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.215.9\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {4F8EC152-2CED-40DE-A14E-203D75648CE4} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.287.9\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {55E08B99-3825-4CEC-8B10-AAF3449E7D51} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.303.7\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {5AB7172C-9C11-405C-8DD5-AF20F3606282} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {5E9DEE2B-5F44-4C87-84B8-D2E7B11D7017} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.229.3\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {5EA43877-C6D8-4885-B77A-C0BB27E94372} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.303.7\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {674CB023-C9D4-4286-B1FF-A1FF76AD4B27} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.227.11\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {6A49690B-7DB6-424B-81CE-F51078F2A58D} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.203.13\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {7AFDFDDB-F914-11E4-8377-6C3BE50D980C} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {81093D63-7825-417B-BFC8-ADC63FA4E53D} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.303.7\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {82CA8DE3-01AD-4CEA-9D75-BE4C51810A9E} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {8716D913-AB2A-4B12-B247-E9DD6246562B} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.299.15\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {899A7D72-F512-42A0-AFBD-F44EC8869ED9} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.291.9\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {9AA2F32D-362A-42D9-9328-24A483E2CCC3} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {A0396A93-DC06-4AEF-BEE9-95FFCCAEF20E} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {A78ED123-AB77-406B-9962-2A5D9D2F7F30} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {BBACC218-34EA-4666-9D7A-C78F2274A524} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {BCF99248-58CE-4562-B227-14D1E171B49D} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.221.3\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {BEA218D2-6950-497B-9434-61683EC065FE} HKCU=C:\Users\xuq\AppData\Local\Programs\Python\Launcher\pyshellext.amd64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {C5FF006E-2AE9-408C-B85B-2DFDD5449D9C} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {C88B3957-621C-415B-8EE5-B688FC7EF924} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.195.61\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {CB3D0F55-BC2C-4C1A-85ED-23ED75B5106B} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {ECCE2756-C45D-4E13-BC2D-EC9F138997E6} HKCU=C:\Users\xuq\AppData\Local\Microsoft\EdgeUpdate\1.3.199.11\psuser_64.dll  HKLM=(none)
+  [64] CLSID hijack (HKCU over HKLM)      {F241C880-6982-4CE5-8CF7-7085BA96DA5A} HKCU=C:\Users\xuq\AppData\Local\Microsoft\OneDrive\26.178.0913.0007\FileSyncShell64.dll  HKLM=(none)
+  [64] Winlogon (Userinit/Shell)          Userinit                     C:\Windows\system32\userinit.exe,
+  [64] Winlogon (Userinit/Shell)          Shell                        explorer.exe
+
+---------- "--files-cli C:\Windows" ----------
+files in C:\Windows: 105  (suspect: 0, delete-pending: 0, locked: 2)
+  addins                                   size=0            attr=0x10  
+  appcompat                                size=0            attr=0x10  
+  apppatch                                 size=0            attr=0x10  
+  AppReadiness                             size=0            attr=0x10  
+  assembly                                 size=0            attr=0x11  
+  bcastdvr                                 size=0            attr=0x10  
+  bfsvc.exe                                size=73216        attr=0x20  
+  Boot                                     size=0            attr=0x10  
+  bootstat.dat                             size=67584        attr=0x24    [LOCKED]
+  Branding                                 size=0            attr=0x10  
+  CbsTemp                                  size=0            attr=0x10  
+  comsetup.log                             size=10025        attr=0x20  
+  Containers                               size=0            attr=0x10  
+  Core.xml                                 size=33951        attr=0x20  
+  Cursors                                  size=0            attr=0x10  
+  debug                                    size=0            attr=0x10  
+  diagerr.xml                              size=60963        attr=0x20  
+  diagnostics                              size=0            attr=0x10  
+  DiagTrack                                size=0            attr=0x10  
+  diagwrn.xml                              size=60963        attr=0x20  
+  DigitalLocker                            size=0            attr=0x10  
+  Downloaded Program Files                 size=0            attr=0x14  
+  DtcInstall.log                           size=2331         attr=0x20  
+  ELAMBKUP                                 size=0            attr=0x12  
+  en-US                                    size=0            attr=0x10  
+  explorer.exe                             size=4554160      attr=0x20    [LOCKED]
+  Fonts                                    size=0            attr=0x15  
+  GameBarPresenceWriter                    size=0            attr=0x10  
+  Globalization                            size=0            attr=0x10  
+  Help                                     size=0            attr=0x10  
+  HelpPane.exe                             size=1054208      attr=0x20  
+  hh.exe                                   size=18432        attr=0x20  
+  IdentityCRL                              size=0            attr=0x10  
+  IME                                      size=0            attr=0x10  
+  ImmersiveControlPanel                    size=0            attr=0x11  
+  INF                                      size=0            attr=0x10  
+  InputMethod                              size=0            attr=0x10  
+  Installer                                size=0            attr=0x16  
+  L2Schemas                                size=0            attr=0x10  
+  LanguageOverlayCache                     size=0            attr=0x12  
+  LiveKernelReports                        size=0            attr=0x10  
+  Logs                                     size=0            attr=0x10  
+  lsasetup.log                             size=1380         attr=0x20  
+  Media                                    size=0            attr=0x15  
+  MEMORY.DMP                               size=333858793    attr=0x20  
+  mib.bin                                  size=43131        attr=0x20  
+  Microsoft.NET                            size=0            attr=0x11  
+  Migration                                size=0            attr=0x10  
+  minidump                                 size=0            attr=0x10  
+  ModemLogs                                size=0            attr=0x10  
+  notepad.exe                              size=181248       attr=0x20  
+  OCR                                      size=0            attr=0x10  
+  Offline Web Pages                        size=0            attr=0x11  
+  Panther                                  size=0            attr=0x10  
+  Performance                              size=0            attr=0x10  
+  PFRO.log                                 size=1164         attr=0x20  
+  PLA                                      size=0            attr=0x10  
+  PolicyDefinitions                        size=0            attr=0x10  
+  Prefetch                                 size=0            attr=0x2010
+  PrintDialog                              size=0            attr=0x11  
+  Provisioning                             size=0            attr=0x10  
+  regedit.exe                              size=358400       attr=0x20  
+  Registration                             size=0            attr=0x10  
+  rescache                                 size=0            attr=0x10  
+  Resources                                size=0            attr=0x10  
+  SchCache                                 size=0            attr=0x10  
+  schemas                                  size=0            attr=0x10  
+  security                                 size=0            attr=0x10  
+  ServiceProfiles                          size=0            attr=0x10  
+  ServiceState                             size=0            attr=0x10  
+  servicing                                size=0            attr=0x10  
+  Setup                                    size=0            attr=0x10  
+  setupact.log                             size=7002         attr=0x20  
+  setuperr.log                             size=0            attr=0x20  
+  ShellComponents                          size=0            attr=0x10  
+  ShellExperiences                         size=0            attr=0x10  
+  SKB                                      size=0            attr=0x10  
+  SoftwareDistribution                     size=0            attr=0x10  
+  Speech                                   size=0            attr=0x10  
+  Speech_OneCore                           size=0            attr=0x10  
+  splwow64.exe                             size=132096       attr=0x20  
+  System                                   size=0            attr=0x10  
+  system.ini                               size=219          attr=0x20  
+  System32                                 size=0            attr=0x10  
+  SystemApps                               size=0            attr=0x10  
+  SystemResources                          size=0            attr=0x10  
+  SysWOW64                                 size=0            attr=0x10  
+  TAPI                                     size=0            attr=0x10  
+  Tasks                                    size=0            attr=0x10  
+  Temp                                     size=0            attr=0x10  
+  TextInput                                size=0            attr=0x10  
+  tracing                                  size=0            attr=0x10  
+  twain_32                                 size=0            attr=0x10  
+  twain_32.dll                             size=64512        attr=0x20  
+  Vss                                      size=0            attr=0x10  
+  WaaS                                     size=0            attr=0x10  
+  Web                                      size=0            attr=0x10  
+  win.ini                                  size=92           attr=0x20  
+  WindowsShell.Manifest                    size=670          attr=0x23  
+  WindowsUpdate.log                        size=276          attr=0x20  
+  winhlp32.exe                             size=11776        attr=0x20  
+  WinSxS                                   size=0            attr=0x10  
+  WMSysPr9.prx                             size=316640       attr=0x20  
+  write.exe                                size=11264        attr=0x20  
+  zh-CN                                    size=0            attr=0x10  
+
+---------- "--filever-cli C:\Windows\System32\ntoskrnl.exe" ----------
+file: C:\Windows\System32\ntoskrnl.exe
+  FileVersion      : 6.2.18362.30
+  FileVersionStr   : 10.0.18362.30 (WinBuild.160101.0800)
+  CompanyName      : Microsoft Corporation
+  FileDescription  : NT Kernel & System
+  ProductName      : Microsoft? Windows? Operating System
+  OriginalFilename : ntkrnlmp.exe
+  FileType         : 0x1  FileOS: 0x40004
+
+---------- "--filesig-cli C:\Windows\System32\ntoskrnl.exe" ----------
+C:\Windows\System32\ntoskrnl.exe -> signature valid and trusted
+  WinVerifyTrust status = 0x00000000
+
+---------- "--reghandles-cli" ----------
+registry handles: 3734  (object type index for "Key" = 44)
+  pid=4      handle=0x58       access=0x2001F    object=FFFFAD88184797B0
+  pid=4      handle=0x60       access=0x0        object=FFFFAD88184114A0
+  pid=4      handle=0x64       access=0x20019    object=FFFFAD88184798B0
+  pid=4      handle=0x68       access=0x2001F    object=FFFFAD8818479AB0
+  pid=4      handle=0x6C       access=0xF003F    object=FFFFAD8818479CB0
+  pid=4      handle=0x70       access=0xF003F    object=FFFFAD8818583270
+  pid=4      handle=0x74       access=0x20019    object=FFFFAD88184792B0
+  pid=4      handle=0x80       access=0x20019    object=FFFFAD8818479DB0
+  pid=4      handle=0x8C       access=0xF003F    object=FFFFAD88184799B0
+  pid=4      handle=0x90       access=0x11       object=FFFFAD88184793B0
+  pid=4      handle=0x94       access=0xF003F    object=FFFFAD88184494F0
+  pid=4      handle=0x98       access=0xF003F    object=FFFFAD8818449DB0
+  pid=4      handle=0x9C       access=0xF003F    object=FFFFAD8818449E90
+  pid=4      handle=0xA4       access=0xF003F    object=FFFFAD88184790B0
+  pid=4      handle=0xA8       access=0xF003F    object=FFFFAD8818479EB0
+  pid=4      handle=0xAC       access=0xF003F    object=FFFFAD8818557DC0
+  pid=4      handle=0xB0       access=0xF003F    object=FFFFAD8818582D70
+  pid=4      handle=0xB4       access=0xF003F    object=FFFFAD8818582670
+  pid=4      handle=0xB8       access=0xF003F    object=FFFFAD8818582770
+  pid=4      handle=0xBC       access=0xF003F    object=FFFFAD8818582970
+  pid=4      handle=0xC0       access=0xF003F    object=FFFFAD8818583870
+  pid=4      handle=0xC4       access=0x11       object=FFFFAD8818583970
+  pid=4      handle=0xCC       access=0xF003F    object=FFFFAD8818557B20
+  pid=4      handle=0xD8       access=0x20019    object=FFFFAD8818582370
+  pid=4      handle=0xE0       access=0xF003F    object=FFFFAD8818582A70
+  pid=4      handle=0xE8       access=0x20019    object=FFFFAD88188E4B70
+  pid=4      handle=0x104      access=0x9        object=FFFFAD881BCD1770
+  pid=4      handle=0x164      access=0x20019    object=FFFFAD881BCD2070
+  pid=4      handle=0x168      access=0x20019    object=FFFFAD88188E5970
+  pid=4      handle=0x178      access=0x11       object=FFFFAD881E60BC70
+  pid=4      handle=0x17C      access=0x20019    object=FFFFAD88188E4070
+  pid=4      handle=0x180      access=0x20019    object=FFFFAD8818C1FA00
+  pid=4      handle=0x188      access=0xF003F    object=FFFFAD88188E3970
+  pid=4      handle=0x18C      access=0x8        object=FFFFAD88188DF070
+  pid=4      handle=0x190      access=0xF003F    object=FFFFAD88188DF470
+  pid=4      handle=0x194      access=0x8        object=FFFFAD88188DF270
+  pid=4      handle=0x198      access=0x8        object=FFFFAD88188DF170
+  pid=4      handle=0x1A0      access=0x8        object=FFFFAD88188DE570
+  pid=4      handle=0x1A8      access=0x8        object=FFFFAD88188DEF70
+  pid=4      handle=0x1B0      access=0xB        object=FFFFAD88188E0D70
+  ... (3694 more)
+
+---------- "--reghidden-cli" ----------
+hidden registry items: 3
+  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\NetworkServiceTriggers\Triggers\1f81d131-3fac-4537-9e0c-7e7b0c2f4b55\ProtectedPrefixAdministratorsSensorDataService
+      reason: key name has control chars or trailing space/dot
+  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\NetworkServiceTriggers\Triggers\1f81d131-3fac-4537-9e0c-7e7b0c2f4b55\ProtectedPrefixLocalServiceMSAJPipe
+      reason: key name has control chars or trailing space/dot
+  HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.
+      reason: key name has control chars or trailing space/dot
+
+---------- "--regkey-cli HKLM\SOFTWARE\Microsoft" ----------
+reg key: HKLM\SOFTWARE\Microsoft (0 values)
+
+---------- "--hooks-cli 0" ----------
+ring3 hooks: cannot scan pid 0, GetLastError=87
+
+===== SWEEP DONE =====

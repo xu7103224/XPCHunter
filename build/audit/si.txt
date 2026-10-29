@@ -1,0 +1,22 @@
+probe start
+argv[4]: [C:\Users\Public\xpch_probe.exe] [--live] [--handshake] [--ssdtinfo]
+=== Stage 1: offline self-test ===
+  [PASS] derive ioctl + key                           ioctl=0x05E00158 key=0xCF (expect 0x05E00158 / 0xCF)
+  [PASS] crypt changes data                           
+  [PASS] crypt is involutive                          
+  [PASS] AES-128 FIPS-197 vector                      3925841d02dc09fbdc118597196a0b32
+  [PASS] license packet builds                        0x100 hex chars
+  plain request first 0x10 bytes: 10 08 24 20 24 00 00 00 00 00 00 00 00 00 00 00
+  [PASS] magic constant                               0x20240810
+  [PASS] request size == 0x30                         
+  [PASS] command in range                             
+
+=== Stage 1: ALL PASS ===
+
+=== Stage 2: live integration ===
+  device opened, ioctl=0x05E00158 key=0xCF
+  handshake 0x22 (inSize=256) -> OK, result=1, ssdt=0
+  handshake 0x24 -> OK, result=1, build=18362 (0x47BA)
+  command 0x24 -> OK, result=1, GetLastError=0
+
+=== done ===

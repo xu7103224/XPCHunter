@@ -1,0 +1,3 @@
+# A/B collect  cmd insz outsz res status lasterr hdrlen
+# build=18362
+# records=0 ok=0 rej=0

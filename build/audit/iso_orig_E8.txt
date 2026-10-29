@@ -1,0 +1,6 @@
+# A/B collect  cmd insz outsz res status lasterr hdrlen
+# build=18362
+CMD 0x0E8 INSZ=0 OUTSZ=768 RES=0 REJ ERR=183 HDRLEN=0
+IN  -
+OUT -
+# records=1 ok=0 rej=1
