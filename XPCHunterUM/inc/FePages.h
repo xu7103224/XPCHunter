@@ -391,6 +391,14 @@ BOOL  FeObjectHookGet(ULONG Index, ULONG *TypeIndex, ULONG64 *ObjectPtr, ULONG64
 const char *FeObjectHookStatus(void);
 ULONG FeObjectHookTypeCount(void);
 void  FeObjectHookFree(void);
+
+/* ---- FeStealthCode.c：隐蔽代码扫描（§2.1 补全，纯用户态） ---- */
+ULONG FeScanStealthCode(ULONG Pid);
+BOOL  FeStealthGet(ULONG Index, ULONG64 *Base, ULONG64 *Size, ULONG *Protect, const char **Note);
+ULONG FeStealthCount(void);
+ULONG FeStealthModules(void);
+ULONG64 FeStealthScannedBytes(void);
+void  FeStealthFree(void);
 extern ULONG g_FlkDiagHandles, g_FlkDiagSelfHandles, g_FlkDiagNameOk, g_FlkDiagNameFail;
 void DoServiceCommonContextMenu(HWND hWnd, int X, int Y);
 void DoOtherContextMenu(HWND hWnd, int X, int Y);

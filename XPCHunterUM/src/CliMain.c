@@ -2151,6 +2151,14 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
         FeObjectHookFree();
     }
 
+    /* 10. 隐蔽代码扫描（纯用户态 VirtualQueryEx + 模块区间对比） */
+    {
+        ULONG n = FeScanStealthCode(GetCurrentProcessId());
+        printf("  [INFO] stealth code scan (self) -> %lu hit(s), %lu module(s), %I64u bytes\n",
+               n, FeStealthModules(), FeStealthScannedBytes());
+        FeStealthFree();
+    }
+
     g_FeSysViewSilent = 0;
     printf("sysviews selftest: %s\n", fail ? "FAILED" : "PASSED");
     return fail ? 2 : 0;

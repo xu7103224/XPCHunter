@@ -1063,6 +1063,7 @@ void DoProcessOp(int Op)
 #define PROC_ID_FIND_TARGET   (PROC_MENU_BASE + 18)
 #define PROC_ID_PROPERTIES    (PROC_MENU_BASE + 19)
 #define PROC_ID_ONLY_SEL      (PROC_MENU_BASE + 20)
+#define PROC_ID_STEALTH       (PROC_MENU_BASE + 21)
 
 /* Only Show Selected 勾选项：只保留选中的行（在原版里是"仅显示某列非空"，
    这里实现为等价的实用过滤——只显示当前选中行，便于在长列表中聚焦） */
@@ -1156,6 +1157,7 @@ void DoProcessContextMenu(HWND hWnd, int X, int Y)
     FeMenuAddEx(hMenu, PROC_ID_COPY_PID, "Copy Pid", pid != 0);          /* 复制PID */
     FeMenuAddEx(hMenu, PROC_ID_FIND_TARGET, "Find Target", pid != 0);    /* 定位到进程文件 */
     FeMenuAddEx(hMenu, PROC_ID_PROPERTIES, "Properties", pid != 0);      /* 查看进程属性 */
+    FeMenuAddEx(hMenu, PROC_ID_STEALTH, "Scan Stealth Code", pid != 0);   /* 隐蔽代码扫描 */
     FeMenuSep(hMenu);
     FeMenuAddCheck(hMenu, PROC_ID_ONLY_SEL, "Only Show Selected", g_ProcOnlySelected);
     FeMenuAdd(hMenu, PROC_ID_REFRESH, "Refresh");                       /* 刷新 */
@@ -1198,6 +1200,53 @@ void DoProcessContextMenu(HWND hWnd, int X, int Y)
     }
     case PROC_ID_FIND_TARGET: ProcFindTarget(); break;
     case PROC_ID_PROPERTIES:  ProcShowProperties(); break;
+    case PROC_ID_STEALTH: {
+        ULONG n, k;
+        char msg[700];
+
+        if (!pid)
+            break;
+        SetWindowTextA(g_hProcStatus, "Scan Stealth Code: enumerating executable pages...");
+        UpdateWindow(g_hProcStatus);
+        n = FeScanStealthCode(pid);
+        if (n == 0) {
+            sprintf_s(msg, sizeof(msg),
+                      "Stealth Code: no suspicious executable page in pid %lu "
+                      "(scanned %I64u bytes across %lu module(s))",
+                      (unsigned long)pid, FeStealthScannedBytes(), FeStealthModules());
+            SetWindowTextA(g_hProcStatus, msg);
+        } else {
+            sprintf_s(msg, sizeof(msg),
+                      "Stealth Code: %lu executable page(s) outside loaded modules "
+                      "in pid %lu (scanned %I64u bytes, %lu module(s))",
+                      n, (unsigned long)pid, FeStealthScannedBytes(), FeStealthModules());
+            SetWindowTextA(g_hProcStatus, msg);
+            /* 详情弹窗：最多列 30 条 */
+            {
+                char *detail = (char *)calloc(1, 8000);
+                if (detail) {
+                    for (k = 0; k < n && k < 30; k++) {
+                        ULONG64 b = 0, sz = 0;
+                        ULONG pr = 0;
+                        const char *note = NULL;
+                        char line[220];
+                        if (!FeStealthGet(k, &b, &sz, &pr, &note))
+                            break;
+                        sprintf_s(line, sizeof(line),
+                                  "[%lu] %016I64X - %016I64X  size=0x%I64X  prot=0x%lX\r\n",
+                                  k + 1, b, b + sz, sz, (unsigned long)pr);
+                        strncat_s(detail, 8000, line, _TRUNCATE);
+                    }
+                    if (n > 30)
+                        strncat_s(detail, 8000, "... (more)\r\n", _TRUNCATE);
+                    MessageBoxA(hWnd, detail, "Stealth Code", MB_ICONWARNING | MB_OK);
+                    free(detail);
+                }
+            }
+        }
+        FeStealthFree();
+        break;
+    }
     case PROC_ID_ONLY_SEL:
         g_ProcOnlySelected = !g_ProcOnlySelected;
         {
