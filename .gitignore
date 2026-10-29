@@ -138,3 +138,6 @@ build/guest_deploy2.bat
 build/sw1.bat
 build/sw2.bat
 build/sysact.bat
+
+# 我方旧构建的 IDB（不是参照标准，见「重大纠错」文档；二进制本身已入库）
+samples/guest_ViewPlusPlusByLinxer.sys.i64

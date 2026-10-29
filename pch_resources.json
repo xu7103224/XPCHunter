@@ -1,0 +1,5882 @@
+{
+ "dialogs": {
+  "dlg_2052_100": {
+   "size": 502,
+   "controls": [
+    {
+     "id": 4294967295,
+     "cls": "#130",
+     "text": "#128",
+     "x": 11,
+     "y": 15,
+     "w": 20,
+     "h": 20,
+     "style": 1342177283,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1250,
+     "cls": "#130",
+     "text": "PC Hunter V1.6",
+     "x": 43,
+     "y": 7,
+     "w": 129,
+     "h": 8,
+     "style": 1342308480,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1102,
+     "cls": "#130",
+     "text": "(C) 2013-2025 linxer@163.com. All Rights Reserved.",
+     "x": 41,
+     "y": 23,
+     "w": 229,
+     "h": 8,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1,
+     "cls": "#128",
+     "text": "OK",
+     "x": 223,
+     "y": 4,
+     "w": 45,
+     "h": 14,
+     "style": 1342373889,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1068,
+     "cls": "#130",
+     "text": "HomePage: www.xuetr.com",
+     "x": 42,
+     "y": 38,
+     "w": 121,
+     "h": 9,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1069,
+     "cls": "#130",
+     "text": "Email: linxer@163.com",
+     "x": 167,
+     "y": 38,
+     "w": 123,
+     "h": 9,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 297,
+   "cy": 55,
+   "title": "About PC Hunter",
+   "font": {
+    "pointsize": 9,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_102": {
+   "size": 148,
+   "controls": [
+    {
+     "id": 1000,
+     "cls": "SysTabControl32",
+     "text": "Tab1",
+     "x": 0,
+     "y": 0,
+     "w": 511,
+     "h": 313,
+     "style": 1342177280,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2429223104,
+   "exstyle": 262144,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 511,
+   "cy": 313,
+   "title": "PC Hunter V1.6",
+   "font": {
+    "pointsize": 9,
+    "weight": 400,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_129": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1002,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 438,
+     "h": 280,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1083,
+     "cls": "#130",
+     "text": "",
+     "x": 2,
+     "y": 286,
+     "w": 435,
+     "h": 10,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_130": {
+   "size": 218,
+   "controls": [
+    {
+     "id": 1001,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 219,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1082,
+     "cls": "#130",
+     "text": "",
+     "x": 4,
+     "y": 282,
+     "w": 433,
+     "h": 14,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1110,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 224,
+     "w": 438,
+     "h": 51,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_131": {
+   "size": 150,
+   "controls": [
+    {
+     "id": 1003,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 359,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Process Modules",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_132": {
+   "size": 150,
+   "controls": [
+    {
+     "id": 1004,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 2,
+     "y": 1,
+     "w": 356,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Process Threads",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_133": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1005,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 438,
+     "h": 281,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1080,
+     "cls": "#130",
+     "text": "",
+     "x": 2,
+     "y": 284,
+     "w": 437,
+     "h": 14,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_134": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1006,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 284,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1084,
+     "cls": "#130",
+     "text": "",
+     "x": 2,
+     "y": 289,
+     "w": 436,
+     "h": 9,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_135": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1007,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 278,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1088,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 11,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_136": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1008,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 438,
+     "h": 278,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1081,
+     "cls": "#130",
+     "text": "",
+     "x": 3,
+     "y": 282,
+     "w": 433,
+     "h": 12,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_137": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1009,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 2,
+     "w": 435,
+     "h": 243,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1010,
+     "cls": "#130",
+     "text": "",
+     "x": 6,
+     "y": 254,
+     "w": 424,
+     "h": 10,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073741888,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 435,
+   "cy": 298,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_138": {
+   "size": 150,
+   "controls": [
+    {
+     "id": 1011,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 358,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Process Handles",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_139": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1012,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 279,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1091,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 289,
+     "w": 437,
+     "h": 9,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_140": {
+   "size": 276,
+   "controls": [
+    {
+     "id": 1014,
+     "cls": "SysTreeView32",
+     "text": "Tree1",
+     "x": 1,
+     "y": 0,
+     "w": 115,
+     "h": 254,
+     "style": 1351680039,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1013,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 118,
+     "y": 0,
+     "w": 320,
+     "h": 254,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1151,
+     "cls": "ComboBoxEx32",
+     "text": "",
+     "x": 1,
+     "y": 272,
+     "w": 436,
+     "h": 133,
+     "style": 1344340227,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1187,
+     "cls": "#130",
+     "text": "",
+     "x": 2,
+     "y": 257,
+     "w": 436,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 4,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_146": {
+   "size": 418,
+   "controls": [
+    {
+     "id": 86,
+     "cls": "a",
+     "text": "l",
+     "x": 79,
+     "y": 82,
+     "w": 68,
+     "h": 32,
+     "style": 2097268,
+     "exstyle": 5701700,
+     "extra": 117
+    },
+    {
+     "id": 44,
+     "cls": "\t",
+     "text": "ù\u0003ÿÿ",
+     "x": 0,
+     "y": 0,
+     "w": 6,
+     "h": 32,
+     "style": 0,
+     "exstyle": 1342308352,
+     "extra": 86
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 105,
+     "y": 109,
+     "w": 97,
+     "h": 108,
+     "style": 6553697,
+     "exstyle": 6488165,
+     "extra": 9
+    },
+    {
+     "id": 105,
+     "cls": "m",
+     "text": "a",
+     "x": 128,
+     "y": 68,
+     "w": 101,
+     "h": 99,
+     "style": 655403,
+     "exstyle": 4294902781,
+     "extra": 108
+    },
+    {
+     "id": 0,
+     "cls": "\b",
+     "text": "T",
+     "x": 114,
+     "y": 105,
+     "w": 110,
+     "h": 103,
+     "style": 2097268,
+     "exstyle": 7602259,
+     "extra": 97
+    },
+    {
+     "id": 0,
+     "cls": "\u0002P",
+     "text": "",
+     "x": 129,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "style": 786619,
+     "exstyle": 4294902785,
+     "extra": 0
+    },
+    {
+     "id": 97,
+     "cls": "l",
+     "text": "u",
+     "x": 1026,
+     "y": -1,
+     "w": 130,
+     "h": 86,
+     "style": 1835013,
+     "exstyle": 524335,
+     "extra": 101
+    },
+    {
+     "id": 66,
+     "cls": "i",
+     "text": "n",
+     "x": 100,
+     "y": 105,
+     "w": 116,
+     "h": 32,
+     "style": 142,
+     "exstyle": 4521984,
+     "extra": 97
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 0,
+     "y": 0,
+     "w": 2176,
+     "h": 20609,
+     "style": 7143521,
+     "exstyle": 3801189,
+     "extra": 5
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160066752,
+   "exstyle": 0,
+   "nctrl": 9,
+   "x": 0,
+   "y": 0,
+   "cx": 171,
+   "cy": 91,
+   "title": "E",
+   "font": {
+    "pointsize": 100,
+    "name": "i"
+   }
+  },
+  "dlg_2052_147": {
+   "size": 286,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "\b",
+     "text": "T",
+     "x": 114,
+     "y": 105,
+     "w": 110,
+     "h": 103,
+     "style": 2097268,
+     "exstyle": 7602259,
+     "extra": 97
+    },
+    {
+     "id": 0,
+     "cls": "\u0002P",
+     "text": "",
+     "x": 129,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "style": 786619,
+     "exstyle": 4294902785,
+     "extra": 0
+    },
+    {
+     "id": 97,
+     "cls": "l",
+     "text": "u",
+     "x": 1026,
+     "y": -1,
+     "w": 130,
+     "h": 86,
+     "style": 1835013,
+     "exstyle": 524335,
+     "extra": 101
+    },
+    {
+     "id": 66,
+     "cls": "i",
+     "text": "n",
+     "x": 100,
+     "y": 105,
+     "w": 116,
+     "h": 32,
+     "style": 142,
+     "exstyle": 4521984,
+     "extra": 97
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 0,
+     "y": 0,
+     "w": 2176,
+     "h": 20609,
+     "style": 7143521,
+     "exstyle": 3801189,
+     "extra": 5
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 20482,
+     "style": 4294902791,
+     "exstyle": 129,
+     "extra": 5
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 198,
+   "cy": 73,
+   "title": "E",
+   "font": {
+    "pointsize": 100,
+    "name": "i"
+   }
+  },
+  "dlg_2052_148": {
+   "size": 298,
+   "controls": [
+    {
+     "id": 32,
+     "cls": "V",
+     "text": "a",
+     "x": 110,
+     "y": 97,
+     "w": 114,
+     "h": 121,
+     "style": 2097268,
+     "exstyle": 6881346,
+     "extra": 108
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 1031,
+     "y": -1,
+     "w": 129,
+     "h": 0,
+     "style": 786437,
+     "exstyle": 786608,
+     "extra": 0
+    },
+    {
+     "id": 130,
+     "cls": "V",
+     "text": "a",
+     "x": 38,
+     "y": 8,
+     "w": 1032,
+     "h": -1,
+     "style": 0,
+     "exstyle": 1769477,
+     "extra": 108
+    },
+    {
+     "id": 97,
+     "cls": "m",
+     "text": "e",
+     "x": 0,
+     "y": 82,
+     "w": 101,
+     "h": 110,
+     "style": 11403264,
+     "exstyle": 46,
+     "extra": 0
+    },
+    {
+     "id": 0,
+     "cls": "\u0002P",
+     "text": "",
+     "x": 111,
+     "y": 109,
+     "w": 97,
+     "h": 0,
+     "style": 5505032,
+     "exstyle": 6815841,
+     "extra": 0
+    },
+    {
+     "id": 97,
+     "cls": "l",
+     "text": "u",
+     "x": 1036,
+     "y": -1,
+     "w": 130,
+     "h": 86,
+     "style": 131076,
+     "exstyle": 524330,
+     "extra": 101
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 186,
+   "cy": 142,
+   "title": "E",
+   "font": {
+    "pointsize": 100,
+    "name": "i"
+   }
+  },
+  "dlg_2052_149": {
+   "size": 198,
+   "controls": [
+    {
+     "id": 111,
+     "cls": "m",
+     "text": "a",
+     "x": 8,
+     "y": 84,
+     "w": 97,
+     "h": 104,
+     "style": 7143521,
+     "exstyle": 101,
+     "extra": 0
+    },
+    {
+     "id": 1036,
+     "cls": "#130",
+     "text": "V",
+     "x": 4,
+     "y": 2,
+     "w": 42,
+     "h": 8,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 97
+    },
+    {
+     "id": 108,
+     "cls": "",
+     "text": "",
+     "x": 97,
+     "y": 110,
+     "w": 99,
+     "h": 101,
+     "style": 4294902799,
+     "exstyle": 4391040,
+     "extra": 0
+    },
+    {
+     "id": 46,
+     "cls": "",
+     "text": "",
+     "x": 4,
+     "y": 0,
+     "w": 0,
+     "h": 187,
+     "style": 2160591040,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 4,
+   "x": 0,
+   "y": 0,
+   "cx": 174,
+   "cy": 46,
+   "title": "R",
+   "font": {
+    "pointsize": 101,
+    "name": "n"
+   }
+  },
+  "dlg_2052_150": {
+   "size": 198,
+   "controls": [
+    {
+     "id": 104,
+     "cls": "o",
+     "text": "m",
+     "x": 0,
+     "y": 8,
+     "w": 84,
+     "h": 97,
+     "style": 4915232,
+     "exstyle": 7929957,
+     "extra": 97
+    },
+    {
+     "id": 145,
+     "cls": "\u001d",
+     "text": "&",
+     "x": 0,
+     "y": 20481,
+     "w": 0,
+     "h": 0,
+     "style": 75,
+     "exstyle": 0,
+     "extra": 13
+    },
+    {
+     "id": 4,
+     "cls": "",
+     "text": "",
+     "x": 192,
+     "y": -32568,
+     "w": 0,
+     "h": 0,
+     "style": 108,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 101,
+     "cls": "",
+     "text": "",
+     "x": 101,
+     "y": 110,
+     "w": 97,
+     "h": 109,
+     "style": 42,
+     "exstyle": 5373952,
+     "extra": 8
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 4,
+   "x": 0,
+   "y": 0,
+   "cx": 187,
+   "cy": 46,
+   "title": "A",
+   "font": {
+    "pointsize": 100,
+    "name": "d"
+   }
+  },
+  "dlg_2052_151": {
+   "size": 194,
+   "controls": [
+    {
+     "id": 111,
+     "cls": "m",
+     "text": "a",
+     "x": 8,
+     "y": 84,
+     "w": 97,
+     "h": 104,
+     "style": 7143521,
+     "exstyle": 101,
+     "extra": 0
+    },
+    {
+     "id": 1044,
+     "cls": "#130",
+     "text": "K",
+     "x": 3,
+     "y": 0,
+     "w": 36,
+     "h": 8,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 101
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 108,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "style": 7209057,
+     "exstyle": 6619235,
+     "extra": 1
+    },
+    {
+     "id": 0,
+     "cls": "\u0001ï",
+     "text": "",
+     "x": 192,
+     "y": -32567,
+     "w": 11,
+     "h": 0,
+     "style": 0,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 4,
+   "x": 0,
+   "y": 0,
+   "cx": 187,
+   "cy": 42,
+   "title": "R",
+   "font": {
+    "pointsize": 101,
+    "name": "n"
+   }
+  },
+  "dlg_2052_152": {
+   "size": 610,
+   "controls": [
+    {
+     "id": 1048,
+     "cls": "#130",
+     "text": "Find what:",
+     "x": 3,
+     "y": 7,
+     "w": 41,
+     "h": 12,
+     "style": 1342177280,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1049,
+     "cls": "#129",
+     "text": "",
+     "x": 45,
+     "y": 4,
+     "w": 201,
+     "h": 15,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1058,
+     "cls": "#128",
+     "text": "Match whole string only",
+     "x": 255,
+     "y": 4,
+     "w": 121,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1230,
+     "cls": "#128",
+     "text": "Case-insensitive ",
+     "x": 255,
+     "y": 20,
+     "w": 120,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1053,
+     "cls": "#128",
+     "text": "Look at",
+     "x": 3,
+     "y": 26,
+     "w": 232,
+     "h": 37,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1050,
+     "cls": "#128",
+     "text": "Keys",
+     "x": 12,
+     "y": 40,
+     "w": 36,
+     "h": 15,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1051,
+     "cls": "#128",
+     "text": "Values",
+     "x": 64,
+     "y": 40,
+     "w": 39,
+     "h": 15,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1052,
+     "cls": "#128",
+     "text": "Data",
+     "x": 123,
+     "y": 40,
+     "w": 32,
+     "h": 15,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1055,
+     "cls": "#128",
+     "text": "Find",
+     "x": 243,
+     "y": 42,
+     "w": 55,
+     "h": 18,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1057,
+     "cls": "#128",
+     "text": "Stop",
+     "x": 316,
+     "y": 42,
+     "w": 55,
+     "h": 18,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1229,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 68,
+     "w": 381,
+     "h": 166,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 11,
+   "x": 0,
+   "y": 0,
+   "cx": 383,
+   "cy": 239,
+   "title": "Find",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_153": {
+   "size": 220,
+   "controls": [
+    {
+     "id": 1059,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 102,
+     "h": 281,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1060,
+     "cls": "SysListView32",
+     "text": "List2",
+     "x": 105,
+     "y": 0,
+     "w": 331,
+     "h": 281,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1061,
+     "cls": "#130",
+     "text": "",
+     "x": 3,
+     "y": 284,
+     "w": 429,
+     "h": 13,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_154": {
+   "size": 274,
+   "controls": [
+    {
+     "id": 1062,
+     "cls": "SysTreeView32",
+     "text": "Tree1",
+     "x": 1,
+     "y": 0,
+     "w": 115,
+     "h": 254,
+     "style": 1351680039,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1063,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 118,
+     "y": 0,
+     "w": 320,
+     "h": 254,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1131,
+     "cls": "#130",
+     "text": "",
+     "x": 2,
+     "y": 257,
+     "w": 436,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1194,
+     "cls": "ComboBoxEx32",
+     "text": "",
+     "x": 1,
+     "y": 272,
+     "w": 436,
+     "h": 108,
+     "style": 1344340227,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 4,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_161": {
+   "size": 198,
+   "controls": [
+    {
+     "id": 111,
+     "cls": "m",
+     "text": "a",
+     "x": 8,
+     "y": 84,
+     "w": 97,
+     "h": 104,
+     "style": 7143521,
+     "exstyle": 101,
+     "extra": 0
+    },
+    {
+     "id": 1064,
+     "cls": "#130",
+     "text": "F",
+     "x": 4,
+     "y": 2,
+     "w": 43,
+     "h": 8,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 105
+    },
+    {
+     "id": 192,
+     "cls": "",
+     "text": "@",
+     "x": 108,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "style": 7209057,
+     "exstyle": 6619235,
+     "extra": 0
+    },
+    {
+     "id": 8,
+     "cls": "T",
+     "text": "a",
+     "x": 299,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "style": 1,
+     "exstyle": 28770304,
+     "extra": 104
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 4,
+   "x": 0,
+   "y": 0,
+   "cx": 175,
+   "cy": 47,
+   "title": "R",
+   "font": {
+    "pointsize": 101,
+    "name": "n"
+   }
+  },
+  "dlg_2052_168": {
+   "size": 102,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 97,
+     "y": 0,
+     "w": 0,
+     "h": 20480,
+     "style": 6815841,
+     "exstyle": 7143535,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 2048,
+    "name": ""
+   }
+  },
+  "dlg_2052_169": {
+   "size": 102,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 97,
+     "y": 0,
+     "w": 0,
+     "h": 20480,
+     "style": 6815841,
+     "exstyle": 7143535,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 2048,
+    "name": ""
+   }
+  },
+  "dlg_2052_170": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1072,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 278,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1090,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 434,
+     "h": 11,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_171": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1073,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 278,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1089,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 282,
+     "w": 438,
+     "h": 14,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_172": {
+   "size": 172,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 97,
+     "y": 0,
+     "w": 4292,
+     "h": 20657,
+     "style": 6815841,
+     "exstyle": 7143535,
+     "extra": 1
+    },
+    {
+     "id": 68,
+     "cls": "I",
+     "text": "T",
+     "x": 73,
+     "y": 67,
+     "w": 72,
+     "h": 69,
+     "style": 16515508,
+     "exstyle": 5375026,
+     "extra": 0
+    },
+    {
+     "id": 55,
+     "cls": "\u0010",
+     "text": "3\u0004ÿÿ",
+     "x": 0,
+     "y": 0,
+     "w": 381,
+     "h": 259,
+     "style": 0,
+     "exstyle": 1342242816,
+     "extra": 83
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 2048,
+    "name": ""
+   }
+  },
+  "dlg_2052_173": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1077,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 279,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1086,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 14,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_174": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1078,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 279,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1085,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 286,
+     "w": 437,
+     "h": 11,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_175": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1079,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 277,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1087,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 12,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_176": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1092,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 438,
+     "h": 281,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1093,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 14,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_177": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1094,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 438,
+     "h": 281,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1095,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 286,
+     "w": 437,
+     "h": 12,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_179": {
+   "size": 2268,
+   "controls": [
+    {
+     "id": 1096,
+     "cls": "#128",
+     "text": "Manual AntiVirus Setting",
+     "x": 3,
+     "y": 9,
+     "w": 434,
+     "h": 102,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1097,
+     "cls": "#128",
+     "text": "Forbid Creating Process",
+     "x": 11,
+     "y": 23,
+     "w": 113,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1098,
+     "cls": "#128",
+     "text": "Forbid Creating Thread",
+     "x": 11,
+     "y": 40,
+     "w": 113,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1099,
+     "cls": "#128",
+     "text": "Forbid Creating File",
+     "x": 11,
+     "y": 57,
+     "w": 112,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1259,
+     "cls": "#128",
+     "text": "Forbid Write Disk",
+     "x": 11,
+     "y": 74,
+     "w": 94,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1143,
+     "cls": "#128",
+     "text": "Forbid Switching Desktop",
+     "x": 11,
+     "y": 92,
+     "w": 110,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1111,
+     "cls": "#128",
+     "text": "Forbid Creating Key(Value)",
+     "x": 145,
+     "y": 23,
+     "w": 118,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1100,
+     "cls": "#128",
+     "text": "Forbid Loading Image",
+     "x": 145,
+     "y": 40,
+     "w": 112,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1101,
+     "cls": "#128",
+     "text": "Forbid Injecting Module",
+     "x": 145,
+     "y": 57,
+     "w": 120,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1103,
+     "cls": "#128",
+     "text": "Forbid Shutdown System",
+     "x": 145,
+     "y": 74,
+     "w": 128,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1185,
+     "cls": "#128",
+     "text": "Forbid Setting Value",
+     "x": 282,
+     "y": 24,
+     "w": 126,
+     "h": 10,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1140,
+     "cls": "#128",
+     "text": "Forbid Modifying System Time",
+     "x": 282,
+     "y": 40,
+     "w": 149,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1144,
+     "cls": "#128",
+     "text": "Forbid Locking Work Station",
+     "x": 282,
+     "y": 57,
+     "w": 123,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1224,
+     "cls": "#128",
+     "text": "Forbid Loading Driver",
+     "x": 282,
+     "y": 75,
+     "w": 120,
+     "h": 10,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1136,
+     "cls": "#128",
+     "text": "Shutdown",
+     "x": 3,
+     "y": 121,
+     "w": 434,
+     "h": 32,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1137,
+     "cls": "#128",
+     "text": "Reboot System Forcibly",
+     "x": 11,
+     "y": 135,
+     "w": 120,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1249,
+     "cls": "#128",
+     "text": "Reboot System More Forcibly",
+     "x": 145,
+     "y": 135,
+     "w": 149,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1141,
+     "cls": "#128",
+     "text": "Setting(Save to config file)",
+     "x": 3,
+     "y": 163,
+     "w": 434,
+     "h": 133,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1269,
+     "cls": "#128",
+     "text": "SelfProtection(SSDT)",
+     "x": 11,
+     "y": 181,
+     "w": 186,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1271,
+     "cls": "#128",
+     "text": "Open Physical Disk Analysis",
+     "x": 11,
+     "y": 201,
+     "w": 188,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1274,
+     "cls": "#128",
+     "text": "Scan Suspicious Object",
+     "x": 11,
+     "y": 221,
+     "w": 190,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1277,
+     "cls": "#128",
+     "text": "Minimize To Tray ",
+     "x": 11,
+     "y": 241,
+     "w": 190,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1270,
+     "cls": "#128",
+     "text": "SelfProtection(Shadow SSDT)",
+     "x": 224,
+     "y": 181,
+     "w": 198,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1273,
+     "cls": "#128",
+     "text": "Check Inject Thread",
+     "x": 224,
+     "y": 201,
+     "w": 206,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1142,
+     "cls": "#128",
+     "text": "Stay On Top",
+     "x": 224,
+     "y": 221,
+     "w": 116,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1312,
+     "cls": "#128",
+     "text": "Auto Check Updates",
+     "x": 224,
+     "y": 241,
+     "w": 97,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1275,
+     "cls": "#130",
+     "text": "Title Name: ",
+     "x": 11,
+     "y": 266,
+     "w": 64,
+     "h": 8,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1276,
+     "cls": "#129",
+     "text": "",
+     "x": 80,
+     "y": 264,
+     "w": 90,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1278,
+     "cls": "#130",
+     "text": "Hot Key to show main window: Ctrl + Alt + ",
+     "x": 224,
+     "y": 265,
+     "w": 156,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1279,
+     "cls": "#129",
+     "text": "",
+     "x": 384,
+     "y": 263,
+     "w": 33,
+     "h": 15,
+     "style": 1350631560,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 30,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_181": {
+   "size": 150,
+   "controls": [
+    {
+     "id": 1104,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 2,
+     "y": 1,
+     "w": 356,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Process Windows",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_182": {
+   "size": 270,
+   "controls": [
+    {
+     "id": 1105,
+     "cls": "#130",
+     "text": "Module Name:",
+     "x": 5,
+     "y": 6,
+     "w": 51,
+     "h": 10,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1106,
+     "cls": "#129",
+     "text": "",
+     "x": 64,
+     "y": 3,
+     "w": 98,
+     "h": 14,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1107,
+     "cls": "#128",
+     "text": "Find",
+     "x": 177,
+     "y": 1,
+     "w": 47,
+     "h": 16,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1108,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 2,
+     "y": 24,
+     "w": 356,
+     "h": 146,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 4,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Find Module",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_183": {
+   "size": 118,
+   "controls": [
+    {
+     "id": 1109,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 358,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_184": {
+   "size": 142,
+   "controls": [
+    {
+     "id": 1112,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 358,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "File Locker",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_185": {
+   "size": 1046,
+   "controls": [
+    {
+     "id": 1113,
+     "cls": "#128",
+     "text": "extensions for file types",
+     "x": 6,
+     "y": 7,
+     "w": 118,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1114,
+     "cls": "#129",
+     "text": "",
+     "x": 133,
+     "y": 5,
+     "w": 208,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1115,
+     "cls": "#128",
+     "text": "File Size <",
+     "x": 6,
+     "y": 27,
+     "w": 61,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1116,
+     "cls": "#129",
+     "text": "",
+     "x": 72,
+     "y": 25,
+     "w": 47,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1117,
+     "cls": "#130",
+     "text": "KB",
+     "x": 125,
+     "y": 29,
+     "w": 20,
+     "h": 9,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1120,
+     "cls": "#128",
+     "text": "Exclude Microsoft File",
+     "x": 183,
+     "y": 27,
+     "w": 104,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1124,
+     "cls": "#128",
+     "text": "File Name",
+     "x": 6,
+     "y": 46,
+     "w": 52,
+     "h": 10,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1125,
+     "cls": "#129",
+     "text": "",
+     "x": 71,
+     "y": 44,
+     "w": 101,
+     "h": 14,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1199,
+     "cls": "#128",
+     "text": "A word or phrase in the file name",
+     "x": 183,
+     "y": 46,
+     "w": 173,
+     "h": 10,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1195,
+     "cls": "#128",
+     "text": "MD5(<=50MB):",
+     "x": 6,
+     "y": 63,
+     "w": 59,
+     "h": 10,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1196,
+     "cls": "#129",
+     "text": "",
+     "x": 71,
+     "y": 61,
+     "w": 289,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1118,
+     "cls": "#128",
+     "text": "Create File Time >",
+     "x": 6,
+     "y": 83,
+     "w": 86,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1119,
+     "cls": "#129",
+     "text": "",
+     "x": 96,
+     "y": 81,
+     "w": 69,
+     "h": 14,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1126,
+     "cls": "#128",
+     "text": "File Corporation",
+     "x": 183,
+     "y": 84,
+     "w": 80,
+     "h": 10,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1127,
+     "cls": "#129",
+     "text": "",
+     "x": 267,
+     "y": 82,
+     "w": 93,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1232,
+     "cls": "#128",
+     "text": "Hide(Red)",
+     "x": 6,
+     "y": 102,
+     "w": 195,
+     "h": 11,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1122,
+     "cls": "#128",
+     "text": "Find",
+     "x": 216,
+     "y": 99,
+     "w": 48,
+     "h": 18,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1123,
+     "cls": "#128",
+     "text": "Stop",
+     "x": 290,
+     "y": 99,
+     "w": 48,
+     "h": 18,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1121,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 123,
+     "w": 368,
+     "h": 146,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 19,
+   "x": 0,
+   "y": 0,
+   "cx": 368,
+   "cy": 272,
+   "title": "Dialog",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_186": {
+   "size": 130,
+   "controls": [
+    {
+     "id": 1128,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 369,
+     "h": 230,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 370,
+   "cy": 233,
+   "title": "Dialog",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_187": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1129,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 279,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1130,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 286,
+     "w": 437,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_188": {
+   "size": 250,
+   "controls": [
+    {
+     "id": 80,
+     "cls": "a",
+     "text": "t",
+     "x": 105,
+     "y": 108,
+     "w": 101,
+     "h": 32,
+     "style": 7602293,
+     "exstyle": 4587552,
+     "extra": 104
+    },
+    {
+     "id": 46,
+     "cls": ".",
+     "text": "",
+     "x": 1133,
+     "y": -1,
+     "w": 128,
+     "h": 46,
+     "style": 917683,
+     "exstyle": 983061,
+     "extra": 0
+    },
+    {
+     "id": 1134,
+     "cls": "#128",
+     "text": "O",
+     "x": 117,
+     "y": 36,
+     "w": 34,
+     "h": 15,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 75
+    },
+    {
+     "id": 111,
+     "cls": "m",
+     "text": "a",
+     "x": 256,
+     "y": 84,
+     "w": 97,
+     "h": 104,
+     "style": 0,
+     "exstyle": 8,
+     "extra": 0
+    },
+    {
+     "id": 435,
+     "cls": "\u000b",
+     "text": "r\u0004",
+     "x": 0,
+     "y": 20482,
+     "w": 1,
+     "h": 284,
+     "style": 0,
+     "exstyle": 131072,
+     "extra": 65280
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160066752,
+   "exstyle": 0,
+   "nctrl": 5,
+   "x": 0,
+   "y": 0,
+   "cx": 203,
+   "cy": 55,
+   "title": "I",
+   "font": {
+    "pointsize": 110,
+    "name": "p"
+   }
+  },
+  "dlg_2052_189": {
+   "size": 150,
+   "controls": [
+    {
+     "id": 1138,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 435,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1139,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 278,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_194": {
+   "size": 128,
+   "controls": [
+    {
+     "id": 1149,
+     "cls": "#130",
+     "text": "",
+     "x": 2,
+     "y": 7,
+     "w": 227,
+     "h": 16,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1150,
+     "cls": "#128",
+     "text": "Cancel",
+     "x": 89,
+     "y": 25,
+     "w": 56,
+     "h": 17,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 234,
+   "cy": 45,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_197": {
+   "size": 344,
+   "controls": [
+    {
+     "id": 1153,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 359,
+     "h": 151,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1154,
+     "cls": "#130",
+     "text": "Address:",
+     "x": 60,
+     "y": 160,
+     "w": 32,
+     "h": 8,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1155,
+     "cls": "#130",
+     "text": "Size:",
+     "x": 187,
+     "y": 160,
+     "w": 26,
+     "h": 8,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1156,
+     "cls": "#129",
+     "text": "",
+     "x": 99,
+     "y": 157,
+     "w": 83,
+     "h": 14,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1157,
+     "cls": "#129",
+     "text": "",
+     "x": 215,
+     "y": 157,
+     "w": 89,
+     "h": 14,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1158,
+     "cls": "#128",
+     "text": "Dump",
+     "x": 313,
+     "y": 156,
+     "w": 44,
+     "h": 15,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Process Memory",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_199": {
+   "size": 186,
+   "controls": [
+    {
+     "id": 101,
+     "cls": "c",
+     "text": "t",
+     "x": 80,
+     "y": 114,
+     "w": 111,
+     "h": 116,
+     "style": 6684777,
+     "exstyle": 2097273,
+     "extra": 0
+    },
+    {
+     "id": 259,
+     "cls": "!P",
+     "text": "",
+     "x": 111,
+     "y": 109,
+     "w": 97,
+     "h": 0,
+     "style": 5505032,
+     "exstyle": 6815841,
+     "extra": 0
+    },
+    {
+     "id": 98,
+     "cls": "o",
+     "text": "B",
+     "x": 1159,
+     "y": 67,
+     "w": 111,
+     "h": 109,
+     "style": 458759,
+     "exstyle": 9306226,
+     "extra": 111
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 187,
+   "cy": 49,
+   "title": "M",
+   "font": {
+    "pointsize": 111,
+    "name": "d"
+   }
+  },
+  "dlg_2052_200": {
+   "size": 320,
+   "controls": [
+    {
+     "id": 1162,
+     "cls": "#130",
+     "text": "Address:",
+     "x": 5,
+     "y": 6,
+     "w": 32,
+     "h": 10,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1163,
+     "cls": "#130",
+     "text": "Size:",
+     "x": 5,
+     "y": 24,
+     "w": 32,
+     "h": 10,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1164,
+     "cls": "#129",
+     "text": "",
+     "x": 48,
+     "y": 4,
+     "w": 102,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1165,
+     "cls": "#129",
+     "text": "",
+     "x": 48,
+     "y": 22,
+     "w": 102,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1166,
+     "cls": "#128",
+     "text": "OK",
+     "x": 62,
+     "y": 44,
+     "w": 50,
+     "h": 14,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1167,
+     "cls": "#128",
+     "text": "Cancel",
+     "x": 123,
+     "y": 44,
+     "w": 50,
+     "h": 14,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 187,
+   "cy": 66,
+   "title": "Allocate Memory",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_201": {
+   "size": 166,
+   "controls": [
+    {
+     "id": 97,
+     "cls": "t",
+     "text": "h",
+     "x": 101,
+     "y": 103,
+     "w": 32,
+     "h": 80,
+     "style": 7602293,
+     "exstyle": 5373984,
+     "extra": 0
+    },
+    {
+     "id": 128,
+     "cls": "P",
+     "text": "",
+     "x": 111,
+     "y": 109,
+     "w": 97,
+     "h": 0,
+     "style": 5505032,
+     "exstyle": 6815841,
+     "extra": 0
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 1168,
+     "y": -1,
+     "w": 129,
+     "h": 0,
+     "style": 589826,
+     "exstyle": 1048864,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 294,
+   "cy": 54,
+   "title": "I",
+   "font": {
+    "pointsize": 110,
+    "name": "p"
+   }
+  },
+  "dlg_2052_202": {
+   "size": 102,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 97,
+     "y": 0,
+     "w": 0,
+     "h": 20480,
+     "style": 6815841,
+     "exstyle": 7143535,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 2048,
+    "name": ""
+   }
+  },
+  "dlg_2052_203": {
+   "size": 118,
+   "controls": [
+    {
+     "id": 1172,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 295,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_204": {
+   "size": 1154,
+   "controls": [
+    {
+     "id": 1173,
+     "cls": "#128",
+     "text": "Enable",
+     "x": 3,
+     "y": 5,
+     "w": 173,
+     "h": 143,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1174,
+     "cls": "#128",
+     "text": "Enable Registry Tools",
+     "x": 19,
+     "y": 19,
+     "w": 111,
+     "h": 12,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1175,
+     "cls": "#128",
+     "text": "Enable Task Tools",
+     "x": 19,
+     "y": 36,
+     "w": 111,
+     "h": 12,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1176,
+     "cls": "#128",
+     "text": "Enable Start Menu",
+     "x": 19,
+     "y": 54,
+     "w": 111,
+     "h": 12,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1177,
+     "cls": "#128",
+     "text": "Enable My Computer",
+     "x": 19,
+     "y": 71,
+     "w": 111,
+     "h": 12,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1178,
+     "cls": "#128",
+     "text": "Enable Control Panel",
+     "x": 19,
+     "y": 89,
+     "w": 111,
+     "h": 12,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1180,
+     "cls": "#128",
+     "text": "Enable All Policies",
+     "x": 19,
+     "y": 107,
+     "w": 111,
+     "h": 12,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1179,
+     "cls": "#128",
+     "text": "Enable",
+     "x": 75,
+     "y": 124,
+     "w": 58,
+     "h": 16,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1191,
+     "cls": "#128",
+     "text": "Check MBR Rootkit",
+     "x": 5,
+     "y": 153,
+     "w": 172,
+     "h": 125,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1192,
+     "cls": "#128",
+     "text": "Check MBR",
+     "x": 53,
+     "y": 167,
+     "w": 67,
+     "h": 18,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1234,
+     "cls": "#130",
+     "text": "",
+     "x": 5,
+     "y": 192,
+     "w": 171,
+     "h": 1,
+     "style": 1342177287,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1235,
+     "cls": "#130",
+     "text": "Input sector count:",
+     "x": 12,
+     "y": 203,
+     "w": 81,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1236,
+     "cls": "#129",
+     "text": "",
+     "x": 98,
+     "y": 199,
+     "w": 35,
+     "h": 16,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1200,
+     "cls": "#128",
+     "text": "Backup MBR",
+     "x": 17,
+     "y": 223,
+     "w": 51,
+     "h": 16,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1201,
+     "cls": "#128",
+     "text": "Backup Boot Sector",
+     "x": 83,
+     "y": 223,
+     "w": 78,
+     "h": 16,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1202,
+     "cls": "#128",
+     "text": "Reset MBR",
+     "x": 17,
+     "y": 254,
+     "w": 51,
+     "h": 16,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1203,
+     "cls": "#128",
+     "text": "Reset Boot Sector",
+     "x": 83,
+     "y": 254,
+     "w": 78,
+     "h": 16,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1237,
+     "cls": "#130",
+     "text": "",
+     "x": 5,
+     "y": 246,
+     "w": 172,
+     "h": 1,
+     "style": 1342177287,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1246,
+     "cls": "#128",
+     "text": "Repair Safeboot",
+     "x": 192,
+     "y": 10,
+     "w": 75,
+     "h": 15,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 19,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_205": {
+   "size": 118,
+   "controls": [
+    {
+     "id": 1181,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 2,
+     "y": 1,
+     "w": 356,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_206": {
+   "size": 146,
+   "controls": [
+    {
+     "id": 1182,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 2,
+     "y": 1,
+     "w": 356,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Process Hotkey",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_207": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1183,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 278,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1184,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_208": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1188,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 277,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1189,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 12,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_209": {
+   "size": 106,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 104,
+     "y": 111,
+     "w": 109,
+     "h": 97,
+     "style": 524288,
+     "exstyle": 6357076,
+     "extra": 1
+    },
+    {
+     "id": 128,
+     "cls": "O",
+     "text": "K",
+     "x": 50,
+     "y": 14,
+     "w": 1197,
+     "h": -1,
+     "style": 0,
+     "exstyle": 2162867,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 234,
+   "cy": 52,
+   "title": "m",
+   "font": {
+    "pointsize": 100,
+    "name": "5"
+   }
+  },
+  "dlg_2052_210": {
+   "size": 102,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 97,
+     "y": 0,
+     "w": 0,
+     "h": 20480,
+     "style": 6815841,
+     "exstyle": 7143535,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 2048,
+    "name": ""
+   }
+  },
+  "dlg_2052_211": {
+   "size": 768,
+   "controls": [
+    {
+     "id": 1205,
+     "cls": "#128",
+     "text": "",
+     "x": 2,
+     "y": 2,
+     "w": 195,
+     "h": 67,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1206,
+     "cls": "#128",
+     "text": "Local scan",
+     "x": 16,
+     "y": 15,
+     "w": 80,
+     "h": 13,
+     "style": 1342177289,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1207,
+     "cls": "#128",
+     "text": "Linker scan",
+     "x": 16,
+     "y": 43,
+     "w": 92,
+     "h": 13,
+     "style": 1342177289,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1208,
+     "cls": "#128",
+     "text": "",
+     "x": 202,
+     "y": 2,
+     "w": 234,
+     "h": 67,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1209,
+     "cls": "#130",
+     "text": "Scan deepth:",
+     "x": 220,
+     "y": 14,
+     "w": 60,
+     "h": 10,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1210,
+     "cls": "#129",
+     "text": "",
+     "x": 330,
+     "y": 11,
+     "w": 58,
+     "h": 14,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1211,
+     "cls": "#130",
+     "text": "The number of scan thread:",
+     "x": 220,
+     "y": 35,
+     "w": 108,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1212,
+     "cls": "#129",
+     "text": "",
+     "x": 330,
+     "y": 34,
+     "w": 58,
+     "h": 14,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1213,
+     "cls": "#128",
+     "text": "Only show suspicious object",
+     "x": 220,
+     "y": 53,
+     "w": 127,
+     "h": 10,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1214,
+     "cls": "#128",
+     "text": "...",
+     "x": 105,
+     "y": 13,
+     "w": 57,
+     "h": 17,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1215,
+     "cls": "#129",
+     "text": "",
+     "x": 3,
+     "y": 75,
+     "w": 328,
+     "h": 19,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1216,
+     "cls": "#128",
+     "text": "Scan",
+     "x": 339,
+     "y": 75,
+     "w": 44,
+     "h": 18,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1217,
+     "cls": "#128",
+     "text": "Stop",
+     "x": 394,
+     "y": 75,
+     "w": 40,
+     "h": 18,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1218,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 102,
+     "w": 438,
+     "h": 177,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1219,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 15,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_212": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1220,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 277,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1221,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 12,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_213": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1222,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 277,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1223,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 12,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_214": {
+   "size": 102,
+   "controls": [
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 97,
+     "y": 0,
+     "w": 0,
+     "h": 20480,
+     "style": 6815841,
+     "exstyle": 7143535,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 2048,
+    "name": ""
+   }
+  },
+  "dlg_2052_215": {
+   "size": 220,
+   "controls": [
+    {
+     "id": 1226,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 112,
+     "h": 281,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1227,
+     "cls": "SysListView32",
+     "text": "List2",
+     "x": 115,
+     "y": 0,
+     "w": 323,
+     "h": 281,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1228,
+     "cls": "#130",
+     "text": "",
+     "x": 3,
+     "y": 284,
+     "w": 429,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_216": {
+   "size": 138,
+   "controls": [
+    {
+     "id": 1233,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 0,
+     "y": 0,
+     "w": 358,
+     "h": 171,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 175,
+   "title": "Reg Locker",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_217": {
+   "size": 354,
+   "controls": [
+    {
+     "id": 1238,
+     "cls": "#130",
+     "text": "Address:",
+     "x": 8,
+     "y": 9,
+     "w": 35,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1239,
+     "cls": "#129",
+     "text": "",
+     "x": 45,
+     "y": 6,
+     "w": 59,
+     "h": 16,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1240,
+     "cls": "#130",
+     "text": "Size(Bytes):",
+     "x": 126,
+     "y": 9,
+     "w": 51,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1241,
+     "cls": "#129",
+     "text": "",
+     "x": 181,
+     "y": 6,
+     "w": 59,
+     "h": 16,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1242,
+     "cls": "#128",
+     "text": "Disasm",
+     "x": 263,
+     "y": 6,
+     "w": 58,
+     "h": 16,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1243,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 28,
+     "w": 359,
+     "h": 175,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 360,
+   "cy": 205,
+   "title": "Disassembler",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_218": {
+   "size": 190,
+   "controls": [
+    {
+     "id": 1244,
+     "cls": "#128",
+     "text": "Stop",
+     "x": 281,
+     "y": 6,
+     "w": 50,
+     "h": 17,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1245,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 28,
+     "w": 381,
+     "h": 210,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 383,
+   "cy": 239,
+   "title": "Find Hidden Item",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_219": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1247,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 279,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1248,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 286,
+     "w": 437,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_220": {
+   "size": 298,
+   "controls": [
+    {
+     "id": 101,
+     "cls": "r",
+     "text": "",
+     "x": 69,
+     "y": 100,
+     "w": 105,
+     "h": 116,
+     "style": 6619246,
+     "exstyle": 2097260,
+     "extra": 2048
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 0,
+     "y": 0,
+     "w": 1,
+     "h": -1,
+     "style": 8585215,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 0,
+     "y": 468,
+     "w": 298,
+     "h": 0,
+     "style": 1074266176,
+     "exstyle": 2,
+     "extra": 8
+    },
+    {
+     "id": 2057,
+     "cls": "P\u0001",
+     "text": "\u0003",
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "style": 7143535,
+     "exstyle": 97,
+     "extra": 464
+    },
+    {
+     "id": 0,
+     "cls": "",
+     "text": "",
+     "x": 1,
+     "y": -1,
+     "w": 0,
+     "h": 0,
+     "style": 0,
+     "exstyle": 0,
+     "extra": 64
+    },
+    {
+     "id": 119,
+     "cls": "3",
+     "text": "2",
+     "x": 116,
+     "y": 86,
+     "w": 105,
+     "h": 101,
+     "style": 4980851,
+     "exstyle": 7536745,
+     "extra": 0
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591040,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 187,
+   "cy": 93,
+   "title": "K",
+   "font": {
+    "pointsize": 101,
+    "name": "r"
+   }
+  },
+  "dlg_2052_222": {
+   "size": 152,
+   "controls": [
+    {
+     "id": 1257,
+     "cls": "SysListView32",
+     "text": "List1",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 277,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1258,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 12,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_223": {
+   "size": 1062,
+   "controls": [
+    {
+     "id": 1145,
+     "cls": "#128",
+     "text": "Acknowledgement && Copyright",
+     "x": 1,
+     "y": 190,
+     "w": 436,
+     "h": 108,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1147,
+     "cls": "#130",
+     "text": "",
+     "x": 7,
+     "y": 205,
+     "w": 424,
+     "h": 87,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1186,
+     "cls": "#130",
+     "text": "Check new version",
+     "x": 4,
+     "y": 174,
+     "w": 250,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1260,
+     "cls": "#128",
+     "text": "Contact author",
+     "x": 1,
+     "y": 6,
+     "w": 198,
+     "h": 160,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1261,
+     "cls": "#130",
+     "text": "Author: linxer",
+     "x": 7,
+     "y": 23,
+     "w": 165,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1262,
+     "cls": "#130",
+     "text": "Email: linxer@163.com",
+     "x": 7,
+     "y": 44,
+     "w": 185,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1263,
+     "cls": "#130",
+     "text": "Home Page: www.xuetr.com",
+     "x": 7,
+     "y": 65,
+     "w": 184,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1264,
+     "cls": "#130",
+     "text": "MicroBlog: http://t.qq.com/linxer",
+     "x": 7,
+     "y": 86,
+     "w": 184,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1265,
+     "cls": "#130",
+     "text": "QQ群:",
+     "x": 7,
+     "y": 109,
+     "w": 25,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1266,
+     "cls": "#129",
+     "text": "",
+     "x": 38,
+     "y": 109,
+     "w": 63,
+     "h": 12,
+     "style": 1342253056,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1285,
+     "cls": "#129",
+     "text": "",
+     "x": 207,
+     "y": 20,
+     "w": 92,
+     "h": 113,
+     "style": 1342248964,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1267,
+     "cls": "#130",
+     "text": "License Key:",
+     "x": 262,
+     "y": 174,
+     "w": 50,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1268,
+     "cls": "#129",
+     "text": "",
+     "x": 318,
+     "y": 173,
+     "w": 113,
+     "h": 12,
+     "style": 1342253056,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1272,
+     "cls": "#128",
+     "text": "Business cooperation",
+     "x": 202,
+     "y": 6,
+     "w": 235,
+     "h": 160,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1317,
+     "cls": "#130",
+     "text": "",
+     "x": 202,
+     "y": 135,
+     "w": 235,
+     "h": 1,
+     "style": 1342182408,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1319,
+     "cls": "#130",
+     "text": "Introduction Link",
+     "x": 208,
+     "y": 140,
+     "w": 201,
+     "h": 11,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1318,
+     "cls": "#130",
+     "text": "BuyLink",
+     "x": 214,
+     "y": 152,
+     "w": 202,
+     "h": 9,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1320,
+     "cls": "#130",
+     "text": "#252",
+     "x": 305,
+     "y": 14,
+     "w": 133,
+     "h": 121,
+     "style": 1342177294,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 18,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_224": {
+   "size": 332,
+   "controls": [
+    {
+     "id": 1281,
+     "cls": "SysListView32",
+     "text": "List2",
+     "x": 115,
+     "y": 0,
+     "w": 323,
+     "h": 250,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1282,
+     "cls": "#128",
+     "text": "Hide safe",
+     "x": 6,
+     "y": 273,
+     "w": 111,
+     "h": 15,
+     "style": 1342242819,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1283,
+     "cls": "#128",
+     "text": "Create Log",
+     "x": 132,
+     "y": 271,
+     "w": 157,
+     "h": 17,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1284,
+     "cls": "#128",
+     "text": "Export Log",
+     "x": 311,
+     "y": 271,
+     "w": 107,
+     "h": 17,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1297,
+     "cls": "SysTreeView32",
+     "text": "",
+     "x": 1,
+     "y": 1,
+     "w": 111,
+     "h": 249,
+     "style": 1351680259,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 5,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 0,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_225": {
+   "size": 112,
+   "controls": [
+    {
+     "id": 1286,
+     "cls": "SysTabControl32",
+     "text": "",
+     "x": 1,
+     "y": 2,
+     "w": 436,
+     "h": 296,
+     "style": 1342177280,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_226": {
+   "size": 140,
+   "controls": [
+    {
+     "id": 1287,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 0,
+     "y": 0,
+     "w": 439,
+     "h": 279,
+     "style": 1350633481,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1288,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 281,
+     "w": 437,
+     "h": 17,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073742016,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_227": {
+   "size": 140,
+   "controls": [
+    {
+     "id": 1289,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 1,
+     "y": 3,
+     "w": 464,
+     "h": 268,
+     "style": 1350633481,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1290,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 276,
+     "w": 463,
+     "h": 18,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 468,
+   "cy": 298,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 0,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_228": {
+   "size": 196,
+   "controls": [
+    {
+     "id": 1291,
+     "cls": "SysTreeView32",
+     "text": "",
+     "x": 1,
+     "y": 0,
+     "w": 115,
+     "h": 297,
+     "style": 1351680039,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1292,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 118,
+     "y": 0,
+     "w": 320,
+     "h": 277,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1293,
+     "cls": "#130",
+     "text": "",
+     "x": 118,
+     "y": 281,
+     "w": 317,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_229": {
+   "size": 196,
+   "controls": [
+    {
+     "id": 1295,
+     "cls": "SysTreeView32",
+     "text": "",
+     "x": 1,
+     "y": 0,
+     "w": 115,
+     "h": 297,
+     "style": 1351680039,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1294,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 118,
+     "y": 0,
+     "w": 320,
+     "h": 277,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1296,
+     "cls": "#130",
+     "text": "",
+     "x": 118,
+     "y": 281,
+     "w": 317,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_230": {
+   "size": 196,
+   "controls": [
+    {
+     "id": 1298,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 98,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1299,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 437,
+     "h": 11,
+     "style": 1342308864,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1300,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 0,
+     "y": 103,
+     "w": 438,
+     "h": 176,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_237": {
+   "size": 414,
+   "controls": [
+    {
+     "id": 1301,
+     "cls": "#128",
+     "text": "Professional Version Introduction",
+     "x": 3,
+     "y": 1,
+     "w": 434,
+     "h": 106,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1302,
+     "cls": "#130",
+     "text": "Introduction Link",
+     "x": 10,
+     "y": 86,
+     "w": 421,
+     "h": 14,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1303,
+     "cls": "#130",
+     "text": "",
+     "x": 8,
+     "y": 15,
+     "w": 422,
+     "h": 60,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1304,
+     "cls": "#128",
+     "text": "Subscribe Information",
+     "x": 4,
+     "y": 116,
+     "w": 433,
+     "h": 131,
+     "style": 1342177287,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1305,
+     "cls": "#130",
+     "text": "Buy",
+     "x": 17,
+     "y": 139,
+     "w": 61,
+     "h": 12,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1306,
+     "cls": "#130",
+     "text": "BuyLink",
+     "x": 97,
+     "y": 139,
+     "w": 331,
+     "h": 15,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266184,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_238": {
+   "size": 196,
+   "controls": [
+    {
+     "id": 1307,
+     "cls": "SysTreeView32",
+     "text": "",
+     "x": 1,
+     "y": 0,
+     "w": 115,
+     "h": 297,
+     "style": 1351680039,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1308,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 118,
+     "y": 0,
+     "w": 320,
+     "h": 277,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1309,
+     "cls": "#130",
+     "text": "",
+     "x": 118,
+     "y": 281,
+     "w": 317,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_239": {
+   "size": 140,
+   "controls": [
+    {
+     "id": 1310,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 1,
+     "y": 0,
+     "w": 438,
+     "h": 277,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1311,
+     "cls": "#130",
+     "text": "",
+     "x": 1,
+     "y": 284,
+     "w": 438,
+     "h": 12,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 2,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 297,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_241": {
+   "size": 196,
+   "controls": [
+    {
+     "id": 1313,
+     "cls": "SysTreeView32",
+     "text": "",
+     "x": 1,
+     "y": 0,
+     "w": 115,
+     "h": 297,
+     "style": 1351680039,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1314,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 118,
+     "y": 0,
+     "w": 320,
+     "h": 277,
+     "style": 1350631437,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1315,
+     "cls": "#130",
+     "text": "",
+     "x": 118,
+     "y": 281,
+     "w": 317,
+     "h": 13,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 3,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_242": {
+   "size": 140,
+   "controls": [
+    {
+     "id": 1316,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 0,
+     "y": 0,
+     "w": 369,
+     "h": 214,
+     "style": 1350631433,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160656576,
+   "exstyle": 0,
+   "nctrl": 1,
+   "x": 0,
+   "y": 0,
+   "cx": 370,
+   "cy": 215,
+   "title": "RegNotifyChange",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_243": {
+   "size": 296,
+   "controls": [
+    {
+     "id": 1321,
+     "cls": "#130",
+     "text": "",
+     "x": 3,
+     "y": 4,
+     "w": 433,
+     "h": 35,
+     "style": 1342308352,
+     "exstyle": 131072,
+     "extra": 0
+    },
+    {
+     "id": 1322,
+     "cls": "#129",
+     "text": "",
+     "x": 2,
+     "y": 46,
+     "w": 270,
+     "h": 21,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1323,
+     "cls": "#128",
+     "text": "...",
+     "x": 279,
+     "y": 44,
+     "w": 38,
+     "h": 22,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1324,
+     "cls": "#128",
+     "text": "Upload",
+     "x": 328,
+     "y": 44,
+     "w": 53,
+     "h": 22,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1325,
+     "cls": "#128",
+     "text": "View",
+     "x": 395,
+     "y": 44,
+     "w": 38,
+     "h": 22,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1326,
+     "cls": "SysListView32",
+     "text": "",
+     "x": 0,
+     "y": 78,
+     "w": 439,
+     "h": 220,
+     "style": 1350633481,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 1073741888,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 440,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_244": {
+   "size": 324,
+   "controls": [
+    {
+     "id": 1327,
+     "cls": "#128",
+     "text": "OK",
+     "x": 64,
+     "y": 46,
+     "w": 50,
+     "h": 14,
+     "style": 1342242817,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1328,
+     "cls": "#128",
+     "text": "Cancel",
+     "x": 125,
+     "y": 46,
+     "w": 50,
+     "h": 14,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1329,
+     "cls": "#130",
+     "text": "Address:",
+     "x": 8,
+     "y": 9,
+     "w": 32,
+     "h": 10,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1330,
+     "cls": "#130",
+     "text": "Size:",
+     "x": 8,
+     "y": 27,
+     "w": 32,
+     "h": 10,
+     "style": 1342308352,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1331,
+     "cls": "#129",
+     "text": "",
+     "x": 51,
+     "y": 7,
+     "w": 102,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 1332,
+     "cls": "#129",
+     "text": "",
+     "x": 51,
+     "y": 25,
+     "w": 102,
+     "h": 13,
+     "style": 1350631552,
+     "exstyle": 0,
+     "extra": 0
+    }
+   ],
+   "kind": "EX",
+   "version": 1,
+   "style": 2160591048,
+   "exstyle": 0,
+   "nctrl": 6,
+   "x": 0,
+   "y": 0,
+   "cx": 189,
+   "cy": 66,
+   "title": "Dump Kernel Memory",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_245": {
+   "size": 52,
+   "controls": [],
+   "kind": "EX",
+   "version": 1,
+   "style": 1074266176,
+   "exstyle": 0,
+   "nctrl": 0,
+   "x": 0,
+   "y": 0,
+   "cx": 439,
+   "cy": 299,
+   "title": "",
+   "font": {
+    "pointsize": 8,
+    "weight": 400,
+    "italic": 0,
+    "charset": 1,
+    "name": "Tahoma"
+   }
+  },
+  "dlg_2052_30721": {
+   "size": 226,
+   "controls": [
+    {
+     "id": 68,
+     "cls": "l",
+     "text": "g",
+     "x": 101,
+     "y": 108,
+     "w": 108,
+     "h": 32,
+     "style": 2097235,
+     "exstyle": 6815827,
+     "extra": 0
+    },
+    {
+     "id": 65535,
+     "cls": "#130",
+     "text": "°eú^(",
+     "x": 6,
+     "y": 5,
+     "w": 123,
+     "h": 8,
+     "style": 1342177280,
+     "exstyle": 0,
+     "extra": 38
+    },
+    {
+     "id": 1,
+     "cls": "#128",
+     "text": "nx[",
+     "x": 137,
+     "y": 6,
+     "w": 40,
+     "h": 14,
+     "style": 1342242817,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 2,
+     "cls": "#128",
+     "text": "ÖSm",
+     "x": 137,
+     "y": 23,
+     "w": 40,
+     "h": 14,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 0
+    },
+    {
+     "id": 57670,
+     "cls": "#128",
+     "text": ".^©R(",
+     "x": 137,
+     "y": 43,
+     "w": 40,
+     "h": 14,
+     "style": 1342242816,
+     "exstyle": 0,
+     "extra": 38
+    }
+   ],
+   "kind": "CLASSIC",
+   "style": 2160591044,
+   "exstyle": 0,
+   "nctrl": 5,
+   "x": 9,
+   "y": 26,
+   "cx": 183,
+   "cy": 70,
+   "title": "°eú^",
+   "font": {
+    "pointsize": 2304,
+    "name": ""
+   }
+  },
+  "dlg_2052_30734": {
+   "size": 52,
+   "controls": [],
+   "kind": "CLASSIC",
+   "style": 2160591048,
+   "exstyle": 0,
+   "nctrl": 0,
+   "x": 9,
+   "y": 26,
+   "cx": 183,
+   "cy": 70,
+   "title": "",
+   "font": {
+    "pointsize": 2304,
+    "name": ""
+   }
+  }
+ },
+ "menus": {},
+ "strings": {
+  "2052": [
+   [
+    1,
+    "取消选中"
+   ],
+   [
+    2,
+    "选中"
+   ],
+   [
+    3,
+    "混合"
+   ],
+   [
+    4,
+    "找到了一个或多个自动保存的文档。"
+   ],
+   [
+    5,
+    "这些文档的保存时间比当前打开的文档更近，且包含应用程序关闭之前作出的更改。"
+   ],
+   [
+    6,
+    "是否要恢复这些自动保存的文档?"
+   ],
+   [
+    7,
+    "请注意，如果选择恢复自动保存的文档，则必须显式保存这些文档以覆盖原始文档。如果选择不恢复自动保存的版本，则将删除它们。"
+   ],
+   [
+    8,
+    "恢复自动保存的文档\n打开自动保存的版本而非显式保存的版本"
+   ],
+   [
+    9,
+    "不恢复自动保存的文档\n使用上次显式保存的文档版本"
+   ],
+   [
+    10,
+    "[恢复了] %s"
+   ]
+  ]
+ },
+ "version": {
+  "size": 892,
+  "raw_head": "7c0334000000560053005f00560045005200530049004f004e005f0049004e0046004f0000000000bd04effe0000010000000100000006000000010000000600"
+ },
+ "manifest": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\" manifestVersion=\"1.0\"><trustInfo xmlns=\"urn:schemas-microsoft-com:asm.v3\"><security><requestedPrivileges><requestedExecutionLevel level=\"requireAdministrator\" uiAccess=\"false\"></requestedExecutionLevel></requestedPrivileges></security></trustInfo><application xmlns=\"urn:schemas-microsoft-com:asm.v3\"><windowsSettings><dpiAware xmlns=\"http://schemas.microsoft.com/SMI/2005/WindowsSettings\">true</dpiAware></windowsSettings></application></assembly>",
+ "counts": {
+  "KERNEL": 3,
+  "1": 17,
+  "2": 3,
+  "3": 15,
+  "5": 87,
+  "6": 14,
+  "12": 16,
+  "14": 13,
+  "16": 1,
+  "24": 1
+ }
+}
