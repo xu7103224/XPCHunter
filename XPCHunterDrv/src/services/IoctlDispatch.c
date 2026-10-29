@@ -90,7 +90,7 @@ __int64 InitCommandHandlerTable(void)
     Table[0] = (PCOMMAND_HANDLER)CmdReadProcessMemory;
     Table[1] = (PCOMMAND_HANDLER)CmdResetProcessContext;
     Table[2] = (PCOMMAND_HANDLER)CmdQueryProcessInfo;
-    Table[3] = (PCOMMAND_HANDLER)NULL;
+    Table[3] = (PCOMMAND_HANDLER)CmdGetModuleCount;   /* 原版 0x140071C8C；2026-10-29 修正：此前误置 NULL */
     Table[4] = (PCOMMAND_HANDLER)CmdGetModuleCount;
     Table[5] = (PCOMMAND_HANDLER)CmdEnumKernelDrivers;
     Table[6] = (PCOMMAND_HANDLER)CmdEnumHandles;
@@ -184,25 +184,39 @@ __int64 InitCommandHandlerTable(void)
     Table[94] = (PCOMMAND_HANDLER)CmdReadCpuBaseAddrEx;
     Table[95] = (PCOMMAND_HANDLER)CmdStubAlwaysTrue;
     Table[96] = (PCOMMAND_HANDLER)CmdGetKernelBaseLegacy;
-    Table[97] = (PCOMMAND_HANDLER)NULL;
-    Table[98] = (PCOMMAND_HANDLER)NULL;
+    /* 2026-10-29 修正：97/98 此前误置 NULL。原版分别是
+       RegisterFormatNameCallback(0x14001A030) / MiniFilterFormatFileNameEx(0x14001A130) */
+    Table[97] = (PCOMMAND_HANDLER)RegisterFormatNameCallback;
+    Table[98] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameEx;
     Table[99] = (PCOMMAND_HANDLER)MiniFilterGenerateFileName;
     Table[100] = (PCOMMAND_HANDLER)RegisterFormatNameCallback;
     Table[101] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameEx;
     Table[102] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithContext;
     Table[103] = (PCOMMAND_HANDLER)RegisterFormatPathCallback;
     Table[104] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithPathEx;
-    // 105-110: NULL (memset 0x30 = 48 bytes = 6 entries)
-    RtlZeroMemory(&Table[105], 0x30);
+    /* 2026-10-29 修正：105-110 此前整段清零，但原版六个槽位都有实现。
+       对应函数我方早已存在，只是没接进表。 */
+    Table[105] = (PCOMMAND_HANDLER)CmdQueryProcessNameByPid;     /* 原版 0x140084E14 */
+    Table[106] = (PCOMMAND_HANDLER)MiniFilterCommPortConnect;    /* 原版 0x140019784 */
+    Table[107] = (PCOMMAND_HANDLER)MiniFilterCommPortDisconnect; /* 原版 0x140019400 */
+    Table[108] = (PCOMMAND_HANDLER)MiniFilterCommPortCleanup;    /* 原版 0x1400198D8 */
+    Table[109] = (PCOMMAND_HANDLER)CmdEnumObjectDirectory;       /* 原版 0x140084618 */
+    Table[110] = (PCOMMAND_HANDLER)CmdCloseProcessHandle;        /* 原版 0x140084154 */
     Table[111] = (PCOMMAND_HANDLER)MiniFilterCommPortSend;
     Table[112] = (PCOMMAND_HANDLER)MiniFilterCommPortRecv;
     Table[113] = (PCOMMAND_HANDLER)MiniFilterCommPortReply;
-    // 114-119: NULL (memset 0x30 = 48 bytes = 6 entries)
-    RtlZeroMemory(&Table[114], 0x30);
+    /* 2026-10-29 修正：114-119 此前整段清零，原版均有实现 */
+    Table[114] = (PCOMMAND_HANDLER)CmdEnumObjectHandles;          /* 原版 0x140054C38 */
+    Table[115] = (PCOMMAND_HANDLER)CmdTerminateProcessByEProcess; /* 原版 0x1400543FC */
+    Table[116] = (PCOMMAND_HANDLER)CmdQueryObjectInfo;            /* 原版 0x140083A84 */
+    Table[117] = (PCOMMAND_HANDLER)CmdEnumSyscallEntries;         /* 原版 0x1400538C8 */
+    Table[118] = (PCOMMAND_HANDLER)CmdInstallSystemHook;          /* 原版 0x1400539FC */
+    Table[119] = (PCOMMAND_HANDLER)CmdEnumShadowSyscallEntries;   /* 原版 0x14003D464 */
     Table[120] = (PCOMMAND_HANDLER)CmdQueryProcessNameByPid;
-    Table[121] = (PCOMMAND_HANDLER)NULL;
-    Table[122] = (PCOMMAND_HANDLER)NULL;
-    Table[123] = (PCOMMAND_HANDLER)NULL;
+    /* 2026-10-29 修正：121-123 此前误置 NULL */
+    Table[121] = (PCOMMAND_HANDLER)CmdInstallShadowHook;    /* 原版 0x14003D6C4 */
+    Table[122] = (PCOMMAND_HANDLER)CmdEnumSyscallTable2;    /* 原版 0x1400338A0 */
+    Table[123] = (PCOMMAND_HANDLER)CmdInstallSyscallHook2;  /* 原版 0x140033B38 */
     Table[124] = (PCOMMAND_HANDLER)MiniFilterCommPortConnect;
     Table[125] = (PCOMMAND_HANDLER)MiniFilterCommPortDisconnect;
     Table[126] = (PCOMMAND_HANDLER)MiniFilterCommPortCleanup;
@@ -210,8 +224,15 @@ __int64 InitCommandHandlerTable(void)
     Table[128] = (PCOMMAND_HANDLER)CmdCloseProcessHandle;
     Table[129] = (PCOMMAND_HANDLER)CmdEnumObjectHandles;
     Table[130] = (PCOMMAND_HANDLER)CmdTerminateProcessByEProcess;
-    // 131-138: NULL (memset 0x40 = 64 bytes = 8 entries)
-    RtlZeroMemory(&Table[131], 0x40);
+    /* 2026-10-29 修正：131-138 此前整段清零，原版均有实现 */
+    Table[131] = (PCOMMAND_HANDLER)CmdInstallSyscallHook3;    /* 原版 0x1400542B4 */
+    Table[132] = (PCOMMAND_HANDLER)MiniFilterPreRename;       /* 原版 0x140017938 */
+    Table[133] = (PCOMMAND_HANDLER)MiniFilterPreVolumeMount;  /* 原版 0x140018D14 */
+    Table[134] = (PCOMMAND_HANDLER)CmdEnumSyscallTable9;      /* 原版 0x1400869C0 */
+    Table[135] = (PCOMMAND_HANDLER)CmdInstallSyscallHook9;    /* 原版 0x14008719C */
+    Table[136] = (PCOMMAND_HANDLER)CmdEnumGdiObjects;         /* 原版 0x14006D3A8 */
+    Table[137] = (PCOMMAND_HANDLER)CmdCheckProcessHideDetect; /* 原版 0x1400331FC */
+    Table[138] = (PCOMMAND_HANDLER)CmdFixProcessEProcess;     /* 原版 0x140033C68 */
     Table[139] = (PCOMMAND_HANDLER)CmdQueryObjectInfo;
     Table[140] = (PCOMMAND_HANDLER)CmdEnumSyscallEntries;
     Table[141] = (PCOMMAND_HANDLER)CmdInstallSystemHook;
@@ -238,8 +259,9 @@ __int64 InitCommandHandlerTable(void)
     Table[162] = (PCOMMAND_HANDLER)CmdEnumGdiObjects;
     Table[163] = (PCOMMAND_HANDLER)CmdCheckProcessHideDetect;
     Table[164] = (PCOMMAND_HANDLER)CmdFixProcessEProcess;
-    Table[165] = (PCOMMAND_HANDLER)NULL;
-    Table[166] = (PCOMMAND_HANDLER)NULL;
+    /* 2026-10-29 修正：165/166 此前误置 NULL */
+    Table[165] = (PCOMMAND_HANDLER)CmdRestoreSsdtTable;    /* 原版 0x140068054 */
+    Table[166] = (PCOMMAND_HANDLER)CmdEnumObjectTypeInfo;  /* 原版 0x14007EDC8 */
     Table[167] = (PCOMMAND_HANDLER)MiniFilterClientContext;
     Table[168] = (PCOMMAND_HANDLER)MiniFilterServerContext;
     Table[169] = (PCOMMAND_HANDLER)MiniFilterContextCleanup;
@@ -258,8 +280,15 @@ __int64 InitCommandHandlerTable(void)
     Table[182] = (PCOMMAND_HANDLER)CmdWriteKernelObjectField;
     Table[183] = (PCOMMAND_HANDLER)CmdProcessCallbackRoutine;
     Table[184] = (PCOMMAND_HANDLER)CmdInitProcessCallback;
-    // 185-190: NULL (memset 0x30 = 48 bytes = 6 entries)
-    RtlZeroMemory(&Table[185], 0x30);
+    /* 2026-10-29 修正：185-190 此前整段清零 —— 这正是"内核 Dump 内存 /
+       内核编辑器 / 对象类型"系列以为"需要新增驱动命令"的根因。
+       原版六个槽位都有实现，我方函数也早已写好，只是没接。 */
+    Table[185] = (PCOMMAND_HANDLER)CmdWriteKernelMemoryRange;      /* 原版 0x14006C510 */
+    Table[186] = (PCOMMAND_HANDLER)CmdEnumKernelMemoryDetail;      /* 原版 0x14006B708 */
+    Table[187] = (PCOMMAND_HANDLER)CmdCallKernelMemoryFunction;    /* 原版 0x14006C42C */
+    Table[188] = (PCOMMAND_HANDLER)CmdEnumObjectTypeDirectory;     /* 原版 0x14006AC54 */
+    Table[189] = (PCOMMAND_HANDLER)CmdEnumObjectTypeTable;         /* 原版 0x14006B0AC */
+    Table[190] = (PCOMMAND_HANDLER)CmdEnumObjectTypeDetail;        /* 原版 0x14006B49C */
     Table[191] = (PCOMMAND_HANDLER)MiniFilterInstanceSetup;   // 原始 0x1400129CC
     Table[192] = (PCOMMAND_HANDLER)MiniFilterInstanceQuery;
     Table[193] = (PCOMMAND_HANDLER)CmdEnumProcessListEx;
