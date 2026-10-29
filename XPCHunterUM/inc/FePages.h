@@ -40,6 +40,10 @@
 #define IDC_KM_DRVOP      1027
 #define IDC_KM_RESTORE    1066
 #define IDC_KM_RESTOREALL 1067
+/* 2026-10-30：服务表/对象/系统三个下拉选择框（Kernel 页 tab 11..13） */
+#define IDC_KM_SEL1     1068
+#define IDC_KM_SEL2     1069
+#define IDC_KM_SEL3     1070
 
 /* Driver 子页操作（原版右键菜单 5 项；Locate in Registry Tab 走独立菜单项 4008） */
 #define DRVOP_VERIFY      0
@@ -185,7 +189,10 @@ void DoRestoreCallbackTable(void);
 
 /* ---- FeKernelPage.c ---- */
 extern HWND g_hKmTabs, g_hKmList, g_hKmStatus, g_hKmKExtra;
+extern HWND g_hKmSel1, g_hKmSel2, g_hKmSel3;
 extern int  g_KmTab;
+extern int  g_KmSel[3];
+void KmUpdateSelComboVis(void);
 extern int  g_KmOnlyLoaded;
 void CreateKmColumns(HWND hList, int tab);
 void KmSetText(HWND hList, int iItem, int iSub, const char *text);

@@ -11,7 +11,9 @@ BOOL   g_PromptOk;
 #include "FePages.h"
 
 HWND g_hKmTabs, g_hKmList, g_hKmStatus, g_hKmKExtra;
+HWND g_hKmSel1, g_hKmSel2, g_hKmSel3;
 int  g_KmTab = 0;
+int  g_KmSel[3] = { 0, 0, 0 };   /* tab 11/12/13 的下拉选择（frontend.c 写入） */
 int  g_KmOnlyLoaded = 0;
 
 /* ==========================================================================
@@ -514,91 +516,251 @@ void DoRefreshKernel(void)
         }
         SetWindowTextA(g_hKmStatus, status);
         free(out);
-    } else if (g_KmTab >= 11) {
-        /* 驱动服务表族（2026-10-30 接入；命令实测见
-           docs/reversing/剩余工作清单_2026-10-30.md §7）。
-           数据形状：+0 一字节就绪标志；+8 起 28 条 × 48 字节
-           （+0x00 DWORD 索引，+0x10 QWORD 服务函数地址）。
-           1400 族（0x0B0/0x0B6）在缓冲 +1352 处多一个 DWORD 项数、
-           +1368 处多一个 QWORD 基址（原版 EnumSsdtFunctionTable2 /
-           FillSyscallTableInfo 的额外字段，已逐条核对原版确认）。
-           1864（0x0B2）为 CopySsdtHookTargetTable3 的扩展布局，
-           前 28 条按同族形状渲染。 */
-        static const struct { ULONG Cmd; ULONG Size; const char *Name; } Svc[] = {
-            { 0x0AC, 1352, "Tcpip"    },
-            { 0x0AE, 1352, "KbdClass" },
-            { 0x0B0, 1400, "Disk"     },
-            { 0x0B2, 1864, "Ntoskrnl" },
-            { 0x0B4, 1352, "Acpi"     },
-            { 0x0B6, 1400, "Disk2"    },
-            { 0x0B8, 1352, "MouClass" },
-            { 0x0BA, 1352, "nsiproxy" },
-            { 0x0BC, 1352, "tdx"      },
-            { 0x0C0, 1352, "wdf01000" },
+    } else if (g_KmTab >= 11 && g_KmTab <= 13) {
+        /* 【2026-10-30 二次整合】三个下拉 Tab 承载全部已验证的枚举命令。
+           命令实测与布局分析见 docs/reversing/剩余工作清单_2026-10-30.md §7/§8。Mode 含义：
+             0 服务表族（48 步进，idx@+0、addr@+16）
+             1 0x0B2 专用（CopySsdtHookTargetTable3：64 步进，
+               idx@目标+4、addr@+8 —— EntOff 已含 +4）
+             2 0x026 句柄/进程记录（count@0，0x30 步进：
+               time@+0、ptr@+8、UTF-16 名字@+0x10）
+             3 0x0D4 对象类型（count@0，0x20 步进：TypeAddr@+0、Count@+16）
+             4 0x0E5 内核句柄表（count@0，0x20 步进：4 个 QWORD）
+             5 0x031 服务（count@0，0x30 步进：Record@+0、Off@+24、Pool@+32）
+             6 0x108 处理器（稀疏 QWORD，跳零）
+             7 上下文族（0x40 步进从 +0x10：func@+8、idx@+0x30，idx 递增） */
+        static const struct { ULONG Cmd; ULONG Size; const char *Name;
+                              ULONG EntOff; ULONG Stride; int Mode; } Tbl[] = {
+            {0x0AC,1352,"Tcpip",8,48,0},   {0x0AE,1352,"KbdClass",8,48,0},
+            {0x0B0,1400,"Disk",8,48,0},    {0x0B2,1864,"Ntoskrnl",8,0x40,0},
+            {0x0B4,1352,"Acpi",8,48,0},    {0x0B6,1400,"Disk2",8,48,0},
+            {0x0B8,1352,"MouClass",8,48,0},{0x0BA,1352,"nsiproxy",8,48,0},
+            {0x0BC,1352,"tdx",8,48,0},     {0x0C0,1352,"wdf01000",8,48,0},
+            {0x026,4194304,"Handles",0x20,0x30,2},
+            {0x0D4,2097152,"ObjTypes",8,0x20,3},
+            {0x0E5,2097152,"KHandle",8,0x20,4},
+            {0x031,2097152,"Services",8,0x30,5},
+            {0x108,2097152,"CpuInfo",0x10,8,6},
+            {0x129,1800,"FsCtx",0x10,0x40,7},
+            {0x12D,1400,"ObjCtx",0x10,0x40,7},
+            {0x12F,1352,"ProcCtx",0x10,0x40,7},
         };
-        const ULONG idx = (ULONG)g_KmTab - 11;
+        static const int Base[3] = { 0, 10, 13 };
+        const int sel = g_KmSel[g_KmTab - 11];
+        const int idx = Base[g_KmTab - 11] + sel;
         UCHAR ready = 0;
         BYTE *buf;
         BOOL ok;
-        ULONG i, shown = 0;
-        ULONG extraCount = 0;
-        ULONG64 extraBase = 0;
+        ULONG shown = 0;
+        ULONG64 extraCount = 0, extraBase = 0;
+        char hex1[32], hex2[32], hex3[32];
 
-        /* 【2026-10-30 堆溢出防护】CopySyscallTable7（原版 0x14003D3FC 的 1:1
-           转写，服务表族的 copy/validate 链）在 TableReady 时最多写到
-           调用方缓冲的 +1382 字节（29 项 × 48 起点 +4 + 22 偏移的 OWORD），
-           而 handler 校验的 OutputSize 是 1352 —— 原版客户端显然分配了
-           带余量的缓冲。这里 +256 堆余量吸收之，OutSize 仍传驱动要求的
-           精确值。否则下一次堆分配时 ntdll 崩 0xC0000005（实测 kmtab 20
-           启动即崩；probe 批 2 尾部的 fast-fail 同根因）。 */
-        buf = (BYTE *)calloc(1, Svc[idx].Size + 256);
+        if (sel < 0 || sel > 9 ||
+            idx >= (int)(sizeof(Tbl) / sizeof(Tbl[0]))) {
+            SetWindowTextA(g_hKmStatus, "selection out of range");
+            return;
+        }
+        /* 【堆溢出防护】CopySyscallTable7 族最多写调用方缓冲 +1382 字节
+           而 handler 校验 1352 —— 缓冲 +256 余量吸收（详见工作清单 §7.1）。 */
+        buf = (BYTE *)calloc(1, Tbl[idx].Size + 256);
         if (!buf) {
-            SetWindowTextA(g_hKmStatus, "svctable: out of memory");
+            SetWindowTextA(g_hKmStatus, "km table: out of memory");
             return;
         }
         ok = (g_Client.Opened)
-           ? XpchInvoke(&g_Client, Svc[idx].Cmd, NULL, 0, buf, Svc[idx].Size, &ready)
+           ? XpchInvoke(&g_Client, Tbl[idx].Cmd, NULL, 0, buf, Tbl[idx].Size, &ready)
            : FALSE;
         if (!ok) {
             sprintf_s(status, sizeof(status),
-                      "%s 表: driver rejected (cmd 0x%03X)%s",
-                      Svc[idx].Name, Svc[idx].Cmd,
+                      "%s: driver rejected (cmd 0x%03X)%s",
+                      Tbl[idx].Name, Tbl[idx].Cmd,
                       g_Client.Opened ? "" : " - not connected");
             SetWindowTextA(g_hKmStatus, status);
             free(buf);
             return;
         }
-        for (i = 0; i < 28; i++) {
-            ULONG eidx = *(ULONG *)(buf + 8 + 48ULL * i);
-            ULONG64 addr = *(ULONG64 *)(buf + 8 + 48ULL * i + 16);
-            char sidx[32], cur[32];
-            LVITEMA it;
-            ZeroMemory(&it, sizeof(it));
-            it.mask = LVIF_TEXT;
-            it.iItem = (int)shown;
-            sprintf_s(sidx, sizeof(sidx), "%lu", (unsigned long)eidx);
-            sprintf_s(cur, sizeof(cur), "%016I64X", addr);
-            it.pszText = sidx;
-            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
-            KmSetText(g_hKmList, (int)shown, 1, cur);
-            KmSetText(g_hKmList, (int)shown, 2, "-");
-            KmSetText(g_hKmList, (int)shown, 3, addr ? "present" : "null");
-            KmSetText(g_hKmList, (int)shown, 4, Svc[idx].Name);
-            shown++;
+#define KM_ROW(c0, c1, c2, c3) do { \
+            LVITEMA it_; ZeroMemory(&it_, sizeof(it_)); \
+            it_.mask = LVIF_TEXT; it_.iItem = (int)shown; it_.pszText = (char *)(c0); \
+            SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it_); \
+            KmSetText(g_hKmList, (int)shown, 1, (c1)); \
+            KmSetText(g_hKmList, (int)shown, 2, (c2)); \
+            KmSetText(g_hKmList, (int)shown, 3, (c3)); \
+            KmSetText(g_hKmList, (int)shown, 4, Tbl[idx].Name); \
+            shown++; \
+        } while (0)
+
+        switch (Tbl[idx].Mode) {
+        case 0: {
+            ULONG k;
+            /* 0x0B2 实测（probe --dump 1864）：步长 0x40、29 条，
+               字段偏移与 48 字节族一致（idx@+0、addr@+16）。 */
+            ULONG maxk = (Tbl[idx].Stride > 48) ? 29 : 28;
+            for (k = 0; k < maxk; k++) {
+                ULONG off = Tbl[idx].EntOff + Tbl[idx].Stride * k;
+                if (off + 24 > Tbl[idx].Size) break;
+                sprintf_s(hex1, sizeof(hex1), "%lu",
+                          *(ULONG *)(buf + off));
+                sprintf_s(hex2, sizeof(hex2), "%016I64X",
+                          *(ULONG64 *)(buf + off + 16));
+                sprintf_s(hex3, sizeof(hex3), "%u", ready);
+                KM_ROW(hex1, hex2, "-", hex3);
+            }
+            /* count/base 是 1400 族（EnumSsdtFunctionTable2 /
+               FillSyscallTableInfo）的尾巴字段；0x0B2 的 1864 缓冲里
+               该偏移落在条目数据内，不能读。 */
+            if (Tbl[idx].Size >= 1376 && Tbl[idx].Stride <= 48) {
+                extraCount = *(ULONG *)(buf + 1352);
+                extraBase  = *(ULONG64 *)(buf + 1368);
+            }
+            if (extraCount || extraBase)
+                sprintf_s(status, sizeof(status),
+                          "%s: %lu entries (cmd 0x%03X, ready=%u, count=%lu base=%016I64X)",
+                          Tbl[idx].Name, shown, Tbl[idx].Cmd, ready,
+                          (unsigned long)extraCount, extraBase);
+            else
+                sprintf_s(status, sizeof(status),
+                          "%s: %lu entries (cmd 0x%03X, ready=%u)",
+                          Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
         }
-        if (Svc[idx].Size >= 1376) {
-            extraCount = *(ULONG *)(buf + 1352);
-            extraBase  = *(ULONG64 *)(buf + 1368);
+        case 1: {
+            ULONG k;
+            for (k = 0; k < 29; k++) {
+                ULONG off = Tbl[idx].EntOff + 64 * k;
+                ULONG64 addr;
+                if (off + 64 > Tbl[idx].Size + 256) break;
+                addr = *(ULONG64 *)(buf + off + 4);
+                sprintf_s(hex1, sizeof(hex1), "%lu", *(ULONG *)(buf + off));
+                sprintf_s(hex2, sizeof(hex2), "%016I64X", addr);
+                sprintf_s(hex3, sizeof(hex3), "%016I64X",
+                          *(ULONG64 *)(buf + off + 18));
+                KM_ROW(hex1, hex2, hex3, addr ? "present" : "null");
+            }
+            sprintf_s(status, sizeof(status),
+                      "%s: %lu entries (cmd 0x%03X, ready=%u, 64-byte stride)",
+                      Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
         }
-        if (extraCount || extraBase)
+        case 2: {
+            ULONG count = *(ULONG *)buf;
+            ULONG k;
+            if (count > 64) count = 64;
+            for (k = 0; k < count; k++) {
+                ULONG off = Tbl[idx].EntOff + Tbl[idx].Stride * k;
+                WCHAR wname[10];
+                char name[24];
+                int ci;
+                if (off + 0x28 > Tbl[idx].Size + 256) break;
+                sprintf_s(hex1, sizeof(hex1), "%016I64X",
+                          *(ULONG64 *)(buf + off));
+                sprintf_s(hex2, sizeof(hex2), "%016I64X",
+                          *(ULONG64 *)(buf + off + 8));
+                ZeroMemory(wname, sizeof(wname));
+                memcpy(wname, buf + off + 0x10, sizeof(wname) - sizeof(WCHAR));
+                for (ci = 0; ci < 9 && wname[ci]; ci++)
+                    name[ci] = (char)(wname[ci] & 0x7F);
+                name[ci] = 0;
+                sprintf_s(hex3, sizeof(hex3), "%s", name);
+                KM_ROW(hex1, hex2, hex3, "-");
+            }
             sprintf_s(status, sizeof(status),
-                      "%s 表: %lu entries (cmd 0x%03X, ready=%u, count=%lu base=%016I64X)",
-                      Svc[idx].Name, shown, Svc[idx].Cmd, ready,
-                      (unsigned long)extraCount, extraBase);
-        else
+                      "%s: %lu records (cmd 0x%03X, ready=%u)",
+                      Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
+        }
+        case 3: {
+            ULONG count = *(ULONG *)buf;
+            ULONG k;
+            if (count > 128) count = 128;
+            for (k = 0; k < count; k++) {
+                ULONG off = Tbl[idx].EntOff + Tbl[idx].Stride * k;
+                if (off + 24 > Tbl[idx].Size + 256) break;
+                sprintf_s(hex1, sizeof(hex1), "%lu", (unsigned long)k);
+                sprintf_s(hex2, sizeof(hex2), "%016I64X",
+                          *(ULONG64 *)(buf + off));
+                sprintf_s(hex3, sizeof(hex3), "%016I64X",
+                          *(ULONG64 *)(buf + off + 16));
+                KM_ROW(hex1, hex2, hex3, "-");
+            }
             sprintf_s(status, sizeof(status),
-                      "%s 表: %lu entries (cmd 0x%03X, ready=%u)",
-                      Svc[idx].Name, shown, Svc[idx].Cmd, ready);
+                      "%s: %lu entries (cmd 0x%03X, ready=%u)",
+                      Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
+        }
+        case 4: {
+            ULONG count = *(ULONG *)buf;
+            ULONG k;
+            if (count > 128) count = 128;
+            for (k = 0; k < count; k++) {
+                ULONG off = Tbl[idx].EntOff + Tbl[idx].Stride * k;
+                if (off + 32 > Tbl[idx].Size + 256) break;
+                sprintf_s(hex1, sizeof(hex1), "%lu", (unsigned long)k);
+                sprintf_s(hex2, sizeof(hex2), "%016I64X",
+                          *(ULONG64 *)(buf + off));
+                sprintf_s(hex3, sizeof(hex3), "%016I64X",
+                          *(ULONG64 *)(buf + off + 16));
+                KM_ROW(hex1, hex2, hex3, "-");
+            }
+            sprintf_s(status, sizeof(status),
+                      "%s: %lu entries (cmd 0x%03X, ready=%u)",
+                      Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
+        }
+        case 5: {
+            ULONG count = *(ULONG *)buf;
+            ULONG k;
+            if (count > 128) count = 128;
+            for (k = 0; k < count; k++) {
+                ULONG off = Tbl[idx].EntOff + Tbl[idx].Stride * k;
+                if (off + 40 > Tbl[idx].Size + 256) break;
+                sprintf_s(hex1, sizeof(hex1), "%lu", (unsigned long)k);
+                sprintf_s(hex2, sizeof(hex2), "%016I64X",
+                          *(ULONG64 *)(buf + off));
+                sprintf_s(hex3, sizeof(hex3), "%016I64X",
+                          *(ULONG64 *)(buf + off + 24));
+                KM_ROW(hex1, hex2, hex3, "-");
+            }
+            sprintf_s(status, sizeof(status),
+                      "%s: %lu services (cmd 0x%03X, ready=%u)",
+                      Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
+        }
+        case 6: {
+            ULONG off;
+            for (off = Tbl[idx].EntOff; off + 8 <= Tbl[idx].Size && shown < 64;
+                 off += 8) {
+                ULONG64 v = *(ULONG64 *)(buf + off);
+                if (!v) continue;
+                sprintf_s(hex1, sizeof(hex1), "%04lX", off);
+                sprintf_s(hex2, sizeof(hex2), "%016I64X", v);
+                KM_ROW(hex1, hex2, "-", "-");
+            }
+            sprintf_s(status, sizeof(status),
+                      "%s: %lu qwords (cmd 0x%03X, ready=%u)",
+                      Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
+        }
+        case 7: {
+            ULONG off, last = 0;
+            for (off = Tbl[idx].EntOff;
+                 off + 0x34 <= Tbl[idx].Size && shown < 64; off += Tbl[idx].Stride) {
+                ULONG64 fn = *(ULONG64 *)(buf + off + 8);
+                ULONG   ix = *(ULONG *)(buf + off + 0x30);
+                if (ix == 0 || ix <= last) break;
+                last = ix;
+                sprintf_s(hex1, sizeof(hex1), "%lu", (unsigned long)ix);
+                sprintf_s(hex2, sizeof(hex2), "%016I64X", fn);
+                KM_ROW(hex1, hex2, "-", "-");
+            }
+            sprintf_s(status, sizeof(status),
+                      "%s: %lu contexts (cmd 0x%03X, ready=%u)",
+                      Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
+        }
+        }
+#undef KM_ROW
+        SetWindowTextA(g_hKmStatus, status);
         free(buf);
     } else {
         /* SSDT（g_KmTab==2）/ Shadow SSDT（g_KmTab==3）

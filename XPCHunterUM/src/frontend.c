@@ -496,6 +496,16 @@ void DoRefreshFiles(void);
  * 若显示成 FAILED 会误导用户以为自己系统被 hook 了。 */
 
 
+/* Kernel 页 tab 11..13 的下拉框可见性：只在对应子页显示。 */
+void KmUpdateSelComboVis(void)
+{
+    int i;
+    for (i = 0; i < 3; i++) {
+        HWND h = (i == 0) ? g_hKmSel1 : (i == 1) ? g_hKmSel2 : g_hKmSel3;
+        if (h) ShowWindow(h, (g_MainTab == 1 && g_KmTab == 11 + i) ? SW_SHOW : SW_HIDE);
+    }
+}
+
 void ShowPage(HWND hWnd, int page)
 {
     char hint[512];
@@ -520,6 +530,7 @@ void ShowPage(HWND hWnd, int page)
         g_PageShows[i](hWnd, page);
 
     g_MainTab = page;
+    KmUpdateSelComboVis();
 
     /* 第二步增量5：刷新模型统一——切页时把定时器绑定到该页的刷新入口。
        Process 页有自己的开关（FeProcPageToggleAuto 管理 g_ProcAutoOn），
@@ -746,10 +757,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
            被截断（KiDebugRoutine / Find PTE Hook / Find Next ClassInitData）。 */
         g_hKmKExtra = CreateWindowA("STATIC", "", WS_CHILD | SS_LEFT,
                                     10, 106, 940, 18, hWnd, (HMENU)IDC_KM_KEXTRA, hInst, NULL);
-        /* 【2026-10-30】21 个标签单行放不下（约 1440px > 940px），
-           改 TCS_MULTILINE 两行换行；列表相应下移 24px。 */
-        g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS | TCS_MULTILINE,
-                                  10, 110, 940, 64, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
+        /* 【2026-10-30 二次整合】14 个标签单行可容纳（下拉框收敛后），
+           不再需要 TCS_MULTILINE（其第二行有绘制问题）。 */
+        g_hKmTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | TCS_TABS,
+                                  10, 110, 940, 24, hWnd, (HMENU)IDC_KM_TABS, hInst, NULL);
         {
             TCITEMA t;
             int k;
@@ -762,24 +773,59 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                  OpenMountMgrDriverSection 实开 mouClass（tab 17）
                  OpenWin32kSection         实开 tdx    （tab 19）
                0x0B2 基于 ntoskrnl 数据（BuildSsdtHookTargets3），无文件节。 */
-            static const char *kmNames[21] = { "Kernel Module", "Driver", "SSDT",
+            /* 【2026-10-30 二次整合】服务表族 10 个子 Tab 收敛为 1 个带
+               下拉框的 Tab（"Svc Tables"），另加"Object/Handle"与"System"
+               两个下拉 Tab 承载 0x026/0x0D4/0x0E5/0x031/0x108/0x129/0x12D/
+               0x12F。共 14 个 Tab 单行放下，TCS_MULTILINE 的第二行绘制
+               问题随之消失。各下拉框的选项在 FeKernelPage.c 的 Tbl[] 里
+               一一对应（顺序不可换）。 */
+            static const char *kmNames[14] = { "Kernel Module", "Driver", "SSDT",
                                                "Shadow SSDT", "Device", "Object",
                                                "Hidden Drivers", "Suspicious DriverObj",
                                                "IDT", "I/O Port", "GDT",
-                                               "Tcpip 表", "KbdClass 表", "Disk 表",
-                                               "Ntoskrnl Hook", "Acpi 表", "Disk 表2",
-                                               "MouClass 表", "nsiproxy 表", "tdx 表",
-                                               "wdf01000 表" };
-            for (k = 0; k < 21; k++) {
+                                               "Svc Tables", "Object/Handle", "System" };
+            for (k = 0; k < 14; k++) {
                 ZeroMemory(&t, sizeof(t));
                 t.mask = TCIF_TEXT;
                 t.pszText = (LPSTR)kmNames[k];
                 SendMessageA(g_hKmTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
             }
         }
+        /* 【2026-10-30】三个下拉选择框（tab 11 服务表 / tab 12 对象句柄 /
+           tab 13 系统），只在这些子页可见；选项与 FeKernelPage.c 的
+           Tbl[] 顺序一一对应。 */
+        {
+            static const char *Sel1Items[] = { "Tcpip", "KbdClass", "Disk",
+                "Ntoskrnl", "Acpi", "Disk2", "MouClass", "nsiproxy", "tdx",
+                "wdf01000" };
+            static const char *Sel2Items[] = { "Handles (0x026)",
+                "ObjTypes (0x0D4)", "KHandle (0x0E5)" };
+            static const char *Sel3Items[] = { "Services (0x031)",
+                "CpuInfo (0x108)", "FsCtx (0x129)", "ObjCtx (0x12D)",
+                "ProcCtx (0x12F)" };
+            int i;
+            g_hKmSel1 = CreateWindowA("COMBOBOX", "", WS_CHILD | CBS_DROPDOWNLIST,
+                                      640, 106, 250, 200, hWnd,
+                                      (HMENU)IDC_KM_SEL1, hInst, NULL);
+            g_hKmSel2 = CreateWindowA("COMBOBOX", "", WS_CHILD | CBS_DROPDOWNLIST,
+                                      640, 106, 250, 200, hWnd,
+                                      (HMENU)IDC_KM_SEL2, hInst, NULL);
+            g_hKmSel3 = CreateWindowA("COMBOBOX", "", WS_CHILD | CBS_DROPDOWNLIST,
+                                      640, 106, 250, 200, hWnd,
+                                      (HMENU)IDC_KM_SEL3, hInst, NULL);
+            for (i = 0; i < 10; i++)
+                SendMessageA(g_hKmSel1, CB_ADDSTRING, 0, (LPARAM)Sel1Items[i]);
+            for (i = 0; i < 3; i++)
+                SendMessageA(g_hKmSel2, CB_ADDSTRING, 0, (LPARAM)Sel2Items[i]);
+            for (i = 0; i < 5; i++)
+                SendMessageA(g_hKmSel3, CB_ADDSTRING, 0, (LPARAM)Sel3Items[i]);
+            SendMessageA(g_hKmSel1, CB_SETCURSEL, 0, 0);
+            SendMessageA(g_hKmSel2, CB_SETCURSEL, 0, 0);
+            SendMessageA(g_hKmSel3, CB_SETCURSEL, 0, 0);
+        }
         g_hKmList = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "",
                                     WS_CHILD | LVS_REPORT | LVS_SINGLESEL,
-                                    10, 180, 940, 436, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
+                                    10, 140, 940, 476, hWnd, (HMENU)IDC_KM_LIST, hInst, NULL);
         ListView_SetExtendedListViewStyle(g_hKmList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
         ListView_SetExtendedListViewStyleEx(g_hKmList, LVS_EX_DOUBLEBUFFER, LVS_EX_DOUBLEBUFFER);   /* 第三步：防闪烁 */
         FeThemeApplyToList(g_hKmList);   /* 第三步：列表深色底色/文字色 */
@@ -1079,14 +1125,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             SendMessageA(g_hMainTabs, TCM_SETCURSEL, (WPARAM)page, 0);
             ShowPage(hWnd, page);
             /* --kmtab N：预选 Kernel 页的子页（0 Module / 1 Driver / 2 SSDT /
-               3 Shadow SSDT / 4 Device / 5 Object / 6 Hidden / 7 Suspicious） */
+               3 Shadow SSDT / 4 Device / 5 Object / 6 Hidden / 7 Suspicious /
+               11 SvcTables / 12 ObjectHandle / 13 System） */
             pk = cl ? strstr(cl, "--kmtab ") : NULL;
             if (pk && g_hKmTabs) {
                 int kt = atoi(pk + 8);
-                /* 2026-10-30：扩展到 20（11..20 = 驱动服务表族） */
-                if (kt >= 0 && kt <= 20) {
+                /* 2026-10-30：11..13 = 服务表/对象句柄/系统下拉页 */
+                if (kt >= 0 && kt <= 13) {
                     HWND b;
                     g_KmTab = kt;
+                    KmUpdateSelComboVis();
                     SendMessageA(g_hKmTabs, TCM_SETCURSEL, (WPARAM)kt, 0);
                     DoRefreshKernel();
                     b = GetDlgItem(hWnd, IDC_KM_RESTORE);
@@ -1095,6 +1143,20 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                     if (b) ShowWindow(b, (kt == 2 || kt == 3) ? SW_SHOW : SW_HIDE);
                     b = GetDlgItem(hWnd, IDC_KM_DRVOP);
                     if (b) ShowWindow(b, (kt == 2 || kt == 3) ? SW_HIDE : SW_SHOW);
+                }
+            }
+            /* --kmsel N：预选 tab 11..13 的下拉项（0 起）。必须在 --kmtab
+               之后解析，才知道写哪个 slot；改选后重新渲染。 */
+            pk = cl ? strstr(cl, "--kmsel ") : NULL;
+            if (pk && g_KmTab >= 11 && g_KmTab <= 13) {
+                int s = atoi(pk + 8);
+                HWND c = (g_KmTab == 11) ? g_hKmSel1
+                       : (g_KmTab == 12) ? g_hKmSel2 : g_hKmSel3;
+                int maxs = (g_KmTab == 11) ? 10 : (g_KmTab == 12) ? 3 : 5;
+                if (c && s >= 0 && s < maxs) {
+                    g_KmSel[g_KmTab - 11] = s;
+                    SendMessageA(c, CB_SETCURSEL, (WPARAM)s, 0);
+                    DoRefreshKernel();
                 }
             }
             /* --nwtab N：兼容旧参数（0 -> 节点 1 NdisTdiCallback，1 -> 节点 2 TdiPnpClient） */
@@ -1388,6 +1450,24 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
         switch (LOWORD(wParam)) {
+        case IDC_KM_SEL1:
+            if (HIWORD(wParam) == CBN_SELCHANGE) {
+                g_KmSel[0] = (int)SendMessageA(g_hKmSel1, CB_GETCURSEL, 0, 0);
+                DoRefreshKernel();
+            }
+            return 0;
+        case IDC_KM_SEL2:
+            if (HIWORD(wParam) == CBN_SELCHANGE) {
+                g_KmSel[1] = (int)SendMessageA(g_hKmSel2, CB_GETCURSEL, 0, 0);
+                DoRefreshKernel();
+            }
+            return 0;
+        case IDC_KM_SEL3:
+            if (HIWORD(wParam) == CBN_SELCHANGE) {
+                g_KmSel[2] = (int)SendMessageA(g_hKmSel3, CB_GETCURSEL, 0, 0);
+                DoRefreshKernel();
+            }
+            return 0;
         case IDC_CONNECT: DoConnect(); return 0;
         case IDC_REFRESH: DoRefreshProcs(); return 0;
         case IDC_SCAN:    DoScan();    return 0;
@@ -1661,6 +1741,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         if (nm->idFrom == IDC_KM_TABS && nm->code == TCN_SELCHANGE) {
             g_KmTab = (int)SendMessageA(g_hKmTabs, TCM_GETCURSEL, 0, 0);
+            KmUpdateSelComboVis();
             DoRefreshKernel();
             /* Restore / Restore All 只在 SSDT 子页显示 */
             {
