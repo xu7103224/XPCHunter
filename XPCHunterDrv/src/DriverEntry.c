@@ -208,6 +208,36 @@ ULONG64 g_DiagKillTermFn;
  * ============================================================ */
 
 
+/* InitKernelPointerGtSlots — 把可用链接符号取到地址的内核函数指针写进 GT。
+ *
+ * 背景见 DriverEntry 调用点注释：原版有一套 PE 导出解析把几百个内核地址
+ * 填进 GT，我方这套不完整，导致一批槽长期为 0/垃圾。这里只补"编译器能
+ * 直接给出地址"的那些（已通过 ntoskrnl.lib 链接的导入函数）。
+ *
+ * 判断标准：只写**当前值为 0** 的槽，绝不覆盖已有值 —— 若将来补齐了真正
+ * 的导出解析，它会先写，这里自然成为 no-op。 */
+static void InitKernelPointerGtSlots(void)
+{
+    static const struct { GLOBAL_TABLE_INDEX Slot; PVOID Fn; } Fill[] = {
+        { GtCloseHandleFunc,          (PVOID)ObfDereferenceObject  },
+        { GtRtlInitUnicodeStringFunc, (PVOID)RtlInitUnicodeString },
+        { GtIoCreateFileFunc,         (PVOID)IoCreateFile          },
+    };
+    ULONG i;
+
+    for (i = 0; i < sizeof(Fill) / sizeof(Fill[0]); i++)
+    {
+        if (!Fill[i].Fn)
+            continue;
+        if (GtRead(Fill[i].Slot) == 0)
+            GtWrite(Fill[i].Slot, (__int64)Fill[i].Fn);
+    }
+
+    /* GtDriverObjectListHead（0x4160）语义是"驱动对象链表头的地址"，不是
+       函数；且 IoDriverObjectType 不是可链接导出符号。二者都不猜，
+       留给真正的导出解析。取不到时 OpenFileSection 会安全地返回 0。 */
+}
+
 // 对应原始驱动 0x140080ED4（937 字节）
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
@@ -259,6 +289,17 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     Buffer = RegistryPath->Buffer;
     if (!Buffer || MmIsAddressValid(Buffer) != 1 || !RegistryPath->Length)
         return Status;
+
+    /* 【2026-10-30 补全】填充 GT 表里那批"内核函数指针/数据符号地址"槽。
+       原版靠 PE 导出解析把几百个这类地址写进 GT；我方这套机制不完整，
+       导致一批槽从未被写入 —— 槽里是 0 或残留垃圾，任何经它们间接调用的
+       路径都会崩。实测最强证据：GT[0x4223]（GtCloseHandleFunc，语义是
+       ObfDereferenceObject）全仓无写入者，OpenFileSection 调它时指针是
+       0xfffff8054a11a180（垃圾）→ BSOD 0x3B。
+
+       这里只补能直接用链接符号取到地址的槽；其余（需要 PE 导出解析的）
+       仍留空，由调用方按"取到 0 就退回直调"处理。 */
+    InitKernelPointerGtSlots();
 
     if (IsWindowsVersionSupported() != 1)   // 0x14008100B
         return Status;

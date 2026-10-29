@@ -317,11 +317,17 @@ void DoRefreshNetwork(void)
     ListView_DeleteAllItems(g_hNwList);
     CreateNwColumns(g_hNwList, g_NwNode);
 
+    /* 【2026-10-30 修复】白名单此前只放行 1..19，而 node 30（IE Plugin）与
+   node 31（IFEO Hijack）的处理分支写在下面 :931/:939，永远走不到 ——
+   两个已实现的纯注册表视图成了死代码。
+   node 20/21/22（IpFilterHook / IpFirewallHook / Afd Dispatch Fun）
+   **确实没有实现**（全仓无 Afd 相关代码），保持拦截。 */
     if (g_NwNode != 1 && g_NwNode != 2 && g_NwNode != 3 && g_NwNode != 4 &&
         g_NwNode != 5 && g_NwNode != 6 && g_NwNode != 7 && g_NwNode != 8 &&
         g_NwNode != 9 && g_NwNode != 10 && g_NwNode != 11 && g_NwNode != 12 &&
         g_NwNode != 13 && g_NwNode != 14 && g_NwNode != 15 &&
-        g_NwNode != 16 && g_NwNode != 17 && g_NwNode != 18 && g_NwNode != 19) {
+        g_NwNode != 16 && g_NwNode != 17 && g_NwNode != 18 && g_NwNode != 19 &&
+        g_NwNode != 30 && g_NwNode != 31) {
         sprintf_s(status, sizeof(status),
                   "%s: formatter not implemented yet (node %d)",
                   NwNodeName(g_NwNode), g_NwNode);

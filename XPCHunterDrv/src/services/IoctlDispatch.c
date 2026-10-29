@@ -385,12 +385,22 @@ __int64 InitCommandHandlerTable(void)
     Table[279] = (PCOMMAND_HANDLER)KernelNotifyRoutine;
     Table[280] = (PCOMMAND_HANDLER)KernelNotifyRoutineEx;
     Table[281] = (PCOMMAND_HANDLER)CmdRestoreDriverDispatch;
-    /* 【诊断专用 2026-10-20】命令 0x13A 在原始命令表里是空槽，任何版本的
-       前端都不会发送它。这里挂一个只读诊断处理器，把驱动侧的
-       "每条命令被调用多少次 / 最近结果 / 最近调用 PID" 导回用户态，
-       用于证明外部前端（原版 PCHunter64.exe）确实在使用本驱动。
-       它不改变任何既有命令的语义。 */
-    Table[282] = (PCOMMAND_HANDLER)NULL;
+    /* 【诊断专用 2026-10-20】命令 0x13A 在原始命令表里是空槽（283 数组的
+       末项，原版前端永远不会发送），这里挂只读诊断处理器。
+
+       【2026-10-30 权衡说明】026f56b 做 283 槽对齐时曾把这一槽改回 NULL
+       以与原件逐槽一致，结果是自研诊断通道整条断掉：
+         · CmdDumpCallStats 变成死代码（无注册点）
+         · 客户端 SettingViews.c:99 靠 0x13A 取 IoXxxObjectType / PsXxxType
+           地址 → 拿到全 0 → g_StObjReady=0 → Setting 页 6 项 Forbid 全部失效
+       实测证据：guest 上 --setting-cli 输出 object types: NOT READY，
+       五个类型地址与 extra[0..12] 全为 0。
+
+       结论：原版该槽为空，挂上它不会与任何原版行为冲突（原版前端不发送
+       0x13A），而可以恢复 6 项界面功能。故选"偏离 1 槽"而非"丢功能"。
+       若将来要求 283 槽逐位一致，替代方案是让客户端自己从磁盘 ntoskrnl.exe
+       的导出表解析这些地址 —— 需新增用户态 PE 解析，工作量更大。 */
+    Table[282] = (PCOMMAND_HANDLER)CmdDumpCallStats;
 
     /* 【诊断 2026-10-22】写完立即回读三个关键槽，判断"没写进去"还是
        "写完后被别处清零"。诊断值随 0x13A 导出：
