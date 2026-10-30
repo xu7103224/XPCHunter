@@ -1934,6 +1934,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
         FILE *pf = NULL;
         char probePath[MAX_PATH];
 
+        /* 设备未连接时所有需要驱动的页（Kernel 子页 / Services / ...）都会
+           是 0 行，自检就失去了意义。这里按 DoConnect 的流程补一次连接，
+           并重刷当前选中的内核子页，让 rows 反映真实数据。 */
+        if (!g_Client.Opened && XpchOpen(&g_Client)) {
+            XpchHandshake(&g_Client);
+            if (g_KmTab >= 11)
+                DoRefreshKernel();
+        }
+
         GetTempPathA(MAX_PATH, probePath);
         strcat_s(probePath, sizeof(probePath), "xpch_uiprobe.txt");
         if (fopen_s(&pf, probePath, "wb") == 0 && pf) {
@@ -1999,6 +2008,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
                     const char *nm = "";
 
                     ShowPage(hWnd, pg);
+                    /* ShowPage 只把定时器绑到该页，不立即填充列表。
+                       这里显式跑一次，rows 才是真实行数。 */
+                    switch (pg) {
+                    case 0:  DoRefreshProcs();       break;
+                    case 1:  DoRefreshKernel();      break;
+                    case 2:
+                    case 3:  DoRefreshHooks();       break;
+                    case 6:  DoRefreshStartup();     break;
+                    case 7:  DoRefreshServices();    break;
+                    case 13: DoRefreshOther();       break;
+                    default: break;
+                    }
                     switch (pg) {
                     case 0:  hList = g_hProc;     nm = "Process";  break;
                     case 1:  hList = g_hKmList;   nm = "Kernel";   break;
@@ -2024,6 +2045,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
                         fprintf(pf, "page %2d %-9s vis=%d rows=%4d bg=(%3d,%3d,%3d)\n",
                                 pg, nm, vis, rows,
                                 GetRValue(c), GetGValue(c), GetBValue(c));
+                    }
+                    /* Kernel 页额外把子页选择与状态栏文案导出，
+                       以便区分「驱动拒绝」「选择越界」「渲染 0 行」。 */
+                    if (pg == 1 && g_hKmStatus) {
+                        char st[512];
+                        GetWindowTextA(g_hKmStatus, st, sizeof(st));
+                        fprintf(pf, "  kernel tab=%d sel=(%d,%d,%d) status=\"%s\"\n",
+                                g_KmTab, g_KmSel[0], g_KmSel[1], g_KmSel[2], st);
                     }
                 }
                 ShowPage(hWnd, 0);

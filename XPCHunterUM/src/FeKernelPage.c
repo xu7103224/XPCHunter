@@ -644,26 +644,38 @@ void DoRefreshKernel(void)
             break;
         }
         case 2: {
+            /* 0x026 实测布局（probe --dump，146 条真实进程）：
+                 count @ +0x00
+                 每条 552 字节（138 个 DWORD，见 EnumerateProcessObjects 的
+                 EntryOffset = 138 * EntryIndex）：
+                   +0x08 MarkType(1=新进程)   +0x09 受保护标志
+                   +0x10 / +0x20 创建时间      +0x18 PID
+                   +0x28 进程对象指针          +0x30 映像路径(UTF-16)
+               【2026-10-30 修正】旧参数写成 EntOff=0x20 / Stride=0x30 /
+               名字@+0x10，只有第 0 条（Idle）碰巧对得上，其余全错位。 */
             ULONG count = *(ULONG *)buf;
             ULONG k;
-            if (count > 64) count = 64;
+            if (count > 512) count = 512;
             for (k = 0; k < count; k++) {
-                ULONG off = Tbl[idx].EntOff + Tbl[idx].Stride * k;
-                WCHAR wname[10];
-                char name[24];
+                ULONG off = 552 * k;
+                char name[80];
+                const WCHAR *wp;
                 int ci;
-                if (off + 0x28 > Tbl[idx].Size + 256) break;
-                sprintf_s(hex1, sizeof(hex1), "%016I64X",
-                          *(ULONG64 *)(buf + off));
+                if (off + 0x230 > Tbl[idx].Size + 256) break;
+                sprintf_s(hex1, sizeof(hex1), "%lu",
+                          (unsigned long)*(ULONG64 *)(buf + off + 0x18));
                 sprintf_s(hex2, sizeof(hex2), "%016I64X",
-                          *(ULONG64 *)(buf + off + 8));
-                ZeroMemory(wname, sizeof(wname));
-                memcpy(wname, buf + off + 0x10, sizeof(wname) - sizeof(WCHAR));
-                for (ci = 0; ci < 9 && wname[ci]; ci++)
-                    name[ci] = (char)(wname[ci] & 0x7F);
+                          *(ULONG64 *)(buf + off + 0x28));
+                wp = (const WCHAR *)(buf + off + 0x30);
+                for (ci = 0; ci < (int)sizeof(name) - 1 && ci < 200 && wp[ci]; ci++)
+                    name[ci] = (char)(wp[ci] & 0x7F);
                 name[ci] = 0;
-                sprintf_s(hex3, sizeof(hex3), "%s", name);
-                KM_ROW(hex1, hex2, hex3, "-");
+                /* 映像路径最长 0x100 字符，hex3 只有 32 字节，必须截断。
+                   MSVC 的 sprintf_s 溢出会调 invalid parameter handler
+                   直接终止进程（不是截断），所以用 _TRUNCATE。 */
+                _snprintf_s(hex3, sizeof(hex3), _TRUNCATE, "%s", name);
+                KM_ROW(hex1, hex2, hex3,
+                       buf[off + 0x08] ? "new" : "-");
             }
             sprintf_s(status, sizeof(status),
                       "%s: %lu records (cmd 0x%03X, ready=%u)",
