@@ -731,6 +731,9 @@ extern volatile ULONG   g_DiagCbParseSecRva;
 extern volatile ULONG   g_DiagCbParseDecoded;
 extern volatile ULONG64 g_DiagCbParseBase;
 extern volatile ULONG   g_DiagCbParseFileSize;
+extern volatile ULONG   g_DiagCbParseType1298;
+extern volatile ULONG   g_DiagCbParseType1294;
+extern volatile ULONG   g_DiagCbParseCond;
 
 /* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对定位 */
 extern volatile ULONG g_DiagKdStage;
@@ -738,6 +741,11 @@ extern volatile ULONG g_DiagKdDecoded;
 extern volatile ULONG g_DiagKd558;
 extern volatile ULONG g_DiagKdRva;
 extern volatile ULONG g_DiagKdTarget;
+
+/* 【诊断 2026-10-30】GT[0x4444] 写入追踪（GlobalTable.c 的 GtWrite 内记录） */
+extern volatile ULONG   g_DiagGt4444Count;
+extern volatile ULONG64 g_DiagGt4444Val[8];
+extern volatile ULONG64 g_DiagGt4444Ret[8];
 
 /* 【诊断 2026-10-22】SSDT Restore（0xE7）前置槽 GT[0x80A]/[0x80B] 的生产链。 */
 extern ULONG g_DiagSsdtRestoreStage;

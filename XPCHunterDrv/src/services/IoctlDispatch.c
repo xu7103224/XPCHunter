@@ -3487,6 +3487,22 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x4A0) = g_DiagKd558;
     *(ULONG *)(Out + 0x4A4) = g_DiagKdRva;
     *(ULONG *)(Out + 0x4A8) = g_DiagKdTarget;
+    /* 【诊断 2026-10-30】GT[0x4444] 写入追踪
+       0x4B0 count / 0x4B8..0x4F0 最后 8 次 (Val, Ret) 对 */
+    *(ULONG *)(Out + 0x4B0) = g_DiagGt4444Count;
+    /* 【诊断 2026-10-30】ParseNtFileForCallbackContext 第二段漏斗
+       0x4AC n1298 / 0x4B4 n1294 / 0x4BC cond */
+    *(ULONG *)(Out + 0x4AC) = g_DiagCbParseType1298;
+    *(ULONG *)(Out + 0x4B4) = g_DiagCbParseType1294;
+    *(ULONG *)(Out + 0x4BC) = g_DiagCbParseCond;
+    {
+        ULONG t;
+        for (t = 0; t < 8; t++)
+        {
+            *(ULONG64 *)(Out + 0x4B8 + t * 16)      = g_DiagGt4444Val[t];
+            *(ULONG64 *)(Out + 0x4C0 + t * 16)      = g_DiagGt4444Ret[t];
+        }
+    }
     *(ULONG64 *)(Out + 0x230) = g_HalPrivateDispatchAddr;   /* 兼容旧偏移 */
     *(ULONG64 *)(Out + 0x3F0) = g_HalPrivateDispatchAddr;   /* 保留 */
     *(ULONG *)(Out + 0x238) = g_HalScanCount;   /* 兼容旧偏移 */

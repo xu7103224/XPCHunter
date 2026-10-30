@@ -1785,25 +1785,42 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
 
     InitPESectionReadContext(pFileBuffer + CurrentRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
     memset(SlotAddresses, 0, sizeof(SlotAddresses));
+    g_DiagCbParseDecoded = 0;
+    g_DiagCbParseType1298 = 0;
+    g_DiagCbParseType1294 = 0;
+    g_DiagCbParseCond = 0;
     for (ULONG I = 0; I < 0x3E8; I++)
     {
-        g_DiagCbParseDecoded = I;
-            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
+        g_DiagCbParseDecoded = I + 1;
+        /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0） */
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
-        ULONG ComputedOffset2 = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
-        AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        /* 【2026-10-30 修正】RVA 必须用**绝对读指针**算，不能用累加量。
+           同族的 ParseNtExportSectionsV3 用的是
+               EntryRva = *(ULONG64*)(ctx+0x08);   // 已推进的读指针
+               v = EntryRva + RvaField - (ULONG)ImageBase;
+           而这里原来用 ComputedOffset2 = Entry[0xF0] + AccumulatedOffset，
+           那是「本轮长度 + 历史累加」，与绝对读指针不等价（缺少段的起始基址
+           pFileBuffer+CurrentRva），算出的 EntryRva 全部落在文件之外，被
+           `EntryRva < FileSize` 过滤掉 → SlotAddresses 全 0 → 1294 型拿不到
+           TargetRva → Result 恒为 0。这是 0x129 恒返回 0 条的直接原因。 */
+        ULONG AbsReadPtr = (ULONG)(*(ULONG64 *)((PUCHAR)&SectionContext + 0x08));
         __int16 SectionType2 = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
         if (SectionType2 == 1349) break;
 
         if (SectionType2 == 1298 && *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
         {
+            g_DiagCbParseType1298++;
             ULONG v = *(ULONG *)((char *)SectionEntry + 0x78);
             if (v && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
             {
-                EntryRva = ComputedOffset2 + v - (ULONG)pFileBuffer;
-                if (EntryRva && EntryRva < FileSize)
-                    SlotAddresses[*(ULONG *)((char *)SectionEntry + 0x58)] = EntryRva;
+                ULONG SlotIdx = *(ULONG *)((char *)SectionEntry + 0x58);
+                EntryRva = AbsReadPtr + v - (ULONG)pFileBuffer;
+                /* 槽索引必须限界：SlotAddresses 只有 16 项，原实现直接用
+                   数据里的值作下标，遇到异常条目会越界写栈。 */
+                if (EntryRva && EntryRva < FileSize && SlotIdx < 16)
+                    SlotAddresses[SlotIdx] = EntryRva;
             }
         }
         if (SectionType2 == 1139) memset(SlotAddresses, 0, sizeof(SlotAddresses));
@@ -1818,9 +1835,12 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
                 (FieldOffset - 112) <= 0xD8 && (FieldOffset & 7) == 0)
             {
                 ULONG SlotIndex = (FieldOffset - 112) >> 3;
+                g_DiagCbParseCond++;
                 if (SlotIndex <= 0x1B)
                 {
-                    TargetRva = SlotAddresses[*(ULONG *)((char *)SectionEntry + 0x90)];
+                    /* 索引同样限界（SlotAddresses 只有 16 项）。 */
+                    ULONG SrcSlot = *(ULONG *)((char *)SectionEntry + 0x90);
+                    TargetRva = (SrcSlot < 16) ? SlotAddresses[SrcSlot] : 0;
                     if (TargetRva && !*(_DWORD *)(pExportTable + 48 * SlotIndex + 4))
                     {
                         Result = 1;
