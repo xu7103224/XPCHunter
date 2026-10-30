@@ -3470,6 +3470,16 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x460) = g_HalStage;
     *(ULONG64 *)(Out + 0x468) = g_HalScanNtosBase;
     *(ULONG64 *)(Out + 0x470) = g_HalScanNtosSize;
+    /* 【诊断 2026-10-30】ParseNtFileForCallbackContext 逐级定位
+       （0x129/0x12D/0x12F 三个 context 族恒返回 0 条的收敛点）。
+       0x478 stage / 0x47C e_lfanew / 0x480 InitSectionRva /
+       0x484 命中节区 RVA / 0x488 已解码条目数 / 0x490 镜像基址。 */
+    *(ULONG *)(Out + 0x478) = g_DiagCbParseStage;
+    *(ULONG *)(Out + 0x47C) = g_DiagCbParseFileSize;
+    *(ULONG *)(Out + 0x480) = g_DiagCbParseInitRva;
+    *(ULONG *)(Out + 0x484) = g_DiagCbParseSecRva;
+    *(ULONG *)(Out + 0x488) = g_DiagCbParseDecoded;
+    *(ULONG64 *)(Out + 0x490) = g_DiagCbParseBase;
     *(ULONG64 *)(Out + 0x230) = g_HalPrivateDispatchAddr;   /* 兼容旧偏移 */
     *(ULONG64 *)(Out + 0x3F0) = g_HalPrivateDispatchAddr;   /* 保留 */
     *(ULONG *)(Out + 0x238) = g_HalScanCount;   /* 兼容旧偏移 */

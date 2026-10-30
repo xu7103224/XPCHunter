@@ -1138,11 +1138,44 @@ void InitCallbackContextHookTable(void)
 
     pExportTable = GtAlloc((GLOBAL_TABLE_INDEX)0x3BC6);
     NtoskrnlBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)0x8D3);
-    if (!NtoskrnlBase || !ReadNtoskrnlForCallbackContext((_QWORD *)&pFileBuffer, &FileSize))
+    /* 【诊断 2026-10-30】逐级定位：本函数是 0x129/0x12D/0x12F 三个
+       context 族恒返回 0 条的上游。stage 含义：
+         1 = 进入且 GtAlloc 成功
+         2 = msfs 基址非零
+         3 = ReadNtoskrnlForCallbackContext 成功
+         4 = ParseNtFileForCallbackContext 成功
+         5 = ParseNtExportDir 成功（全部完成）
+         0x1x = 对应第 x 级失败 */
+    g_DiagCbParseStage = 0x10;
+    g_DiagCbParseBase = (ULONG64)NtoskrnlBase;
+    if (!pExportTable)
         return;
+    g_DiagCbParseStage = 1;
+    if (!NtoskrnlBase)
+        return;
+    g_DiagCbParseStage = 2;
+    if (!ReadNtoskrnlForCallbackContext((_QWORD *)&pFileBuffer, &FileSize))
+        return;
+    g_DiagCbParseStage = 3;
+    g_DiagCbParseFileSize = FileSize;
 
-    if (ParseNtFileForCallbackContext((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1 &&
-        ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
+    if (ParseNtFileForCallbackContext((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1)
+        g_DiagCbParseStage = 4;
+    else
+    {
+        ExFree(pFileBuffer);
+        return;
+    }
+    /* 【2026-10-30 修正】ParseNtExportDir 是**重定位**处理函数（读
+       DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC] 并套用到 ImageBase），
+       不是导出表解析。它在这里的入参是磁盘文件缓冲，而
+       `Delta = ImageBase - OptionalHeader.ImageBase` 在文件场景下没有
+       意义；实测它对 msfs.sys 恒返回 0（stage 卡在 0x104）。
+       原版把两者用 && 串联，任一失败就整体放弃；但重定位修正失败只
+       影响函数指针的绝对地址换算，不影响已填好的表结构。改为尽力而为：
+       重定位成功则加分，失败不阻断。 */
+    if (ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, NtoskrnlBase, 0) == 1)
+        g_DiagCbParseStage = 5;
     {
         pSlot = (unsigned int *)pExportTable + 1;
         EntryCount = 28;

@@ -1723,14 +1723,31 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
     ULONG SectionRva, EntryRva, TargetRva;
 
     PeOffset = *(int *)(pFileBuffer + 60);
+    /* 【2026-10-30 诊断】0x129/0x12D/0x12F 三个 context 族恒返回 0，
+       收敛到本函数与 ParseNtExportDir。逐级标记定位失败点：
+         stage 1 = 进入
+               2 = NtoskrnlBase 非零
+               3 = 第一段 InitSectionRva 通过两次边界检查
+               4 = 第一段扫描命中了目标节区（CurrentRva 已更新）
+               5 = 第二段入口再次通过边界检查
+               6 = 循环结束且至少命中一条 1294（Result=1）
+               0x1x = 第 x 级提前 return
+       另记录关键中间量供 0x13A 读回。 */
+    g_DiagCbParseStage = 0x101;
+    g_DiagCbParsePeOffset = 0;
+    g_DiagCbParsePeOffset = (ULONG)PeOffset;
     NtoskrnlBase = (__int64)GtRead((GLOBAL_TABLE_INDEX)(GtFwpsDispatchTableCount |
                                                        GtEprocessField184 | GtEprocessField06));
+    g_DiagCbParseBase = (ULONG64)NtoskrnlBase;
     if (!NtoskrnlBase)
         return Result;
+    g_DiagCbParseStage = 0x102;
 
     CurrentRva = *(ULONG *)(PeOffset + pFileBuffer + 40);
+    g_DiagCbParseInitRva = CurrentRva;
     if (CurrentRva >= FileSize || (unsigned int)(CurrentRva + 4096) >= FileSize)
         return Result;
+    g_DiagCbParseStage = 0x103;
 
     InitPESectionReadContext(pFileBuffer + CurrentRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
     SectionIndex = 0;
@@ -1763,11 +1780,14 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
 
     if (CurrentRva >= FileSize || (unsigned int)(CurrentRva + 4096) >= FileSize)
         return Result;
+    g_DiagCbParseStage = 0x104;
+    g_DiagCbParseSecRva = CurrentRva;
 
     InitPESectionReadContext(pFileBuffer + CurrentRva, 4096, 2, 0, -1, 0, 0, (__int64)&SectionContext);
     memset(SlotAddresses, 0, sizeof(SlotAddresses));
     for (ULONG I = 0; I < 0x3E8; I++)
     {
+        g_DiagCbParseDecoded = I;
             *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;

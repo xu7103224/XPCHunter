@@ -723,6 +723,15 @@ extern ULONG g_DiagIoPortIdtValid;
 extern ULONG g_DiagCbCtxStage;
 extern ULONG g_DiagCbCtxFileSize;
 
+/* 【诊断 2026-10-30】ParseNtFileForCallbackContext 逐级定位 */
+extern volatile ULONG   g_DiagCbParseStage;
+extern volatile ULONG   g_DiagCbParsePeOffset;
+extern volatile ULONG   g_DiagCbParseInitRva;
+extern volatile ULONG   g_DiagCbParseSecRva;
+extern volatile ULONG   g_DiagCbParseDecoded;
+extern volatile ULONG64 g_DiagCbParseBase;
+extern volatile ULONG   g_DiagCbParseFileSize;
+
 /* 【诊断 2026-10-22】SSDT Restore（0xE7）前置槽 GT[0x80A]/[0x80B] 的生产链。 */
 extern ULONG g_DiagSsdtRestoreStage;
 extern ULONG64 g_DiagSsdtSectionBase;

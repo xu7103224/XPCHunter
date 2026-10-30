@@ -165,6 +165,17 @@ ULONG g_DiagIoPortIdtValid;
 ULONG g_DiagCbCtxStage;
 ULONG g_DiagCbCtxFileSize;
 
+/* 【诊断 2026-10-30】ParseNtFileForCallbackContext 逐级定位。
+   0x129/0x12D/0x12F 三个 context 族恒返回 0 条，收敛到本函数；
+   stage 语义见 PeParse.c:ParseNtFileForCallbackContext 开头注释。 */
+volatile ULONG   g_DiagCbParseStage;
+volatile ULONG   g_DiagCbParsePeOffset;
+volatile ULONG   g_DiagCbParseInitRva;
+volatile ULONG   g_DiagCbParseSecRva;
+volatile ULONG   g_DiagCbParseDecoded;
+volatile ULONG64 g_DiagCbParseBase;
+volatile ULONG   g_DiagCbParseFileSize;
+
 /* 【诊断 2026-10-22】SSDT Restore 前置槽。 */
 ULONG g_DiagSsdtRestoreStage;
 ULONG64 g_DiagSsdtSectionBase;
