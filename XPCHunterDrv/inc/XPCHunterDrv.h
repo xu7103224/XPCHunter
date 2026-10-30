@@ -736,6 +736,17 @@ extern volatile ULONG   g_DiagCbParseType1294;
 extern volatile ULONG   g_DiagCbParseCond;
 extern volatile ULONG   g_DiagCbParseSecType;
 extern volatile ULONG   g_DiagCbParseSecIdx;
+extern volatile ULONG g_DiagObjSecType;
+extern volatile ULONG g_DiagObjSecRva;
+extern volatile ULONG g_DiagObjSecIdx;
+extern volatile ULONG g_DiagObjStage2;
+extern volatile ULONG g_DiagObj1298;
+extern volatile ULONG g_DiagObj1294;
+extern volatile ULONG g_DiagObjCond;
+extern volatile ULONG g_DiagObjDstHit;
+extern volatile ULONG g_DiagObjWrote;
+extern volatile ULONG g_DiagObjFieldOff;
+extern volatile ULONG g_DiagObjSrcSlot;
 
 /* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对定位 */
 extern volatile ULONG g_DiagKdStage;

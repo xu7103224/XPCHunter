@@ -181,6 +181,19 @@ volatile ULONG   g_DiagCbParseCond;
 volatile ULONG   g_DiagCbParseSecType;
 volatile ULONG   g_DiagCbParseSecIdx;
 
+/* 【诊断 2026-10-30】ParseNtExportSections 段 1 定位（0x12D 用） */
+volatile ULONG g_DiagObjSecType;
+volatile ULONG g_DiagObjSecRva;
+volatile ULONG g_DiagObjSecIdx;
+volatile ULONG g_DiagObjStage2;
+volatile ULONG g_DiagObj1298;
+volatile ULONG g_DiagObj1294;
+volatile ULONG g_DiagObjCond;
+volatile ULONG g_DiagObjDstHit;
+volatile ULONG g_DiagObjWrote;
+volatile ULONG g_DiagObjFieldOff;
+volatile ULONG g_DiagObjSrcSlot;
+
 /* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对定位。
    GT[679] 恒为 0 导致 FillExportEntrySlot 早退，进而三个 context 族
    恒返回 0 条。前置六条件已实测满足，失败点在该段。 */

@@ -3497,6 +3497,20 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x4BC) = g_DiagCbParseCond;
     *(ULONG *)(Out + 0x4C4) = g_DiagCbParseSecType;
     *(ULONG *)(Out + 0x4CC) = g_DiagCbParseSecIdx;
+    /* 【诊断 2026-10-30】ParseNtExportSections 段 1/2 漏斗（0x12D）
+       0x4D0 type / 0x4D4 rva / 0x4D8 idx / 0x4DC stage2 /
+       0x4E0 n1298 / 0x4E4 n1294 */
+    *(ULONG *)(Out + 0x4D0) = g_DiagObjSecType;
+    *(ULONG *)(Out + 0x4D4) = g_DiagObjSecRva;
+    *(ULONG *)(Out + 0x4D8) = g_DiagObjSecIdx;
+    *(ULONG *)(Out + 0x4DC) = g_DiagObjStage2;
+    *(ULONG *)(Out + 0x4E0) = g_DiagObj1298;
+    *(ULONG *)(Out + 0x4E4) = g_DiagObj1294;
+    *(ULONG *)(Out + 0x4E8) = g_DiagObjCond;
+    *(ULONG *)(Out + 0x4EC) = g_DiagObjDstHit;
+    *(ULONG *)(Out + 0x4F0) = g_DiagObjWrote;
+    *(ULONG *)(Out + 0x4F4) = g_DiagObjFieldOff;
+    *(ULONG *)(Out + 0x4F8) = g_DiagObjSrcSlot;
     {
         ULONG t;
         for (t = 0; t < 8; t++)

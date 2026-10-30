@@ -4009,6 +4009,8 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
                 if (SectionType == 1369)
                 {
                     SectionRva = ReadPtr + *(unsigned int *)((char *)SectionEntry + 0x38) - (ULONG)PeBase;
+                    g_DiagObjSecType = 1369;
+                    g_DiagObjSecRva = SectionRva;
                     if (SectionRva && SectionRva < PeSize)
                     {
                         PeOffset = SectionRva;
@@ -4024,6 +4026,8 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
                 else if (SectionType == 1368 && IsTargetSection == 1)
                 {
                     SectionRva = ReadPtr + *(unsigned int *)((char *)SectionEntry + 0x38) - (ULONG)PeBase;
+                    g_DiagObjSecType = 1368;
+                    g_DiagObjSecRva = SectionRva;
                     if (SectionRva && SectionRva < PeSize)
                     {
                         PeOffset = SectionRva;
@@ -4031,6 +4035,8 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
                     }
                     IsTargetSection = 0;
                 }
+                g_DiagObjSecType = (ULONG)SectionType;
+                g_DiagObjSecIdx = SectionIndex + 1;
             }
             if ((unsigned int)++SectionIndex >= 0x14)
                 break;
@@ -4044,17 +4050,30 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
     InitPESectionReadContext(PeBase + (unsigned int)PeOffset, (ULONG)(PeSize - (unsigned int)PeOffset),
                              2, 0, -1, 0, 0, (__int64)&SectionContext);
     memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
+    g_DiagObjStage2 = 1;
+    g_DiagObj1298 = 0;
+    g_DiagObj1294 = 0;
+    g_DiagObjCond = 0;
+    g_DiagObjDstHit = 0;
+    g_DiagObjWrote = 0;
+    g_DiagObjFieldOff = 0;
+    g_DiagObjSrcSlot = 0;
     for (EntryIndex = 0; EntryIndex < 0x1F4; ++EntryIndex)
     {
         *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             break;
+        g_DiagObjStage2 = EntryIndex + 2;
 
         {
             unsigned int ReadPtr2 = (unsigned int)(*(ULONG64 *)((PUCHAR)&SectionContext + 0x08));
             SectionType2 = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
             if (SectionType2 == 1349)
                 break;
+            if (SectionType2 == 1298)
+                g_DiagObj1298++;
+            if (SectionType2 == 1294)
+                g_DiagObj1294++;
 
             /* 1298 型：记录「槽号 → RVA」 */
             if (SectionType2 == 1298 &&
@@ -4080,16 +4099,22 @@ char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTa
                 *(__int64 *)((char *)SectionEntry + 0x88) == 64)
             {
                 unsigned int FieldOff = *(unsigned int *)((char *)SectionEntry + 0x40);
+                g_DiagObjCond++;                     /* 外层四条件通过 */
                 if ((FieldOff - 112) <= 0xD8 && (FieldOff & 7) == 0)
                 {
                     SlotIndex = (unsigned int)(FieldOff - 112) >> 3;
                     if ((unsigned int)SlotIndex <= 0x1B)
                     {
                         unsigned int SrcSlot = *(unsigned int *)((char *)SectionEntry + 0x90);
+                        g_DiagObjFieldOff = FieldOff;
+                        g_DiagObjSrcSlot = SrcSlot;
                         SectionOffset = (SrcSlot < 16) ? SectionOffsetTable[SrcSlot] : 0;
+                        if (SectionOffset)
+                            g_DiagObjDstHit++;
                         if (SectionOffset && !*(_DWORD *)(OutputTable + 48 * SlotIndex + 4))
                         {
                             Result = 1;
+                            g_DiagObjWrote++;
                             *(_DWORD *)(OutputTable + 48 * SlotIndex + 4) = SectionOffset;
                             *(_QWORD *)(OutputTable + 48 * SlotIndex + 8) = NtoskrnlBase + SectionOffset;
                         }
