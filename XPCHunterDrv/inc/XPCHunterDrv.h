@@ -732,6 +732,13 @@ extern volatile ULONG   g_DiagCbParseDecoded;
 extern volatile ULONG64 g_DiagCbParseBase;
 extern volatile ULONG   g_DiagCbParseFileSize;
 
+/* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对定位 */
+extern volatile ULONG g_DiagKdStage;
+extern volatile ULONG g_DiagKdDecoded;
+extern volatile ULONG g_DiagKd558;
+extern volatile ULONG g_DiagKdRva;
+extern volatile ULONG g_DiagKdTarget;
+
 /* 【诊断 2026-10-22】SSDT Restore（0xE7）前置槽 GT[0x80A]/[0x80B] 的生产链。 */
 extern ULONG g_DiagSsdtRestoreStage;
 extern ULONG64 g_DiagSsdtSectionBase;

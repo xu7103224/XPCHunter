@@ -176,6 +176,15 @@ volatile ULONG   g_DiagCbParseDecoded;
 volatile ULONG64 g_DiagCbParseBase;
 volatile ULONG   g_DiagCbParseFileSize;
 
+/* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对定位。
+   GT[679] 恒为 0 导致 FillExportEntrySlot 早退，进而三个 context 族
+   恒返回 0 条。前置六条件已实测满足，失败点在该段。 */
+volatile ULONG g_DiagKdStage;    /* 1 进入 / 0x11 解码失败 / 0x12 未命中 / 3 命中 */
+volatile ULONG g_DiagKdDecoded;  /* 已解码条目数 */
+volatile ULONG g_DiagKd558;      /* 见到的 0x558+0x4000000 条目数 */
+volatile ULONG g_DiagKdRva;      /* 最近一条 0x558 算出的 Rva */
+volatile ULONG g_DiagKdTarget;   /* 目标值 GT[0x4444] 或 GT[0x42C7] */
+
 /* 【诊断 2026-10-22】SSDT Restore 前置槽。 */
 ULONG g_DiagSsdtRestoreStage;
 ULONG64 g_DiagSsdtSectionBase;

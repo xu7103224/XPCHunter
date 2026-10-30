@@ -3480,6 +3480,13 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x484) = g_DiagCbParseSecRva;
     *(ULONG *)(Out + 0x488) = g_DiagCbParseDecoded;
     *(ULONG64 *)(Out + 0x490) = g_DiagCbParseBase;
+    /* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对
+       0x498 stage / 0x49C decoded / 0x4A0 n558 / 0x4A4 rva / 0x4A8 target */
+    *(ULONG *)(Out + 0x498) = g_DiagKdStage;
+    *(ULONG *)(Out + 0x49C) = g_DiagKdDecoded;
+    *(ULONG *)(Out + 0x4A0) = g_DiagKd558;
+    *(ULONG *)(Out + 0x4A4) = g_DiagKdRva;
+    *(ULONG *)(Out + 0x4A8) = g_DiagKdTarget;
     *(ULONG64 *)(Out + 0x230) = g_HalPrivateDispatchAddr;   /* 兼容旧偏移 */
     *(ULONG64 *)(Out + 0x3F0) = g_HalPrivateDispatchAddr;   /* 保留 */
     *(ULONG *)(Out + 0x238) = g_HalScanCount;   /* 兼容旧偏移 */

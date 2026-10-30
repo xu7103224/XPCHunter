@@ -1835,27 +1835,45 @@ __int64 ScanKernelModulePESections(void)
                                  2, 0, -1, 0, 0, (__int64)&Context);
 
         /* 段 1：定位内核数据节区（类型 0x558 + 标志 0x4000000） */
+        /* 【诊断 2026-10-30】GT[679] 恒为 0，导致 FillExportEntrySlot 早退，
+           进而三个 context 族（0x129/0x12D/0x12F）恒返回 0 条。
+           前置六条件已实测全部满足，失败点在本段比对。
+           导出：解码条目数 / 见到的 0x558 条目数 / 最近一次 0x558 的 Rva
+           与目标值，用于区分「解码器不产出该类型」与「Rva 公式偏差」。 */
+        g_DiagKdStage = 1;
+        g_DiagKdDecoded = 0;
+        g_DiagKd558 = 0;
+        g_DiagKdRva = 0;
+        g_DiagKdTarget = TargetValue;
         for (i = 0; i < 0x100; i++)
         {
             if (ReadPESectionEntry((PUCHAR)&Context, SectionEntry))
+            {
+                g_DiagKdStage = 0x11;
                 return 0;
+            }
             *(ULONG64 *)((PUCHAR)&Context + 0x08) += *(ULONG *)((PUCHAR)SectionEntry + 0xF0);
+            g_DiagKdDecoded = i + 1;
 
             if (*(unsigned __int16 *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6) == 0x558
                 && (*(ULONG64 *)((char *)SectionEntry + 0x50) & 0x4000000) != 0)
             {
                 ULONG Field = *(ULONG *)((char *)SectionEntry + 0x38);
+                g_DiagKd558++;
                 if (Field)
                 {
                     ULONG Rva = Field - (ULONG)ImageBase
                               + (ULONG)(*(ULONG64 *)((PUCHAR)&Context + 0x08));
+                    g_DiagKdRva = Rva;
                     if (Rva == TargetValue)
                         break;
                 }
             }
         }
+        g_DiagKdStage = (i >= 0x100) ? 0x12 : 2;
         if (i >= 0x100)
             return 0;
+        g_DiagKdStage = 3;
 
         /* 段 2：解析内核数据节区偏移，写入 GT[0x2A7] / GT[0x2A8] */
         for (i = 0; i < 0x50; i++)
