@@ -757,16 +757,34 @@ void DoRefreshKernel(void)
         case 8: {
             /* HAL 两个分发表：经 0x13A 诊断通道的 env 块取回
                （CmdDumpCallStats 在首次调用时惰性执行已校准的扫描）。
-               env = 头(283*16) + 打开记录(16)；字段偏移见驱动侧
-               CmdDumpCallStats 的 0x228/0x230/0x238。 */
+               【2026-10-30 修正】env 里 0x228/0x230/0x238 这组"兼容旧
+               偏移"被 0x0E8 之类的写入覆盖成了非 HAL 数据；驱动同时在
+               0x3E8/0x3F0/0x3F8 无条件写入同一组值（源码注释为"保留"）。
+               实测 dump 0x13A：env+0x3E8 = nt!HalDispatchTable
+               (0xFFFFF80049E23250)、+0x3F0 = HalPrivateDispatchTable
+               (0xFFFFF80049E23CE0)、+0x3F8 = 2，与 KD 逐位一致。 */
             ULONG64 EnvOff = 283ULL * 16 + 16;
-            ULONG64 hdt  = *(ULONG64 *)(buf + EnvOff + 0x228);
-            ULONG64 hpdt = *(ULONG64 *)(buf + EnvOff + 0x230);
-            ULONG   cnt  = *(ULONG  *)(buf + EnvOff + 0x238);
+            ULONG64 hdt  = *(ULONG64 *)(buf + EnvOff + 0x3E8);
+            ULONG64 hpdt = *(ULONG64 *)(buf + EnvOff + 0x3F0);
+            ULONG   cnt  = *(ULONG  *)(buf + EnvOff + 0x3F8);
+            /* 扫描失败时这三个字段是未初始化残留，不能当结果展示。
+               合法值只有 count ∈ {0,1,2}，且地址要么 0 要么落在内核态。 */
+            if (cnt > 2) {
+                cnt = 0;
+                hdt = 0;
+                hpdt = 0;
+            }
+            if (hdt && hdt < (ULONG64)0xFFFF800000000000ULL) hdt = 0;
+            if (hpdt && hpdt < (ULONG64)0xFFFF800000000000ULL) hpdt = 0;
+            if (!hdt) cnt = 0;
+            else if (!hpdt && cnt > 1) cnt = 1;
+
             sprintf_s(hex1, sizeof(hex1), "%lu", (unsigned long)cnt);
-            sprintf_s(hex2, sizeof(hex2), "%016I64X", hdt);
+            if (hdt) sprintf_s(hex2, sizeof(hex2), "%016I64X", hdt);
+            else     sprintf_s(hex2, sizeof(hex2), "%s", "(not resolved)");
             KM_ROW("HalDispatchTable", hex2, "-", hex1);
-            sprintf_s(hex2, sizeof(hex2), "%016I64X", hpdt);
+            if (hpdt) sprintf_s(hex2, sizeof(hex2), "%016I64X", hpdt);
+            else      sprintf_s(hex2, sizeof(hex2), "%s", "(not resolved)");
             KM_ROW("HalPrivateDispatchTable", hex2, "-", "-");
             sprintf_s(status, sizeof(status),
                       "HAL: count=%lu HDT=%016I64X HPDT=%016I64X (scan cmd 0x13A)",

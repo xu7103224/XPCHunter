@@ -2992,9 +2992,9 @@ static BOOLEAN HalLooksLikeCodePtr(ULONG64 Value, ULONG64 ImageBase, ULONG64 Ima
        nt 前邻的 HAL 模块区），仍是"内核态代码区"的强约束。 */
     /* 【2026-10-30 实证】HalPrivateDispatchTable 的项会指向**独立 hal 模块**
        区（kd 实测 0xFFFFF8010C3C6540，在 nt 基址 +0x29C6540 ≈ +41MB），
-       远超此前的 ±4MB。放宽到 [nt-4MB, nt+64MB]，仍排除用户态与
-       非内核半区。 */
-    if (Value + 0x400000 < ImageBase || Value >= ImageBase + 0x4000000)
+       本 boot 实测还有 0xFFFFF8004B386140 = nt+0x1D86140（约 +29.6MB）。
+       窗口取 [nt-4MB, nt+128MB]，仍排除用户态与非内核半区。 */
+    if (Value + 0x400000 < ImageBase || Value >= ImageBase + 0x8000000)
         return FALSE;
     return TRUE;
 }
@@ -3008,13 +3008,16 @@ static void LocateHalDispatchTables(void)
     ULONG64 ScanBase;
     ULONG64 ScanLimit;
     ULONG64 p;
-    ULONG64 Found[2];
+    ULONG64 Found[16];   /* 候选表头地址（最后按 0xA90 配对收口） */
     ULONG FoundCount = 0;
 
-    g_HalStage = 1;
-    /* 已扫过就不重复扫 */
+    /* 已扫过就不重复扫。注意：早退必须放在 g_HalStage = 1 之前，
+       否则第二次调用会把已完成的终态（3）覆盖成 1，诊断读到的
+       stage 永远像「刚开始扫」。 */
     if (g_HalScanCount != 0xFFFFFFFFu)
         return;
+
+    g_HalStage = 1;
 
     /* 【实测修正 2026-10-29】GT[2]/GT[3] 的实际内容与本文件枚举名的字面
        语义相反：实测 GT[3]=0x56F3B8（像大小）、GT[2]=0xFFFFF8006FF6F3B8
@@ -3063,6 +3066,29 @@ static void LocateHalDispatchTables(void)
             }
         }
 
+        /* 【2026-10-30 五次校准（本 boot 实测）】前三条都要求 nt 基址处
+           有 MZ 头，但本 boot 的 GT[3]=0xFFFFF80366200000 处前 8 字节是
+           `00 00 00 00 8b 81 ff ff` —— MZ/PE 头不可读（内核镜像头页在
+           某些 boot 上是不可访问的），于是三条全失败、stage=0x200。
+           然而 nm/`lm m nt` 明确显示该地址就是 nt 的基址。
+           因此加一条**不依赖内存读**的兜底：只要一槽落在内核态且页对齐、
+           另一槽是合理的小尺寸，就采信。HAL 扫描本身会用 MmIsAddressValid
+           逐位置复核，基址判错不会造成越界访问。 */
+        if (!Base && V3 && V2 && (V3 & 0xFFF) == 0
+            && V3 >= (ULONG64)MmSystemRangeStart
+            && V2 >= 0x1000 && V2 <= 0x4000000)
+        {
+            Base = V3;
+            Size = V2;
+        }
+        if (!Base && V2 && V3 && (V2 & 0xFFF) == 0
+            && V2 >= (ULONG64)MmSystemRangeStart
+            && V3 >= 0x1000 && V3 <= 0x4000000)
+        {
+            Base = V2;
+            Size = V3;
+        }
+
         if (!Base)
         {
             g_HalStage = 0x200;   /* 两个槽都给不出可验证的 nt 基址 */
@@ -3097,7 +3123,7 @@ static void LocateHalDispatchTables(void)
             HalPrivateDispatchTable 恒为 0x31（49，项数）
          2) 后面至少 16 个连续指针全部落在**模块内且可反汇编首字节合法**
        因此这里只接受表头 ∈ {4, 0x31} 的位置。 */
-    for (p = ScanBase; p + 24 * 8 < ScanLimit && FoundCount < 2; p += 8)
+    for (p = ScanBase; p + 24 * 8 < ScanLimit && FoundCount < 16; p += 8)
     {
         ULONG64 Head;
         ULONG i;
@@ -3112,13 +3138,18 @@ static void LocateHalDispatchTables(void)
         /* 强特征：只认 4（HalDispatchTable 版本）或 0x31（HalPrivate 项数） */
         if (Head != 4 && Head != 0x31)
             continue;
-        /* 【2026-10-30 实证修正】真表**允许空槽**：kd 实测
-           nt+0x423270（HalDispatchTable+0x20）就是 0。
-           原判据要求 16 项**全部**是内核指针，因此把真表整张拒掉
-           （现象：stage=3 但 count=0）。改为：16 项里非零项必须占多数
-           且非零项必须是内核代码指针。 */
+        /* 【2026-10-30 六次校准（决定性）】仅凭 head=4 会在 .text 里大量
+           误命中：实测 g_HalDispatchTableAddr = nt+0x764590 落在代码段
+           （该处字节 48 89 5c 24 ...，首 8 字节恰好是 4）。真表有两条
+           KD 实证可查的独有特征：
+             a) 表内大量重复指针（HalDispatchTable 的 16 项里
+                0x4a0e6f50 出现 2 次、0x49b39820 出现 3 次）——代码区
+                不会有这种规律的重复；
+             b) HalDispatchTable 与 HalPrivateDispatchTable 成对出现，
+                head 分别为 4 与 0x31，间距恒为 0xA90（18362）。
+           两条一起用：候选项必须满足重复度，最终按 0xA90 配对收口。 */
         {
-            ULONG nz = 0;
+            ULONG nz = 0, dup = 0, j;
             ok = TRUE;
             for (i = 1; i <= 16; i++)
             {
@@ -3127,39 +3158,64 @@ static void LocateHalDispatchTables(void)
                     continue;
                 nz++;
                 if (!HalLooksLikeCodePtr(v, NtosBase, NtosSize)) { ok = FALSE; break; }
+                /* 表内重复计数：与前 8 项比较 */
+                for (j = 1; j < i; j++)
+                    if (*(ULONG64 *)(p + j * 8) == v) { dup++; break; }
             }
-            if (!ok || nz < 10)
+            /* 真表要求：非零项 >= 10 且至少 1 处重复。
+               私有表实测只有一对重复（0x49a23820 ×2），阈值取 1。 */
+            if (!ok || nz < 10 || dup < 1)
                 continue;
         }
 
-        /* 【2026-10-30 实证】两表相距仅 0xA90（18362），原"距离 < 0x4000
-           视为同一张表"的去重把私有表直接吞掉（实测 count=1 且
-           HPDT=0）。改为按 head 值去重：4 与 0x31 各登记一次。 */
-        if (FoundCount >= 1)
-        {
-            ULONG k;
-            BOOLEAN dup = FALSE;
-            for (k = 0; k < FoundCount; k++)
-                if (*(ULONG64 *)Found[k] == Head) { dup = TRUE; break; }
-            if (dup)
-                continue;
-        }
-        if (FoundCount < 2)
+        /* 【2026-10-30 六次校准】不再按 head 去重（会吞掉配对），改为
+           所有候选都登记，最后按「head=4 与 head=0x31 相距 0xA90」配对。 */
+        if (FoundCount < 16)
             Found[FoundCount++] = p;
     }
 
-    /* 【2026-10-30 成对校准】真表成对出现且 head 分别为 4 / 0x31，
-       间距 0xA90（18362）。若候选里恰好存在 (head=4, head=0x31) 且
-       间距 < 0x4000，取该对；否则退回前两个候选。 */
-    if (FoundCount == 2 && *(ULONG64 *)Found[1] == 0x31)
+    /* 【2026-10-30 六次校准：按 0xA90 成对收口】
+       KD 实证：18362 上 HalDispatchTable 与 HalPrivateDispatchTable 间距
+       恒为 0xA90。原实现只取前两个候选，当扫描先撞上 .text 里的伪结构时
+       整对都错。改为在所有候选里找满足 (head=4, head=0x31, 距离 0xA90)
+       的组合；找不到才退回首个 head=4 候选。 */
     {
-        /* 顺序已是 (4, 0x31)，直接使用 */
-    }
-    else if (FoundCount == 2 && *(ULONG64 *)Found[0] == 0x31)
-    {
-        ULONG64 Tmp = Found[0];
-        Found[0] = Found[1];
-        Found[1] = Tmp;
+        ULONG a, b;
+        ULONG64 PairHdt = 0, PairHpdt = 0;
+
+        for (a = 0; a < FoundCount && !PairHdt; a++)
+        {
+            if (*(ULONG64 *)Found[a] != 4)
+                continue;
+            for (b = 0; b < FoundCount; b++)
+            {
+                ULONG64 d;
+                if (b == a || *(ULONG64 *)Found[b] != 0x31)
+                    continue;
+                d = (Found[a] > Found[b]) ? (Found[a] - Found[b])
+                                          : (Found[b] - Found[a]);
+                if (d == 0xA90)
+                {
+                    PairHdt = Found[a];
+                    PairHpdt = Found[b];
+                    break;
+                }
+            }
+        }
+        if (PairHdt)
+        {
+            Found[0] = PairHdt;
+            Found[1] = PairHpdt;
+            FoundCount = 2;
+        }
+        else
+        {
+            /* 退路：只保留首个 head=4，count 记 1（私有表未解析） */
+            ULONG k;
+            for (k = 0; k < FoundCount; k++)
+                if (*(ULONG64 *)Found[k] == 4) { Found[0] = Found[k]; break; }
+            FoundCount = (k < FoundCount) ? 1 : 0;
+        }
     }
     if (FoundCount >= 1)
         g_HalDispatchTableAddr = Found[0];
@@ -3401,7 +3457,10 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG64 *)(Out + 0x218) = (ULONG64)GtRead(GtEprocessField22);
     *(ULONG64 *)(Out + 0x220) = (ULONG64)GtRead(GtEprocessField23);
     *(ULONG64 *)(Out + 0x228) = g_HalDispatchTableAddr;   /* 兼容旧偏移 */
-    *(ULONG64 *)(Out + 0x3E8) = g_HalDispatchTableAddr;   /* 保留（未被占用） */
+    /* 【2026-10-30】0x3E8/0x3F0/0x3F8 是客户端实际读取的位置。
+       0x228..0x238 那组"兼容旧偏移"会被 0x0E8 等命令的 env 写入覆盖
+       （实测读到 0x8F528242 之类非 HAL 数据），因此客户端改用这组。 */
+    *(ULONG64 *)(Out + 0x3E8) = g_HalDispatchTableAddr;
     /* 【诊断】扫描参数：base/size/scanbase/scanlimit（0x4FD5..8）。
        注意 0x240..0x258 已被系统调用链诊断占用，移到空闲的 0x480..。 */
     /* 【2026-10-30 三次迁移】0x3B0..0x3D8 已被 KmCtx/Pe 诊断占用

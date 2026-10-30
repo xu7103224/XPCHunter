@@ -2937,11 +2937,23 @@ __int64 EnumServiceTableWin1020H1(_QWORD **pServiceTable, __int64 OutputBuffer, 
                     result = (__int64)MmSystemRangeStart;
                     if (ServiceEntry >= (unsigned __int64)MmSystemRangeStart)
                     {
-                        _QWORD *pContextEntry = *(_QWORD **)(ServiceEntry + 16);
+                        /* ServiceEntry+16 同样是外部链表指针，先验地址；
+                           原版直接解引用会在指针已释放时崩。 */
+                        _QWORD *pContextEntry = MmIsAddressValid((char *)ServiceEntry + 16)
+                                              ? *(_QWORD **)(ServiceEntry + 16)
+                                              : NULL;
 LABEL_22:
                         if (pContextEntry)
                         {
-                            _QWORD **ppContextEntry = (_QWORD **)*pContextEntry;
+                            /* 【2026-10-30 第二个实机 BSOD 0x3B（win10dev）】
+                               崩溃指令 mov rsi,[r15]，r15 = pContextEntry =
+                               0xffff8407febfa080（非空但不可读）。原版在此
+                               直接解引用，但那是在结构一致的前提下；本机
+                               链表节点的 context 字段可能指向已释放内存，
+                               所以解引用前必须先验地址。 */
+                            _QWORD **ppContextEntry = MmIsAddressValid(pContextEntry)
+                                                    ? (_QWORD **)*pContextEntry
+                                                    : NULL;
                             if (ppContextEntry)
                             {
                                 result = pCheckFunc(ppContextEntry);
