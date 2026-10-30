@@ -2945,7 +2945,15 @@ LABEL_22:
                             if (ppContextEntry)
                             {
                                 result = pCheckFunc(ppContextEntry);
-                                if ((_BYTE)result)
+                                /* 【2026-10-30 防护】实机 BSOD 0x3B（win10dev，
+                                   r14=0x648=CreateTime 偏移）：链表节点的
+                                   context 为空/垃圾时 pCheckFunc 仍可能放行，
+                                   随后按 EPROCESS 偏移解引用即崩。三个偏移
+                                   读之前逐一 MmIsAddressValid。 */
+                                if ((_BYTE)result
+                                    && MmIsAddressValid((char *)ppContextEntry + CreateTimeOffsetVal) == 1
+                                    && MmIsAddressValid((char *)ppContextEntry + EprocessOffsetVal) == 1
+                                    && MmIsAddressValid((char *)ppContextEntry + ProcessOffsetVal) == 1)
                                 {
                                     --MaxEntries;
                                     *(_QWORD *)(pOutputEntry + 8) = (_QWORD)pServiceNode[4];

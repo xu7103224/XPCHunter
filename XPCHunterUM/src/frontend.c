@@ -802,7 +802,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 "ObjTypes (0x0D4)", "KHandle (0x0E5)" };
             static const char *Sel3Items[] = { "Services (0x031)",
                 "CpuInfo (0x108)", "FsCtx (0x129)", "ObjCtx (0x12D)",
-                "ProcCtx (0x12F)" };
+                "ProcCtx (0x12F)", "HAL Tables" };
             int i;
             g_hKmSel1 = CreateWindowA("COMBOBOX", "", WS_CHILD | CBS_DROPDOWNLIST,
                                       640, 106, 250, 200, hWnd,
@@ -1152,7 +1152,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 int s = atoi(pk + 8);
                 HWND c = (g_KmTab == 11) ? g_hKmSel1
                        : (g_KmTab == 12) ? g_hKmSel2 : g_hKmSel3;
-                int maxs = (g_KmTab == 11) ? 10 : (g_KmTab == 12) ? 3 : 5;
+                int maxs = (g_KmTab == 11) ? 10 : (g_KmTab == 12) ? 3 : 6;
                 if (c && s >= 0 && s < maxs) {
                     g_KmSel[g_KmTab - 11] = s;
                     SendMessageA(c, CB_SETCURSEL, (WPARAM)s, 0);

@@ -2970,14 +2970,31 @@ __int64 CmdMiniFilterStreamHandle(__int64 InputBuffer, __int64 InputSize, _DWORD
 // 客户端对该节点显示"(not present on this build)"。
 // ===================================================================
 /* 【2026-10-29】仅保留供后续校准使用；当前未被调用（见 CmdDumpCallStats 里的说明） */
-static ULONG g_HalScanCount;   /* 找到的表数量 */
+static ULONG g_HalScanCount = 0xFFFFFFFFu;   /* 0xFFFFFFFF = 尚未扫描 */
+/* 【诊断】扫描阶段：1 进入 / 2 base 验证通过 / 3 循环结束 / 0x10|n 各失败点 */
+static ULONG g_HalStage;
+/* 【2026-10-30】HAL 结果改用文件内全局变量承载：GT 尾部 0x4FD0+/0x4FF0+
+   都被其他子系统（SsdtHook TypeId 诊断、未知尾部使用者）占用，撞槽
+   两次实测。全局变量经 CmdDumpCallStats 的 env 导出，零冲突。 */
+static ULONG64 g_HalDispatchTableAddr;      /* Found[0]（head=4） */
+static ULONG64 g_HalPrivateDispatchAddr;    /* Found[1]（head=0x31） */
+static ULONG64 g_HalScanNtosBase;           /* 扫描使用的 nt 基址 */
+static ULONG64 g_HalScanNtosSize;           /* 扫描使用的镜像大小 */
 
 static BOOLEAN HalLooksLikeCodePtr(ULONG64 Value, ULONG64 ImageBase, ULONG64 ImageSize)
 {
     if (Value < (ULONG64)MmSystemRangeStart)
         return FALSE;
-    /* 必须落在内核镜像范围内（HAL 表项都指向 nt 或 hal 内的函数） */
-    if (Value < ImageBase || Value >= ImageBase + ImageSize)
+    /* 【2026-10-30 校准修正】KD 实测（18362，nt=0xFFFFF805'20C00000）：
+       HalDispatchTable 的条目指向 nt 基址**之下**的 HAL 区
+       （20be1010 < 20c00000）——原判据"必须落在 nt 镜像内"把真表
+       直接排除了，扫描因此只命中伪结构。放宽为 nt ± 4MB（覆盖
+       nt 前邻的 HAL 模块区），仍是"内核态代码区"的强约束。 */
+    /* 【2026-10-30 实证】HalPrivateDispatchTable 的项会指向**独立 hal 模块**
+       区（kd 实测 0xFFFFF8010C3C6540，在 nt 基址 +0x29C6540 ≈ +41MB），
+       远超此前的 ±4MB。放宽到 [nt-4MB, nt+64MB]，仍排除用户态与
+       非内核半区。 */
+    if (Value + 0x400000 < ImageBase || Value >= ImageBase + 0x4000000)
         return FALSE;
     return TRUE;
 }
@@ -2994,34 +3011,80 @@ static void LocateHalDispatchTables(void)
     ULONG64 Found[2];
     ULONG FoundCount = 0;
 
-    /* 已扫过就不重复扫（结果缓存在 GT 槽） */
-    if (GtRead((GLOBAL_TABLE_INDEX)0x4FD3))
+    g_HalStage = 1;
+    /* 已扫过就不重复扫 */
+    if (g_HalScanCount != 0xFFFFFFFFu)
         return;
 
     /* 【实测修正 2026-10-29】GT[2]/GT[3] 的实际内容与本文件枚举名的字面
        语义相反：实测 GT[3]=0x56F3B8（像大小）、GT[2]=0xFFFFF8006FF6F3B8
        （像内核地址）。所以这里按"哪个更像内核地址"来判定，不盲信槽位名。 */
-    if (V2 > (ULONG64)MmSystemRangeStart)
+    /* 【2026-10-30 三次校准（决定性）】两槽语义实测为（大小，镜像结束地址）：
+         本 boot  GT[2]=0x56F3B8            GT[3]=0xFFFFF80109F6F3B8
+         上一 boot GT[2]=0xFFFFF8006FF6F3B8  GT[3]=0x56F3B8
+       两种取法下 end-size 都得到页对齐的 nt 基址
+       （0xFFFFF801099A0000 / 0xFFFFF8006FA00000）——哪槽装哪个会随 boot
+       变化，但 (end - size) 恒等于基址。因此：
+         size = 较小的槽；end = 另一槽；base = end - size；
+       并以 MZ 头验证 base。 */
+    /* 【2026-10-30 四次校准（实测）】本 boot 实测 GT[2]=0、GT[3]=nt 基址
+       （0xFFFFF80109A00000，lm 确认 MZ 在偏移 0）。也就是说两个槽里
+       **只有地址那一个**被填，大小槽可能是 0 或镜像大小。因此不能要求
+       两者都非零：
+         a) 若某槽本身是页对齐且带 MZ → 直接当基址（本 boot 走这条）；
+         b) 否则按 (end - size) 推导（上一 boot 走这条）。
+       两条路径都做 MZ 与范围验证。 */
     {
-        NtosBase = V2;
-        NtosSize = V3;
-    }
-    else if (V3 > (ULONG64)MmSystemRangeStart)
-    {
-        NtosBase = V3;
-        NtosSize = V2;
-    }
-    else
-    {
-        return;                      /* 两个都不像，放弃 */
+        ULONG64 Base = 0, Size = 0;
+
+        if (V2 && MmIsAddressValid((PVOID)V2) == 1 && *(USHORT *)V2 == 0x5A4D
+            && (V2 & 0xFFF) == 0)
+        {
+            Base = V2;
+            Size = V3;
+        }
+        else if (V3 && MmIsAddressValid((PVOID)V3) == 1 && *(USHORT *)V3 == 0x5A4D
+                 && (V3 & 0xFFF) == 0)
+        {
+            Base = V3;
+            Size = V2;
+        }
+        else if (V2 && V3 && V2 != V3)
+        {
+            ULONG64 S = (V2 < V3) ? V2 : V3;
+            ULONG64 E = (V2 < V3) ? V3 : V2;
+            ULONG64 B = E - S;
+            if (S >= 0x100000 && S <= 0x10000000 && (B & 0xFFF) == 0
+                && B > (ULONG64)MmSystemRangeStart
+                && MmIsAddressValid((PVOID)B) == 1 && *(USHORT *)B == 0x5A4D)
+            {
+                Base = B;
+                Size = S;
+            }
+        }
+
+        if (!Base)
+        {
+            g_HalStage = 0x200;   /* 两个槽都给不出可验证的 nt 基址 */
+            return;
+        }
+        if (Size < 0x1000 || Size > 0x10000000)
+        {
+            /* 大小槽不可信时用一个安全上界（nt 实际约 0x56F3B8） */
+            Size = 0x800000;
+        }
+        NtosBase = Base;
+        NtosSize = Size;
+        g_HalStage = 2;
     }
 
     if (!NtosBase || NtosSize < 0x1000 || NtosSize > 0x4000000)
         return;
 
-    /* 只在镜像的 60% ~ 95% 区间里扫：HAL 表在 .data/.rdata 尾部，
-       避开 .text 开头能显著降低误匹配概率。 */
-    ScanBase = NtosBase + NtosSize * 6 / 10;
+    /* 【2026-10-30 校准修正】扫描窗口从 60%~95% 放宽到 20%~95%：
+       KD 实测 18362 上 HalDispatchTable 在 nt+0x423250，约为镜像的
+       37%（NtosSize≈0x56F3B8）——原窗口根本扫不到真表。 */
+    ScanBase = NtosBase + NtosSize * 2 / 10;
     ScanLimit = NtosBase + NtosSize;
     /* 按 8 字节对齐扫 */
     ScanBase &= ~(ULONG64)7;
@@ -3040,37 +3103,76 @@ static void LocateHalDispatchTables(void)
         ULONG i;
         BOOLEAN ok;
 
-        if (MmIsAddressValid((PVOID)p) != 1)
+        /* 【2026-10-30】MmIsAddressValid 返回 BOOLEAN（0/非0），不要写
+           `!= 1` —— 某些实现返回 0xFF 会让每个位置都被跳过，扫描静默
+           零命中（实测 g_HalScanCount=0、stage=3 的现象）。 */
+        if (!MmIsAddressValid((PVOID)p))
             continue;
         Head = *(ULONG64 *)p;
         /* 强特征：只认 4（HalDispatchTable 版本）或 0x31（HalPrivate 项数） */
         if (Head != 4 && Head != 0x31)
             continue;
-        /* 后面 16 个连续的内核代码指针（HAL 表项都是 nt 内的函数） */
-        ok = TRUE;
-        for (i = 1; i <= 16; i++)
+        /* 【2026-10-30 实证修正】真表**允许空槽**：kd 实测
+           nt+0x423270（HalDispatchTable+0x20）就是 0。
+           原判据要求 16 项**全部**是内核指针，因此把真表整张拒掉
+           （现象：stage=3 但 count=0）。改为：16 项里非零项必须占多数
+           且非零项必须是内核代码指针。 */
         {
-            ULONG64 v;
-            if (MmIsAddressValid((PVOID)(p + i * 8)) != 1) { ok = FALSE; break; }
-            v = *(ULONG64 *)(p + i * 8);
-            if (!HalLooksLikeCodePtr(v, NtosBase, NtosSize)) { ok = FALSE; break; }
+            ULONG nz = 0;
+            ok = TRUE;
+            for (i = 1; i <= 16; i++)
+            {
+                ULONG64 v = *(ULONG64 *)(p + i * 8);
+                if (v == 0)
+                    continue;
+                nz++;
+                if (!HalLooksLikeCodePtr(v, NtosBase, NtosSize)) { ok = FALSE; break; }
+            }
+            if (!ok || nz < 10)
+                continue;
         }
-        if (!ok)
-            continue;
 
-        /* 同一个表不重复登记：如果与已有结果距离 < 0x4000，视为同一张表 */
-        if (FoundCount >= 1 && (p - Found[0]) < 0x4000)
-            continue;
-
-        Found[FoundCount++] = p;
+        /* 【2026-10-30 实证】两表相距仅 0xA90（18362），原"距离 < 0x4000
+           视为同一张表"的去重把私有表直接吞掉（实测 count=1 且
+           HPDT=0）。改为按 head 值去重：4 与 0x31 各登记一次。 */
+        if (FoundCount >= 1)
+        {
+            ULONG k;
+            BOOLEAN dup = FALSE;
+            for (k = 0; k < FoundCount; k++)
+                if (*(ULONG64 *)Found[k] == Head) { dup = TRUE; break; }
+            if (dup)
+                continue;
+        }
+        if (FoundCount < 2)
+            Found[FoundCount++] = p;
     }
 
+    /* 【2026-10-30 成对校准】真表成对出现且 head 分别为 4 / 0x31，
+       间距 0xA90（18362）。若候选里恰好存在 (head=4, head=0x31) 且
+       间距 < 0x4000，取该对；否则退回前两个候选。 */
+    if (FoundCount == 2 && *(ULONG64 *)Found[1] == 0x31)
+    {
+        /* 顺序已是 (4, 0x31)，直接使用 */
+    }
+    else if (FoundCount == 2 && *(ULONG64 *)Found[0] == 0x31)
+    {
+        ULONG64 Tmp = Found[0];
+        Found[0] = Found[1];
+        Found[1] = Tmp;
+    }
     if (FoundCount >= 1)
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FD1, (__int64)Found[0]);
+        g_HalDispatchTableAddr = Found[0];
     if (FoundCount >= 2)
-        GtWrite((GLOBAL_TABLE_INDEX)0x4FD2, (__int64)Found[1]);
-    GtWrite((GLOBAL_TABLE_INDEX)0x4FD3, (__int64)FoundCount);
+        g_HalPrivateDispatchAddr = Found[1];
     g_HalScanCount = FoundCount;
+    g_HalStage = 3;
+    /* 【诊断】扫描实际使用的参数导出到 0x4FD5..0x4FD8，经 0x13A env
+       +0x240.. 读回，用于校准核对。 */
+    g_HalScanNtosBase = NtosBase;
+    g_HalScanNtosSize = NtosSize;
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FF6, (__int64)ScanBase);   /* 诊断：env+0x490 */
+    GtWrite((GLOBAL_TABLE_INDEX)0x4FF7, (__int64)ScanLimit);   /* 诊断：env+0x498 */
 }
 
 // ===================================================================
@@ -3106,6 +3208,12 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
         return 0;
 
     ProbeForWrite(pOutputBuffer, Need, 4);
+
+    /* 【2026-10-30 校准接线】首次调用 0x13A 时惰性执行 HAL 扫描。
+       必须在下面所有 *(Out+...) = g_Hal* 赋值**之前**调用，否则导出的
+       是扫描前的初值（实测：先前放在 0x1C0 之后，读到 count=0xFFFFFFFF
+       未扫标记、地址为 0）。 */
+    LocateHalDispatchTables();
 
     Out = (PUCHAR)pOutputBuffer;
     for (Index = 0; Index < CMD_STAT_N; Index++)
@@ -3263,6 +3371,7 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
            IoFileObjectType / IoDriverObjectType / IoDeviceObjectType。 */
     *(ULONG64 *)(Out + 0x1C0) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x422F); /* IoFileObjectType   */
 
+
     /* 【2026-10-29】HAL 分发表定位所需的环境值。
        Hal 页三个节点需要 HalDispatchTable / HalPrivateDispatchTable 的地址。
        原版驱动没有专门命令，客户端靠 HAL 数据段偏移自己算。
@@ -3291,9 +3400,21 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG64 *)(Out + 0x210) = (ULONG64)GtRead(GtNtoskrnlModuleBase);  /* 实测=镜像大小 */
     *(ULONG64 *)(Out + 0x218) = (ULONG64)GtRead(GtEprocessField22);
     *(ULONG64 *)(Out + 0x220) = (ULONG64)GtRead(GtEprocessField23);
-    *(ULONG64 *)(Out + 0x228) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4FD1);
-    *(ULONG64 *)(Out + 0x230) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x4FD2);
-    *(ULONG *)(Out + 0x238) = (ULONG)GtRead((GLOBAL_TABLE_INDEX)0x4FD3);
+    *(ULONG64 *)(Out + 0x228) = g_HalDispatchTableAddr;   /* 兼容旧偏移 */
+    *(ULONG64 *)(Out + 0x3E8) = g_HalDispatchTableAddr;   /* 保留（未被占用） */
+    /* 【诊断】扫描参数：base/size/scanbase/scanlimit（0x4FD5..8）。
+       注意 0x240..0x258 已被系统调用链诊断占用，移到空闲的 0x480..。 */
+    /* 【2026-10-30 三次迁移】0x3B0..0x3D8 已被 KmCtx/Pe 诊断占用
+       （见本函数后半段的 g_DiagKmCtxStage/g_DiagPe* 写入）。
+       env 里唯一剩余的空洞是 0x460..0x47F（0x440..0x45C 是 Vad/Epi，
+       0x480+ 是 TBLSNAP）。 */
+    *(ULONG *)(Out + 0x460) = g_HalStage;
+    *(ULONG64 *)(Out + 0x468) = g_HalScanNtosBase;
+    *(ULONG64 *)(Out + 0x470) = g_HalScanNtosSize;
+    *(ULONG64 *)(Out + 0x230) = g_HalPrivateDispatchAddr;   /* 兼容旧偏移 */
+    *(ULONG64 *)(Out + 0x3F0) = g_HalPrivateDispatchAddr;   /* 保留 */
+    *(ULONG *)(Out + 0x238) = g_HalScanCount;   /* 兼容旧偏移 */
+    *(ULONG *)(Out + 0x3F8) = g_HalScanCount;   /* 保留 */
 
     /* 【诊断 2026-10-26】进程遍历漏斗，放在 env 块尾部 0x410..0x440
        （0x1C0..0x1DF 是 16 个对象类型候选槽，0x240.. 是系统调用表链条槽）。

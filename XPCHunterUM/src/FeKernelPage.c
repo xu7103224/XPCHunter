@@ -544,6 +544,7 @@ void DoRefreshKernel(void)
             {0x129,1800,"FsCtx",0x10,0x40,7},
             {0x12D,1400,"ObjCtx",0x10,0x40,7},
             {0x12F,1352,"ProcCtx",0x10,0x40,7},
+            {0x13A,7168,"HAL",0,0,8},
         };
         static const int Base[3] = { 0, 10, 13 };
         const int sel = g_KmSel[g_KmTab - 11];
@@ -739,6 +740,25 @@ void DoRefreshKernel(void)
             sprintf_s(status, sizeof(status),
                       "%s: %lu qwords (cmd 0x%03X, ready=%u)",
                       Tbl[idx].Name, shown, Tbl[idx].Cmd, ready);
+            break;
+        }
+        case 8: {
+            /* HAL 两个分发表：经 0x13A 诊断通道的 env 块取回
+               （CmdDumpCallStats 在首次调用时惰性执行已校准的扫描）。
+               env = 头(283*16) + 打开记录(16)；字段偏移见驱动侧
+               CmdDumpCallStats 的 0x228/0x230/0x238。 */
+            ULONG64 EnvOff = 283ULL * 16 + 16;
+            ULONG64 hdt  = *(ULONG64 *)(buf + EnvOff + 0x228);
+            ULONG64 hpdt = *(ULONG64 *)(buf + EnvOff + 0x230);
+            ULONG   cnt  = *(ULONG  *)(buf + EnvOff + 0x238);
+            sprintf_s(hex1, sizeof(hex1), "%lu", (unsigned long)cnt);
+            sprintf_s(hex2, sizeof(hex2), "%016I64X", hdt);
+            KM_ROW("HalDispatchTable", hex2, "-", hex1);
+            sprintf_s(hex2, sizeof(hex2), "%016I64X", hpdt);
+            KM_ROW("HalPrivateDispatchTable", hex2, "-", "-");
+            sprintf_s(status, sizeof(status),
+                      "HAL: count=%lu HDT=%016I64X HPDT=%016I64X (scan cmd 0x13A)",
+                      (unsigned long)cnt, hdt, hpdt);
             break;
         }
         case 7: {
