@@ -86,20 +86,27 @@ char EnumerateProcessHandleTable(_DWORD *OutputBuffer, unsigned int BufferSize)
     ULONG   EntryIndexSrc;   // GtEprocessField28 的原始读入值（兼作上限比较）
 
     HasItems = 0;
-    // 【修正 2026-10-16】按原始读序（0x14004AC60..0x14004AC87）改为：
-    //   GT[0x18D](397) → GT[0x38](56) → GT[0x41DB](16859)。
-    //   原实现首读 0x41A0(16800)、且把 0x38 放在第 2 位，均与原始不符
-    //   （差分报 gt_index_mismatch：原始首读 397，我方 16800）。
-    // 原始读序（0x14004AC60 起）严格为：
-    //   0x18D(397) → 0x38(56) → 0x41DB(16859) → [四项校验] → 0x44/0x45/0x46(68/69/70)
-    Process  = (ULONG)GtRead(GtHandleTableInfo);          // 0x14004AC6D
-    EntryIndexSrc = GtRead(GtEprocessField28);             // 0x14004AC7A（构建/版本判定）
-    CheckFunc = (UCHAR (__fastcall *)(struct _KPROCESS *))GtRead(GtObjectTypeCheckFlag);  // 0x14004AC87
+    /* 【2026-10-30 三次修正：按原版 0x14004AC44 逐字重对齐】
+       原版三处读：
+         HandleTableOffset = GtRead(GtEprocessField131|0x100)   0x14004AC77
+         ObjectTableOffset = GtRead(GtProcessOffset)            0x14004AC84
+         pTypeCheckFunc    = GtRead(GtObjectTypeCheckFlag)      0x14004AC87
+       守卫：HandleTableOffset && ObjectTableOffset != -1
+             && ObjectTableOffset > HandleTableOffset && pTypeCheckFunc
+       GT[GtEprocessField28] 只在后面判 Win7（==1 时列表数 1）用。
+       【此前三处错误，直接导致 0x026 恒空】
+         a) 首读用了 GT[0x18D]（397）而非 Field131|0x100（=141|256=365）；
+         b) 把 GT[38] 当比较上界 —— 它是 Win7 标志，本机为 0，
+            于是 `Process >= EntryIndexSrc` 恒真，函数开头就 return；
+         c) 差值 EntryDelta 用 GT[38] 算，原版是 Object-Table 偏移差。 */
+    Process       = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField131 | 0x100));
+    EntryIndexSrc = (ULONG)GtRead(GtProcessOffset);
+    CheckFunc     = (UCHAR (__fastcall *)(struct _KPROCESS *))GtRead(GtObjectTypeCheckFlag);
 
-    if (!Process || Process == 0xFFFFFFFF || Process >= (ULONG)EntryIndexSrc || !CheckFunc)
+    if (!Process || EntryIndexSrc == 0xFFFFFFFF || EntryIndexSrc <= Process || !CheckFunc)
         return HasItems;
 
-    EntryCount    = (ULONG)EntryIndexSrc - Process;
+    EntryCount    = EntryIndexSrc - Process;
     TableListArray[0] = GtRead(GtEprocessField58);         // 0x14004ACBB
     TableListArray[1] = GtRead(GtEprocessField59);         // 0x14004ACCA
     SecondTableList  = GtRead(GtEprocessField60);          // 0x14004ACD9
