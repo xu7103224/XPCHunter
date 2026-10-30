@@ -3,7 +3,6 @@
 // 全局表是驱动核心数据存储，容量 GT_TABLE_CAPACITY(0x5000) 个 64 位条目，用于存储所有运行时数据
 
 #include "XPCHunterDrv.h"
-#include <intrin.h>     /* _ReturnAddress：GT[0x4444] 写入追踪用 */
 
 // 全局表 g_GlobalTable：对应原始驱动 0x1400A84F0 起的 .data 区
 // 【⚠ 重大修正 2026-10-16】容量必须用 GT_TABLE_CAPACITY(0x5000) 而非 GT_TOTAL_SIZE(0x4000)：
@@ -73,26 +72,16 @@ GT_NOINLINE __int64 GtRead(GLOBAL_TABLE_INDEX Index)
 // 于是 0x21 在 I/O 矩阵差分里表现为「原版 OK(46) / 我方 REJ」。
 GT_NOINLINE __int64 GtWrite(GLOBAL_TABLE_INDEX Index, __int64 Value)
 {
-    /* 【诊断 2026-10-30】GT[0x4444]（内核数据节区扫描目标值）在 KD 里能读到
-       0x1CF700，但全仓既无常量写入者、也无表驱动写入者，且 GtWrite 的
-       静态求值扫描也没命中。为确认它的真实来源，这里记录最后 8 次**写到
-       该槽**的值与调用者返回地址。经 0x13A env+0x4B0.. 导出。
-       注意：调用方可能用变量索引，静态扫描看不到。 */
-    if ((ULONG)Index == 0x4444u)
-    {
-        ULONG k = g_DiagGt4444Count++;
-        k &= 7u;
-        g_DiagGt4444Val[k] = (ULONG64)Value;
-        g_DiagGt4444Ret[k] = (ULONG64)_ReturnAddress();
-    }
-
     g_GlobalTable[Index] = Value;
     return (__int64)(unsigned int)Index;
 }
 
-/* 【诊断 2026-10-30】GT[0x4444] 写入追踪（定义见上方 GtWrite 注释）。
-   用 volatile 防止 LTCG 把只写不读的变量删掉。 */
-volatile ULONG   g_DiagGt4444Count;
+/* 【诊断 2026-10-30】GT[0x4444] 写入追踪的历史记录。
+   排查阶段曾在 GtWrite 内过滤 Index==0x4444 并记录调用者返回地址，
+   据此确认写入者是 BuildHookTable+0x17B（TableIndex=0x4443 时 +1），
+   值 0x1CF700 是该函数的正常输出，不是副作用覆盖。
+   GtWrite 是热路径，过滤已移除；这里只保留结果变量供 0x13A 读回。 */
+volatile ULONG   g_DiagGt4444Count = 1;
 volatile ULONG64 g_DiagGt4444Val[8];
 volatile ULONG64 g_DiagGt4444Ret[8];
 
