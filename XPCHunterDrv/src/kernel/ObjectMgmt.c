@@ -3287,8 +3287,14 @@ void ParseObjectContextExportDir(void)
     ExportDirSize = GtRead((enum _GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField187));
     if (ExportDirSize && ReadNtoskrnlForObjectContext(&pFileBuffer, &FileSize))
     {
-        if (ParseNtExportSections((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1
-            && ParseNtExportDir((PUCHAR)pFileBuffer, FileSize, ExportDirSize, 0) == 1)
+        /* 【2026-10-30 修正】ParseNtExportDir 是**重定位**处理函数（读
+           DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC]），入参却是磁盘
+           文件缓冲，`Delta = ImageBase - OptionalHeader.ImageBase` 在此
+           场景无意义，实测对这类驱动文件恒返回 0。原版用 && 串联会让后续
+           全部放弃；重定位失败只影响函数指针的绝对地址换算，不影响已填好
+           的表结构。改为尽力而为 —— 与 InitCallbackContextHookTable 的
+           修法一致。这是 0x12D 恒返回 0 条的直接原因。 */
+        if (ParseNtExportSections((__int64)pFileBuffer, FileSize, (__int64)pExportTable) == 1)
         {
             pEntryIndex = (unsigned int *)pExportTable + 1;
             EntryRemaining = 29;
@@ -3942,118 +3948,145 @@ __int64 EnumObjectLinkedListWin7(_QWORD *pObjectTable, _QWORD *pOutput, _DWORD *
 // 对应原始驱动 0x14003765C（863 字节）
 char ParseNtExportSections(__int64 PeBase, unsigned int PeSize, __int64 OutputTable)
 {
+    /* 【2026-10-30 整函数重写】
+       旧实现有与本文件其它函数同源的致命缺陷：`SectionFileOffset`、
+       `SectionDataSize`、`SectionCharacteristics`、`SectionAlignment`、
+       `FieldMisc`、`SlotIndex2`、`FieldOffset`、`FieldFlags`、`FieldIndex`
+       **全部是从未赋值的局部变量**（编译器给它们分配栈槽后就没再写过），
+       整个函数靠栈上垃圾运行。加上 RVA 用 `SectionFileOffset +
+       AccumulatedOffset`（累加量，缺段起始基址），两个问题叠加使它
+       恒定返回 0 —— 这就是 0x12D 走 CopyObjectContextHookTable 失败、
+       count 恒为 0 的根因。
+
+       现按已验证可用的同族 ParseNtExportSectionsV3 逐段重写：
+         字段一律从 SectionEntry 取（消耗量 @+0xF0、段字段 @+0x38、
+                  标志 @+0x50、槽号 @+0x58、字段偏移 @+0x40、
+                  类型指针 @+0x118）
+         RVA 一律用推进后的读指针（ctx+0x08），不用累加量。 */
     char Result;
     __int64 NtoskrnlBase;
     __int64 PeOffset;
     char IsTargetSection;
     int SectionIndex;
-    int ComputedOffset;
     __int16 SectionType;
     unsigned int SectionRva;
     unsigned int EntryIndex;
-    int ComputedOffset2;
     __int16 SectionType2;
-    int SectionFlags;
     unsigned int SectionRva2;
     __int64 SlotIndex;
     unsigned int SectionOffset;
-    PE_DECODE_CONTEXT SectionContext;   // 0x48 字节解码上下文（原 __int64 仅 8 字节）
-    __int64 AccumulatedOffset;
-    _DWORD SectionEntry[112];           // 描述符：原 [14] 仅 56 字节
-    int SectionDataSize;
-    int FieldFlags;
-    __int64 SectionCharacteristics;
-    int SlotIndex2;
-    int FieldMisc;
-    __int64 SectionAlignment;
-    int FieldIndex;
-    int FieldOffset;
-    unsigned int SectionFileOffset;
-    __int64 pSectionEntryBase;
-    _DWORD SectionOffsetTable[16];
+    PE_DECODE_CONTEXT SectionContext;
+    _DWORD SectionEntry[112];
+    unsigned int SectionOffsetTable[16];
 
     Result = 0;
     NtoskrnlBase = GtRead((GLOBAL_TABLE_INDEX)(GtDisableHookProtectionAddr2 | GtEprocessField187));
-    if (NtoskrnlBase)
+    if (!NtoskrnlBase || !PeBase || PeSize < 0x100)
+        return Result;
+
+    PeOffset = *(int *)(PeBase + 60);
+    if ((unsigned int)PeOffset >= PeSize)
+        return Result;
+
+    /* ---- 段 1：定位目标节区（1369 型，或 1296 型后跟 1368 型）---- */
     {
-        PeOffset = *(int *)(PeBase + 60);
-        if ((unsigned int)PeOffset < PeSize)
+        unsigned int InitRva = *(unsigned int *)(PeOffset + PeBase + 40);
+        if (InitRva >= PeSize || (unsigned int)(InitRva + 4096) >= PeSize)
+            return Result;
+
+        InitPESectionReadContext(PeBase + InitRva, (ULONG)(PeSize - InitRva),
+                                 2, 0, -1, 0, 0, (__int64)&SectionContext);
+        IsTargetSection = 0;
+        SectionIndex = 0;
+        PeOffset = (__int64)InitRva;
+        while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
         {
-            IsTargetSection = 0;
-            InitPESectionReadContext(PeBase + *(unsigned int *)(PeOffset + PeBase + 40), (ULONG)(PeSize - *(unsigned int *)(PeOffset + PeBase + 40)), 2, 0, -1, 0, 0, (__int64)&SectionContext);
-            SectionIndex = 0;
-            while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+            /* 先推进读指针，再用推进后的值算 RVA（原版 0x140035BB0..BF0） */
+            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
             {
-                *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-                ComputedOffset = (int)(SectionFileOffset + AccumulatedOffset);
-                AccumulatedOffset += SectionFileOffset;
-                SectionType = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
+                unsigned int ReadPtr = (unsigned int)(*(ULONG64 *)((PUCHAR)&SectionContext + 0x08));
+                SectionType = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
                 if (SectionType == 1369)
                 {
-                    SectionRva = (unsigned int)(ComputedOffset + SectionDataSize - PeBase);
+                    SectionRva = ReadPtr + *(unsigned int *)((char *)SectionEntry + 0x38) - (ULONG)PeBase;
                     if (SectionRva && SectionRva < PeSize)
-                        goto LABEL_FOUND_SECTION;
+                    {
+                        PeOffset = SectionRva;
+                        break;
+                    }
                 }
-                else if (SectionType == 1296 && SectionCharacteristics == 64 && SlotIndex2 == 1)
+                else if (SectionType == 1296 &&
+                         *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
+                         *(_DWORD *)((char *)SectionEntry + 0x58) == 1)
                 {
                     IsTargetSection = 1;
                 }
-                else if (SectionType == 1368)
+                else if (SectionType == 1368 && IsTargetSection == 1)
                 {
-                    if (IsTargetSection == 1)
+                    SectionRva = ReadPtr + *(unsigned int *)((char *)SectionEntry + 0x38) - (ULONG)PeBase;
+                    if (SectionRva && SectionRva < PeSize)
                     {
-                        SectionRva = (unsigned int)(ComputedOffset + SectionDataSize - PeBase);
-                        if (SectionRva && SectionRva < PeSize)
-                        {
-LABEL_FOUND_SECTION:
-                            PeOffset = SectionRva;
-                            break;
-                        }
+                        PeOffset = SectionRva;
+                        break;
                     }
                     IsTargetSection = 0;
                 }
-                if ((unsigned int)++SectionIndex >= 0x14)
-                    break;
             }
+            if ((unsigned int)++SectionIndex >= 0x14)
+                break;
         }
-        if ((unsigned int)PeOffset < PeSize)
+    }
+
+    if ((unsigned int)PeOffset >= PeSize || (unsigned int)PeOffset == 0)
+        return Result;
+
+    /* ---- 段 2：收集槽地址并填 28 项输出表 ---- */
+    InitPESectionReadContext(PeBase + (unsigned int)PeOffset, (ULONG)(PeSize - (unsigned int)PeOffset),
+                             2, 0, -1, 0, 0, (__int64)&SectionContext);
+    memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
+    for (EntryIndex = 0; EntryIndex < 0x1F4; ++EntryIndex)
+    {
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+        if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
+            break;
+
         {
-            InitPESectionReadContext(PeBase + (unsigned int)PeOffset, (ULONG)(PeSize - (unsigned int)PeOffset), 2, 0, -1, 0, 0, (__int64)&SectionContext);
-            memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
-            for (EntryIndex = 0; EntryIndex < 0x1F4; ++EntryIndex)
+            unsigned int ReadPtr2 = (unsigned int)(*(ULONG64 *)((PUCHAR)&SectionContext + 0x08));
+            SectionType2 = *(_WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
+            if (SectionType2 == 1349)
+                break;
+
+            /* 1298 型：记录「槽号 → RVA」 */
+            if (SectionType2 == 1298 &&
+                *(__int64 *)((char *)SectionEntry + 0x88) == 0x40000)
             {
-            *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
-                if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
-                    break;
-                ComputedOffset2 = (int)(SectionFileOffset + AccumulatedOffset);
-                AccumulatedOffset += SectionFileOffset;
-                SectionType2 = *(_WORD *)(*(ULONG64 *)((PUCHAR)SectionEntry + 0x118) + 6);
-                if (SectionType2 == 1349)
-                    break;
-                SectionFlags = (int)SectionCharacteristics;
-                if (SectionType2 == 1298 && SectionAlignment == 0x40000)
+                unsigned int RvaField = *(unsigned int *)((char *)SectionEntry + 0x78);
+                unsigned int SlotIdx  = *(unsigned int *)((char *)SectionEntry + 0x58);
+                if (RvaField && *(__int64 *)((char *)SectionEntry + 0x50) == 64)
                 {
-                    if (FieldMisc && SectionCharacteristics == 64)
-                    {
-                        SectionRva2 = (unsigned int)(ComputedOffset2 + FieldMisc - PeBase);
-                        if (SectionRva2 && SectionRva2 < PeSize)
-                            SectionOffsetTable[SlotIndex2] = SectionRva2;
-                    }
+                    SectionRva2 = ReadPtr2 + RvaField - (ULONG)PeBase;
+                    if (SectionRva2 && SectionRva2 < PeSize && SlotIdx < 16)
+                        SectionOffsetTable[SlotIdx] = SectionRva2;
                 }
-                if (SectionType2 == 1139)
-                    memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
-                if (SectionType2 == 1294
-                    && (*(_QWORD *)&SectionFlags & 0x14000LL) != 0
-                    && (SectionFlags & 0x40) != 0
-                    && (FieldOffset & 0xF) != 4
-                    && SectionAlignment == 64
-                    && (unsigned int)(FieldFlags - 112) <= 0xD8
-                    && (FieldFlags & 7) == 0)
+            }
+            if (SectionType2 == 1139)
+                memset(SectionOffsetTable, 0, sizeof(SectionOffsetTable));
+
+            /* 1294 型：写入输出表 */
+            if (SectionType2 == 1294 &&
+                (*(ULONG *)((char *)SectionEntry + 0x50) & 0x14000) != 0 &&
+                (*(ULONG *)((char *)SectionEntry + 0x50) & 0x40) != 0 &&
+                (*(ULONG *)((char *)SectionEntry + 0xDC) & 0xF) != 4 &&
+                *(__int64 *)((char *)SectionEntry + 0x88) == 64)
+            {
+                unsigned int FieldOff = *(unsigned int *)((char *)SectionEntry + 0x40);
+                if ((FieldOff - 112) <= 0xD8 && (FieldOff & 7) == 0)
                 {
-                    SlotIndex = (unsigned int)(FieldFlags - 112) >> 3;
+                    SlotIndex = (unsigned int)(FieldOff - 112) >> 3;
                     if ((unsigned int)SlotIndex <= 0x1B)
                     {
-                        SectionOffset = SectionOffsetTable[FieldIndex];
+                        unsigned int SrcSlot = *(unsigned int *)((char *)SectionEntry + 0x90);
+                        SectionOffset = (SrcSlot < 16) ? SectionOffsetTable[SrcSlot] : 0;
                         if (SectionOffset && !*(_DWORD *)(OutputTable + 48 * SlotIndex + 4))
                         {
                             Result = 1;
