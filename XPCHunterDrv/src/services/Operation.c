@@ -5563,8 +5563,26 @@ __int64 EnumProcessListWin10Operation(char *pInputBuffer, int InputSize, unsigne
      * "有后继"标记写在上一条 +656。字段表见下表（Dst=条目字节偏移，Src=v11 下标）。
      *
      * 其它 NDIS 版本仍走下方旧路径（未改动，避免未核对的行为回归）。 */
-    if (Version >= 0x60053)
+    /* 【2026-10-30 修正：Process 页只有 10 条的直接原因】
+       上面这条 Version>=0x60053 路径只有在 GT[0x36C] 真是
+       PsActiveProcessHead（位于 ntoskrnl 镜像内）时才成立。本移植里
+       GT[0x36C] 实测 = ndis 基址 + 0xE6648（ndis.sys 数据段），沿它走
+       出来的对象不是 EPROCESS：实测只产出 **10 条**、且后继指针错位
+       （0xffd48a30... 比真实 0xffffd48a30... 少高 16 位）。
+       前端 Process 页因此长期只显示 10 个进程，而系统实有 ~150 个。
+       判据：链表头必须落在 [nt基址, nt基址+镜像大小) 内；否则直接走
+       下面已验证可靠的 PsGetCurrentProcess + ActiveProcessLinks 路径
+       （输出格式与原始完全一致，664 字节条目，前端无需改动）。 */
     {
+        ULONG64 NtBaseChk = (ULONG64)GtRead(GtNtoskrnlModuleBase);
+        ULONG64 NtSizeChk = (ULONG64)GtRead(GtNtoskrnlImageSize);
+        BOOLEAN HeadInNt = (NtBaseChk
+                            && (ULONG64)ProcessListHead >= NtBaseChk
+                            && (!NtSizeChk
+                                || (ULONG64)ProcessListHead < NtBaseChk + NtSizeChk));
+
+        if (Version >= 0x60053 && HeadInNt)
+        {
         static const struct { unsigned short Dst; unsigned short Src; } Fields[] =
         {
             {0x050, 54}, {0x058, 55}, {0x060, 56}, {0x068, 57},
@@ -5612,6 +5630,7 @@ __int64 EnumProcessListWin10Operation(char *pInputBuffer, int InputSize, unsigne
             Object   = (_QWORD *)Object[481];            /* v11 = v11[481] */
         }
         return Result;
+        }
     }
 
 
