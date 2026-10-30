@@ -734,6 +734,8 @@ extern volatile ULONG   g_DiagCbParseFileSize;
 extern volatile ULONG   g_DiagCbParseType1298;
 extern volatile ULONG   g_DiagCbParseType1294;
 extern volatile ULONG   g_DiagCbParseCond;
+extern volatile ULONG   g_DiagCbParseSecType;
+extern volatile ULONG   g_DiagCbParseSecIdx;
 
 /* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对定位 */
 extern volatile ULONG g_DiagKdStage;

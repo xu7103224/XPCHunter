@@ -3495,6 +3495,8 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
     *(ULONG *)(Out + 0x4AC) = g_DiagCbParseType1298;
     *(ULONG *)(Out + 0x4B4) = g_DiagCbParseType1294;
     *(ULONG *)(Out + 0x4BC) = g_DiagCbParseCond;
+    *(ULONG *)(Out + 0x4C4) = g_DiagCbParseSecType;
+    *(ULONG *)(Out + 0x4CC) = g_DiagCbParseSecIdx;
     {
         ULONG t;
         for (t = 0; t < 8; t++)

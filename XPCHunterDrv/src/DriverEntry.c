@@ -178,6 +178,8 @@ volatile ULONG   g_DiagCbParseFileSize;
 volatile ULONG   g_DiagCbParseType1298;
 volatile ULONG   g_DiagCbParseType1294;
 volatile ULONG   g_DiagCbParseCond;
+volatile ULONG   g_DiagCbParseSecType;
+volatile ULONG   g_DiagCbParseSecIdx;
 
 /* 【诊断 2026-10-30】ScanKernelModulePESections 段 1 比对定位。
    GT[679] 恒为 0 导致 FillExportEntrySlot 早退，进而三个 context 族

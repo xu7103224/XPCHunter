@@ -1753,15 +1753,18 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
     {
-        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        ULONG ComputedOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
-        AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+        /* 【2026-10-30 修正】同上下文：ComputedOffset 就是推进后的读指针
+           （ctx+0x08），不是从 0 起的累加量。旧实现漏掉段起始基址
+           pFileBuffer+CurrentRva，20 轮扫描零命中，CurrentRva 保持初始值，
+           第二段扫到错误节区，1294 型永不出现 → Result 恒 0。 */
+        ULONG ComputedOffset = (ULONG)(*(ULONG64 *)((PUCHAR)&SectionContext + 0x08));
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
 
         if (SectionType == 1369)
         {
             SectionRva = ComputedOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)pFileBuffer;
-            if (SectionRva && SectionRva < FileSize) { CurrentRva = SectionRva; break; }
+            if (SectionRva && SectionRva < FileSize) { CurrentRva = SectionRva; g_DiagCbParseSecType = 1369; break; }
         }
         else if (SectionType == 1296 &&
                  *(__int64 *)((char *)SectionEntry + 0x50) == 64 &&
@@ -1772,9 +1775,11 @@ char ParseNtFileForCallbackContext(__int64 pFileBuffer, unsigned int FileSize, _
         else if (SectionType == 1368 && IsTargetSection == 1)
         {
             SectionRva = ComputedOffset + *(ULONG *)((char *)SectionEntry + 0x38) - (ULONG)pFileBuffer;
-            if (SectionRva && SectionRva < FileSize) { CurrentRva = SectionRva; break; }
+            if (SectionRva && SectionRva < FileSize) { CurrentRva = SectionRva; g_DiagCbParseSecType = 1368; break; }
             IsTargetSection = 0;
         }
+        g_DiagCbParseSecType = (ULONG)SectionType;
+        g_DiagCbParseSecIdx = SectionIndex + 1;
         if ((unsigned int)++SectionIndex >= 0x14) break;
     }
 
@@ -1891,9 +1896,13 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
     SectionIndex = 0;
     while (!(unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
     {
-        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针：ReadPESectionEntry 不回写 ctx+0x08 */
-        ULONG ComputedOffset = *(ULONG *)((char *)SectionEntry + 0xF0) + (ULONG)AccumulatedOffset;
-        AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);
+        /* 【2026-10-30 修正】ComputedOffset 必须是推进后的读指针本身
+           （ctx+0x08）。旧实现用 `Entry[0xF0] + AccumulatedOffset`（累加量），
+           漏掉段起始基址，SectionRva 全部越界被过滤 → 20 轮扫描零命中。
+           依据见同族 ParseNtExportSectionsV3 的修正注释（原版汇编 0x140035BB0
+           起：反编译的 ContextOffset 就在 rsp+0x58，即 ctx+0x08）。 */
+        ULONG ComputedOffset = (ULONG)(*(ULONG64 *)((PUCHAR)&SectionContext + 0x08));
         __int16 SectionType = *(WORD *)(*(__int64 *)((char *)SectionEntry + 0x118) + 6);
 
         if (SectionType == 1369)
@@ -1928,7 +1937,9 @@ char ParseNtSectionsForContextTable(__int64 ImageBase, unsigned int ImageSize, _
             *(ULONG64 *)((PUCHAR)&SectionContext + 0x08) += *(unsigned int *)((PUCHAR)SectionEntry + 0xF0);   /* 【修正】推进读指针（原 ctx+0x08 槽；每轮解码前推进上一轮长度，首轮为 0）*/
         if ((unsigned int)ReadPESectionEntry((PUCHAR)&SectionContext, (PULONG)SectionEntry))
             return Result;
-        AccumulatedOffset += *(ULONG *)((char *)SectionEntry + 0xF0);
+        /* 【2026-10-30 修正】与同族一致：RVA 基准是推进后的读指针本身，
+           不是累加量（旧实现漏掉段起始基址，算出的 RVA 全部越界）。 */
+        AccumulatedOffset = (__int64)(*(ULONG64 *)((PUCHAR)&SectionContext + 0x08));
 
         if ((unsigned int)GtRead(GtWindowsBuildNumber) == 9200)
         {
