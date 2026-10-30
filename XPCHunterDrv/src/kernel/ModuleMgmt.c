@@ -3405,21 +3405,25 @@ char __fastcall ReadModuleFileToBuffer(
     }
 }
 // 对应原始驱动 0x140077768（77 字节）
-char __fastcall ValidateEnumerationResult(__int64 pCheckFlagFunc, __int64 CurrentAddr, __int64 Offset)
+// 【2026-10-30 按反汇编改正】原版逻辑只有两句：
+//     build >= 0x4F7C                     → 直接返回 1（不做物理回映校验）
+//     否则 pFunc(Offset) == CurrentAddr   → 返回 1
+//   其中 pFunc 恒为 GT[0x41E1] = MmGetVirtualForPhysical，语义是
+//   「把物理地址回映成虚拟地址，看是否等于当前扫描地址」。
+//   旧实现写成「调函数看是否返回 1，再要求 Offset < CurrentAddr」，
+//   与本机 MmGetVirtualForPhysical 的返回值永不相等，导致所有块校验失败。
+char __fastcall ValidateEnumerationResult(__int64 pFunc, __int64 CurrentAddr, __int64 Offset)
 {
-    unsigned __int8 (__fastcall *pCheckFunc)(__int64);
+    __int64 (__fastcall *pPhysToVa)(__int64);
 
-    pCheckFunc = (unsigned __int8 (__fastcall *)(__int64))pCheckFlagFunc;
-    if (!pCheckFunc)
-        return 0;
-
-    if (pCheckFunc(CurrentAddr) != 1)
-        return 0;
-
-    if (Offset && Offset < CurrentAddr)
+    if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x4F7C)
         return 1;
 
-    return 0;
+    pPhysToVa = (__int64 (__fastcall *)(__int64))pFunc;
+    if (!pPhysToVa)
+        return 0;
+
+    return pPhysToVa(Offset) == CurrentAddr;
 }
 // 对应原始驱动 0x14005110C（117 字节）
 __int64 ResolveDriverRelativeAddresses(__int64 DriverInfo, __int64 Flags, int **pRelocTable)

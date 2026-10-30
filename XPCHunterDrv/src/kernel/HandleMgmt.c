@@ -94,13 +94,19 @@ char EnumerateProcessHandleTable(_DWORD *OutputBuffer, unsigned int BufferSize)
        守卫：HandleTableOffset && ObjectTableOffset != -1
              && ObjectTableOffset > HandleTableOffset && pTypeCheckFunc
        GT[GtEprocessField28] 只在后面判 Win7（==1 时列表数 1）用。
-       【此前三处错误，直接导致 0x026 恒空】
-         a) 首读用了 GT[0x18D]（397）而非 Field131|0x100（=141|256=365）；
-         b) 把 GT[38] 当比较上界 —— 它是 Win7 标志，本机为 0，
-            于是 `Process >= EntryIndexSrc` 恒真，函数开头就 return；
-         c) 差值 EntryDelta 用 GT[38] 算，原版是 Object-Table 偏移差。 */
-    Process       = (ULONG)GtRead((GLOBAL_TABLE_INDEX)(GtEprocessField131 | 0x100));
-    EntryIndexSrc = (ULONG)GtRead(GtProcessOffset);
+       【2026-10-30 最终定稿（以原版 0x14004AC5D 反汇编为准）】
+         14004AC60  mov ecx, 18Dh  → Process       = GT[0x18D]（397）
+         14004AC72  mov ecx, 38h   → EntryIndexSrc = GT[0x38]（56）
+         14004AC7F  mov ecx, 41DBh → CheckFunc     = GT[0x41DB]
+         14004AC8F  test ebx,ebx / jz  → Process 必须非零
+         14004AC97  cmp r15d,0FFFFFFFFh → GT[56] != -1
+         随后 ObjectTableOffset > HandleTableOffset（56 > 397? 否）
+         实测本机 GT[0x18D]=0xD8、GT[56]=0x220，故差值 = 0x220-0xD8。
+       【注意】此前一轮我曾把首读改成 GtEprocessField131|0x100(=365)，
+       那是错的 —— 原版明确是 0x18D。365 在本机为 0，反而让函数恒早退。 */
+    Process       = (ULONG)GtRead(GtHandleTableInfo);          /* GT[0x18D]=397 */
+    EntryIndexSrc = (ULONG)GtRead(GtProcessOffset);            /* GT[56]=0x38 */
+
     CheckFunc     = (UCHAR (__fastcall *)(struct _KPROCESS *))GtRead(GtObjectTypeCheckFlag);
 
     if (!Process || EntryIndexSrc == 0xFFFFFFFF || EntryIndexSrc <= Process || !CheckFunc)
@@ -1568,36 +1574,50 @@ void ResolveSyscallNumberFromKernel(void)
 }
 
 // EnumerateAllProcesses — 枚举所有进程
-// 对应原始驱动 sub_14004AFA0
-// 分配 0x3000 字节缓冲区，遍历内核虚拟地址范围，每 0x1000 步长检查地址有效性。
-// 对每个有效地址验证进程对象完整性并调用 EnumerateProcessObjects 填充输出。
+// 对应原始驱动 sub_14004AFA0（148 条指令，逐段对照 0x14004AFA0..0x14004B395）
+//
+// 【2026-10-30 整函数重写】
+//   旧转写有四处硬伤，任何一处都让函数失效、第二处直接让 guest 蓝屏：
+//     ① GT[2] / GT[3] 被当成「类型检查函数」调用。
+//        反汇编 0x14004B042/0x14004B053 读它们之后只做 `test rbx,rbx`
+//        `test esi,esi` 与 `cmp rax,rbx`（上界），**从不 call**。
+//        它们的真实身份是 ntoskrnl 的 ImageSize（GT[2]=0xAB2000）与
+//        ModuleBase（GT[3]=0xFFFFF80109A00000）。旧代码 `call r15` 于是
+//        跳到 nt+3 执行 `add byte ptr [rbx],al`，rbx=0 → 写入地址 0 →
+//        0xC0000005 @ nt+3。这是 0x026 每次 BSOD 的直接原因。
+//     ② 被 call 的地址变量一共只有三个，且都不是 GT[2]/GT[3]：
+//          r14 / var_80 = GT[0x41DB] = MmIsAddressValid
+//          var_B8       = GT[0x41E4] = MmGetPhysicalAddress
+//          var_A0       = GT[0x41E1] = MmGetVirtualForPhysical
+//     ③ SYSTEM_BASIC_INFORMATION 的字段偏移读错：
+//        原版 rbx = NtBuf[0x08]（NumberOfProcessors），
+//        原版页大小取 NtBuf[0x0C] 与 NtBuf[0x14] 的较小者（或 >=0x4F7C 时直取 0x14）。
+//        旧代码读的是 0x18/0x1C/0x24。
+//     ④ 外层循环结构完全不对。原版是「验证当前块 → 命中则处理下一个块并跨
+//        0x1000+本块长度 → 统一 +0x1000」，旧代码凭空造了一个 else 分支。
+//   另：GetKernelVirtualAddressRange 的三个实参原版是
+//       (IoGetCurrentProcess(), &Src, &EndAddr)，旧代码把 &Src 当第一参。
 char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
 {
     char *Buffer;
-    __int64 (__fastcall *NtQuerySysInfoFunc)(_QWORD, PVOID, _QWORD, _QWORD);
-    __int64 (__fastcall *GetOffsetFunc)(__int64);
-    __int64 (__fastcall *ValidateFunc)(__int64, __int64, __int64);
-    unsigned int ServiceCount;
-    __int64 (__fastcall *pCallbackFunc)(__int64);
-    __int64 (__fastcall *CheckTypeFunc)(__int64);
-    __int64 (__fastcall *v2Func)(__int64);
-    unsigned int FieldOffset4A;
-    __int64 FieldOffset4166;
-    __int64 Src;
-    __int64 Dst[2];
-    __int64 EndAddr;
+    __int64 (__fastcall *pNtQuerySysInfo)(_QWORD, PVOID, _QWORD, _QWORD);   /* GT[0x41DE] */
+    __int64 (__fastcall *pPhysToVa)(__int64);                              /* GT[0x41E1] */
+    __int64 (__fastcall *pVaToPhys)(__int64);                              /* GT[0x41E4] */
+    __int64 (__fastcall *pIsAddressValid)(__int64);                        /* GT[0x41DB] */
+    __int64 NtoskrnlSize;      /* GT[2] 仅作零值检查 */
+    __int64 NtoskrnlBase;      /* GT[3] 仅作 ScanSize 上界比较 */
+    ULONG FieldOffset4A;       /* GT[0x4A] */
+    __int64 pTypeInfoSlot;     /* GT[0x4166] */
+    ULONG ServiceCount;        /* GT[0x27] —— KTHREAD.PreviousMode 的偏移 */
+    __int64 Src, EndAddr;
     __int64 ScanSize;
-    int StepSize;
-    int PageCount, PageSize, PageSizeAlt;
+    unsigned int StepSize;     /* r12d：0xFD0 - FieldOffset4A */
+    unsigned int EntryStride;  /* (FieldOffset4A + 0x30) & ~7 */
+    unsigned int CopyLen;      /* r15d：memmove 长度，0x1000 或 0x2000 */
+    unsigned int LoopLimit;    /* var_C0：内循环上限，StepSize 或 StepSize+0x1000 */
     char NtBuf[0x40];
     char ValidatedFlag;
-    unsigned int StepSize2;
-    unsigned int StepSizeReg;
-    unsigned int RangeSize;
-    __int64 CurrentThread;
-    __int64 FieldOffset;
-    __int64 CallbackFunc;
-    __int64 BufferPtr;
+    ULONG InnerIndex;
 
     Buffer = (char *)ExAlloc(PagedPool, 0x3000);
     if (!Buffer)
@@ -1605,149 +1625,149 @@ char EnumerateAllProcesses(unsigned int *OutputBuffer, unsigned int BufferSize)
 
     memset(Buffer, 0, 0x3000);
 
-    NtQuerySysInfoFunc = (__int64 (__fastcall *)(_QWORD, PVOID, _QWORD, _QWORD))GtRead(0x41DE);
-    GetOffsetFunc = (__int64 (__fastcall *)(__int64))GtRead(0x41E4);
-    ValidateFunc = (__int64 (__fastcall *)(__int64, __int64, __int64))GtRead(0x41E1);
-    ServiceCount = (ULONG)GtRead(0x27);
-    pCallbackFunc = (__int64 (__fastcall *)(__int64))GtRead(0x41DB);
-    CheckTypeFunc = (__int64 (__fastcall *)(__int64))GtRead(3);
-    v2Func = (__int64 (__fastcall *)(__int64))GtRead(2);
-    FieldOffset4A = (ULONG)GtRead(0x4A);
-    FieldOffset4166 = GtRead(0x4166);
-    ULONG Gt914 = (ULONG)GtRead(0x914);
+    pNtQuerySysInfo   = (__int64 (__fastcall *)(_QWORD, PVOID, _QWORD, _QWORD))GtRead(0x41DE);
+    pVaToPhys         = (__int64 (__fastcall *)(__int64))GtRead(0x41E4);
+    pPhysToVa         = (__int64 (__fastcall *)(__int64))GtRead(0x41E1);
+    ServiceCount      = (ULONG)GtRead(0x27);
+    pIsAddressValid   = (__int64 (__fastcall *)(__int64))GtRead(0x41DB);
+    NtoskrnlBase      = GtRead(3);
+    NtoskrnlSize      = GtRead(2);
+    FieldOffset4A     = (ULONG)GtRead(0x4A);
+    pTypeInfoSlot     = GtRead(0x4166);
 
-    if (!v2Func || !FieldOffset4A || !FieldOffset4166 || !CheckTypeFunc || !NtQuerySysInfoFunc || !GetOffsetFunc || !ValidateFunc || ServiceCount == -1)
+    /* 0x14004B07E..0x14004B0CC 九道守卫，顺序与反汇编一致 */
+    if (!NtoskrnlBase || !NtoskrnlSize || !FieldOffset4A || !pTypeInfoSlot
+        || !pIsAddressValid || !pNtQuerySysInfo
+        || !pVaToPhys || !pPhysToVa || ServiceCount == 0xFFFFFFFF)
     {
         ExFree(Buffer);
         return 0;
     }
 
+    /* 0x14004B0D2..0x14004B100：临时把 KTHREAD.PreviousMode 置 0（内核模式）后
+       查询 SystemBasicInformation，查询完立刻恢复。 */
     memset(NtBuf, 0, 0x40);
-    CurrentThread = (__int64)KeGetCurrentThread();
-    FieldOffset = FieldOffset4166;
-    CallbackFunc = (__int64)pCallbackFunc;
-    BufferPtr = (__int64)Buffer;
-    char SavedFlag = *(_BYTE *)(CurrentThread + ServiceCount);
-    *(_BYTE *)(CurrentThread + ServiceCount) = 0;
-    NtQuerySysInfoFunc(0, NtBuf, 0x40, 0);
-    *(_BYTE *)(CurrentThread + ServiceCount) = SavedFlag;
-
-    PageCount = *(int *)&NtBuf[0x18];
-    PageSize = *(int *)&NtBuf[0x1C];
-    PageSizeAlt = *(int *)&NtBuf[0x24];
-
-    if (Gt914 >= 0x4F7C)
-        PageSize = PageSizeAlt;
-    else if (PageSize > PageSizeAlt)
-        PageSize = PageSizeAlt;
-
-    ScanSize = PageCount * PageSize;
-    StepSize = 0xFD0 - (int)FieldOffset;
-    StepSize2 = StepSize;
-
-    GetKernelVirtualAddressRange((__int64)&Src, (unsigned __int64 *)Dst, (unsigned __int64 *)&EndAddr);
-
-    StepSizeReg = StepSize;
-    RangeSize = 0x1000;
-    ValidatedFlag = 0;
-
-    for (__int64 CurrentAddr = Src; CurrentAddr < EndAddr; CurrentAddr += 0x1000)
     {
-        if (ValidatedFlag)
+        char *pCurrentThread = (char *)KeGetCurrentThread();
+        char SavedMode = pCurrentThread[ServiceCount];
+        pCurrentThread[ServiceCount] = 0;
+        pNtQuerySysInfo(0, NtBuf, 0x40, 0);
+        pCurrentThread[ServiceCount] = SavedMode;
+    }
+
+    /* 0x14004B103..0x14004B130：ScanSize = NumberOfProcessors * PageSize。
+       build >= 0x4F7C 直接取 NtBuf[0x14]；否则取 NtBuf[0x0C] 与 NtBuf[0x14] 的较小者。 */
+    {
+        __int64 ProcCount = *(int *)&NtBuf[0x08];
+        __int64 PageSize;
+        if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x4F7C)
         {
-            __int64 ScanAddr = CurrentAddr + 0x1000;
-            ValidatedFlag = 0;
-            RangeSize = 0x1000;
-            StepSize = StepSizeReg;
-
-            if (CheckTypeFunc(ScanAddr) == 1
-                && CallRegisteredCallback(ScanAddr) == 1)
-            {
-                __int64 Offset = GetOffsetFunc(ScanAddr);
-                if (Offset && Offset < ScanSize
-                    && CmdStubAlwaysTrue((__int64)CheckTypeFunc, Offset, NULL, 0) == 1
-                    && ValidateFunc((__int64)ValidateFunc, ScanAddr, Offset) == 1)
-                {
-                    ValidatedFlag = 1;
-                    StepSize = StepSizeReg + 0x1000;
-                    RangeSize = 0x2000;
-                }
-            }
-
-            if (CheckTypeFunc(CurrentAddr) == 1
-                && CallRegisteredCallback(CurrentAddr) == 1)
-            {
-                __int64 Offset = GetOffsetFunc(CurrentAddr);
-                if (Offset && Offset < ScanSize
-                    && CmdStubAlwaysTrue((__int64)CheckTypeFunc, Offset, NULL, 0) == 1
-                    && ValidateFunc((__int64)ValidateFunc, CurrentAddr, Offset) == 1)
-                {
-                    ValidatedFlag = 1;
-                    StepSize = StepSize2 + 0x1000;
-                    RangeSize = 0x2000;
-                }
-            }
-
-            if (ValidatedFlag
-                && CheckTypeFunc(CurrentAddr) == 1
-                && CheckTypeFunc(CurrentAddr + RangeSize - 1) == 1)
-            {
-                memmove(Buffer, (void *)CurrentAddr, 0x1000);
-                EnumerateProcessObjects(
-                    (struct _KPROCESS *)(Buffer + 0x30),
-                    (struct _KPROCESS *)(Buffer + 0x30),
-                    OutputBuffer, BufferSize, 1, 0, 0);
-
-                // Inner loop: scan through buffer entries
-                unsigned int InnerIndex = 0;
-                while (InnerIndex <= (unsigned int)(ULONG_PTR)pCallbackFunc)
-                {
-                    StepSizeReg = 0;
-                    char *EntryBuf = Buffer + InnerIndex;
-                    char IsMatch = 0;
-
-                    if (Gt914 >= 0x1DB0)
-                    {
-                        char TypeFlag = CheckObjectTypeFlag((__int64)(EntryBuf + 0x30));
-                        if ((UCHAR)GtRead(0x81B) == TypeFlag)
-                            IsMatch = 1;
-                    }
-                    else
-                    {
-                        if (v2Func && *(__int64 *)v2Func == *(__int64 *)(EntryBuf + 0x10))
-                            IsMatch = 1;
-                    }
-
-                    if (IsMatch)
-                    {
-                        char *ValidateAddr = (char *)CurrentAddr + 0x30 + StepSizeReg;
-                        if (ValidateProcessObject((struct _KPROCESS *)(EntryBuf + 0x30), (struct _KPROCESS *)ValidateAddr) == 1)
-                        {
-                            EnumerateProcessObjects(
-                                (struct _KPROCESS *)(EntryBuf + 0x30),
-                                (struct _KPROCESS *)ValidateAddr,
-                                OutputBuffer, BufferSize, 1, 0, 0);
-                            InnerIndex += StepSize2;
-                        }
-                    }
-                    InnerIndex += 8;
-                }
-            }
+            PageSize = *(int *)&NtBuf[0x14];
         }
         else
         {
-            if (CheckTypeFunc(CurrentAddr) == 1
-                && CallRegisteredCallback(CurrentAddr) == 1)
+            int A = *(int *)&NtBuf[0x0C];
+            int B = *(int *)&NtBuf[0x14];
+            PageSize = (A > B) ? B : A;
+        }
+        ScanSize = ProcCount * PageSize;
+    }
+
+    StepSize = 0xFD0 - FieldOffset4A;
+    EntryStride = (FieldOffset4A + 0x30) & 0xFFFFFFF8;
+
+    GetKernelVirtualAddressRange((__int64)IoGetCurrentProcess(),
+                                 (unsigned __int64 *)&Src, (unsigned __int64 *)&EndAddr);
+
+    ValidatedFlag = 0;
+    CopyLen = 0x1000;
+
+    while (Src < EndAddr)
+    {
+        if (!ValidatedFlag)
+        {
+            /* 0x14004B17A..0x14004B1E2：验证当前块 */
+            if (pIsAddressValid(Src) == 1
+                && CallRegisteredCallback(Src) == 1)
             {
-                __int64 Offset = GetOffsetFunc(CurrentAddr);
+                __int64 Offset = pVaToPhys(Src);
+                if (!(Offset && Offset < ScanSize
+                      && CmdStubAlwaysTrue((__int64)pIsAddressValid, Offset, NULL, 0) == 1
+                      && ValidateEnumerationResult((__int64)pPhysToVa, Src, Offset) == 1))
+                    goto NextPage;
+            }
+            else
+            {
+                goto NextPage;
+            }
+        }
+
+        /* loc_14004B1E6：探测 Src+0x1000 是否也有效，决定搬运长度与内循环上限。
+           0x14004B1F0 mov r15d,1000h / 0x14004B25C mov r15d,2000h 是两个硬编码常量，
+           而内循环上限（var_C0）是 StepSize 或 StepSize+0x1000 —— 两者不是同一个值。 */
+        {
+            __int64 SubAddr = Src + 0x1000;
+            ValidatedFlag = 0;
+            CopyLen = 0x1000;
+            LoopLimit = StepSize;
+
+            if (pIsAddressValid(SubAddr) == 1
+                && CallRegisteredCallback(SubAddr) == 1)
+            {
+                __int64 Offset = pVaToPhys(SubAddr);
                 if (Offset && Offset < ScanSize
-                    && CmdStubAlwaysTrue((__int64)CheckTypeFunc, Offset, NULL, 0) == 1
-                    && ValidateFunc((__int64)ValidateFunc, CurrentAddr, Offset) == 1)
+                    && CmdStubAlwaysTrue((__int64)pIsAddressValid, Offset, NULL, 0) == 1
+                    && ValidateEnumerationResult((__int64)pPhysToVa, SubAddr, Offset) == 1)
                 {
                     ValidatedFlag = 1;
+                    CopyLen = 0x2000;
+                    LoopLimit = StepSize + 0x1000;
                 }
             }
         }
+
+        /* 0x14004B268：主块首尾都要有效才搬 */
+        if (pIsAddressValid(Src) != 1)
+            goto NextPage;
+        if (pIsAddressValid(Src + (__int64)CopyLen - 1) != 1)
+            goto NextPage;
+
+        memmove(Buffer, (void *)Src, CopyLen);
+
+        /* loc_14004B2A7：遍历块内条目，步长 8，命中后额外跨 EntryStride */
+        InnerIndex = 0;
+        while (InnerIndex <= LoopLimit)
+        {
+            char *EntryBuf = Buffer + InnerIndex;
+            char IsMatch;
+
+            if ((ULONG)GtRead(GtWindowsBuildNumber) >= 0x1DB0)
+            {
+                IsMatch = (CheckObjectTypeFlag((__int64)(EntryBuf + 0x30))
+                           == (UCHAR)GtRead(0x81B));
+            }
+            else
+            {
+                IsMatch = (*(__int64 *)(EntryBuf + 0x10) == *(__int64 *)pTypeInfoSlot);
+            }
+
+            if (IsMatch)
+            {
+                char *AltProcess = (char *)Src + 0x30 + InnerIndex;
+                if (ValidateProcessObject((struct _KPROCESS *)(EntryBuf + 0x30),
+                                          (struct _KPROCESS *)AltProcess) == 1)
+                {
+                    EnumerateProcessObjects((struct _KPROCESS *)(EntryBuf + 0x30),
+                                            (struct _KPROCESS *)AltProcess,
+                                            OutputBuffer, BufferSize, 1, 0, 1);
+                    InnerIndex += EntryStride;
+                }
+            }
+            InnerIndex += 8;
+        }
+
+NextPage:
+        Src += 0x1000;
     }
 
     ExFree(Buffer);
