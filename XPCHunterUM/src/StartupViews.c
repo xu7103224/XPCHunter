@@ -78,6 +78,43 @@ static const FE_STARTUP_LOC g_StartupLocs[] = {
     { "Policies\\System (HKCU)",       HKEY_CURRENT_USER,  "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", W64, 2 },
     /* --- DllDirectory / DllDirectory32 --- */
     { "Session Manager\\DllDirectory", HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Session Manager",           W64, 3 },
+
+    /* =====================================================================
+     * 【2026-10-30 补】以下 11 项是从原版 PCHunter64.exe 的 UTF-16 字符串
+     * 表逐条比对出的缺口 —— 原版 Startup Info 页覆盖、我方表里没有。
+     * 原版字符串证据：'AppInit_DLLs' 'Wow64 AppInit_DLLs' 'BootExecute'
+     * 'KnownDLLs' 'SharedTaskScheduler' 'PrintMonitors' 'PrintProviders'
+     * 'StubPath' 'HKCU Winlogon' 'ScreenSave'
+     * ===================================================================== */
+
+    /* AppInit_DLLs：全局 DLL 注入点，恶意软件最常利用的持久化位置之一。
+       Wow64 版本在 Wow6432Node 下，是独立的注册表树。 */
+    { "AppInit_DLLs (HKLM)",           HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows",      W64, 5 },
+    { "AppInit_DLLs (Wow64)",          HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\Windows", W64, 5 },
+
+    /* BootExecute：会话管理器启动时执行的程序，bootkit 常驻点 */
+    { "BootExecute",                   HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Session Manager",           W64, 8 },
+
+    /* KnownDLLs：系统预映射 DLL 列表，替换其中任一即为 DLL 劫持 */
+    { "KnownDLLs",                     HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs", W64, 1 },
+    { "KnownDLLs (Wow64)",             HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs32", W64, 1 },
+
+    /* SharedTaskScheduler：较少人检查的持久化点 */
+    { "SharedTaskScheduler",           HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SharedTaskScheduler", W64, 1 },
+    { "SharedTaskScheduler (Wow64)",   HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SharedTaskScheduler", W32, 1 },
+
+    /* 打印机监视器 / 提供程序 */
+    { "PrintMonitors",                 HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors",          W64, 0 },
+    { "PrintProviders",                HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Print\\Providers",         W64, 0 },
+
+    /* StubPath：Active Setup 完成时执行的命令 */
+    { "StubPath (Active Setup)",       HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Active Setup\\Installed Components",        W64, 6 },
+
+    /* HKCU Winlogon：Userinit / Shell 的用户级覆盖 */
+    { "HKCU Winlogon",                 HKEY_CURRENT_USER,  "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",     W64, 2 },
+
+    /* ScreenSave：屏保可执行文件被替换是常见持久化手法 */
+    { "ScreenSave",                    HKEY_CURRENT_USER,  "Control Panel\\Desktop",                                        W64, 7 },
 };
 
 #define FE_STARTUP_LOC_COUNT (sizeof(g_StartupLocs)/sizeof(g_StartupLocs[0]))
@@ -354,13 +391,84 @@ BOOL FeLoadStartupItems(FE_STARTUP_LIST *List)
                 sprintf_s(e->SubKey, sizeof(e->SubKey), "%s\\%s\\InprocServer32", loc->SubKey, subA);
                 e->View = 64;
             }
+        } else if (loc->IsValueList == 8) {
+            /* == 8：REG_MULTI_SZ 多字符串值（BootExecute）
+             *
+             * 【2026-10-30 补】BootExecute 是 REG_MULTI_SZ，一个值里有多个
+             * 命令行。FeReadNamedString 只取第一段，会把 "autocheck autochk *"
+             * 之后的条目全部丢掉 —— 而恶意条目往往就藏在后面。这里逐段展开。 */
+            DWORD type = 0, size = 0;
+            if (RegQueryValueExW(hk, L"BootExecute", NULL, &type, NULL, &size) == ERROR_SUCCESS
+                && size >= sizeof(WCHAR)) {
+                WCHAR *mbuf = (WCHAR *)calloc(size / sizeof(WCHAR) + 2, sizeof(WCHAR));
+                if (mbuf) {
+                    if (RegQueryValueExW(hk, L"BootExecute", NULL, &type,
+                                         (LPBYTE)mbuf, &size) == ERROR_SUCCESS) {
+                        WCHAR *cur = mbuf;
+                        while (*cur) {
+                            char val[FE_STARTUP_DATA_CHARS];
+                            FE_STARTUP_ENTRY *e;
+                            val[0] = 0;
+                            FeAnsiFromWide(cur, val, sizeof(val));
+                            if (val[0]) {
+                                if (List->Count >= List->Capacity) {
+                                    ULONG newCap = List->Capacity ? List->Capacity * 2 : cap;
+                                    FE_STARTUP_ENTRY *p = (FE_STARTUP_ENTRY *)realloc(
+                                        List->Items, newCap * sizeof(FE_STARTUP_ENTRY));
+                                    if (!p) break;
+                                    List->Items = p;
+                                    List->Capacity = newCap;
+                                }
+                                e = &List->Items[List->Count++];
+                                ZeroMemory(e, sizeof(*e));
+                                sprintf_s(e->Location, sizeof(e->Location), "%s", loc->Label);
+                                sprintf_s(e->Name, sizeof(e->Name), "%s", "BootExecute");
+                                sprintf_s(e->Data, sizeof(e->Data), "%s", val);
+                                sprintf_s(e->Hive, sizeof(e->Hive), "%s", "HKLM");
+                                sprintf_s(e->SubKey, sizeof(e->SubKey), "%s", loc->SubKey);
+                                e->View = 64;
+                            }
+                            cur += wcslen(cur) + 1;
+                        }
+                    }
+                    free(mbuf);
+                }
+            }
         } else {
-            /* == 2：只取具名值（Winlogon 的 Userinit / Shell、AutoRun、DllDirectory） */
-            static const WCHAR *fixedNames[] = {
+            /* == 2 / 3 / 5 / 6 / 7：只取具名值
+             *
+             * 【2026-10-30 补】原来这里只硬编码了 4 个值名，模式 5/6/7
+             * 落到同一个分支于是取错了值。现在按模式选值名表：
+             *   2 = Winlogon 类（Userinit / Shell / AutoRun / DllDirectory）
+             *   3 = 单个 DllDirectory 类
+             *   5 = AppInit_DLLs（Wow64 视图下的 Windows 键）
+             *   6 = Active Setup 下的 StubPath
+             *   7 = 屏保 ScreenSave */
+            static const WCHAR *namesWinlogon[] = {
                 L"Userinit", L"Shell", L"AutoRun", L"DllDirectory"
             };
+            static const WCHAR *namesAppInit[] = { L"AppInit_DLLs", L"LoadAppInit_DLLs" };
+            static const WCHAR *namesStubPath[] = { L"StubPath" };
+            static const WCHAR *namesScreenSaver[] = { L"ScreenSaveActive", L"SCRNSAVE.EXE" };
+            const WCHAR **fixedNames;
+            ULONG fixedCount;
+
+            if (loc->IsValueList == 5) {
+                fixedNames = namesAppInit;
+                fixedCount = (ULONG)(sizeof(namesAppInit) / sizeof(namesAppInit[0]));
+            } else if (loc->IsValueList == 6) {
+                fixedNames = namesStubPath;
+                fixedCount = 1;
+            } else if (loc->IsValueList == 7) {
+                fixedNames = namesScreenSaver;
+                fixedCount = 2;
+            } else {
+                fixedNames = namesWinlogon;
+                fixedCount = (ULONG)(sizeof(namesWinlogon) / sizeof(namesWinlogon[0]));
+            }
+            {
             ULONG k;
-            for (k = 0; k < 4; k++) {
+            for (k = 0; k < fixedCount; k++) {
                 char val[FE_STARTUP_DATA_CHARS];
                 FE_STARTUP_ENTRY *e;
                 char nameA[128];
@@ -388,6 +496,7 @@ BOOL FeLoadStartupItems(FE_STARTUP_LIST *List)
                           loc->Root == HKEY_LOCAL_MACHINE ? "HKLM" : "HKCU");
                 sprintf_s(e->SubKey, sizeof(e->SubKey), "%s", loc->SubKey);
                 e->View = (loc->Wow64 == KEY_WOW64_32KEY) ? 32 : 64;
+            }
             }
         }
         RegCloseKey(hk);
