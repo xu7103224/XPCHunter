@@ -408,6 +408,80 @@ BOOL FeRepairSafeboot(void)
     return st == ERROR_SUCCESS;
 }
 
+/* Repair LSP — 删除 Winsock 协议目录中路径落在系统目录之外的可疑项。
+ *
+ * 【2026-10-30 补】原版 Trojan 页有 "Repair LSP" 菜单项，我方此前只实现了
+ * FeCheckLsp（检测）没有修复动作 —— 这是右键菜单对齐检查发现的真实缺口。
+ * 判据与 FeCheckLsp 严格一致：读同一条 `PackedCatalogItem` 前 260 字节的
+ * ANSI 路径，命中 windows\/%SystemRoot%/system32\/syswow64\ 的保留，其余删除。
+ *
+ * 安全性：只删 Catalog_Entries 下的**子键**，不碰协议链注册本身；逐项复核
+ * 路径非空才删（空路径条目跳过，避免误删）。返回删除条数，-1 表示打不开
+ * 目录（无权限）。先收集再删除，避免边枚举边删导致索引错位。 */
+int FeRepairLsp(void)
+{
+    HKEY hk = NULL;
+    DWORD idx = 0;
+    int removed = 0;
+    WCHAR badKeys[64][64];
+    int badCount = 0;
+
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+                      L"SYSTEM\\CurrentControlSet\\Services\\WinSock2\\Parameters\\Protocol_Catalog9\\Catalog_Entries",
+                      0, KEY_ALL_ACCESS | KEY_WOW64_64KEY, &hk) != ERROR_SUCCESS) {
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+                          L"SYSTEM\\CurrentControlSet\\Services\\WinSock2\\Parameters\\Protocol_Catalog9\\Catalog_Entries",
+                          0, KEY_READ | KEY_WRITE | KEY_WOW64_64KEY, &hk) != ERROR_SUCCESS)
+            return -1;
+    }
+
+    for (;;) {
+        WCHAR subW[256];
+        DWORD subLen = 256;
+        HKEY hs = NULL;
+        BYTE packed[1024];
+        DWORD size = sizeof(packed), type = 0;
+
+        if (RegEnumKeyExW(hk, idx++, subW, &subLen, NULL, NULL, NULL, NULL) != ERROR_SUCCESS)
+            break;
+        if (RegOpenKeyExW(hk, subW, 0, KEY_READ | KEY_WOW64_64KEY, &hs) != ERROR_SUCCESS)
+            continue;
+        size = sizeof(packed);
+        if (RegQueryValueExW(hs, L"PackedCatalogItem", NULL, &type, packed, &size) == ERROR_SUCCESS
+            && size >= 4) {
+            char pathA[520];
+            char lower[520];
+            size_t k, maxA = size;
+            BOOL systemPath;
+
+            if (maxA > 259) maxA = 259;
+            memcpy(pathA, packed, maxA);
+            pathA[maxA] = 0;
+            for (k = 0; pathA[k] && k < sizeof(lower) - 1; k++)
+                lower[k] = (char)tolower((unsigned char)pathA[k]);
+            lower[k] = 0;
+
+            systemPath = (lower[0] != 0) &&
+                         (strstr(lower, "\\windows\\") != NULL ||
+                          strstr(lower, "%systemroot%") != NULL ||
+                          strstr(lower, "system32\\") != NULL ||
+                          strstr(lower, "syswow64\\") != NULL);
+            if (lower[0] && !systemPath && badCount < 64) {
+                wcsncpy_s(badKeys[badCount], 64, subW, _TRUNCATE);
+                badCount++;
+            }
+        }
+        RegCloseKey(hs);
+    }
+
+    for (int i = 0; i < badCount; i++) {
+        if (RegDeleteKeyExW(hk, badKeys[i], KEY_WOW64_64KEY, 0) == ERROR_SUCCESS)
+            removed++;
+    }
+    RegCloseKey(hk);
+    return removed;
+}
+
 /* ---------------------------------------------------------------- CLI 输出 */
 
 BOOL FePrintTrojanReport(int DriveIndex)

@@ -817,6 +817,17 @@ BOOL FeRestoreMbr(int DriveIndex, const char *Path, DWORD *pError);
 BOOL FeCheckLsp(FE_TROJAN_REPORT *R);
 BOOL FeCheckSafeboot(FE_TROJAN_REPORT *R);
 BOOL FeRepairSafeboot(void);
+int  FeRepairLsp(void);          /* 删除 Winsock 协议目录中系统目录之外的可疑项，返回删除条数，-1=无权限 */
+void DoTrojanResetMbr(void);     /* Trojan 页 "Reset MBR" 按钮 */
+void DoTrojanRepairAll(void);    /* Trojan 页 "Repair All" 按钮：LSP + Safeboot */
+
+/* File 页三项动作（右键菜单 + 顶部 Verify/Delete 按钮共用） */
+void DoFileVerifySelected(void);
+void DoFileVerifyAll(void);
+void DoFileDeleteSelected(void);
+
+/* Other 页 "Query Online" 按钮 */
+void DoOtherQueryOnline(void);
 BOOL FePrintTrojanReport(int DriveIndex);
 
 /* ---- Ring0/Ring3 Hooks 页（原版第 3、4 个主 Tab，共 5 项）----

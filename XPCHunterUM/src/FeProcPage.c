@@ -1167,7 +1167,6 @@ void DoProcessContextMenu(HWND hWnd, int X, int Y)
     FeMenuAddEx(hMenu, PROC_ID_FREE_MEM, "Free Memory", pid != 0);         /* 释放内存 */
     FeMenuSep(hMenu);
     FeMenuAddCheck(hMenu, PROC_ID_ONLY_SEL, "Only Show Selected", g_ProcOnlySelected);
-    FeMenuAdd(hMenu, PROC_ID_REFRESH, "Refresh");                       /* 刷新 */
 
     cmd = FeMenuEnd(hMenu, hWnd, X, Y, 40, 40);
 

@@ -123,6 +123,51 @@ void DoRefreshOther(void)
 }
 
 
+/* Query Online — 用路径框里输入的文件的 SHA-256 打开 VirusTotal 查询页。
+ *
+ * 【2026-10-30 补】"Query Online" 按钮此前只有控件、没有 WM_COMMAND 处理
+ * （frontend.c 里只有 IDC_OT_VERIFY），点击无反应。原版 Other 页有
+ * 「在线查询（百度、virscan）」这一组。
+ *
+ * 实现取舍：按**文件哈希**查比按文件名查准得多（同名文件遍地都是），
+ * 所以先对路径框里的文件算 SHA-256，再拼 VirusTotal 的 file/<hash> URL。
+ * 文件不存在或算不出哈希时，退化为按文件名做 Bing 搜索。 */
+void DoOtherQueryOnline(void)
+{
+    char path[MAX_PATH * 2];
+    char hash[80] = { 0 };
+    char url[1024];
+    char msg[MAX_PATH * 2 + 200];
+
+    if (!g_hOtPath) {
+        return;
+    }
+    GetWindowTextA(g_hOtPath, path, sizeof(path));
+    if (!path[0]) {
+        SetWindowTextA(g_hOtStatus, "Query Online: enter a file path first");
+        return;
+    }
+
+    if (FeHashFile(path, CALG_SHA_256, hash, sizeof(hash)) && hash[0]) {
+        sprintf_s(url, sizeof(url),
+                  "https://www.virustotal.com/gui/file/%s", hash);
+        ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+        sprintf_s(msg, sizeof(msg), "Query Online: opened VirusTotal for SHA256=%s", hash);
+    } else {
+        /* 文件不可读时按文件名搜；取最后一段路径作为关键词 */
+        const char *base = path;
+        const char *p = path;
+        while (*p) { if (*p == '\\' || *p == '/') base = p + 1; p++; }
+        sprintf_s(url, sizeof(url), "https://www.bing.com/search?q=%s", base);
+        ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+        sprintf_s(msg, sizeof(msg),
+                  "Query Online: cannot hash \"%s\" (missing or no access), searched by name instead",
+                  path);
+    }
+    SetWindowTextA(g_hOtStatus, msg);
+}
+
+
 /* ---- PageShow：frontend.c 的页面注册表在每次切页时调用（原 ShowPage 的 Other 页段，逐字保留） ---- */
 void FeOtherPagePageShow(HWND hWnd, int page)
 {

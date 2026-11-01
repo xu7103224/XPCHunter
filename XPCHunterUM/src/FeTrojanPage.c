@@ -112,6 +112,74 @@ void DoTrojanBackup(void)
     }
 }
 
+/* Reset MBR — 用之前备份的 MBR 写回 PhysicalDrive0。
+ *
+ * 【2026-10-30 补】"Reset MBR" 按钮此前只被创建和显隐，**没有绑定任何
+ * 命令处理**（frontend.c 的 WM_COMMAND 里只有 IDC_TR_SCAN / IDC_TR_BACKUP），
+ * 点击无反应。原版有 Backup MBR / Reset MBR 这一对操作。
+ * FeRestoreMbr 已存在（TrojanViews.c:268），这里只做 UI 包装。 */
+void DoTrojanResetMbr(void)
+{
+    char path[MAX_PATH];
+    DWORD err = 0;
+
+    GetTempPathA(MAX_PATH, path);
+    strcat_s(path, sizeof(path), "PCHunter_MBR_Backup.bin");
+
+    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
+        SetWindowTextA(g_hTrStatus,
+                       "Reset MBR: no backup found - run Backup MBR first "
+                       "(PCHunter_MBR_Backup.bin in %TEMP%)");
+        return;
+    }
+    if (!g_TrLoaded)
+        DoTrojanScan();
+
+    if (FeRestoreMbr(0, path, &err)) {
+        char msg[400];
+        sprintf_s(msg, sizeof(msg), "MBR restored from %s", path);
+        SetWindowTextA(g_hTrStatus, msg);
+        DoTrojanScan();
+    } else {
+        char msg[200];
+        sprintf_s(msg, sizeof(msg), "Reset MBR failed, GetLastError=%lu", err);
+        SetWindowTextA(g_hTrStatus, msg);
+    }
+}
+
+/* Repair All — 原版语义是「把所有可疑项修一遍」：LSP + Safeboot。
+ *
+ * 【2026-10-30 补】"Repair All" 按钮同样没有命令处理。本轮同时补上了
+ * FeRepairLsp（TrojanViews.c），此前只有 FeRepairSafeboot。 */
+void DoTrojanRepairAll(void)
+{
+    char msg[600];
+    int lspRemoved;
+
+    if (!g_TrLoaded)
+        DoTrojanScan();
+
+    lspRemoved = FeRepairLsp();
+    FeRepairSafeboot();
+
+    if (lspRemoved < 0)
+        sprintf_s(msg, sizeof(msg),
+                  "Repair All: LSP catalog not writable (need administrator); "
+                  "Safeboot policy reset attempted");
+    else if (lspRemoved == 0)
+        sprintf_s(msg, sizeof(msg),
+                  "Repair All: no suspicious LSP entry found; "
+                  "Safeboot policy reset attempted");
+    else
+        sprintf_s(msg, sizeof(msg),
+                  "Repair All: removed %d suspicious LSP entr%s; "
+                  "Safeboot policy reset",
+                  lspRemoved, lspRemoved == 1 ? "y" : "ies");
+
+    SetWindowTextA(g_hTrStatus, msg);
+    DoTrojanScan();
+}
+
 /* ---- PageShow：frontend.c 的页面注册表在每次切页时调用（原 ShowPage 的 Trojan 页段，逐字保留） ---- */
 void FeTrojanPagePageShow(HWND hWnd, int page)
 {

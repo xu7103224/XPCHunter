@@ -1473,6 +1473,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_SCAN:    DoScan();    return 0;
         case IDC_SEND:    DoSend();    return 0;
         case IDC_KILL:    DoKillSelected(); return 0;
+        /* 【2026-10-30 补】主界面 "Kernel" 入口按钮此前只有控件、没有
+           命令处理，点击无反应。它等价于切到第 2 个主 Tab（Kernel）。 */
+        case IDC_KERNEL:
+            if (g_hMainTabs) {
+                SendMessageA(g_hMainTabs, TCM_SETCURSEL, 1, 0);
+                ShowPage(hWnd, 1);
+            }
+            return 0;
+        /* 【2026-10-30 补】Other 页 "Query Online" 按钮同样缺处理。 */
+        case IDC_OT_QUERY:   DoOtherQueryOnline(); return 0;
         case IDC_PROC_AUTO: FeProcPageToggleAuto(hWnd); return 0;   /* 第二步增量 */
         case IDC_PROC_EXPORT: FeProcPageExport(); return 0;         /* 第二步增量3 */
         case IDC_KM_REFRESH: DoRefreshKernel(); return 0;
@@ -1541,6 +1551,12 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case IDC_ST_REFRESH: DoRefreshSetting(); return 0;
         case IDC_TR_SCAN:    DoTrojanScan(); return 0;
         case IDC_TR_BACKUP:  DoTrojanBackup(); return 0;
+        case IDC_TR_RESTORE: DoTrojanResetMbr(); return 0;
+        case IDC_TR_REPAIR:  DoTrojanRepairAll(); return 0;
+        /* 【2026-10-30 补】File 页 Verify / Delete 两个按钮此前只创建、
+           没有命令处理，点击无反应。 */
+        case IDC_FL_VERIFY:  DoFileVerifySelected(); return 0;
+        case IDC_FL_DEL:     DoFileDeleteSelected(); return 0;
         case IDC_HK_REFRESH: DoRefreshHooks(); return 0;
         case IDC_HK_RESTORE: DoRestoreOverHooks(); return 0;
         case IDC_HK_CBTABLE: DoRestoreCallbackTable(); return 0;
