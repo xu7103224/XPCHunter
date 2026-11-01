@@ -274,6 +274,20 @@ void BuildNwTree(void)
         /* 2026-10-29：两个纯注册表视图（不依赖驱动） */
         NwInsertNode(TVI_ROOT, "IE Plugin", 30);
         NwInsertNode(TVI_ROOT, "IFEO Hijack", 31);
+
+        /* 【2026-10-30 补】原版「File System Item」分组的 7 个节点。
+           实现早已存在于 --kernel-extra-cli，但 GUI 树里没有入口。 */
+        {
+            HTREEITEM FsRoot = NwInsertNode(TVI_ROOT, "File System Item",
+                                            (LPARAM)(LONG_PTR)0xFFFF0001);
+            NwInsertNode(FsRoot, "FltMgr Dispatch Fun",  32);
+            NwInsertNode(FsRoot, "Npfs Dispatch Fun",    33);
+            NwInsertNode(FsRoot, "Msfs Dispatch Fun",    34);
+            NwInsertNode(FsRoot, "Usbport Dispatch Fun", 35);
+            NwInsertNode(FsRoot, "Ftdisk Dispatch Fun",  36);
+            NwInsertNode(FsRoot, "Volmgr Dispatch Fun",  37);
+            NwInsertNode(FsRoot, "Volsnap Dispatch Fun", 38);
+        }
     }
 }
 
@@ -304,6 +318,13 @@ const char *NwNodeName(int node)
     case 22: return "Afd Dispatch Fun";
     case 30: return "IE Plugin";
     case 31: return "IFEO Hijack";
+    case 32: return "FltMgr Dispatch Fun";
+    case 33: return "Npfs Dispatch Fun";
+    case 34: return "Msfs Dispatch Fun";
+    case 35: return "Usbport Dispatch Fun";
+    case 36: return "Ftdisk Dispatch Fun";
+    case 37: return "Volmgr Dispatch Fun";
+    case 38: return "Volsnap Dispatch Fun";
     default: return "Network Callback";
     }
 }
@@ -327,7 +348,10 @@ void DoRefreshNetwork(void)
         g_NwNode != 9 && g_NwNode != 10 && g_NwNode != 11 && g_NwNode != 12 &&
         g_NwNode != 13 && g_NwNode != 14 && g_NwNode != 15 &&
         g_NwNode != 16 && g_NwNode != 17 && g_NwNode != 18 && g_NwNode != 19 &&
-        g_NwNode != 30 && g_NwNode != 31) {
+        g_NwNode != 30 && g_NwNode != 31 &&
+        g_NwNode != 32 && g_NwNode != 33 && g_NwNode != 34 &&
+        g_NwNode != 35 && g_NwNode != 36 && g_NwNode != 37 &&
+        g_NwNode != 38) {
         sprintf_s(status, sizeof(status),
                   "%s: formatter not implemented yet (node %d)",
                   NwNodeName(g_NwNode), g_NwNode);
@@ -934,6 +958,66 @@ void DoRefreshNetwork(void)
                       "Fun Count: 0,  Hook: %d   <==>  IpFilterDriver maybe not load.",
                       hooks);
         SetWindowTextA(g_hNwStatus, status);
+    } else if (g_NwNode >= 32 && g_NwNode <= 38) {
+        /* 【2026-10-30 补】File System Item 分组：按驱动名从设备对象表筛。
+         *
+         * 原版 Network 页有 FltMgr / Npfs / Msfs / Usbport / Ftdisk /
+         * Volmgr / Volsnap 这一组「文件系统分发函数」节点。我方此前只在
+         * --kernel-extra-cli 里有（CliMain.c 的 kNodes 表），GUI 树里
+         * 完全没有入口 —— 功能存在但不可达。这里把同一套逻辑接到树上。
+         *
+         * 判据与 CLI 一致：FltMgr 的对象在 FileSystem(2) 段
+         * （dev=\FileSystem\FltMgr）而非 Driver Object(3)，所以 Type 传 0
+         * 表示全段查；其余按驱动名匹配。 */
+        static const struct { int Node; const char *Name; } kFsNodes[] = {
+            { 32, "FltMgr"   },
+            { 33, "Npfs"     },
+            { 34, "Msfs"     },
+            { 35, "Usbport"  },
+            { 36, "Ftdisk"   },
+            { 37, "\\volmgr" },
+            { 38, "volsnap"  },
+        };
+        const char *fsName = NULL;
+        ULONG fi;
+
+        for (fi = 0; fi < sizeof(kFsNodes) / sizeof(kFsNodes[0]); fi++) {
+            if (kFsNodes[fi].Node == g_NwNode) {
+                fsName = kFsNodes[fi].Name;
+                break;
+            }
+        }
+        if (fsName) {
+            FE_DEVICE_LIST dev;
+            ZeroMemory(&dev, sizeof(dev));
+            if (FeLoadDeviceObjects(&g_Client, &dev, 0x20000)) {
+                ULONG idx[64];
+                ULONG cnt = FeDeviceListMatchDriver(&dev, 0, fsName, idx, 64);
+                ULONG k;
+                int row = 0;
+                for (k = 0; k < cnt && row < 64; k++) {
+                    ULONG m = idx[k];
+                    char obj[32];
+                    sprintf_s(obj, sizeof(obj), "0x%016llX",
+                              (unsigned long long)dev.Items[m].DeviceObject);
+                    NwAddRow(g_hNwList, row++,
+                             fsName,
+                             dev.Items[m].DriverName[0] ? dev.Items[m].DriverName : "-",
+                             dev.Items[m].DeviceName[0] ? dev.Items[m].DeviceName : "-",
+                             dev.Items[m].ObjectName[0] ? dev.Items[m].ObjectName : "-",
+                             dev.Items[m].FilePath[0] ? dev.Items[m].FilePath : "-",
+                             obj);
+                }
+                sprintf_s(status, sizeof(status),
+                          "%s Dispatch Fun: %lu object(s)", fsName, cnt);
+                SetWindowTextA(g_hNwStatus, status);
+                FeFreeDeviceList(&dev);
+            } else {
+                SetWindowTextA(g_hNwStatus,
+                               "File System Item: device list unavailable "
+                               "(0x056 not ready, connect first)");
+            }
+        }
     } else if (g_NwNode == 30) {
         /* 2026-10-29 IE 插件（纯注册表枚举，无需驱动） */
         ULONG n;
