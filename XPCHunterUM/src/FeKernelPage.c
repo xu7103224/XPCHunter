@@ -1093,6 +1093,90 @@ void DoDriverOp(int Op)
     }
 }
 
+/* DoDriverDumpMemory — 驱动页的 "Dump Module Memory" / "Dump Kernel Memory"。
+ *
+ * 【2026-10-30 修正】这两个菜单项此前**都是假的**：
+ *     case DRV_ID_DUMP_MOD:    DoDriverOp(DRVOP_VERIFY);
+ *     case DRV_ID_DUMP_KERNEL: DoDriverOp(DRVOP_VERIFY);
+ * 点"转储"得到的是签名校验结果，用户会以为内存已经导出，实际什么都没写。
+ *
+ * 能力边界（实测确认，见剩余工作清单 §3.3）：
+ *   客户端唯一可用的转储原语 FeDumpMemoryToFile 走 ReadProcessMemory，
+ *   **只能读用户态**；内核地址一律失败。驱动侧也没有"任意内核地址读取"
+ *   原语 —— 0xF7/0xF9 只读一个固定的 GT 解析指针，不是按地址读。
+ * 所以真正的内核转储当前无法实现。这里不伪造：内核地址明确回复不可用
+ * 并说明原因，用户态地址走真实转储。 */
+static void KmReadColumn(int Sel, int SubItem, char *Out, int OutChars)
+{
+    LVITEMA it;
+    if (Out && OutChars) Out[0] = 0;
+    if (!g_hKmList || !Out || OutChars <= 0) return;
+    ZeroMemory(&it, sizeof(it));
+    it.mask = LVIF_TEXT;
+    it.iItem = Sel;
+    it.iSubItem = SubItem;
+    it.pszText = Out;
+    it.cchTextMax = OutChars;
+    SendMessageA(g_hKmList, LVM_GETITEMTEXTA, (WPARAM)Sel, (LPARAM)&it);
+}
+
+void DoDriverDumpMemory(int KernelMemory)
+{
+    char name[128], baseText[32], sizeText[32], msg[700], outPath[600];
+    int sel = ListView_GetNextItem(g_hKmList, -1, LVNI_SELECTED);
+    ULONG64 base = 0, size = 0;
+
+    if (sel < 0) {
+        SetWindowTextA(g_hKmStatus, "Dump: select a module first");
+        return;
+    }
+    KmReadColumn(sel, 0, baseText, sizeof(baseText));
+    KmReadColumn(sel, 1, sizeText, sizeof(sizeText));
+    KmReadColumn(sel, 2, name, sizeof(name));
+    if (!name[0]) strcpy_s(name, sizeof(name), "module");
+
+    sscanf_s(baseText, "%I64X", &base);
+    if (strstr(sizeText, "0x") || strstr(sizeText, "0X"))
+        sscanf_s(sizeText, "0x%I64X", &size);
+    else
+        sscanf_s(sizeText, "%I64X", &size);
+    if (!size) size = 0x1000;
+
+    if (!base) {
+        SetWindowTextA(g_hKmStatus, "Dump: selected row has no valid base address");
+        return;
+    }
+
+    if (KernelMemory && (base >> 48) != 0) {
+        sprintf_s(msg, sizeof(msg),
+                  "Dump Kernel Memory: not available - this build has no "
+                  "arbitrary kernel-VA read primitive (0xF7/0xF9 read one fixed "
+                  "GT pointer only), so a real kernel dump cannot be produced. "
+                  "Base=%s Size=0x%I64X", baseText, size);
+        SetWindowTextA(g_hKmStatus, msg);
+        return;
+    }
+
+    sprintf_s(outPath, sizeof(outPath), "C:\\Users\\Public\\%s_%s.bin",
+              name, baseText);
+    {
+        ULONG64 written = 0;
+        if (FeDumpMemoryToFile(0, base, size, outPath, &written) && written) {
+            sprintf_s(msg, sizeof(msg), "Dump %s: %s -> %s (%I64u bytes)",
+                      KernelMemory ? "Kernel Memory" : "Module Memory",
+                      name, outPath, written);
+        } else {
+            sprintf_s(msg, sizeof(msg),
+                      "Dump %s: %s failed (base=%s not readable via "
+                      "ReadProcessMemory; kernel addresses need a driver-side "
+                      "read primitive)",
+                      KernelMemory ? "Kernel Memory" : "Module Memory",
+                      name, baseText);
+        }
+        SetWindowTextA(g_hKmStatus, msg);
+    }
+}
+
 void DoModuleOp(int Op)
 {
     int sel = ListView_GetNextItem(g_hDetail, -1, LVNI_SELECTED);
@@ -1681,8 +1765,8 @@ void DoDriverContextMenu(HWND hWnd, int X, int Y)
 
     switch (cmd) {
     case DRV_ID_REFRESH:       DoRefreshKernel(); break;
-    case DRV_ID_DUMP_MOD:      DoDriverOp(DRVOP_VERIFY); break;   /* 占位：复用签名校验路径的地址解析 */
-    case DRV_ID_DUMP_KERNEL:   DoDriverOp(DRVOP_VERIFY); break;
+    case DRV_ID_DUMP_MOD:      DoDriverDumpMemory(0); break;
+    case DRV_ID_DUMP_KERNEL:   DoDriverDumpMemory(1); break;
     case DRV_ID_DEL_FILE:      DoDriverOp(DRVOP_DEL_FILE); break;
     case DRV_ID_DEL_FILE_REG:  DoDriverOp(DRVOP_DEL_FILE_REG); break;
     case DRV_ID_UNLOAD:        DoDriverOp(DRVOP_UNLOAD); break;
