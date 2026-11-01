@@ -125,6 +125,7 @@ void DoRefreshFiles(void)
 #define FL_ID_VERIFY        (FL_MENU_BASE + 14)
 #define FL_ID_VERIFY_ALL    (FL_MENU_BASE + 15)
 #define FL_ID_DELETE        (FL_MENU_BASE + 16)
+#define FL_ID_FIND_HIDDEN   (FL_MENU_BASE + 17)   /* 原版 File 页 Find Hidden Item */
 
 /* 取选中行的 Path 列（第 4 列） */
 static BOOL FlSelectedPath(char *Out, int OutChars)
@@ -205,6 +206,7 @@ void DoFileContextMenu(HWND hWnd, int X, int Y)
 
     FeMenuAdd(hMenu, FL_ID_REFRESH, "Refresh");
     FeMenuAdd(hMenu, FL_ID_SEARCH, "Search File");
+    FeMenuAdd(hMenu, FL_ID_FIND_HIDDEN, "Find Hidden Item");
     FeMenuSep(hMenu);
     FeMenuAddEx(hMenu, FL_ID_MD5, "File MD5", sel >= 0);
     FeMenuAddEx(hMenu, FL_ID_ASSOC, "File Association", sel >= 0);
@@ -387,6 +389,9 @@ case FL_ID_LOCKER:
     case FL_ID_DELETE:
         DoFileDeleteSelected();
         break;
+    case FL_ID_FIND_HIDDEN:
+        DoFileFindHidden();
+        break;
     default:
         break;
     }
@@ -461,6 +466,70 @@ void DoFileVerifyAll(void)
 }
 
 /* 删除选中文件。破坏性操作，必须二次确认。 */
+/* Find Hidden Item — 只显示当前目录里名字可疑（Rootkit 特征）的项。
+ *
+ * 【2026-10-30 补】原版 File 页有此菜单项。判据用 FE_FILE_ENTRY.Suspect，
+ * 与 DoRefreshFiles 里"可疑项加括号标红"同源，保证两处一致。
+ * 重新枚举一遍当前目录（而不是从 listview 过滤）：因为 listview 里的名字
+ * 已经被加了括号，用文本反查不可靠。 */
+void DoFileFindHidden(void)
+{
+    FE_FILE_LIST list;
+    char dir[MAX_PATH];
+    char status[400];
+    ULONG i, shown = 0;
+
+    if (!g_hFlList || !g_hFlStatus || !g_hFlDir)
+        return;
+    GetWindowTextA(g_hFlDir, dir, sizeof(dir));
+    if (!dir[0])
+        strcpy_s(dir, sizeof(dir), "C:\Windows\System32");
+
+    if (!FeLoadDirectory(dir, &list)) {
+        sprintf_s(status, sizeof(status),
+                  "Find Hidden Item: cannot open \"%s\", GetLastError=%lu",
+                  dir, GetLastError());
+        SetWindowTextA(g_hFlStatus, status);
+        return;
+    }
+
+    ListView_DeleteAllItems(g_hFlList);
+    CreateFlColumns(g_hFlList);
+    for (i = 0; i < list.Count; i++) {
+        LVITEMA it;
+        char sz[32], attr[32], flags[128], name[FE_FILE_NAME_CHARS + 4];
+
+        if (!list.Items[i].Suspect)
+            continue;
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)shown;
+        sprintf_s(name, sizeof(name), "(%s)", list.Items[i].Name);
+        it.pszText = name;
+        SendMessageA(g_hFlList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        sprintf_s(sz, sizeof(sz), "%I64u", list.Items[i].Size);
+        sprintf_s(attr, sizeof(attr), "0x%lX", list.Items[i].Attributes);
+        flags[0] = 0;
+        if (list.Items[i].DeletePending)
+            strcat_s(flags, sizeof(flags), "DELETE-PENDING ");
+        if (list.Items[i].LockedCount) {
+            char lk[64];
+            sprintf_s(lk, sizeof(lk), "LOCKED(pid=%lu) ", list.Items[i].LockOwners[0]);
+            strcat_s(flags, sizeof(flags), lk);
+        }
+        FlSetText(g_hFlList, (int)shown, 1, sz);
+        FlSetText(g_hFlList, (int)shown, 2, attr);
+        FlSetText(g_hFlList, (int)shown, 3, flags);
+        FlSetText(g_hFlList, (int)shown, 4, list.Items[i].Path);
+        shown++;
+    }
+    sprintf_s(status, sizeof(status),
+              "Find Hidden Item: %lu suspicious name(s) in \"%s\" (of %lu entries)",
+              shown, dir, list.Count);
+    SetWindowTextA(g_hFlStatus, status);
+    FeFreeDirectory(&list);
+}
+
 void DoFileDeleteSelected(void)
 {
     char path[MAX_PATH * 2];

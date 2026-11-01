@@ -825,6 +825,7 @@ void DoTrojanRepairAll(void);    /* Trojan 页 "Repair All" 按钮：LSP + Safeb
 void DoFileVerifySelected(void);
 void DoFileVerifyAll(void);
 void DoFileDeleteSelected(void);
+void DoFileFindHidden(void);
 
 /* Other 页 "Query Online" 按钮 */
 void DoOtherQueryOnline(void);
