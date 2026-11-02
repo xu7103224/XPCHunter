@@ -759,22 +759,22 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                       10, 76, 90, 28, hWnd, (HMENU)IDC_KM_REFRESH, hInst, NULL);
         /* 原版 Driver 页的三个右键菜单项，做成按钮便于实机验证 */
         CreateWindowA("BUTTON", "Only Show Loaded Driver", WS_CHILD | BS_AUTOCHECKBOX,
-                      88, 80, 200, 24, hWnd, (HMENU)IDC_KM_ONLYLOADED, hInst, NULL);
+                      112, 80, 200, 24, hWnd, (HMENU)IDC_KM_ONLYLOADED, hInst, NULL);
         CreateWindowA("BUTTON", "Copy Name", WS_CHILD | BS_PUSHBUTTON,
-                      292, 76, 90, 28, hWnd, (HMENU)IDC_KM_COPYNAME, hInst, NULL);
+                      324, 76, 90, 28, hWnd, (HMENU)IDC_KM_COPYNAME, hInst, NULL);
         CreateWindowA("BUTTON", "Copy Path", WS_CHILD | BS_PUSHBUTTON,
-                      386, 76, 90, 28, hWnd, (HMENU)IDC_KM_COPYPATH, hInst, NULL);
+                      426, 76, 90, 28, hWnd, (HMENU)IDC_KM_COPYPATH, hInst, NULL);
         /* 其余 5 项（Verify / Verify All / Unload / Delete File / Delete File+Reg）
            与原版一样放在右键菜单里，这个按钮只是把同一个菜单弹出来便于取证。 */
         CreateWindowA("BUTTON", "Driver Ops", WS_CHILD | BS_PUSHBUTTON,
-                      480, 76, 90, 28, hWnd, (HMENU)IDC_KM_DRVOP, hInst, NULL);
+                      528, 76, 90, 28, hWnd, (HMENU)IDC_KM_DRVOP, hInst, NULL);
         /* SSDT / Shadow SSDT 子页的 Restore / Restore All */
         CreateWindowA("BUTTON", "Restore", WS_CHILD | BS_PUSHBUTTON,
-                      480, 76, 90, 28, hWnd, (HMENU)IDC_KM_RESTORE, hInst, NULL);
+                      528, 76, 90, 28, hWnd, (HMENU)IDC_KM_RESTORE, hInst, NULL);
         CreateWindowA("BUTTON", "Restore All", WS_CHILD | BS_PUSHBUTTON,
-                      574, 76, 100, 28, hWnd, (HMENU)IDC_KM_RESTOREALL, hInst, NULL);
+                      630, 76, 100, 28, hWnd, (HMENU)IDC_KM_RESTOREALL, hInst, NULL);
         g_hKmStatus = CreateWindowA("STATIC", "Not loaded", WS_CHILD | SS_LEFT,
-                                    576, 82, 374, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
+                                    742, 82, 222, 20, hWnd, (HMENU)IDC_KM_STATUS, hInst, NULL);
         /* 原版 Driver 页的"其他内核项"三项：独立一行，避免挤在计数行里
            被截断（KiDebugRoutine / Find PTE Hook / Find Next ClassInitData）。 */
         g_hKmKExtra = CreateWindowA("STATIC", "", WS_CHILD | SS_LEFT,
@@ -1271,33 +1271,61 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hDetail)     MoveWindow(g_hDetail, 10, midY + 46, w, detailH, TRUE);
             if (g_hList)       MoveWindow(g_hList, 10, h - 150, w, 132, TRUE);
         } else if (g_MainTab == 1) {
-            /* Kernel 页：刷新 + 状态 + 子页 Tab + 列表 */
+            /* Kernel 页：Refresh | OnlyShowLoaded | CopyName | CopyPath | DriverOps | 状态 | 子页 Tab | 列表 */
             int listY = pageTop + 64;
             int listH = pageBottom - listY;
+            int x;
             if (listH < 100) listH = 100;
             {
                 HWND hRef = GetDlgItem(hWnd, IDC_KM_REFRESH);
                 HWND b;
+                /* 【2026-11-02 修控件重叠】原来这些控件用的是写死的 x：
+                   Refresh 10..100，而 "Only Show Loaded Driver" 从 88 起，
+                   两者叠了 12px（截图里 Refresh 被勾选框压住一角）。
+                   改成从左往右顺序排，每个控件占 12px 间隙，谁也不压谁。
+                   Driver Ops 与 Restore 共用同一格（互斥显示），
+                   Restore All 排在它右边。 */
+                x = 10;
                 if (hRef) {
-                    MoveWindow(hRef, 10, pageTop, 90, 28, TRUE);
+                    MoveWindow(hRef, x, pageTop, 90, 28, TRUE);
                     ShowWindow(hRef, SW_SHOW);
+                    x += 90 + 12;
                 }
-                /* 原版 Driver 页的三个右键菜单项 */
                 b = GetDlgItem(hWnd, IDC_KM_ONLYLOADED);
-                if (b) { MoveWindow(b, 88, pageTop + 4, 200, 24, TRUE); ShowWindow(b, SW_SHOW); }
+                if (b) {
+                    MoveWindow(b, x, pageTop + 4, 200, 24, TRUE);
+                    ShowWindow(b, SW_SHOW);
+                    x += 200 + 12;
+                }
                 b = GetDlgItem(hWnd, IDC_KM_COPYNAME);
-                if (b) { MoveWindow(b, 292, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                if (b) {
+                    MoveWindow(b, x, pageTop, 90, 28, TRUE);
+                    ShowWindow(b, SW_SHOW);
+                    x += 90 + 12;
+                }
                 b = GetDlgItem(hWnd, IDC_KM_COPYPATH);
-                if (b) { MoveWindow(b, 386, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                if (b) {
+                    MoveWindow(b, x, pageTop, 90, 28, TRUE);
+                    ShowWindow(b, SW_SHOW);
+                    x += 90 + 12;
+                }
                 b = GetDlgItem(hWnd, IDC_KM_DRVOP);
-                if (b) { MoveWindow(b, 480, pageTop, 90, 28, TRUE); ShowWindow(b, SW_SHOW); }
+                if (b) {
+                    MoveWindow(b, x, pageTop, 90, 28, TRUE);
+                    x += 90 + 12;
+                }
+                /* Restore 与 Driver Ops 互斥显示，占同一格 */
                 b = GetDlgItem(hWnd, IDC_KM_RESTORE);
-                if (b) { MoveWindow(b, 480, pageTop, 90, 28, TRUE); }
+                if (b) MoveWindow(b, x - 102, pageTop, 90, 28, TRUE);
                 b = GetDlgItem(hWnd, IDC_KM_RESTOREALL);
-                if (b) { MoveWindow(b, 574, pageTop, 100, 28, TRUE); }
+                if (b) MoveWindow(b, x, pageTop, 100, 28, TRUE);
             }
-            if (g_hKmStatus) MoveWindow(g_hKmStatus, 576, pageTop + 6,
-                                        (w > 700 ? w - 576 : 200), 34, TRUE);
+            /* 状态文字紧跟在最后一个按钮右侧，最小起 640，避免与按钮挤在一起 */
+            if (g_hKmStatus) {
+                int sx = (x > 640) ? x : 640;
+                MoveWindow(g_hKmStatus, sx, pageTop + 6,
+                           (w > sx ? w - sx : 200), 34, TRUE);
+            }
             if (g_hKmKExtra) MoveWindow(g_hKmKExtra, 10, pageTop + 34, w, 18, TRUE);
             if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 54, w, 26, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY + 20, w, listH - 20, TRUE);
