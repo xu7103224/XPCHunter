@@ -24,7 +24,8 @@ static const FE_THEME_COLORS kDark = {
     RGB(0x3A, 0x3A, 0x3D),   /* Grid       */
     RGB(0x6A, 0xC8, 0x7A),   /* Accent 绿  */
     RGB(0xE0, 0xB0, 0x50),   /* Warn   黄  */
-    RGB(0xE0, 0x6C, 0x6C)    /* Danger 红  */
+    RGB(0xE0, 0x6C, 0x6C),   /* Danger 红  */
+    RGB(0x5A, 0xA8, 0xF0)    /* Signed 蓝（签名有效，原版用蓝色字体） */
 };
 
 static const FE_THEME_COLORS kLight = {
@@ -39,12 +40,97 @@ static const FE_THEME_COLORS kLight = {
     RGB(0xD0, 0xD0, 0xD0),   /* Grid       */
     RGB(0x1B, 0x7A, 0x2E),   /* Accent 绿  */
     RGB(0x8A, 0x60, 0x00),   /* Warn   黄  */
-    RGB(0xB0, 0x1C, 0x1C)    /* Danger 红  */
+    RGB(0xB0, 0x1C, 0x1C),   /* Danger 红  */
+    RGB(0x00, 0x40, 0xA0)    /* Signed 蓝（签名有效） */
 };
 
 static BOOL g_Dark = TRUE;   /* 默认深色（本步的目标） */
 static HBRUSH g_hbrBg = NULL;
 static HBRUSH g_hbrPanel = NULL;
+
+/* ---- 签名着色缓存 ----
+   原版把签名合法的条目标成蓝色。判定要读文件做 WinVerifyTrust，
+   放在绘制路径里会让长列表（176 进程 / 383 驱动）每帧都卡住，
+   所以只做"登记 + 查询"：填充列表的代码在已有路径信息时登记，
+   绘制时 O(1) 查表。用固定大小的开放寻址表，路径哈希做键，
+   冲突时按字符串比较；容量取 4096 足够覆盖本机三类列表。 */
+#define FE_SIG_SLOTS 4096
+
+typedef struct _FE_SIG_SLOT {
+    unsigned long long  Hash;
+    int                 State;
+    char                Path[260];
+} FE_SIG_SLOT;
+
+static FE_SIG_SLOT g_SigSlots[FE_SIG_SLOTS];
+
+static unsigned long long FeSigHash(const char *s)
+{
+    unsigned long long h = 1469598103934665603ULL;   /* FNV-1a 64 */
+    while (*s) {
+        h ^= (unsigned char)*s++;
+        h *= 1099511628211ULL;
+    }
+    return h ? h : 1;
+}
+
+void FeSigReset(void)
+{
+    ZeroMemory(g_SigSlots, sizeof(g_SigSlots));
+}
+
+void FeSigSet(const char *Path, int State)
+{
+    unsigned long long h;
+    unsigned int i;
+
+    if (!Path || !Path[0])
+        return;
+    h = FeSigHash(Path);
+    i = (unsigned int)(h % FE_SIG_SLOTS);
+
+    for (;;) {
+        if (g_SigSlots[i].Hash == 0 || g_SigSlots[i].Hash == h) {
+            if (g_SigSlots[i].Hash == 0) {
+                g_SigSlots[i].Hash = h;
+                strncpy_s(g_SigSlots[i].Path, sizeof(g_SigSlots[i].Path),
+                          Path, _TRUNCATE);
+            }
+            g_SigSlots[i].State = State;
+            return;
+        }
+        i = (i + 1) % FE_SIG_SLOTS;
+    }
+}
+
+int FeSigGet(const char *Path)
+{
+    unsigned long long h;
+    unsigned int i, start;
+
+    if (!Path || !Path[0])
+        return FE_SIG_UNKNOWN;
+    h = FeSigHash(Path);
+    i = (unsigned int)(h % FE_SIG_SLOTS);
+    start = i;
+
+    for (;;) {
+        if (g_SigSlots[i].Hash == 0)
+            return FE_SIG_UNKNOWN;
+        if (g_SigSlots[i].Hash == h && _stricmp(g_SigSlots[i].Path, Path) == 0)
+            return g_SigSlots[i].State;
+        i = (i + 1) % FE_SIG_SLOTS;
+        if (i == start)
+            return FE_SIG_UNKNOWN;
+    }
+}
+
+COLORREF FeSigTextColor(int State, COLORREF Normal)
+{
+    if (State == FE_SIG_SIGNED)
+        return FeThemeColors()->Signed;
+    return Normal;
+}
 
 void FeThemeSetDark(BOOL Dark)
 {
@@ -299,13 +385,28 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd)
         cd->clrText = selected ? c->SelectText : c->Text;
         cd->clrTextBk = selected ? c->Select : c->Panel;
 
-        /* 第三步-3：状态列逐行着色（语义状态约定在最后一列）。 */
         if (!selected) {
             HWND hList = cd->nmcd.hdr.hwndFrom;
             int nCol = Header_GetItemCount(
                            (HWND)SendMessageA(hList, LVM_GETHEADER, 0, 0));
             int iItem = (int)cd->nmcd.dwItemSpec;
 
+            /* 【2026-11-02 签名着色】原版把签名合法的条目显示成蓝色字体。
+               状态存在 item data 里（填充列表时由 FeSigGet 查缓存写入），
+               这里只读，不触发任何文件校验。 */
+            {
+                LVITEMW q;
+                ZeroMemory(&q, sizeof(q));
+                q.mask = LVIF_PARAM;
+                q.iItem = iItem;
+                if (SendMessageA(hList, LVM_GETITEMW, 0, (LPARAM)&q)) {
+                    int st = (int)q.lParam;
+                    if (st == FE_SIG_SIGNED)
+                        cd->clrText = c->Signed;
+                }
+            }
+
+            /* 第三步-3：状态列逐行着色（语义状态约定在最后一列）。 */
             if (nCol > 0) {
                 char txt[256];
                 LVITEMA it;
@@ -335,6 +436,17 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd)
             HWND hList = cd->nmcd.hdr.hwndFrom;
             int nCol = Header_GetItemCount(
                            (HWND)SendMessageA(hList, LVM_GETHEADER, 0, 0));
+            /* 签名色整行生效：先按 item data 取一次 */
+            COLORREF rowColor = c->Text;
+            {
+                LVITEMW q;
+                ZeroMemory(&q, sizeof(q));
+                q.mask = LVIF_PARAM;
+                q.iItem = (int)cd->nmcd.dwItemSpec;
+                if (SendMessageA(hList, LVM_GETITEMW, 0, (LPARAM)&q)
+                    && (int)q.lParam == FE_SIG_SIGNED)
+                    rowColor = c->Signed;
+            }
             /* 只在状态列取语义色，其余列保持主文本色 */
             if (nCol > 0 && (int)cd->iSubItem == nCol - 1) {
                 char txt[256];
@@ -346,9 +458,9 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd)
                 txt[0] = 0;
                 SendMessageA(hList, LVM_GETITEMTEXTA,
                              (WPARAM)cd->nmcd.dwItemSpec, (LPARAM)&it);
-                cd->clrText = txt[0] ? FeThemeStatusColor(txt) : c->Text;
+                cd->clrText = txt[0] ? FeThemeStatusColor(txt) : rowColor;
             } else {
-                cd->clrText = c->Text;
+                cd->clrText = rowColor;
             }
         }
         return FALSE;

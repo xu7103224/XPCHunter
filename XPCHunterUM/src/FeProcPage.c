@@ -137,6 +137,104 @@ static ULONG ProcBuildOrder(int **OutOrder)
     return n;
 }
 
+/* ------------------------------------------------------------ 签名后台扫描
+   原版 Process 页把签名合法的 exe 显示成蓝色字体。判定要读文件做
+   WinVerifyTrust，176 个进程串行校验会把 UI 卡死几秒到几十秒，
+   所以放到一个后台线程里算，算完发消息让列表重绘。
+
+   线程只做两件事：对每个还没登记过的路径调 FeVerifyFileSignature，
+   结果写进 FeSigSet 的缓存。缓存本身是全局的、只在 UI 线程读，
+   写侧由扫描线程独占 —— 用 g_SigScanning 保证同一时刻只有一个扫描线程。 */
+static volatile LONG g_SigScanning = 0;   /* FE_WM_SIGDONE 定义在 FePages.h */
+
+typedef struct _FE_SIG_SCAN_ARG {
+    HWND        Notify;      /* 算完后往这个窗口发 FE_WM_SIGDONE */
+    ULONG       Count;
+    char      **Paths;       /* 待校验路径（已去重、已跳过已缓存项） */
+} FE_SIG_SCAN_ARG;
+
+static DWORD WINAPI FeSigScanThread(LPVOID Param)
+{
+    FE_SIG_SCAN_ARG *a = (FE_SIG_SCAN_ARG *)Param;
+    ULONG i;
+
+    if (a) {
+        for (i = 0; i < a->Count; i++) {
+            int st;
+            if (!a->Paths[i] || !a->Paths[i][0])
+                continue;
+            st = FeVerifyFileSignature(a->Paths[i]) ? FE_SIG_SIGNED : FE_SIG_UNSIGNED;
+            FeSigSet(a->Paths[i], st);
+            free(a->Paths[i]);
+        }
+        if (a->Paths)
+            free(a->Paths);
+        if (a->Notify)
+            PostMessageA(a->Notify, FE_WM_SIGDONE, 0, 0);
+        free(a);
+    }
+    InterlockedExchange(&g_SigScanning, 0);
+    return 0;
+}
+
+/* 收集还没校验过的进程路径，起线程去算。已经算过的直接跳过。
+   重复调用是安全的：正在扫描时直接返回。 */
+void FeProcPageKickSignatureScan(void)
+{
+    FE_SIG_SCAN_ARG *arg;
+    HANDLE th;
+    ULONG i, need = 0;
+
+    if (!g_ProcCacheValid || g_ProcCache.Count == 0)
+        return;
+    if (InterlockedCompareExchange(&g_SigScanning, 1, 0) != 0)
+        return;   /* 已有一个在跑 */
+
+    arg = (FE_SIG_SCAN_ARG *)calloc(1, sizeof(*arg));
+    if (!arg) {
+        InterlockedExchange(&g_SigScanning, 0);
+        return;
+    }
+    arg->Paths = (char **)calloc(g_ProcCache.Count, sizeof(char *));
+    if (!arg->Paths) {
+        free(arg);
+        InterlockedExchange(&g_SigScanning, 0);
+        return;
+    }
+    arg->Notify = g_hProc;
+
+    for (i = 0; i < g_ProcCache.Count; i++) {
+        char path[FE_PROC_PATH_CHARS * 2];
+        FeWideToAnsi(g_ProcCache.Items[i].Path, path, sizeof(path));
+        if (!path[0])
+            continue;
+        if (FeSigGet(path) != FE_SIG_UNKNOWN)
+            continue;                       /* 已判定过，不重复读盘 */
+        arg->Paths[need] = _strdup(path);
+        if (arg->Paths[need])
+            need++;
+    }
+    arg->Count = need;
+
+    if (need == 0) {
+        free(arg->Paths);
+        free(arg);
+        InterlockedExchange(&g_SigScanning, 0);
+        return;
+    }
+
+    th = CreateThread(NULL, 0, FeSigScanThread, arg, 0, NULL);
+    if (!th) {
+        for (i = 0; i < need; i++)
+            free(arg->Paths[i]);
+        free(arg->Paths);
+        free(arg);
+        InterlockedExchange(&g_SigScanning, 0);
+        return;
+    }
+    CloseHandle(th);
+}
+
 /* 按当前过滤 + 排序把缓存渲染进列表（列文本逻辑与原实现一致） */
 static void ProcRenderRows(void)
 {
@@ -149,11 +247,16 @@ static void ProcRenderRows(void)
     if (!n || !order)
         return;
 
+    /* 【2026-11-02 签名着色】原版把签名合法的 exe 显示成蓝色字体。
+       状态从缓存查（后台线程登记过就命中），绘制路径里不读文件。 */
+    FeProcPageKickSignatureScan();
+
     for (i = 0; i < n; i++) {
         FE_PROCESS *it = &g_ProcCache.Items[order[i]];
         LVITEMA item;
         char buf[256];
         char path[FE_PROC_PATH_CHARS * 2];
+        int sigState;
 
         ZeroMemory(&item, sizeof(item));
         item.mask = LVIF_TEXT;
@@ -168,6 +271,15 @@ static void ProcRenderRows(void)
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
 
         FeWideToAnsi(it->Path, path, sizeof(path));
+                    sigState = path[0] ? FeSigGet(path) : FE_SIG_UNKNOWN;
+                    {
+                        LVITEMA lp;
+                        ZeroMemory(&lp, sizeof(lp));
+                        lp.mask = LVIF_PARAM;
+                        lp.iItem = (int)i;
+                        lp.lParam = sigState;
+                        SendMessageA(g_hProc, LVM_SETITEMW, 0, (LPARAM)&lp);
+                    }
         ZeroMemory(&item, sizeof(item));
         item.iSubItem = 2;
         item.pszText = path;
@@ -187,6 +299,34 @@ static void ProcRenderRows(void)
         SendMessageA(g_hProc, LVM_SETITEMTEXTA, (WPARAM)i, (LPARAM)&item);
     }
     g_ProcShown = n;
+    free(order);
+}
+
+/* 签名扫描完成后只刷新 item data 里的签名状态，不重排/不重填文本。
+   行序与 g_ProcCache 的对应关系和 ProcRenderRows 里的排序一致，
+   所以这里按同一套 order 重走一遍。 */
+void ProcRefreshSignatureStates(void)
+{
+    int *order;
+    ULONG i, n;
+
+    if (!g_hProc || !g_ProcCacheValid)
+        return;
+    n = ProcBuildOrder(&order);
+    if (!n || !order)
+        return;
+
+    for (i = 0; i < n; i++) {
+        char path[FE_PROC_PATH_CHARS * 2];
+        LVITEMA lp;
+
+        FeWideToAnsi(g_ProcCache.Items[order[i]].Path, path, sizeof(path));
+        ZeroMemory(&lp, sizeof(lp));
+        lp.mask = LVIF_PARAM;
+        lp.iItem = (int)i;
+        lp.lParam = path[0] ? FeSigGet(path) : FE_SIG_UNKNOWN;
+        SendMessageA(g_hProc, LVM_SETITEMW, 0, (LPARAM)&lp);
+    }
     free(order);
 }
 
@@ -1087,10 +1227,232 @@ void DoProcessOp(int Op)
 #define PROC_ID_ALLOC_MEM     (PROC_MENU_BASE + 22)
 #define PROC_ID_MOD_PROT      (PROC_MENU_BASE + 23)
 #define PROC_ID_FREE_MEM      (PROC_MENU_BASE + 24)
+/* 【2026-11-02】原版 Process 页右键的 hook 检查两项 */
+#define PROC_ID_CHECK_HOOK    (PROC_MENU_BASE + 25)   /* 检查当前进程 hook */
+#define PROC_ID_CHECK_HOOK_ALL (PROC_MENU_BASE + 26)  /* 检查所有进程 hook */
 
 /* Only Show Selected 勾选项：只保留选中的行（在原版里是"仅显示某列非空"，
    这里实现为等价的实用过滤——只显示当前选中行，便于在长列表中聚焦） */
 BOOL g_ProcOnlySelected = FALSE;
+
+/* ---------------------------------------------------------------- Hook 检查
+   原版 Process 页右键有两项：检查当前进程 hook / 检查所有进程 hook。
+   是"进到某个进程里去扫 ring3 钩子"，不是扫内核 —— 走的是已有的
+   FeScanRing3Hooks(pid)（IAT 劫持 + 主模块 inline patch 两轮），
+   结果填进下方详情列表并切到 Ring3 视图。
+
+   注意：FeScanRing3Hooks 需要 PROCESS_VM_READ，受保护/系统进程会失败，
+   这种情况要如实报"无权限"，不能显示成"没有 hook"。 */
+
+/* 把一次扫描结果写进详情列表并切到 Ring3 视图。
+   返回扫到的条数；scanOk 为 FALSE 时无法判定。 */
+static ULONG ProcShowHookResult(ULONG Pid, const char *Name, BOOL scanOk,
+                                FE_HOOK_LIST *List)
+{
+    int tab;
+
+    if (!g_hTabs || !g_hDetail)
+        return 0;
+
+    /* 详情页子 Tab：0 Modules 1 Threads 2 Windows 3 Handles 4 Memory
+       5 Timer 6 HotKey。hook 结果借用"目标进程的模块视图"位置不合适，
+       直接清空列表按 hook 格式重填，并停在模块子页（列是与 hook 无关的
+       模块列，会被 ClearDetailColumns 按 hook 口径重新建）。 */
+    tab = 0;
+    SendMessageA(g_hTabs, TCM_SETCURSEL, (WPARAM)tab, 0);
+    g_DetailTab = -1;
+    DoRefreshDetail();
+
+    /* 覆盖成 hook 结果 */
+    while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
+        ;
+    SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
+    {
+        static const char *cols[] = { "Kind", "Owner", "IAT/Range", "Target", "Detail" };
+        static const int widths[] = { 70, 180, 170, 170, 400 };
+        int i;
+        for (i = 0; i < 5; i++) {
+            LVCOLUMNA col;
+            ZeroMemory(&col, sizeof(col));
+            col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+            col.pszText = (LPSTR)cols[i];
+            col.cx = widths[i];
+            col.iSubItem = i;
+            SendMessageA(g_hDetail, LVM_INSERTCOLUMNA, i, (LPARAM)&col);
+        }
+    }
+
+    if (!scanOk) {
+        LVITEMA it;
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = 0;
+        it.pszText = (LPSTR)Name;
+        SendMessageA(g_hDetail, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        DetailSetText( 0, 1, "-");
+        DetailSetText( 0, 2, "-");
+        DetailSetText( 0, 3, "-");
+        DetailSetText( 0, 4,
+                            "scan failed: no permission (protected/system process)");
+        return 0;
+    }
+
+    {
+        ULONG i, n = List->Count;
+        for (i = 0; i < n; i++) {
+            LVITEMA it;
+            char a[32], t[32], note[256];
+
+            ZeroMemory(&it, sizeof(it));
+            it.mask = LVIF_TEXT;
+            it.iItem = (int)i;
+            it.pszText = (LPSTR)"Ring3";
+            SendMessageA(g_hDetail, LVM_INSERTITEMA, 0, (LPARAM)&it);
+            DetailSetText( (int)i, 1, List->Items[i].Owner);
+            sprintf_s(a, sizeof(a), "%016I64X", List->Items[i].IatAddress);
+            DetailSetText( (int)i, 2, a);
+            sprintf_s(t, sizeof(t), "%016I64X", List->Items[i].Target);
+            DetailSetText( (int)i, 3, t);
+            sprintf_s(note, sizeof(note), "%s-->Ring3 Hook  (%s)",
+                      List->Items[i].Owner, List->Items[i].TargetModule);
+            DetailSetText( (int)i, 4, note);
+        }
+    }
+    return List->Count;
+}
+
+/* 检查当前选中进程的 hook */
+static void ProcCheckHookCurrent(void)
+{
+    ULONG pid = GetSelectedPid();
+    FE_HOOK_LIST list;
+    ULONG n;
+    char msg[420];
+    char name[128];
+
+    if (!pid) {
+        SetWindowTextA(g_hProcStatus, "Check Hook: select a process first");
+        return;
+    }
+    name[0] = 0;
+    FeListGetCellText(g_hProc, FeListGetSel(g_hProc), 1, name, sizeof(name));
+
+    SetWindowTextA(g_hProcStatus, "Check Hook: scanning this process...");
+    UpdateWindow(g_hProcStatus);
+
+    ZeroMemory(&list, sizeof(list));
+    {
+        BOOL ok = FeScanRing3Hooks(pid, &list);
+        n = ProcShowHookResult(pid, name[0] ? name : "(?)", ok, &list);
+        if (!ok) {
+            sprintf_s(msg, sizeof(msg),
+                      "Check Hook: pid %lu (%s) - scan failed, GetLastError=%lu",
+                      (unsigned long)pid, name[0] ? name : "?", GetLastError());
+        } else if (n == 0) {
+            sprintf_s(msg, sizeof(msg),
+                      "Check Hook: pid %lu (%s) - no ring3 hook found",
+                      (unsigned long)pid, name[0] ? name : "?");
+        } else {
+            sprintf_s(msg, sizeof(msg),
+                      "Check Hook: pid %lu (%s) - %lu suspicious entries",
+                      (unsigned long)pid, name[0] ? name : "?", n);
+        }
+        FeFreeHooks(&list);
+    }
+    SetWindowTextA(g_hProcStatus, msg);
+}
+
+/* 检查所有进程的 hook：逐个扫，把有命中的进程列出来。
+   受保护/无权限的进程单独计数，不算作"干净"也不报错。 */
+static void ProcCheckHookAll(void)
+{
+    ULONG i, total, scanned = 0, denied = 0, hitProcs = 0, hitEntries = 0;
+    char msg[420];
+
+    if (!g_ProcCacheValid || g_ProcCache.Count == 0) {
+        SetWindowTextA(g_hProcStatus, "Check All Hooks: refresh the process list first");
+        return;
+    }
+
+    if (g_hTabs) SendMessageA(g_hTabs, TCM_SETCURSEL, 0, 0);
+    g_DetailTab = -1;
+    DoRefreshDetail();
+    while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
+        ;
+    SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
+    {
+        static const char *cols[] = { "Kind", "PID", "Process", "Target", "Detail" };
+        static const int widths[] = { 70, 80, 200, 170, 420 };
+        int k;
+        for (k = 0; k < 5; k++) {
+            LVCOLUMNA col;
+            ZeroMemory(&col, sizeof(col));
+            col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+            col.pszText = (LPSTR)cols[k];
+            col.cx = widths[k];
+            col.iSubItem = k;
+            SendMessageA(g_hDetail, LVM_INSERTCOLUMNA, k, (LPARAM)&col);
+        }
+    }
+
+    total = g_ProcCache.Count;
+    for (i = 0; i < total; i++) {
+        ULONG pid = g_ProcCache.Items[i].Pid;
+        FE_HOOK_LIST list;
+        char st[128];
+        int row;
+
+        if (!pid)
+            continue;
+
+        ZeroMemory(&list, sizeof(list));
+        sprintf_s(st, sizeof(st), "Check All Hooks: scanning %lu/%lu (pid %lu)...",
+                  (unsigned long)(i + 1), (unsigned long)total, (unsigned long)pid);
+        SetWindowTextA(g_hProcStatus, st);
+        UpdateWindow(g_hProcStatus);
+
+        if (!FeScanRing3Hooks(pid, &list)) {
+            denied++;
+            FeFreeHooks(&list);
+            continue;
+        }
+        scanned++;
+        if (list.Count) {
+            ULONG j;
+            hitProcs++;
+            hitEntries += list.Count;
+            for (j = 0; j < list.Count; j++) {
+                char a[32], note[256];
+                LVITEMA it;
+
+                ZeroMemory(&it, sizeof(it));
+                it.mask = LVIF_TEXT;
+                it.iItem = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0);
+                it.pszText = (LPSTR)"Ring3";
+                SendMessageA(g_hDetail, LVM_INSERTITEMA, 0, (LPARAM)&it);
+                row = (int)SendMessageA(g_hDetail, LVM_GETITEMCOUNT, 0, 0) - 1;
+
+                sprintf_s(a, sizeof(a), "%lu", (unsigned long)pid);
+                DetailSetText( row, 1, a);
+                DetailSetText( row, 2,
+                                    g_ProcCache.Items[i].Name[0]
+                                        ? g_ProcCache.Items[i].Name : "(?)");
+                sprintf_s(a, sizeof(a), "%016I64X", list.Items[j].Target);
+                DetailSetText( row, 3, a);
+                sprintf_s(note, sizeof(note), "%s-->Ring3 Hook  (%s)",
+                          list.Items[j].Owner, list.Items[j].TargetModule);
+                DetailSetText( row, 4, note);
+            }
+        }
+        FeFreeHooks(&list);
+    }
+
+    sprintf_s(msg, sizeof(msg),
+              "Check All Hooks: %lu scanned, %lu denied, %lu process(es) with %lu entrie(s)",
+              (unsigned long)scanned, (unsigned long)denied,
+              (unsigned long)hitProcs, (unsigned long)hitEntries);
+    SetWindowTextA(g_hProcStatus, msg);
+}
 
 static void ProcShowProperties(void)
 {
@@ -1181,6 +1543,10 @@ void DoProcessContextMenu(HWND hWnd, int X, int Y)
     FeMenuAddEx(hMenu, PROC_ID_FIND_TARGET, "Find Target", pid != 0);    /* 定位到进程文件 */
     FeMenuAddEx(hMenu, PROC_ID_PROPERTIES, "Properties", pid != 0);      /* 查看进程属性 */
     FeMenuAddEx(hMenu, PROC_ID_STEALTH, "Scan Stealth Code", pid != 0);   /* 隐蔽代码扫描 */
+    /* 【2026-11-02】原版右键的 hook 检查两项 */
+    FeMenuAddEx(hMenu, PROC_ID_CHECK_HOOK, "Check Hook In This Process", pid != 0);
+    FeMenuAddEx(hMenu, PROC_ID_CHECK_HOOK_ALL, "Check Hook In All Processes",
+                g_ProcCacheValid && g_ProcCache.Count > 0);
     FeMenuSep(hMenu);
     FeMenuAddEx(hMenu, PROC_ID_ALLOC_MEM, "Allocate Memory", pid != 0);    /* 分配内存 */
     FeMenuAddEx(hMenu, PROC_ID_MOD_PROT, "Modify Memory Protect", pid != 0); /* 改内存保护 */
@@ -1282,6 +1648,12 @@ void DoProcessContextMenu(HWND hWnd, int X, int Y)
         FeStealthFree();
         break;
     }
+    case PROC_ID_CHECK_HOOK:
+        ProcCheckHookCurrent();
+        break;
+    case PROC_ID_CHECK_HOOK_ALL:
+        ProcCheckHookAll();
+        break;
     case PROC_ID_ONLY_SEL:
         g_ProcOnlySelected = !g_ProcOnlySelected;
         {

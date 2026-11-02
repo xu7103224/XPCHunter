@@ -246,6 +246,14 @@ void FeProcPageOnColumnClick(int col);
 void FeProcPageToggleAuto(HWND hWnd);
 /* 切离 Process 页时调用：停掉 Auto Refresh 并把按钮文字复位为 OFF */
 void FeProcPageStopAuto(HWND hWnd);
+/* 后台校验进程镜像签名（供蓝色字体着色），算完发 FE_WM_SIGDONE 给主窗口。
+   重复调用安全：已有扫描在跑时直接返回。 */
+void FeProcPageKickSignatureScan(void);
+/* 签名扫描完成后只更新列表行的签名状态并重画（不重排、不重查驱动） */
+void ProcRefreshSignatureStates(void);
+void KmRefreshSignatureStates(void);
+/* 签名扫描完成的通知消息（主窗口收到后重绘列表） */
+#define FE_WM_SIGDONE  (WM_APP + 0x51)
 /* 排序器状态（--selftest-sort-cli 在进程内直接驱动，见 CliMain.c） */
 extern FE_PROCESS_LIST g_ProcCache;
 extern unsigned char  *g_ProcAcc;

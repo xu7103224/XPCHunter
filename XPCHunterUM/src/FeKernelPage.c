@@ -9,6 +9,7 @@ char  *g_PromptBuf;
 size_t g_PromptChars;
 BOOL   g_PromptOk;
 #include "FePages.h"
+#include "FeTheme.h"
 
 HWND g_hKmTabs, g_hKmList, g_hKmStatus, g_hKmKExtra;
 HWND g_hKmSel1, g_hKmSel2, g_hKmSel3;
@@ -102,6 +103,107 @@ void KmSetText(HWND hList, int iItem, int iSub, const char *text)
     SendMessageA(hList, LVM_SETITEMTEXTA, (WPARAM)iItem, (LPARAM)&it);
 }
 
+/* --------------------------------------------------------- 签名后台扫描（Kernel 页）
+   与 Process 页共用同一套签名缓存（FeSigGet/FeSigSet）。这里扫 Kernel Module
+   与 Driver 两个子页里出现的文件路径，算完发 FE_WM_SIGDONE 让主窗口重绘。 */
+static volatile LONG g_KmSigScanning = 0;
+
+typedef struct _FE_KM_SIG_ARG {
+    HWND   Notify;
+    ULONG  Count;
+    char **Paths;
+} FE_KM_SIG_ARG;
+
+static DWORD WINAPI KmSigScanThread(LPVOID Param)
+{
+    FE_KM_SIG_ARG *a = (FE_KM_SIG_ARG *)Param;
+    ULONG i;
+
+    if (a) {
+        for (i = 0; i < a->Count; i++) {
+            if (!a->Paths[i] || !a->Paths[i][0])
+                continue;
+            FeSigSet(a->Paths[i],
+                     FeVerifyFileSignature(a->Paths[i]) ? FE_SIG_SIGNED : FE_SIG_UNSIGNED);
+            free(a->Paths[i]);
+        }
+        if (a->Paths) free(a->Paths);
+        if (a->Notify) PostMessageA(a->Notify, FE_WM_SIGDONE, 0, 0);
+        free(a);
+    }
+    InterlockedExchange(&g_KmSigScanning, 0);
+    return 0;
+}
+
+/* 收集一次要校验的路径（跳过已缓存的）。重复调用安全。 */
+static void KmKickSignature(const char *const *Paths, ULONG Count, HWND Notify)
+{
+    FE_KM_SIG_ARG *arg;
+    HANDLE th;
+    ULONG i, need = 0;
+
+    if (!Count)
+        return;
+    if (InterlockedCompareExchange(&g_KmSigScanning, 1, 0) != 0)
+        return;
+
+    arg = (FE_KM_SIG_ARG *)calloc(1, sizeof(*arg));
+    if (!arg) { InterlockedExchange(&g_KmSigScanning, 0); return; }
+    arg->Paths = (char **)calloc(Count, sizeof(char *));
+    if (!arg->Paths) { free(arg); InterlockedExchange(&g_KmSigScanning, 0); return; }
+    arg->Notify = Notify;
+
+    for (i = 0; i < Count; i++) {
+        if (!Paths[i] || !Paths[i][0])
+            continue;
+        if (FeSigGet(Paths[i]) != FE_SIG_UNKNOWN)
+            continue;
+        arg->Paths[need] = _strdup(Paths[i]);
+        if (arg->Paths[need])
+            need++;
+    }
+    arg->Count = need;
+
+    if (need == 0) {
+        free(arg->Paths); free(arg);
+        InterlockedExchange(&g_KmSigScanning, 0);
+        return;
+    }
+
+    th = CreateThread(NULL, 0, KmSigScanThread, arg, 0, NULL);
+    if (!th) {
+        for (i = 0; i < need; i++) free(arg->Paths[i]);
+        free(arg->Paths); free(arg);
+        InterlockedExchange(&g_KmSigScanning, 0);
+        return;
+    }
+    CloseHandle(th);
+}
+
+/* 签名算完后刷新当前列表行的签名状态（不重查驱动） */
+void KmRefreshSignatureStates(void)
+{
+    int i, rows;
+
+    if (!g_hKmList)
+        return;
+    rows = ListView_GetItemCount(g_hKmList);
+    for (i = 0; i < rows; i++) {
+        char path[1024];
+        LVITEMA lp;
+
+        path[0] = 0;
+        FeListGetCellText(g_hKmList, i, 3, path, sizeof(path));
+        ZeroMemory(&lp, sizeof(lp));
+        lp.mask = LVIF_PARAM;
+        lp.iItem = i;
+        lp.lParam = path[0] ? FeSigGet(path) : FE_SIG_UNKNOWN;
+        SendMessageA(g_hKmList, LVM_SETITEMW, 0, (LPARAM)&lp);
+    }
+    InvalidateRect(g_hKmList, NULL, TRUE);
+}
+
+
 void DoRefreshKernel(void)
 {
     char status[1024];   /* Driver 页状态栏要拼三段内核项文案，256 不够 */
@@ -135,8 +237,32 @@ void DoRefreshKernel(void)
                       list.Items[i].Name[0] ? list.Items[i].Name : "(?)");
             KmSetText(g_hKmList, (int)i, 3,
                       list.Items[i].Path[0] ? list.Items[i].Path : "(?)");
+            /* 【2026-11-02 签名着色】原版把签名合法的条目显示成蓝色字体。
+               只查缓存（填充前已登记过就直接命中），不在这里读文件。 */
+            {
+                int sigst = list.Items[i].Path[0] ? FeSigGet(list.Items[i].Path)
+                                                  : FE_SIG_UNKNOWN;
+                LVITEMA lp;
+                ZeroMemory(&lp, sizeof(lp));
+                lp.mask = LVIF_PARAM;
+                lp.iItem = (int)i;
+                lp.lParam = sigst;
+                SendMessageA(g_hKmList, LVM_SETITEMW, 0, (LPARAM)&lp);
+            }
         }
         sprintf_s(status, sizeof(status), "Kernel Module: %lu loaded modules", list.Count);
+        /* 后台校验签名，算完重绘成蓝色 */
+        {
+            const char **paths = (const char **)calloc(list.Count ? list.Count : 1,
+                                                        sizeof(char *));
+            if (paths) {
+                ULONG k;
+                for (k = 0; k < list.Count; k++)
+                    paths[k] = list.Items[k].Path[0] ? list.Items[k].Path : NULL;
+                KmKickSignature(paths, list.Count, g_hKmList ? GetParent(g_hKmList) : NULL);
+                free(paths);
+            }
+        }
         FeFreeKernelModules(&list);
     } else if (g_KmTab == 1) {
         FE_DRIVER_LIST list;
@@ -179,11 +305,35 @@ void DoRefreshKernel(void)
             KmSetText(g_hKmList, row, 2, st);
             KmSetText(g_hKmList, row, 3,
                       list.Items[i].Path[0] ? list.Items[i].Path : "(?)");
+            /* 【2026-11-02 签名着色】原版把签名合法的条目显示成蓝色字体。
+               只查缓存（填充前已登记过就直接命中），不在这里读文件。 */
+            {
+                int sigst = list.Items[i].Path[0] ? FeSigGet(list.Items[i].Path)
+                                                  : FE_SIG_UNKNOWN;
+                LVITEMA lp;
+                ZeroMemory(&lp, sizeof(lp));
+                lp.mask = LVIF_PARAM;
+                lp.iItem = row;
+                lp.lParam = sigst;
+                SendMessageA(g_hKmList, LVM_SETITEMW, 0, (LPARAM)&lp);
+            }
         }
         sprintf_s(status, sizeof(status),
                   "Driver: %lu kernel driver services%s",
                   (ULONG)ListView_GetItemCount(g_hKmList),
                   g_KmOnlyLoaded ? " (loaded only)" : "");
+        /* 后台校验签名，算完重绘成蓝色 */
+        {
+            const char **paths = (const char **)calloc(list.Count ? list.Count : 1,
+                                                        sizeof(char *));
+            if (paths) {
+                ULONG k;
+                for (k = 0; k < list.Count; k++)
+                    paths[k] = list.Items[k].Path[0] ? list.Items[k].Path : NULL;
+                KmKickSignature(paths, list.Count, g_hKmList ? GetParent(g_hKmList) : NULL);
+                free(paths);
+            }
+        }
         FeFreeDrivers(&list);
         /* 原版 Driver 页状态栏同时给出隐藏驱动/可疑驱动对象计数 */
         {
@@ -1566,6 +1716,9 @@ void DoLocateDriverInRegistry(void)
 #define DRV_ID_LOC_REG       (DRV_MENU_BASE + 17)
 #define DRV_ID_LOC_FILE      (DRV_MENU_BASE + 18)
 #define DRV_ID_EXPORT        (DRV_MENU_BASE + 19)
+/* 【2026-11-02】原版 Driver 页右键的 hook 检查两项 */
+#define DRV_ID_CHECK_HOOK     (DRV_MENU_BASE + 20)   /* 检查当前驱动 hook */
+#define DRV_ID_CHECK_HOOK_ALL (DRV_MENU_BASE + 21)   /* 检查所有驱动 hook */
 /* Set Start Type 子菜单：0=Boot 1=System 2=Auto 3=Demand 4=Disabled */
 #define DRV_ID_START_BOOT    (DRV_MENU_BASE + 31)
 #define DRV_ID_START_SYSTEM  (DRV_MENU_BASE + 32)
@@ -1668,6 +1821,200 @@ static void DrvAnalyseOnline(void)
     SetWindowTextA(g_hKmStatus, "Analyse Online: opened browser");
 }
 
+/* ------------------------------------------------------------- Driver hook 检查
+   原版 Driver 页右键有两项：检查当前驱动 hook / 检查所有驱动 hook。
+
+   驱动是内核态，hook 的落脚点是内核里的函数表 —— 本工程的 0x117
+   (CmdEnumHookInfo) 返回两张系统调用表（SSDT / Shadow SSDT）的全部条目
+   及两个改写标志：FlagAddr（表项当前值 != 磁盘原始值）、FlagBytes
+   （内存前 16 字节 != 磁盘 16 字节，即 inline patch）。这正是原版
+   Ring0 Hooks 页的数据源。
+
+   "当前驱动"对应到"该模块自己的代码有没有被 inline patch"：条目里
+   不是逐模块索引的，所以只能按 Original/Current 地址落在该驱动的
+   地址区间来判定。取出驱动基址与大小后即可匹配。 */
+
+/* 从 Kernel Module 列表（tab 0）取选中驱动的基址与大小 */
+static BOOL DrvSelectedModuleRange(ULONG64 *Base, ULONG64 *Size)
+{
+    int sel = FeListGetSel(g_hKmList);
+    char buf[64];
+
+    if (Base) *Base = 0;
+    if (Size) *Size = 0;
+    if (sel < 0)
+        return FALSE;
+
+    buf[0] = 0;
+    FeListGetCellText(g_hKmList, sel, 0, buf, sizeof(buf));
+    if (Base && buf[0])
+        *Base = (ULONG64)_strtoui64(buf, NULL, 16);
+    buf[0] = 0;
+    FeListGetCellText(g_hKmList, sel, 1, buf, sizeof(buf));
+    if (Size && buf[0])
+        *Size = (ULONG64)_strtoui64(buf, NULL, 16);
+
+    return *Base != 0;
+}
+
+/* 把 ring0 hook 结果写进 Kernel 列表（复用当前 Tab 的列） */
+static ULONG DrvShowHookRows(FE_RING0_HOOK_LIST *Hook, ULONG64 FilterBase,
+                             ULONG64 FilterSize, const char *FilterName)
+{
+    ULONG i, shown = 0;
+
+    if (!g_hKmList)
+        return 0;
+
+    ListView_DeleteAllItems(g_hKmList);
+    while (SendMessageA(g_hKmList, LVM_DELETECOLUMN, 0, 0))
+        ;
+    {
+        static const char *cols[] = { "Table", "Index", "Flag", "Current", "Original", "Disasm" };
+        static const int widths[] = { 70, 70, 110, 150, 150, 300 };
+        int k;
+        for (k = 0; k < 6; k++) {
+            LVCOLUMNA col;
+            ZeroMemory(&col, sizeof(col));
+            col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+            col.pszText = (LPSTR)cols[k];
+            col.cx = widths[k];
+            col.iSubItem = k;
+            SendMessageA(g_hKmList, LVM_INSERTCOLUMNA, k, (LPARAM)&col);
+        }
+    }
+
+    for (i = 0; i < Hook->Count; i++) {
+        FE_RING0_HOOK_ENTRY *e = &Hook->Items[i];
+        LVITEMA it;
+        char buf[64];
+        BOOL patched = (e->FlagAddr || e->FlagBytes);
+
+        /* 指定了驱动区间时，只留落在其中的条目 */
+        if (FilterBase) {
+            ULONG64 hi = FilterBase + (FilterSize ? FilterSize : 0x1000000);
+            BOOL inRange = (e->Current >= FilterBase && e->Current < hi)
+                        || (e->Original >= FilterBase && e->Original < hi);
+            if (!inRange)
+                continue;
+        } else if (!patched) {
+            /* 巡检所有驱动时只看被改过的项，否则 908 条全是 clean，
+               列表既看不出问题也白占一行。 */
+            continue;
+        }
+
+        ZeroMemory(&it, sizeof(it));
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)shown;
+        sprintf_s(buf, sizeof(buf), "Table %lu", (unsigned long)e->TableIndex);
+        it.pszText = buf;
+        SendMessageA(g_hKmList, LVM_INSERTITEMA, 0, (LPARAM)&it);
+
+        sprintf_s(buf, sizeof(buf), "%lu", (unsigned long)e->Index);
+        KmSetText(g_hKmList, (int)shown, 1, buf);
+        KmSetText(g_hKmList, (int)shown, 2,
+                  patched ? (e->FlagBytes ? "PATCHED(inline)" : "PATCHED(addr)") : "clean");
+        sprintf_s(buf, sizeof(buf), "%016I64X", e->Current);
+        KmSetText(g_hKmList, (int)shown, 3, buf);
+        sprintf_s(buf, sizeof(buf), "%016I64X", e->Original);
+        KmSetText(g_hKmList, (int)shown, 4, buf);
+        KmSetText(g_hKmList, (int)shown, 5, e->Disasm);
+        shown++;
+    }
+
+    (void)FilterName;
+    return shown;
+}
+
+/* 检查当前驱动 hook：取选中驱动的地址区间，列出落在其中的条目 */
+static void DrvCheckHookCurrent(void)
+{
+    FE_RING0_HOOK_LIST hook;
+    ULONG64 base = 0, size = 0;
+    char name[FE_DRV_NAME_CHARS];
+    char path[1024];
+    ULONG n;
+    char msg[420];
+
+    DrvSelectedPaths(name, sizeof(name), path, sizeof(path));
+    if (!name[0]) {
+        SetWindowTextA(g_hKmStatus, "Check Hook: select a driver first");
+        return;
+    }
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hKmStatus, "Check Hook: not connected");
+        return;
+    }
+
+    /* 驱动列表（tab 1）没有基址，切到 Kernel Module 子页按名字找 */
+    DrvSelectedModuleRange(&base, &size);
+
+    SetWindowTextA(g_hKmStatus, "Check Hook: querying ring0 hook table...");
+    UpdateWindow(g_hKmStatus);
+
+    ZeroMemory(&hook, sizeof(hook));
+    if (!FeLoadRing0Hooks(&g_Client, &hook)) {
+        SetWindowTextA(g_hKmStatus, "Check Hook: 0x117 returned no data");
+        return;
+    }
+
+    n = DrvShowHookRows(&hook, base, size, name);
+    if (!base) {
+        sprintf_s(msg, sizeof(msg),
+                  "Check Hook: %s - driver base unknown (switch to Kernel Module "
+                  "subpage and select it), showing all %lu modified entries",
+                  name, n);
+    } else if (n == 0) {
+        sprintf_s(msg, sizeof(msg),
+                  "Check Hook: %s (base %016I64X) - no hooked entry in range",
+                  name, base);
+    } else {
+        sprintf_s(msg, sizeof(msg),
+                  "Check Hook: %s (base %016I64X) - %lu entry(ies) reference this range",
+                  name, base, n);
+    }
+    SetWindowTextA(g_hKmStatus, msg);
+    FeFreeRing0Hooks(&hook);
+}
+
+/* 检查所有驱动 hook：列出全部被改写的 ring0 表项 */
+static void DrvCheckHookAll(void)
+{
+    FE_RING0_HOOK_LIST hook;
+    ULONG n;
+    char msg[420];
+
+    if (!g_Client.Opened) {
+        SetWindowTextA(g_hKmStatus, "Check All Hooks: not connected");
+        return;
+    }
+
+    SetWindowTextA(g_hKmStatus, "Check All Hooks: querying ring0 hook table...");
+    UpdateWindow(g_hKmStatus);
+
+    ZeroMemory(&hook, sizeof(hook));
+    if (!FeLoadRing0Hooks(&g_Client, &hook)) {
+        SetWindowTextA(g_hKmStatus, "Check All Hooks: 0x117 returned no data");
+        return;
+    }
+
+    n = DrvShowHookRows(&hook, 0, 0, NULL);
+    if (n == 0) {
+        sprintf_s(msg, sizeof(msg),
+                  "Check All Hooks: all %lu entries clean (no patched table entry)",
+                  (unsigned long)hook.Count);
+    } else {
+        sprintf_s(msg, sizeof(msg),
+                  "Check All Hooks: %lu modified entry(ies) out of %lu, "
+                  "table1=%lu table2=%lu",
+                  n, (unsigned long)hook.Count,
+                  (unsigned long)hook.Count1, (unsigned long)hook.Count2);
+    }
+    SetWindowTextA(g_hKmStatus, msg);
+    FeFreeRing0Hooks(&hook);
+}
+
 /* Properties：显示驱动服务键的属性摘要 */
 static void DrvShowProperties(void)
 {
@@ -1733,6 +2080,10 @@ void DoDriverContextMenu(HWND hWnd, int X, int Y)
     FeMenuAddEx(hMenu, DRV_ID_VERIFY, "Verify Driver Signature", sel >= 0);           /* 校验数字签名 */
     FeMenuAdd(hMenu, DRV_ID_VERIFY_ALL, "Verify All Driver Signatrue");               /* 校验所有 */
     FeMenuSep(hMenu);
+    /* 【2026-11-02】原版右键的 hook 检查两项 */
+    FeMenuAddEx(hMenu, DRV_ID_CHECK_HOOK, "Check Hook For This Driver", sel >= 0);
+    FeMenuAdd(hMenu, DRV_ID_CHECK_HOOK_ALL, "Check Hook For All Drivers");
+    FeMenuSep(hMenu);
     FeMenuAddCheck(hMenu, DRV_ID_ONLY_LOADED, "Only Show Loaded Driver",
                    g_KmOnlyLoaded != 0);                                              /* 仅显示已加载驱动 */
     FeMenuSep(hMenu);
@@ -1772,6 +2123,8 @@ void DoDriverContextMenu(HWND hWnd, int X, int Y)
     case DRV_ID_UNLOAD:        DoDriverOp(DRVOP_UNLOAD); break;
     case DRV_ID_VERIFY:        DoDriverOp(DRVOP_VERIFY); break;
     case DRV_ID_VERIFY_ALL:    DoDriverOp(DRVOP_VERIFY_ALL); break;
+    case DRV_ID_CHECK_HOOK:     DrvCheckHookCurrent(); break;
+    case DRV_ID_CHECK_HOOK_ALL: DrvCheckHookAll(); break;
     case DRV_ID_ONLY_LOADED:
         g_KmOnlyLoaded = g_KmOnlyLoaded ? 0 : 1;
         DoRefreshKernel();

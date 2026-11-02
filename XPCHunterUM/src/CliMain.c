@@ -2305,6 +2305,84 @@ static int CliSelftestSysViews_55(const char *lpCmdLine)
     return fail ? 2 : 0;
 }
 
+/* --checkhook-cli [pid]
+ * Process 页右键 "Check Hook In This Process" 的 CLI 版：对指定 pid
+ * （默认自身）跑 FeScanRing3Hooks，逐条打印。用来在实机上验证这条路
+ * 真的取到数据，而不是只确认菜单项存在。 */
+static int CliCheckHookCli_56(const char *lpCmdLine)
+{
+    ULONG pid = GetCurrentProcessId();
+    FE_HOOK_LIST list;
+    const char *p;
+    ULONG i;
+
+    if (!lpCmdLine || !strstr(lpCmdLine, "--checkhook-cli"))
+        return FE_CLI_NEXT;
+
+    p = strstr(lpCmdLine, "--checkhook-cli") + 15;
+    while (*p == ' ')
+        p++;
+    if (*p >= '0' && *p <= '9')
+        pid = (ULONG)strtoul(p, NULL, 0);
+
+    ZeroMemory(&list, sizeof(list));
+    printf("=== Check Hook (pid %lu) ===\n", (unsigned long)pid);
+    if (!FeScanRing3Hooks(pid, &list)) {
+        printf("  scan failed, GetLastError=%lu\n", GetLastError());
+        return 1;
+    }
+    printf("  entries: %lu\n", (unsigned long)list.Count);
+    for (i = 0; i < list.Count; i++) {
+        printf("  [%lu] %s  iat=%016I64X  target=%016I64X  (%s)\n",
+               (unsigned long)(i + 1), list.Items[i].Owner,
+               list.Items[i].IatAddress, list.Items[i].Target,
+               list.Items[i].TargetModule);
+    }
+    FeFreeHooks(&list);
+    return 0;
+}
+
+/* --checkdrvhook-cli
+ * Driver 页右键 "Check Hook For All Drivers" 的 CLI 版：取 0x117 的两张
+ * 系统调用表，统计并列出被改写的条目。 */
+static int CliCheckDrvHookCli_57(const char *lpCmdLine)
+{
+    FE_RING0_HOOK_LIST hook;
+    ULONG i, modified = 0;
+
+    if (!lpCmdLine || !strstr(lpCmdLine, "--checkdrvhook-cli"))
+        return FE_CLI_NEXT;
+
+    ZeroMemory(&hook, sizeof(hook));
+    printf("=== Check Driver Hook (0x117) ===\n");
+    if (!g_Client.Opened && !XpchOpen(&g_Client, "\\\\.\\View++ByLinxer")) {
+        printf("  connect failed\n");
+        return 1;
+    }
+    if (!FeLoadRing0Hooks(&g_Client, &hook)) {
+        printf("  0x117 returned no data\n");
+        return 1;
+    }
+    printf("  build=%lu  entries=%lu  table1=%lu  table2=%lu  modified=%lu\n",
+           (unsigned long)hook.Build, (unsigned long)hook.Count,
+           (unsigned long)hook.Count1, (unsigned long)hook.Count2,
+           (unsigned long)hook.ModifiedCount);
+    for (i = 0; i < hook.Count; i++) {
+        FE_RING0_HOOK_ENTRY *e = &hook.Items[i];
+        if (!e->FlagAddr && !e->FlagBytes)
+            continue;
+        modified++;
+        printf("  [T%lu:%lu] %s  current=%016I64X  original=%016I64X  %s\n",
+               (unsigned long)e->TableIndex, (unsigned long)e->Index,
+               e->FlagBytes ? "PATCHED(inline)" : "PATCHED(addr)",
+               e->Current, e->Original, e->Disasm);
+    }
+    if (modified == 0)
+        printf("  all entries clean (no patched table entry)\n");
+    FeFreeRing0Hooks(&hook);
+    return 0;
+}
+
 int FeCliDispatch(const char *lpCmdLine)
 {
     int r;
@@ -2419,6 +2497,10 @@ int FeCliDispatch(const char *lpCmdLine)
     if ((r = CliSelftestFileTools_54(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     if ((r = CliSelftestSysViews_55(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliCheckHookCli_56(lpCmdLine)) != FE_CLI_NEXT)
+        return r;
+    if ((r = CliCheckDrvHookCli_57(lpCmdLine)) != FE_CLI_NEXT)
         return r;
     return FE_CLI_NONE;
 }

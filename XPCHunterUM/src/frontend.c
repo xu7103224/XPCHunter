@@ -1870,6 +1870,17 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         break;
 
+    case FE_WM_SIGDONE:
+        /* 【2026-11-02 签名着色】后台签名扫描完成：重画列表让蓝色字体生效。
+           不重填数据 —— 行文本没变，只重算 item data 里的签名状态。 */
+        if (g_MainTab == 0) {
+            ProcRefreshSignatureStates();
+            InvalidateRect(g_hProc, NULL, TRUE);
+        } else if (g_MainTab == 1) {
+            KmRefreshSignatureStates();
+        }
+        return 0;
+
     /* ---- 第三步：主题着色 ----
        WM_CTLCOLOR* 是"静态/编辑/按钮/列表"这些系统控件的上色入口。
        只改颜色，不动控件本身的绘制逻辑（按钮仍由系统画，列表走上方 custom draw）。 */
