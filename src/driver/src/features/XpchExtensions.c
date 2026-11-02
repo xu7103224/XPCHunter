@@ -23,22 +23,15 @@
  *   0x089  读内核虚拟内存
  *          In  : { u64 Address; u32 Size; u32 Pad }                 (16B)
  *          Out : { u64 Copied; BYTE Data[Size] }                    (8+Size)
- *   0x08A  枚举指定进程线程（走 EPROCESS 线程链，非三环快照）
- *          In  : { u64 Pid }                                        (8B)
- *          Out : { u32 Count; { u32 Tid; u32 Flags;
- *                              u64 StartAddress; u64 Teb } [] }      (16B/条)
- *   0x08B  枚举指定进程模块（attach 后走 PEB→Ldr InLoadOrderModuleList）
- *          In  : { u64 Pid }                                        (8B)
- *          Out : { u32 Count; { u64 Base; u32 SizeOfImage;
- *                              WCHAR Name[32] } [] }                 (80B/条)
  *   0x08C  枚举内核模块（从本驱动 DriverSection 沿 InLoadOrderLinks 遍历）
  *          In  : 无
  *          Out : { u32 Count; { u64 Base; u32 SizeOfImage;
  *                              CHAR Name[64] } [] }                  (80B/条)
  *
- * 【实现风格】与本工程一致：KeStackAttachProcess + __try/memcpy +
- * MmIsAddressValid；线程遍历用导出函数 PsGetNextProcessThread，不硬编码
- * ETHREAD 偏移。
+ * 【实现风格】与本工程一致：__try + MmIsAddressValid + 逐页推进。
+ * 【2026-11-01】0x08A/0x08B（枚举进程线程/模块）删除：attach 后访问
+ * 用户态内存在 18362 实机蓝屏(0x3B)，MmIsAddressValid 对用户地址不可靠。
+ * 两项遍历改由 SDK 侧经 0x099/0x023 逐次安全读完成，驱动只做内核读。
  * ==========================================================================*/
 #include "..\inc\XPCHunterDrv.h"
 
@@ -134,57 +127,6 @@ static BOOLEAN XpKernelWrite(unsigned __int64 Address, const void *Data, unsigne
         return FALSE;
     return WritePhysicalMemoryBuffer(Address, Data, Size, 0, NULL) == 1;
 }
-
-/* 内核头不含 SYSTEM_PROCESS_INFORMATION，本地定义所需字段 */
-typedef struct _XPCH_SYS_THREAD_INFO {
-    LARGE_INTEGER KernelTime;
-    LARGE_INTEGER UserTime;
-    LARGE_INTEGER CreateTime;
-    ULONG         WaitTime;
-    PVOID         StartAddress;
-    CLIENT_ID     ClientId;
-    LONG          Priority;
-    LONG          BasePriority;
-    ULONG         ContextSwitches;
-    ULONG         ThreadState;
-    ULONG         WaitReason;
-} XPCH_SYS_THREAD_INFO;
-
-typedef struct _XPCH_SYS_PROC_INFO {
-    ULONG NextEntryOffset;
-    ULONG NumberOfThreads;
-    LARGE_INTEGER SpareLi[3];
-    LARGE_INTEGER CreateTime;
-    LARGE_INTEGER UserTime;
-    LARGE_INTEGER KernelTime;
-    UNICODE_STRING ImageName;
-    LONG BasePriority;
-    HANDLE UniqueProcessId;
-    HANDLE InheritedFromProcessId;
-    ULONG HandleCount;
-    ULONG SessionId;
-    ULONG_PTR PageDirectoryBase;
-    SIZE_T PeakVirtualSize;
-    SIZE_T VirtualSize;
-    ULONG PageFaultCount;
-    SIZE_T PeakWorkingSetSize;
-    SIZE_T WorkingSetSize;
-    SIZE_T QuotaPeakPagedPoolUsage;
-    SIZE_T QuotaPagedPoolUsage;
-    SIZE_T QuotaNonPagedPoolUsage;
-    SIZE_T PagefileUsage;
-    SIZE_T PeakPagefileUsage;
-    SIZE_T PrivatePageCount;
-    LARGE_INTEGER ReadOperationCount;
-    LARGE_INTEGER WriteOperationCount;
-    LARGE_INTEGER OtherOperationCount;
-    LARGE_INTEGER ReadTransferCount;
-    LARGE_INTEGER WriteTransferCount;
-    LARGE_INTEGER OtherTransferCount;
-    /* XPCH_SYS_THREAD_INFO Threads[1]; 变长尾 */
-} XPCH_SYS_PROC_INFO;
-
-#define XPCH_SystemProcessInformation 5
 
 #pragma pack(push, 1)
 typedef struct _XPCH_RW_PROC_REQ {
@@ -385,56 +327,6 @@ __int64 CmdXpchReadKernelMemory(void *InputBuffer, int InputSize,
 }
 
 /* ============================================================
- * 0x08A  枚举指定进程线程
- *
- * 走 PsGetNextProcessThread（导出函数），不硬编码 ETHREAD 偏移。
- * Teb 恒为 0（SDK 不依赖；需要时再经 ZwQueryInformationThread 补）。
- * ============================================================*/
-/* PsGetNextProcessThread / PsGetThreadStartAddress 虽由 ntoskrnl 导出，
-   但不在 WDK 导入库（ntoskrnl.lib）里，链接期解析不了。
-   用 MmGetSystemRoutineAddress 运行时解析一次，静态缓存。 */
-typedef PETHREAD (*PFN_PsGetNextProcessThread)(PEPROCESS, PETHREAD);
-typedef PVOID     (*PFN_PsGetThreadStartAddress)(PETHREAD);
-
-static PVOID XpResolveRoutine(const wchar_t *Name)
-{
-    UNICODE_STRING U;
-    RtlInitUnicodeString(&U, Name);
-    return MmGetSystemRoutineAddress(&U);
-}
-
-__int64 CmdXpchEnumProcessThreads(void *InputBuffer, int InputSize,
-                                  void *OutputBuffer, unsigned int OutputSize)
-{
-    /* 【暂禁用】ZwQuerySystemInformation 版本在 18362 实机蓝屏(0x3B)。
-       需进一步排查；SDK 侧同步标记 NOT_SUPPORTED。 */
-    UNREFERENCED_PARAMETER(InputBuffer);
-    UNREFERENCED_PARAMETER(InputSize);
-    UNREFERENCED_PARAMETER(OutputBuffer);
-    UNREFERENCED_PARAMETER(OutputSize);
-    return 0;
-}
-
-/* ============================================================
- * 0x08B  枚举指定进程模块（PEB→Ldr InLoadOrderModuleList）
- *
- * 输出条目 80 字节：{ u64 Base; u32 SizeOfImage; WCHAR Name[32] }
- * Peb 偏移来自 GT[Field33]（驱动已按构建号解析，18362 = 0x3F8）。
- * ============================================================*/
-__int64 CmdXpchEnumProcessModules(void *InputBuffer, int InputSize,
-                                  void *OutputBuffer, unsigned int OutputSize)
-{
-    /* 【暂禁用】PEB→Ldr 遍历在 18362 实机蓝屏(0x3B)。
-       原因待查（可能是 attach 后用户态页表未及时切换或 LDR 条目含悬空指针）。
-       SDK 侧同步标记 NOT_SUPPORTED；模块枚举暂走 psapi。 */
-    UNREFERENCED_PARAMETER(InputBuffer);
-    UNREFERENCED_PARAMETER(InputSize);
-    UNREFERENCED_PARAMETER(OutputBuffer);
-    UNREFERENCED_PARAMETER(OutputSize);
-    return 0;
-}
-
-/* ============================================================
  * 0x08C  枚举内核模块
  *
  * 从本驱动自身的 DriverObject->DriverSection（KLDR_DATA_TABLE_ENTRY）
@@ -474,12 +366,15 @@ __int64 CmdXpchEnumKernelModules(void *InputBuffer, int InputSize,
     MaxCount = (OutputSize - 4) / 80;
     Cursor = (char *)OutputBuffer + 4;
 
-    /* KLDR_DATA_TABLE_ENTRY x64：
-       +0x38 DllBase  +0x48 SizeOfImage
-       +0x60 BaseDllName.Length  +0x68 BaseDllName.Buffer */
-    for (Entry = Head->Flink; Entry && Entry != Head; Entry = Entry->Flink) {
+    /* KLDR_DATA_TABLE_ENTRY x64（18362 实机 kd `dt nt!_KLDR_DATA_TABLE_ENTRY`
+       核实；此前误用 +0x38/+0x48/+0x60/+0x68，读到 EntryPoint/Flags 等
+       邻近字段当字符串指针，曾在实机蓝屏 0x3B）：
+       +0x30 DllBase  +0x40 SizeOfImage
+       +0x58 BaseDllName.Length  +0x60 BaseDllName.Buffer */
+    Entry = Head->Flink;
+    while (Entry && Entry != Head) {
         ULONG64 Base = (ULONG64)(ULONG_PTR)Entry;
-        ULONG64 DllBase, NameBuf;
+        ULONG64 DllBase, NameBuf, Next = 0;
         ULONG SizeOfImage;
         USHORT NameLen, i;
         ULONG64 *Q;
@@ -488,22 +383,39 @@ __int64 CmdXpchEnumKernelModules(void *InputBuffer, int InputSize,
 
         if (Base <= (unsigned __int64)MmSystemRangeStart)
             break;
+        if (Count >= MaxCount)
+            break;
+        if (MmIsAddressValid((PVOID)Base) != 1 ||
+            MmIsAddressValid((PVOID)(Base + 0x60)) != 1)
+            break;
 
-        DllBase     = *(ULONG64 *)(ULONG_PTR)(Base + 0x38);
-        SizeOfImage = *(ULONG *)(ULONG_PTR)(Base + 0x48);
-        NameLen     = *(USHORT *)(ULONG_PTR)(Base + 0x60);
-        NameBuf     = *(ULONG64 *)(ULONG_PTR)(Base + 0x68);
+        /* 一次读出全部字段含 Flink；链上出现坏节点即停（带已收集数据） */
+        __try {
+            DllBase     = *(ULONG64 *)(ULONG_PTR)(Base + 0x30);
+            SizeOfImage = *(ULONG *)(ULONG_PTR)(Base + 0x40);
+            NameLen     = *(USHORT *)(ULONG_PTR)(Base + 0x58);
+            NameBuf     = *(ULONG64 *)(ULONG_PTR)(Base + 0x60);
+            Next        = (ULONG64)(ULONG_PTR)Entry->Flink;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            break;
+        }
+        if (!Next || MmIsAddressValid((PVOID)Next) != 1)
+            break;
 
         if (!DllBase || DllBase < (unsigned __int64)MmSystemRangeStart)
-            continue;
-        if (Count >= MaxCount || !NameLen || !NameBuf)
-            continue;
+            goto NextEntry;
+        /* 名字缓冲必须是可读的内核地址，否则跳过（不盲解引用） */
+        if (!NameLen || NameBuf < (unsigned __int64)MmSystemRangeStart)
+            goto NextEntry;
+        if (MmIsAddressValid((PVOID)NameBuf) != 1 ||
+            MmIsAddressValid((PVOID)((char *)(ULONG_PTR)NameBuf + NameLen - 1)) != 1)
+            goto NextEntry;
 
         Q = (ULONG64 *)Cursor;
         Q[0] = DllBase;
         ((unsigned int *)Cursor)[2] = SizeOfImage;
         OutName = Cursor + 16;
-        {
+        __try {
             USHORT k2, LastSep = 0;
             NameSrc = (WCHAR *)(ULONG_PTR)NameBuf;
             for (k2 = 0; k2 < NameLen; k2++)
@@ -512,9 +424,14 @@ __int64 CmdXpchEnumKernelModules(void *InputBuffer, int InputSize,
             for (i = LastSep; i < NameLen; i++)
                 OutName[i - LastSep] = (char)NameSrc[i];
             OutName[NameLen - LastSep] = 0;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            goto NextEntry;
         }
         Cursor += 80;
         Count++;
+
+    NextEntry:
+        Entry = (PLIST_ENTRY)(ULONG_PTR)Next;
     }
 
     __try { *(unsigned int *)OutputBuffer = Count; }

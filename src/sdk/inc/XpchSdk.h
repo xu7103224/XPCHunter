@@ -1,8 +1,13 @@
 ﻿/* ============================================================================
- * XpchSdk.h —— XPCHunter 内核只读能力 SDK（公开接口）
+ * XpchSdk.h —— XPCHunter 内核能力 SDK（公开接口）
  *
- * 用途：为第三方项目提供通过 XPCHunterDrv 驱动获取内核信息的只读能力。
- *       不包含任何破坏性操作（不杀进程、不写内存、不卸载驱动）。
+ * 用途：为第三方项目提供通过 XPCHunterDrv 驱动获取内核信息的能力。
+ *       以只读为主，另含四个写原语（破坏性能力，见下方标注）；
+ *       不含杀进程、卸载驱动、改系统表。
+ *
+ * 实现原则：全部基础访问能力经内核命令完成，不回退三环 API
+ *   （内存读写 0x023/0x081、内核读写 0x099/0x082、进程/线程/模块
+ *    遍历 SDK 侧经内核读完成，偏移量按 Win10 18362 x64 实机核实）。
  *
  * 使用方式：
  *     1. 编译前 define XPCHSDK_STATIC（或直接链接 XpchSdk.lib）
@@ -162,8 +167,10 @@ typedef struct _XPCH_THREAD_INFO {
     ULONG64 Teb;
 } XPCH_THREAD_INFO;
 
-/* 枚举指定进程的线程（内核 0x09A：EPROCESS 线程链，非三环快照）。
- * StartAddress 为内核解析的真实起始地址；Teb 保留为 0。
+/* 枚举指定进程的线程（SDK 侧走 EPROCESS→ThreadListHead→ETHREAD）。
+ * 内核字段经 0x099 内核读获取，全程不在驱动里做用户态内存访问。
+ * StartAddress 为 Win32StartAddress；Teb 来自 KTHREAD.Teb。
+ * 仅支持已核实偏移的构建（Win10 18362），其它构建返回 XPCH_E_NOT_SUPPORTED。
  * 结果需 XpchFree。 */
 XPCH_STATUS XpchEnumThreads(XPCH_SESSION *Session, ULONG Pid,
                             XPCH_THREAD_INFO **Threads, ULONG *Count);
@@ -181,8 +188,10 @@ typedef struct _XPCH_MODULE_INFO {
     WCHAR   Path[XPCH_MOD_PATH_CHARS];
 } XPCH_MODULE_INFO;
 
-/* 枚举进程模块（内核 0x09B：attach 后走 PEB→Ldr InLoadOrderModuleList）。
- * 不依赖目标进程可访问 —— 受保护进程同样可枚举（内核视角）。
+/* 枚举进程模块（SDK 侧走 EPROCESS→PEB→Ldr InLoadOrderModuleList）。
+ * EPROCESS.Peb 经 0x099 内核读，Ldr 链条目经 0x023 进程读——每步都是
+ * 独立安全读，读不到即停，不会蓝屏；不依赖目标进程可访问。
+ * 仅支持已核实偏移的构建（Win10 18362），其它构建返回 XPCH_E_NOT_SUPPORTED。
  * 结果需 XpchFree。 */
 XPCH_STATUS XpchEnumModules(XPCH_SESSION *Session, ULONG Pid,
                             XPCH_MODULE_INFO **Modules, ULONG *Count);

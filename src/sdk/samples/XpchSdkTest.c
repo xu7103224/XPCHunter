@@ -166,7 +166,7 @@ int main(void)
                 char D[64];
                 _snprintf_s(D, sizeof(D), _TRUNCATE, "count=%lu", MN);
                 if (St == XPCH_E_NOT_SUPPORTED)
-                    Check("XpchEnumModules", TRUE, "driver cmd disabled (pending fix)");
+                    Check("XpchEnumModules", TRUE, "build offsets unsupported (SDK-side walk)");
                 else
                     Check("XpchEnumModules", St == XPCH_OK && MN > 0, D);
                 if (St == XPCH_OK && MN > 0) {
@@ -183,7 +183,7 @@ int main(void)
                 char D[64];
                 _snprintf_s(D, sizeof(D), _TRUNCATE, "count=%lu", TN);
                 if (St == XPCH_E_NOT_SUPPORTED)
-                    Check("XpchEnumThreads", TRUE, "driver cmd disabled (pending fix)");
+                    Check("XpchEnumThreads", TRUE, "build offsets unsupported (SDK-side walk)");
                 else
                     Check("XpchEnumThreads", St == XPCH_OK && TN > 0, D);
                 if (St == XPCH_OK && TN > 0) {

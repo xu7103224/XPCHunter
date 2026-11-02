@@ -1,11 +1,15 @@
 # XpchSdk 接口文档
 
-面向第三方项目的内核只读能力 SDK。
+面向第三方项目的内核能力 SDK。
 
-- 版本：1.0.0
+- 版本：1.1.0
 - 形态：静态库 `XpchSdk.lib` + 单一头文件 `XpchSdk.h`
 - 依赖：运行期需要 `XPCHunterDrv.sys` 已加载（部分纯用户态接口除外，见 §7）
-- 能力范围：**只读**。不含杀进程、写内存、卸载驱动、改系统表等破坏性操作
+- 能力范围：以只读为主，另含四个写原语（§5.12，破坏性能力，调用方对后果负责）；
+  不含杀进程、卸载驱动、改系统表
+- 实现原则：**全部基础访问能力经内核命令完成，不回退三环 API**
+  （内存读写 0x023/0x081、内核读写 0x099/0x082、进程/线程/模块遍历
+  SDK 侧经内核读完成）
 
 ---
 
@@ -242,12 +246,17 @@ XPCH_STATUS XpchEnumThreads(XPCH_SESSION *Session, ULONG Pid,
                             XPCH_THREAD_INFO **Threads, ULONG *Count);
 ```
 
-**数据源说明**：这个接口走纯用户态的 Toolhelp 快照，不走驱动。
-驱动侧的线程枚举需要 EPROCESS 指针，且 0x2A 已被"进程路径查询"占用，
-老版本上布局不稳定。因此这里只填 `Tid` / `OwnerPid` / 优先级三项，
-`StartAddress` / `KernelStack` / `Teb` 恒为 0。
+**数据源说明**：SDK 侧遍历 `EPROCESS → ThreadListHead → ETHREAD`，
+内核字段经 0x099 内核读逐次获取；**驱动全程不做用户态内存访问**，
+单次读失败仅返回错误码，不会蓝屏。所有偏移量为 Win10 18362 x64
+实机 `dt` 核实值（`KPROCESS.ThreadListHead=0x30`、
+`KTHREAD.ThreadListEntry=0x2F8`、`ETHREAD.Cid=0x648`、
+`ETHREAD.Win32StartAddress=0x6A0`、`KTHREAD.Teb=0xF0`、
+`KTHREAD.BasePriority=0x233`）。
 
-需要"驱动视角的线程"（能看到隐藏线程）时要单独扩展。
+填充字段：`Tid` / `OwnerPid` / `StartAddress`（Win32StartAddress）/
+`Teb` / `BasePriority`；`DeltaPriority` / `KernelStack` 恒为 0。
+其它 Windows 版本返回 `XPCH_E_NOT_SUPPORTED`（偏移表按构建扩展）。
 
 ---
 
@@ -261,13 +270,18 @@ typedef struct _XPCH_MODULE_INFO {
     WCHAR   Path[520];
 } XPCH_MODULE_INFO;
 
-XPCH_STATUS XpchEnumModules(ULONG Pid, XPCH_MODULE_INFO **Modules, ULONG *Count);
+XPCH_STATUS XpchEnumModules(XPCH_SESSION *Session, ULONG Pid,
+                            XPCH_MODULE_INFO **Modules, ULONG *Count);
 ```
 
-枚举进程内已加载的 DLL/EXE。数据源是 psapi，**不需要驱动**，但目标进程必须可访问。
+枚举进程内已加载的 DLL/EXE。SDK 侧遍历
+`EPROCESS → PEB → Ldr → InLoadOrderModuleList`：`EPROCESS.Peb`（0x3F8）
+经 0x099 内核读，Ldr 链（`PEB.Ldr=0x18`、`InLoadOrderModuleList=0x10`、
+`DllBase=0x30`、`SizeOfImage=0x40`、`BaseDllName=0x58`）是目标进程
+用户内存，经 0x023 进程读逐次获取——每步都是独立安全读，
+**不依赖目标进程可访问**，受保护进程同样可枚举（内核视角）。
 
-注意这个接口**不接收 Session 参数** —— 它完全走用户态。
-对受保护进程会返回 `XPCH_E_ACCESS_DENIED`。
+其它 Windows 版本返回 `XPCH_E_NOT_SUPPORTED`（偏移表按构建扩展）。
 
 ---
 
@@ -445,19 +459,39 @@ XPCH_STATUS XpchVerifyFileSignature(const WCHAR *Path,
 XPCH_STATUS XpchReadProcessMemory(XPCH_SESSION *Session, ULONG Pid,
                                   ULONG64 Address, ULONG Size,
                                   BYTE **Buffer, ULONG *Read);
+XPCH_STATUS XpchReadKernelMemory(XPCH_SESSION *Session, ULONG64 Address,
+                                 ULONG Size, BYTE **Buffer, ULONG *Read);
 ```
 
-读目标进程内存，结果需 `XpchFree`。
+读目标进程内存（内核 0x023，`MmCopyVirtualMemory` 跨进程拷贝）
+与读内核虚拟内存（内核 0x099，逐页 `MmIsAddressValid`+`__try` 安全拷贝，
+返回实际读取量）。结果需 `XpchFree`。均可读三环 API 读不到的
+进程/地址；读失败只返回错误码，不会蓝屏。
 
-**实现说明**：SDK 这版用 `ReadProcessMemory`（可靠、任意长度），
-不走驱动的 0x20 命令。驱动版能读受保护进程，但它的语义是
-"读一次、结果由驱动决定写到哪"，不适合任意长度读取。
-
-如果目标被保护，`ReadProcessMemory` 会失败返回 `XPCH_E_ACCESS_DENIED`。
+线程/模块枚举（§5.3/§5.4）正是建立在这两条读原语之上。
 
 ---
 
-### 5.11 工具
+### 5.11 写原语（破坏性能力，谨慎使用）
+
+```c
+XPCH_STATUS XpchWriteProcessMemory(XPCH_SESSION *Session, ULONG Pid,
+                                   ULONG64 Address, const void *Data, ULONG Size);
+XPCH_STATUS XpchWriteKernelMemory(XPCH_SESSION *Session, ULONG64 Address,
+                                  const void *Data, ULONG Size);
+```
+
+- `XpchWriteProcessMemory`：内核 0x081，`MmCopyVirtualMemory` 反向拷贝，
+  可写三环写不到的进程
+- `XpchWriteKernelMemory`：内核 0x082，复用驱动的 MDL 物理映射写原语，
+  支持只读页绕过
+
+⚠ **调用方对后果负责**：写错地址即蓝屏或破坏系统。SDK 不对写入
+目标做任何校验。
+
+---
+
+### 5.12 工具
 
 ```c
 void XpchFree(void *Memory);
@@ -562,16 +596,19 @@ DWORD WINAPI Worker(LPVOID Param)
 | `XpchEnumProcesses` | 是 | 是 | 快（~50ms） |
 | `XpchGetProcessPath` | 是 | 是 | 快 |
 | `XpchIsProcessAccessible` | 是 | 是 | 快 |
-| `XpchEnumThreads` | 否 | 否 | 快 |
-| `XpchEnumModules` | 否 | 否 | 中 |
+| `XpchEnumThreads` | 是 | 是 | 中（逐字段内核读） |
+| `XpchEnumModules` | 是 | 是 | 中（逐字段安全读） |
 | `XpchEnumSystemHandles` | 是 | 是 | 中 |
-| `XpchEnumKernelModules` | 否 | 否 | 快 |
+| `XpchEnumKernelModules` | 是 | 是 | 快 |
 | `XpchEnumDrivers` | 否 | 是 | 中（逐个查配置） |
-| `XpchEnumHiddenDrivers` | 否 | 是 | 中 |
+| `XpchEnumHiddenDrivers` | 是 | 是 | 中 |
 | `XpchEnumSsdtHooks` | 是 | 是 | 中（~200ms） |
-| `XpchScanProcessHooks` | 否 | 视目标 | 慢（1~2s/进程） |
+| `XpchScanProcessHooks` | 是 | 是 | 慢（1~2s/进程） |
 | `XpchVerifyFileSignature` | 否 | 否 | 中（每文件 ~10ms） |
-| `XpchReadProcessMemory` | 否 | 视目标 | 快 |
+| `XpchReadProcessMemory` | 是 | 是 | 快 |
+| `XpchWriteProcessMemory` | 是 | 是 | 快 |
+| `XpchReadKernelMemory` | 是 | 是 | 快 |
+| `XpchWriteKernelMemory` | 是 | 是 | 快 |
 
 ---
 
@@ -589,8 +626,9 @@ SDK 不封装任何破坏性能力。驱动本身有杀进程（0x28）、写内
 驱动内部多处按构建号分支（如进程列表的 `0xE4` 在不同版本输出布局不同）。
 SDK 当前按 Win10 18362 校准。在其他版本上：
 
-- 枚举类接口可能返回 `XPCH_E_BAD_RESPONSE`
-- 或返回条目但字段错位
+- `XpchEnumThreads` / `XpchEnumModules` 因偏移量按构建硬校验，
+  直接返回 `XPCH_E_NOT_SUPPORTED`（不会错位解析）
+- 其余枚举类接口可能返回 `XPCH_E_BAD_RESPONSE` 或字段错位
 
 建议先用 `XpchGetBuildNumber` 确认版本，再决定是否使用。
 
@@ -639,7 +677,8 @@ XpchReadProcessMemory        : [0]   read 64 bytes, first 2 = 4D 5A
 ## 10. 逐接口测试
 
 `src/sdk/samples/XpchSdkTest.c` 覆盖全部公开接口与主要错误路径，
-共 37 条断言。在 Win10 18362 guest 上实测 **37 PASS / 0 FAIL**。
+共 41 条断言。在 Win10 18362 guest 上实测 **41 PASS / 0 FAIL**
+（2026-11-03，驱动 0x0C5 偏移修复后）。
 
 ```bat
 build\build_sdk.bat
@@ -659,16 +698,16 @@ build\bin\Release\sdk_x64\XpchSdkTest.exe
 | 签名 | notepad、不存在路径、NULL | 3 PASS |
 | 收尾 | `XpchClose`、关闭后调用 | 2 PASS |
 
-实测数据（同一台 guest）：
+实测数据（2026-11-03，同一台 Win10 18362 guest）：
 
 ```
-XpchEnumProcesses      185 条
-XpchEnumModules        267 个（explorer.exe）
-XpchEnumThreads        66 个
-XpchEnumSystemHandles  132 条
-XpchEnumKernelModules  194 个
-XpchEnumDrivers        383 个（有 ImagePath 372 / 运行中 145）
-XpchEnumHiddenDrivers  46 条（含已知误报 win32k*.sys）
+XpchEnumProcesses      146 条
+XpchEnumModules        242 个（explorer.exe，SDK 侧 PEB→Ldr 遍历）
+XpchEnumThreads        43 个（explorer.exe，SDK 侧 ThreadListHead 遍历）
+XpchEnumSystemHandles  125 条
+XpchEnumKernelModules  193 个（0x0C5 偏移修复后）
+XpchEnumDrivers        384 个（有 ImagePath 373 / 运行中 145）
+XpchEnumHiddenDrivers  46 条（含已知误报 ntoskrnl/hal/kdcom 等）
 XpchEnumSsdtHooks      908 条，0 条被改写
 ```
 
@@ -682,6 +721,16 @@ XpchEnumSsdtHooks      908 条，0 条被改写
 第 2 条修完后仍然发现该接口语义本身有问题（见 §5.2 的说明），
 最终定性为"不建议依赖"，而不是继续包装成能用的样子。
 
+**2026-11-03 内核化实测的第三个缺陷**：
+
+3. `XpchEnumKernelModules`（0x0C5）读取 `KLDR_DATA_TABLE_ENTRY` 的
+   偏移错位 8 字节（`DllBase` 误用 +0x38=EntryPoint、
+   `BaseDllName` 误用 +0x68=Flags），此前返回的"模块名"实为
+   邻近字段的巧合字节；某个条目的垃圾指针落入用户态后被直接
+   解引用，触发 0x3B 蓝屏。已按实机 `dt nt!_KLDR_DATA_TABLE_ENTRY`
+   核实修正为 +0x30/+0x40/+0x58/+0x60，并对每个条目补
+   `MmIsAddressValid` + `__try` 防护（坏节点即停，带回已收集数据）。
+
 ---
 
 ## 11. 版本历史
@@ -689,3 +738,4 @@ XpchEnumSsdtHooks      908 条，0 条被改写
 | 版本 | 变更 |
 |---|---|
 | 1.0.0 | 首个版本。会话/进程/线程/模块/句柄/内核模块/驱动/SSDT/Ring3/签名/读内存 |
+| 1.1.0 | ① 全部基础访问能力内核化：读写内存/枚举不再回退三环 API。② 线程、进程模块枚举改为 SDK 侧遍历（EPROCESS→ThreadListHead、EPROCESS→PEB→Ldr，经 0x099/0x023 逐次安全读），删除蓝屏的驱动侧 0x09A/0x09B 命令。③ 修复 0x0C5 KLDR 偏移错位 8 字节导致的蓝屏与假数据。④ 线程/模块偏移量按 Win10 18362 实机 kd 核实，其它构建返回 NOT_SUPPORTED |

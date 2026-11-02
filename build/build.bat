@@ -85,7 +85,7 @@ if errorlevel 1 (
 )
 
 echo Signing driver (test cert)...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%BASE_DIR%uild\sign_driver.ps1" "%BIN_DIR%\XPCHunterDrv.sys"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%BASE_DIR%\build\sign_driver.ps1" "%BIN_DIR%\XPCHunterDrv.sys"
 echo Build complete!
 echo Output: %BIN_DIR%\XPCHunterDrv.sys
 dir "%BIN_DIR%\XPCHunterDrv.sys"

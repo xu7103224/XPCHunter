@@ -10,14 +10,12 @@ __int64 InitMiniFilterDriver(PDRIVER_OBJECT DriverObject);
 
 /* 【SDK 扩展命令 2026-11-03】原版空槽上的自有命令，供 XpchSdk 使用。
    语义与入出参见 features\XpchExtensions.c 文件头。占用 0x023/
-   0x081/0x082/0x089/0x08A/0x08B/0x08C 七个原版同样为空的槽位，
+   0x081/0x082/0x089/0x08C 五个原版同样为空的槽位，
    原版前端从不发送它们，不影响 1:1 对齐。 */
 __int64 CmdXpchReadProcessMemory(void *In, int InSize, void *Out, unsigned int OutSize);
 __int64 CmdXpchWriteProcessMemory(void *In, int InSize, void *Out, unsigned int OutSize);
 __int64 CmdXpchWriteKernelMemory(void *In, int InSize, void *Out, unsigned int OutSize);
 __int64 CmdXpchReadKernelMemory(void *In, int InSize, void *Out, unsigned int OutSize);
-__int64 CmdXpchEnumProcessThreads(void *In, int InSize, void *Out, unsigned int OutSize);
-__int64 CmdXpchEnumProcessModules(void *In, int InSize, void *Out, unsigned int OutSize);
 __int64 CmdXpchEnumKernelModules(void *In, int InSize, void *Out, unsigned int OutSize);
 // 回调控制操作子函数前向声明（定义见 TailHelpers.c / MemoryOps.c）
 char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);
@@ -235,10 +233,12 @@ __int64 InitCommandHandlerTable(void)
        CmdInstallShadowHook 在 v0[143]、CmdEnumSyscallTable2 在 v0[144]、CmdInstallSyscallHook2 在 v0[145]。 */
     /* 【SDK 扩展】0x099 读内核虚拟内存（原版显式空槽） */
         Table[121] = (PCOMMAND_HANDLER)CmdXpchReadKernelMemory;
-    /* 【SDK 扩展】0x09A 枚举进程线程（原版显式空槽） */
-        Table[122] = (PCOMMAND_HANDLER)CmdXpchEnumProcessThreads;
-    /* 【SDK 扩展】0x09B 枚举进程模块（原版显式空槽） */
-        Table[123] = (PCOMMAND_HANDLER)CmdXpchEnumProcessModules;
+    /* 【2026-11-01】原 0x09A/0x09B（枚举进程线程/模块）已删除：
+       attach 后用户态访问在 18362 实机蓝屏(0x3B)。遍历改到 SDK 侧完成
+       （经 0x099/0x023 逐次安全读），驱动不再提供这两条命令。
+       槽位恢复为原版状态（显式清零）。 */
+        Table[122] = (PCOMMAND_HANDLER)NULL;
+        Table[123] = (PCOMMAND_HANDLER)NULL;
     Table[124] = (PCOMMAND_HANDLER)MiniFilterCommPortConnect;
     Table[125] = (PCOMMAND_HANDLER)MiniFilterCommPortDisconnect;
     Table[126] = (PCOMMAND_HANDLER)MiniFilterCommPortCleanup;
