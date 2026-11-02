@@ -482,6 +482,23 @@ void FeThemeSubclassHeader(HWND hList)
    每个标签矩形（宽度随文字自适应），自己填色写字后不再交给原过程。
    见 FeTabPaint。 */
 
+/* 【2026-11-02】标签全部装得下时把滚动箭头藏掉。
+   SysTabControl32 在插入标签时若判定溢出就会创建并显示一对
+   msctls_updown32，之后即使内边距收敛到能放下，它也不会自己收回去 ——
+   表现为标签都看得见、右端却仍挂着 ◀ ▶。这里按实测结果显式同步。 */
+static void FeTabSyncArrows(HWND hWnd, BOOL fits)
+{
+    HWND child = GetWindow(hWnd, GW_CHILD);
+    while (child) {
+        char cls[64];
+        if (GetClassNameA(child, cls, sizeof(cls))
+            && _stricmp(cls, "msctls_updown32") == 0) {
+            ShowWindow(child, fits ? SW_HIDE : SW_SHOW);
+        }
+        child = GetWindow(child, GW_HWNDNEXT);
+    }
+}
+
 /* 【2026-11-02】按控件实际宽度收紧标签内边距，避免 SysTabControl32 挂出
    滚动箭头把末尾标签挤出可视区。返回最终使用的内边距（1..6）。 */
 static int FeTabFitPadding(HWND hWnd)
@@ -505,6 +522,7 @@ static int FeTabFitPadding(HWND hWnd)
         if (lastRight <= cli.right)
             break;
     }
+    FeTabSyncArrows(hWnd, lastRight > 0 && lastRight <= cli.right);
     return pad;
 }
 
@@ -526,6 +544,11 @@ static void FeTabPaint(HWND hWnd)
     GetClientRect(hWnd, &cli);
     cliRight = cli.right;
     cliBottom = cli.bottom;
+
+    /* 【2026-11-02】标签由我们全权绘制，滚动箭头会让右端少画一块、
+       并且它本身是浅色的，在深色条上很扎眼。既然所有标签都能放下
+       （FeTabFitPadding 已收敛过内边距），这里每次绘制都确保它隐藏。 */
+    FeTabSyncArrows(hWnd, TRUE);
 
     FillRect(dc, &cli, bgBr);
 

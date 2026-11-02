@@ -581,7 +581,15 @@ void ShowPage(HWND hWnd, int page)
     }
 
     g_MainTab = page;
-    if (page == 0) {
+    /* 【2026-11-02 修切页后控件压住 Tab 条】
+       这里原来只在 page == 0 时重排。切到其它页时 g_MainTab 已经变了，
+       但 WM_SIZE 里的分支是按 g_MainTab 走的，不重排就沿用 CreateWindow
+       时写死的旧坐标（y=76 那一批），直接压在父 Tab 栏（70~96）上 ——
+       用户看到的就是按钮盖住标签、标签被切成 "Ker" / "F"。
+
+       每页都必须重排：WM_SIZE 的每个分支只摆自己那页的控件，
+       切走的那页靠各自 PageShow 里的 ShowWindow 隐藏，不会互相干扰。 */
+    {
         RECT rc;
         GetClientRect(hWnd, &rc);
         SendMessageA(hWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(rc.right, rc.bottom));
