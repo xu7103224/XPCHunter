@@ -500,6 +500,26 @@ void FeProcPageToggleAuto(HWND hWnd)
     }
 }
 
+/* 【2026-11-02】从外部（切页时）关掉 Auto Refresh。
+   只 KillTimer 而不清 g_ProcAutoOn 会让按钮继续显示 ON 但实际已停，
+   下次回到 Process 页就会"看着开着却不刷新"。这里连状态和按钮一起复位。 */
+void FeProcPageStopAuto(HWND hWnd)
+{
+    HWND hAuto;
+
+    if (!g_ProcAutoOn)
+        return;
+
+    KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
+    g_AutoRefFn = NULL;
+    g_ProcAutoOn = FALSE;
+    g_ProcAutoOwnedTimer = FALSE;
+
+    hAuto = GetDlgItem(hWnd, IDC_PROC_AUTO);
+    if (hAuto)
+        SetWindowTextA(hAuto, "Auto Refresh: OFF");
+}
+
 void CreateProcColumns(HWND h)
 {
     static const char *titles[] = { "PID", "Name", "Path", "EPROCESS", "Ring3 Access State" };
@@ -1312,7 +1332,7 @@ BOOL DetailColumnText(int Sel, int Sub, char *Out, int OutChars)
 /* ---- PageShow：frontend.c 的页面注册表在每次切页时调用（原 ShowPage 的 Proc 页段，逐字保留） ---- */
 void FeProcPagePageShow(HWND hWnd, int page)
 {
-    HWND hKill, hRef;
+    HWND hKill;
 
 int isProc = (page == 0);
     if (g_hProc)       ShowWindow(g_hProc,       isProc ? SW_SHOW : SW_HIDE);

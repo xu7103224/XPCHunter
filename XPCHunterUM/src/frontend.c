@@ -532,39 +532,42 @@ void ShowPage(HWND hWnd, int page)
     g_MainTab = page;
     KmUpdateSelComboVis();
 
-    /* 第二步增量5：刷新模型统一——切页时把定时器绑定到该页的刷新入口。
-       Process 页有自己的开关（FeProcPageToggleAuto 管理 g_ProcAutoOn），
-       不能被这里覆盖；其它页跟随当前页自动开/关。 */
-    {
-        void (*fn)(void) = NULL;
+    /* 【2026-11-02 改成"切页刷一次，之后不刷"】
+       原实现在这里给 6 个页面挂 3 秒定时器（Kernel / Ring0 / Ring3 /
+       Startup / Services / Other），结果停在该页不动也会每 3 秒重刷一次，
+       列表反复重填、选中行丢失、还要重复走 IOCTL。用户要求只在切进来
+       那一刻刷新。
 
-        switch (page) {
-        case 1:  fn = DoRefreshKernel;   break;   /* Kernel */
-        case 2:
-        case 3:  fn = DoRefreshHooks;    break;   /* Ring0 / Ring3 Hooks */
-        case 6:  fn = DoRefreshStartup;  break;   /* Startup Info */
-        case 7:  fn = DoRefreshServices; break;   /* Services */
-        case 13: fn = DoRefreshOther;    break;   /* Other */
-        default: break;
+       现在：定时器只留给 Process 页自己的 Auto Refresh 开关（用户主动
+       开启的功能，见 FeProcPageToggleAuto）；其它页切进来刷一次就停。
+       离开 Process 页时把它自管的定时器收掉，避免后台空转。 */
+    if (page != 0) {
+        /* 离开 Process 页：连同按钮状态一起关掉它的 Auto Refresh，
+           否则回到 Process 页会显示 ON 但定时器已经没了。 */
+        FeProcPageStopAuto(hWnd);
+        /* 之前若有别的页留下的刷新入口，一并清掉 */
+        if (g_AutoRefFn) {
+            KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
+            g_AutoRefFn = NULL;
         }
+    }
 
-        if (page != 0) {
-            /* 离开 Process 页：把它自己的开关停掉，避免两页抢同一个定时器 */
-            if (g_ProcAutoOwnedTimer) {
-                KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
-                g_ProcAutoOwnedTimer = FALSE;
-            }
-            if (fn) {
-                if (g_AutoRefFn != fn) {
-                    g_AutoRefFn = fn;
-                    SetTimer(hWnd, FE_AUTOREF_TIMER_ID, 3000, NULL);
-                }
-            } else if (g_AutoRefFn) {
-                /* 该页没有定时刷新需求：停掉定时器 */
-                KillTimer(hWnd, FE_AUTOREF_TIMER_ID);
-                g_AutoRefFn = NULL;
-            }
-        }
+    /* 切页即刷新一次：这是该页唯一的一次自动刷新。 */
+    switch (page) {
+    case 0:  DoRefreshProcs();       break;   /* Process */
+    case 1:  DoRefreshKernel();      break;   /* Kernel */
+    case 2:
+    case 3:  DoRefreshHooks();       break;   /* Ring0 / Ring3 Hooks */
+    case 5:  DoRefreshRegistry();    break;   /* Registry */
+    case 6:  DoRefreshStartup();     break;   /* Startup Info */
+    case 7:  DoRefreshServices();    break;   /* Services */
+    case 8:  DoRefreshFiles();       break;   /* File */
+    case 9:  DoRefreshExamination(); break;   /* Examination */
+    case 10: DoRefreshSetting();     break;   /* Setting */
+    case 11: DoFireeyeAnalyse();     break;   /* Fireeye */
+    case 12: DoTrojanScan();         break;   /* Trojan Detection */
+    case 13: DoRefreshOther();       break;   /* Other */
+    default: break;
     }
 
     if (g_hPageHint) {
@@ -1717,29 +1720,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         if (nm->idFrom == IDC_MAIN_TABS && nm->code == TCN_SELCHANGE) {
             int page = (int)SendMessageA(g_hMainTabs, TCM_GETCURSEL, 0, 0);
+            /* 【2026-11-02】ShowPage 内部已经按页各刷一次，这里不再重复。
+               原来两处都刷，切一页会连跑两次 IOCTL，列表闪两下。 */
             ShowPage(hWnd, page);
-            if (page == 1)
-                DoRefreshKernel();
-            if (page == 6)
-                DoRefreshStartup();
-            if (page == 7)
-                DoRefreshServices();
-            if (page == 5)
-                DoRefreshRegistry();
-            if (page == 8)
-                DoRefreshFiles();
-            if (page == 13)
-                DoRefreshOther();
-            if (page == 9)
-                DoRefreshExamination();
-            if (page == 11)
-                DoFireeyeAnalyse();
-            if (page == 10)
-                DoRefreshSetting();
-            if (page == 12)
-                DoTrojanScan();
-            if (page == 2 || page == 3)
-                DoRefreshHooks();
             return 0;
         }
         if (nm->idFrom == IDC_RG_TABS && nm->code == TCN_SELCHANGE) {

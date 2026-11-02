@@ -244,6 +244,8 @@ BOOL DetailColumnText(int Sel, int Sub, char *Out, int OutChars);
 /* 第二步增量：列头点击排序 + 定时自动刷新开关 */
 void FeProcPageOnColumnClick(int col);
 void FeProcPageToggleAuto(HWND hWnd);
+/* 切离 Process 页时调用：停掉 Auto Refresh 并把按钮文字复位为 OFF */
+void FeProcPageStopAuto(HWND hWnd);
 /* 排序器状态（--selftest-sort-cli 在进程内直接驱动，见 CliMain.c） */
 extern FE_PROCESS_LIST g_ProcCache;
 extern unsigned char  *g_ProcAcc;
