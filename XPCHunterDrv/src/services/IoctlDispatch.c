@@ -3448,7 +3448,7 @@ __int64 CmdDumpCallStats(__int64 InputBuffer, __int64 InputSize,
        实测找到的地址与 KD 的 nt!HalDispatchTable 不一致（说明 .data 里
        存在同样形态的其他结构）。在判据可靠之前**不调用**，避免给客户端
        喂错地址。客户端此时读到 0，按"未解析"显示。
-       详见 docs/reversing/HAL三个分发表_可行性核查_2026-10-29.md */
+       详见 docs/archive/reversing/HAL三个分发表_可行性核查_2026-10-29.md */
     *(ULONG64 *)(Out + 0x200) = (ULONG64)GtRead((GLOBAL_TABLE_INDEX)0x831);
     /* 【实测 2026-10-29】GT[3] 实测是大小、GT[2] 才是内核基址，
        与枚举名相反；两个都导出，客户端按"像不像内核地址"自行判定。 */

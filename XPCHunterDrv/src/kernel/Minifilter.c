@@ -1868,7 +1868,7 @@ L140015A24:                                             // 收尾写 0x337
 ULONG64 FindKernelObjectFieldOffsetsWin8(void)
 {
     // 【机械转写 2026-09-21】按 build/audit/_preDirEnum_listing.txt 与
-    // docs/reversing/待实现函数结构分析.md §三 的前置表逐标签转写。
+    // docs/archive/reversing/待实现函数结构分析.md §三 的前置表逐标签转写。
     // 标志区 var_1D0[0..3] 为**同一块 4 字节栈区**（UCHAR Flags[4]）。
     // GT 槽与 Win10 版**不同**：块1 用 0x32E/0x330/0x32F/0x331（非连续）。
     ULONG64 PeBase;       // r12 <- GT 0x20
@@ -4300,7 +4300,7 @@ __int64 OpenWin32kSysSection(void)
 //   `CmRegisterCallback` 的名单里仍留着 MiniFilterCommPortReplyDone，
 //   一旦 `sc stop` 卸载了驱动映像，任何注册表操作都会跳进已释放的代码页
 //   → BSOD 0x50（实机 faulting instruction: <Unloaded_ViewPlusPlusNew.sys>+0x33C40
-//   = MiniFilterCommPortReplyDone，见 docs/reversing/GT槽号审计_2026-10-21.md 第七节）。
+//   = MiniFilterCommPortReplyDone，见 docs/archive/reversing/GT槽号审计_2026-10-21.md 第七节）。
 __int64 UnregisterCommPortCallback(void)
 {
     char Result = 0;

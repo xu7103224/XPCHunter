@@ -1414,7 +1414,7 @@ L140015A24:                                             // 收尾写 0x337
 ULONG64 FindKernelObjectFieldOffsetsWin8(void)
 {
     // 【机械转写 2026-09-21】按 build/audit/_preDirEnum_listing.txt 与
-    // docs/reversing/待实现函数结构分析.md §三 的前置表逐标签转写。
+    // docs/archive/reversing/待实现函数结构分析.md §三 的前置表逐标签转写。
     // 标志区 var_1D0[0..3] 为**同一块 4 字节栈区**（UCHAR Flags[4]）。
     // GT 槽与 Win10 版**不同**：块1 用 0x32E/0x330/0x32F/0x331（非连续）。
     ULONG64 PeBase;       // r12 <- GT 0x20

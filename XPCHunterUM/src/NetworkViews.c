@@ -366,7 +366,7 @@ BOOL FeLoadNdisOffloadHandlers(XPCH_CLIENT *Client, FE_NDIS_OFFLOAD_LIST *List)
 //     off_1406D49F0 — 75 项（miniport / adapter 级，清单里的 22 项在此表前段）
 //     off_1406D5050 — 59 项（protocol / 结构内 handler）
 //   本机实测两表对应的槽全为 0（无 NDIS miniport 注册），原版同样如此。
-//   见 docs/reversing/全命令矩阵收敛实录_2026-10-25.md §3。
+//   见 docs/archive/reversing/全命令矩阵收敛实录_2026-10-25.md §3。
 // ---------------------------------------------------------------------------
 static const char *const s_NdisHandlerNamesA[75] = {
     "OpenAdapterCompleteHandler",

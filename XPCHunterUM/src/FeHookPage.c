@@ -17,7 +17,7 @@ static int g_HkRowToR0[HK_MAX_ROWS];
 
 /* ---- Ring0 / Ring3 Hooks 页（主 Tab 2 / 3）----
  * Ring3 扫 IAT 越界；Ring0 标 blocked（驱动链缺 6 个函数，见
- * docs/reversing/Hooks页落地_2026-10-21.md）。 */
+ * docs/archive/reversing/Hooks页落地_2026-10-21.md）。 */
 void HkSetText(HWND h, int iItem, int iSub, const char *text)
 {
     LVITEMA it;

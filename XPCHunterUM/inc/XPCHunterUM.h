@@ -1110,7 +1110,7 @@ typedef struct _FE_NDIS_OFFLOAD_LIST {
        off_1406D49F0 — 75 项（miniport / adapter 级）
        off_1406D5050 — 59 项（protocol / 结构内 handler）
    本机实测该区为空（无 NDIS miniport 注册），两端返回一致。
-   见 docs/reversing/全命令矩阵收敛实录_2026-10-25.md §3。 */
+   见 docs/archive/reversing/全命令矩阵收敛实录_2026-10-25.md §3。 */
 #define FE_NDIS_HANDLER_TABLE_A_MAX 75u
 #define FE_NDIS_HANDLER_TABLE_B_MAX 59u
 #define FE_NDIS_HANDLER_OUT_SIZE   0x400000u

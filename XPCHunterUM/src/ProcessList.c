@@ -1,7 +1,7 @@
 // ============================================================================
 // XPCHunter Frontend — 进程列表（Process 页的数据层）
 //
-// 数据来源（均已实机校准，见 docs/reversing/命令可用性校准_2026-10-21.md）：
+// 数据来源（均已实机校准，见 docs/archive/reversing/命令可用性校准_2026-10-21.md）：
 //
 //   0xE4  CmdEnumProcessListWin10
 //         入参：无（In=NULL / InSize=0）

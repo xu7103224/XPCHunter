@@ -487,7 +487,7 @@ void DoRefreshFiles(void);
 
 /* ---- Ring0 / Ring3 Hooks 页（主 Tab 2 / 3）----
  * Ring3 扫 IAT 越界；Ring0 标 blocked（驱动链缺 6 个函数，见
- * docs/reversing/Hooks页落地_2026-10-21.md）。 */
+ * docs/archive/reversing/Hooks页落地_2026-10-21.md）。 */
 
 
 /* ---- Ring0 两项恢复操作的点击处理 ----
@@ -788,7 +788,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             int k;
             /* 【2026-10-30 扩展】原版 Kernel 页的驱动服务表族接入：
                0x0AC/0x0AE/0x0B0/0x0B2/0x0B4/0x0B6/0x0B8/0x0BA/0x0BC/0x0C0
-               实测全部 OK（见 docs/reversing/剩余工作清单_2026-10-30.md §7）。
+               实测全部 OK（见 docs/archive/reversing/剩余工作清单_2026-10-30.md §7）。
                标签用驱动内 Open*DriverSection 解码出的对象路径名
                （\Driver\Tcpip 等，解码 EncodedPath 整数数组得到）。
                注意两处函数名与实际打开的驱动不符：

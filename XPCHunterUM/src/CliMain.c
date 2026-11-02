@@ -2,7 +2,7 @@
 // CliMain.c — 命令行（--xxx-cli）分发与处理
 //
 // 【2026-10-28 由 frontend.c 机械拆分】拆分规则与验收方式见
-//   docs/reversing/frontend拆分_2026-10-28.md。本文件全部处理函数的
+//   docs/archive/reversing/frontend拆分_2026-10-28.md。本文件全部处理函数的
 //   函数体逐字取自原 frontend.c WinMain 内的 CLI if 链，仅做三处机械变换：
 //     1) 每块包成独立函数，块首插入
 //          if (!(<原始条件>)) return FE_CLI_NEXT;
@@ -1897,7 +1897,7 @@ static int CliSelftestTheme_52(const char *lpCmdLine)
 // 直接构造每个页面的菜单，用 GetMenuItemCount 统计项数并与原版目标值比对，
 // 不弹出、不阻塞。
 //
-// 期望值来自 docs/reversing/右键菜单差距分析_2026-10-29.md：
+// 期望值来自 docs/archive/reversing/右键菜单差距分析_2026-10-29.md：
 //   注册表 13     计划任务 11(+3 我方补充)   钩子 10(+1)   体检 6(+1)
 //   驱动 19       进程 21                    启动项 4(+4)  通用 4
 // ============================================================================

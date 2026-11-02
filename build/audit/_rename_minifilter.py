@@ -68,7 +68,7 @@ for old, ea, new, ev in RENAMES:
     ok = ida_name.set_name(ea, new, ida_name.SN_NOCHECK | ida_name.SN_FORCE)
     note = (u"【命名依据 2026-09-29，方案 A 按功能命名】原 IDA 名 %s 与实物不符：%s。"
             u"证据来自 Hex-Rays 伪代码的 API 调用链。改名 %s。"
-            u"（同族问题见 docs/reversing/命名审计.md §11）" % (old, ev, new))
+            u"（同族问题见 docs/archive/reversing/命名审计.md §11）" % (old, ev, new))
     prev = ida_bytes.get_cmt(f.start_ea, 0) or ""
     ida_bytes.set_cmt(f.start_ea, note, 0)
     print("   0x%X %-36s -> %-32s %s" % (ea, old, new, "OK" if ok else "FAIL"))

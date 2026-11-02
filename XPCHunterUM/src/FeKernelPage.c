@@ -668,7 +668,7 @@ void DoRefreshKernel(void)
         free(out);
     } else if (g_KmTab >= 11 && g_KmTab <= 13) {
         /* 【2026-10-30 二次整合】三个下拉 Tab 承载全部已验证的枚举命令。
-           命令实测与布局分析见 docs/reversing/剩余工作清单_2026-10-30.md §7/§8。Mode 含义：
+           命令实测与布局分析见 docs/archive/reversing/剩余工作清单_2026-10-30.md §7/§8。Mode 含义：
              0 服务表族（48 步进，idx@+0、addr@+16）
              1 0x0B2 专用（CopySsdtHookTargetTable3：64 步进，
                idx@目标+4、addr@+8 —— EntOff 已含 +4）

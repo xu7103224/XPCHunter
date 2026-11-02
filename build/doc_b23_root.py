@@ -1,5 +1,5 @@
 # 追加块 2/3 真正根因到文档
-p = 'docs/reversing/剩余四条命令状态与下一步_2026-10-27.md'
+p = 'docs/archive/reversing/剩余四条命令状态与下一步_2026-10-27.md'
 s = open(p, encoding='utf-8').read()
 
 s += """

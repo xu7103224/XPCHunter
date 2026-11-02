@@ -119,7 +119,7 @@ o.write('''// ==================================================================
 // CliMain.c — 命令行（--xxx-cli）分发与处理
 //
 // 【2026-10-28 由 frontend.c 机械拆分】拆分规则与验收方式见
-//   docs/reversing/frontend拆分_2026-10-28.md。本文件全部处理函数的
+//   docs/archive/reversing/frontend拆分_2026-10-28.md。本文件全部处理函数的
 //   函数体逐字取自原 frontend.c WinMain 内的 CLI if 链，仅做三处机械变换：
 //     1) 每块包成独立函数，块首插入
 //          if (!(<原始条件>)) return FE_CLI_NEXT;
