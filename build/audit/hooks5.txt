@@ -1,2 +1,0 @@
-HOOKTEST_PID= 
-hooktest.exe not running 

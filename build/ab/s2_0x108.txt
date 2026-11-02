@@ -1,7 +1,0 @@
-# A/B collect  cmd insz outsz res status lasterr hdrlen
-# handshake 0x22 insz=256 OK res=1 ssdt=0
-# build=18362
-CMD 0x108 INSZ=0 OUTSZ=8192 RES=1 OK ERR=183 HDRLEN=0
-IN  -
-OUT 0000000000000000000000000000000080B0354E8FA4FFFF80E367478FA4FFFF04
-# records=1 ok=1 rej=0

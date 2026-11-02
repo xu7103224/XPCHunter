@@ -1,7 +1,0 @@
-{
-  "vm": "win10dev",
-  "cmds": [
-    "dq 0xfffff8010c098778 L2",
-    "ln 0xfffff801036c22f0"
-  ]
-}

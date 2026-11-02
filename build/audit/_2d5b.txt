@@ -1,1 +1,0 @@
-14001ed30  d3498b               ror dword ptr [rcx - 0x75], cl

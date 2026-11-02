@@ -95,10 +95,10 @@
    且与改名/注释清单**同时存在**：IDB 是权威分析成果（重命名、注释、结构体、类型），
    清单（`_idb_rename.py` / `_idb_sync_notes.py`）是可读、可 diff、可重放的变更记录。
    两者互补，缺一不可 —— 只留清单则丢失分析成果，只留 IDB 则无法审查改了什么、为何改。
-5. **命名审计文档**：所有"名字与实物不符"的发现记录在 `docs/archive/reversing/命名审计.md`
+5. **命名审计文档**：所有"名字与实物不符"的发现记录在 `doc/archive/reversing/命名审计.md`
    （已冻结），含判据（P1–P5）、问题清单、证据与建议名。该文档里的改名方案已全部
    执行完毕；**当前仍生效的"名字与实物不符"清单**见
-   `docs/reversing/驱动命令清单与接入指南.md` §6.1。
+   `doc/reversing/驱动命令清单与接入指南.md` §6.1。
 
 ### 2.7 特殊情况处理
 - **反编译失败**：切换到汇编视图分析，通过汇编指令理解函数逻辑
@@ -148,44 +148,68 @@ local: [{func_addr: "0x...", old: "v1", new: "NewName"}]  // 重命名局部变�
 ### 4.2 项目结构
 ```
 XPCHunter/
-├── samples/                    # 原始样本
-│   └── PCHunter_2024.09.02/
-│       └── View++_Driver64.sys
-├── build/
-│   └── build.bat               # 编译脚本（两步法：msbuild 编译 + link 链接）
-│                               # 产物输出到 build/bin、build/obj
-├── tools/                      # 辅助脚本（历史构建/重命名工具）
-├── XPCHunterDrv/               # 仅源码（不含 build/日志）
-│   ├── XPCHunterDrv.vcxproj    # VS2019 项目文件 (PlatformToolset=v142)
-│   ├── XPCHunterDrv.sln
-│   ├── inc/                    # 头文件
-│   │   ├── XPCHunterDrv.h      # 伞形头：include 子头 + 全部函数声明
-│   │   ├── xpc_basic.h         # 基础类型/宏
-│   │   ├── xpc_gt_enum.h       # GLOBAL_TABLE_INDEX 枚举 + GT 别名
-│   │   ├── xpc_ioctl.h         # 设备名/IRP 常量/IOCTL 码/CMD opcode
-│   │   └── xpc_structs.h       # 结构体定义
-│   └── src/                    # 四层组织
-│       ├── DriverEntry.c       # 驱动入口
-│       ├── GlobalTable.c       # 全局表
-│       ├── framework/          # 基础框架：内存/缓冲区/工具/PE/加解密
-│       │   └── MemoryOps.c, MemoryCleanup.c, Utility.c, Utf8Decoder.c,
-│       │       PEDecoder.c, DecodeTables.c, Crypto.c
-│       ├── kernel/             # 内核对象操作
-│       │   └── ProcessMgmt.c, ThreadMgmt.c, ObjectMgmt.c, HandleMgmt.c,
-│       │       ModuleMgmt.c, Registry.c, Minifilter.c, ContextMgmt.c
-│       ├── services/           # 服务层：IOCTL 分发/SSDT/协议
-│       │   └── IoctlDispatch.c, Operation.c, SSDT.c, SsdtHook.c,
-│       │       SyscallTable.c, Protocol.c, QueryDriver.c, TailHelpers.c
-│       └── features/           # 功能层：系统信息/PE 解析/服务表/磁盘/模块枚举/回调
-│           └── SystemInfo.c, PeParse.c, ServiceTable.c, DiskQuery.c,
-│               ModuleEnum.c, Callback.c
-├── docs/
-│   ├── reversing/
-│   │   └── View++_Driver64_逆向分析报告.md
-│   └── build/
-│       └── 编译说明.md          # 编译环境与步骤
-└── CLAUDE.md
+├── src/
+│   ├── driver/                 # 内核驱动（View++_Driver64.sys 的复刻）
+│   │   ├── XPCHunterDrv.vcxproj    # VS2019 项目文件 (PlatformToolset=v142)
+│   │   ├── XPCHunterDrv.sln
+│   │   ├── inc/                    # 头文件（与 src 同级，源码用 "..\inc\xxx.h" 包含）
+│   │   │   ├── XPCHunterDrv.h      # 伞形头：include 子头 + 全部函数声明
+│   │   │   ├── xpc_basic.h         # 基础类型/宏
+│   │   │   ├── xpc_gt_enum.h       # GLOBAL_TABLE_INDEX 枚举 + GT 别名
+│   │   │   ├── xpc_ioctl.h         # 设备名/IRP 常量/IOCTL 码/CMD opcode
+│   │   │   └── xpc_structs.h       # 结构体定义
+│   │   └── src/                    # 四层组织
+│   │       ├── DriverEntry.c       # 驱动入口 + IOCTL 分派
+│   │       ├── GlobalTable.c       # 全局表
+│   │       ├── framework/          # 内存/缓冲区/工具/PE/加解密
+│   │       ├── kernel/             # 进程/线程/对象/句柄/模块/注册表/MiniFilter
+│   │       ├── services/           # IOCTL 分发/SSDT/协议
+│   │       └── features/           # 系统信息/PE 解析/服务表/磁盘/模块枚举/回调
+│   │
+│   ├── app/                    # 用户态客户端
+│   │   ├── inc/                    # 头文件
+│   │   ├── res/                    # 资源（DPI 清单等）
+│   │   └── src/
+│   │       ├── frontend.c          # GUI 主窗口（WinMain + WndProc）
+│   │       ├── CliMain.c           # --xxx-cli 命令行分发
+│   │       ├── probe.c             # 协议自检与实机联调工具
+│   │       ├── Fe*Page.c           # 各主 Tab 的页面实现
+│   │       ├── *Views.c            # 各功能域的数据层
+│   │       └── FeTheme/Dpi/Menu…   # 表现层
+│   │
+│   ├── common/                 # 预留：驱动与客户端共用代码（当前为空）
+│   └── tools/                  # 分析脚本
+│       ├── gt_index_audit.py       # GT 槽号审计
+│       ├── ida_mcp_client.py       # IDA MCP 客户端
+│       ├── ida_extract_proc_tables.py
+│       ├── hashprobe.py            # 文件哈希取证
+│       ├── nt_export_map.py        # ntoskrnl 导出表解析
+│       └── gen_guest_scripts.py    # 生成 guest 部署脚本
+│
+├── build/                      # 编译目录（只有脚本与产物）
+│   ├── build.bat                   # 驱动：msbuild 编译 + link 链接
+│   ├── build_um.bat                # 客户端：cl 编译 + link 链接
+│   ├── bin/                        # 产物（.gitignore）
+│   └── obj/                        # 中间文件（.gitignore）
+│
+├── doc/
+│   ├── reversing/                  # 活文档（随代码维护）
+│   │   ├── 驱动命令清单与接入指南.md
+│   │   ├── 用户态内核通信协议.md
+│   │   ├── 原版前端功能地图.md
+│   │   └── README.md
+│   ├── archive/reversing/          # 逆向过程文档（已冻结）
+│   └── build/                      # 编译说明
+│
+├── samples/                    # 原始样本（含 LFS 管理的 IDB）
+├── CLAUDE.md
+└── README.md
 ```
+
+**结构约定：**
+- `src/` 下按 `driver` / `app` / `common` / `tools` 分类，不放产物
+- `build/` 只放构建脚本与 `bin`/`obj`，不放一次性验证脚本与日志
+- `doc/` 只放文档；逆向过程文档进 `doc/archive/` 并冻结
 
 ### 4.4 编译方法（两步法）
 
@@ -203,12 +227,13 @@ REM 第一步：设置环境
 call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
 
 REM 第二步：msbuild 编译（/t:ClCompile 仅编译）
-REM 在仓库根执行，项目文件位于 XPCHunterDrv\ 子目录
-msbuild XPCHunterDrv\XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64 /t:ClCompile
+REM 在仓库根执行，项目文件位于 src\driver\ 子目录
+msbuild src\driver\XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64 /t:ClCompile
 
 REM 第三步：手动链接（msbuild 在 v142 下不自动链接驱动）
-REM 产物输出到仓库根 build\bin、build\obj（vcxproj 的 OutDir/IntDir 为 $(SolutionDir)..\build\...）
-link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /fixed:no /driver /merge:.data=.text /manifest:no ^
+REM 产物输出到仓库根 build\bin、build\obj
+REM （vcxproj 的 OutDir/IntDir 为 $(SolutionDir)..\..\build\...，因为 SolutionDir = src\driver\）
+link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /fixed:no /driver /manifest:no /ignore:4257 /ignore:4254 /OPT:NOICF ^
     /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\km\x64" ^
     /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\km\x64\crt" ^
     /out:"build\bin\Release\x64\XPCHunterDrv.sys" ^
@@ -219,15 +244,22 @@ link /nologo /kernel /subsystem:native /entry:GsDriverEntry /base:0x140000000 /f
     BufferOverflowK.lib bufferoverflowfastfailk.lib
 ```
 
-**快速编译（使用 build.bat，在仓库根执行）：**
+**快速编译（在仓库根执行）：**
 ```bat
-cd E:\Work\Dev\Windows\wmprotected\APK\XPCHunter
-build\build.bat              # Release x64
-build\build.bat Debug x64    # Debug x64
+build\build.bat              # 驱动 Release x64
+build\build.bat Debug x64    # 驱动 Debug x64
 build\build.bat Clean        # 清理
+
+build\build_um.bat           # 用户态客户端（产出 xpch_frontend.exe 与 xpch_probe.exe）
+build\build_um.bat Clean     # 清理
 ```
 
-**注意：** 不能直接调用 `msbuild XPCHunterDrv\XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64` 完成全部编译，因为 `v142` 工具集在未安装完整 WDK 的情况下无法自动完成驱动链接步骤。必须两步走：msbuild 编译 → 手动 link 链接。
+**注意：** 不能直接调用 `msbuild src\driver\XPCHunterDrv.vcxproj /p:Configuration=Release /p:Platform=x64` 完成全部编译，因为 `v142` 工具集在未安装完整 WDK 的情况下无法自动完成驱动链接步骤。必须两步走：msbuild 编译 → 手动 link 链接。
+
+**`/OPT:NOICF` 不可省略**：原始驱动没有做 COMDAT 折叠，仅差一个常量实参的函数
+（`CmdThreadOperation` vs `CmdThreadMonitor` 等）在原版里地址各不相同。开了 ICF
+会把它们合并，导致命令表两个槽指向同一实现、其中一个收到错误常量（真机上
+观测到 GT[0x93F]/[0x9D5]/[0xA21] 不匹配）。
 
 ### 4.5 新增源文件维护规则
 - 新增 `.c` 文件后，必须同步在 `XPCHunterDrv.vcxproj` 的 `<ClCompile>` 列表中添加对应条目
@@ -286,8 +318,8 @@ build\build.bat Clean        # 清理
 1. IDA Pro 逆向分析：对每个函数命名、分析参数、理解逻辑
 2. 重命名函数参数和局部变量
 3. 创建 IDA 结构体类型：重建所有数据结构
-4. 记录分析文档到 `docs/archive/reversing/`（**逆向阶段已于 2026-11-02 结束并冻结**；
-   新的分析记录也写这里。`docs/reversing/` 只保留长期有效的活文档：命令清单与
+4. 记录分析文档到 `doc/archive/reversing/`（**逆向阶段已于 2026-11-02 结束并冻结**；
+   新的分析记录也写这里。`doc/reversing/` 只保留长期有效的活文档：命令清单与
    接入指南、通信协议、原版功能地图 —— 这三份随代码维护）
 5. 确认所有 1516 个函数均已逆向分析完成
 6. 编写完整的实现代码

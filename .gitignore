@@ -59,34 +59,17 @@ build/*.log
 build/*.txt
 
 # 双机调试签名产物（含测试私钥，禁止提交）
-build/sign/*.pfx
-build/sign/*.pvk
-build/sign/*.cer
-build/sign/*.sys
-build/sign/probe*/
-build/sign/*.log
-build/sign/*.ps1
-build/sign/*.bat
-build/sign/*.txt
 
 # 诊断期源文件备份（不入库，避免与权威源码混淆）
 *.probe_backup
 
 # 双机调试期间的临时产物（截图/scratch，非结论性证据，不入库）
-build/audit/*.png
-build/audit/*.bmp
-build/audit/_lm_*.txt
-build/audit/_split_tmp.txt
-build/audit/_gttest.bin
-build/audit/_mklm.py
 # ntoskrnl 已有入库副本 ntoskrnl_guest.exe（同 SHA1），不再重复
-build/audit/ntoskrnl_19045.exe
 
 # IDA MCP 运行时目录（临时会话/缓存）
 .ida-mcp/
 
 # ntoskrnl.exe 本体（微软二进制，9.9MB）不入库；只保留派生出的导出映射
-build/audit/nt/*.exe
 
 # 前端 IDB 有 134MB，且每次 IDA 会话都会重写（二进制无有效 diff）。
 # 项目规则只要求提交**驱动**的 IDB（View++_Driver64.sys.i64，47MB），前端 IDB 不入库。
@@ -94,50 +77,20 @@ samples/PCHunter_2024.09.02/PCHunter64.exe.i64
 
 # 调试临时产物（guest 执行脚本、截图裁剪、诊断输出）
 build/g_run*.bat
-build/g_out.txt
 build/crop*
 build/*.bat.txt
-build/audit/c?.txt
-build/audit/g?.txt
-build/audit/fin*.txt
-build/audit/ok*.txt
-build/audit/k?.txt
-build/audit/r?.txt
-build/audit/v?.txt
-build/audit/o?.txt
 
 # 单次调试的原始 dump（每个 10MB，内容为同一次网络回调枚举的重复输出，
-# 且未被任何文档引用；结论已写进 docs/reversing/ 下的分析文档）
-build/audit/nf*.txt
-build/audit/net*.txt
-build/audit/ntoskrnl_18362.exe
-build/audit/win32kfull.sys
+# 且未被任何文档引用；结论已写进 doc/reversing/ 下的分析文档）
 
 # 从 guest 提取的微软系统二进制（与已入库的样本重复或仅为单次分析），
 # 遵循本项目既有规则：微软二进制不入库，只保留派生的分析结果
-build/audit/fltmgr.sys
-build/audit/hal.dll
-build/audit/wrong_orig_backup/
-build/audit/gtprobe/*.exe
 
 # 一次性 guest 探测脚本（每次只跑一条命令，参数与输出路径都写死；
 # 与既有 build/g_run*.bat 同一类，不单独保存）
 build/grun*.bat
 build/t?.bat
 build/t1?.bat
-build/g_ab_orig.bat
-build/g_chk.bat
-build/g_d4x2.bat
-build/g_deploy_047.bat
-build/g_mv_verify.bat
-build/g_net.bat
-build/g_p031x3.bat
-build/g_state.bat
-build/g_sweep2.bat
-build/guest_deploy2.bat
-build/sw1.bat
-build/sw2.bat
-build/sysact.bat
 
 # 我方旧构建的 IDB（不是参照标准，见「重大纠错」文档；二进制本身已入库）
 samples/guest_ViewPlusPlusByLinxer.sys.i64

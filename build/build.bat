@@ -33,7 +33,7 @@ if /I "%BUILD_CFG%"=="Clean" (
 )
 
 set BASE_DIR=%~dp0..
-set PROJ_DIR=%BASE_DIR%\XPCHunterDrv
+set PROJ_DIR=%BASE_DIR%\src\driver
 set OBJ_DIR=%BASE_DIR%\build\obj\%BUILD_CFG%\%BUILD_ARCH%
 set BIN_DIR=%BASE_DIR%\build\bin\%BUILD_CFG%\%BUILD_ARCH%
 set SRC_DIR=%PROJ_DIR%\src

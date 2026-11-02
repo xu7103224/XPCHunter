@@ -9,8 +9,8 @@ if "%BUILD_CFG%"=="" set BUILD_CFG=Release
 
 set VS2019_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools
 set BASE_DIR=%~dp0..
-set SRC_DIR=%BASE_DIR%\XPCHunterUM\src
-set INC_DIR=%BASE_DIR%\XPCHunterUM\inc
+set SRC_DIR=%BASE_DIR%\src\app\src
+set INC_DIR=%BASE_DIR%\src\app\inc
 set OBJ_DIR=%BASE_DIR%\build\obj\%BUILD_CFG%\um_x64
 set BIN_DIR=%BASE_DIR%\build\bin\%BUILD_CFG%\um_x64
 
@@ -68,7 +68,7 @@ if not defined MT if exist "%ProgramFiles(x86)%\Windows Kits\10\bin" (
     )
 )
 if defined MT (
-    "%MT%" -nologo -manifest "%BASE_DIR%\XPCHunterUM\res\xpch_frontend.manifest" -outputresource:"%BIN_DIR%\xpch_frontend.exe;#1"
+    "%MT%" -nologo -manifest "%BASE_DIR%\src\app\res\xpch_frontend.manifest" -outputresource:"%BIN_DIR%\xpch_frontend.exe;#1"
     if errorlevel 1 echo WARNING: manifest embed failed
 ) else (
     echo WARNING: mt.exe not found - manifest not embedded

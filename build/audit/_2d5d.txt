@@ -1,9 +1,0 @@
-14001ed20  896c2420             mov dword ptr [rsp + 0x20], ebp
-14001ed24  e893f8ffff           call 0x14001e5bc
-14001ed29  4c8bce               mov r9, rsi
-14001ed2c  4c8bc7               mov r8, rdi
-14001ed2f  8bd3                 mov edx, ebx
-14001ed31  498bce               mov rcx, r14
-14001ed34  896c2420             mov dword ptr [rsp + 0x20], ebp
-14001ed38  e87ff2ffff           call 0x14001dfbc
-14001ed3d  4c8bce               mov r9, rsi
