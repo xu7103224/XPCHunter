@@ -50,7 +50,9 @@ BOOL FeThemeDrawListViewItem(NMLVCUSTOMDRAW *cd);
 BOOL FeThemeDrawHeader(HDC hdc, LPNMCUSTOMDRAW cd, BOOL *NeedItemDraw);
 /* 表头子类化：SysHeader32 的 NM_CUSTOMDRAW 不冒泡到父窗口，必须直接子类化 */
 void FeThemeSubclassHeader(HWND hList);
-/* Tab 控件子类化（标签区系统绘制，需要背景接管） */
+/* Tab 控件子类化（内边距自适应 + 标签绘制接管）。
+   标签矩形由控件自己按文字宽度算，子类在 WM_PAINT 里取 TCM_GETITEMRECT
+   的结果、只替换配色（见 FeTheme.c 的 FeTabPaint）。 */
 void FeThemeSubclassTab(HWND hTabs);
 
 /* ---- 状态图标列 ----

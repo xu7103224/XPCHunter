@@ -469,11 +469,145 @@ void FeThemeSubclassHeader(HWND hList)
 
 /* ---- Tab 控件子类化 ----
    SysTabControl32 也是系统绘制，WM_CTLCOLORSTATIC 管不到它的标签区。
-   用子类化在 WM_ERASEBKGND 画底色，并靠自定义绘制覆盖标签头。 */
+
+   【2026-11-02 修 Tab 标签不可见 / 标签条恒为浅灰，走过的三条路】
+     (a) NM_CUSTOMDRAW —— 探针实测：整份通知日志里主 Tab（idFrom=1030）
+         出现 0 次。SysTabControl32 **根本不发** NM_CUSTOMDRAW。
+     (b) SetWindowTheme(h,"","") 关掉视觉样式 —— 关掉之后控件退回经典
+         绘制路径，同样不发任何通知，标签条恒为 COLOR_BTNFACE 浅灰。
+     (c) TCS_OWNERDRAWFIXED —— 这个样式不只是"让我自绘"，它同时把每个
+         标签钉成**同一宽度**。14 个标签远超单格宽度，文字直接压叠。
+
+   可行的是在子类里接管 WM_PAINT：用 TCM_GETITEMRECT 取系统算好的
+   每个标签矩形（宽度随文字自适应），自己填色写字后不再交给原过程。
+   见 FeTabPaint。 */
+
+/* 【2026-11-02】按控件实际宽度收紧标签内边距，避免 SysTabControl32 挂出
+   滚动箭头把末尾标签挤出可视区。返回最终使用的内边距（1..6）。 */
+static int FeTabFitPadding(HWND hWnd)
+{
+    RECT cli;
+    int n, i, pad, lastRight;
+
+    GetClientRect(hWnd, &cli);
+    n = TabCtrl_GetItemCount(hWnd);
+    if (n <= 0 || cli.right <= 0)
+        return 6;
+
+    for (pad = 6; pad > 1; pad--) {
+        SendMessageA(hWnd, TCM_SETPADDING, 0, MAKELPARAM(pad, 2));
+        lastRight = 0;
+        for (i = 0; i < n; i++) {
+            RECT r;
+            if (TabCtrl_GetItemRect(hWnd, i, &r))
+                lastRight = r.right;
+        }
+        if (lastRight <= cli.right)
+            break;
+    }
+    return pad;
+}
+
+/* 【2026-11-02】在子类 WM_PAINT 里接管 Tab 标签绘制。
+   保住控件自己的布局计算（TCM_GETITEMRECT 给出按文字自适应的矩形），
+   只替换配色：未选中用主题底色 + 正常文字，选中用面板色 + 高亮文字，
+   悬停用表头色。选中项下沿再画一条主题色细线做视觉锚点。 */
+static void FeTabPaint(HWND hWnd)
+{
+    const FE_THEME_COLORS *C = FeThemeColors();
+    HBRUSH bgBr = FeThemeBgBrush();
+    PAINTSTRUCT ps;
+    HDC dc = BeginPaint(hWnd, &ps);
+    RECT cli, rc;
+    POINT pt;
+    BOOL hasPt;
+    int n, i, sel, cliRight, cliBottom;
+
+    GetClientRect(hWnd, &cli);
+    cliRight = cli.right;
+    cliBottom = cli.bottom;
+
+    FillRect(dc, &cli, bgBr);
+
+    /* 点是否在控件内：用来给悬停标签一个可见反馈。 */
+    hasPt = GetCursorPos(&pt) && ScreenToClient(hWnd, &pt);
+
+    n = TabCtrl_GetItemCount(hWnd);
+    sel = TabCtrl_GetCurSel(hWnd);
+    SetBkMode(dc, TRANSPARENT);
+
+    for (i = 0; i < n; i++) {
+        RECT tr;
+        COLORREF face, text;
+        HBRUSH br;
+        HGDIOBJ oldFont = NULL;
+        char buf[128];
+        TCITEMA it;
+
+        if (!TabCtrl_GetItemRect(hWnd, i, &tr))
+            continue;
+        /* 滚动/裁剪：只画落在客户区内的部分 */
+        if (tr.left >= cliRight)
+            continue;
+        if (tr.right > cliRight)
+            tr.right = cliRight;
+        if (tr.bottom > cliBottom)
+            tr.bottom = cliBottom;
+
+        rc = tr;
+        if (i == sel) {
+            face = C->Panel;
+            text = C->SelectText;
+        } else if (hasPt && PtInRect(&tr, pt)) {
+            face = C->Header;
+            text = C->HeaderText;
+        } else {
+            face = C->Bg;
+            text = C->Text;
+        }
+
+        br = CreateSolidBrush(face);
+        FillRect(dc, &rc, br);
+        DeleteObject(br);
+
+        /* 选中项下沿画一条主题色细线，弥补没有立体边框的观感。 */
+        if (i == sel) {
+            RECT line = { rc.left + 2, rc.bottom - 2, rc.right - 2, rc.bottom };
+            HBRUSH lb = CreateSolidBrush(C->Select);
+            FillRect(dc, &line, lb);
+            DeleteObject(lb);
+        }
+
+        ZeroMemory(&it, sizeof(it));
+        it.mask = TCIF_TEXT;
+        it.pszText = buf;
+        it.cchTextMax = (int)sizeof(buf);
+        if (!SendMessageA(hWnd, TCM_GETITEMA, (WPARAM)i, (LPARAM)&it))
+            continue;
+
+        SetTextColor(dc, text);
+        oldFont = SelectObject(dc,
+                               (HGDIOBJ)SendMessageA(hWnd, WM_GETFONT, 0, 0));
+        {
+            RECT tx = rc;
+            tx.left += 3;
+            tx.right -= 3;
+            DrawTextA(dc, buf, -1, &tx,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        }
+        if (oldFont)
+            SelectObject(dc, oldFont);
+    }
+
+    EndPaint(hWnd, &ps);
+}
+
 static LRESULT CALLBACK FeTabSubclass(HWND hWnd, UINT msg, WPARAM wParam,
                                       LPARAM lParam, UINT_PTR id,
                                       DWORD_PTR refData)
 {
+    static BOOL s_inFit = FALSE;
+
     if (msg == WM_ERASEBKGND) {
         RECT rc;
         GetClientRect(hWnd, &rc);
@@ -481,15 +615,44 @@ static LRESULT CALLBACK FeTabSubclass(HWND hWnd, UINT msg, WPARAM wParam,
         return 1;
     }
     if (msg == WM_PAINT) {
-        /* Tab 的标签区在 WM_PAINT 里用系统色画。先刷主题底色，
-           再让原过程画标签文字（文字仍是系统色，在深底上可读性尚可）。 */
-        LRESULT r;
-        RECT rc;
-        HDC dc = GetDC(hWnd);
-        GetClientRect(hWnd, &rc);
-        FillRect(dc, &rc, FeThemeBgBrush());
-        ReleaseDC(hWnd, dc);
-        r = DefSubclassProc(hWnd, msg, wParam, lParam);
+        FeTabPaint(hWnd);
+        return 0;
+    }
+    if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_MOUSEMOVE
+        || msg == WM_MOUSELEAVE) {
+        /* 交给系统处理（选中切换、hot 追踪），然后重画。
+           必须先转发：选中项由控件的默认过程更新。 */
+        LRESULT r = DefSubclassProc(hWnd, msg, wParam, lParam);
+        if (msg == WM_MOUSEMOVE) {
+            TRACKMOUSEEVENT tme;
+            ZeroMemory(&tme, sizeof(tme));
+            tme.cbSize = sizeof(tme);
+            tme.dwFlags = TME_LEAVE;
+            tme.hwndTrack = hWnd;
+            TrackMouseEvent(&tme);
+        }
+        InvalidateRect(hWnd, NULL, FALSE);
+        return r;
+    }
+    /* 【2026-11-02 修子 Tab 溢出/滚动箭头】
+       标签按创建时的字体和文本宽度累加，一旦超过控件宽度，SysTabControl32
+       会挂出一对 msctls_updown32 箭头，末尾标签被推出可视区（Kernel 页 14 个
+       子 Tab、主 Tab 栏 14 项都会这样）。这里在控件拿到实际宽度后自己量一遍：
+       从默认内边距开始逐步收紧到 1px，直到最后一项的右边界落进客户区；
+       只有确实放不下才保留滚动箭头。
+
+       必须在本进程内做 —— TCM_GETITEMRECT 传的是 RECT 指针，
+       USER32 不对该消息做跨进程编组，外部脚本读回来永远是全 0。
+
+       s_inFit 防止 TCM_SETPADDING 再次触发 WM_SIZE 造成递归。 */
+    if (msg == WM_SIZE) {
+        LRESULT r = DefSubclassProc(hWnd, msg, wParam, lParam);
+        if (!s_inFit) {
+            s_inFit = TRUE;
+            FeTabFitPadding(hWnd);
+            s_inFit = FALSE;
+            InvalidateRect(hWnd, NULL, FALSE);
+        }
         return r;
     }
     return DefSubclassProc(hWnd, msg, wParam, lParam);
@@ -500,5 +663,9 @@ void FeThemeSubclassTab(HWND hTabs)
     if (!hTabs)
         return;
     SetWindowSubclass(hTabs, FeTabSubclass, 2, 0);
+    /* 父窗口 WM_SIZE 里的顺序是 MoveWindow 之后再调本函数，
+       所以 Tab 的 WM_SIZE 早就发过了 —— 挂上子类时补做一次内边距收敛，
+       否则要等下一次窗口缩放才会生效。 */
+    FeTabFitPadding(hTabs);
     InvalidateRect(hTabs, NULL, TRUE);
 }

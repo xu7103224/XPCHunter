@@ -659,12 +659,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         g_hSize = CreateWindowA("EDIT", "256", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
                                 595, 12, 70, 24, hWnd, (HMENU)IDC_OUTSIZE, hInst, NULL);
 
+        /* 【2026-11-02 修布局重叠】状态栏占 46..66；主 Tab 栏原来也放在
+           y=44（占 44..68），与状态栏完全重叠，"Connected device=..." 这段
+           文字被 Tab 控件盖住 —— 用户看到的就是 Tab 条糊在状态文本上。
+           现在：状态栏 46..66，Tab 栏 70..94，页面内容从 100 开始。
+           所有页面的布局都由 WM_SIZE 里的 pageTop 统一驱动，改那个值即可
+           整体下移，不会漏掉某一页。 */
         g_hStatus = CreateWindowA("STATIC", "Disconnected", WS_CHILD | WS_VISIBLE | SS_LEFT,
                                   10, 46, 940, 20, hWnd, (HMENU)IDC_STATUS, hInst, NULL);
 
         /* ---- 14 个主 Tab 容器（M1）---- */
         g_hMainTabs = CreateWindowA(WC_TABCONTROLA, "", WS_CHILD | WS_VISIBLE | TCS_TABS,
-                                    10, 44, 940, 24, hWnd, (HMENU)IDC_MAIN_TABS, hInst, NULL);
+                                    10, 70, 940, 24, hWnd, (HMENU)IDC_MAIN_TABS, hInst, NULL);
         {
             TCITEMA t;
             int k;
@@ -674,11 +680,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 t.pszText = (LPSTR)g_MainTabNames[k];
                 SendMessageA(g_hMainTabs, TCM_INSERTITEMA, k, (LPARAM)&t);
             }
+            /* 【2026-11-02 修主 Tab 被切】14 个标签按默认内边距加起来会超过
+               控件宽度，Tab 控件就挂出一对 msctls_updown32 滚动箭头，
+               末几个主 Tab（Trojan Detection / Other）被挤出可视区。
+               内边距的自适应收紧统一在 FeTabFitPadding 里做（WM_SIZE 时
+               按控件实际宽度实测最后一项右边界），这里不再单独设固定值。 */
         }
 
         /* 未实现页的占位提示（不伪造功能，写清状态） */
         g_hPageHint = CreateWindowA("STATIC", "", WS_CHILD | SS_LEFT,
-                                    20, 90, 900, 140, hWnd, (HMENU)IDC_PAGEHINT, hInst, NULL);
+                                    20, 120, 900, 140, hWnd, (HMENU)IDC_PAGEHINT, hInst, NULL);
 
         /* Process 页主视图 */
         g_hProc = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA,
@@ -1202,12 +1213,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         w = rc.right - FeDpiScale(20);
         h = rc.bottom;
         if (w < FeDpiScale(400)) w = FeDpiScale(400);
-        pageTop = FeDpiScale(76);                  /* 主 Tab 栏之下 */
+        pageTop = FeDpiScale(100);                 /* 主 Tab 栏（70..94）之下 */
         pageBottom = h - FeDpiScale(12);           /* 留一点下边距 */
 
         if (g_hMainTabs) {
-            MoveWindow(g_hMainTabs, FeDpiScale(10), FeDpiScale(44), w, FeDpiScale(24), TRUE);
+            MoveWindow(g_hMainTabs, FeDpiScale(10), FeDpiScale(70), w, FeDpiScale(26), TRUE);
             FeThemeSubclassTab(g_hMainTabs);   /* 第三步：Tab 背景跟随主题 */
+            /* 【2026-11-02】其余 4 个 Tab 控件也挂子类。
+               标签本体由 FeTabPaint 在 WM_PAINT 里接管绘制（系统算宽度，
+               我们只换配色），FC_TAB 的高度也比原来高 2px，给文字留余量。 */
+            FeThemeSubclassTab(g_hTabs);
+            FeThemeSubclassTab(g_hKmTabs);
+            FeThemeSubclassTab(g_hSuTabs);
+            FeThemeSubclassTab(g_hRgTabs);
         }
         if (g_hPageHint)
             MoveWindow(g_hPageHint, 20, pageTop + 20, w - 20, 160, TRUE);
@@ -1238,7 +1256,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 HWND hAuto = GetDlgItem(hWnd, IDC_PROC_AUTO);
                 if (hAuto) MoveWindow(hAuto, 10 + w - 96, midY - 4, 94, 24, TRUE);
             }
-            if (g_hTabs)       MoveWindow(g_hTabs, 10, midY + 22, w, 24, TRUE);
+            if (g_hTabs)       MoveWindow(g_hTabs, 10, midY + 22, w, 26, TRUE);
             if (g_hDetail)     MoveWindow(g_hDetail, 10, midY + 46, w, detailH, TRUE);
             if (g_hList)       MoveWindow(g_hList, 10, h - 150, w, 132, TRUE);
         } else if (g_MainTab == 1) {
@@ -1270,16 +1288,25 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hKmStatus) MoveWindow(g_hKmStatus, 576, pageTop + 6,
                                         (w > 700 ? w - 576 : 200), 34, TRUE);
             if (g_hKmKExtra) MoveWindow(g_hKmKExtra, 10, pageTop + 34, w, 18, TRUE);
-            if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 54, w, 24, TRUE);
+            if (g_hKmTabs)   MoveWindow(g_hKmTabs, 10, pageTop + 54, w, 26, TRUE);
             if (g_hKmList)   MoveWindow(g_hKmList, 10, listY + 20, w, listH - 20, TRUE);
             if (g_hList)     ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 2 || g_MainTab == 3) {
             int listY = pageTop + 34;
             int listH = pageBottom - listY;
             HWND a = GetDlgItem(hWnd, IDC_HK_REFRESH);
+            /* 【2026-11-02 修父 Tab 被盖】这两个恢复按钮创建在 y=76，
+               而 WM_SIZE 从来没摆过它们 —— pageTop 提到 100 之后，
+               76..104 直接压在父 Tab 栏（70..94）上面，父 Tab 看起来
+               就"没了"。跟 Startup 的 g_hSuTabs 是同一类遗漏：
+               建窗口时写了坐标，之后的重排代码里漏了这一项。 */
+            HWND r = GetDlgItem(hWnd, IDC_HK_RESTORE);
+            HWND c = GetDlgItem(hWnd, IDC_HK_CBTABLE);
             if (listH < 100) listH = 100;
             if (a) MoveWindow(a, 10, pageTop, 90, 28, TRUE);
-            if (g_hHkStatus) MoveWindow(g_hHkStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (r) MoveWindow(r, 106, pageTop, 210, 28, TRUE);
+            if (c) MoveWindow(c, 322, pageTop, 210, 28, TRUE);
+            if (g_hHkStatus) MoveWindow(g_hHkStatus, 540, pageTop + 6, w - 530, 20, TRUE);
             if (g_hHkList)   MoveWindow(g_hHkList, 10, listY, w, listH, TRUE);
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 12) {
@@ -1392,7 +1419,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             listH = pageBottom - listY;
             if (listH < 100) listH = 100;
             if (hRg) MoveWindow(hRg, 10, pageTop, 90, 28, TRUE);
-            if (g_hRgTabs)   MoveWindow(g_hRgTabs, 10, tabsY, w, 24, TRUE);
+            if (g_hRgTabs)   MoveWindow(g_hRgTabs, 10, tabsY, w, 26, TRUE);
             /* 2026-10-29：Key 子页（tab 3）显示左侧树，列表右移 */
             if (g_RgTab == 3 && g_hRgTree) {
                 int treeW = (w > 700) ? 250 : (w * 30 / 100);
@@ -1415,12 +1442,20 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (g_hSvList)   MoveWindow(g_hSvList, 10, listY, w, listH, TRUE);
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 6) {
-            int listY = pageTop + 34;
+            /* 【2026-11-02 修父/子 Tab 重叠】这里原来只摆了 Refresh /
+                Status / List，**没有摆 g_hSuTabs** —— 子 Tab 一直停留在
+                CreateWindow 时的 y=104。pageTop 从 76 提到 100 之后，
+               Refresh 占 100~128，而子 Tab 也在 104~128，两者直接压在一起，
+               视觉上父 Tab 条（70~94）像是"消失"了。
+               现在把子 Tab 也纳入布局：Refresh 一行 → 子 Tab 一行 → 列表。 */
+            int tabsY = pageTop + 32;
+            int listY = tabsY + 28;
             int listH = pageBottom - listY;
             HWND hSu = GetDlgItem(hWnd, IDC_SU_REFRESH);
             if (listH < 100) listH = 100;
             if (hSu) MoveWindow(hSu, 10, pageTop, 90, 28, TRUE);
             if (g_hSuStatus) MoveWindow(g_hSuStatus, 110, pageTop + 6, w - 100, 20, TRUE);
+            if (g_hSuTabs)   MoveWindow(g_hSuTabs, 10, tabsY, w, 26, TRUE);
             if (g_hSuList)   MoveWindow(g_hSuList, 10, listY, w, listH, TRUE);
             if (g_hList) ShowWindow(g_hList, SW_HIDE);
         } else if (g_MainTab == 4) {
