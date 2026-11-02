@@ -1,0 +1,2 @@
+# IDA 数据库体积大且每次分析都会重新保存，交给 Git LFS 管理
+*.i64 filter=lfs diff=lfs merge=lfs -text
