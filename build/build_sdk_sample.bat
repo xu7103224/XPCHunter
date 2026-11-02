@@ -23,19 +23,21 @@ if not exist "%LIB_DIR%\XpchSdk.lib" (
     exit /b 1
 )
 
-echo Compiling sample...
-cl /nologo /W3 /O2 /GS /guard:cf- /utf-8 /DUNICODE /D_UNICODE ^
-   /I"%SDK_DIR%\inc" ^
-   /Fo"%OBJ_DIR%\\" ^
-   /Fe"%LIB_DIR%\XpchSdkSample.exe" ^
-   "%SDK_DIR%\samples\XpchSdkSample.c" ^
-   "%LIB_DIR%\XpchSdk.lib" ^
-   advapi32.lib wintrust.lib crypt32.lib psapi.lib
+set SAMPLES=XpchSdkSample XpchSdkTest
 
-if errorlevel 1 (
-    echo ERROR: sample build failed
-    exit /b 1
+for %%S in (%SAMPLES%) do (
+    echo Compiling %%S...
+    cl /nologo /W3 /O2 /GS /guard:cf- /utf-8 /DUNICODE /D_UNICODE ^
+       /I"%SDK_DIR%\inc" ^
+       /Fo"%OBJ_DIR%\\" ^
+       /Fe"%LIB_DIR%\%%S.exe" ^
+       "%SDK_DIR%\samples\%%S.c" ^
+       "%LIB_DIR%\XpchSdk.lib" ^
+       advapi32.lib wintrust.lib crypt32.lib psapi.lib
+    if errorlevel 1 (
+        echo ERROR: %%S build failed
+        exit /b 1
+    )
+    echo Build complete: %LIB_DIR%\%%S.exe
 )
-
-echo Build complete: %LIB_DIR%\XpchSdkSample.exe
 exit /b 0

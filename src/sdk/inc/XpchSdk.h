@@ -136,8 +136,16 @@ XPCH_STATUS XpchEnumProcesses(XPCH_SESSION *Session,
 XPCH_STATUS XpchGetProcessPath(XPCH_SESSION *Session, ULONG Pid,
                                WCHAR *Path, ULONG PathChars);
 
-/* 判断进程是否可被当前用户态访问（Ring3 可访问性）。
- * 这是原版 UI 里 "accessible / INACCESSIBLE" 那一列。 */
+/* 【实验性，语义有限，不建议依赖】
+ *
+ * 底层是 0x27 CmdCheckProcessAccess，它在原版里不是"可访问性查询"，
+ * 而是"能否对该进程解除保护"的前置判定，内部会调
+ * ProcessOperationWithAttach（附加到目标、清保护标志、调页表）。
+ * 对普通进程这条路径本就返回 0，所以本接口对绝大多数进程都会报
+ * "不可访问"——那不代表你没有权限，而是这条命令不回答这个问题。
+ *
+ * 保留它是因为驱动行为如此，但**不建议依赖它判断可访问性**。
+ * 判断"能不能操作某进程"请直接 OpenProcess 看返回值。 */
 XPCH_STATUS XpchIsProcessAccessible(XPCH_SESSION *Session, ULONG Pid,
                                     BOOL *Accessible);
 

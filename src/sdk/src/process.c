@@ -133,11 +133,14 @@ XPCH_STATUS XpchIsProcessAccessible(XPCH_SESSION *Session, ULONG Pid,
                                     BOOL *Accessible)
 {
     XPCH_SESSION_IMPL *Impl;
-    ULONG64 InPid;
+    XPCH_PROCESS_INFO *Procs = NULL;
+    ULONG N = 0, i;
+    ULONG64 In[2];
     BYTE Out[16];
+    ULONG64 Eprocess = 0;
     XPCH_STATUS St;
 
-    if (!Session || !Accessible)
+    if (!Session || !Accessible || !Pid)
         return XPCH_E_INVALID_ARG;
     *Accessible = FALSE;
 
@@ -145,15 +148,42 @@ XPCH_STATUS XpchIsProcessAccessible(XPCH_SESSION *Session, ULONG Pid,
     if (!Impl->Opened)
         return XPCH_E_NOT_OPENED;
 
-    InPid = (ULONG64)Pid;
-    ZeroMemory(Out, sizeof(Out));
-    St = XpchInvokeRaw(Session, CMD_CHECK_PROCESS_ACCESS, &InPid, sizeof(InPid),
-                       Out, sizeof(Out));
+    /* 先枚举进程拿 EPROCESS。0x27 的判定依赖它：
+       处理器比较 GT[0x185]（"当前进程"，由 0x20 写入 IoGetCurrentProcess，
+       即驱动所在的系统进程）与 TargetProcess；不等时走
+       ValidateProcessObject 分支。只传 PID 且 EPROCESS 留 0 时，驱动自己
+       PsLookupProcessByProcessId 解析，结果与传 EPROCESS 一致，但显式传入
+       可以避免解析失败时把 NULL 当成有效对象。
+       实测：不传 EPROCESS 时连自身进程都判 0，传了之后判定正常。 */
+    St = XpchEnumProcesses(Session, &Procs, &N);
     if (St != XPCH_OK)
         return St;
+    for (i = 0; i < N; i++) {
+        if (Procs[i].Pid == Pid) {
+            Eprocess = Procs[i].Eprocess;
+            break;
+        }
+    }
+    XpchFree(Procs);
+    if (!Eprocess)
+        return XPCH_E_NOT_FOUND;
 
-    *Accessible = TRUE;
-    return XPCH_OK;
+    In[0] = (ULONG64)Pid;
+    In[1] = Eprocess;
+    ZeroMemory(Out, sizeof(Out));
+    St = XpchInvokeRaw(Session, CMD_CHECK_PROCESS_ACCESS, In, sizeof(In),
+                       Out, sizeof(Out));
+
+    if (St == XPCH_OK) {
+        *Accessible = TRUE;
+        return XPCH_OK;
+    }
+    if (St == XPCH_E_REJECTED) {
+        /* 驱动执行了、判定为不可访问 —— 有效结论，不是错误 */
+        *Accessible = FALSE;
+        return XPCH_OK;
+    }
+    return St;
 }
 
 /* ---------------------------------------------------------------------------

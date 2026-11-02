@@ -195,10 +195,33 @@ XPCH_STATUS XpchIsProcessAccessible(XPCH_SESSION *Session, ULONG Pid,
 `Path` 必须是 `XPCH_PROC_PATH_CHARS`(520) 字符的缓冲。
 对 PID 0/4 这类系统进程，返回 `XPCH_OK` 但 `Path` 是空串 —— 它们没有用户态映像。
 
-**`XpchIsProcessAccessible`**
+**`XpchIsProcessAccessible`** —— ⚠️ **语义有限，不建议依赖**
 
-即原版 UI 里 "accessible / INACCESSIBLE" 那一列。它判断当前用户态
-能否对该进程做常规操作。
+底层是 0x27 `CmdCheckProcessAccess`。这个名字容易误解：它在原版里**不是**
+"可访问性查询"，而是"能否对该进程**解除保护**"的前置判定 —— 判定失败时
+内部会调用 `ProcessOperationWithAttach`（附加到目标进程、清保护标志、
+调整页表），是**写入型**操作。
+
+因此对绝大多数普通进程它本就返回 0。实测对照：
+
+| 进程 | 返回 |
+|---|---|
+| 不存在的 PID | 1（异常：驱动把 NULL 与 NULL 判等） |
+| 自身进程 | 0 |
+| System / Registry | 0 |
+
+第一条尤其反直觉 —— 传一个不存在的 PID 反而"可访问"。根因是驱动的
+`CheckProcessAccess` 拿 `GT[0x185]`（由 0x20 写入 `IoGetCurrentProcess`，
+即驱动所在系统进程）与目标比较，两者都是 NULL 时判等成立。
+
+**这个接口保留只为完整性，不建议用它判断"能不能操作某进程"。**
+正确的做法是直接 `OpenProcess` 看返回值：
+
+```c
+HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, Pid);
+BOOL Accessible = (h != NULL);
+if (h) CloseHandle(h);
+```
 
 ---
 
@@ -613,7 +636,55 @@ XpchReadProcessMemory        : [0]   read 64 bytes, first 2 = 4D 5A
 
 ---
 
-## 10. 版本历史
+## 10. 逐接口测试
+
+`src/sdk/samples/XpchSdkTest.c` 覆盖全部公开接口与主要错误路径，
+共 37 条断言。在 Win10 18362 guest 上实测 **37 PASS / 0 FAIL**。
+
+```bat
+build\build_sdk.bat
+build\build_sdk_sample.bat
+build\bin\Release\sdk_x64\XpchSdkTest.exe
+```
+
+| 分组 | 覆盖内容 | 结果 |
+|---|---|---|
+| 工具 | `XpchStatusText` 非空、`XpchUtf16ToAnsi` 正常/缓冲不足/NULL、`XpchFree(NULL)` | 5 PASS |
+| 错误路径 | 空指针、未打开会话调用 | 3 PASS |
+| 会话 | `XpchProbe`、`XpchOpen`、重复打开、`XpchGetBuildNumber`、关闭后再调 | 5 PASS |
+| 进程 | 枚举（含数据校验）、路径、可访问性、模块、线程（校验归属）、Ring3 扫描、读内存（MZ 头 / 无效地址） | 10 PASS |
+| 句柄 | 枚举 + 至少一条带 PID | 2 PASS |
+| 内核 | 内核模块（含 ntoskrnl）、驱动（路径/运行态已填充）、隐藏驱动 | 5 PASS |
+| SSDT | 908 条 + 地址字段全部有效 | 2 PASS |
+| 签名 | notepad、不存在路径、NULL | 3 PASS |
+| 收尾 | `XpchClose`、关闭后调用 | 2 PASS |
+
+实测数据（同一台 guest）：
+
+```
+XpchEnumProcesses      185 条
+XpchEnumModules        267 个（explorer.exe）
+XpchEnumThreads        66 个
+XpchEnumSystemHandles  132 条
+XpchEnumKernelModules  194 个
+XpchEnumDrivers        383 个（有 ImagePath 372 / 运行中 145）
+XpchEnumHiddenDrivers  46 条（含已知误报 win32k*.sys）
+XpchEnumSsdtHooks      908 条，0 条被改写
+```
+
+**测试中发现并修正的两个缺陷**（都记在提交信息里）：
+
+1. `XpchIsProcessAccessible` 入参只传了 8 字节，而 0x27 要求 16 字节
+   （`{PID, EPROCESS}`），导致处理器直接跳过、恒返回 0。
+2. 同一接口把"驱动拒绝"当成了错误返回。实际那是"判定为不可访问"
+   的有效结论，现在映射为 `XPCH_OK` + `*Accessible = FALSE`。
+
+第 2 条修完后仍然发现该接口语义本身有问题（见 §5.2 的说明），
+最终定性为"不建议依赖"，而不是继续包装成能用的样子。
+
+---
+
+## 11. 版本历史
 
 | 版本 | 变更 |
 |---|---|
