@@ -1249,21 +1249,15 @@ BOOL g_ProcOnlySelected = FALSE;
 static ULONG ProcShowHookResult(ULONG Pid, const char *Name, BOOL scanOk,
                                 FE_HOOK_LIST *List)
 {
-    int tab;
-
     if (!g_hTabs || !g_hDetail)
         return 0;
 
-    /* 详情页子 Tab：0 Modules 1 Threads 2 Windows 3 Handles 4 Memory
-       5 Timer 6 HotKey。hook 结果借用"目标进程的模块视图"位置不合适，
-       直接清空列表按 hook 格式重填，并停在模块子页（列是与 hook 无关的
-       模块列，会被 ClearDetailColumns 按 hook 口径重新建）。 */
-    tab = 0;
-    SendMessageA(g_hTabs, TCM_SETCURSEL, (WPARAM)tab, 0);
+    /* 结果落在主窗口下方的详情列表（IDC_DETAIL）。
+       停到第一个子 Tab 并清空重填，列也按 hook 口径重建 ——
+       不能调 DoRefreshDetail 来"清空"，它会先枚举一遍目标进程的所有模块，
+       那些行马上就要被丢掉，纯属白做功。 */
+    SendMessageA(g_hTabs, TCM_SETCURSEL, 0, 0);
     g_DetailTab = -1;
-    DoRefreshDetail();
-
-    /* 覆盖成 hook 结果 */
     while (SendMessageA(g_hDetail, LVM_DELETECOLUMN, 0, 0))
         ;
     SendMessageA(g_hDetail, LVM_DELETEALLITEMS, 0, 0);
