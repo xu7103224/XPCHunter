@@ -1,12 +1,11 @@
 ﻿/* ============================================================================
  * system.c —— 模块、句柄、内核模块、驱动、隐藏驱动
  *
- * 数据源分工：
- *   进程模块   —— psapi EnumProcessModulesEx（纯用户态）
- *   内核模块   —— psapi EnumDeviceDrivers（纯用户态）
- *   驱动服务   —— SCM EnumServicesStatusEx（纯用户态）
+ * 数据源分工（2026-11-03 内核化改造后）：
+ *   内核模块   —— 0x0C5 SDK 扩展命令（DriverSection 加载链）
+ *   驱动服务   —— SCM EnumServicesStatusEx（服务配置枚举，非内核访问）
  *   系统句柄   —— 0x26 CmdEnumHandles（驱动）
- *   隐藏驱动   —— 内核模块列表与驱动服务列表的差集（推导）
+ *   隐藏驱动   —— 0x0C5 内核模块列表与驱动服务列表的差集（推导）
  * ==========================================================================*/
 #include "XpchSdk_internal.h"
 #include <psapi.h>
@@ -15,79 +14,6 @@
 /* ============================================================
  * 进程模块
  * ============================================================*/
-XPCH_STATUS XpchEnumModules(ULONG Pid, XPCH_MODULE_INFO **Modules, ULONG *Count)
-{
-    HANDLE Proc;
-    HMODULE *Handles = NULL;
-    DWORD Needed = 0, Got = 0;
-    XPCH_MODULE_INFO *Items;
-    ULONG i, n;
-
-    if (!Modules || !Count)
-        return XPCH_E_INVALID_ARG;
-    *Modules = NULL;
-    *Count = 0;
-
-    if (!Pid)
-        return XPCH_E_INVALID_ARG;
-
-    Proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
-    if (!Proc)
-        return XPCH_E_ACCESS_DENIED;
-
-    /* 第一次调用拿所需字节数 */
-    if (!EnumProcessModulesEx(Proc, NULL, 0, &Needed, LIST_MODULES_ALL) && !Needed) {
-        CloseHandle(Proc);
-        return XPCH_E_NO_DATA;
-    }
-    if (!Needed) {
-        CloseHandle(Proc);
-        return XPCH_E_NO_DATA;
-    }
-
-    Handles = (HMODULE *)XpchAlloc(Needed);
-    if (!Handles) {
-        CloseHandle(Proc);
-        return XPCH_E_NO_MEMORY;
-    }
-
-    if (!EnumProcessModulesEx(Proc, Handles, Needed, &Got, LIST_MODULES_ALL)) {
-        XpchFreeInternal(Handles);
-        CloseHandle(Proc);
-        return XPCH_E_ACCESS_DENIED;
-    }
-
-    n = Got / sizeof(HMODULE);
-    Items = (XPCH_MODULE_INFO *)XpchAlloc((SIZE_T)n * sizeof(XPCH_MODULE_INFO));
-    if (!Items) {
-        XpchFreeInternal(Handles);
-        CloseHandle(Proc);
-        return XPCH_E_NO_MEMORY;
-    }
-
-    for (i = 0; i < n; i++) {
-        MODULEINFO Mi;
-        if (!GetModuleInformation(Proc, Handles[i], &Mi, sizeof(Mi)))
-            continue;
-        Items[i].Base = (ULONG64)(ULONG_PTR)Mi.lpBaseOfDll;
-        Items[i].Size = Mi.SizeOfImage;
-        GetModuleBaseNameW(Proc, Handles[i], Items[i].Name, XPCH_MOD_NAME_CHARS);
-        GetModuleFileNameExW(Proc, Handles[i], Items[i].Path, XPCH_MOD_PATH_CHARS);
-    }
-
-    XpchFreeInternal(Handles);
-    CloseHandle(Proc);
-
-    if (n == 0) {
-        XpchFreeInternal(Items);
-        return XPCH_E_NO_DATA;
-    }
-
-    *Modules = Items;
-    *Count = n;
-    return XPCH_OK;
-}
-
 /* ============================================================
  * 系统句柄（0x26）
  *
@@ -173,72 +99,62 @@ XPCH_STATUS XpchEnumSystemHandles(XPCH_SESSION *Session,
 /* ============================================================
  * 内核模块（psapi EnumDeviceDrivers）
  * ============================================================*/
-XPCH_STATUS XpchEnumKernelModules(XPCH_KERNEL_MODULE **Modules, ULONG *Count)
+XPCH_STATUS XpchEnumKernelModules(XPCH_SESSION *Session, XPCH_KERNEL_MODULE **Modules, ULONG *Count)
 {
-    LPVOID *Bases = NULL;
-    DWORD Needed = 0, Got = 0;
+    XPCH_SESSION_IMPL *Impl;
+    BYTE *Out;
+    ULONG OutSize = 4 + 1024 * 80;
+    XPCH_STATUS St;
     XPCH_KERNEL_MODULE *Items;
-    ULONG i, n;
+    ULONG i, N;
 
     if (!Modules || !Count)
         return XPCH_E_INVALID_ARG;
     *Modules = NULL;
     *Count = 0;
+    if (!Session)
+        return XPCH_E_INVALID_ARG;
+    Impl = XPCH_IMPL(Session);
+    if (!Impl->Opened)
+        return XPCH_E_NOT_OPENED;
 
-    if (!EnumDeviceDrivers(NULL, 0, &Needed) && !Needed)
-        return XPCH_E_NO_DATA;
-    if (!Needed)
-        return XPCH_E_NO_DATA;
-
-    Bases = (LPVOID *)XpchAlloc(Needed);
-    if (!Bases)
+    Out = (BYTE *)XpchAlloc(OutSize);
+    if (!Out)
         return XPCH_E_NO_MEMORY;
 
-    if (!EnumDeviceDrivers(Bases, Needed, &Got)) {
-        XpchFreeInternal(Bases);
-        return XPCH_E_ACCESS_DENIED;
+    /* 0x0C5：从驱动自身 DriverSection 沿 InLoadOrderLinks 遍历 */
+    St = XpchInvokeRaw(Session, CMD_X_ENUM_KERNEL_MODULES, NULL, 0,
+                       Out, OutSize);
+    if (St != XPCH_OK) {
+        XpchFreeInternal(Out);
+        return St;
     }
 
-    n = Got / sizeof(LPVOID);
-    Items = (XPCH_KERNEL_MODULE *)XpchAlloc(
-                (SIZE_T)n * sizeof(XPCH_KERNEL_MODULE));
+    N = *(ULONG *)Out;
+    if (N == 0) {
+        XpchFreeInternal(Out);
+        return XPCH_E_NO_DATA;
+    }
+
+    Items = (XPCH_KERNEL_MODULE *)XpchAlloc((SIZE_T)N * sizeof(XPCH_KERNEL_MODULE));
     if (!Items) {
-        XpchFreeInternal(Bases);
+        XpchFreeInternal(Out);
         return XPCH_E_NO_MEMORY;
     }
 
-    /* 先按基址升序排序，然后用相邻差值推算大小 */
-    {
-        ULONG a, b;
-        for (a = 0; a + 1 < n; a++) {
-            for (b = 0; b + 1 < n - a; b++) {
-                if ((ULONG_PTR)Bases[b] > (ULONG_PTR)Bases[b + 1]) {
-                    LPVOID T = Bases[b];
-                    Bases[b] = Bases[b + 1];
-                    Bases[b + 1] = T;
-                }
-            }
-        }
+    /* 驱动条目 80 字节：{ u64 Base; u32 SizeOfImage; CHAR Name[64] } */
+    for (i = 0; i < N; i++) {
+        const BYTE *E = Out + 4 + (SIZE_T)i * 80;
+        ZeroMemory(&Items[i], sizeof(Items[i]));
+        Items[i].Base = *(const ULONG64 *)(E + 0);
+        Items[i].Size = *(const ULONG *)(E + 8);
+        memcpy(Items[i].Name, E + 16, 64);
+        Items[i].Name[XPCH_KMOD_NAME_CHARS - 1] = 0;
     }
 
-    for (i = 0; i < n; i++) {
-        Items[i].Base = (ULONG64)(ULONG_PTR)Bases[i];
-        Items[i].Size = (i + 1 < n)
-                      ? (ULONG64)(ULONG_PTR)Bases[i + 1] - Items[i].Base
-                      : 0;
-        GetDeviceDriverBaseNameA(Bases[i], Items[i].Name, XPCH_KMOD_NAME_CHARS);
-        GetDeviceDriverFileNameA(Bases[i], Items[i].Path, XPCH_KMOD_PATH_CHARS);
-    }
-
-    XpchFreeInternal(Bases);
-
-    if (n == 0) {
-        XpchFreeInternal(Items);
-        return XPCH_E_NO_DATA;
-    }
-
+    XpchFreeInternal(Out);
     *Modules = Items;
-    *Count = n;
+    *Count = N;
     return XPCH_OK;
 }
 
@@ -371,7 +287,7 @@ XPCH_STATUS XpchEnumHiddenDrivers(XPCH_SESSION *Session,
     *Hidden = NULL;
     *Count = 0;
 
-    St = XpchEnumKernelModules(&Mods, &ModCount);
+    St = XpchEnumKernelModules(Session, &Mods, &ModCount);
     if (St != XPCH_OK)
         return St;
     St = XpchEnumDrivers(&Drvs, &DrvCount);

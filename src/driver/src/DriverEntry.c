@@ -279,6 +279,11 @@ static void InitKernelPointerGtSlots(void)
 // 对应原始驱动 0x140080ED4（937 字节）
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
+    /* 【SDK 扩展】保存驱动对象：0x08C 枚举内核模块要从本驱动的
+       DriverSection（KLDR 条目）出发沿加载链遍历。 */
+    g_DriverObject = DriverObject;
+
+    /* ------ 以下为原逻辑 ------ */
     ULONG BuildNumber;    // 构建号的**值**（与全局 extern NtBuildNumber 的地址区分）
     NTSTATUS Status;
     PWSTR Buffer;

@@ -180,6 +180,7 @@
     <ClCompile Include="src\features\DiskQuery.c" />
     <ClCompile Include="src\features\ModuleEnum.c" />
     <ClCompile Include="src\features\Callback.c" />
+    <ClCompile Include="src\features\XpchExtensions.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\XPCHunterDrv.h" />

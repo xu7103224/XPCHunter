@@ -46,14 +46,22 @@ C_ASSERT(sizeof(XPCH_SESSION_IMPL) <= XPCH_SESSION_PRIVATE_SIZE);
 #define XPCH_IMPL(S) ((XPCH_SESSION_IMPL *)(S)->Reserved)
 
 /* ---- 命令号（只读能力用到的）---- */
-#define CMD_READ_PROCESS_MEMORY     0x20u
-#define CMD_QUERY_PROCESS_INFO      0x22u   /* 唯一无需初始化的命令 */
+#define CMD_QUERY_PROCESS_INFO      0x22u   /* 握手专用（驱动未就绪时唯一放行） */
 #define CMD_GET_BUILD_NUMBER        0x24u
 #define CMD_CHECK_PROCESS_ACCESS    0x27u
-#define CMD_ENUM_THREADS            0x2Au   /* 实为进程路径查询 */
+#define CMD_QUERY_PROCESS_PATH      0x2Au   /* 实为进程路径查询 */
 #define CMD_ENUM_SYSTEM_HANDLES     0x26u
 #define CMD_ENUM_PROCESS_WIN10      0xE4u
 #define CMD_ENUM_HOOK_INFO          0x117u
+
+/* ---- SDK 扩展命令（占用原版显式空槽，见驱动 XpchExtensions.c）---- */
+#define CMD_X_READ_PROC_MEM         0x023u  /* {pid,addr,size} -> {copied,data} */
+#define CMD_X_WRITE_PROC_MEM        0x081u  /* {pid,addr,size,data} */
+#define CMD_X_WRITE_KERNEL_MEM      0x082u  /* {addr,size,data} MDL 写 */
+#define CMD_X_READ_KERNEL_MEM       0x099u  /* {addr,size} -> {copied,data} */
+#define CMD_X_ENUM_PROC_THREADS     0x09Au  /* {pid} -> 线程数组 */
+#define CMD_X_ENUM_PROC_MODULES     0x09Bu  /* {pid} -> 模块数组(PEB Ldr) */
+#define CMD_X_ENUM_KERNEL_MODULES   0x0C5u  /* {} -> 内核模块数组(DriverSection) */
 
 /* ---- 内部工具 ---- */
 BOOL  XpchDeriveParams(const WCHAR *Name, PULONG IoControlCode, PUCHAR KeyByte);

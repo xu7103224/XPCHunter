@@ -162,57 +162,69 @@ XPCH_STATUS XpchEnumSsdtHooks(XPCH_SESSION *Session,
  * 简化实现：只做 IAT 劫持检测（跨模块指向）。inline patch 需要读磁盘模块
  * 做逐字节比对，代价高且误报多，SDK 里不默认开启。
  * -------------------------------------------------------------------------*/
+/* 远程读：经 0x023 把目标进程内存拷到本地固定缓冲。返回实际拷贝字节数。 */
+static ULONG XpRmRead(XPCH_SESSION *Session, ULONG Pid,
+                      ULONG64 Address, void *Local, ULONG Size)
+{
+    BYTE *Buf = NULL;
+    ULONG Got = 0;
+
+    if (XpchReadProcessMemory(Session, Pid, Address, Size, &Buf, &Got) != XPCH_OK)
+        return 0;
+    if (Got > Size)
+        Got = Size;
+    memcpy(Local, Buf, Got);
+    XpchFree(Buf);
+    return Got;
+}
+
 XPCH_STATUS XpchScanProcessHooks(XPCH_SESSION *Session, ULONG Pid,
                                  XPCH_RING3_HOOK **Hooks, ULONG *Count)
 {
     XPCH_MODULE_INFO *Mods = NULL;
     ULONG ModCount = 0, i, n = 0, Cap = 64;
     XPCH_RING3_HOOK *Out;
-    HANDLE Proc;
     XPCH_STATUS St;
 
-    UNREFERENCED_PARAMETER(Session);
-
-    if (!Hooks || !Count)
+    if (!Session || !Hooks || !Count)
         return XPCH_E_INVALID_ARG;
     *Hooks = NULL;
     *Count = 0;
 
-    St = XpchEnumModules(Pid, &Mods, &ModCount);
+    /* 全内核数据链：模块列表走 0x09B，远程内存读走 0x023。
+       不使用 OpenProcess / ReadProcessMemory。 */
+    St = XpchEnumModules(Session, Pid, &Mods, &ModCount);
     if (St != XPCH_OK)
         return St;
 
-    Proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
-    if (!Proc) {
-        XpchFreeInternal(Mods);
-        return XPCH_E_ACCESS_DENIED;
-    }
-
     Out = (XPCH_RING3_HOOK *)XpchAlloc(Cap * sizeof(XPCH_RING3_HOOK));
     if (!Out) {
-        CloseHandle(Proc);
         XpchFreeInternal(Mods);
         return XPCH_E_NO_MEMORY;
     }
 
-    /* 对每个模块扫导入表：IAT 表项指向的地址若落在所有模块之外，
-       或者落在「不是该导入名所属模块」的范围内，视为可疑。 */
+    /* 远程读辅助：经 0x023 一次拷回 Size 字节到本地缓冲，成功返回实际字节数 */
+#define XP_RM_READ(Addr, BufLocal, Sz) \
+    XpRmRead(Session, Pid, (ULONG64)(ULONG_PTR)(Addr), (BufLocal), (ULONG)(Sz))
+
     for (i = 0; i < ModCount; i++) {
+        BYTE Hdr[0x1000];
         IMAGE_DOS_HEADER Dos;
-        IMAGE_NT_HEADERS Nt;
+        IMAGE_NT_HEADERS64 Nt;
         IMAGE_DATA_DIRECTORY ImpDir;
-        SIZE_T Got = 0;
         ULONG k;
 
-        if (!ReadProcessMemory(Proc, (LPCVOID)(ULONG_PTR)Mods[i].Base,
-                               &Dos, sizeof(Dos), &Got))
+        if (Mods[i].Size < sizeof(IMAGE_DOS_HEADER))
             continue;
+        if (XP_RM_READ(Mods[i].Base, Hdr, sizeof(Hdr)) == 0)
+            continue;
+
+        memcpy(&Dos, Hdr, sizeof(Dos));
         if (Dos.e_magic != IMAGE_DOS_SIGNATURE)
             continue;
-        if (!ReadProcessMemory(Proc,
-                               (LPCVOID)(ULONG_PTR)(Mods[i].Base + Dos.e_lfanew),
-                               &Nt, sizeof(Nt), &Got))
+        if ((ULONG)Dos.e_lfanew + sizeof(IMAGE_NT_HEADERS64) > sizeof(Hdr))
             continue;
+        memcpy(&Nt, Hdr + Dos.e_lfanew, sizeof(Nt));
         if (Nt.Signature != IMAGE_NT_SIGNATURE)
             continue;
         if (Nt.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
@@ -222,66 +234,76 @@ XPCH_STATUS XpchScanProcessHooks(XPCH_SESSION *Session, ULONG Pid,
         if (!ImpDir.VirtualAddress || !ImpDir.Size)
             continue;
 
+        /* 逐个导入描述符：远程读描述符（每项 20 字节） */
         for (k = 0; k < ImpDir.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR); k++) {
             IMAGE_IMPORT_DESCRIPTOR Desc;
             ULONG64 DescAddr = Mods[i].Base + ImpDir.VirtualAddress
                              + (ULONG64)k * sizeof(Desc);
+            ULONG t;
+            BYTE *IatBuf = NULL;
+            ULONG IatGot = 0;
+            ULONG IatEntries;
 
-            if (!ReadProcessMemory(Proc, (LPCVOID)(ULONG_PTR)DescAddr,
-                                   &Desc, sizeof(Desc), &Got))
+            if (XP_RM_READ(DescAddr, &Desc, sizeof(Desc)) == 0)
                 break;
             if (!Desc.Name)
                 break;
 
-            /* 扫该模块的 IAT 表项 */
-            if (Desc.FirstThunk) {
-                ULONG t;
-                for (t = 0; t < 4096; t++) {
-                    ULONG64 SlotAddr = Mods[i].Base + Desc.FirstThunk
-                                     + (ULONG64)t * 8;
-                    ULONG64 Target = 0;
-                    BOOL InAnyModule = FALSE;
-                    ULONG q;
+            if (!Desc.FirstThunk)
+                continue;
 
-                    if (!ReadProcessMemory(Proc, (LPCVOID)(ULONG_PTR)SlotAddr,
-                                           &Target, sizeof(Target), &Got))
-                        break;
-                    if (!Target)
-                        break;
+            /* IAT 数组整块远程读（最多 4096 项 = 32KB；读多少算多少） */
+            {
+                ULONG Want = 4096 * 8;
+                XpchReadProcessMemory(Session, Pid,
+                        Mods[i].Base + Desc.FirstThunk,
+                        Want, &IatBuf, &IatGot);
+            }
+            if (!IatBuf || IatGot < 8)
+                continue;
 
-                    for (q = 0; q < ModCount; q++) {
-                        if (Target >= Mods[q].Base
-                            && Target < Mods[q].Base + Mods[q].Size) {
-                            InAnyModule = TRUE;
-                            break;
-                        }
-                    }
-                    /* 指向模块外 → 可能是外部注入；指向别的模块 → 正常跨模块导入。
-                       SDK 这里只报「完全在模块之外」这种明确可疑的情况。 */
-                    if (!InAnyModule) {
-                        if (n >= Cap) {
-                            XPCH_RING3_HOOK *Grown = (XPCH_RING3_HOOK *)XpchAlloc(
-                                    (SIZE_T)(Cap * 2) * sizeof(XPCH_RING3_HOOK));
-                            if (!Grown)
-                                break;
-                            memcpy(Grown, Out, (SIZE_T)n * sizeof(XPCH_RING3_HOOK));
-                            XpchFreeInternal(Out);
-                            Out = Grown;
-                            Cap *= 2;
-                        }
-                        Out[n].IatAddress = SlotAddr;
-                        Out[n].Target = Target;
-                        /* Mods[i].Name 本身就是 WCHAR，直接拷贝 */
-                        lstrcpynW(Out[n].Owner, Mods[i].Name, 64);
-                        Out[n].TargetModule[0] = 0;
-                        n++;
+            IatEntries = IatGot / 8;
+            for (t = 0; t < IatEntries; t++) {
+                ULONG64 Target;
+                BOOLEAN InAnyModule = FALSE;
+                ULONG q;
+
+                memcpy(&Target, IatBuf + (SIZE_T)t * 8, 8);
+                if (!Target)
+                    break;
+
+                for (q = 0; q < ModCount; q++) {
+                    if (Target >= Mods[q].Base
+                        && Target < Mods[q].Base + Mods[q].Size) {
+                        InAnyModule = TRUE;
+                        break;
                     }
                 }
+                if (!InAnyModule) {
+                    XPCH_RING3_HOOK *Grown;
+                    if (n >= Cap) {
+                        Grown = (XPCH_RING3_HOOK *)XpchAlloc(
+                                (SIZE_T)(Cap * 2) * sizeof(XPCH_RING3_HOOK));
+                        if (!Grown)
+                            break;
+                        memcpy(Grown, Out, (SIZE_T)n * sizeof(XPCH_RING3_HOOK));
+                        XpchFreeInternal(Out);
+                        Out = Grown;
+                        Cap *= 2;
+                    }
+                    Out[n].IatAddress = Mods[i].Base + Desc.FirstThunk
+                                      + (ULONG64)t * 8;
+                    Out[n].Target = Target;
+                    lstrcpynW(Out[n].Owner, Mods[i].Name, 64);
+                    Out[n].TargetModule[0] = 0;
+                    n++;
+                }
             }
+            if (IatBuf)
+                XpchFreeInternal(IatBuf);
         }
     }
 
-    CloseHandle(Proc);
     XpchFreeInternal(Mods);
 
     if (n == 0) {
@@ -343,56 +365,5 @@ XPCH_STATUS XpchVerifyFileSignature(const WCHAR *Path,
     } else {
         *State = XPCH_SIG_INVALID;
     }
-    return XPCH_OK;
-}
-
-/* ============================================================
- * 读进程内存（0x20）
- *
- * 0x20 CmdReadProcessMemory 的入参是 8 字节地址，输出写回固定位置。
- * 这个命令的语义是「读一次、结果由驱动决定写哪」，不适合任意长度读取。
- * SDK 这里改用 ReadProcessMemory 实现（可靠且能读任意长度），
- * 驱动版留给需要绕过用户态保护的高级场景。
- * ============================================================*/
-XPCH_STATUS XpchReadProcessMemory(XPCH_SESSION *Session, ULONG Pid,
-                                  ULONG64 Address, ULONG Size,
-                                  BYTE **Buffer, ULONG *Read)
-{
-    HANDLE Proc;
-    BYTE *Buf;
-    SIZE_T Got = 0;
-    BOOL Ok;
-
-    UNREFERENCED_PARAMETER(Session);
-
-    if (!Buffer || !Read)
-        return XPCH_E_INVALID_ARG;
-    *Buffer = NULL;
-    *Read = 0;
-
-    if (!Pid || !Address || !Size)
-        return XPCH_E_INVALID_ARG;
-
-    Proc = OpenProcess(PROCESS_VM_READ, FALSE, Pid);
-    if (!Proc)
-        return XPCH_E_ACCESS_DENIED;
-
-    Buf = (BYTE *)XpchAlloc(Size);
-    if (!Buf) {
-        CloseHandle(Proc);
-        return XPCH_E_NO_MEMORY;
-    }
-
-    Ok = ReadProcessMemory(Proc, (LPCVOID)(ULONG_PTR)Address,
-                           Buf, Size, &Got);
-    CloseHandle(Proc);
-
-    if (!Ok && Got == 0) {
-        XpchFreeInternal(Buf);
-        return XPCH_E_ACCESS_DENIED;
-    }
-
-    *Buffer = Buf;
-    *Read = (ULONG)Got;
     return XPCH_OK;
 }

@@ -162,7 +162,9 @@ typedef struct _XPCH_THREAD_INFO {
     ULONG64 Teb;
 } XPCH_THREAD_INFO;
 
-/* 枚举指定进程的线程。结果需 XpchFree。 */
+/* 枚举指定进程的线程（内核 0x09A：EPROCESS 线程链，非三环快照）。
+ * StartAddress 为内核解析的真实起始地址；Teb 保留为 0。
+ * 结果需 XpchFree。 */
 XPCH_STATUS XpchEnumThreads(XPCH_SESSION *Session, ULONG Pid,
                             XPCH_THREAD_INFO **Threads, ULONG *Count);
 
@@ -179,9 +181,11 @@ typedef struct _XPCH_MODULE_INFO {
     WCHAR   Path[XPCH_MOD_PATH_CHARS];
 } XPCH_MODULE_INFO;
 
-/* 枚举进程模块。结果需 XpchFree。
- * 数据源是 psapi（纯用户态），不需要驱动即可工作，但需要目标进程可访问。 */
-XPCH_STATUS XpchEnumModules(ULONG Pid, XPCH_MODULE_INFO **Modules, ULONG *Count);
+/* 枚举进程模块（内核 0x09B：attach 后走 PEB→Ldr InLoadOrderModuleList）。
+ * 不依赖目标进程可访问 —— 受保护进程同样可枚举（内核视角）。
+ * 结果需 XpchFree。 */
+XPCH_STATUS XpchEnumModules(XPCH_SESSION *Session, ULONG Pid,
+                            XPCH_MODULE_INFO **Modules, ULONG *Count);
 
 /* ============================================================================
  * 句柄
@@ -212,9 +216,10 @@ typedef struct _XPCH_KERNEL_MODULE {
     char    Path[XPCH_KMOD_PATH_CHARS];
 } XPCH_KERNEL_MODULE;
 
-/* 枚举已加载的内核模块（ntoskrnl/hal/各 .sys）。
- * 数据源 psapi 的 EnumDeviceDrivers，纯用户态。结果需 XpchFree。 */
-XPCH_STATUS XpchEnumKernelModules(XPCH_KERNEL_MODULE **Modules, ULONG *Count);
+/* 枚举已加载的内核模块（内核 0x0C5：从驱动 DriverSection 沿
+ * InLoadOrderLinks 遍历，不再走 psapi）。结果需 XpchFree。 */
+XPCH_STATUS XpchEnumKernelModules(XPCH_SESSION *Session,
+                                  XPCH_KERNEL_MODULE **Modules, ULONG *Count);
 
 #define XPCH_DRV_NAME_CHARS  128
 #define XPCH_DRV_DISP_CHARS  160
@@ -302,14 +307,30 @@ XPCH_STATUS XpchVerifyFileSignature(const WCHAR *Path,
 /* ============================================================================
  * 内存读取
  * ==========================================================================*/
-/* 读目标进程的内存（通过驱动，可读受保护进程）。
- *
- * 与 ReadProcessMemory 的区别：走驱动侧 KeStackAttachProcess，
- * 能读普通 API 读不到的进程。但目标进程被保护时仍可能失败。
+/* 读目标进程的内存（内核 0x023：attach 拷贝，不经 ReadProcessMemory）。
+ * 可读三环 API 读不到的进程（受保护/无句柄权限）。
  * 结果需 XpchFree。 */
 XPCH_STATUS XpchReadProcessMemory(XPCH_SESSION *Session, ULONG Pid,
                                   ULONG64 Address, ULONG Size,
                                   BYTE **Buffer, ULONG *Read);
+
+/* ============================================================================
+ * 写原语（内核 0x081 / 0x082 —— 破坏性能力，谨慎使用）
+ * ==========================================================================*/
+/* 写目标进程内存（内核 0x081：attach 拷贝，不经 WriteProcessMemory）。
+ * 可写三环 API 写不到的进程。调用方对后果负责。 */
+XPCH_STATUS XpchWriteProcessMemory(XPCH_SESSION *Session, ULONG Pid,
+                                   ULONG64 Address, const void *Data, ULONG Size);
+
+/* 读内核虚拟内存（内核 0x099：按页安全拷贝，返回实际读取量）。
+ * 结果需 XpchFree。 */
+XPCH_STATUS XpchReadKernelMemory(XPCH_SESSION *Session, ULONG64 Address,
+                                 ULONG Size, BYTE **Buffer, ULONG *Read);
+
+/* 写内核虚拟内存（内核 0x082：复用驱动的 MDL 物理映射写原语，
+ * 支持只读页绕过）。⚠ 破坏性：写错地址即蓝屏，调用方对后果负责。 */
+XPCH_STATUS XpchWriteKernelMemory(XPCH_SESSION *Session, ULONG64 Address,
+                                  const void *Data, ULONG Size);
 
 /* ============================================================================
  * 工具函数

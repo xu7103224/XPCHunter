@@ -7,6 +7,18 @@
 #pragma intrinsic(__readmsr, __writemsr)
 // Forward declarations
 __int64 InitMiniFilterDriver(PDRIVER_OBJECT DriverObject);
+
+/* 【SDK 扩展命令 2026-11-03】原版空槽上的自有命令，供 XpchSdk 使用。
+   语义与入出参见 features\XpchExtensions.c 文件头。占用 0x023/
+   0x081/0x082/0x089/0x08A/0x08B/0x08C 七个原版同样为空的槽位，
+   原版前端从不发送它们，不影响 1:1 对齐。 */
+__int64 CmdXpchReadProcessMemory(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchWriteProcessMemory(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchWriteKernelMemory(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchReadKernelMemory(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchEnumProcessThreads(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchEnumProcessModules(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchEnumKernelModules(void *In, int InSize, void *Out, unsigned int OutSize);
 // 回调控制操作子函数前向声明（定义见 TailHelpers.c / MemoryOps.c）
 char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);
 char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);
@@ -93,7 +105,8 @@ __int64 InitCommandHandlerTable(void)
     /* 【2026-10-29 二次修正】原版 InitCommandHandlerTable 里有 `v0[3] = 0;`
        —— 槽位 3 在原版就是 NULL（CmdGetModuleCount 在 v0[4]）。
        上一轮我误以为它是漏掉的，实际是我方原本就对的。 */
-    Table[3] = (PCOMMAND_HANDLER)NULL;
+    /* 【SDK 扩展】0x023 读指定进程内存（原版显式空槽 v0[3]=0） */
+    Table[3] = (PCOMMAND_HANDLER)CmdXpchReadProcessMemory;
     Table[4] = (PCOMMAND_HANDLER)CmdGetModuleCount;
     Table[5] = (PCOMMAND_HANDLER)CmdEnumKernelDrivers;
     Table[6] = (PCOMMAND_HANDLER)CmdEnumHandles;
@@ -189,8 +202,10 @@ __int64 InitCommandHandlerTable(void)
     Table[96] = (PCOMMAND_HANDLER)CmdGetKernelBaseLegacy;
     /* 【2026-10-29 二次修正】原版 v0[97]=0 / v0[98]=0 也是显式清零。
        RegisterFormatNameCallback 实际在 v0[100]、MiniFilterFormatFileNameEx 在 v0[101]。 */
-    Table[97] = (PCOMMAND_HANDLER)NULL;
-    Table[98] = (PCOMMAND_HANDLER)NULL;
+    /* 【SDK 扩展】0x081 写指定进程内存（原版空槽） */
+        Table[97] = (PCOMMAND_HANDLER)CmdXpchWriteProcessMemory;
+    /* 【SDK 扩展】0x082 写内核虚拟内存（原版空槽） */
+        Table[98] = (PCOMMAND_HANDLER)CmdXpchWriteKernelMemory;
     Table[99] = (PCOMMAND_HANDLER)MiniFilterGenerateFileName;
     Table[100] = (PCOMMAND_HANDLER)RegisterFormatNameCallback;
     Table[101] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameEx;
@@ -199,10 +214,10 @@ __int64 InitCommandHandlerTable(void)
     Table[104] = (PCOMMAND_HANDLER)MiniFilterFormatFileNameWithPathEx;
     /* 2026-10-29 修正：105-110 此前整段清零，但原版六个槽位都有实现。
        对应函数我方早已存在，只是没接进表。 */
-    Table[105] = (PCOMMAND_HANDLER)NULL;     /* 原版 0x140084E14 */
-    Table[106] = (PCOMMAND_HANDLER)NULL;    /* 原版 0x140019784 */
-    Table[107] = (PCOMMAND_HANDLER)NULL; /* 原版 0x140019400 */
-    Table[108] = (PCOMMAND_HANDLER)NULL;    /* 原版 0x1400198D8 */
+    Table[105] = (PCOMMAND_HANDLER)NULL;          /* 原版 0x140084E14 */
+    Table[106] = (PCOMMAND_HANDLER)NULL;          /* 原版 0x140019784 */
+    Table[107] = (PCOMMAND_HANDLER)NULL;          /* 原版 0x140019400 */
+    Table[108] = (PCOMMAND_HANDLER)NULL;          /* 原版 0x1400198D8 */
     Table[109] = (PCOMMAND_HANDLER)NULL;       /* 原版 0x140084618 */
     Table[110] = (PCOMMAND_HANDLER)NULL;        /* 原版 0x140084154 */
     Table[111] = (PCOMMAND_HANDLER)MiniFilterCommPortSend;
@@ -218,9 +233,12 @@ __int64 InitCommandHandlerTable(void)
     Table[120] = (PCOMMAND_HANDLER)CmdQueryProcessNameByPid;
     /* 【2026-10-29 二次修正】原版 v0[121..123]=0 显式清零。
        CmdInstallShadowHook 在 v0[143]、CmdEnumSyscallTable2 在 v0[144]、CmdInstallSyscallHook2 在 v0[145]。 */
-    Table[121] = (PCOMMAND_HANDLER)NULL;
-    Table[122] = (PCOMMAND_HANDLER)NULL;
-    Table[123] = (PCOMMAND_HANDLER)NULL;
+    /* 【SDK 扩展】0x099 读内核虚拟内存（原版显式空槽） */
+        Table[121] = (PCOMMAND_HANDLER)CmdXpchReadKernelMemory;
+    /* 【SDK 扩展】0x09A 枚举进程线程（原版显式空槽） */
+        Table[122] = (PCOMMAND_HANDLER)CmdXpchEnumProcessThreads;
+    /* 【SDK 扩展】0x09B 枚举进程模块（原版显式空槽） */
+        Table[123] = (PCOMMAND_HANDLER)CmdXpchEnumProcessModules;
     Table[124] = (PCOMMAND_HANDLER)MiniFilterCommPortConnect;
     Table[125] = (PCOMMAND_HANDLER)MiniFilterCommPortDisconnect;
     Table[126] = (PCOMMAND_HANDLER)MiniFilterCommPortCleanup;
@@ -265,7 +283,8 @@ __int64 InitCommandHandlerTable(void)
     Table[164] = (PCOMMAND_HANDLER)CmdFixProcessEProcess;
     /* 【2026-10-29 二次修正】原版 v0[165]=0 / v0[166]=0 显式清零。
        CmdRestoreSsdtTable 在 v0[199]、CmdEnumObjectTypeInfo 在 v0[200]。 */
-    Table[165] = (PCOMMAND_HANDLER)NULL;
+    /* 【SDK 扩展】0x0C5 枚举内核模块（原版显式空槽） */
+        Table[165] = (PCOMMAND_HANDLER)CmdXpchEnumKernelModules;
     Table[166] = (PCOMMAND_HANDLER)NULL;
     Table[167] = (PCOMMAND_HANDLER)MiniFilterClientContext;   /* 原版名 CmdSetCallbackFlagTrue，我方同语义实现 */
     Table[168] = (PCOMMAND_HANDLER)MiniFilterServerContext;   /* 原版名 CmdSetCallbackFlagFalse，我方同语义实现 */

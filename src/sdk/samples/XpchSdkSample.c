@@ -65,7 +65,7 @@ int main(void)
     }
 
     /* --- 4. 内核模块 --- */
-    St = XpchEnumKernelModules(&KMods, &KModCount);
+    St = XpchEnumKernelModules(&Session, &KMods, &KModCount);
     PrintStatus("XpchEnumKernelModules", St);
     if (St == XPCH_OK) {
         printf("  %lu kernel modules, first 5:\n", KModCount);
