@@ -34,6 +34,9 @@
 #   xpch.cer            驱动公钥证书（目标机装进受信任根后即可加载）
 #   SIGNING.txt         签名与加载说明
 #   install_driver.bat  驱动安装/启动/停止/卸载
+#   driver.cab          标准驱动包（INF+SYS+CAT），pnputil 可直接安装
+#
+#   -NoCab              不生成 driver.cab
 # ============================================================================
 [CmdletBinding()]
 param(
@@ -47,7 +50,8 @@ param(
     [string] $CertName = "XPCSign2",
     [string] $PfxPath = "",
     [string] $PfxPassword = "",
-    [string] $TimestampUrl = "http://timestamp.digicert.com"
+    [string] $TimestampUrl = "http://timestamp.digicert.com",
+    [switch] $NoCab
 )
 
 $ErrorActionPreference = "Stop"
@@ -217,6 +221,10 @@ if ($NoSign) {
         "-TimestampUrl", $TimestampUrl,
         "-OutCer", $cerPath
     )
+    $cabPath = Join-Path $StageDir "driver.cab"
+    if (-not $NoCab) {
+        $signArgs += @("-CabOut", $cabPath)
+    }
     if ($SignMode -eq "Pfx") {
         $signArgs += @("-PfxPath", $PfxPath)
         if ($PfxPassword) { $signArgs += @("-PfxPassword", $PfxPassword) }
@@ -249,6 +257,15 @@ if (-not $NoSign -and (Test-Path $cerPath)) {
     Write-Ok ("xpch.cer（{0} B）" -f (Get-Item $cerPath).Length)
 } elseif (-not $NoSign) {
     Write-Warn2 "未生成 xpch.cer（签名脚本未导出证书）"
+}
+
+# CAB 驱动包
+if ($NoCab) {
+    Write-Warn2 "已跳过 driver.cab（-NoCab）"
+} elseif (Test-Path (Join-Path $StageDir "driver.cab")) {
+    Write-Ok ("driver.cab（{0:N0} B，内含 INF+SYS+CAT）" -f (Get-Item (Join-Path $StageDir "driver.cab")).Length)
+} else {
+    Write-Warn2 "未生成 driver.cab（签名阶段可能失败）"
 }
 
 # 安装/卸载脚本
@@ -302,6 +319,7 @@ $verLines = @(
     "  xpch.cer                    驱动公钥证书（已签名时提供）",
     "  SIGNING.txt                 签名与加载说明（已签名时提供）",
     "  install_driver.bat          驱动安装脚本",
+    "  driver.cab                  标准驱动包 INF+SYS+CAT（pnputil 可装）",
     "",
     "快速开始：",
     "  1. 管理员 PowerShell 加载驱动：",
@@ -319,8 +337,9 @@ $verLines = @(
     "  SIGNING.txt                 签名信息与加载方式说明",
     "  install_driver.bat          驱动安装/启动/停止/卸载",
     "",
-    "快速加载驱动（管理员权限）：",
-    "  install_driver.bat install",
+    "快速加载驱动（管理员权限，二选一）：",
+    "  install_driver.bat install     sc create 路径（快，适合调试）",
+    "  install_driver.bat cab         标准驱动包路径（产生驱动库条目）",
     "",
     "  如返回 577（签名无法验证），任选其一后重试：",
     "    a) 开启测试签名：bcdedit /set testsigning on && shutdown /r /t 0",

@@ -30,7 +30,17 @@ param(
     [string] $PfxPath = "",
     [string] $PfxPassword = "",
     [string] $TimestampUrl = "http://timestamp.digicert.com",
-    [string] $OutCer = ""
+    [string] $OutCer = "",
+
+    # ---- CAB 驱动包（可选） ----
+    # 给出 -CabOut 时，额外产出一个标准驱动 CAB：
+    #   <name>.cab 内含 INF + SYS + CAT，CAT 由 Inf2Cat 生成并签名。
+    #   目标机用 pnputil /add-driver <inf> /install 安装。
+    [string] $CabOut = "",
+    [string] $InfTemplate = "",
+    [string] $Inf2CatPath = "",
+    [string] $DriverVerDate = "",
+    [string] $DriverVerVersion = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -182,6 +192,123 @@ if ($exportCert) {
     Write-Ok "$OutCer  ($((Get-Item $OutCer).Length) B)"
 } else {
     Write-Warn3 "未能取得证书对象，跳过 .cer 导出"
+}
+
+# ---- 6. CAB 驱动包（可选） ----
+if ($CabOut) {
+    Write-Step "生成 CAB 驱动包"
+
+    if (-not $InfTemplate) {
+        $InfTemplate = Join-Path $PSScriptRoot "templates\XPCHunterDrv.inf"
+    }
+    if (-not (Test-Path $InfTemplate)) {
+        Write-Host "ERROR: 找不到 INF 模板 $InfTemplate" -ForegroundColor Red
+        exit 1
+    }
+
+    # 定位 Inf2Cat
+    if (-not $Inf2CatPath) {
+        $kitsBin = "C:\Program Files (x86)\Windows Kits\10\bin"
+        $Inf2CatPath = Get-ChildItem $kitsBin -Recurse -Filter Inf2Cat.exe -ErrorAction SilentlyContinue |
+                       Sort-Object FullName -Descending | Select-Object -First 1 |
+                       ForEach-Object { $_.FullName }
+    }
+    if (-not $Inf2CatPath -or -not (Test-Path $Inf2CatPath)) {
+        Write-Host "ERROR: 找不到 Inf2Cat.exe（需要 Windows 10 SDK）" -ForegroundColor Red
+        exit 1
+    }
+    $makecab = Join-Path $env:windir "System32\makecab.exe"
+    if (-not (Test-Path $makecab)) {
+        Write-Host "ERROR: 找不到 makecab.exe" -ForegroundColor Red
+        exit 1
+    }
+
+    # 工作目录
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ("xpchcab_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $work -Force | Out-Null
+    try {
+        # DriverVer 默认用当天日期 + 版本号
+        if (-not $DriverVerDate)    { $DriverVerDate = (Get-Date).ToString("MM/dd/yyyy") }
+        if (-not $DriverVerVersion) { $DriverVerVersion = $Version }
+
+        # 展开 INF 模板
+        $infText = Get-Content $InfTemplate -Raw -Encoding UTF8
+        $infText = $infText -replace '@DriverVerDate@',    $DriverVerDate
+        $infText = $infText -replace '@DriverVerVersion@', $DriverVerVersion
+        $infPath = Join-Path $work "XPCHunterDrv.inf"
+        Set-Content -Path $infPath -Value $infText -Encoding ASCII
+
+        # 放入已签名的 SYS
+        Copy-Item $SysPath (Join-Path $work "XPCHunterDrv.sys") -Force
+
+        # Inf2Cat 生成 CAT
+        Write-Ok "Inf2Cat 生成 CAT"
+        & $Inf2CatPath /driver:$work /os:10_X64 | Out-Null
+        $catPath = Join-Path $work "XPCHunterDrv.cat"
+        # Inf2Cat 产出的大小写可能是小写
+        if (-not (Test-Path $catPath)) {
+            $catPath = Get-ChildItem $work -Filter "*.cat" | Select-Object -First 1 -ExpandProperty FullName
+        }
+        if (-not $catPath -or -not (Test-Path $catPath)) {
+            Write-Host "ERROR: Inf2Cat 未生成 .cat" -ForegroundColor Red
+            exit 1
+        }
+        Write-Ok ("CAT: {0:N0} B" -f (Get-Item $catPath).Length)
+
+        # 签名 CAT
+        Write-Ok "签名 CAT"
+        $catSign = @("sign", "/fd", "SHA256")
+        if ($Mode -eq "Local") {
+            $catSign += @("/sha1", $cert.Thumbprint)
+        } else {
+            $catSign += @("/f", $PfxPath)
+            if ($PfxPassword) { $catSign += @("/p", $PfxPassword) }
+        }
+        if ($TimestampUrl) { $catSign += @("/tr", $TimestampUrl, "/td", "SHA256") }
+        $catSign += $catPath
+        & $Signtool @catSign
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: CAT 签名失败" -ForegroundColor Red
+            exit 1
+        }
+
+        # makecab 打包
+        Write-Ok "makecab 打包"
+        $cabFileName = Split-Path -Leaf $CabOut
+        $cabDir = Split-Path -Parent $CabOut
+        if ($cabDir -and -not (Test-Path $cabDir)) {
+            New-Item -ItemType Directory -Path $cabDir -Force | Out-Null
+        }
+        $ddf = Join-Path $work "pack.ddf"
+        $ddfLines = @(
+            ".OPTION EXPLICIT",
+            ".Set CabinetNameTemplate=$cabFileName",
+            ".Set DiskDirectoryTemplate=$cabDir",
+            ".Set CompressionType=MSZIP",
+            ".Set Cabinet=on",
+            ".Set Compress=on",
+            ".Set MaxDiskSize=0",
+            "XPCHunterDrv.inf",
+            "XPCHunterDrv.sys",
+            (Split-Path -Leaf $catPath)
+        )
+        Set-Content -Path $ddf -Value $ddfLines -Encoding ASCII
+        Push-Location $work
+        try {
+            & $makecab /f $ddf | Out-Null
+        } finally {
+            Pop-Location
+        }
+        if (-not (Test-Path $CabOut)) {
+            Write-Host "ERROR: makecab 未产出 $CabOut" -ForegroundColor Red
+            exit 1
+        }
+        Write-Ok ("CAB: {0}  ({1:N0} B)" -f $cabFileName, (Get-Item $CabOut).Length)
+        Write-Ok "内含: XPCHunterDrv.inf / .sys / .cat（CAT 已签名）"
+    }
+    finally {
+        Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 Write-Step "完成"

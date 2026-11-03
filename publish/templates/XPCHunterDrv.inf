@@ -1,0 +1,49 @@
+; XPCHunterDrv.inf -- XpchSdk kernel driver installation INF
+;
+; Legacy (non-PnP) kernel service driver. Installed either by
+;   pnputil /add-driver XPCHunterDrv.inf /install
+; or by the DefaultInstall section:
+;   rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 132 .\XPCHunterDrv.inf
+;
+; Package layout:
+;   XPCHunterDrv.sys    driver binary (signed)
+;   XPCHunterDrv.cat    catalog covering the INF and SYS (signed)
+
+[Version]
+Signature="$Windows NT$"
+Class=System
+ClassGuid={4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider=%ProviderName%
+CatalogFile=XPCHunterDrv.cat
+DriverVer=11/03/2026,1.2.0
+
+[SourceDisksNames]
+1 = %DiskName%,,,
+
+[SourceDisksFiles]
+XPCHunterDrv.sys = 1,,
+
+[DestinationDirs]
+DefaultDestDir = 12
+DriverCopyFiles = 12
+
+[DefaultInstall.NTamd64]
+CopyFiles = DriverCopyFiles
+
+[DefaultInstall.NTamd64.Services]
+AddService = XPCHDrv,0x00000002,XpchServiceInstall
+
+[DriverCopyFiles]
+XPCHunterDrv.sys,,,0x00000004
+
+[XpchServiceInstall]
+DisplayName    = %ServiceName%
+ServiceType    = 1
+StartType      = 3
+ErrorControl   = 1
+ServiceBinary  = %12%\XPCHunterDrv.sys
+
+[Strings]
+ProviderName = "XpchSdk"
+ServiceName  = "XPCHunterDrv"
+DiskName     = "XpchSdk Driver Disk"

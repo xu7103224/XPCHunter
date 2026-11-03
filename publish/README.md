@@ -10,7 +10,8 @@ publish/
 ├── pack_<产品>.ps1        该产品的打包逻辑（含驱动签名）
 ├── sign_<产品>.ps1        驱动签名（可单独调用）
 ├── templates/             打进包里的模板文件
-│   ├── install_driver.bat 驱动安装/卸载脚本
+│   ├── install_driver.bat 驱动安装/卸载脚本（含 cab 模式）
+│   ├── XPCHunterDrv.inf   驱动包 INF 模板（DriverVer 由打包时替换）
 │   └── SIGNING.txt        签名与加载说明（占位符由打包时替换）
 └── README.md              本文件
 ```
@@ -52,6 +53,7 @@ publish\publish_xpchsdk.bat
 | `-PfxPath <路径>` | Pfx 模式证书文件 |
 | `-PfxPassword <口令>` | Pfx 模式证书口令 |
 | `-TimestampUrl <url>` | 时间戳服务，默认 DigiCert；传 `""` 跳过 |
+| `-NoCab` | 不生成 driver.cab |
 
 参数可组合，会原样透传给 `pack_xpchsdk.ps1`。
 
@@ -70,7 +72,8 @@ output/XpchSdk-1.2.0/
 │   ├── XpchSdk接口文档.md        接口参考
 │   └── XpchSdk使用教程.md        入门教程
 ├── xpch.cer                      驱动公钥证书（装进受信任根即可加载）
-├── install_driver.bat            驱动安装/启动/停止/卸载
+├── driver.cab                    标准驱动包 INF+SYS+CAT（pnputil 可装）
+├── install_driver.bat            驱动安装/启动/停止/卸载（含 cab 模式）
 ├── SIGNING.txt                   签名信息 + 两种加载方式说明
 ├── README.md                     使用教程副本（顶层放一份）
 ├── VERSION.txt                   版本/构建信息 + 快速开始步骤
@@ -123,6 +126,40 @@ powershell -ExecutionPolicy Bypass -File publish\sign_xpchsdk.ps1 ^
 ```
 
 签名脚本会：签名 → 加时间戳 → `signtool verify` 校验 → 导出同名 `.cer`。
+
+### driver.cab 驱动包
+
+打包时除了签名 SYS，还会生成标准 Windows 驱动包 `driver.cab`：
+
+```
+driver.cab
+  ├── XPCHunterDrv.inf     安装描述（服务名/启动类型/二进制路径）
+  ├── XPCHunterDrv.sys     驱动本体（已签名）
+  └── XPCHunterDrv.cat     目录文件（Inf2Cat 生成后签名）
+```
+
+生成流程（在 `sign_xpchsdk.ps1` 内自动完成）：
+
+1. 展开 INF 模板，替换 `DriverVer` 的日期与版本号
+2. `Inf2Cat /driver:<dir> /os:10_X64` 生成 CAT
+3. 用同一张证书签名 CAT（带时间戳）
+4. `makecab` 打成一个 CAB
+
+**为什么需要 CAT**：系统装驱动包时校验的是 CAT 而不是单独校验 SYS。
+CAT 的证书不受信任时，`pnputil` 报 `0xE0000247`，即使 SYS 本身签过名。
+
+两种安装方式（`install_driver.bat` 自动处理）：
+
+```bat
+install_driver.bat install     :: sc create 路径，快，适合调试
+install_driver.bat cab         :: 解压 CAB → pnputil 装包，产生驱动库条目
+```
+
+注意 `pnputil` 正常会返回 **3010**（`ERROR_SUCCESS_REBOOT_REQUIRED`），
+这是**成功**而非失败——包已加入驱动库，驱动也能立即启动。
+脚本已把 3010 当成功处理。
+
+用 `-NoCab` 可跳过 CAB 生成（只导签名 SYS）。
 
 ### 签名包里有什么
 

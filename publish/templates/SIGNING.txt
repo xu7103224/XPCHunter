@@ -19,7 +19,7 @@ Windows x64 内核强制驱动签名（KMCS）。签名无效或不存在的驱�
 sc start 会返回 577（ERROR_INVALID_IMAGE_HASH），无法加载。
 
 
-二、本包提供的两种加载方式
+二、两种加载前提（任选其一）
 ------------------------------------------------------------------------
 
 方式 A：启用测试签名（开发/测试环境推荐）
@@ -51,11 +51,21 @@ sc start 会返回 577（ERROR_INVALID_IMAGE_HASH），无法加载。
 
 所有命令都需要管理员权限。
 
-  install_driver.bat install      注册并启动驱动
+  install_driver.bat install      注册并启动驱动（sc create 路径，较快）
+  install_driver.bat cab          用 driver.cab 安装（标准驱动包路径）
   install_driver.bat start        启动已注册的驱动
   install_driver.bat stop         停止驱动
   install_driver.bat uninstall    停止并删除服务（不删文件）
   install_driver.bat status       查看状态
+
+两种安装路径的区别：
+
+  install  直接用 sc create 注册内核服务。不产生驱动库条目，
+           适合反复调试、配合 testsigning 使用。
+
+  cab      解压 driver.cab 后执行 pnputil /add-driver ... /install。
+           会生成正式的驱动包条目（oemNN.inf），系统可追踪该包，
+           适合交付部署。卸载时除了删服务，还要删驱动库条目见第四节。
 
 安装成功的标志：
 
@@ -65,7 +75,35 @@ sc start 会返回 577（ERROR_INVALID_IMAGE_HASH），无法加载。
 SDK 通过这个设备名打开会话。
 
 
-四、校验驱动完整性
+四、driver.cab 驱动包说明
+------------------------------------------------------------------------
+
+driver.cab 是标准的 Windows 驱动包，内含三个文件：
+
+  XPCHunterDrv.inf    安装描述（服务名、启动类型、二进制路径）
+  XPCHunterDrv.sys    驱动本体
+  XPCHunterDrv.cat    目录文件，覆盖 INF 与 SYS，已签名
+
+CAT 由 Inf2Cat 生成后签名。系统在安装时会校验 CAT 的签名，
+而不是单独校验 SYS——所以 CAT 的证书必须被信任，否则报
+0xE0000247（驱动包签名验证失败）。
+
+手动安装（管理员）：
+
+  expand driver.cab -F:* C:\temp\xpch
+  pnputil /add-driver C:\temp\xpch\XPCHunterDrv.inf /install
+
+卸载（连同驱动库条目）：
+
+  pnputil /enum-drivers
+  pnputil /delete-driver oemNN.inf /uninstall
+
+注意：INF 里 StartType=3（手动启动），所以 pnputil 装完后服务是
+STOPPED 状态，需要执行 sc start XPCHDrv 或 install_driver.bat start
+才会运行。
+
+
+五、校验驱动完整性
 ------------------------------------------------------------------------
 
 本包 SHA256SUMS.txt 记录了所有文件的 SHA-256。校验命令：
@@ -76,18 +114,25 @@ SDK 通过这个设备名打开会话。
 
   signtool verify /pa /v bin\x64\XPCHunterDrv.sys
 
+校验 CAT（驱动包方式安装时系统实际检查的对象）：
+
+  expand driver.cab -F:* C:\temp\xpch
+  signtool verify /pa /v C:\temp\xpch\XPCHunterDrv.cat
+
 注意：使用自签名测试证书时，signtool verify /pa 会报
 "certificate chain processed, but terminated in a root certificate
 which is not trusted by the trust provider" ——除非你已按方式 B
 安装了证书，否则这个报错属正常，不代表签名块损坏。
 
 
-五、正式发布前需要做的
+六、正式发布前需要做的
 ------------------------------------------------------------------------
 
 本包使用的是测试证书签名，仅适合内部分发与测试。
-若要对外正式发布，需要换用受信任的商业代码签名证书（EV 或 OV），
-并且驱动需要通过微软的 WHQL/Attestation 签名流程才能被
-默认配置的 Windows 10/11 直接加载。
+若要对外正式发布，需要：
 
-签名流程见仓库：publish\sign_xpchsdk.ps1（支持 -Mode Pfx 使用正式证书）。
+  1. 换用受信任的商业代码签名证书（EV 或 OV），通过 -SignMode Pfx 签
+  2. 驱动通过微软 WHQL / Attestation 签名流程，否则默认配置的
+     Windows 10/11 仍会拒绝加载
+
+签名与打包脚本见仓库：publish\sign_xpchsdk.ps1、publish\pack_xpchsdk.ps1

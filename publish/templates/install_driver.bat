@@ -5,14 +5,20 @@ REM
 REM Must be run as Administrator.
 REM
 REM Usage:
-REM   install_driver.bat install     register and start the driver
+REM   install_driver.bat install     register and start via sc create (quick path)
+REM   install_driver.bat cab         install from driver.cab (standard package)
 REM   install_driver.bat start       start an already registered driver
 REM   install_driver.bat stop        stop the running driver
 REM   install_driver.bat uninstall   stop and remove the service
 REM   install_driver.bat status      show current state
 REM
-REM The driver is loaded as a plain kernel service (no INF / no PnP).
-REM For the driver to load, one of the following must hold:
+REM Two install paths:
+REM   sc create  - fast, no driver store entry, works with testsigning
+REM   cab        - pnputil + INF, produces a proper driver package entry
+REM                (oemXX.inf in the driver store); use this when you want
+REM                the OS to track the package, or for unattended deployment.
+REM
+REM For either path the driver must pass signature checks:
 REM   a) testsigning is on :  bcdedit /set testsigning on  (then reboot)
 REM   b) the certificate in this package (xpch.cer) is installed into
 REM      "Trusted Root Certification Authorities" + "Trusted Publishers"
@@ -24,9 +30,11 @@ set SYS_NAME=XPCHunterDrv.sys
 set HERE=%~dp0
 set SYS_PATH=%HERE%bin\x64\%SYS_NAME%
 set CER_PATH=%HERE%xpch.cer
+set CAB_PATH=%HERE%driver.cab
 
 if /I "%~1"=="" goto :usage
 if /I "%~1"=="install"   goto :install
+if /I "%~1"=="cab"       goto :cabinstall
 if /I "%~1"=="start"     goto :start
 if /I "%~1"=="stop"      goto :stop
 if /I "%~1"=="uninstall" goto :uninstall
@@ -68,19 +76,7 @@ if !RC! neq 0 (
     echo ============================================================
     echo START FAILED with code !RC!
     echo ============================================================
-    if !RC! equ 577 (
-        echo 577 = signature could not be verified. Fix with ONE of:
-        echo   a^) enable test signing:
-        echo        bcdedit /set testsigning on
-        echo        bcdedit /set nointegritychecks on
-        echo        shutdown /r /t 0
-        echo   b^) install the certificate in this package:
-        echo        certutil -addstore -f Root "%CER_PATH%"
-        echo        certutil -addstore -f TrustedPublisher "%CER_PATH%"
-        echo    then run: install_driver.bat start
-    ) else if !RC! equ 1058 (
-        echo 1058 = service is disabled. Run: sc config %SERVICE_NAME% start= demand
-    )
+    call :explain_start_failure !RC!
     exit /b !RC!
 )
 
@@ -91,14 +87,82 @@ echo Driver installed and running.
 echo Device name: \\.\View++ByLinxer
 exit /b 0
 
+REM ------------------------------------------------------------ cabinstall
+REM Standard driver-package path: extract driver.cab, then
+REM   pnputil /add-driver XPCHunterDrv.inf /install
+REM Produces a proper driver-store entry (oemXX.inf) and registers the
+REM service from the INF. Falls back to :install when the cab is absent.
+:cabinstall
+call :require_admin || exit /b 1
+
+if not exist "%CAB_PATH%" (
+    echo driver.cab not found: %CAB_PATH%
+    echo Falling back to the sc create route...
+    goto :install
+)
+
+echo [1/4] Removing any previous service...
+sc.exe query %SERVICE_NAME% >nul 2>&1
+if !errorlevel! equ 0 (
+    sc.exe stop %SERVICE_NAME% >nul 2>&1
+    timeout /t 2 /nobreak >nul
+    sc.exe delete %SERVICE_NAME% >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
+echo [2/4] Extracting driver.cab...
+set EXDIR=%TEMP%\xpchcab_%RANDOM%
+mkdir "%EXDIR%" 2>nul
+expand "%CAB_PATH%" -F:* "%EXDIR%" >nul
+if not exist "%EXDIR%\XPCHunterDrv.inf" (
+    echo ERROR: extraction failed, no INF inside driver.cab
+    rmdir /s /q "%EXDIR%" 2>nul
+    exit /b 1
+)
+
+echo [3/4] Installing driver package with pnputil...
+pnputil /add-driver "%EXDIR%\XPCHunterDrv.inf" /install
+set RC=!errorlevel!
+rmdir /s /q "%EXDIR%" 2>nul
+REM 3010 = ERROR_SUCCESS_REBOOT_REQUIRED. The package WAS added; the OS
+REM only recommends a reboot for the PnP path to settle. For a legacy
+REM kernel service the entry is usable right away, so treat it as success.
+if !RC! equ 3010 (
+    echo       pnputil returned 3010 ^(installed, reboot recommended^)
+    set RC=0
+)
+if !RC! neq 0 (
+    echo.
+    echo ============================================================
+    echo pnputil FAILED with code !RC!
+    echo ============================================================
+    echo If the message mentions the catalog, an untrusted certificate,
+    echo or "signature", run one of the following and retry:
+    echo.
+    echo   a^) enable test signing:
+    echo        bcdedit /set testsigning on
+    echo        shutdown /r /t 0
+    echo   b^) trust this package's certificate:
+    echo        certutil -addstore -f Root "%CER_PATH%"
+    echo        certutil -addstore -f TrustedPublisher "%CER_PATH%"
+    exit /b !RC!
+)
+
+echo [4/4] Starting driver...
+sc.exe start %SERVICE_NAME% >nul 2>&1
+sc.exe query %SERVICE_NAME% | findstr /i "STATE"
+echo.
+echo Driver installed from driver.cab (driver store entry created).
+echo Device name: \\.\View++ByLinxer
+exit /b 0
+
 REM ------------------------------------------------------------------ start
 :start
 call :require_admin || exit /b 1
 sc.exe start %SERVICE_NAME%
 if !errorlevel! neq 0 (
     echo.
-    echo If this fails with 577, see the signature notes printed by:
-    echo     install_driver.bat install
+    call :explain_start_failure !errorlevel!
     exit /b !errorlevel!
 )
 sc.exe query %SERVICE_NAME% | findstr /i "STATE"
@@ -123,7 +187,11 @@ sc.exe delete %SERVICE_NAME%
 if !errorlevel! neq 0 (
     echo NOTE: sc delete returned !errorlevel! ^(service may not exist^)
 )
-echo Done. The driver file itself was NOT removed.
+echo.
+echo If the driver was installed via "install_driver.bat cab", also remove
+echo the driver store entry:
+echo     pnputil /enum-drivers
+echo     pnputil /delete-driver oemNN.inf /uninstall
 exit /b 0
 
 REM ----------------------------------------------------------------- status
@@ -133,9 +201,10 @@ exit /b 0
 
 REM ------------------------------------------------------------------ usage
 :usage
-echo Usage: install_driver.bat {install^|start^|stop^|uninstall^|status}
+echo Usage: install_driver.bat {install^|cab^|start^|stop^|uninstall^|status}
 echo.
-echo   install     register and start the driver
+echo   install     register and start via sc create (quick path)
+echo   cab         install from driver.cab via pnputil (standard package)
 echo   start       start an already registered driver
 echo   stop        stop the running driver
 echo   uninstall   stop and remove the service
@@ -143,6 +212,27 @@ echo   status      show current state
 echo.
 echo Run as Administrator.
 exit /b 1
+
+REM ------------------------------------------------------- start failure help
+:explain_start_failure
+if %1 equ 577 (
+    echo 577 = the signature could not be verified. Fix with ONE of:
+    echo   a^) enable test signing:
+    echo        bcdedit /set testsigning on
+    echo        bcdedit /set nointegritychecks on
+    echo        shutdown /r /t 0
+    echo   b^) trust this package's certificate:
+    echo        certutil -addstore -f Root "%CER_PATH%"
+    echo        certutil -addstore -f TrustedPublisher "%CER_PATH%"
+    echo    then run: install_driver.bat start
+) else if %1 equ 1058 (
+    echo 1058 = the service is disabled. Run:
+    echo        sc config %SERVICE_NAME% start= demand
+) else if %1 equ 1053 (
+    echo 1053 = the service did not respond in time. Check the driver
+    echo        actually implements DriverEntry and returns success.
+)
+exit /b 0
 
 REM ------------------------------------------------------------ admin check
 :require_admin
