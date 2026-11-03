@@ -11,12 +11,21 @@ publish/
 ├── sign_<产品>.ps1        驱动签名与 CAT 生成
 ├── templates/             打进包里的模板文件
 │   ├── XPCHunterDrv.inf   驱动包 INF 模板
-│   └── install_driver.bat 驱动安装脚本（本地调试用）
+│   └── install_driver.bat 驱动装/卸脚本（本地调试用，不进发布包）
 └── README.md              本文件
 ```
 
 新增产品时复制一套脚本改名，不要在 `publish/` 下出现无产品前缀的通用名
 （如 `publish.bat`），否则多产品会互相覆盖。
+
+**每个脚本的详细用法见独立说明：**
+
+- [使用说明_总览.md](使用说明_总览.md)
+- [publish_xpchsdk.bat](使用说明_publish_xpchsdk_bat.md) —— 发布入口
+- [pack_xpchsdk.ps1](使用说明_pack_xpchsdk_ps1.md) —— 打包逻辑
+- [sign_xpchsdk.ps1](使用说明_sign_xpchsdk_ps1.md) —— 签名与驱动包生成
+- [templates/XPCHunterDrv.inf](使用说明_INF模板.md) —— INF 模板
+- [templates/install_driver.bat](使用说明_install_driver_bat.md) —— 本地调试装卸
 
 ## 当前产品
 
