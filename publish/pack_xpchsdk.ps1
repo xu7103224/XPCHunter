@@ -21,6 +21,19 @@
 #   -NoBuild            跳过编译，只打包现有产物
 #   -Zip                打包完成后额外生成同名 .zip
 #   -IncludeProbe       把开发用的 XpchInjProbe.exe 也打进去（默认不含）
+#
+# 签名（默认签名，产出完整签名包）：
+#   -NoSign             不签名，只打包（产物是未签名驱动）
+#   -SignMode Local|Pfx 签名模式，默认 Local（本机证书库）
+#   -CertName <name>    Local 模式证书 Subject 匹配串，默认 XPCSign2
+#   -PfxPath <path>     Pfx 模式证书文件
+#   -PfxPassword <pw>   Pfx 模式口令
+#   -TimestampUrl <url> 时间戳服务，默认 DigiCert；传 "" 跳过
+#
+# 签名包在普通包基础上多出：
+#   xpch.cer            驱动公钥证书（目标机装进受信任根后即可加载）
+#   SIGNING.txt         签名与加载说明
+#   install_driver.bat  驱动安装/启动/停止/卸载
 # ============================================================================
 [CmdletBinding()]
 param(
@@ -28,7 +41,13 @@ param(
     [string] $Config = "Release",
     [switch] $NoBuild,
     [switch] $Zip,
-    [switch] $IncludeProbe
+    [switch] $IncludeProbe,
+    [switch] $NoSign,
+    [ValidateSet("Local", "Pfx")][string] $SignMode = "Local",
+    [string] $CertName = "XPCSign2",
+    [string] $PfxPath = "",
+    [string] $PfxPassword = "",
+    [string] $TimestampUrl = "http://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,6 +60,8 @@ $BinDrv     = Join-Path $Root "build\bin\$Config\x64"
 $BinSdk     = Join-Path $Root "build\bin\$Config\sdk_x64"
 $DocSdk     = Join-Path $Root "doc\sdk"
 $SdkHeader  = Join-Path $Root "src\sdk\inc\XpchSdk.h"
+$SignScript = Join-Path $PublishDir "sign_xpchsdk.ps1"
+$TemplateDir = Join-Path $PublishDir "templates"
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
     $OutputDir = Join-Path $Root "output"
@@ -167,23 +188,99 @@ foreach ($c in $copies) {
 Copy-Item (Join-Path $DocSdk "XpchSdk使用教程.md") (Join-Path $StageDir "README.md") -Force
 Write-Ok "README.md（使用教程副本）"
 
-# ---- 5. 驱动签名状态 ----
-Write-Step "检查驱动签名"
-$sysPath = Join-Path $StageDir "bin\x64\XPCHunterDrv.sys"
-$sig = Get-AuthenticodeSignature $sysPath
-$subject = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { "<无>" }
+# ---- 5. 驱动签名（对暂存副本签名，产出完整签名包） ----
+$sysPath = Join-Path $StageDir (Join-Path "bin" "x64")
+$sysPath = Join-Path $sysPath "XPCHunterDrv.sys"
+$cerPath = Join-Path $StageDir "xpch.cer"
+$sigInfo = @{
+    Signer     = "<未签名>"
+    Thumbprint = "-"
+    NotBefore  = "-"
+    NotAfter   = "-"
+    Timestamp  = "-"
+    Status     = "NotSigned"
+}
 
-if ($sig.Status -eq "Valid") {
-    Write-Ok "已签名且证书链完整（$subject）"
-} elseif ($sig.Status -eq "NotSigned") {
-    Write-Warn2 "未签名 —— 目标机必须开启 testsigning 才能加载"
-} elseif ($sig.SignerCertificate) {
-    # 测试证书（自签名）的典型状态：签名块完整，但根证书不在本机信任库。
-    # 目标机用同一张证书或开启 testsigning 即可加载。
-    Write-Warn2 "已签名（$subject），但根证书不受本机信任"
-    Write-Warn2 "自签名测试证书属正常；目标机需 testsigning on 或安装该证书"
+if ($NoSign) {
+    Write-Step "驱动签名"
+    Write-Warn2 "已跳过签名（-NoSign）—— 目标机必须 testsigning on 才能加载"
 } else {
-    Write-Warn2 "签名状态: $($sig.Status) — $($sig.StatusMessage)"
+    Write-Step "驱动签名"
+    if (-not (Test-Path $SignScript)) {
+        throw "缺少签名脚本: $SignScript"
+    }
+
+    $signArgs = @(
+        "-SysPath", $sysPath,
+        "-Mode", $SignMode,
+        "-CertName", $CertName,
+        "-TimestampUrl", $TimestampUrl,
+        "-OutCer", $cerPath
+    )
+    if ($SignMode -eq "Pfx") {
+        $signArgs += @("-PfxPath", $PfxPath)
+        if ($PfxPassword) { $signArgs += @("-PfxPassword", $PfxPassword) }
+    }
+
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $SignScript @signArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "驱动签名失败（sign_xpchsdk.ps1 退出码 $LASTEXITCODE）"
+    }
+
+    # 采集签名信息，供 SIGNING.txt 使用
+    $sig = Get-AuthenticodeSignature $sysPath
+    if ($sig.SignerCertificate) {
+        $sigInfo.Signer     = $sig.SignerCertificate.Subject
+        $sigInfo.Thumbprint = $sig.SignerCertificate.Thumbprint
+        $sigInfo.NotBefore  = $sig.SignerCertificate.NotBefore.ToString("yyyy-MM-dd")
+        $sigInfo.NotAfter   = $sig.SignerCertificate.NotAfter.ToString("yyyy-MM-dd")
+    }
+    if ($sig.TimeStamperCertificate) {
+        $sigInfo.Timestamp = $sig.TimeStamperCertificate.Subject
+    }
+    $sigInfo.Status = $sig.Status
+    Write-Ok "签名状态: $($sig.Status)"
+}
+
+# ---- 5b. 放入签名包附属文件：证书、安装脚本、签名说明 ----
+Write-Step "生成签名包附属文件"
+
+if (-not $NoSign -and (Test-Path $cerPath)) {
+    Write-Ok ("xpch.cer（{0} B）" -f (Get-Item $cerPath).Length)
+} elseif (-not $NoSign) {
+    Write-Warn2 "未生成 xpch.cer（签名脚本未导出证书）"
+}
+
+# 安装/卸载脚本
+$installTpl = Join-Path $TemplateDir "install_driver.bat"
+if (Test-Path $installTpl) {
+    Copy-Item $installTpl (Join-Path $StageDir "install_driver.bat") -Force
+    Write-Ok "install_driver.bat"
+} else {
+    Write-Warn2 "缺少模板: $installTpl"
+}
+
+# SIGNING.txt（从模板替换占位符）
+$signingTpl = Join-Path $TemplateDir "SIGNING.txt"
+if (Test-Path $signingTpl) {
+    $note = switch ($sigInfo.Status) {
+        "Valid"        { "证书链完整，目标机可直接加载（无需改启动配置）。" }
+        "NotSigned"    { "驱动未签名。目标机必须开启 testsigning 才能加载。" }
+        "UnknownError" { "使用自签名测试证书：签名块完整，但根证书不在本机信任库。`r`n目标机按下面「方式 A」或「方式 B」操作后即可加载。" }
+        default        { "签名状态 $($sigInfo.Status)：$((Get-AuthenticodeSignature $sysPath).StatusMessage)" }
+    }
+    $txt = Get-Content $signingTpl -Raw -Encoding UTF8
+    $txt = $txt.Replace("{{SIGNER}}",      $sigInfo.Signer)
+    $txt = $txt.Replace("{{THUMBPRINT}}",  $sigInfo.Thumbprint)
+    $txt = $txt.Replace("{{NOTBEFORE}}",   $sigInfo.NotBefore)
+    $txt = $txt.Replace("{{NOTAFTER}}",    $sigInfo.NotAfter)
+    $txt = $txt.Replace("{{TIMESTAMP}}",   $sigInfo.Timestamp)
+    $txt = $txt.Replace("{{SIGSTATUS}}",   $sigInfo.Status)
+    $txt = $txt.Replace("{{SIGSTATUSNOTE}}", $note)
+    Set-Content -Path (Join-Path $StageDir "SIGNING.txt") -Value $txt -Encoding UTF8
+    Write-Ok "SIGNING.txt"
+} else {
+    Write-Warn2 "缺少模板: $signingTpl"
 }
 
 # ---- 6. VERSION.txt ----
@@ -202,6 +299,9 @@ $verLines = @(
     "  sdk/lib/XpchSdk.lib         SDK 静态库（x64）",
     "  samples/                    示例与自检程序",
     "  doc/                        接口文档与使用教程",
+    "  xpch.cer                    驱动公钥证书（已签名时提供）",
+    "  SIGNING.txt                 签名与加载说明（已签名时提供）",
+    "  install_driver.bat          驱动安装脚本",
     "",
     "快速开始：",
     "  1. 管理员 PowerShell 加载驱动：",
@@ -214,10 +314,26 @@ $verLines = @(
     "依赖链接库：advapi32.lib wintrust.lib crypt32.lib psapi.lib",
     "支持平台  ：Windows 10 x64 构建号 18362（其它版本部分接口返回 NOT_SUPPORTED）",
     "",
-    "驱动签名：",
-    "  本包驱动使用测试证书（CN=XPCSign2）签名。目标机加载前需满足其一：",
-    "    a) 开启测试签名：bcdedit /set testsigning on 后重启",
-    "    b) 把 XPCSign2 根证书装进 受信任的根证书颁发机构 + 受信任的发布者"
+    "签名包内容（除上述常规内容外）：",
+    "  xpch.cer                    驱动公钥证书",
+    "  SIGNING.txt                 签名信息与加载方式说明",
+    "  install_driver.bat          驱动安装/启动/停止/卸载",
+    "",
+    "快速加载驱动（管理员权限）：",
+    "  install_driver.bat install",
+    "",
+    "  如返回 577（签名无法验证），任选其一后重试：",
+    "    a) 开启测试签名：bcdedit /set testsigning on && shutdown /r /t 0",
+    "    b) 安装本包证书：",
+    "         certutil -addstore -f Root xpch.cer",
+    "         certutil -addstore -f TrustedPublisher xpch.cer",
+    "",
+    "驱动签名信息：",
+    ("  签名者  : " + $sigInfo.Signer),
+    ("  指纹    : " + $sigInfo.Thumbprint),
+    ("  有效期  : " + $sigInfo.NotBefore + " ~ " + $sigInfo.NotAfter),
+    ("  时间戳  : " + $sigInfo.Timestamp),
+    ("  状态    : " + $sigInfo.Status)
 )
 Set-Content -Path (Join-Path $StageDir "VERSION.txt") -Value $verLines -Encoding UTF8
 Write-Ok "VERSION.txt"

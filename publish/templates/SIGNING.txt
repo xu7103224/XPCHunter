@@ -1,0 +1,93 @@
+XPCHunterDrv 驱动签名说明
+========================================================================
+
+本包内的 bin\x64\XPCHunterDrv.sys 已签名，签名信息如下：
+
+  签名者    : {{SIGNER}}
+  证书指纹  : {{THUMBPRINT}}
+  证书有效期: {{NOTBEFORE}} ~ {{NOTAFTER}}
+  时间戳    : {{TIMESTAMP}}
+  签名状态  : {{SIGSTATUS}}
+
+{{SIGSTATUSNOTE}}
+
+
+一、为什么驱动需要签名
+------------------------------------------------------------------------
+
+Windows x64 内核强制驱动签名（KMCS）。签名无效或不存在的驱动，
+sc start 会返回 577（ERROR_INVALID_IMAGE_HASH），无法加载。
+
+
+二、本包提供的两种加载方式
+------------------------------------------------------------------------
+
+方式 A：启用测试签名（开发/测试环境推荐）
+  管理员命令提示符执行：
+
+      bcdedit /set testsigning on
+      bcdedit /set nointegritychecks on
+      shutdown /r /t 0
+
+  重启后桌面右下角会出现"测试模式"水印，这是正常的。
+  然后执行：install_driver.bat install
+
+方式 B：安装本包证书（不需要改启动配置）
+  管理员命令提示符执行：
+
+      certutil -addstore -f Root "xpch.cer"
+      certutil -addstore -f TrustedPublisher "xpch.cer"
+
+  这两个命令把证书装进「受信任的根证书颁发机构」和「受信任的发布者」。
+  之后执行：install_driver.bat install
+
+  卸载证书（如需）：
+      certutil -delstore Root "XPCSign2"
+      certutil -delstore TrustedPublisher "XPCSign2"
+
+
+三、驱动安装与管理
+------------------------------------------------------------------------
+
+所有命令都需要管理员权限。
+
+  install_driver.bat install      注册并启动驱动
+  install_driver.bat start        启动已注册的驱动
+  install_driver.bat stop         停止驱动
+  install_driver.bat uninstall    停止并删除服务（不删文件）
+  install_driver.bat status       查看状态
+
+安装成功的标志：
+
+  STATE : 4  RUNNING
+
+设备名：\\.\View++ByLinxer
+SDK 通过这个设备名打开会话。
+
+
+四、校验驱动完整性
+------------------------------------------------------------------------
+
+本包 SHA256SUMS.txt 记录了所有文件的 SHA-256。校验命令：
+
+  powershell -Command "Get-FileHash bin\x64\XPCHunterDrv.sys -Algorithm SHA256"
+
+也可以只校验驱动签名：
+
+  signtool verify /pa /v bin\x64\XPCHunterDrv.sys
+
+注意：使用自签名测试证书时，signtool verify /pa 会报
+"certificate chain processed, but terminated in a root certificate
+which is not trusted by the trust provider" ——除非你已按方式 B
+安装了证书，否则这个报错属正常，不代表签名块损坏。
+
+
+五、正式发布前需要做的
+------------------------------------------------------------------------
+
+本包使用的是测试证书签名，仅适合内部分发与测试。
+若要对外正式发布，需要换用受信任的商业代码签名证书（EV 或 OV），
+并且驱动需要通过微软的 WHQL/Attestation 签名流程才能被
+默认配置的 Windows 10/11 直接加载。
+
+签名流程见仓库：publish\sign_xpchsdk.ps1（支持 -Mode Pfx 使用正式证书）。

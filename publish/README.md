@@ -7,7 +7,11 @@
 ```
 publish/
 ├── publish_<产品>.bat     入口（双击 / 命令行）
-├── pack_<产品>.ps1        该产品的打包逻辑
+├── pack_<产品>.ps1        该产品的打包逻辑（含驱动签名）
+├── sign_<产品>.ps1        驱动签名（可单独调用）
+├── templates/             打进包里的模板文件
+│   ├── install_driver.bat 驱动安装/卸载脚本
+│   └── SIGNING.txt        签名与加载说明（占位符由打包时替换）
 └── README.md              本文件
 ```
 
@@ -42,6 +46,12 @@ publish\publish_xpchsdk.bat
 | `-OutputDir <路径>` | 指定输出根目录，默认 `<仓库>\output` |
 | `-Config <配置>` | 构建配置，默认 `Release` |
 | `-IncludeProbe` | 把开发用的 `XpchInjProbe.exe` 也打进 samples |
+| `-NoSign` | 不签名，只打包（产物是未签名驱动） |
+| `-SignMode Local\|Pfx` | 签名模式，默认 `Local`（本机证书库） |
+| `-CertName <名称>` | Local 模式证书 Subject 匹配串，默认 `XPCSign2` |
+| `-PfxPath <路径>` | Pfx 模式证书文件 |
+| `-PfxPassword <口令>` | Pfx 模式证书口令 |
+| `-TimestampUrl <url>` | 时间戳服务，默认 DigiCert；传 `""` 跳过 |
 
 参数可组合，会原样透传给 `pack_xpchsdk.ps1`。
 
@@ -59,6 +69,9 @@ output/XpchSdk-1.2.0/
 ├── doc/
 │   ├── XpchSdk接口文档.md        接口参考
 │   └── XpchSdk使用教程.md        入门教程
+├── xpch.cer                      驱动公钥证书（装进受信任根即可加载）
+├── install_driver.bat            驱动安装/启动/停止/卸载
+├── SIGNING.txt                   签名信息 + 两种加载方式说明
 ├── README.md                     使用教程副本（顶层放一份）
 ├── VERSION.txt                   版本/构建信息 + 快速开始步骤
 └── SHA256SUMS.txt                全部文件的 SHA-256
@@ -82,7 +95,77 @@ output/XpchSdk-1.2.0/
 版本号只从 `src/sdk/inc/XpchSdk.h` 读，改版本不需要动脚本。
 产品名由脚本内 `$ProductName` 变量控制，打包目录名与 `VERSION.txt` 首行都用它。
 
-## 关于驱动签名
+## 驱动签名
+
+默认每次打包都会对 `bin/x64/XPCHunterDrv.sys` 签名（带时间戳），产出完整签名包。
+签名由 `sign_xpchsdk.ps1` 完成，打包时自动调用。
+
+### 两种签名模式
+
+**Local（默认）** —— 用本机证书库里的证书：
+
+```bat
+publish\publish_xpchsdk.bat
+publish\publish_xpchsdk.bat -CertName MyTestCert     :: 换证书
+```
+
+**Pfx** —— 用证书文件（正式签名场景）：
+
+```bat
+publish\publish_xpchsdk.bat -SignMode Pfx -PfxPath D:\cert.pfx -PfxPassword 口令
+```
+
+### 单独签名（不打包）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File publish\sign_xpchsdk.ps1 ^
+    -SysPath buildin\Released\XPCHunterDrv.sys
+```
+
+签名脚本会：签名 → 加时间戳 → `signtool verify` 校验 → 导出同名 `.cer`。
+
+### 签名包里有什么
+
+| 文件 | 作用 |
+|---|---|
+| `xpch.cer` | 驱动公钥证书。目标机装进「受信任的根」后即可加载 |
+| `install_driver.bat` | 驱动 install / start / stop / uninstall / status |
+| `SIGNING.txt` | 签名信息（签名者、指纹、有效期、时间戳）+ 两种加载方式 |
+
+目标机加载驱动有两条路（`SIGNING.txt` 里也写了）：
+
+```bat
+:: 方式 A：开启测试签名（开发环境）
+bcdedit /set testsigning on
+bcdedit /set nointegritychecks on
+shutdown /r /t 0
+install_driver.bat install
+
+:: 方式 B：安装本包证书（不改启动配置）
+certutil -addstore -f Root xpch.cer
+certutil -addstore -f TrustedPublisher xpch.cer
+install_driver.bat install
+```
+
+加载失败返回 577 时，`install_driver.bat` 会直接打印这两个解决方式。
+
+### 关于签名状态 NotTrusted / UnknownError
+
+自签名测试证书签名后，`Get-AuthenticodeSignature` 通常返回 `UnknownError`，
+含义是「签名块完整，但根证书不在本机信任库」。这不是签名失败——
+按上面方式 A 或 B 操作后驱动就能加载。`SIGNING.txt` 会根据实际状态
+自动写入对应的说明文字。
+
+### 正式发布前
+
+测试证书只适合内部分发。对外正式发布需要：
+
+1. 换用受信任的商业代码签名证书（EV / OV），用 `-SignMode Pfx` 签
+2. 驱动走微软 WHQL / Attestation 签名，否则默认配置的 Win10/11 仍拒绝加载
+
+---
+
+## 关于驱动签名（旧版说明，保留供参考）
 
 打包出来的 `XPCHunterDrv.sys` 用的是测试证书 `CN=XPCSign2`。目标机加载前需要满足其一：
 
