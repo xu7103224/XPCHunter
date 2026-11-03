@@ -7,7 +7,10 @@
 #
 # 产出目录：
 #   output/XpchSdk-<版本>/
-#     ├── submit/XPCHunterDrv.cab     待提交微软的驱动包（INF+SYS+CAT）
+#     ├── driver_pkg/                 待打包的驱动文件目录（INF+SYS+CAT）
+#     │   ├── XPCHunterDrv.inf
+#     │   ├── XPCHunterDrv.sys        已签名
+#     │   └── XPCHunterDrv.cat        已签名
 #     ├── SDK/xpch_sdk/              SDK 头文件 + 静态库
 #     ├── SDK/samples/               示例与自检程序
 #     ├── doc/                       接口文档 + 使用教程
@@ -39,7 +42,6 @@
 #   -CertName <name>    -TestSign 时证书 Subject 匹配串，默认 XPCSign2
 #   -OutCer             -TestSign 时额外导出公钥证书
 #
-#   -NoSign             完全不签名，只出未签名的 CAB（仅供检查内容）
 #   -TimestampUrl <url> 时间戳服务，默认 DigiCert；传 "" 跳过
 # ============================================================================
 [CmdletBinding()]
@@ -57,7 +59,6 @@ param(
     [string] $CertName = "XPCSign2",
     [switch] $OutCer,
 
-    [switch] $NoSign,
     [string] $TimestampUrl = "http://timestamp.digicert.com"
 )
 
@@ -110,10 +111,8 @@ Write-Ok "输出目录   : $OutputDir"
 Write-Ok "构建配置   : $Config"
 if ($TestSign) {
     Write-Ok "签名方式   : 自签名测试证书（内部测试，不可分发）"
-} elseif ($NoSign) {
-    Write-Ok "签名方式   : 不签名"
 } else {
-    Write-Ok "签名方式   : EV 证书 → 待提交微软"
+    Write-Ok "签名方式   : EV 证书 → 待打包提交微软"
 }
 
 # ---- 1. 编译 ----
@@ -160,7 +159,7 @@ if ($missing.Count -gt 0) {
 Write-Step "准备打包目录"
 if (Test-Path $StageDir) { Remove-Item $StageDir -Recurse -Force }
 $dirs = @(
-    (Join-Path $StageDir "submit"),
+    (Join-Path $StageDir "driver_pkg"),
     (Join-Path $StageDir ("SDK" + [char]92 + "xpch_sdk")),
     (Join-Path $StageDir ("SDK" + [char]92 + "samples")),
     (Join-Path $StageDir "doc")
@@ -196,69 +195,41 @@ foreach ($c in $copies) {
 Copy-Item (Join-Path $DocSdk "XpchSdk使用教程.md") (Join-Path $StageDir "README.md") -Force
 Write-Ok "README.md（使用教程副本）"
 
-# ---- 5. 驱动包（CAB） ----
-Write-Step "生成驱动包"
+# ---- 5. 驱动包目录 ----
+Write-Step "生成驱动包目录"
 $sysSrc  = Join-Path $BinDrv "XPCHunterDrv.sys"
-$cabPath = Join-Path $StageDir ("submit" + [char]92 + "XPCHunterDrv.cab")
-$cerPath = Join-Path $StageDir "test_cert.cer"
-$sigInfo = @{ Signer = "<未签名>"; Thumbprint = "-"; NotAfter = "-"; Timestamp = "-"; Status = "NotSigned"; Mode = "none" }
+$pkgDir  = Join-Path $StageDir "driver_pkg"
+$sigInfo = @{ Signer = "<未签名>"; Thumbprint = "-"; NotAfter = "-"; Timestamp = "-"; Status = "NotSigned" }
 
 if (-not (Test-Path $SignScript)) { throw "缺少签名脚本: $SignScript" }
 
-$signArgs = @("-SysPath", $sysSrc, "-CabOut", $cabPath, "-TimestampUrl", $TimestampUrl)
-if ($NoSign) {
+$signArgs = @(
+    "-SysPath", $sysSrc,
+    "-PackageDir", $pkgDir,
+    "-TimestampUrl", $TimestampUrl,
+    "-DriverVerVersion", $Version
+)
+
+if ($TestSign) {
     $signArgs += @("-Mode", "Local", "-CertName", $CertName)
-    Write-Warn2 "不签名：CAB 内的 SYS/CAT 均未签名，仅用于检查内容"
-    # 未签名时只做 Inf2Cat + makecab，用一个不存在的证书名会失败，
-    # 因此这里绕开签名脚本，手工组包
-} elseif ($TestSign) {
-    $signArgs += @("-Mode", "Local", "-CertName", $CertName)
-    if ($OutCer) { $signArgs += @("-OutCer", $cerPath) }
+    if ($OutCer) { $signArgs += @("-OutCer") }
+    Write-Ok "签名证书：本机测试证书（$CertName）"
 } else {
     if (-not $PfxPath) {
         throw "发布流程需要 -PfxPath 指定 EV 代码签名证书。仅内部测试请加 -TestSign。"
     }
     $signArgs += @("-Mode", "Release", "-PfxPath", $PfxPath)
     if ($PfxPassword) { $signArgs += @("-PfxPassword", $PfxPassword) }
+    Write-Ok "签名证书：EV 证书 $PfxPath"
 }
 
-if ($NoSign) {
-    # 手工生成未签名 CAB
-    $work = Join-Path ([System.IO.Path]::GetTempPath()) ("xpchcab_ns_" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Path $work -Force | Out-Null
-    try {
-        $infTpl = Join-Path $PublishDir ("templates" + [char]92 + "XPCHunterDrv.inf")
-        $infText = Get-Content $infTpl -Raw -Encoding UTF8
-        $infText = $infText -replace '@DriverVerDate@', (Get-Date).ToString("MM/dd/yyyy")
-        $infText = $infText -replace '@DriverVerVersion@', $Version
-        Set-Content (Join-Path $work "XPCHunterDrv.inf") $infText -Encoding ASCII
-        Copy-Item $sysSrc (Join-Path $work "XPCHunterDrv.sys") -Force
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $SignScript @signArgs
+if ($LASTEXITCODE -ne 0) { throw "驱动签名失败（退出码 $LASTEXITCODE）" }
 
-        $kits = "C:" + [char]92 + "Program Files (x86)" + [char]92 + "Windows Kits"
-        $inf2cat = Get-ChildItem (Join-Path (Join-Path $kits "10") "bin") -Recurse -Filter Inf2Cat.exe -ErrorAction SilentlyContinue |
-                   Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-        & $inf2cat /driver:$work /os:10_X64 | Out-Null
-        $cat = Get-ChildItem $work -Filter "*.cat" | Select-Object -First 1 -ExpandProperty Name
-
-        $ddf = Join-Path $work "p.ddf"
-        Set-Content $ddf -Encoding ASCII -Value @(
-            ".OPTION EXPLICIT",
-            ".Set CabinetNameTemplate=XPCHunterDrv.cab",
-            ".Set DiskDirectoryTemplate=$(Split-Path -Parent $cabPath)",
-            ".Set CompressionType=MSZIP",
-            ".Set Cabinet=on",
-            ".Set Compress=on",
-            "XPCHunterDrv.inf", "XPCHunterDrv.sys", $cat)
-        Push-Location $work; try { & (Join-Path $env:windir "System32\makecab.exe") /f $ddf | Out-Null } finally { Pop-Location }
-        Write-Ok ("CAB（未签名）: {0:N0} B" -f (Get-Item $cabPath).Length)
-    } finally {
-        Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-    }
-} else {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $SignScript @signArgs
-    if ($LASTEXITCODE -ne 0) { throw "驱动签名/打包失败（退出码 $LASTEXITCODE）" }
-
-    $sig = Get-AuthenticodeSignature $sysSrc
+# 采集签名信息（从产物目录里的 SYS 读）
+$pkgSys = Join-Path $pkgDir "XPCHunterDrv.sys"
+if (Test-Path $pkgSys) {
+    $sig = Get-AuthenticodeSignature $pkgSys
     if ($sig.SignerCertificate) {
         $sigInfo.Signer     = $sig.SignerCertificate.Subject
         $sigInfo.Thumbprint = $sig.SignerCertificate.Thumbprint
@@ -266,15 +237,17 @@ if ($NoSign) {
     }
     if ($sig.TimeStamperCertificate) { $sigInfo.Timestamp = $sig.TimeStamperCertificate.Subject }
     $sigInfo.Status = $sig.Status
-    $sigInfo.Mode   = if ($TestSign) { "TestSign" } else { "Release" }
-    Write-Ok ("CAB: {0:N0} B" -f (Get-Item $cabPath).Length)
+}
+
+# 列出目录内容
+Get-ChildItem $pkgDir -File | Sort-Object Name | ForEach-Object {
+    Write-Ok ("{0,-24} {1,10:N0} B" -f $_.Name, $_.Length)
 }
 
 # ---- 6. VERSION.txt ----
 Write-Step "生成 VERSION.txt"
-$modeText = if ($NoSign) { "未签名（仅供检查内容）" }
-            elseif ($TestSign) { "自签名测试证书（内部测试，不可分发）" }
-            else { "EV 证书已签，待提交微软回签" }
+$modeText = if ($TestSign) { "自签名测试证书（内部测试，不可分发）" }
+            else { "EV 证书已签，待打包提交微软回签" }
 
 $verLines = @(
     "$ProductName $Version",
@@ -284,7 +257,10 @@ $verLines = @(
     "签名方式   : $modeText",
     "",
     "目录：",
-    "  submit/XPCHunterDrv.cab        驱动包（INF + SYS + CAT）",
+    "  driver_pkg/                    驱动包文件（自行打成 CAB）",
+    "    XPCHunterDrv.inf             安装描述",
+    "    XPCHunterDrv.sys             驱动本体（已签名）",
+    "    XPCHunterDrv.cat             目录文件（已签名）",
     "  SDK/xpch_sdk/                  XpchSdk.h + XpchSdk.lib",
     "  SDK/samples/                   示例、自检、注入靶 DLL",
     "  doc/                           接口文档 + 使用教程",
@@ -294,30 +270,33 @@ $verLines = @(
 if ($TestSign) {
     $verLines += @(
         "本地测试安装：",
-        "  本包的 CAB 用自签名测试证书签名，目标机需先满足其一：",
+        "  本目录的 SYS/CAT 用自签名测试证书签名，目标机需先满足其一：",
         "    a) bcdedit /set testsigning on 后重启",
         "    b) 安装 test_cert.cer 到受信任的根 + 受信任的发布者",
         "  然后：",
-        "    expand submit\XPCHunterDrv.cab -F:* C:\temp\xpch",
-        "    pnputil /add-driver C:\temp\xpch\XPCHunterDrv.inf /install",
-        "    sc start XPCHDrv"
-    )
-} elseif (-not $NoSign) {
-    $verLines += @(
-        "发布流程：",
-        "  1. 把 submit\XPCHunterDrv.cab 上传到微软硬件开发者中心回签",
-        "  2. 下载微软签名后的 CAB，分发给最终用户",
-        "  3. 用户机器安装（无需证书、无需测试签名）：",
-        "       expand XPCHunterDrv.cab -F:* C:\temp\xpch",
-        "       pnputil /add-driver C:\temp\xpch\XPCHunterDrv.inf /install",
-        "       sc start XPCHDrv",
+        "    pnputil /add-driver driver_pkg\\XPCHunterDrv.inf /install",
+        "    sc start XPCHDrv",
         "",
-        "  注意：微软回签前的 CAB 在默认配置的 Win10/11 上无法加载。"
+        "  产物仅供内部验证，不可对外分发。"
     )
 } else {
-    $verLines += @("本包未签名，驱动无法在任何启用强制签名的系统上加载。")
+    $verLines += @(
+        "发布流程：",
+        "  1. 把 driver_pkg 目录打成 CAB（示例）：",
+        "       cd driver_pkg",
+        "       makecab /d CabinetNameTemplate=XPCHunterDrv.cab ^",
+        "               /d DiskDirectoryTemplate=. ^",
+        "               XPCHunterDrv.inf XPCHunterDrv.sys xpchunterdrv.cat",
+        "  2. 上传 CAB 到 https://partner.microsoft.com/dashboard/hardware 回签",
+        "  3. 下载微软签名后的 CAB，分发给最终用户",
+        "  4. 用户机器安装（无需证书、无需测试签名）：",
+        "       expand XPCHunterDrv.cab -F:* C:\\temp\\xpch",
+        "       pnputil /add-driver C:\\temp\\xpch\\XPCHunterDrv.inf /install",
+        "       sc start XPCHDrv",
+        "",
+        "  注意：微软回签前的包在默认配置的 Win10/11 上无法加载。"
+    )
 }
-
 $verLines += @(
     "",
     "驱动签名信息：",

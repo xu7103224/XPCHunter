@@ -32,23 +32,43 @@ publish/
 
 驱动要能被 Windows 加载，签名是硬门槛。本产品有两种打包模式：
 
-### 发布流程（默认）—— 提交微软签名
+### 发布流程（默认）—— 签名后自行打 CAB 提交微软
 
 ```bat
 publish\publish_xpchsdk.bat -PfxPath D:\ev.pfx -PfxPassword 口令
 ```
 
-产出 `output\XpchSdk-<版本>\submit\XPCHunterDrv.cab`，用途是**上传微软**：
+产出 `output\XpchSdk-<版本>\driver_pkg\`，三个文件：
 
-1. CAB 内的 SYS 和 CAT 先用你的 EV 证书签名（微软要求提交前先签）
-2. 登录 <https://partner.microsoft.com/dashboard/hardware>
-3. 新建 submission，上传该 CAB
-4. 微软回签后下载签名版 CAB，分发给最终用户
+```
+driver_pkg/
+├── XPCHunterDrv.inf     安装描述
+├── XPCHunterDrv.sys     驱动本体（已签名）
+└── XPCHunterDrv.cat     目录文件（已签名）
+```
 
-**最终用户的机器不需要装任何证书、不需要开测试签名**——微软的签名链
-是系统内置信任的。这是唯一适合对外发布的路径。
+**这里不打 CAB**，留给你自己打包——CAB 里往往还要放别的东西
+（readme、多架构 SYS 等），打包方式各家不同。
 
-没有 EV 证书时，脚本会明确报错拒绝打包，不会产出半成品。
+自行打 CAB：
+
+```bat
+cd driver_pkg
+makecab /d CabinetNameTemplate=XPCHunterDrv.cab ^
+        /d DiskDirectoryTemplate=. ^
+        XPCHunterDrv.inf XPCHunterDrv.sys xpchunterdrv.cat
+```
+
+然后：
+
+1. 上传 CAB 到 <https://partner.microsoft.com/dashboard/hardware>
+2. 微软回签后下载签名版 CAB，分发给最终用户
+3. 用户机器安装：`pnputil /add-driver ... /install` + `sc start XPCHDrv`
+
+**用户机器不需要装任何证书、不需要开测试签名**——微软的签名链是
+系统内置信任的。这是唯一适合对外发布的路径。
+
+没有 EV 证书时脚本会明确报错，不产半成品。
 
 ### 内部测试流程 —— 自签名
 
@@ -56,7 +76,7 @@ publish\publish_xpchsdk.bat -PfxPath D:\ev.pfx -PfxPassword 口令
 publish\publish_xpchsdk.bat -TestSign
 ```
 
-用本机测试证书签名，产出结构相同的 CAB。目标机需要满足其一才能加载：
+同样产出 `driver_pkg/`，只是用本机测试证书签名。目标机需满足其一：
 
 ```bat
 :: a) 开测试签名
@@ -66,6 +86,13 @@ shutdown /r /t 0
 :: b) 装证书（加 -OutCer 会额外导出 test_cert.cer）
 certutil -addstore -f Root test_cert.cer
 certutil -addstore -f TrustedPublisher test_cert.cer
+```
+
+然后直接装（不必打 CAB）：
+
+```bat
+pnputil /add-driver driver_pkg\XPCHunterDrv.inf /install
+sc start XPCHDrv
 ```
 
 **这个包不可对外分发**，只用于本机/实验机验证功能。
