@@ -1,5 +1,9 @@
 ﻿# ============================================================================
-# pack.ps1 —— XpchSdk 发布打包
+# pack_xpchsdk.ps1 —— XpchSdk 发布打包
+#
+# 产品名：XpchSdk（内核能力 SDK）
+# 命名约定：publish/pack_<产品>.ps1 + publish/publish_<产品>.bat
+#           新增产品时复制本脚本改名，避免入口重名。
 #
 # 把编译产物整理成一份可直接交付给第三方的目录结构：
 #   output/XpchSdk-<版本>/
@@ -54,9 +58,12 @@ function Get-SdkVersion {
     return "0.0.0"
 }
 
+# 产品标识：打包目录名与 VERSION.txt 首行都用它
+$ProductName = "XpchSdk"
+
 $Version    = Get-SdkVersion
 $Stamp      = Get-Date -Format "yyyyMMdd-HHmmss"
-$PackageName = "XpchSdk-$Version"
+$PackageName = "$ProductName-$Version"
 $StageDir   = Join-Path $OutputDir $PackageName
 
 Write-Step "XpchSdk 发布打包 $Version"
@@ -183,7 +190,7 @@ if ($sig.Status -eq "Valid") {
 Write-Step "生成 VERSION.txt"
 
 $verLines = @(
-    "XpchSdk $Version",
+    "$ProductName $Version",
     "",
     "构建时间   : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
     "构建配置   : $Config",

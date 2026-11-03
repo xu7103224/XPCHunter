@@ -1,11 +1,33 @@
 # publish —— 编译与发布脚本
 
-把驱动、SDK、示例程序打包成一份可直接交付给第三方的目录。
+本仓库有多个可发布产品，每个产品一组独立的发布脚本，互不干扰。
+
+## 命名约定
+
+```
+publish/
+├── publish_<产品>.bat     入口（双击 / 命令行）
+├── pack_<产品>.ps1        该产品的打包逻辑
+└── README.md              本文件
+```
+
+`<产品>` 用小写产品标识。新增产品时复制一套脚本改名，不要在 `publish/` 下
+出现无产品前缀的通用名（如 `publish.bat`），否则多产品会互相覆盖。
+
+## 当前产品
+
+| 产品 | 入口 | 默认输出 | 说明 |
+|---|---|---|---|
+| XpchSdk | `publish\publish_xpchsdk.bat` | `output\XpchSdk-<版本>\` | 内核能力 SDK（驱动 + 静态库 + 文档） |
+
+---
+
+# XpchSdk
 
 ## 快速使用
 
 ```bat
-publish\publish.bat
+publish\publish_xpchsdk.bat
 ```
 
 默认行为：编译驱动 + SDK + 示例 → 打包到 `output\XpchSdk-<版本>\`。
@@ -21,7 +43,7 @@ publish\publish.bat
 | `-Config <配置>` | 构建配置，默认 `Release` |
 | `-IncludeProbe` | 把开发用的 `XpchInjProbe.exe` 也打进 samples |
 
-参数可组合，会原样透传给 `pack.ps1`。
+参数可组合，会原样透传给 `pack_xpchsdk.ps1`。
 
 ## 产物结构
 
@@ -46,7 +68,7 @@ output/XpchSdk-1.2.0/
 
 ## 脚本做了什么
 
-`pack.ps1` 的执行顺序：
+`pack_xpchsdk.ps1` 的执行顺序：
 
 1. **编译**（`-NoBuild` 可跳过）—— 依次调 `build.bat`、`build_sdk.bat`、`build_sdk_sample.bat`
 2. **校验产物** —— 逐个检查 8 个必需文件，缺任何一个就直接失败，不产出半成品包
@@ -58,6 +80,7 @@ output/XpchSdk-1.2.0/
 8. **可选压缩** —— `-Zip` 时生成带时间戳的 zip
 
 版本号只从 `src/sdk/inc/XpchSdk.h` 读，改版本不需要动脚本。
+产品名由脚本内 `$ProductName` 变量控制，打包目录名与 `VERSION.txt` 首行都用它。
 
 ## 关于驱动签名
 
@@ -79,3 +102,10 @@ output/XpchSdk-1.2.0/
 ## 输出目录
 
 `output/` 已在 `.gitignore` 中排除，不会误提交。清空重建直接删目录即可，脚本每次都会覆盖同名包。
+
+## 实现注意（改脚本时别踩）
+
+- `publish_<产品>.bat` 必须是**纯 ASCII + CRLF**。cmd 会按 ANSI 解析，
+  中文注释会变成乱码命令；LF 换行在部分 cmd 版本上也有问题。
+- `pack_<产品>.ps1` 必须带 **UTF-8 BOM**。PowerShell 5.1 对无 BOM 的
+  UTF-8 脚本按 ANSI 解析，中文注释会导致语法错误。
