@@ -447,6 +447,173 @@ int main(void)
         CheckSt("XpchVerifyFileSignature(NULL)", St, XPCH_E_INVALID_ARG, NULL);
     }
 
+    /* ---------------- 特权（内核 0x09A，导出 API 零偏移） ---------------- */
+    printf("\n[privileges]\n");
+    {
+        ULONG Total = 0, En = 0;
+
+        /* 查询自身：Token 至少有一个特权 */
+        St = XpchAdjustProcessPrivileges(&S, GetCurrentProcessId(),
+                                         XPCH_PRIV_QUERY, &Total, &En);
+        {
+            char D[80];
+            _snprintf_s(D, sizeof(D), _TRUNCATE, "total=%lu enabled=%lu",
+                        Total, En);
+            Check("XpchAdjustProcessPrivileges(query self)",
+                  St == XPCH_OK && Total > 0, D);
+        }
+
+        /* 起一个 notepad 做目标：query → 全开 → 全关，校验计数变化 */
+        {
+            STARTUPINFOW Si;
+            PROCESS_INFORMATION Pi;
+            WCHAR Cmd[64];
+            ULONG T1 = 0, E1 = 0, E2 = 0, E3 = 0;
+
+            ZeroMemory(&Si, sizeof(Si));
+            Si.cb = sizeof(Si);
+            ZeroMemory(&Pi, sizeof(Pi));
+            lstrcpyW(Cmd, L"notepad.exe");
+            if (CreateProcessW(NULL, Cmd, NULL, NULL, FALSE, 0, NULL, NULL, &Si, &Pi)) {
+                ULONG Np = GetProcessId(Pi.hProcess);
+                Sleep(500);
+
+                St = XpchAdjustProcessPrivileges(&S, Np, XPCH_PRIV_QUERY,
+                                                 &T1, &E1);
+                Check("  |- notepad query", St == XPCH_OK && T1 > 0, NULL);
+
+                St = XpchAdjustProcessPrivileges(&S, Np, XPCH_PRIV_ENABLE_ALL,
+                                                 NULL, &E2);
+                {
+                    char D[96];
+                    _snprintf_s(D, sizeof(D), _TRUNCATE,
+                                "enabled %lu -> %lu (total %lu)", E1, E2, T1);
+                    Check("  |- enable all", St == XPCH_OK && E2 == T1, D);
+                }
+
+                XpchAdjustProcessPrivileges(&S, Np, XPCH_PRIV_QUERY, NULL, &E3);
+                Check("  |- query reflects enable", E3 == T1, NULL);
+
+                St = XpchAdjustProcessPrivileges(&S, Np, XPCH_PRIV_DISABLE_ALL,
+                                                 NULL, &E2);
+                Check("  |- disable all", St == XPCH_OK && E2 == 0, NULL);
+
+                /* ---- 注入（0x09B 分配/线程 + 0x081 写 + 0x023 读） ---- */
+                printf("\n[inject]\n");
+                {
+                    WCHAR ExeDir[MAX_PATH], DllPath[MAX_PATH + 32];
+                    ULONG64 Base = 0;
+                    /* 注入到测试进程自身：Session 0 的 notepad 在手工映射
+                       DllMain 时会于 ntdll 内崩溃（缺 CRT/TLS 初始化），
+                       同进程注入结果确定，也能直接读回标记验证。 */
+                    ULONG Np = GetCurrentProcessId();
+
+                    /* DLL 与测试 EXE 同目录 */
+                    GetModuleFileNameW(NULL, ExeDir, MAX_PATH);
+                    {
+                        WCHAR *Slash = wcsrchr(ExeDir, L'\\');
+                        if (Slash)
+                            *(Slash + 1) = 0;
+                        else
+                            ExeDir[0] = 0;
+                    }
+                    lstrcpyW(DllPath, ExeDir);
+                    lstrcatW(DllPath, L"XpchInjTarget.dll");
+
+/* 复用 Pi（notepad 仍在跑） */
+
+                    St = XpchInjectDll(&S, Np, DllPath, 0, &Base);
+                    {
+                        char D[110];
+                        _snprintf_s(D, sizeof(D), _TRUNCATE,
+                                    "st=%d base=%llx", (int)St,
+                                    (unsigned long long)Base);
+                        Check("XpchInjectDll", St == XPCH_OK && Base, D);
+                    }
+
+                    if (St == XPCH_OK) {
+                        BYTE *Mem = NULL;
+                        ULONG Got = 0;
+                        /* 映像落点应有 MZ 头 */
+                        St = XpchReadProcessMemory(&S, Np, Base, 2, &Mem, &Got);
+                        Check("  |- MZ at remote base",
+                              St == XPCH_OK && Mem && Mem[0] == 'M' && Mem[1] == 'Z',
+                              NULL);
+                        if (St == XPCH_OK)
+                            XpchFree(Mem);
+
+                        /* 手工映射不进 PEB Ldr —— 枚举不应可见 */
+                        {
+                            XPCH_MODULE_INFO *M2 = NULL;
+                            ULONG MN2 = 0;
+                            BOOL Found = FALSE;
+                            ULONG k;
+                            XpchEnumModules(&S, Np, &M2, &MN2);
+                            for (k = 0; k < MN2; k++)
+                                if (M2[k].Base == Base)
+                                    Found = TRUE;
+                            Check("  |- not in PEB Ldr (by design)",
+                                  Found == FALSE, NULL);
+                            if (M2)
+                                XpchFree(M2);
+                        }
+
+                        /* DllMain 经远程线程异步执行：等它跑完再读 .data 标记。
+                           测试 DLL 的 g_XpchInjected 在 RVA 0x3000，
+                           DllMain 写入 0x58504348494E4A31。 */
+                        Sleep(1500);
+                        {
+                            ULONG64 Magic = 0;
+                            St = XpchReadProcessMemory(&S, Np, Base + 0x3000, 8,
+                                                       &Mem, &Got);
+                            if (St == XPCH_OK && Got == 8) {
+                                Magic = *(ULONG64 *)Mem;
+                                XpchFree(Mem);
+                            }
+                            {
+                                char D[80];
+                                _snprintf_s(D, sizeof(D), _TRUNCATE,
+                                            "marker=%llx",
+                                            (unsigned long long)Magic);
+                                Check("  |- DllMain executed (marker)",
+                                      Magic == 0x58504348494E4A31ULL, D);
+                            }
+                        }
+                    }
+
+                    /* NORUN 变体：只映射不执行，标记不应写入 */
+                    if (Base) {
+                        ULONG64 Base2 = 0;
+                        XPCH_STATUS S2 = XpchInjectDll(&S, Np, DllPath,
+                                                       XPCH_INJECT_NORUN, &Base2);
+                        if (S2 == XPCH_OK && Base2) {
+                            ULONG64 Magic2 = 0;
+                            XPCH_STATUS S3;
+                            BYTE *NM = NULL;
+                            ULONG NG = 0;
+                            Sleep(600);
+                            S3 = XpchReadProcessMemory(&S, Np, Base2 + 0x3000, 8,
+                                                       &NM, &NG);
+                            if (S3 == XPCH_OK && NG == 8) {
+                                Magic2 = *(ULONG64 *)NM;
+                                XpchFree(NM);
+                            }
+                            Check("  |- NORUN: no DllMain run",
+                                  Magic2 != 0x58504348494E4A31ULL, NULL);
+                        }
+                    }
+                }
+
+                TerminateProcess(Pi.hProcess, 0);
+                WaitForSingleObject(Pi.hProcess, 3000);
+                CloseHandle(Pi.hThread);
+                CloseHandle(Pi.hProcess);
+            } else {
+                Check("launch notepad target", FALSE, "CreateProcessW failed");
+            }
+        }
+    }
+
     /* ---------------- 收尾 ---------------- */
     printf("\n[teardown]\n");
     XpchClose(&S);

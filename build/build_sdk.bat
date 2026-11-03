@@ -34,7 +34,7 @@ echo Compiling XpchSdk...
 cl /nologo /c /W3 /O2 /GS /guard:cf- /utf-8 /DUNICODE /D_UNICODE ^
    /I"%INC_DIR%" /I"%SRC_DIR%" ^
    /Fo"%OBJ_DIR%\\" ^
-   "%SRC_DIR%\core.c" "%SRC_DIR%\handshake.c" "%SRC_DIR%\process.c" "%SRC_DIR%\system.c" "%SRC_DIR%\hook.c"
+   "%SRC_DIR%\core.c" "%SRC_DIR%\handshake.c" "%SRC_DIR%\process.c" "%SRC_DIR%\system.c" "%SRC_DIR%\hook.c" "%SRC_DIR%\inject.c"
 
 if errorlevel 1 (
     echo ERROR: compile failed

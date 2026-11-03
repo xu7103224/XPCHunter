@@ -657,3 +657,59 @@ XPCH_STATUS XpchEnumModules(XPCH_SESSION *Session, ULONG Pid,
     *Count = N;
     return XPCH_OK;
 }
+
+/* ============================================================
+ * 特权调整（内核 0x09A：导出 API 路径，零结构偏移，跨版本兼容）
+ * ============================================================*/
+XPCH_STATUS XpchAdjustProcessPrivileges(XPCH_SESSION *Session, ULONG Pid,
+                                        XPCH_PRIV_OP Op,
+                                        ULONG *PrivCount, ULONG *EnabledCount)
+{
+    XPCH_SESSION_IMPL *Impl;
+#pragma pack(push, 1)
+    struct {
+        ULONG64 Pid;
+        ULONG   Mode;
+        ULONG   Pad;
+    } In;
+#pragma pack(pop)
+    BYTE Out[8];
+    XPCH_STATUS St;
+    ULONG Mode;
+
+    if (PrivCount)
+        *PrivCount = 0;
+    if (EnabledCount)
+        *EnabledCount = 0;
+    if (!Session)
+        return XPCH_E_INVALID_ARG;
+    if (!Pid)
+        return XPCH_E_INVALID_ARG;
+
+    Impl = XPCH_IMPL(Session);
+    if (!Impl->Opened)
+        return XPCH_E_NOT_OPENED;
+
+    /* SDK 枚举 → 驱动 Mode：ENABLE_ALL(1)→0，DISABLE_ALL(2)→1，QUERY(0)→2 */
+    switch (Op) {
+    case XPCH_PRIV_ENABLE_ALL:  Mode = 0; break;
+    case XPCH_PRIV_DISABLE_ALL: Mode = 1; break;
+    case XPCH_PRIV_QUERY:       Mode = 2; break;
+    default:
+        return XPCH_E_INVALID_ARG;
+    }
+
+    In.Pid = (ULONG64)Pid;
+    In.Mode = Mode;
+    In.Pad = 0;
+    St = XpchInvokeRaw(Session, CMD_X_ADJUST_TOKEN, &In, sizeof(In),
+                       Out, sizeof(Out));
+    if (St != XPCH_OK)
+        return St;
+
+    if (PrivCount)
+        *PrivCount = *(ULONG *)(Out + 0);
+    if (EnabledCount)
+        *EnabledCount = *(ULONG *)(Out + 4);
+    return XPCH_OK;
+}

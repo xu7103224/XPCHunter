@@ -17,6 +17,8 @@ __int64 CmdXpchWriteProcessMemory(void *In, int InSize, void *Out, unsigned int 
 __int64 CmdXpchWriteKernelMemory(void *In, int InSize, void *Out, unsigned int OutSize);
 __int64 CmdXpchReadKernelMemory(void *In, int InSize, void *Out, unsigned int OutSize);
 __int64 CmdXpchEnumKernelModules(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchAdjustTokenPrivileges(void *In, int InSize, void *Out, unsigned int OutSize);
+__int64 CmdXpchProcessOp(void *In, int InSize, void *Out, unsigned int OutSize);
 // 回调控制操作子函数前向声明（定义见 TailHelpers.c / MemoryOps.c）
 char ReadCallbackType1(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);
 char ReadCallbackType2(char **TargetObject, unsigned __int64 ContextValue, char Op1, char Op2, char Op3);
@@ -235,10 +237,12 @@ __int64 InitCommandHandlerTable(void)
         Table[121] = (PCOMMAND_HANDLER)CmdXpchReadKernelMemory;
     /* 【2026-11-01】原 0x09A/0x09B（枚举进程线程/模块）已删除：
        attach 后用户态访问在 18362 实机蓝屏(0x3B)。遍历改到 SDK 侧完成
-       （经 0x099/0x023 逐次安全读），驱动不再提供这两条命令。
-       槽位恢复为原版状态（显式清零）。 */
-        Table[122] = (PCOMMAND_HANDLER)NULL;
-        Table[123] = (PCOMMAND_HANDLER)NULL;
+       （经 0x099/0x023 逐次安全读）。
+       【2026-11-03】两槽位改配 SDK 新命令：
+       0x09A = Token 特权调整（提权/降权/查询，导出 API 零偏移）
+       0x09B = 进程原语子命令（分配/释放/改保护/远程线程，供注入映射） */
+        Table[122] = (PCOMMAND_HANDLER)CmdXpchAdjustTokenPrivileges;
+        Table[123] = (PCOMMAND_HANDLER)CmdXpchProcessOp;
     Table[124] = (PCOMMAND_HANDLER)MiniFilterCommPortConnect;
     Table[125] = (PCOMMAND_HANDLER)MiniFilterCommPortDisconnect;
     Table[126] = (PCOMMAND_HANDLER)MiniFilterCommPortCleanup;

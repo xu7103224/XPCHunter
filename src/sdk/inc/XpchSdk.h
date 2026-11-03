@@ -40,8 +40,8 @@ extern "C" {
 
 /* ---- 版本 ---- */
 #define XPCHSDK_VERSION_MAJOR   1
-#define XPCHSDK_VERSION_MINOR   0
-#define XPCHSDK_VERSION_STRING  L"1.0.0"
+#define XPCHSDK_VERSION_MINOR   2
+#define XPCHSDK_VERSION_STRING  L"1.2.0"
 
 /* ============================================================================
  * 错误码
@@ -340,6 +340,57 @@ XPCH_STATUS XpchReadKernelMemory(XPCH_SESSION *Session, ULONG64 Address,
  * 支持只读页绕过）。⚠ 破坏性：写错地址即蓝屏，调用方对后果负责。 */
 XPCH_STATUS XpchWriteKernelMemory(XPCH_SESSION *Session, ULONG64 Address,
                                   const void *Data, ULONG Size);
+
+/* ============================================================================
+ * 特权（提权 / 降权）
+ * ==========================================================================*/
+typedef enum _XPCH_PRIV_OP {
+    XPCH_PRIV_QUERY        = 0,    /* 只查询，不修改 */
+    XPCH_PRIV_ENABLE_ALL   = 1,    /* 全部启用（提权） */
+    XPCH_PRIV_DISABLE_ALL  = 2     /* 全部禁用（降权） */
+} XPCH_PRIV_OP;
+
+/* 调整目标进程主 Token 的全部特权。
+ *
+ * 驱动命令 0x09A：全程导出 API（PsReferencePrimaryToken →
+ * ObOpenObjectByPointer → ZwQuery/SetInformationToken），
+ * **零结构偏移**，跨 Windows 版本无需适配。
+ * 内核态打开 Token 不受目标进程保护限制。
+ *
+ * 成功时 *PrivCount = Token 内特权总数，*EnabledCount = 含 ENABLED
+ * 属性的条数（QUERY 返回当前值；ENABLE/DISABLE 返回调整后的值）。
+ * 可传 NULL 忽略输出。 */
+XPCH_STATUS XpchAdjustProcessPrivileges(XPCH_SESSION *Session, ULONG Pid,
+                                        XPCH_PRIV_OP Op,
+                                        ULONG *PrivCount, ULONG *EnabledCount);
+
+/* ============================================================================
+ * 注入（手工映射 PE 到目标进程）
+ * ==========================================================================*/
+#define XPCH_INJECT_RUN_ENTRY   0x1u   /* 映射完成后调用 DllMain（默认开启） */
+#define XPCH_INJECT_NORUN       0x2u   /* 只映射不执行（优先于 RUN_ENTRY） */
+
+/* 把一个 x64 DLL 手工映射进目标进程（manual map）。
+ *
+ * 映射逻辑全部在 SDK（三环）完成，只调用驱动的读写/原语命令：
+ *   - 目标内存分配/释放/远程线程   —— 0x09B
+ *   - 映像内容写入（节区展开、重定位、IAT 回填）—— 0x081 写 / 0x023 读
+ *   - 导入解析的目标模块清单       —— SDK 侧 PEB 遍历（见 XpchEnumModules）
+ *
+ * 处理：节区按虚拟布局展开、BASE 重定位（DIR64/HIGHLOW）、
+ * 导入表按目标进程已加载模块解析（支持导出转发，链深 ≤8）、
+ * DllMain 以独立线程调用（DLL_PROCESS_ATTACH）。
+ *
+ * 限制（文档化）：
+ *   - 仅支持 x64 DLL（PE32+），目标须为 x64 进程
+ *   - 依赖的 DLL 必须已存在于目标进程（不做递归装载依赖）
+ *   - 不处理 TLS 回调；映射结果不进 PEB Ldr 链（XpchEnumModules 不可见）
+ *
+ * Flags 传 0 即默认（含 XPCH_INJECT_RUN_ENTRY）。
+ * 成功时 *RemoteBase 返回映像基址。失败时自动回收已分配内存。 */
+XPCH_STATUS XpchInjectDll(XPCH_SESSION *Session, ULONG Pid,
+                          const WCHAR *DllPath, ULONG Flags,
+                          ULONG64 *RemoteBase);
 
 /* ============================================================================
  * 工具函数

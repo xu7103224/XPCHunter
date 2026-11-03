@@ -491,7 +491,83 @@ XPCH_STATUS XpchWriteKernelMemory(XPCH_SESSION *Session, ULONG64 Address,
 
 ---
 
-### 5.12 工具
+### 5.12 特权（提权 / 降权）
+
+```c
+typedef enum _XPCH_PRIV_OP {
+    XPCH_PRIV_QUERY       = 0,   /* 只查询 */
+    XPCH_PRIV_ENABLE_ALL  = 1,   /* 全部启用（提权） */
+    XPCH_PRIV_DISABLE_ALL = 2    /* 全部禁用（降权） */
+} XPCH_PRIV_OP;
+
+XPCH_STATUS XpchAdjustProcessPrivileges(XPCH_SESSION *Session, ULONG Pid,
+                                        XPCH_PRIV_OP Op,
+                                        ULONG *PrivCount, ULONG *EnabledCount);
+```
+
+驱动命令 0x09A。**跨版本兼容的关键在于全程只用导出 API、零结构偏移**：
+`PsLookupProcessByProcessId` → `ZwOpenProcess` → `ZwOpenProcessTokenEx` →
+`ZwQueryInformationToken` → `ZwAdjustPrivilegesToken`。
+这些符号从 Vista 起稳定导出，不依赖任何 `EPROCESS`/`TOKEN` 内部布局。
+
+- 调整「他人」Token 需要 `SeTcbPrivilege`；驱动会临时在自己进程 Token 上
+  启用该特权（LUID 固定为 0,7），退出前还原
+- 内核态打开 Token（`OBJ_KERNEL_HANDLE`）不受目标进程保护限制
+- `PrivCount` = Token 内特权总数；`EnabledCount` = 属性含 `ENABLED` 的条数
+- 降权用 `Attributes=0`（禁用而非 `SE_PRIVILEGE_REMOVED` 删除），
+  因此之后还能再提回来
+
+实测（explorer.exe）：查询 1 → 全开 5 → 全关 0 → 再查 0。
+
+---
+
+### 5.13 注入（手工映射 PE）
+
+```c
+#define XPCH_INJECT_RUN_ENTRY  0x1u   /* 映射后调用 DllMain（默认） */
+#define XPCH_INJECT_NORUN      0x2u   /* 只映射不执行 */
+
+XPCH_STATUS XpchInjectDll(XPCH_SESSION *Session, ULONG Pid,
+                          const WCHAR *DllPath, ULONG Flags,
+                          ULONG64 *RemoteBase);
+```
+
+把一个 x64 DLL 手工映射进目标进程。**映射逻辑全部在 SDK（三环）完成，
+只调用驱动的读写/原语命令**：
+
+| 环节 | 通道 |
+|---|---|
+| 目标内存分配 / 释放 / 远程线程 | 0x09B 子命令 |
+| 映像写入（节区展开、重定位、IAT） | 0x081 |
+| 导入解析（读目标模块导出表） | 0x023 |
+| 目标模块清单（找依赖基址） | SDK 侧 PEB 遍历 |
+
+处理：按虚拟布局展开节区、BASE 重定位（DIR64/HIGHLOW）、
+导入表按目标进程已加载模块解析（支持导出转发，链深 ≤8）、
+DllMain 经远程线程以 `(HINSTANCE, DLL_PROCESS_ATTACH, 0)` 调用。
+
+**实现要点（实机验证得出）**：
+
+1. 远程线程必须用 `RtlCreateUserThread`（在 ntoskrnl.lib 中）。
+   `ZwCreateThreadEx`/`ZwResumeThread` 不在导入库，`MmGetSystemRoutineAddress`
+   对 Zw/Nt 别名在 18362 上返回 NULL
+2. 引导桩调用完 DllMain 后必须显式 `RtlExitUserThread(0)`。
+   线程例程直接 `ret` 会弹出垃圾返回地址，整进程崩溃
+   （现象：注入"成功"但目标 Vads 归零、线程全灭）
+
+**限制**：
+- 仅 PE32+（x64 DLL），目标须为 x64 进程
+- 依赖的 DLL 必须已在目标进程加载（不做递归装载）
+- 不处理 TLS 回调
+- 映射结果不进 PEB Ldr 链（`XpchEnumModules` 不可见）——这与主流
+  manual-map 实现一致，本身是规避检测的特性
+
+实测：注入后读回映像 `.data` 的标记值等于 DllMain 写入的魔数，
+目标进程存活；`XPCH_INJECT_NORUN` 变体标记保持 0。
+
+---
+
+### 5.14 工具
 
 ```c
 void XpchFree(void *Memory);
@@ -597,6 +673,8 @@ DWORD WINAPI Worker(LPVOID Param)
 | `XpchGetProcessPath` | 是 | 是 | 快 |
 | `XpchIsProcessAccessible` | 是 | 是 | 快 |
 | `XpchEnumThreads` | 是 | 是 | 中（逐字段内核读） |
+| `XpchAdjustProcessPrivileges` | 是 | 是 | 快 |
+| `XpchInjectDll` | 是 | 是 | 中（节区+导入+线程） |
 | `XpchEnumModules` | 是 | 是 | 中（逐字段安全读） |
 | `XpchEnumSystemHandles` | 是 | 是 | 中 |
 | `XpchEnumKernelModules` | 是 | 是 | 快 |
@@ -677,8 +755,8 @@ XpchReadProcessMemory        : [0]   read 64 bytes, first 2 = 4D 5A
 ## 10. 逐接口测试
 
 `src/sdk/samples/XpchSdkTest.c` 覆盖全部公开接口与主要错误路径，
-共 41 条断言。在 Win10 18362 guest 上实测 **41 PASS / 0 FAIL**
-（2026-11-03，驱动 0x0C5 偏移修复后）。
+共 51 条断言。在 Win10 18362 guest 上实测 **51 PASS / 0 FAIL**
+（2026-11-03，含特权提降权与手工映射注入）。
 
 ```bat
 build\build_sdk.bat
@@ -738,4 +816,5 @@ XpchEnumSsdtHooks      908 条，0 条被改写
 | 版本 | 变更 |
 |---|---|
 | 1.0.0 | 首个版本。会话/进程/线程/模块/句柄/内核模块/驱动/SSDT/Ring3/签名/读内存 |
+| 1.2.0 | 新增 `XpchAdjustProcessPrivileges`（0x09A，提权/降权/查询，导出 API 零偏移跨版本）与 `XpchInjectDll`（手工映射 PE：0x09B 分配/远程线程 + 0x081 写 + 0x023 读；DllMain 经 `RtlCreateUserThread` 执行，桩尾 `RtlExitUserThread` 防止目标崩溃）。实测 51 PASS / 0 FAIL |
 | 1.1.0 | ① 全部基础访问能力内核化：读写内存/枚举不再回退三环 API。② 线程、进程模块枚举改为 SDK 侧遍历（EPROCESS→ThreadListHead、EPROCESS→PEB→Ldr，经 0x099/0x023 逐次安全读），删除蓝屏的驱动侧 0x09A/0x09B 命令。③ 修复 0x0C5 KLDR 偏移错位 8 字节导致的蓝屏与假数据。④ 线程/模块偏移量按 Win10 18362 实机 kd 核实，其它构建返回 NOT_SUPPORTED |

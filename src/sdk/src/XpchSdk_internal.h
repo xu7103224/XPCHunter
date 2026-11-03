@@ -55,12 +55,17 @@ C_ASSERT(sizeof(XPCH_SESSION_IMPL) <= XPCH_SESSION_PRIVATE_SIZE);
 #define CMD_ENUM_HOOK_INFO          0x117u
 
 /* ---- SDK 扩展命令（占用原版显式空槽，见驱动 XpchExtensions.c）----
- * 原 0x09A/0x09B（进程线程/模块枚举）已删除：驱动侧 attach 用户态访问
- * 会蓝屏；改为 SDK 侧经 0x099/0x023 逐次安全读遍历，见 process.c。 */
+ * 原 0x09A/0x09B（进程线程/模块枚举）已改为 SDK 侧经 0x099/0x023
+ * 逐次安全读遍历（见 process.c）。
+ * 2026-11-03：0x09A/0x09B 槽位重新启用为新命令：
+ *   0x09A Token 特权调整（提权/降权/查询）
+ *   0x09B 进程原语（分配/释放/改保护/远程线程，注入映射用） */
 #define CMD_X_READ_PROC_MEM         0x023u  /* {pid,addr,size} -> {copied,data} */
 #define CMD_X_WRITE_PROC_MEM        0x081u  /* {pid,addr,size,data} */
 #define CMD_X_WRITE_KERNEL_MEM      0x082u  /* {addr,size,data} MDL 写 */
 #define CMD_X_READ_KERNEL_MEM       0x099u  /* {addr,size} -> {copied,data} */
+#define CMD_X_ADJUST_TOKEN          0x09Au  /* {pid,mode} -> {count,enabled} */
+#define CMD_X_PROCESS_OP            0x09Bu  /* {pid,op,a1,a2,a3} -> {value} */
 #define CMD_X_ENUM_KERNEL_MODULES   0x0C5u  /* {} -> 内核模块数组(DriverSection) */
 
 /* ---- 内部工具 ---- */

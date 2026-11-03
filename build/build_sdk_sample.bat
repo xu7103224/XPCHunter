@@ -23,12 +23,12 @@ if not exist "%LIB_DIR%\XpchSdk.lib" (
     exit /b 1
 )
 
-set SAMPLES=XpchSdkSample XpchSdkTest
+set SAMPLES=XpchSdkSample XpchSdkTest XpchInjProbe
 
 for %%S in (%SAMPLES%) do (
     echo Compiling %%S...
     cl /nologo /W3 /O2 /GS /guard:cf- /utf-8 /DUNICODE /D_UNICODE ^
-       /I"%SDK_DIR%\inc" ^
+       /I"%SDK_DIR%\inc" /I"%SDK_DIR%\src" ^
        /Fo"%OBJ_DIR%\\" ^
        /Fe"%LIB_DIR%\%%S.exe" ^
        "%SDK_DIR%\samples\%%S.c" ^
@@ -40,4 +40,19 @@ for %%S in (%SAMPLES%) do (
     )
     echo Build complete: %LIB_DIR%\%%S.exe
 )
+REM ============================================
+REM XpchInjTarget.dll - injection test DLL (no CRT, kernel32 only)
+REM ============================================
+echo Compiling XpchInjTarget.dll...
+cl /nologo /W3 /O1 /GS- /utf-8 /c /Fo"%OBJ_DIR%\XpchInjTarget.obj" "%SDK_DIR%\samples\XpchInjTarget.c"
+if errorlevel 1 (
+    echo ERROR: XpchInjTarget compile failed
+    exit /b 1
+)
+link /nologo /dll /nodefaultlib /entry:DllMain /out:"%LIB_DIR%\XpchInjTarget.dll" "%OBJ_DIR%\XpchInjTarget.obj" kernel32.lib
+if errorlevel 1 (
+    echo ERROR: XpchInjTarget link failed
+    exit /b 1
+)
+echo Build complete: %LIB_DIR%\XpchInjTarget.dll
 exit /b 0
