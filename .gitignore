@@ -95,3 +95,7 @@ build/t1?.bat
 # 我方旧构建的 IDB（不是参照标准，见「重大纠错」文档；二进制本身已入库）
 samples/guest_ViewPlusPlusByLinxer.sys.i64
 build/XPCSign2*
+
+# Publish output (regenerable)
+output/
+output_test/
