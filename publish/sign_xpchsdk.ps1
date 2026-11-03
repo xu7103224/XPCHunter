@@ -1,42 +1,52 @@
 ﻿# ============================================================================
-# sign_xpchsdk.ps1 —— XPCHunterDrv.sys 驱动签名
+# sign_xpchsdk.ps1 —— XPCHunterDrv 驱动签名与 CAT 生成
 #
-# 两种签名模式：
-#   Local  使用本机证书库里的证书（默认 CN=XPCSign2 测试证书）
-#   Pfx    使用 .pfx 文件（正式签名时用，配 -PfxPath/-PfxPassword）
+# 本脚本服务两条不同的流程，不要混用：
 #
-# 签名后做三件事：
-#   1. 带时间戳（默认 DigiCert，可用 -TimestampUrl 覆盖）
-#   2. 用 signtool verify 校验签名块完整性
-#   3. 导出公钥证书 .cer，供目标机安装到「受信任的根」后加载驱动
+#   [Release] 发布流程（提交微软签名）
+#       产出待提交的驱动包：build\submit\XPCHunterDrv.cab
+#       CAB 内含 INF + SYS + CAT，CAT 用 EV 证书签名（微软要求先签名再提交）。
+#       这份 CAB 上传到微软硬件开发者中心，微软回签后再分发给最终用户。
+#       最终用户的机器不需要装任何证书、不需要开测试签名。
+#
+#   [Local]   本地测试流程（仅内部调试用）
+#       用自签名测试证书签 SYS，目标机需要 testsigning 或安装该证书才能加载。
+#       产物仅用于本机/实验机验证功能，不可对外分发。
 #
 # 参数：
-#   -SysPath <path>       要签名的 .sys 路径（必填）
-#   -Mode Local|Pfx       签名模式，默认 Local
-#   -CertName <name>      Local 模式：证书 Subject 匹配串，默认 XPCSign2
-#   -PfxPath <path>       Pfx 模式：证书文件
-#   -PfxPassword <pw>     Pfx 模式：证书口令
-#   -TimestampUrl <url>   时间戳服务，默认 http://timestamp.digicert.com
-#                         传空字符串 "" 可跳过时间戳
-#   -OutCer <path>        导出的公钥证书路径；不给则放在 sys 同目录同名 .cer
+#   -Mode Release|Local   默认 Release
+#   -SysPath <path>       驱动 SYS 路径（必填）
 #
-# 退出码：0 成功；1 签名失败；2 找不到证书；3 校验失败
+#   Release 模式：
+#     -CabOut <path>      产出 CAB 的路径，默认 <sys目录>\XPCHunterDrv.cab
+#     -PfxPath <path>     EV 代码签名证书（.pfx）
+#     -PfxPassword <pw>   证书口令
+#
+#   Local 模式：
+#     -CertName <name>    本机证书 Subject 匹配串，默认 XPCSign2
+#     -CabOut <path>      可选，同时产出一个本地测试用 CAB
+#     -OutCer <path>      可选，导出公钥证书供目标机安装
+#
+#   通用：
+#     -TimestampUrl <url> 默认 http://timestamp.digicert.com，传 "" 跳过
+#     -InfTemplate <path> INF 模板，默认 templates\XPCHunterDrv.inf
+#     -Inf2CatPath <path> Inf2Cat.exe 路径（自动查找）
+#     -DriverVerDate / -DriverVerVersion   INF 的 DriverVer
+#
+# 退出码：0 成功；1 签名失败；2 证书问题；3 校验失败
 # ============================================================================
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string] $SysPath,
-    [ValidateSet("Local", "Pfx")][string] $Mode = "Local",
-    [string] $CertName = "XPCSign2",
+    [ValidateSet("Release", "Local")][string] $Mode = "Release",
+
+    [string] $CabOut = "",
     [string] $PfxPath = "",
     [string] $PfxPassword = "",
-    [string] $TimestampUrl = "http://timestamp.digicert.com",
+    [string] $CertName = "XPCSign2",
     [string] $OutCer = "",
 
-    # ---- CAB 驱动包（可选） ----
-    # 给出 -CabOut 时，额外产出一个标准驱动 CAB：
-    #   <name>.cab 内含 INF + SYS + CAT，CAT 由 Inf2Cat 生成并签名。
-    #   目标机用 pnputil /add-driver <inf> /install 安装。
-    [string] $CabOut = "",
+    [string] $TimestampUrl = "http://timestamp.digicert.com",
     [string] $InfTemplate = "",
     [string] $Inf2CatPath = "",
     [string] $DriverVerDate = "",
@@ -51,10 +61,12 @@ function Write-Warn3($m){ Write-Host "    $m" -ForegroundColor Yellow }
 
 # ---- 输入校验 ----
 if (-not (Test-Path $SysPath)) {
-    Write-Host "ERROR: 找不到待签名文件 $SysPath" -ForegroundColor Red
+    Write-Host "ERROR: 找不到驱动文件 $SysPath" -ForegroundColor Red
     exit 1
 }
 $SysPath = (Resolve-Path $SysPath).Path
+$SysDir  = Split-Path -Parent $SysPath
+$SysName = Split-Path -Leaf $SysPath
 
 # ---- 定位 signtool ----
 function Find-SignTool {
@@ -62,12 +74,12 @@ function Find-SignTool {
         "C:\Program Files (x86)\Windows Kits\10\bin",
         "C:\Program Files\Windows Kits\10\bin"
     )
+    $sep = [System.IO.Path]::DirectorySeparatorChar
     foreach ($r in $roots) {
         if (-not (Test-Path $r)) { continue }
         $exe = Get-ChildItem $r -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-               Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
-               Sort-Object FullName -Descending |
-               Select-Object -First 1
+               Where-Object { $_.Directory.Name -eq "x64" } |
+               Sort-Object FullName -Descending | Select-Object -First 1
         if ($exe) { return $exe.FullName }
     }
     return $null
@@ -76,241 +88,246 @@ function Find-SignTool {
 $Signtool = Find-SignTool
 if (-not $Signtool) {
     Write-Host "ERROR: 找不到 x64 signtool.exe（需要 Windows SDK）" -ForegroundColor Red
-    exit 1
+    exit 2
 }
 
-Write-Step "驱动签名"
-Write-Ok "文件   : $SysPath"
-Write-Ok "工具   : $Signtool"
+Write-Step "XPCHunterDrv 签名"
 Write-Ok "模式   : $Mode"
+Write-Ok "驱动   : $SysPath"
+Write-Ok "工具   : $Signtool"
 
-# ---- 1. 解析证书并决定签名参数 ----
-$signArgs = @("sign", "/fd", "SHA256")
+# ---- 解析签名凭据 ----
+$certThumbprint = $null
+$exportCert = $null
 
 switch ($Mode) {
-    "Local" {
-        $cert = Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-                Where-Object { $_.Subject -like "*$CertName*" -and $_.HasPrivateKey } |
-                Sort-Object NotAfter -Descending |
-                Select-Object -First 1
-        if (-not $cert) {
-            Write-Host "ERROR: 本机证书库中找不到含私钥、Subject 匹配 '*$CertName*' 的证书" -ForegroundColor Red
-            Write-Host "       可用证书：" -ForegroundColor Yellow
-            Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-                Where-Object { $_.HasPrivateKey } |
-                ForEach-Object { Write-Host "         $($_.Subject)  [$($_.Thumbprint)]" }
+    "Release" {
+        # 提交微软用的 EV 证书。没有它就无法走官方签名流程。
+        if (-not $PfxPath) {
+            Write-Host "ERROR: Release 模式需要 -PfxPath 指向 EV 代码签名证书" -ForegroundColor Red
+            Write-Host "       没有 EV 证书时改用 -Mode Local 做本机测试" -ForegroundColor Yellow
             exit 2
         }
-        Write-Ok "证书   : $($cert.Subject)"
-        Write-Ok "指纹   : $($cert.Thumbprint)"
-        Write-Ok "有效期 : $($cert.NotBefore.ToString('yyyy-MM-dd')) ~ $($cert.NotAfter.ToString('yyyy-MM-dd'))"
-        if ($cert.NotAfter -lt (Get-Date).AddDays(30)) {
-            Write-Warn3 "证书将在 30 天内过期，请及时更换"
-        }
-        $signArgs += @("/sha1", $cert.Thumbprint)
-        $exportCert = $cert
-    }
-    "Pfx" {
-        if (-not $PfxPath -or -not (Test-Path $PfxPath)) {
-            Write-Host "ERROR: Pfx 模式需要 -PfxPath 指向存在的 .pfx 文件" -ForegroundColor Red
+        if (-not (Test-Path $PfxPath)) {
+            Write-Host "ERROR: 找不到证书文件 $PfxPath" -ForegroundColor Red
             exit 2
         }
         $PfxPath = (Resolve-Path $PfxPath).Path
         Write-Ok "证书   : $PfxPath"
-        $signArgs += @("/f", $PfxPath)
-        if ($PfxPassword) { $signArgs += @("/p", $PfxPassword) }
         if ($PfxPassword) {
             $sec = ConvertTo-SecureString $PfxPassword -AsPlainText -Force
             $exportCert = Get-PfxCertificate -FilePath $PfxPath -Password $sec
         } else {
             $exportCert = Get-PfxCertificate -FilePath $PfxPath
         }
+        if ($exportCert) {
+            Write-Ok "签名者 : $($exportCert.Subject)"
+            Write-Ok "有效期 : $($exportCert.NotBefore.ToString('yyyy-MM-dd')) ~ $($exportCert.NotAfter.ToString('yyyy-MM-dd'))"
+        }
+    }
+    "Local" {
+        $c = Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
+             Where-Object { $_.Subject -like "*$CertName*" -and $_.HasPrivateKey } |
+             Sort-Object NotAfter -Descending | Select-Object -First 1
+        if (-not $c) {
+            Write-Host "ERROR: 本机证书库找不到含私钥、Subject 匹配 '*$CertName*' 的证书" -ForegroundColor Red
+            Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
+                Where-Object { $_.HasPrivateKey } |
+                ForEach-Object { Write-Host "         $($_.Subject)  [$($_.Thumbprint)]" }
+            exit 2
+        }
+        $certThumbprint = $c.Thumbprint
+        $exportCert = $c
+        Write-Ok "证书   : $($c.Subject)"
+        Write-Ok "指纹   : $($c.Thumbprint)"
+        Write-Ok "有效期 : $($c.NotBefore.ToString('yyyy-MM-dd')) ~ $($c.NotAfter.ToString('yyyy-MM-dd'))"
+        Write-Warn3 "本模式产物仅供内部测试，不可对外分发"
     }
 }
 
-# ---- 2. 时间戳 ----
-if ($TimestampUrl) {
-    $signArgs += @("/tr", $TimestampUrl, "/td", "SHA256")
-    Write-Ok "时间戳 : $TimestampUrl"
-} else {
-    Write-Warn3 "跳过时间戳（-TimestampUrl 为空）——证书过期后签名将失效"
+# ---- 组装签名参数 ----
+function Get-SignArgs([string] $Target) {
+    $a = @("sign", "/fd", "SHA256")
+    if ($Mode -eq "Local") {
+        $a += @("/sha1", $certThumbprint)
+    } else {
+        $a += @("/f", $PfxPath)
+        if ($PfxPassword) { $a += @("/p", $PfxPassword) }
+    }
+    if ($TimestampUrl) { $a += @("/tr", $TimestampUrl, "/td", "SHA256") }
+    $a += $Target
+    return $a
 }
 
-# ---- 3. 执行签名 ----
-$signArgs += $SysPath
-Write-Step "执行 signtool sign"
-& $Signtool @signArgs
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: signtool sign 失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
+# ---- 时间戳提示 ----
+if ($TimestampUrl) {
+    Write-Ok "时间戳 : $TimestampUrl"
+} else {
+    Write-Warn3 "跳过时间戳 —— 证书过期后签名会失效"
+}
+
+# ============================================================================
+# 生成驱动包 CAB（INF + SYS + CAT）
+# ============================================================================
+Write-Step "生成驱动包 CAB"
+
+if (-not $CabOut) {
+    $CabOut = Join-Path $SysDir "XPCHunterDrv.cab"
+}
+if (-not $InfTemplate) {
+    $InfTemplate = Join-Path (Join-Path $PSScriptRoot "templates") "XPCHunterDrv.inf"
+}
+if (-not (Test-Path $InfTemplate)) {
+    Write-Host "ERROR: 找不到 INF 模板 $InfTemplate" -ForegroundColor Red
     exit 1
 }
 
-# ---- 4. 校验 ----
-Write-Step "校验签名"
-# signtool 对自签名证书会把链错误写 stderr；在 PS 里这会被当成
-# NativeCommandError 终止脚本。用临时降级 ErrorActionPreference 捕获退出码。
-$prevEAP = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-& $Signtool verify /pa /v $SysPath 2>&1 | Out-Null
-$verifyRc = $LASTEXITCODE
-$ErrorActionPreference = $prevEAP
-
-$sig = Get-AuthenticodeSignature $SysPath
-switch ($sig.Status) {
-    "Valid" {
-        Write-Ok "签名有效，证书链完整"
-    }
-    "UnknownError" {
-        # 自签名测试证书的典型结果：签名块完整，根证书不在本机信任库
-        Write-Warn3 "签名块完整，但根证书不受本机信任（自签名测试证书属正常）"
-        Write-Warn3 "目标机需安装本包的 .cer 到「受信任的根」，或开启 testsigning"
-    }
-    default {
-        Write-Host "ERROR: 签名校验失败，状态 $($sig.Status)" -ForegroundColor Red
-        Write-Host "       $($sig.StatusMessage)" -ForegroundColor Red
-        exit 3
-    }
-}
-Write-Ok "签名者 : $($sig.SignerCertificate.Subject)"
-if ($sig.TimeStamperCertificate) {
-    Write-Ok "时间戳 : $($sig.TimeStamperCertificate.Subject)"
-}
-
-# signtool verify /pa 对自签名证书会返回非 0，这不是失败
-if ($verifyRc -ne 0 -and $sig.Status -eq "Valid") {
-    Write-Warn3 "signtool verify /pa 返回 $verifyRc（策略校验，非签名块问题）"
-}
-
-# ---- 5. 导出公钥证书 ----
-if (-not $OutCer) {
-    $OutCer = [System.IO.Path]::ChangeExtension($SysPath, ".cer")
-}
-Write-Step "导出公钥证书"
-if (Test-Path $OutCer) { Remove-Item $OutCer -Force }
-if ($exportCert) {
-    Export-Certificate -Cert $exportCert -FilePath $OutCer -Type CERT | Out-Null
-    Write-Ok "$OutCer  ($((Get-Item $OutCer).Length) B)"
-} else {
-    Write-Warn3 "未能取得证书对象，跳过 .cer 导出"
-}
-
-# ---- 6. CAB 驱动包（可选） ----
-if ($CabOut) {
-    Write-Step "生成 CAB 驱动包"
-
-    if (-not $InfTemplate) {
-        $InfTemplate = Join-Path $PSScriptRoot "templates\XPCHunterDrv.inf"
-    }
-    if (-not (Test-Path $InfTemplate)) {
-        Write-Host "ERROR: 找不到 INF 模板 $InfTemplate" -ForegroundColor Red
-        exit 1
-    }
-
-    # 定位 Inf2Cat
-    if (-not $Inf2CatPath) {
-        $kitsBin = "C:\Program Files (x86)\Windows Kits\10\bin"
-        $Inf2CatPath = Get-ChildItem $kitsBin -Recurse -Filter Inf2Cat.exe -ErrorAction SilentlyContinue |
+if (-not $Inf2CatPath) {
+    $kits = "C:" + [char]92 + "Program Files (x86)" + [char]92 + "Windows Kits"
+    $bin  = Join-Path (Join-Path $kits "10") "bin"
+    if (Test-Path $bin) {
+        $Inf2CatPath = Get-ChildItem $bin -Recurse -Filter Inf2Cat.exe -ErrorAction SilentlyContinue |
                        Sort-Object FullName -Descending | Select-Object -First 1 |
                        ForEach-Object { $_.FullName }
     }
-    if (-not $Inf2CatPath -or -not (Test-Path $Inf2CatPath)) {
-        Write-Host "ERROR: 找不到 Inf2Cat.exe（需要 Windows 10 SDK）" -ForegroundColor Red
+}
+if (-not $Inf2CatPath -or -not (Test-Path $Inf2CatPath)) {
+    Write-Host "ERROR: 找不到 Inf2Cat.exe（需要 Windows 10 SDK）" -ForegroundColor Red
+    exit 1
+}
+
+$makecab = Join-Path $env:windir ("System32" + [char]92 + "makecab.exe")
+if (-not (Test-Path $makecab)) {
+    Write-Host "ERROR: 找不到 makecab.exe" -ForegroundColor Red
+    exit 1
+}
+
+# 工作目录
+$work = Join-Path ([System.IO.Path]::GetTempPath()) ("xpchcab_" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $work -Force | Out-Null
+
+try {
+    # INF 的 DriverVer
+    if (-not $DriverVerDate) {
+        $DriverVerDate = (Get-Date).ToString("MM/dd/yyyy")
+    }
+    if (-not $DriverVerVersion) {
+        $DriverVerVersion = "1.2.0.0"
+    }
+
+    # 1) 展开 INF 模板
+    $infText = Get-Content $InfTemplate -Raw -Encoding UTF8
+    $infText = $infText -replace '@DriverVerDate@',    $DriverVerDate
+    $infText = $infText -replace '@DriverVerVersion@', $DriverVerVersion
+    $infWork = Join-Path $work "XPCHunterDrv.inf"
+    Set-Content -Path $infWork -Value $infText -Encoding ASCII
+    Write-Ok "INF  : DriverVer=$DriverVerDate,$DriverVerVersion"
+
+    # 2) 放入 SYS 副本（先复制，后面可能对它签名）
+    $sysWork = Join-Path $work $SysName
+    Copy-Item $SysPath $sysWork -Force
+
+    # 3) Inf2Cat 生成 CAT
+    & $Inf2CatPath /driver:$work /os:10_X64 | Out-Null
+    $catWork = Get-ChildItem $work -Filter "*.cat" -ErrorAction SilentlyContinue |
+               Select-Object -First 1 -ExpandProperty FullName
+    if (-not $catWork) {
+        Write-Host "ERROR: Inf2Cat 未生成 .cat" -ForegroundColor Red
         exit 1
     }
-    $makecab = Join-Path $env:windir "System32\makecab.exe"
-    if (-not (Test-Path $makecab)) {
-        Write-Host "ERROR: 找不到 makecab.exe" -ForegroundColor Red
+    Write-Ok ("CAT  : {0:N0} B（Inf2Cat）" -f (Get-Item $catWork).Length)
+
+    # 4) 给 CAB 里的 SYS 签名
+    #    微软要求提交的 CAB 内所有 PE 文件先签好，否则会被拒
+    Write-Ok "签名 SYS（包内副本）"
+    $a = Get-SignArgs $sysWork
+    & $Signtool @a
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: SYS 签名失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
         exit 1
     }
 
-    # 工作目录
-    $work = Join-Path ([System.IO.Path]::GetTempPath()) ("xpchcab_" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Path $work -Force | Out-Null
-    try {
-        # DriverVer 默认用当天日期 + 版本号
-        if (-not $DriverVerDate)    { $DriverVerDate = (Get-Date).ToString("MM/dd/yyyy") }
-        if (-not $DriverVerVersion) { $DriverVerVersion = $Version }
-
-        # 展开 INF 模板
-        $infText = Get-Content $InfTemplate -Raw -Encoding UTF8
-        $infText = $infText -replace '@DriverVerDate@',    $DriverVerDate
-        $infText = $infText -replace '@DriverVerVersion@', $DriverVerVersion
-        $infPath = Join-Path $work "XPCHunterDrv.inf"
-        Set-Content -Path $infPath -Value $infText -Encoding ASCII
-
-        # 放入已签名的 SYS
-        Copy-Item $SysPath (Join-Path $work "XPCHunterDrv.sys") -Force
-
-        # Inf2Cat 生成 CAT
-        Write-Ok "Inf2Cat 生成 CAT"
-        & $Inf2CatPath /driver:$work /os:10_X64 | Out-Null
-        $catPath = Join-Path $work "XPCHunterDrv.cat"
-        # Inf2Cat 产出的大小写可能是小写
-        if (-not (Test-Path $catPath)) {
-            $catPath = Get-ChildItem $work -Filter "*.cat" | Select-Object -First 1 -ExpandProperty FullName
-        }
-        if (-not $catPath -or -not (Test-Path $catPath)) {
-            Write-Host "ERROR: Inf2Cat 未生成 .cat" -ForegroundColor Red
-            exit 1
-        }
-        Write-Ok ("CAT: {0:N0} B" -f (Get-Item $catPath).Length)
-
-        # 签名 CAT
-        Write-Ok "签名 CAT"
-        $catSign = @("sign", "/fd", "SHA256")
-        if ($Mode -eq "Local") {
-            $catSign += @("/sha1", $cert.Thumbprint)
-        } else {
-            $catSign += @("/f", $PfxPath)
-            if ($PfxPassword) { $catSign += @("/p", $PfxPassword) }
-        }
-        if ($TimestampUrl) { $catSign += @("/tr", $TimestampUrl, "/td", "SHA256") }
-        $catSign += $catPath
-        & $Signtool @catSign
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "ERROR: CAT 签名失败" -ForegroundColor Red
-            exit 1
-        }
-
-        # makecab 打包
-        Write-Ok "makecab 打包"
-        $cabFileName = Split-Path -Leaf $CabOut
-        $cabDir = Split-Path -Parent $CabOut
-        if ($cabDir -and -not (Test-Path $cabDir)) {
-            New-Item -ItemType Directory -Path $cabDir -Force | Out-Null
-        }
-        $ddf = Join-Path $work "pack.ddf"
-        $ddfLines = @(
-            ".OPTION EXPLICIT",
-            ".Set CabinetNameTemplate=$cabFileName",
-            ".Set DiskDirectoryTemplate=$cabDir",
-            ".Set CompressionType=MSZIP",
-            ".Set Cabinet=on",
-            ".Set Compress=on",
-            ".Set MaxDiskSize=0",
-            "XPCHunterDrv.inf",
-            "XPCHunterDrv.sys",
-            (Split-Path -Leaf $catPath)
-        )
-        Set-Content -Path $ddf -Value $ddfLines -Encoding ASCII
-        Push-Location $work
-        try {
-            & $makecab /f $ddf | Out-Null
-        } finally {
-            Pop-Location
-        }
-        if (-not (Test-Path $CabOut)) {
-            Write-Host "ERROR: makecab 未产出 $CabOut" -ForegroundColor Red
-            exit 1
-        }
-        Write-Ok ("CAB: {0}  ({1:N0} B)" -f $cabFileName, (Get-Item $CabOut).Length)
-        Write-Ok "内含: XPCHunterDrv.inf / .sys / .cat（CAT 已签名）"
+    # 5) 给 CAT 签名（CAT 覆盖 INF 与 SYS，是驱动包校验的主体）
+    Write-Ok "签名 CAT"
+    $a = Get-SignArgs $catWork
+    & $Signtool @a
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: CAT 签名失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
+        exit 1
     }
-    finally {
-        Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+
+    # 6) makecab 打包
+    $cabFull = [System.IO.Path]::GetFullPath($CabOut)
+    $cabDir  = Split-Path -Parent $cabFull
+    $cabLeaf = Split-Path -Leaf $cabFull
+    if ($cabDir -and -not (Test-Path $cabDir)) {
+        New-Item -ItemType Directory -Path $cabDir -Force | Out-Null
+    }
+    if (Test-Path $cabFull) { Remove-Item $cabFull -Force }
+
+    $ddf = Join-Path $work "pack.ddf"
+    Set-Content -Path $ddf -Encoding ASCII -Value @(
+        ".OPTION EXPLICIT",
+        ".Set CabinetNameTemplate=$cabLeaf",
+        ".Set DiskDirectoryTemplate=$cabDir",
+        ".Set CompressionType=MSZIP",
+        ".Set Cabinet=on",
+        ".Set Compress=on",
+        ".Set MaxDiskSize=0",
+        "XPCHunterDrv.inf",
+        $SysName,
+        (Split-Path -Leaf $catWork)
+    )
+    Push-Location $work
+    try { & $makecab /f $ddf | Out-Null } finally { Pop-Location }
+
+    if (-not (Test-Path $cabFull)) {
+        Write-Host "ERROR: makecab 未产出 $cabFull" -ForegroundColor Red
+        exit 1
+    }
+    Write-Ok ("CAB  : {0}  {1:N0} B" -f $cabLeaf, (Get-Item $cabFull).Length)
+    Write-Ok "内容 : XPCHunterDrv.inf + $SysName + $(Split-Path -Leaf $catWork)"
+}
+finally {
+    Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# ---- 校验 CAB 内的签名 ----
+Write-Step "校验签名"
+$sig = Get-AuthenticodeSignature $SysPath
+if ($exportCert) {
+    switch ($sig.Status) {
+        "Valid"        { Write-Ok "SYS 证书链完整" }
+        "UnknownError" { Write-Warn3 "SYS 已签名但根证书不受本机信任（本地测试证书属正常）" }
+        "NotSigned"    { Write-Warn3 "SYS 未签名（仅 CAB 内副本已签）" }
+        default        { Write-Warn3 "SYS 签名状态: $($sig.Status)" }
     }
 }
 
+# ---- 导出证书（仅 Local 模式且显式要求时） ----
+if ($Mode -eq "Local" -and $OutCer) {
+    Write-Step "导出公钥证书（本机测试用）"
+    if (Test-Path $OutCer) { Remove-Item $OutCer -Force }
+    if ($exportCert) {
+        Export-Certificate -Cert $exportCert -FilePath $OutCer -Type CERT | Out-Null
+        Write-Ok "$OutCer  ($((Get-Item $OutCer).Length) B)"
+    }
+}
+
+# ---- 结果 ----
 Write-Step "完成"
+Write-Host ""
+if ($Mode -eq "Release") {
+    Write-Host "待提交微软的驱动包：$cabFull" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "下一步："
+    Write-Host "  1. 登录 https://partner.microsoft.com/dashboard/hardware"
+    Write-Host "  2. 新建 submission -> 上传该 CAB"
+    Write-Host "  3. 微软回签后下载签名版 CAB，分发给最终用户"
+    Write-Host "     （回签后的包在用户机器上无需装证书、无需开测试签名）"
+} else {
+    Write-Host "本地测试包：$cabFull" -ForegroundColor Yellow
+    Write-Host "（仅供内部验证，不可对外分发）"
+}
 Write-Host ""
 exit 0

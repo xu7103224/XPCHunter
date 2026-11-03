@@ -1,19 +1,28 @@
 @echo off
 REM ============================================================================
-REM publish_xpchsdk.bat - XpchSdk release packaging entry point
+REM publish_xpchsdk.bat - XpchSdk release packaging
 REM
 REM Product: XpchSdk (kernel capability SDK)
 REM
-REM Default: build driver + SDK + samples, then package into
-REM          <repo>\output\XpchSdk-<version>\
+REM Release mode (default) - produce a driver package for Microsoft signing:
+REM   publish\publish_xpchsdk.bat -PfxPath D:\ev.pfx -PfxPassword ***
+REM   -> output\XpchSdk-<ver>\submit\XPCHunterDrv.cab
+REM   Upload that CAB to the Microsoft Hardware Dev Center. After Microsoft
+REM   countersigns it, the returned CAB loads on end-user machines with no
+REM   certificate install and no test signing.
 REM
-REM Usage:
-REM   publish\publish_xpchsdk.bat                    build and pack into .\output\
-REM   publish\publish_xpchsdk.bat -Zip               also produce a .zip archive
-REM   publish\publish_xpchsdk.bat -NoBuild           skip build, pack existing artifacts
-REM   publish\publish_xpchsdk.bat -OutputDir D:\dist custom output root
-REM   publish\publish_xpchsdk.bat -Config Debug      use Debug configuration
-REM   publish\publish_xpchsdk.bat -IncludeProbe      include the dev probe executable
+REM Internal test mode - self-signed, for local VM/debug only:
+REM   publish\publish_xpchsdk.bat -TestSign
+REM   -> same layout, but signed with the local test cert
+REM   Target machine needs testsigning on or the exported cert installed.
+REM   Do NOT distribute this build.
+REM
+REM Common options:
+REM   -NoBuild               skip compile, pack existing artifacts
+REM   -Zip                   also produce a .zip
+REM   -OutputDir D:\dist     custom output root
+REM   -Config Debug          use Debug configuration
+REM   -NoSign                no signature at all (inspect contents only)
 REM
 REM Arguments are forwarded verbatim to pack_xpchsdk.ps1.
 REM ============================================================================
